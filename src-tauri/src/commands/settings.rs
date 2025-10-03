@@ -137,8 +137,14 @@ pub async fn get_agent_initial_command(agent_type: String) -> Result<String, Str
 }
 
 #[tauri::command]
-pub async fn set_agent_initial_command(agent_type: String, initial_command: String) -> Result<(), String> {
-    log::info!("Setting initial command for agent '{agent_type}': {} bytes", initial_command.len());
+pub async fn set_agent_initial_command(
+    agent_type: String,
+    initial_command: String,
+) -> Result<(), String> {
+    log::info!(
+        "Setting initial command for agent '{agent_type}': {} bytes",
+        initial_command.len()
+    );
 
     let settings_manager = SETTINGS_MANAGER.get().ok_or_else(|| {
         let error = "Settings manager not initialized".to_string();
@@ -149,7 +155,10 @@ pub async fn set_agent_initial_command(agent_type: String, initial_command: Stri
     let mut manager = settings_manager.lock().await;
     match manager.set_agent_initial_command(&agent_type, initial_command.clone()) {
         Ok(()) => {
-            log::info!("Successfully saved initial command for agent '{agent_type}': {} bytes", initial_command.len());
+            log::info!(
+                "Successfully saved initial command for agent '{agent_type}': {} bytes",
+                initial_command.len()
+            );
             Ok(())
         }
         Err(e) => {

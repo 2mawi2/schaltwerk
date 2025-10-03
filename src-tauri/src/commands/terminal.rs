@@ -3,6 +3,21 @@ use schaltwerk::domains::terminal::manager::CreateTerminalWithAppAndSizeParams;
 use schaltwerk::schaltwerk_core::db_project_config::ProjectConfigMethods;
 use serde::{Deserialize, Serialize};
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RegisterSessionTerminalsPayload {
+    project_id: String,
+    session_id: Option<String>,
+    terminal_ids: Vec<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionTerminalActionPayload {
+    project_id: String,
+    session_id: Option<String>,
+}
+
 #[tauri::command]
 pub async fn create_terminal(
     app: tauri::AppHandle,
@@ -164,10 +179,14 @@ pub async fn write_terminal(id: String, data: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn paste_and_submit_terminal(id: String, data: String, use_bracketed_paste: Option<bool>) -> Result<(), String> {
+pub async fn paste_and_submit_terminal(
+    id: String,
+    data: String,
+    use_bracketed_paste: Option<bool>,
+) -> Result<(), String> {
     let manager = get_terminal_manager().await?;
     manager
-        .paste_and_submit_terminal(id, data.into_bytes(), use_bracketed_paste.unwrap_or(true))
+        .paste_and_submit_terminal(id, data.into_bytes(), use_bracketed_paste.unwrap_or(false))
         .await
 }
 
@@ -244,17 +263,9 @@ pub async fn get_all_terminal_activity() -> Result<Vec<(String, u64)>, String> {
     Ok(manager.get_all_terminal_activity().await)
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TerminalSessionRegistration {
-    pub project_id: String,
-    pub session_id: Option<String>,
-    pub terminal_ids: Vec<String>,
-}
-
 #[tauri::command]
 pub async fn register_session_terminals(
-    payload: TerminalSessionRegistration,
+    payload: RegisterSessionTerminalsPayload,
 ) -> Result<(), String> {
     let manager = get_terminal_manager().await?;
     for id in &payload.terminal_ids {
@@ -267,22 +278,18 @@ pub async fn register_session_terminals(
 
 #[tauri::command]
 pub async fn suspend_session_terminals(
-    project_id: String,
-    session_id: Option<String>,
+    payload: SessionTerminalActionPayload,
 ) -> Result<(), String> {
     let manager = get_terminal_manager().await?;
     manager
-        .suspend_session_terminals(&project_id, session_id.as_deref())
+        .suspend_session_terminals(&payload.project_id, payload.session_id.as_deref())
         .await
 }
 
 #[tauri::command]
-pub async fn resume_session_terminals(
-    project_id: String,
-    session_id: Option<String>,
-) -> Result<(), String> {
+pub async fn resume_session_terminals(payload: SessionTerminalActionPayload) -> Result<(), String> {
     let manager = get_terminal_manager().await?;
     manager
-        .resume_session_terminals(&project_id, session_id.as_deref())
+        .resume_session_terminals(&payload.project_id, payload.session_id.as_deref())
         .await
 }

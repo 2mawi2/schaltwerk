@@ -123,7 +123,11 @@ impl SettingsManager {
         self.service.get_agent_initial_command(agent_type)
     }
 
-    pub fn set_agent_initial_command(&mut self, agent_type: &str, initial_command: String) -> Result<(), String> {
+    pub fn set_agent_initial_command(
+        &mut self,
+        agent_type: &str,
+        initial_command: String,
+    ) -> Result<(), String> {
         self.service
             .set_agent_initial_command(agent_type, initial_command)
             .map_err(|e| e.to_string())

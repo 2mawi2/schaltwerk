@@ -52,8 +52,11 @@ export async function startSessionTop(params: {
   markBackgroundStart(topId)
   try {
     const { cols, rows } = computeSpawnSize({ topId, measured, projectOrchestratorId })
+
+    const command = TauriCommands.SchaltwerkCoreStartSessionAgent
+
     await singleflight(topId, () =>
-      invoke(TauriCommands.SchaltwerkCoreStartClaude, { sessionName, cols, rows })
+      invoke(command, { sessionName, cols, rows })
     )
   } catch (e) {
     try {

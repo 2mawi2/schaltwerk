@@ -1,4 +1,4 @@
-use crate::domains::agents::parse_agent_command;
+use crate::domains::agents::{command_parser::normalize_cwd, parse_agent_command};
 
 #[test]
 fn test_parse_agent_command_claude_with_prompt() {
@@ -144,4 +144,22 @@ fn test_parse_agent_command_rejects_unsupported_agent() {
     let qwen_cmd = r#"cd /tmp/work && qwen --yolo"#;
     let qwen_result = parse_agent_command(qwen_cmd);
     assert!(qwen_result.is_err());
+}
+
+#[test]
+fn test_normalize_cwd_strips_double_quotes() {
+    let result = normalize_cwd("\"/path with spaces\"");
+    assert_eq!(result, "/path with spaces");
+}
+
+#[test]
+fn test_normalize_cwd_strips_single_quotes() {
+    let result = normalize_cwd("'/another path'");
+    assert_eq!(result, "/another path");
+}
+
+#[test]
+fn test_normalize_cwd_preserves_unquoted() {
+    let result = normalize_cwd("/simple/path");
+    assert_eq!(result, "/simple/path");
 }

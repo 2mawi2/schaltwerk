@@ -1502,10 +1502,7 @@ mod tests {
     #[test]
     fn accepts_orchestrator_terminals() {
         let id = "orchestrator-main-top";
-        assert_eq!(
-            session_id_from_terminal_id(id),
-            Some("main".to_string())
-        );
+        assert_eq!(session_id_from_terminal_id(id), Some("main".to_string()));
     }
 
     struct RecordingWriter {

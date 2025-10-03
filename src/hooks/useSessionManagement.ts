@@ -42,8 +42,11 @@ export function useSessionManagement(): SessionManagementHookReturn {
         await closeTerminalBackend(terminalId)
     }, [])
 
-    const restartClaudeInSession = useCallback(async (sessionName: string): Promise<void> => {
-        await invoke(TauriCommands.SchaltwerkCoreStartClaudeWithRestart, { sessionName, forceRestart: true })
+    const restartAgentInSession = useCallback(async (sessionName: string): Promise<void> => {
+        await invoke(TauriCommands.SchaltwerkCoreStartSessionAgentWithRestart, {
+            sessionName,
+            forceRestart: true,
+        })
     }, [])
 
     const waitForTerminalClosed = useCallback(async (terminalId: string): Promise<void> => {
@@ -120,9 +123,9 @@ export function useSessionManagement(): SessionManagementHookReturn {
             await closeTerminalIfExists(terminalId)
             await closedP
         }
-        await restartClaudeInSession(sessionName)
+        await restartAgentInSession(sessionName)
         await startedP
-    }, [closeTerminalIfExists, waitForTerminalClosed, restartClaudeInSession, waitForAgentStarted])
+    }, [closeTerminalIfExists, waitForTerminalClosed, restartAgentInSession, waitForAgentStarted])
 
     const resetSession = useCallback(async (
         selection: SessionSelection, 
@@ -204,7 +207,10 @@ export function useSessionManagement(): SessionManagementHookReturn {
     }, [])
 
     const startSessionWithNewModel = useCallback(async (sessionName: string): Promise<void> => {
-        await invoke(TauriCommands.SchaltwerkCoreStartClaudeWithRestart, { sessionName, forceRestart: true })
+        await invoke(TauriCommands.SchaltwerkCoreStartSessionAgentWithRestart, {
+            sessionName,
+            forceRestart: true,
+        })
     }, [])
 
     const restartWithNewModel = useCallback(async (

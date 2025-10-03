@@ -2314,7 +2314,9 @@ impl SessionManager {
         );
 
         let session_id = if resume_session {
-            registry.get(agent_type).and_then(|a| a.find_session(&self.repo_path))
+            registry
+                .get(agent_type)
+                .and_then(|a| a.find_session(&self.repo_path))
         } else {
             None
         };
@@ -3129,5 +3131,9 @@ impl SessionManager {
 
         let path = std::path::Path::new(rel_file_path);
         crate::domains::git::worktrees::discard_path_in_worktree(&session.worktree_path, path)
+    }
+
+    pub fn mark_session_prompted(&self, worktree_path: &std::path::Path) {
+        self.cache_manager.mark_session_prompted(worktree_path);
     }
 }
