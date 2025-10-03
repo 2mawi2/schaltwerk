@@ -1,5 +1,5 @@
 import { FaGithub } from 'react-icons/fa'
-import { VscRefresh, VscLinkExternal } from 'react-icons/vsc'
+import { VscRefresh } from 'react-icons/vsc'
 import { theme } from '../../common/theme'
 import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
 
@@ -71,14 +71,6 @@ export function GithubProjectIntegrationCard({ projectPath, onNotify }: GithubPr
     }
   }
 
-  const handleOpenDocs = () => {
-    try {
-      window.open('https://cli.github.com/manual/', '_blank', 'noopener,noreferrer')
-    } catch (error) {
-      onNotify(`Unable to open documentation: ${formatError(error)}`, 'error')
-    }
-  }
-
   return (
     <div
       className="p-4 rounded-lg border"
@@ -137,18 +129,6 @@ export function GithubProjectIntegrationCard({ projectPath, onNotify }: GithubPr
           >
             <VscRefresh className="text-[13px]" />
             <span>Refresh</span>
-          </button>
-          <button
-            onClick={handleOpenDocs}
-            className="px-3 py-2 text-xs font-medium rounded-md flex items-center gap-1 transition-colors"
-            style={{
-              backgroundColor: theme.colors.background.hover,
-              border: `1px solid ${theme.colors.border.subtle}`,
-              color: theme.colors.text.primary,
-            }}
-          >
-            <VscLinkExternal className="text-[13px]" />
-            <span>Docs</span>
           </button>
         </div>
       </div>
