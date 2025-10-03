@@ -81,6 +81,12 @@ impl IdleDetector {
             .map(|t| now.duration_since(t).as_millis() as u64)
             .unwrap_or(u64::MAX);
 
+        if self.idle_reported && bytes_elapsed < self.threshold_ms {
+            self.idle_reported = false;
+            self.last_visible_change_at = Some(now);
+            return Some(IdleTransition::BecameActive);
+        }
+
         let is_idle = bytes_elapsed >= self.threshold_ms && visible_elapsed >= self.threshold_ms;
 
         if is_idle && !self.idle_reported {
@@ -93,5 +99,39 @@ impl IdleDetector {
 
     pub fn needs_tick(&self) -> bool {
         self.dirty || !self.idle_reported
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{IdleDetector, IdleTransition};
+    use crate::domains::terminal::visible::VisibleScreen;
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn becomes_active_on_recent_bytes_even_without_tail_change() {
+        let threshold = 100u64;
+        let mut detector = IdleDetector::new(threshold, 1);
+        let mut screen = VisibleScreen::new(5, 40);
+
+        let baseline = Instant::now();
+        detector.observe_bytes(baseline, b"line1\nline2\nline3\nline4\nline5");
+        assert_eq!(detector.tick(baseline, &mut screen), None);
+
+        let idle_time = baseline + Duration::from_millis(threshold + 10);
+        assert_eq!(
+            detector.tick(idle_time, &mut screen),
+            Some(IdleTransition::BecameIdle)
+        );
+
+        let activity_time = idle_time + Duration::from_millis(threshold / 2);
+        detector.observe_bytes(activity_time, b"\x1b[2;1Hstreaming");
+
+        // `hash_tail_lines(1)` still returns "line5" because only row 2 changed, but
+        // we expect a BecameActive transition due to recent byte activity.
+        assert_eq!(
+            detector.tick(activity_time, &mut screen),
+            Some(IdleTransition::BecameActive)
+        );
     }
 }

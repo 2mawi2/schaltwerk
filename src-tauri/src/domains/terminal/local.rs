@@ -930,7 +930,13 @@ impl TerminalBackend for LocalPtyAdapter {
 }
 
 fn session_id_from_terminal_id(id: &str) -> Option<String> {
-    let mut rest = id.strip_prefix("session-")?;
+    let mut rest = if let Some(suffix) = id.strip_prefix("session-") {
+        suffix
+    } else if let Some(suffix) = id.strip_prefix("orchestrator-") {
+        suffix
+    } else {
+        return None;
+    };
 
     if let Some((prefix, maybe_index)) = rest.rsplit_once('-') {
         if maybe_index.chars().all(|c| c.is_ascii_digit()) {
@@ -1491,6 +1497,15 @@ mod tests {
     fn supports_bottom_terminals_with_indices() {
         let id = "session-top-nav-bottom-0";
         assert_eq!(session_id_from_terminal_id(id), Some("top-nav".to_string()));
+    }
+
+    #[test]
+    fn accepts_orchestrator_terminals() {
+        let id = "orchestrator-main-top";
+        assert_eq!(
+            session_id_from_terminal_id(id),
+            Some("main".to_string())
+        );
     }
 
     struct RecordingWriter {
