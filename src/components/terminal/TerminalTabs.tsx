@@ -1,4 +1,4 @@
-import { useRef, forwardRef, useImperativeHandle } from 'react'
+import { useRef, forwardRef, useImperativeHandle, memo } from 'react'
 import { Terminal, TerminalHandle } from './Terminal'
 import { useTerminalTabs } from '../../hooks/useTerminalTabs'
 import { UnifiedTab } from '../UnifiedTab'
@@ -40,7 +40,7 @@ export interface TabInfo {
   label: string
 }
 
-export const TerminalTabs = forwardRef<TerminalTabsHandle, TerminalTabsProps>(({
+const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(({
   baseTerminalId,
   workingDirectory,
   className = '',
@@ -227,5 +227,9 @@ export const TerminalTabs = forwardRef<TerminalTabsHandle, TerminalTabsProps>(({
     </div>
   )
 })
+
+TerminalTabsComponent.displayName = 'TerminalTabs';
+
+export const TerminalTabs = memo(TerminalTabsComponent)
 
 TerminalTabs.displayName = 'TerminalTabs'

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, memo } from 'react'
 import { SimpleDiffPanel } from '../diff/SimpleDiffPanel'
 import { useSelection } from '../../contexts/SelectionContext'
 import { useProject } from '../../contexts/ProjectContext'
@@ -22,7 +22,7 @@ interface RightPanelTabsProps {
   isDragging?: boolean
 }
 
-export function RightPanelTabs({ onFileSelect, selectionOverride, isSpecOverride, isDragging = false }: RightPanelTabsProps) {
+const RightPanelTabsComponent = ({ onFileSelect, selectionOverride, isSpecOverride, isDragging = false }: RightPanelTabsProps) => {
   const { selection, isSpec } = useSelection()
   const { projectPath } = useProject()
   const { setFocusForSession, currentFocus } = useFocus()
@@ -272,3 +272,7 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isSpecOverride
     </div>
   )
 }
+
+RightPanelTabsComponent.displayName = 'RightPanelTabs'
+
+export const RightPanelTabs = memo(RightPanelTabsComponent)
