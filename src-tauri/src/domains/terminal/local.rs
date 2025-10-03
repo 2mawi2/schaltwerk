@@ -28,6 +28,31 @@ struct TerminalState {
     session_id: Option<String>,
 }
 
+impl TerminalState {
+    fn cursor_position_response(&mut self, id: &str, count: usize) -> Option<Vec<u8>> {
+        if count == 0 {
+            return None;
+        }
+
+        self.idle_detector
+            .apply_pending_now(Instant::now(), &mut self.screen);
+
+        let (row_zero, col_zero) = self.screen.cursor_position();
+        let row = u32::from(row_zero.saturating_add(1));
+        let col = u32::from(col_zero.saturating_add(1));
+
+        let sequence = format!("\x1b[{row};{col}R");
+        let mut response = Vec::with_capacity(sequence.len() * count);
+        for _ in 0..count {
+            response.extend_from_slice(sequence.as_bytes());
+        }
+
+        debug!("Responding to {count} cursor position query(ies) for {id} at row {row}, col {col}");
+
+        Some(response)
+    }
+}
+
 pub struct LocalPtyAdapter {
     terminals: Arc<RwLock<HashMap<String, TerminalState>>>,
     creating: Arc<Mutex<HashSet<String>>>,
@@ -64,6 +89,8 @@ impl Default for LocalPtyAdapter {
 
 enum ControlSequenceAction {
     Respond(&'static [u8]),
+    RespondCursorPosition,
+    Drop,
     Pass,
 }
 
@@ -77,6 +104,8 @@ impl LocalPtyAdapter {
             b'n' => {
                 if params == b"5" && prefix.is_none() {
                     ControlSequenceAction::Respond(b"\x1b[0n")
+                } else if params == b"6" && (prefix.is_none() || prefix == Some(b'?')) {
+                    ControlSequenceAction::RespondCursorPosition
                 } else {
                     ControlSequenceAction::Pass
                 }
@@ -87,7 +116,7 @@ impl LocalPtyAdapter {
                 None => ControlSequenceAction::Respond(b"\x1b[?1;2c"),
                 _ => ControlSequenceAction::Pass,
             },
-            b'R' => ControlSequenceAction::Pass,
+            b'R' => ControlSequenceAction::Drop,
             _ => ControlSequenceAction::Pass,
         }
     }
@@ -96,8 +125,9 @@ impl LocalPtyAdapter {
         id: &str,
         data: &[u8],
         writers: &mut HashMap<String, Box<dyn Write + Send>>,
-    ) -> (Vec<u8>, Option<Vec<u8>>) {
+    ) -> (Vec<u8>, Option<Vec<u8>>, usize) {
         let mut result = Vec::with_capacity(data.len());
+        let mut cursor_queries = 0usize;
         let mut i = 0;
         while i < data.len() {
             if data[i] != 0x1b {
@@ -107,7 +137,7 @@ impl LocalPtyAdapter {
             }
 
             if i + 1 >= data.len() {
-                return (result, Some(data[i..].to_vec()));
+                return (result, Some(data[i..].to_vec()), cursor_queries);
             }
 
             let kind = data[i + 1];
@@ -133,7 +163,7 @@ impl LocalPtyAdapter {
             }
 
             if cursor >= data.len() {
-                return (result, Some(data[i..].to_vec()));
+                return (result, Some(data[i..].to_vec()), cursor_queries);
             }
 
             let terminator = data[cursor];
@@ -150,6 +180,23 @@ impl LocalPtyAdapter {
                     debug!("Handled terminal query {:?} for {}", &data[i..=cursor], id);
                     i = cursor + 1;
                 }
+                ControlSequenceAction::RespondCursorPosition => {
+                    cursor_queries = cursor_queries.saturating_add(1);
+                    debug!(
+                        "Captured cursor position query {:?} for {}",
+                        &data[i..=cursor],
+                        id
+                    );
+                    i = cursor + 1;
+                }
+                ControlSequenceAction::Drop => {
+                    debug!(
+                        "Dropped terminal handshake {:?} for {}",
+                        &data[i..=cursor],
+                        id
+                    );
+                    i = cursor + 1;
+                }
                 ControlSequenceAction::Pass => {
                     result.extend_from_slice(&data[i..=cursor]);
                     i = cursor + 1;
@@ -157,7 +204,7 @@ impl LocalPtyAdapter {
             }
         }
 
-        (result, None)
+        (result, None, cursor_queries)
     }
 
     pub fn new() -> Self {
@@ -388,7 +435,7 @@ impl LocalPtyAdapter {
                         }
 
                         let mut writers = runtime.block_on(reader_state.pty_writers.lock());
-                        let (sanitized, remainder) =
+                        let (sanitized, remainder, cursor_queries) =
                             Self::sanitize_control_sequences(&id, &data, &mut writers);
                         drop(writers);
 
@@ -399,11 +446,13 @@ impl LocalPtyAdapter {
                         }
                         drop(pending_guard);
 
-                        if sanitized.is_empty() {
+                        if sanitized.is_empty() && cursor_queries == 0 {
                             continue;
                         }
 
                         let sanitized_len = sanitized.len();
+                        let cursor_queries_count = cursor_queries;
+                        let sanitized_data = sanitized;
 
                         let id_clone = id.clone();
                         let terminals_clone = Arc::clone(&reader_state.terminals);
@@ -412,56 +461,77 @@ impl LocalPtyAdapter {
                         let output_event_sender_clone =
                             Arc::clone(&reader_state.output_event_sender);
 
-                        runtime.block_on(async move {
+                        let cursor_response = runtime.block_on(async move {
                             let mut terminals = terminals_clone.write().await;
                             if let Some(state) = terminals.get_mut(&id_clone) {
-                                // Append to ring buffer
-                                state.buffer.extend_from_slice(&sanitized);
-                                // Select buffer limit based on terminal type
-                                let max_size = if Self::is_agent_terminal(&id_clone) {
-                                    AGENT_MAX_BUFFER_SIZE
+                                if sanitized_len > 0 {
+                                    state.buffer.extend_from_slice(&sanitized_data);
+
+                                    let max_size = if Self::is_agent_terminal(&id_clone) {
+                                        AGENT_MAX_BUFFER_SIZE
+                                    } else {
+                                        DEFAULT_MAX_BUFFER_SIZE
+                                    };
+
+                                    state.seq = state.seq.saturating_add(sanitized_len as u64);
+                                    state.last_output = SystemTime::now();
+
+                                    let now = Instant::now();
+                                    state.idle_detector.observe_bytes(now, &sanitized_data);
+
+                                    if state.buffer.len() > max_size {
+                                        let excess = state.buffer.len() - max_size;
+                                        state.buffer.drain(0..excess);
+                                        state.start_seq =
+                                            state.start_seq.saturating_add(excess as u64);
+                                    }
+
+                                    let new_seq = state.seq;
+                                    let response = state
+                                        .cursor_position_response(&id_clone, cursor_queries_count);
+
+                                    drop(terminals);
+
+                                    let _ =
+                                        output_event_sender_clone.send((id_clone.clone(), new_seq));
+
+                                    if suspended_clone.read().await.contains(&id_clone) {
+                                        return response;
+                                    }
+
+                                    handle_coalesced_output(
+                                        &coalescing_state_clone,
+                                        CoalescingParams {
+                                            terminal_id: &id_clone,
+                                            data: &sanitized_data,
+                                        },
+                                    )
+                                    .await;
+
+                                    response
                                 } else {
-                                    DEFAULT_MAX_BUFFER_SIZE
-                                };
-
-                                // Increment sequence and update last output time
-                                state.seq = state.seq.saturating_add(sanitized_len as u64);
-                                state.last_output = SystemTime::now();
-
-                                // Observe bytes for idle detection
-                                let now = Instant::now();
-                                state.idle_detector.observe_bytes(now, &sanitized);
-
-                                // Trim buffer if needed and update start_seq accordingly
-                                if state.buffer.len() > max_size {
-                                    let excess = state.buffer.len() - max_size;
-                                    state.buffer.drain(0..excess);
-                                    state.start_seq = state.start_seq.saturating_add(excess as u64);
+                                    let response = state
+                                        .cursor_position_response(&id_clone, cursor_queries_count);
+                                    drop(terminals);
+                                    response
                                 }
-
-                                let new_seq = state.seq;
-
-                                // Handle output emission - different strategies for agent vs standard terminals
-                                drop(terminals); // release lock before awaits below
-
-                                // Emit deterministic event for test synchronization
-                                let _ = output_event_sender_clone.send((id_clone.clone(), new_seq));
-
-                                if suspended_clone.read().await.contains(&id_clone) {
-                                    return;
-                                }
-
-                                // All terminals now use UTF-8 stream for consistent malformed byte handling
-                                handle_coalesced_output(
-                                    &coalescing_state_clone,
-                                    CoalescingParams {
-                                        terminal_id: &id_clone,
-                                        data: &sanitized,
-                                    },
-                                )
-                                .await;
+                            } else {
+                                None
                             }
                         });
+
+                        if let Some(response) = cursor_response {
+                            if !response.is_empty() {
+                                let mut writers = runtime.block_on(reader_state.pty_writers.lock());
+                                if let Some(writer) = writers.get_mut(&id) {
+                                    if let Err(e) = writer.write_all(&response) {
+                                        warn!("Failed to write cursor response for {id}: {e}");
+                                    } else if let Err(e) = writer.flush() {
+                                        warn!("Failed to flush cursor response for {id}: {e}");
+                                    }
+                                }
+                            }
+                        }
                     }
                     Err(e) => {
                         if e.kind() != std::io::ErrorKind::WouldBlock {
@@ -1472,7 +1542,7 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex};
-    use std::time::{Duration, SystemTime};
+    use std::time::{Duration, Instant, SystemTime};
     use tempfile::TempDir;
     use tokio::time::sleep;
 
@@ -1604,11 +1674,12 @@ mod tests {
         let mut writers: HashMap<String, Box<dyn Write + Send>> = HashMap::new();
         writers.insert(id.clone(), Box::new(writer));
 
-        let (sanitized, remainder) =
+        let (sanitized, remainder, cursor_queries) =
             LocalPtyAdapter::sanitize_control_sequences(&id, b"pre\x1b[6npost", &mut writers);
 
-        assert_eq!(sanitized, b"pre\x1b[6npost");
+        assert_eq!(sanitized, b"prepost");
         assert!(remainder.is_none());
+        assert_eq!(cursor_queries, 1);
 
         let buf = capture.lock().unwrap().clone();
         assert!(buf.is_empty());
@@ -1622,14 +1693,40 @@ mod tests {
         let mut writers: HashMap<String, Box<dyn Write + Send>> = HashMap::new();
         writers.insert(id.clone(), Box::new(writer));
 
-        let (sanitized, remainder) =
+        let (sanitized, remainder, cursor_queries) =
             LocalPtyAdapter::sanitize_control_sequences(&id, b"pre\x1b[?1;2cpost", &mut writers);
 
         assert_eq!(sanitized, b"prepost");
         assert!(remainder.is_none());
+        assert_eq!(cursor_queries, 0);
 
         let buf = capture.lock().unwrap().clone();
         assert_eq!(buf, b"\x1b[?1;2c".to_vec());
+    }
+
+    #[test]
+    fn cursor_position_response_uses_screen_state() {
+        let mut state = TerminalState {
+            buffer: Vec::new(),
+            seq: 0,
+            start_seq: 0,
+            last_output: SystemTime::now(),
+            screen: VisibleScreen::new(6, 40),
+            idle_detector: IdleDetector::new(IDLE_THRESHOLD_MS, IDLE_WINDOW_LINES),
+            session_id: None,
+        };
+
+        let now = Instant::now();
+        state.idle_detector.observe_bytes(now, b"\x1b[4;12H");
+
+        let response = state
+            .cursor_position_response("cursor-position-test", 2)
+            .expect("expected cursor response");
+
+        assert_eq!(response, b"\x1b[4;12R\x1b[4;12R");
+        assert!(state
+            .cursor_position_response("cursor-position-test", 0)
+            .is_none());
     }
 
     #[test]
@@ -1637,11 +1734,12 @@ mod tests {
         let id = "sanitize-partial".to_string();
         let mut writers: HashMap<String, Box<dyn Write + Send>> = HashMap::new();
 
-        let (sanitized, remainder) =
+        let (sanitized, remainder, cursor_queries) =
             LocalPtyAdapter::sanitize_control_sequences(&id, b"\x1b[", &mut writers);
 
         assert!(sanitized.is_empty());
         assert_eq!(remainder.unwrap(), b"\x1b[".to_vec());
+        assert_eq!(cursor_queries, 0);
     }
 
     async fn safe_close(adapter: &LocalPtyAdapter, id: &str) {
