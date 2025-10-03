@@ -244,7 +244,8 @@ pub fn build_claude_command_with_config(
         "claude"
     };
     let binary_invocation = format_binary_invocation(binary_name);
-    let mut cmd = format!("cd {} && {}", worktree_path.display(), binary_invocation);
+    let cwd_quoted = format_binary_invocation(&worktree_path.display().to_string());
+    let mut cmd = format!("cd {cwd_quoted} && {binary_invocation}");
 
     if skip_permissions {
         cmd.push_str(" --dangerously-skip-permissions");
@@ -341,6 +342,21 @@ mod tests {
             cmd,
             r#"cd /path/to/worktree && "/Applications/Claude Latest/bin/claude""#
         );
+    }
+
+    #[test]
+    fn test_command_with_spaces_in_cwd() {
+        let config = ClaudeConfig {
+            binary_path: Some("claude".to_string()),
+        };
+        let cmd = build_claude_command_with_config(
+            Path::new("/path/with spaces"),
+            None,
+            None,
+            false,
+            Some(&config),
+        );
+        assert!(cmd.starts_with(r#"cd "/path/with spaces" && "#));
     }
 
     #[test]

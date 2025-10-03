@@ -1,4 +1,5 @@
 use super::manifest::AgentManifest;
+use std::path::Path;
 
 pub(crate) fn normalize_cwd(raw: &str) -> String {
     let trimmed = raw.trim();
@@ -37,7 +38,7 @@ pub fn parse_agent_command(command: &str) -> Result<(String, String, Vec<String>
 
     // Parse agent command and arguments
     let agent_part = parts[1];
-    let mut tokens = shell_words::split(agent_part)
+    let tokens = shell_words::split(agent_part)
         .map_err(|e| format!("Failed to parse agent command '{agent_part}': {e}"))?;
 
     if tokens.is_empty() {
@@ -47,11 +48,27 @@ pub fn parse_agent_command(command: &str) -> Result<(String, String, Vec<String>
     }
 
     let mut iter = tokens.into_iter();
-    let agent_token = iter.next().unwrap();
+    let mut agent_token = iter.next().unwrap();
+
+    let first_segment = extract_first_segment(agent_part);
+    if first_segment.contains('\\') && !agent_token.contains('\\') {
+        agent_token = first_segment;
+    }
     let supported_agents = AgentManifest::supported_agents();
+    let normalized_token = agent_token.replace('\\', "/");
+    let fname = Path::new(&normalized_token)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("");
+
+    let stem = Path::new(fname)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or(fname);
+
     let is_supported = supported_agents
         .iter()
-        .any(|agent| agent_token == *agent || agent_token.ends_with(&format!("/{agent}")));
+        .any(|agent| stem == *agent || agent_token == *agent);
 
     if !is_supported {
         let agent_list = supported_agents.join(", ");
@@ -63,4 +80,36 @@ pub fn parse_agent_command(command: &str) -> Result<(String, String, Vec<String>
     let args: Vec<String> = iter.collect();
 
     Ok((cwd, agent_token, args))
+}
+
+fn extract_first_segment(agent_part: &str) -> String {
+    let trimmed = agent_part.trim_start();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+
+    let mut chars = trimmed.char_indices().peekable();
+    if matches!(chars.peek(), Some((_, '"' | '\''))) {
+        let quote = chars.next().map(|(_, ch)| ch).unwrap();
+        let mut segment = String::new();
+        let mut escape = false;
+        for (_, ch) in chars.by_ref() {
+            if escape {
+                segment.push(ch);
+                escape = false;
+                continue;
+            }
+            match ch {
+                '\\' => escape = true,
+                c if c == quote => break,
+                _ => segment.push(ch),
+            }
+        }
+        return segment;
+    }
+
+    let end = trimmed
+        .find(char::is_whitespace)
+        .unwrap_or(trimmed.len());
+    trimmed[..end].to_string()
 }

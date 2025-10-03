@@ -36,11 +36,8 @@ impl AgentAdapter for DefaultAdapter {
             .unwrap_or(ctx.manifest.default_binary_path.as_str());
 
         let binary_invocation = format_binary_invocation(binary);
-        let mut command = format!(
-            "cd {} && {}",
-            ctx.worktree_path.display(),
-            binary_invocation
-        );
+        let cwd_quoted = format_binary_invocation(&ctx.worktree_path.display().to_string());
+        let mut command = format!("cd {cwd_quoted} && {binary_invocation}");
 
         if ctx.skip_permissions {
             command.push_str(" -d");

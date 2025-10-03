@@ -568,7 +568,8 @@ pub fn build_codex_command_with_config(
 
     // Build command with proper argument order: codex [OPTIONS] [PROMPT]
     let binary_invocation = format_binary_invocation(binary_name);
-    let mut cmd = format!("cd {} && {}", worktree_path.display(), binary_invocation);
+    let cwd_quoted = format_binary_invocation(&worktree_path.display().to_string());
+    let mut cmd = format!("cd {cwd_quoted} && {binary_invocation}");
 
     // Add sandbox mode first (this is an option)
     cmd.push_str(&format!(" --sandbox {sandbox_mode}"));
@@ -658,6 +659,21 @@ mod tests {
             cmd,
             r#"cd /path/to/worktree && codex --sandbox workspace-write "implement feature X""#
         );
+    }
+
+    #[test]
+    fn test_command_with_spaces_in_cwd() {
+        let config = CodexConfig {
+            binary_path: Some("codex".to_string()),
+        };
+        let cmd = build_codex_command_with_config(
+            Path::new("/path/with spaces"),
+            None,
+            None,
+            "workspace-write",
+            Some(&config),
+        );
+        assert!(cmd.starts_with(r#"cd "/path/with spaces" && "#));
     }
 
     #[test]

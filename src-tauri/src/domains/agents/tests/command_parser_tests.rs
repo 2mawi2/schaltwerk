@@ -162,6 +162,15 @@ fn test_parse_agent_command_rejects_unsupported_agent() {
 }
 
 #[test]
+fn test_parse_agent_command_cwd_with_spaces() {
+    let cmd = r#"cd "/path/with spaces" && claude --version"#;
+    let (cwd, agent, args) = parse_agent_command(cmd).unwrap();
+    assert_eq!(cwd, "/path/with spaces");
+    assert_eq!(agent, "claude");
+    assert_eq!(args, vec!["--version"]);
+}
+
+#[test]
 fn test_normalize_cwd_strips_double_quotes() {
     let result = normalize_cwd("\"/path with spaces\"");
     assert_eq!(result, "/path with spaces");
