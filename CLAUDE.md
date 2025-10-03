@@ -116,6 +116,10 @@ Sessions are stored in SQLite at `~/Library/Application Support/schaltwerk/{proj
 - Spec content (markdown planning docs)
 - Git stats (files changed, lines added/removed)
 
+### Configuration Storage
+- Application-wide settings (tutorial completion, agent binaries, terminal preferences, etc.) live in `~/Library/Application Support/<bundle-id>/settings.json` (default bundle id `com.mariuswichtner.schaltwerk`).
+- Project-scoped data (sessions, specs, git stats, project config) live in the per-project SQLite at `~/Library/Application Support/schaltwerk/projects/{project-name_hash}/sessions.db`.
+
 ### Terminal Management
 - **Creation**: Lazy - only when session is selected in UI
 - **Persistence**: Terminals stay alive until explicitly closed
