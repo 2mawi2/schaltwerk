@@ -47,6 +47,29 @@ impl IdleDetector {
         None
     }
 
+    pub fn apply_pending_now(&mut self, now: Instant, screen: &mut VisibleScreen) {
+        if self.pending_bytes.is_empty() && !self.dirty {
+            return;
+        }
+
+        if !self.pending_bytes.is_empty() {
+            screen.feed_bytes(&self.pending_bytes);
+            self.pending_bytes.clear();
+        }
+
+        self.dirty = false;
+
+        let mut hasher = DefaultHasher::new();
+        screen.hash_tail_lines(self.window_lines).hash(&mut hasher);
+        let current_hash = hasher.finish();
+        if current_hash != self.last_hash {
+            self.last_visible_change_at = Some(now);
+        }
+        self.last_hash = current_hash;
+
+        self.idle_reported = false;
+    }
+
     pub fn tick(&mut self, now: Instant, screen: &mut VisibleScreen) -> Option<IdleTransition> {
         if self.dirty {
             if !self.pending_bytes.is_empty() {
