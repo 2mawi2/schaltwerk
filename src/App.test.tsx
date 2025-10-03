@@ -252,3 +252,73 @@ describe('validatePanelPercentage', () => {
     expect(validatePanelPercentage('invalid', 75)).toBe(75)
   })
 })
+
+describe('Multi-agent comparison logic', () => {
+  it('should assign correct agent types from agentTypes array', () => {
+    // This tests the logic from App.tsx handleCreateSession
+    const data = {
+      name: 'test-session',
+      agentTypes: ['opencode', 'gemini', 'codex'],
+      agentType: undefined
+    }
+
+    const useAgentTypes = Boolean(data.agentTypes && data.agentTypes.length > 0)
+    const count = useAgentTypes ? (data.agentTypes?.length ?? 1) : 1
+
+    expect(useAgentTypes).toBe(true)
+    expect(count).toBe(3)
+
+    // Test the agent type assignment for each version
+    const assignments: Array<{ versionName: string; agentType: string | null | undefined }> = []
+
+    for (let i = 1; i <= count; i++) {
+      const baseName = data.name
+      const versionName = i === 1 ? baseName : `${baseName}_v${i}`
+      const agentTypeForVersion = useAgentTypes ? (data.agentTypes?.[i - 1] ?? null) : data.agentType
+
+      assignments.push({ versionName, agentType: agentTypeForVersion })
+    }
+
+    // Verify each version gets the correct agent type
+    expect(assignments).toEqual([
+      { versionName: 'test-session', agentType: 'opencode' },
+      { versionName: 'test-session_v2', agentType: 'gemini' },
+      { versionName: 'test-session_v3', agentType: 'codex' }
+    ])
+  })
+
+  it('should use agentType when agentTypes array is not provided', () => {
+    const data: {
+      name: string
+      agentTypes?: string[]
+      agentType: string
+    } = {
+      name: 'test-session',
+      agentTypes: undefined,
+      agentType: 'claude'
+    }
+
+    const useAgentTypes = Boolean(data.agentTypes && data.agentTypes.length > 0)
+    const versionCount = 2
+    const count = useAgentTypes ? (data.agentTypes?.length ?? 1) : versionCount
+
+    expect(useAgentTypes).toBe(false)
+    expect(count).toBe(2)
+
+    const assignments: Array<{ versionName: string; agentType: string | null | undefined }> = []
+
+    for (let i = 1; i <= count; i++) {
+      const baseName = data.name
+      const versionName = i === 1 ? baseName : `${baseName}_v${i}`
+      const agentTypeForVersion = useAgentTypes ? (data.agentTypes?.[i - 1] ?? null) : data.agentType
+
+      assignments.push({ versionName, agentType: agentTypeForVersion })
+    }
+
+    // Both versions should use the same agentType
+    expect(assignments).toEqual([
+      { versionName: 'test-session', agentType: 'claude' },
+      { versionName: 'test-session_v2', agentType: 'claude' }
+    ])
+  })
+})

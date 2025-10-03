@@ -439,7 +439,7 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                                             .paste_and_submit_terminal(
                                                 terminal_id.clone(),
                                                 message.as_bytes().to_vec(),
-                                                true,
+                                                false,
                                             )
                                             .await
                                         {
@@ -722,6 +722,8 @@ fn main() {
             schaltwerk_core_start_claude,
             schaltwerk_core_start_claude_with_restart,
             schaltwerk_core_start_claude_orchestrator,
+            schaltwerk_core_start_session_agent,
+            schaltwerk_core_start_session_agent_with_restart,
             schaltwerk_core_start_fresh_orchestrator,
             schaltwerk_core_reset_orchestrator,
             schaltwerk_core_reset_session_worktree,

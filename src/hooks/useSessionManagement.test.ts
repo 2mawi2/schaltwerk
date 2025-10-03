@@ -91,7 +91,7 @@ describe('useSessionManagement', () => {
             expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.CloseTerminal, {
                 id: 'test-terminal-top'
             })
-            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartClaudeWithRestart, {
+            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartSessionAgentWithRestart, {
                 sessionName: 'test-session',
                 forceRestart: true
             })
@@ -124,7 +124,7 @@ describe('useSessionManagement', () => {
             })
 
             expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.CloseTerminal, expect.any(Object))
-            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartClaudeWithRestart, {
+            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartSessionAgentWithRestart, {
                 sessionName: 'test-session',
                 forceRestart: true
             })
@@ -271,7 +271,7 @@ describe('useSessionManagement', () => {
                 sessionName: 'test-session',
                 agentType: 'opencode'
             })
-            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartClaudeWithRestart, {
+            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartSessionAgentWithRestart, {
                 sessionName: 'test-session',
                 forceRestart: true
             })
@@ -391,7 +391,7 @@ describe('useSessionManagement', () => {
                 // Should not call any commands when payload is null
                 expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreResetOrchestrator, expect.any(Object))
                 expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.TerminalExists, expect.any(Object))
-                expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartClaude, expect.any(Object))
+                expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartSessionAgent, expect.any(Object))
                 // Should still dispatch reset event and wait
                 expect(dispatchSpy).toHaveBeenCalledWith(
                     expect.objectContaining({
@@ -416,7 +416,7 @@ describe('useSessionManagement', () => {
                 // Should not call any commands when payload is undefined
                 expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreResetOrchestrator, expect.any(Object))
                 expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.TerminalExists, expect.any(Object))
-                expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartClaude, expect.any(Object))
+                expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartSessionAgent, expect.any(Object))
                 // Should still dispatch reset event and wait
                 expect(dispatchSpy).toHaveBeenCalledWith(
                     expect.objectContaining({
@@ -441,7 +441,7 @@ describe('useSessionManagement', () => {
                 // Should not perform any reset operations for invalid kind
                 expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreResetOrchestrator, expect.any(Object))
                 expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.TerminalExists, expect.any(Object))
-                expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartClaude, expect.any(Object))
+                expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartSessionAgent, expect.any(Object))
                 // Should still dispatch reset event and wait
                 expect(dispatchSpy).toHaveBeenCalledWith(
                     expect.objectContaining({

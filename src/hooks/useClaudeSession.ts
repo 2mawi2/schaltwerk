@@ -13,12 +13,14 @@ export function useClaudeSession() {
     const startClaude = useCallback(async (options: ClaudeSessionOptions = {}) => {
         try {
             if (options.isCommander) {
-                await invoke(TauriCommands.SchaltwerkCoreStartClaudeOrchestrator, { 
-                    terminalId: options.terminalId || 'orchestrator-default-top' 
+                await invoke(TauriCommands.SchaltwerkCoreStartClaudeOrchestrator, {
+                    terminalId: options.terminalId || 'orchestrator-default-top',
                 })
                 return { success: true }
             } else if (options.sessionName) {
-                await invoke(TauriCommands.SchaltwerkCoreStartClaude, { sessionName: options.sessionName })
+                await invoke(TauriCommands.SchaltwerkCoreStartSessionAgent, {
+                    sessionName: options.sessionName,
+                })
                 return { success: true }
             } else {
                 logger.error('[useClaudeSession] Invalid Claude session options: must specify either isCommander or sessionName')

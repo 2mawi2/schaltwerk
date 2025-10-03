@@ -112,6 +112,8 @@ export const TauriCommands = {
   SchaltwerkCoreStartClaude: 'schaltwerk_core_start_claude',
   SchaltwerkCoreStartClaudeOrchestrator: 'schaltwerk_core_start_claude_orchestrator',
   SchaltwerkCoreStartClaudeWithRestart: 'schaltwerk_core_start_claude_with_restart',
+  SchaltwerkCoreStartSessionAgent: 'schaltwerk_core_start_session_agent',
+  SchaltwerkCoreStartSessionAgentWithRestart: 'schaltwerk_core_start_session_agent_with_restart',
   SchaltwerkCoreStartSpecSession: 'schaltwerk_core_start_spec_session',
   SchaltwerkCoreUnmarkReady: 'schaltwerk_core_unmark_ready',
   SchaltwerkCoreUnmarkSessionReady: 'schaltwerk_core_unmark_session_ready',

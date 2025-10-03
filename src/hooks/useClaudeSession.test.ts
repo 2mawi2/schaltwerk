@@ -28,7 +28,7 @@ describe('useClaudeSession', () => {
     mockInvoke.mockResolvedValueOnce(undefined)
     const { result } = renderHook(() => useClaudeSession())
     await act(async () => result.current.startClaude({ sessionName: 's1' }))
-    expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartClaude, { sessionName: 's1' })
+    expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartSessionAgent, { sessionName: 's1' })
   })
 
   it('returns failure when options are invalid', async () => {

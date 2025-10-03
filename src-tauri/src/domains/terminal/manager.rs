@@ -393,7 +393,12 @@ impl TerminalManager {
         self.backend.write_immediate(&id, &data).await
     }
 
-    pub async fn paste_and_submit_terminal(&self, id: String, data: Vec<u8>, use_bracketed_paste: bool) -> Result<(), String> {
+    pub async fn paste_and_submit_terminal(
+        &self,
+        id: String,
+        data: Vec<u8>,
+        use_bracketed_paste: bool,
+    ) -> Result<(), String> {
         let mut buf = Vec::with_capacity(data.len() + 20);
 
         if use_bracketed_paste {
@@ -412,7 +417,8 @@ impl TerminalManager {
 
         if let Some(app_handle) = self.app_handle.read().await.as_ref() {
             let event_payload = serde_json::json!({ "terminal_id": id });
-            if let Err(e) = emit_event(app_handle, SchaltEvent::TerminalForceScroll, &event_payload) {
+            if let Err(e) = emit_event(app_handle, SchaltEvent::TerminalForceScroll, &event_payload)
+            {
                 warn!("Failed to emit terminal force scroll event for {id}: {e}");
             }
         }

@@ -7,13 +7,14 @@ import { useSettings, AgentType, ProjectMergePreferences } from '../../hooks/use
 import { useSessions } from '../../contexts/SessionsContext'
 import { useActionButtons } from '../../contexts/ActionButtonsContext'
 import type { HeaderActionConfig } from '../ActionButton'
-// macOS-native smart dash/quote substitution is disabled at app startup.
 import { SpecContentModal } from '../SpecContentModal'
 import { MCPConfigPanel } from '../settings/MCPConfigPanel'
 import { SettingsArchivesSection } from '../settings/SettingsArchivesSection'
 import { logger } from '../../utils/logger'
 import { FontPicker } from './FontPicker'
 import { GithubProjectIntegrationCard } from '../settings/GithubProjectIntegrationCard'
+import { AGENT_TYPES, createAgentRecord } from '../../types/session'
+import { displayNameForAgent } from '../shared/agentDefaults'
 import {
     KeyboardShortcutAction,
     KeyboardShortcutConfig,
@@ -249,24 +250,20 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         workingDirectory: '',
         environmentVariables: {}
     })
-    const [envVars, setEnvVars] = useState<Record<AgentType, Array<{key: string, value: string}>>>({
-        claude: [],
-        opencode: [],
-        gemini: [],
-        codex: []
-    })
-    const [cliArgs, setCliArgs] = useState<Record<AgentType, string>>({
-        claude: '',
-        opencode: '',
-        gemini: '',
-        codex: ''
-    })
-    const [binaryConfigs, setBinaryConfigs] = useState<Record<AgentType, AgentBinaryConfig>>({
-        claude: { agent_name: 'claude', custom_path: null, auto_detect: true, detected_binaries: [] },
-        opencode: { agent_name: 'opencode', custom_path: null, auto_detect: true, detected_binaries: [] },
-        gemini: { agent_name: 'gemini', custom_path: null, auto_detect: true, detected_binaries: [] },
-        codex: { agent_name: 'codex', custom_path: null, auto_detect: true, detected_binaries: [] }
-    })
+    const [envVars, setEnvVars] = useState<Record<AgentType, Array<{key: string, value: string}>>>(() =>
+        createAgentRecord(_agent => [])
+    )
+    const [cliArgs, setCliArgs] = useState<Record<AgentType, string>>(() =>
+        createAgentRecord(_agent => '')
+    )
+    const [binaryConfigs, setBinaryConfigs] = useState<Record<AgentType, AgentBinaryConfig>>(() =>
+        createAgentRecord((agent) => ({
+            agent_name: agent,
+            custom_path: null,
+            auto_detect: true,
+            detected_binaries: [],
+        }))
+    )
     const [notification, setNotification] = useState<NotificationState>({
         message: '',
         type: 'info',
@@ -275,13 +272,6 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
     const [appVersion, setAppVersion] = useState<string>('')
 
     const [selectedSpec, setSelectedSpec] = useState<{ name: string; content: string } | null>(null)
-
-    const displayNameForAgent = useCallback((agent: AgentType) => {
-        if (agent === 'opencode') return 'OpenCode'
-        if (agent === 'codex') return 'Codex'
-        if (agent === 'gemini') return 'Gemini'
-        return 'Claude'
-    }, [])
 
     const {
         loading,
@@ -377,13 +367,13 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
             logger.info('Loading binary configurations...')
             const configs = await invoke<AgentBinaryConfig[]>(TauriCommands.GetAllAgentBinaryConfigs)
             logger.info('Received binary configurations:', configs)
-            
-            const configMap: Record<AgentType, AgentBinaryConfig> = {
-                claude: { agent_name: 'claude', custom_path: null, auto_detect: true, detected_binaries: [] },
-                opencode: { agent_name: 'opencode', custom_path: null, auto_detect: true, detected_binaries: [] },
-                gemini: { agent_name: 'gemini', custom_path: null, auto_detect: true, detected_binaries: [] },
-                codex: { agent_name: 'codex', custom_path: null, auto_detect: true, detected_binaries: [] }
-            }
+
+            const configMap: Record<AgentType, AgentBinaryConfig> = createAgentRecord((agent) => ({
+                agent_name: agent,
+                custom_path: null,
+                auto_detect: true,
+                detected_binaries: [],
+            }))
 
             for (const config of configs) {
                 const agent = config.agent_name as AgentType
@@ -752,7 +742,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         <div className="flex flex-col h-full">
             <div className="border-b border-slate-800">
                 <div className="flex">
-                    {(['claude', 'opencode', 'gemini', 'codex'] as AgentType[]).map(agent => (
+                    {AGENT_TYPES.map(agent => (
                         <button
                             key={agent}
                             onClick={() => setActiveAgentTab(agent)}
@@ -1065,6 +1055,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                             </div>
                         </div>
                     )}
+
                 </div>
             </div>
         </div>

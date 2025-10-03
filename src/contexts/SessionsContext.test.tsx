@@ -1037,13 +1037,13 @@ describe('SessionsContext', () => {
         expect(result.current.sessions[0]?.info.created_at).toBe(createdAt)
     })
 
-    it('auto-starts new sessions with SchaltwerkCoreStartClaude', async () => {
+    it('auto-starts new sessions with SchaltwerkCoreStartSessionAgent', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
         vi.mocked(invoke).mockImplementation(async (cmd: string, _args?: unknown) => {
             if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
             if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
             if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
-            if (cmd === TauriCommands.SchaltwerkCoreStartClaude) return 'started'
+            if (cmd === TauriCommands.SchaltwerkCoreStartSessionAgent) return 'started'
             if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
             return undefined
         })
@@ -1080,7 +1080,7 @@ describe('SessionsContext', () => {
 
         await waitFor(() => {
             expect(invoke).toHaveBeenCalledWith(
-                TauriCommands.SchaltwerkCoreStartClaude,
+                TauriCommands.SchaltwerkCoreStartSessionAgent,
                 expect.objectContaining({ sessionName: 'bg-new' })
             )
         })
@@ -1092,7 +1092,7 @@ describe('SessionsContext', () => {
             if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
             if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
             if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
-            if (cmd === TauriCommands.SchaltwerkCoreStartClaude) return 'started'
+            if (cmd === TauriCommands.SchaltwerkCoreStartSessionAgent) return 'started'
             if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
             return undefined
         })
@@ -1138,7 +1138,7 @@ describe('SessionsContext', () => {
         // Because the mark existed, SessionsContext must NOT invoke StartClaude for this session.
         // We assert that no call was made with sessionName === 'bg-marked'
         const calls = vi.mocked(invoke).mock.calls.filter(
-          ([cmd, args]) => cmd === TauriCommands.SchaltwerkCoreStartClaude && (args as { sessionName?: string })?.sessionName === sessionName
+          ([cmd, args]) => cmd === TauriCommands.SchaltwerkCoreStartSessionAgent && (args as { sessionName?: string })?.sessionName === sessionName
         )
         expect(calls.length).toBe(0)
     })

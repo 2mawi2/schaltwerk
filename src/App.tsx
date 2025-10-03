@@ -40,12 +40,12 @@ import {
   SessionActionDetail,
   StartAgentFromSpecDetail,
 } from './common/uiEvents'
-import { startSessionTop, computeProjectOrchestratorId } from './common/agentSpawn'
 import { logger } from './utils/logger'
 import { installSmartDashGuards } from './utils/normalizeCliText'
 import { useKeyboardShortcutsConfig } from './contexts/KeyboardShortcutsContext'
 import { detectPlatformSafe, isShortcutForAction } from './keyboardShortcuts/helpers'
 import { useSelectionPreserver } from './hooks/useSelectionPreserver'
+import { startSessionTop, computeProjectOrchestratorId } from './common/agentSpawn'
 import { createTerminalBackend } from './terminal/transport/backend'
 import { beginSplitDrag, endSplitDrag } from './utils/splitDragCoordinator'
 
@@ -539,6 +539,7 @@ function AppContent() {
     versionCount?: number
     agentType?: string
     skipPermissions?: boolean
+    agentTypes?: string[]
   }) => {
     try {
       await preserveSelection(async () => {
@@ -555,9 +556,10 @@ function AppContent() {
           }
 
           // Handle multiple versions like new session creation
-          const count = Math.max(1, Math.min(4, data.versionCount ?? 1))
+          const useAgentTypes = Boolean(data.agentTypes && data.agentTypes.length > 0)
+          const count = useAgentTypes ? (data.agentTypes?.length ?? 1) : Math.max(1, Math.min(4, data.versionCount ?? 1))
           let firstSessionName = data.name
-          
+
           // Create array of session names and process them
           const sessionNames = Array.from({ length: count }, (_, i) =>
             i === 0 ? data.name : `${data.name}_v${i + 1}`
@@ -569,14 +571,16 @@ function AppContent() {
             : `${data.name}-${Date.now()}`
 
           for (const [index, sessionName] of sessionNames.entries()) {
+            const agentTypeForVersion = useAgentTypes ? (data.agentTypes?.[index] ?? null) : (data.agentType || null)
+
             if (index === 0) {
               await waitForSessionsRefreshed(() =>
                 invoke(TauriCommands.SchaltwerkCoreStartSpecSession, {
                   name: sessionName,
                   baseBranch: data.baseBranch || null,
                   versionGroupId,
-                  versionNumber: 1,
-                  agentType: data.agentType || null,
+                  versionNumber: index + 1,
+                  agentType: agentTypeForVersion,
                   skipPermissions: data.skipPermissions ?? null,
                 })
               )
@@ -588,7 +592,7 @@ function AppContent() {
                   baseBranch: data.baseBranch || null,
                   versionGroupId,
                   versionNumber: index + 1,
-                  agentType: data.agentType || null,
+                  agentType: agentTypeForVersion,
                   skipPermissions: data.skipPermissions ?? null,
                 })
               )
@@ -601,23 +605,14 @@ function AppContent() {
           // Dispatch event for other components to know a session was created from spec
           emitUiEvent(UiEvent.SessionCreated, { name: firstSessionName })
 
-          // Start agents for all spec-derived sessions (this creates terminals with agents)
-          // This ensures all versions start working immediately, not just the focused one
-          for (const sessionName of sessionNames) {
-            try {
-              // Start the AI agent (this creates the top terminal with agent).
-              // Mark BEFORE starting so SessionsContext will not double-start.
-              const sanitized = sessionName.replace(/[^a-zA-Z0-9_-]/g, '_')
-              const topId = `session-${sanitized}-top`
-              const projectOrchestratorId = computeProjectOrchestratorId(projectPath)
-
-              await startSessionTop({ sessionName, topId, projectOrchestratorId })
-
-              // Bottom terminals are created on demand by TerminalTabs (-bottom-0). Nothing to do here.
-              logger.info(`[App] Started agent for session ${sessionName}`)
-            } catch (_e) {
-              logger.warn(`[App] Failed to start agent for session ${sessionName}:`, _e)
+          // Agents are already running because StartSpecSession/CreateAndStartSpecSession start them.
+          // Only ensure terminals exist, do not start again to avoid duplicate agent processes.
+          try {
+            for (const sessionName of sessionNames) {
+              await createTerminalsForSession(sessionName)
             }
+          } catch (e) {
+            logger.warn('[App] Failed to ensure terminals for spec-derived sessions:', e)
           }
 
           // Don't automatically switch focus when starting spec sessions
@@ -638,14 +633,23 @@ function AppContent() {
           // Dispatch event for other components to know a spec was created
           emitUiEvent(UiEvent.SpecCreated, { name: data.name })
         } else {
-          // Create one or multiple sessions depending on versionCount
-          const count = Math.max(1, Math.min(4, data.versionCount ?? 1))
-          
+          // Create one or multiple sessions depending on versionCount or agentTypes
+          const useAgentTypes = Boolean(data.agentTypes && data.agentTypes.length > 0)
+          const count = useAgentTypes ? (data.agentTypes?.length ?? 1) : Math.max(1, Math.min(4, data.versionCount ?? 1))
+
+          logger.info('[App] Creating sessions with multi-agent data:', {
+            useAgentTypes,
+            agentTypes: data.agentTypes,
+            agentType: data.agentType,
+            count,
+            versionCount: data.versionCount
+          })
+
           // When creating multiple versions, ensure consistent naming with _v1, _v2, etc.
           const baseName = data.name
           // Consider it auto-generated if the user didn't manually edit the name
           const isAutoGenerated = !data.userEditedName
-          
+
           // Create all versions first
           const createdVersions: string[] = []
           // Generate a stable group id for DB linkage
@@ -653,7 +657,16 @@ function AppContent() {
           for (let i = 1; i <= count; i++) {
             // First version uses base name, additional versions get _v2, _v3, etc.
             const versionName = i === 1 ? baseName : `${baseName}_v${i}`
-            
+            const agentTypeForVersion = useAgentTypes ? (data.agentTypes?.[i - 1] ?? null) : data.agentType
+
+            logger.info(`[App] Creating version ${i}/${count}:`, {
+              versionName,
+              agentTypeForVersion,
+              fromArray: useAgentTypes,
+              arrayIndex: i - 1,
+              arrayValue: data.agentTypes?.[i - 1]
+            })
+
             // For single sessions, use userEditedName flag as provided
             // For multiple versions, don't mark as user-edited so they can be renamed as a group
             await invoke(TauriCommands.SchaltwerkCoreCreateSession, {
@@ -663,7 +676,7 @@ function AppContent() {
               userEditedName: count > 1 ? false : (data.userEditedName ?? false),
               versionGroupId,
               versionNumber: i,
-              agentType: data.agentType,
+              agentType: agentTypeForVersion,
               skipPermissions: data.skipPermissions,
             })
 
@@ -699,11 +712,10 @@ function AppContent() {
           // Dispatch event for other components to know a session was created
           emitUiEvent(UiEvent.SessionCreated, { name: data.name })
           
-          // For regular (non-spec) sessions with multiple versions, proactively create terminals
-          // This addresses the lazy initialization issue where only the first selected session 
-          // gets terminals created, leaving other versions without terminals until manually switched
-          if (!data.isSpec && count > 1) {
-            // Wait for SessionsRefreshed to ensure sessions exist before creating terminals
+          // For regular (non-spec) sessions: proactively start each version once with its intended agent type.
+          // This prevents later starters from falling back to a global default.
+          if (!data.isSpec) {
+            // Wait for SessionsRefreshed so the sessions exist
             await new Promise<void>((resolve) => {
               let done = false
               let unlistenRef: (() => void) | null = null
@@ -717,13 +729,23 @@ function AppContent() {
               })
             })
 
-            // Create terminals for all versions of the new session
-            const sessionNames = Array.from({ length: count }, (_, i) =>
-              i === 0 ? data.name : `${data.name}_v${i + 1}`
-            )
-
-            for (const name of sessionNames) {
-              await createTerminalsForSession(name)
+            const baseName = data.name
+            const projectOrchestratorId = computeProjectOrchestratorId(projectPath)
+            for (let i = 1; i <= count; i++) {
+              const sessionName = i === 1 ? baseName : `${baseName}_v${i}`
+              const agentTypeForVersion = useAgentTypes ? (data.agentTypes?.[i - 1] ?? undefined) : data.agentType
+              const sanitized = sessionName.replace(/[^a-zA-Z0-9_-]/g, '_')
+              const topId = `session-${sanitized}-top`
+              try {
+                await startSessionTop({
+                  sessionName,
+                  topId,
+                  projectOrchestratorId,
+                  agentType: agentTypeForVersion
+                })
+              } catch (e) {
+                logger.warn(`[App] Failed to start agent for ${sessionName}:`, e)
+              }
             }
           }
         }

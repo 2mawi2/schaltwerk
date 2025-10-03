@@ -600,6 +600,8 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         }
 
         const newTerminalIds = getTerminalIds(newSelection)
+        const targetLabel = newSelection.kind === 'session' ? `session:${newSelection.payload ?? ''}` : 'orchestrator'
+        logger.info(`[SelectionContext] Switching to ${targetLabel} (top=${newTerminalIds.top}) at ${new Date().toISOString()}`)
 
         const isStateTransition = selection.kind === 'session' &&
             newSelection.kind === 'session' &&

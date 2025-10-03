@@ -53,6 +53,8 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
     const [createAsDraft, setCreateAsDraft] = useState(false)
     const [versionCount, setVersionCount] = useState<number>(1)
     const [showVersionMenu, setShowVersionMenu] = useState<boolean>(false)
+    const [compareAgents, setCompareAgents] = useState<boolean>(false)
+    const [selectedAgents, setSelectedAgents] = useState<Set<AgentType>>(new Set(['claude']))
     const [nameLocked, setNameLocked] = useState(false)
     const [repositoryIsEmpty, setRepositoryIsEmpty] = useState(false)
     const [isPrefillPending, setIsPrefillPending] = useState(false)
@@ -215,6 +217,8 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             setCreating(true)
             
             
+            const agentTypesArray = compareAgents && !createAsDraft ? Array.from(selectedAgents) : undefined
+
             const createData = {
                 name: finalName,
                 prompt: createAsDraft ? undefined : (taskContent || undefined),
@@ -223,10 +227,19 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                 userEditedName: !!userEdited,
                 isSpec: createAsDraft,
                 draftContent: createAsDraft ? taskContent : undefined,
-                versionCount: createAsDraft ? 1 : versionCount,
-                agentType: createAsDraft ? agentType : undefined,
+                versionCount: createAsDraft ? 1 : (compareAgents ? selectedAgents.size : versionCount),
+                agentType: createAsDraft ? agentType : (compareAgents ? undefined : agentType),
                 skipPermissions: createAsDraft ? skipPermissions : undefined,
+                agentTypes: agentTypesArray,
             }
+
+            logger.info('[NewSessionModal] Creating with compareAgents:', {
+                compareAgents,
+                selectedAgents: Array.from(selectedAgents),
+                agentTypesArray,
+                agentType: createData.agentType,
+                versionCount: createData.versionCount
+            })
             logger.info('[NewSessionModal] Creating session with data:', {
                 ...createData,
                 createAsDraft,
@@ -239,7 +252,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             // Parent handles showing the error; re-enable to allow retry
             setCreating(false)
         }
-    }, [creating, name, taskContent, baseBranch, onCreate, validateSessionName, createAsDraft, versionCount, agentType, skipPermissions])
+    }, [creating, name, taskContent, baseBranch, onCreate, validateSessionName, createAsDraft, versionCount, agentType, skipPermissions, compareAgents, selectedAgents])
 
     // Keep ref in sync immediately on render to avoid stale closures in tests
     createRef.current = handleCreate
@@ -368,6 +381,8 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                 setShowVersionMenu(false)
                 // Default version count is 1 (not from settings anymore)
                 setVersionCount(1)
+                setCompareAgents(false)
+                setSelectedAgents(new Set(['claude']))
                 // Initialize configuration from persisted state to reflect real settings
                 getPersistedSessionDefaults()
                     .then(({ baseBranch, agentType, skipPermissions }) => {
@@ -421,6 +436,8 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             setSkipPermissions(false)
             setVersionCount(1)
             setShowVersionMenu(false)
+            setCompareAgents(false)
+            setSelectedAgents(new Set(['claude']))
             setAgentEnvVars(createEmptyEnvVarState())
             setAgentCliArgs(createEmptyCliArgsState())
             setAgentConfigLoading(false)
@@ -655,15 +672,72 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
 
                     {!createAsDraft && (
                         <>
-                            <SessionConfigurationPanel
-                                variant="modal"
-                                onBaseBranchChange={handleBranchChange}
-                                onAgentTypeChange={handleAgentTypeChange}
-                                onSkipPermissionsChange={handleSkipPermissionsChange}
-                                initialBaseBranch={baseBranch}
-                                initialAgentType={agentType}
-                                initialSkipPermissions={skipPermissions}
-                            />
+                            {compareAgents ? (
+                                <div className="space-y-3">
+                                    <div>
+                                        <label className="block text-sm mb-2" style={{ color: theme.colors.text.secondary }}>
+                                            Select agents to compare
+                                        </label>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {AGENT_TYPES.map(agent => {
+                                                const isSelected = selectedAgents.has(agent)
+                                                const agentColor = agent === 'claude' ? 'blue' :
+                                                                 agent === 'opencode' ? 'green' :
+                                                                 agent === 'gemini' ? 'amber' : 'red'
+                                                return (
+                                                    <button
+                                                        key={agent}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const newSet = new Set(selectedAgents)
+                                                            if (isSelected && newSet.size > 1) {
+                                                                newSet.delete(agent)
+                                                            } else {
+                                                                newSet.add(agent)
+                                                            }
+                                                            setSelectedAgents(newSet)
+                                                        }}
+                                                        className="px-3 py-2 rounded text-sm font-medium transition-all"
+                                                        style={{
+                                                            backgroundColor: isSelected
+                                                                ? theme.colors.accent[agentColor].bg
+                                                                : theme.colors.background.elevated,
+                                                            color: isSelected
+                                                                ? theme.colors.accent[agentColor].light
+                                                                : theme.colors.text.secondary,
+                                                            border: `1px solid ${isSelected
+                                                                ? theme.colors.accent[agentColor].border
+                                                                : theme.colors.border.subtle}`,
+                                                        }}
+                                                    >
+                                                        {agent}
+                                                    </button>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+                                    <SessionConfigurationPanel
+                                        variant="modal"
+                                        onBaseBranchChange={handleBranchChange}
+                                        onAgentTypeChange={handleAgentTypeChange}
+                                        onSkipPermissionsChange={handleSkipPermissionsChange}
+                                        initialBaseBranch={baseBranch}
+                                        initialAgentType={agentType}
+                                        initialSkipPermissions={skipPermissions}
+                                        hideAgentType={true}
+                                    />
+                                </div>
+                            ) : (
+                                <SessionConfigurationPanel
+                                    variant="modal"
+                                    onBaseBranchChange={handleBranchChange}
+                                    onAgentTypeChange={handleAgentTypeChange}
+                                    onSkipPermissionsChange={handleSkipPermissionsChange}
+                                    initialBaseBranch={baseBranch}
+                                    initialAgentType={agentType}
+                                    initialSkipPermissions={skipPermissions}
+                                />
+                            )}
                             <AgentDefaultsSection
                                 agentType={agentType}
                                 cliArgs={agentCliArgs[agentType] || ''}
@@ -679,40 +753,65 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                 </div>
                 <div className="px-4 py-3 border-t border-slate-800 flex justify-end gap-2 relative">
                     {!createAsDraft && (
-                        <Dropdown
-                          open={showVersionMenu}
-                          onOpenChange={setShowVersionMenu}
-                          items={([1,2,3,4] as const).map(n => ({ key: String(n), label: `${n} ${n === 1 ? 'version' : 'versions'}` }))}
-                          selectedKey={String(versionCount)}
-                          align="right"
-                          onSelect={(key) => setVersionCount(parseInt(key))}
-                          menuTestId="version-selector-menu"
-                        >
-                          {({ open, toggle }) => (
+                        <>
+                            {!compareAgents && (
+                                <Dropdown
+                                  open={showVersionMenu}
+                                  onOpenChange={setShowVersionMenu}
+                                  items={([1,2,3,4] as const).map(n => ({ key: String(n), label: `${n} ${n === 1 ? 'version' : 'versions'}` }))}
+                                  selectedKey={String(versionCount)}
+                                  align="right"
+                                  onSelect={(key) => setVersionCount(parseInt(key))}
+                                  menuTestId="version-selector-menu"
+                                >
+                                  {({ open, toggle }) => (
+                                    <button
+                                      type="button"
+                                      data-testid="version-selector"
+                                      onClick={toggle}
+                                      className="px-2 h-9 rounded inline-flex items-center gap-2 hover:opacity-90"
+                                      style={{
+                                        backgroundColor: open ? theme.colors.background.hover : theme.colors.background.elevated,
+                                        color: theme.colors.text.primary,
+                                        border: `1px solid ${open ? theme.colors.border.default : theme.colors.border.subtle}`,
+                                      }}
+                                      title="Number of parallel versions"
+                                    >
+                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'block', verticalAlign: 'middle' }}>
+                                        <path d="M12 2L3 6l9 4 9-4-9-4z" fill={theme.colors.text.primary} fillOpacity={0.9}/>
+                                        <path d="M3 10l9 4 9-4" stroke={theme.colors.text.primary} strokeOpacity={0.5} strokeWidth={1.2}/>
+                                        <path d="M3 14l9 4 9-4" stroke={theme.colors.text.primary} strokeOpacity={0.35} strokeWidth={1.2}/>
+                                      </svg>
+                                      <span style={{ lineHeight: 1 }}>{versionCount}x</span>
+                                      <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 120ms ease' }}>
+                                        <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clipRule="evenodd" />
+                                      </svg>
+                                    </button>
+                                  )}
+                                </Dropdown>
+                            )}
                             <button
                               type="button"
-                              data-testid="version-selector"
-                              onClick={toggle}
-                              className="px-2 h-9 rounded inline-flex items-center gap-2 hover:opacity-90"
-                              style={{
-                                backgroundColor: open ? theme.colors.background.hover : theme.colors.background.elevated,
-                                color: theme.colors.text.primary,
-                                border: `1px solid ${open ? theme.colors.border.default : theme.colors.border.subtle}`,
+                              onClick={() => {
+                                setCompareAgents(!compareAgents)
+                                if (!compareAgents) {
+                                  setSelectedAgents(new Set([agentType]))
+                                }
                               }}
-                              title="Number of parallel versions"
+                              className="px-3 h-9 rounded inline-flex items-center gap-2 hover:opacity-90"
+                              style={{
+                                backgroundColor: compareAgents ? theme.colors.accent.violet.bg : theme.colors.background.elevated,
+                                color: compareAgents ? theme.colors.accent.violet.light : theme.colors.text.primary,
+                                border: `1px solid ${compareAgents ? theme.colors.accent.violet.border : theme.colors.border.subtle}`,
+                              }}
+                              title="Compare multiple agents with the same prompt"
                             >
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'block', verticalAlign: 'middle' }}>
-                                <path d="M12 2L3 6l9 4 9-4-9-4z" fill={theme.colors.text.primary} fillOpacity={0.9}/>
-                                <path d="M3 10l9 4 9-4" stroke={theme.colors.text.primary} strokeOpacity={0.5} strokeWidth={1.2}/>
-                                <path d="M3 14l9 4 9-4" stroke={theme.colors.text.primary} strokeOpacity={0.35} strokeWidth={1.2}/>
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M9 2L3 8l6 6M15 2l6 6-6 6M3 16l6 6 6-6M15 16l6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                               </svg>
-                              <span style={{ lineHeight: 1 }}>{versionCount}x</span>
-                              <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 120ms ease' }}>
-                                <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clipRule="evenodd" />
-                              </svg>
+                              {compareAgents && <span style={{ lineHeight: 1 }}>{selectedAgents.size} agents</span>}
                             </button>
-                          )}
-                        </Dropdown>
+                        </>
                     )}
                     <button 
                         onClick={onClose} 

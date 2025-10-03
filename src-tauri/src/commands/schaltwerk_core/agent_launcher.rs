@@ -21,6 +21,18 @@ pub async fn launch_in_terminal(
     cols: Option<u16>,
     rows: Option<u16>,
 ) -> Result<String, String> {
+    launch_in_terminal_with_prompt(terminal_id, command_line, db, repo_path, cols, rows, None).await
+}
+
+pub async fn launch_in_terminal_with_prompt(
+    terminal_id: String,
+    command_line: String,
+    db: &schaltwerk::schaltwerk_core::Database,
+    repo_path: &std::path::Path,
+    cols: Option<u16>,
+    rows: Option<u16>,
+    _initial_prompt: Option<String>,
+) -> Result<String, String> {
     // Acquire (or create) a lock specific to this terminal id and hold it for the
     // whole close→create sequence. This guarantees only one launch pipeline runs
     // at a time for a given terminal.

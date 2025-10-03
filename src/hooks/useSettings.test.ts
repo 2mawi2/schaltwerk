@@ -26,7 +26,7 @@ describe('useSettings', () => {
         gemini: [{ key: 'PROJECT_ID', value: 'test-id' }],
         codex: []
       }
-      
+
       const cliArgs: Record<AgentType, string> = {
         claude: '--verbose',
         opencode: '--temperature 0.8',
@@ -78,7 +78,7 @@ describe('useSettings', () => {
         gemini: [],
         codex: []
       }
-      
+
       const cliArgs: Record<AgentType, string> = {
         claude: '',
         opencode: '',
@@ -215,7 +215,7 @@ describe('useSettings', () => {
         gemini: [],
         codex: []
       }
-      
+
       const cliArgs: Record<AgentType, string> = {
         claude: '',
         opencode: '',
@@ -282,7 +282,7 @@ describe('useSettings', () => {
         gemini: [],
         codex: []
       }
-      
+
       const cliArgs: Record<AgentType, string> = {
         claude: '',
         opencode: '',

@@ -10,8 +10,9 @@ import {
     normalizeShortcutConfig,
     PartialKeyboardShortcutConfig,
 } from '../keyboardShortcuts/config'
+import { AgentType, AGENT_TYPES, createAgentRecord } from '../types/session'
 
-export type AgentType = 'claude' | 'opencode' | 'gemini' | 'codex'
+export type { AgentType }
 type EnvVars = Record<string, string>
 
 interface ProjectSettings {
@@ -168,19 +169,14 @@ export const useSettings = () => {
     const loadEnvVars = useCallback(async (): Promise<Record<AgentType, Array<{key: string, value: string}>>> => {
         setLoading(true)
         try {
-            const agents: AgentType[] = ['claude', 'opencode', 'gemini', 'codex']
-            const loadedVars: Record<AgentType, Array<{key: string, value: string}>> = {
-                claude: [],
-                opencode: [],
-                gemini: [],
-                codex: []
-            }
-            
-            for (const agent of agents) {
+            const loadedVars: Record<AgentType, Array<{key: string, value: string}>> =
+                createAgentRecord(_agent => [])
+
+            for (const agent of AGENT_TYPES) {
                 const vars = await invoke<EnvVars>(TauriCommands.GetAgentEnvVars, { agentType: agent })
                 loadedVars[agent] = Object.entries(vars || {}).map(([key, value]) => ({ key, value }))
             }
-            
+
             return loadedVars
         } finally {
             setLoading(false)
@@ -188,15 +184,9 @@ export const useSettings = () => {
     }, [])
     
     const loadCliArgs = useCallback(async (): Promise<Record<AgentType, string>> => {
-        const agents: AgentType[] = ['claude', 'opencode', 'gemini', 'codex']
-        const loadedArgs: Record<AgentType, string> = {
-            claude: '',
-            opencode: '',
-            gemini: '',
-            codex: ''
-        }
-        
-        for (const agent of agents) {
+        const loadedArgs: Record<AgentType, string> = createAgentRecord(_agent => '')
+
+        for (const agent of AGENT_TYPES) {
             const args = await invoke<string>(TauriCommands.GetAgentCliArgs, { agentType: agent })
             loadedArgs[agent] = args || ''
         }
