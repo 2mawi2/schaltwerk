@@ -24,6 +24,15 @@ vi.mock('../common/toast/ToastProvider', () => ({
     useOptionalToast: () => ({ pushToast: pushToastMock, dismissToast: vi.fn() })
 }))
 
+vi.mock('../common/agentSpawn', async () => {
+    const actual = await vi.importActual<typeof import('../common/agentSpawn')>('../common/agentSpawn')
+    return {
+        ...actual,
+        startSessionTop: vi.fn().mockResolvedValue(undefined),
+        startOrchestratorTop: vi.fn().mockResolvedValue(undefined),
+    }
+})
+
 const mockSessions = [
     {
         info: {
@@ -1037,8 +1046,9 @@ describe('SessionsContext', () => {
         expect(result.current.sessions[0]?.info.created_at).toBe(createdAt)
     })
 
-    it('auto-starts new sessions with SchaltwerkCoreStartSessionAgent', async () => {
+    it('auto-starts new sessions via session agent helper', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
+        const { startSessionTop } = await import('../common/agentSpawn')
         vi.mocked(invoke).mockImplementation(async (cmd: string, _args?: unknown) => {
             if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
             if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
@@ -1079,10 +1089,38 @@ describe('SessionsContext', () => {
         })
 
         await waitFor(() => {
-            expect(invoke).toHaveBeenCalledWith(
-                TauriCommands.SchaltwerkCoreStartSessionAgent,
-                expect.objectContaining({ sessionName: 'bg-new' })
-            )
+            expect(startSessionTop).toHaveBeenCalledWith(expect.objectContaining({
+                sessionName: 'bg-new',
+                topId: 'session-bg-new-top'
+            }))
+        })
+
+    })
+
+    it('auto-starts running sessions after sessions reload', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+        const { startSessionTop } = await import('../common/agentSpawn')
+
+        vi.mocked(invoke).mockImplementation(async (cmd: string, _args?: unknown) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
+            if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
+            if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+            if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
+            if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
+            return undefined
+        })
+
+        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+
+        await waitFor(() => {
+            expect(result.current.loading).toBe(false)
+        })
+
+        await waitFor(() => {
+            expect(startSessionTop).toHaveBeenCalledWith(expect.objectContaining({
+                sessionName: 'test-active',
+                topId: 'session-test-active-top'
+            }))
         })
     })
 
