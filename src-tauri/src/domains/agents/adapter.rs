@@ -1,3 +1,4 @@
+use super::format_binary_invocation;
 use super::launch_spec::AgentLaunchSpec;
 use super::manifest::AgentDefinition;
 use std::path::Path;
@@ -34,7 +35,12 @@ impl AgentAdapter for DefaultAdapter {
             .binary_override
             .unwrap_or(ctx.manifest.default_binary_path.as_str());
 
-        let mut command = format!("cd {} && {}", ctx.worktree_path.display(), binary);
+        let binary_invocation = format_binary_invocation(binary);
+        let mut command = format!(
+            "cd {} && {}",
+            ctx.worktree_path.display(),
+            binary_invocation
+        );
 
         if ctx.skip_permissions {
             command.push_str(" -d");

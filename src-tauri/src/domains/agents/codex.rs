@@ -1,3 +1,4 @@
+use super::format_binary_invocation;
 use once_cell::sync::Lazy;
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -566,7 +567,8 @@ pub fn build_codex_command_with_config(
     };
 
     // Build command with proper argument order: codex [OPTIONS] [PROMPT]
-    let mut cmd = format!("cd {} && {}", worktree_path.display(), binary_name);
+    let binary_invocation = format_binary_invocation(binary_name);
+    let mut cmd = format!("cd {} && {}", worktree_path.display(), binary_invocation);
 
     // Add sandbox mode first (this is an option)
     cmd.push_str(&format!(" --sandbox {sandbox_mode}"));

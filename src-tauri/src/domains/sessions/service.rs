@@ -2227,7 +2227,9 @@ impl SessionManager {
         );
 
         let session_id = if resume_session {
-            registry.get(agent_type).and_then(|a| a.find_session(&self.repo_path))
+            registry
+                .get(agent_type)
+                .and_then(|a| a.find_session(&self.repo_path))
         } else {
             None
         };

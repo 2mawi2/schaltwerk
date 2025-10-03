@@ -1,3 +1,4 @@
+use super::format_binary_invocation;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -435,7 +436,8 @@ pub fn build_opencode_command_with_config(
     } else {
         "opencode"
     };
-    let mut cmd = format!("cd {} && {}", worktree_path.display(), binary_name);
+    let binary_invocation = format_binary_invocation(binary_name);
+    let mut cmd = format!("cd {} && {}", worktree_path.display(), binary_invocation);
 
     match session_info {
         Some(info) if info.has_history => {

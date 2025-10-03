@@ -15,67 +15,29 @@ pub fn parse_agent_command(command: &str) -> Result<(String, String, Vec<String>
 
     // Parse agent command and arguments
     let agent_part = parts[1];
-    // Extract the agent token (first whitespace-delimited token)
-    let mut split = agent_part.splitn(2, ' ');
-    let agent_token = split.next().unwrap_or("");
-    let rest = split.next().unwrap_or("");
+    let tokens = shell_words::split(agent_part)
+        .map_err(|e| format!("Failed to parse agent command '{agent_part}': {e}"))?;
 
-    // Normalize/validate the agent token
+    if tokens.is_empty() {
+        return Err(format!(
+            "Second part doesn't start with 'claude', 'opencode', 'gemini', or 'codex': {command}"
+        ));
+    }
+
+    let agent_token = &tokens[0];
     let is_claude = agent_token == "claude" || agent_token.ends_with("/claude");
     let is_opencode = agent_token == "opencode" || agent_token.ends_with("/opencode");
     let is_gemini = agent_token == "gemini" || agent_token.ends_with("/gemini");
     let is_codex = agent_token == "codex" || agent_token.ends_with("/codex");
 
-    let agent_name = if is_claude || is_opencode || is_gemini || is_codex {
-        agent_token
-    } else {
+    if !(is_claude || is_opencode || is_gemini || is_codex) {
         return Err(format!(
             "Second part doesn't start with 'claude', 'opencode', 'gemini', or 'codex': {command}"
         ));
-    };
-
-    // Split the rest into arguments, handling quoted strings
-    let mut args = Vec::new();
-    let mut current_arg = String::new();
-    let mut in_quotes = false;
-    let mut chars = rest.chars().peekable();
-
-    while let Some(ch) = chars.next() {
-        match ch {
-            '"' => {
-                in_quotes = !in_quotes;
-                if !in_quotes && !current_arg.is_empty() {
-                    args.push(current_arg.clone());
-                    current_arg.clear();
-                }
-            }
-            ' ' if !in_quotes => {
-                if !current_arg.is_empty() {
-                    args.push(current_arg.clone());
-                    current_arg.clear();
-                }
-            }
-            '\\' if in_quotes => {
-                // Handle escaped characters in quotes
-                if let Some(next_ch) = chars.next() {
-                    if next_ch == '"' {
-                        current_arg.push('"');
-                    } else {
-                        current_arg.push('\\');
-                        current_arg.push(next_ch);
-                    }
-                }
-            }
-            _ => {
-                current_arg.push(ch);
-            }
-        }
     }
 
-    // Add any remaining argument
-    if !current_arg.is_empty() {
-        args.push(current_arg);
-    }
+    let agent_name = agent_token.clone();
+    let args = tokens[1..].to_vec();
 
-    Ok((cwd, agent_name.to_string(), args))
+    Ok((cwd, agent_name, args))
 }

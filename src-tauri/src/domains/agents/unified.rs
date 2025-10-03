@@ -101,10 +101,12 @@ impl AgentAdapter for OpenCodeAdapter {
     }
 
     fn build_launch_spec(&self, ctx: AgentLaunchContext) -> AgentLaunchSpec {
-        let session_info = ctx.session_id.map(|id| super::opencode::OpenCodeSessionInfo {
-            id: id.to_string(),
-            has_history: true,
-        });
+        let session_info = ctx
+            .session_id
+            .map(|id| super::opencode::OpenCodeSessionInfo {
+                id: id.to_string(),
+                has_history: true,
+            });
 
         let config = super::opencode::OpenCodeConfig {
             binary_path: Some(
@@ -249,7 +251,6 @@ mod tests {
             let spec = adapter.build_launch_spec(ctx);
             assert!(spec.shell_command.contains("claude"));
         }
-
     }
 
     mod codex_tests {
