@@ -35,6 +35,7 @@ import {
 const DEFAULT_SCROLLBACK_LINES = 10000
 const BACKGROUND_SCROLLBACK_LINES = 5000
 const AGENT_SCROLLBACK_LINES = 200000
+const FAST_HYDRATION_REVEAL_THRESHOLD = 512 * 1024
 const RIGHT_EDGE_GUARD_COLUMNS = 2
 const CLAUDE_SHIFT_ENTER_SEQUENCE = '\\'
 // Track last effective size we told the PTY (after guard), for SIGWINCH nudging
@@ -1364,6 +1365,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
         // Hydrate from buffer
         const hydrateTerminal = async () => {
+            const hydrateStart = (typeof performance !== 'undefined' ? performance.now() : Date.now());
             try {
                 // Ensure listener is attached before snapshot so there is zero gap
                 try {
@@ -1371,6 +1373,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 } catch (e) {
                     logger.warn(`[Terminal ${terminalId}] Listener attach awaited with error (continuing):`, e);
                 }
+                logger.info(`[Terminal ${terminalId}] Hydration started (plugin=${pluginTransportActive})`);
+                let snapshotBytes = 0;
                 if (!pluginTransportActive) {
                     const snapshot = await invoke<TerminalBufferResponse>(TauriCommands.GetTerminalBuffer, {
                         id: terminalId,
@@ -1381,6 +1385,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
                     if (snapshot.data) {
                         enqueueWrite(snapshot.data);
+                        snapshotBytes = snapshot.data.length;
                     }
                 }
                 // Queue any pending output that arrived during hydration
@@ -1389,17 +1394,34 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                         enqueueWrite(output);
                     }
                     pendingOutput.current = [];
-                 }
-                 // Drain all queued content before we reveal the terminal to avoid "partial paint" perception
-                 await flushAllNowAsync();
-                 // Mark as hydrated only after flushing the entire snapshot + pending output
-                 setHydrated(true);
-                 hydratedRef.current = true;
-                  
-                  // Call onReady callback if provided
-                  if (onReady) {
-                      onReady();
-                  }
+                }
+
+                const markHydrated = (reason: 'fast' | 'post-flush') => {
+                    if (hydratedRef.current) return;
+                    setHydrated(true);
+                    hydratedRef.current = true;
+                    logger.info(`[Terminal ${terminalId}] Hydration revealed via ${reason}`);
+                    if (onReady) {
+                        onReady();
+                    }
+                };
+
+                const shouldRevealEarly = snapshotBytes >= FAST_HYDRATION_REVEAL_THRESHOLD || startedGlobal.has(terminalId);
+                if (shouldRevealEarly) {
+                    markHydrated('fast');
+                }
+
+                // Drain all queued content before running post-hydration sizing/scrolling work
+                await flushAllNowAsync();
+
+                if (!shouldRevealEarly) {
+                    markHydrated('post-flush');
+                }
+
+                const hydrateElapsed = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - hydrateStart;
+                logger.info(
+                    `[Terminal ${terminalId}] Hydration completed (snapshot=${snapshotBytes}B, early=${shouldRevealEarly}) in ${hydrateElapsed.toFixed(1)}ms`
+                );
                   
                   // After hydration, ensure a definitive fit+resize once layout/fonts are ready
                   const doHydrationFit = () => {
@@ -2011,6 +2033,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                             } catch (e) {
                                 logger.warn(`[Terminal ${terminalId}] Failed to measure size before orchestrator start:`, e);
                             }
+                            logger.info(`[Terminal ${terminalId}] Auto-starting Claude orchestrator at ${new Date().toISOString()}`);
                             await startOrchestratorTop({ terminalId, measured });
                             // Mark that this terminal has been started at least once
                             terminalEverStartedRef.current = true;
@@ -2069,6 +2092,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                            } catch (e) {
                                logger.warn(`[Terminal ${terminalId}] Failed to measure size before session start:`, e);
                            }
+                            logger.info(`[Terminal ${terminalId}] Auto-starting Claude (session=${sessionName}) at ${new Date().toISOString()}`);
                             await startSessionTop({ sessionName, topId: terminalId, measured });
                             // Mark that this terminal has been started at least once
                             terminalEverStartedRef.current = true;
