@@ -53,8 +53,23 @@ fn test_parse_agent_command_opencode_continue_absolute() {
 }
 
 #[test]
+fn test_parse_agent_command_claude_absolute_path_with_spaces() {
+    let cmd = r#"cd /repo && "/Applications/Claude Latest/bin/claude" --version"#;
+    let result = parse_agent_command(cmd);
+    assert!(
+        result.is_ok(),
+        "command should parse despite spaces in binary path: {cmd}"
+    );
+
+    let (cwd, agent, args) = result.unwrap();
+    assert_eq!(cwd, "/repo");
+    assert_eq!(agent, "/Applications/Claude Latest/bin/claude");
+    assert_eq!(args, vec!["--version"]);
+}
+
+#[test]
 fn test_parse_agent_command_gemini_with_prompt() {
-    let cmd = r#"cd /tmp/work && gemini --yolo""#;
+    let cmd = r#"cd /tmp/work && gemini --yolo"#;
     let (cwd, agent, args) = parse_agent_command(cmd).unwrap();
     assert_eq!(cwd, "/tmp/work");
     assert_eq!(agent, "gemini");
@@ -144,6 +159,15 @@ fn test_parse_agent_command_rejects_unsupported_agent() {
     let qwen_cmd = r#"cd /tmp/work && qwen --yolo"#;
     let qwen_result = parse_agent_command(qwen_cmd);
     assert!(qwen_result.is_err());
+}
+
+#[test]
+fn test_parse_agent_command_cwd_with_spaces() {
+    let cmd = r#"cd "/path/with spaces" && claude --version"#;
+    let (cwd, agent, args) = parse_agent_command(cmd).unwrap();
+    assert_eq!(cwd, "/path/with spaces");
+    assert_eq!(agent, "claude");
+    assert_eq!(args, vec!["--version"]);
 }
 
 #[test]

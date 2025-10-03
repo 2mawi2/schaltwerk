@@ -1,3 +1,6 @@
+use super::manifest::AgentManifest;
+use std::path::Path;
+
 pub(crate) fn normalize_cwd(raw: &str) -> String {
     let trimmed = raw.trim();
 
@@ -19,7 +22,7 @@ pub(crate) fn normalize_cwd(raw: &str) -> String {
 }
 
 pub fn parse_agent_command(command: &str) -> Result<(String, String, Vec<String>), String> {
-    // Command format: "cd /path/to/worktree && {agent_name|<path>/agent_name} [args]"
+    // Command format: "cd /path/to/worktree && {claude|<path>/opencode|opencode|gemini|codex} [args]"
     // Use splitn to only split on the FIRST " && " to preserve any " && " in agent arguments
     let parts: Vec<&str> = command.splitn(2, " && ").collect();
     if parts.len() != 2 {
@@ -35,16 +38,37 @@ pub fn parse_agent_command(command: &str) -> Result<(String, String, Vec<String>
 
     // Parse agent command and arguments
     let agent_part = parts[1];
-    // Extract the agent token (first whitespace-delimited token)
-    let mut split = agent_part.splitn(2, ' ');
-    let agent_token = split.next().unwrap_or("");
-    let rest = split.next().unwrap_or("");
+    let tokens = shell_words::split(agent_part)
+        .map_err(|e| format!("Failed to parse agent command '{agent_part}': {e}"))?;
 
-    // Validate agent token against supported agents from manifest
-    let supported_agents = super::manifest::AgentManifest::supported_agents();
+    if tokens.is_empty() {
+        return Err(format!(
+            "Second part doesn't start with 'claude', 'opencode', 'gemini', or 'codex': {command}"
+        ));
+    }
+
+    let mut iter = tokens.into_iter();
+    let mut agent_token = iter.next().unwrap();
+
+    let first_segment = extract_first_segment(agent_part);
+    if first_segment.contains('\\') && !agent_token.contains('\\') {
+        agent_token = first_segment;
+    }
+    let supported_agents = AgentManifest::supported_agents();
+    let normalized_token = agent_token.replace('\\', "/");
+    let fname = Path::new(&normalized_token)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("");
+
+    let stem = Path::new(fname)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or(fname);
+
     let is_supported = supported_agents
         .iter()
-        .any(|agent| agent_token == agent || agent_token.ends_with(&format!("/{agent}")));
+        .any(|agent| stem == *agent || agent_token == *agent);
 
     if !is_supported {
         let agent_list = supported_agents.join(", ");
@@ -53,50 +77,39 @@ pub fn parse_agent_command(command: &str) -> Result<(String, String, Vec<String>
         ));
     }
 
-    let agent_name = agent_token;
+    let args: Vec<String> = iter.collect();
 
-    // Split the rest into arguments, handling quoted strings
-    let mut args = Vec::new();
-    let mut current_arg = String::new();
-    let mut in_quotes = false;
-    let mut chars = rest.chars().peekable();
+    Ok((cwd, agent_token, args))
+}
 
-    while let Some(ch) = chars.next() {
-        match ch {
-            '"' => {
-                in_quotes = !in_quotes;
-                if !in_quotes && !current_arg.is_empty() {
-                    args.push(current_arg.clone());
-                    current_arg.clear();
-                }
+fn extract_first_segment(agent_part: &str) -> String {
+    let trimmed = agent_part.trim_start();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+
+    let mut chars = trimmed.char_indices().peekable();
+    if matches!(chars.peek(), Some((_, '"' | '\''))) {
+        let quote = chars.next().map(|(_, ch)| ch).unwrap();
+        let mut segment = String::new();
+        let mut escape = false;
+        for (_, ch) in chars.by_ref() {
+            if escape {
+                segment.push(ch);
+                escape = false;
+                continue;
             }
-            ' ' if !in_quotes => {
-                if !current_arg.is_empty() {
-                    args.push(current_arg.clone());
-                    current_arg.clear();
-                }
-            }
-            '\\' if in_quotes => {
-                // Handle escaped characters in quotes
-                if let Some(next_ch) = chars.next() {
-                    if next_ch == '"' {
-                        current_arg.push('"');
-                    } else {
-                        current_arg.push('\\');
-                        current_arg.push(next_ch);
-                    }
-                }
-            }
-            _ => {
-                current_arg.push(ch);
+            match ch {
+                '\\' => escape = true,
+                c if c == quote => break,
+                _ => segment.push(ch),
             }
         }
+        return segment;
     }
 
-    // Add any remaining argument
-    if !current_arg.is_empty() {
-        args.push(current_arg);
-    }
-
-    Ok((cwd, agent_name.to_string(), args))
+    let end = trimmed
+        .find(char::is_whitespace)
+        .unwrap_or(trimmed.len());
+    trimmed[..end].to_string()
 }

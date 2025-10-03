@@ -1,3 +1,4 @@
+use super::format_binary_invocation;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -435,7 +436,9 @@ pub fn build_opencode_command_with_config(
     } else {
         "opencode"
     };
-    let mut cmd = format!("cd {} && {}", worktree_path.display(), binary_name);
+    let binary_invocation = format_binary_invocation(binary_name);
+    let cwd_quoted = format_binary_invocation(&worktree_path.display().to_string());
+    let mut cmd = format!("cd {cwd_quoted} && {binary_invocation}");
 
     match session_info {
         Some(info) if info.has_history => {
@@ -602,6 +605,21 @@ mod tests {
             sanitized,
             "Users-marius-wichtner-Documents-git-tubetalk--schaltwerk-worktrees-bold_dijkstra"
         );
+    }
+
+    #[test]
+    fn test_command_with_spaces_in_cwd() {
+        let config = OpenCodeConfig {
+            binary_path: Some("opencode".to_string()),
+        };
+        let cmd = build_opencode_command_with_config(
+            Path::new("/path/with spaces"),
+            None,
+            None,
+            false,
+            Some(&config),
+        );
+        assert!(cmd.starts_with(r#"cd "/path/with spaces" && "#));
     }
 
     #[test]

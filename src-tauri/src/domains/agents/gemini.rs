@@ -1,3 +1,4 @@
+use super::format_binary_invocation;
 use std::fs;
 use std::path::Path;
 
@@ -50,7 +51,9 @@ pub fn build_gemini_command_with_config(
     } else {
         "gemini"
     };
-    let mut cmd = format!("cd {} && {}", worktree_path.display(), binary_name);
+    let binary_invocation = format_binary_invocation(binary_name);
+    let cwd_quoted = format_binary_invocation(&worktree_path.display().to_string());
+    let mut cmd = format!("cd {cwd_quoted} && {binary_invocation}");
 
     if skip_permissions {
         cmd.push_str(" --yolo");
@@ -89,6 +92,21 @@ mod tests {
             cmd,
             r#"cd /path/to/worktree && gemini --yolo --prompt-interactive "implement feature X""#
         );
+    }
+
+    #[test]
+    fn test_command_with_spaces_in_cwd() {
+        let config = GeminiConfig {
+            binary_path: Some("gemini".to_string()),
+        };
+        let cmd = build_gemini_command_with_config(
+            Path::new("/path/with spaces"),
+            None,
+            None,
+            false,
+            Some(&config),
+        );
+        assert!(cmd.starts_with(r#"cd "/path/with spaces" && "#));
     }
 
     #[test]

@@ -1,3 +1,4 @@
+use super::format_binary_invocation;
 use std::collections::HashSet;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
@@ -242,7 +243,9 @@ pub fn build_claude_command_with_config(
     } else {
         "claude"
     };
-    let mut cmd = format!("cd {} && {}", worktree_path.display(), binary_name);
+    let binary_invocation = format_binary_invocation(binary_name);
+    let cwd_quoted = format_binary_invocation(&worktree_path.display().to_string());
+    let mut cmd = format!("cd {cwd_quoted} && {binary_invocation}");
 
     if skip_permissions {
         cmd.push_str(" --dangerously-skip-permissions");
@@ -321,6 +324,39 @@ mod tests {
             Some(&config),
         );
         assert_eq!(cmd, r#"cd /path/to/worktree && claude -r session123"#);
+    }
+
+    #[test]
+    fn test_binary_with_spaces_is_quoted() {
+        let config = ClaudeConfig {
+            binary_path: Some("/Applications/Claude Latest/bin/claude".to_string()),
+        };
+        let cmd = build_claude_command_with_config(
+            Path::new("/path/to/worktree"),
+            None,
+            None,
+            false,
+            Some(&config),
+        );
+        assert_eq!(
+            cmd,
+            r#"cd /path/to/worktree && "/Applications/Claude Latest/bin/claude""#
+        );
+    }
+
+    #[test]
+    fn test_command_with_spaces_in_cwd() {
+        let config = ClaudeConfig {
+            binary_path: Some("claude".to_string()),
+        };
+        let cmd = build_claude_command_with_config(
+            Path::new("/path/with spaces"),
+            None,
+            None,
+            false,
+            Some(&config),
+        );
+        assert!(cmd.starts_with(r#"cd "/path/with spaces" && "#));
     }
 
     #[test]
