@@ -43,6 +43,7 @@ export const KEYBOARD_SHORTCUT_SECTIONS: ShortcutSection[] = [
       { action: KeyboardShortcutAction.NavigateNextFilter, label: 'Next filter' },
       { action: KeyboardShortcutAction.FocusClaude, label: 'Focus Claude session' },
       { action: KeyboardShortcutAction.FocusTerminal, label: 'Focus terminal' },
+      { action: KeyboardShortcutAction.OpenInApp, label: 'Open in app' },
     ],
   },
   {

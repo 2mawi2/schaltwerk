@@ -964,16 +964,36 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     if (!currentReview || currentReview.comments.length === 0) return
 
     const reviewText = formatReviewForPrompt(currentReview.comments)
-    
+
+    // Determine agent type to decide if we should use bracketed paste
+    // Claude Code doesn't handle bracketed paste correctly (causes image attachment)
+    // Other agents (gemini, opencode, codex, etc.) work fine with bracketed paste
+    let useBracketedPaste = true
+    if (sessionName) {
+      const session = sessions.find(s => s.info.session_id === sessionName)
+      const agentType = session?.info?.original_agent_type as string | undefined
+      if (agentType === 'claude') {
+        useBracketedPaste = false
+      }
+    }
+
     try {
       if (selectedKind === 'orchestrator') {
         const terminalId = terminalTop || 'orchestrator-top'
-        await invoke(TauriCommands.PasteAndSubmitTerminal, { id: terminalId, data: reviewText })
+        await invoke(TauriCommands.PasteAndSubmitTerminal, {
+          id: terminalId,
+          data: reviewText,
+          useBracketedPaste
+        })
         await setSelection({ kind: 'orchestrator' })
         setCurrentFocus('claude')
       } else if (sessionName) {
         const terminalId = `session-${sessionName}-top`
-        await invoke(TauriCommands.PasteAndSubmitTerminal, { id: terminalId, data: reviewText })
+        await invoke(TauriCommands.PasteAndSubmitTerminal, {
+          id: terminalId,
+          data: reviewText,
+          useBracketedPaste
+        })
         await setSelection({ kind: 'session', payload: sessionName })
         setFocusForSession(sessionName, 'claude')
         setCurrentFocus('claude')
@@ -981,13 +1001,13 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
         logger.warn('[UnifiedDiffModal] Finish review had no valid target', { selection })
         return
       }
-      
+
       clearReview()
       onClose()
     } catch (error) {
       logger.error('Failed to send review to terminal:', error)
     }
-  }, [currentReview, selectedKind, terminalTop, sessionName, formatReviewForPrompt, clearReview, onClose, setSelection, setFocusForSession, setCurrentFocus, selection])
+  }, [currentReview, selectedKind, terminalTop, sessionName, sessions, formatReviewForPrompt, clearReview, onClose, setSelection, setFocusForSession, setCurrentFocus, selection])
 
   // Global keyboard shortcuts for the diff modal (placed after handleFinishReview definition)
   useEffect(() => {

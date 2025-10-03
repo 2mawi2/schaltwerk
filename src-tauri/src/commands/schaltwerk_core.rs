@@ -18,10 +18,10 @@ use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
 use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
 use schaltwerk::schaltwerk_core::db_project_config::{ProjectConfigMethods, DEFAULT_BRANCH_PREFIX};
 mod agent_ctx;
-mod agent_launcher;
-mod events;
+pub mod agent_launcher;
+pub mod events;
 mod schaltwerk_core_cli;
-mod terminals;
+pub mod terminals;
 
 // Helper functions for session name parsing
 fn is_version_suffix(s: &str) -> bool {
@@ -1034,6 +1034,16 @@ pub async fn schaltwerk_core_start_claude(
 }
 
 #[tauri::command]
+pub async fn schaltwerk_core_start_session_agent(
+    app: tauri::AppHandle,
+    session_name: String,
+    cols: Option<u16>,
+    rows: Option<u16>,
+) -> Result<String, String> {
+    schaltwerk_core_start_session_agent_with_restart(app, session_name, false, cols, rows).await
+}
+
+#[tauri::command]
 pub async fn schaltwerk_core_start_claude_with_restart(
     app: tauri::AppHandle,
     session_name: String,
@@ -1241,6 +1251,17 @@ pub async fn schaltwerk_core_start_claude_with_restart(
     }
 
     Ok(command)
+}
+
+#[tauri::command]
+pub async fn schaltwerk_core_start_session_agent_with_restart(
+    app: tauri::AppHandle,
+    session_name: String,
+    force_restart: bool,
+    cols: Option<u16>,
+    rows: Option<u16>,
+) -> Result<String, String> {
+    schaltwerk_core_start_claude_with_restart(app, session_name, force_restart, cols, rows).await
 }
 
 #[tauri::command]

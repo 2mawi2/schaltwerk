@@ -4,7 +4,7 @@ import { theme } from '../../common/theme'
 import { Dropdown } from './Dropdown'
 import { AgentType, AGENT_TYPES, AGENT_SUPPORTS_SKIP_PERMISSIONS } from '../../types/session'
 
-const MODEL_METADATA: Record<AgentType, { label: string; color: string }> = {
+const MODEL_METADATA: Record<AgentType, { label: string; color: 'blue' | 'green' | 'orange' | 'red' }> = {
     claude: { label: 'Claude', color: 'blue' },
     opencode: { label: 'OpenCode', color: 'green' },
     gemini: { label: 'Gemini', color: 'orange' },

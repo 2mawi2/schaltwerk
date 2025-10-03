@@ -1137,6 +1137,44 @@ describe('TerminalGrid', () => {
     })
   })
 
+  describe('Run Script Configuration Updates', () => {
+    it('refreshes run tab visibility immediately after run script is saved', async () => {
+      renderGrid()
+      vi.useRealTimers()
+
+      await waitFor(() => {
+        expect(loadRunScriptConfigurationMock).toHaveBeenCalled()
+      })
+
+      const initialCallCount = loadRunScriptConfigurationMock.mock.calls.length
+
+      expect(screen.queryByTitle('Run')).toBeNull()
+
+      loadRunScriptConfigurationMock.mockResolvedValueOnce({
+        hasRunScripts: true,
+        shouldActivateRunMode: true,
+        savedActiveTab: null,
+      })
+      loadRunScriptConfigurationMock.mockImplementation(() => Promise.resolve({
+        hasRunScripts: true,
+        shouldActivateRunMode: true,
+        savedActiveTab: null,
+      }))
+
+      act(() => {
+        emitUiEvent(UiEvent.RunScriptUpdated, { hasRunScript: true })
+      })
+
+      await waitFor(() => {
+        expect(loadRunScriptConfigurationMock).toHaveBeenCalledTimes(initialCallCount + 1)
+      })
+
+      await waitFor(() => {
+        expect(screen.getByTitle('Run')).toBeInTheDocument()
+      })
+    })
+  })
+
   describe('Run Mode Shortcuts and Controls', () => {
     it('activates run mode, toggles the run terminal, and returns focus with Cmd+/', async () => {
       loadRunScriptConfigurationMock.mockResolvedValue({

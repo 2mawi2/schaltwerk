@@ -18,6 +18,7 @@ const RESIZE_DEBOUNCE_MS: u64 = 50;
 
 pub trait EventSink: Send + Sync {
     fn emit_chunk(&self, term_id: &str, seq: u64, base64: String);
+    fn emit_exit(&self, term_id: &str);
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -213,6 +214,7 @@ impl TerminalEntry {
                     entry.set_paused(true);
                 }
             }
+            sink.emit_exit(&entry.term_id);
         });
 
         *self.reader_handle.lock() = Some(handle);
@@ -476,6 +478,8 @@ mod tests {
             self.events.lock().push((term_id.to_string(), seq, bytes));
             self.notify.notify_waiters();
         }
+
+        fn emit_exit(&self, _term_id: &str) {}
     }
 
     fn make_host(temp_dir: &TempDir, sink: Arc<RecordingSink>) -> PtyHost {

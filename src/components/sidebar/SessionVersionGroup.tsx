@@ -178,13 +178,18 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
               const firstSession = group.versions[0]?.session?.info
               if (!firstSession) return null
               
-              const agentType = firstSession.original_agent_type
+              // Check if all versions have the same agent type
+              const agentTypes = group.versions.map(v => v.session.info.original_agent_type).filter(Boolean)
+              const uniqueAgents = [...new Set(agentTypes)]
+              const isMixedAgents = uniqueAgents.length > 1
+              const agentType = isMixedAgents ? 'mixed' : firstSession.original_agent_type
               const baseBranch = firstSession.base_branch
-              const agentColor = agentType === 'claude' ? 'blue' : 
-                               agentType === 'opencode' ? 'green' : 
-                               agentType === 'gemini' ? 'orange' : 
-                               agentType === 'codex' ? 'red' : 'gray'
-              
+              const agentColor = agentType === 'claude' ? 'blue' :
+                               agentType === 'opencode' ? 'green' :
+                               agentType === 'gemini' ? 'orange' :
+                               agentType === 'codex' ? 'red' :
+                               agentType === 'mixed' ? 'violet' : 'gray'
+
               return (
                 <>
                   {agentType && (
@@ -196,26 +201,30 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
                           backgroundColor: agentColor === 'blue' ? theme.colors.accent.blue.bg :
                                           agentColor === 'green' ? theme.colors.accent.green.bg :
                                           agentColor === 'orange' ? theme.colors.accent.amber.bg :
+                                          agentColor === 'violet' ? theme.colors.accent.violet.bg :
                                           theme.colors.accent.red.bg,
                           color: agentColor === 'blue' ? theme.colors.accent.blue.light :
                                 agentColor === 'green' ? theme.colors.accent.green.light :
                                 agentColor === 'orange' ? theme.colors.accent.amber.light :
+                                agentColor === 'violet' ? theme.colors.accent.violet.light :
                                 theme.colors.accent.red.light,
                           borderColor: agentColor === 'blue' ? theme.colors.accent.blue.border :
                                      agentColor === 'green' ? theme.colors.accent.green.border :
                                      agentColor === 'orange' ? theme.colors.accent.amber.border :
+                                     agentColor === 'violet' ? theme.colors.accent.violet.border :
                                      theme.colors.accent.red.border
                         }}
-                        title={`Agent: ${agentType}`}
+                        title={isMixedAgents ? `Agents: ${uniqueAgents.join(', ')}` : `Agent: ${agentType}`}
                       >
                         <span className="w-1 h-1 rounded-full"
                               style={{
                                 backgroundColor: agentColor === 'blue' ? theme.colors.accent.blue.DEFAULT :
                                                 agentColor === 'green' ? theme.colors.accent.green.DEFAULT :
                                                 agentColor === 'orange' ? theme.colors.accent.amber.DEFAULT :
+                                                agentColor === 'violet' ? theme.colors.accent.violet.DEFAULT :
                                                 theme.colors.accent.red.DEFAULT
                               }} />
-                        {agentType}
+                        {isMixedAgents ? `${uniqueAgents.length} agents` : agentType}
                       </span>
                     </>
                   )}
@@ -248,7 +257,8 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
                    // Check if this version is selected either as a normal session or as a spec in spec mode
                     const isSelected = (selection.kind === 'session' && selection.payload === version.session.info.session_id) ||
                                      (isInSpecMode === true && isSpec(version.session.info) && currentSpecId === version.session.info.session_id)
-                    const displayName = `(v${version.versionNumber})`
+                    const versionAgentType = version.session.info.original_agent_type
+                    const displayName = versionAgentType ? `(v${version.versionNumber} • ${versionAgentType})` : `(v${version.versionNumber})`
                     const willBeDeleted = isPreviewingDeletion && hasSelectedVersion && !isSelected
 
                   return (

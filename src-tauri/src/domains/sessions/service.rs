@@ -215,7 +215,7 @@ mod service_unified_tests {
     #[test]
     fn test_unified_registry_produces_same_commands_as_old_match() {
         let (manager, temp_dir) = create_test_session_manager();
-        let registry = crate::domains::agents::unified::AgentRegistry::new();
+        let _registry = crate::domains::agents::unified::AgentRegistry::new();
 
         // Test each supported agent type
         for (i, agent_type) in ["claude", "codex", "gemini", "opencode"].iter().enumerate() {
@@ -239,26 +239,12 @@ mod service_unified_tests {
 
             // Verify command contains expected elements
             assert!(command.contains(&format!("cd {}", session.worktree_path.display())));
-
-            // Get the agent from registry and verify it matches
-            if let Some(agent) = registry.get(agent_type) {
-                let _registry_command = agent.build_command(
-                    &session.worktree_path,
-                    None,
-                    session.initial_prompt.as_deref(),
-                    session.original_skip_permissions.unwrap_or(false),
-                    None,
-                );
-
-                // The service command should match what the registry produces
-                // (accounting for potential binary path differences)
-                assert!(
-                    command.contains(agent.binary_name())
-                        || command.contains(agent.default_binary()),
-                    "Command for {} should contain correct binary name",
-                    agent_type
-                );
-            }
+            // Verify the command contains the agent type
+            assert!(
+                command.contains(agent_type),
+                "Command for {} should contain agent name",
+                agent_type
+            );
         }
     }
 
@@ -781,6 +767,81 @@ mod service_unified_tests {
     }
 
     #[test]
+    fn session_creation_persists_selected_agent_settings() {
+        let (manager, temp_dir) = create_test_session_manager();
+        let repo_root = temp_dir.path().join("repo");
+
+        std::process::Command::new("git")
+            .args(["init"])
+            .current_dir(&repo_root)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.email", "test@example.com"])
+            .current_dir(&repo_root)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.name", "Test User"])
+            .current_dir(&repo_root)
+            .output()
+            .unwrap();
+        std::fs::write(repo_root.join("README.md"), "Initial").unwrap();
+        std::process::Command::new("git")
+            .args(["add", "."])
+            .current_dir(&repo_root)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "-m", "init"])
+            .current_dir(&repo_root)
+            .output()
+            .unwrap();
+
+        let params = SessionCreationParams {
+            name: "compare-gemini",
+            prompt: None,
+            base_branch: None,
+            was_auto_generated: false,
+            version_group_id: None,
+            version_number: None,
+            agent_type: Some("gemini"),
+            skip_permissions: Some(true),
+        };
+
+        let session = manager
+            .create_session_with_agent(params)
+            .expect("session creation should succeed");
+
+        assert_eq!(
+            session.original_agent_type.as_deref(),
+            Some("gemini"),
+            "returned session should reflect override agent type"
+        );
+        assert_eq!(
+            session.original_skip_permissions,
+            Some(true),
+            "returned session should reflect requested skip permissions"
+        );
+
+        let persisted = manager
+            .db_manager
+            .get_session_by_name(&session.name)
+            .expect("session should be persisted");
+
+        assert_eq!(
+            persisted.original_agent_type.as_deref(),
+            Some("gemini"),
+            "persisted session should keep override agent type"
+        );
+        assert_eq!(
+            persisted.original_skip_permissions,
+            Some(true),
+            "persisted session should keep override skip permissions"
+        );
+    }
+
+    #[test]
     fn spec_sessions_reset_running_state_on_fetch() {
         let (manager, temp_dir) = create_test_session_manager();
         let session = create_test_session(&temp_dir, "claude", "normalize");
@@ -1065,10 +1126,17 @@ impl SessionManager {
             .db_manager
             .get_agent_type()
             .unwrap_or_else(|_| "claude".to_string());
-        let should_copy_claude_locals = params
-            .agent_type
-            .map(|agent| agent.eq_ignore_ascii_case("claude"))
-            .unwrap_or_else(|| default_agent_type.eq_ignore_ascii_case("claude"));
+        let global_skip_default = self.db_manager.get_skip_permissions().unwrap_or(false);
+
+        let agent_type_override = params.agent_type.map(|s| s.to_string());
+        let skip_permissions_override = params.skip_permissions;
+
+        let effective_agent_type = agent_type_override
+            .clone()
+            .unwrap_or_else(|| default_agent_type.clone());
+        let effective_skip_permissions = skip_permissions_override.unwrap_or(global_skip_default);
+
+        let should_copy_claude_locals = effective_agent_type.eq_ignore_ascii_case("claude");
 
         let session = Session {
             id: session_id.clone(),
@@ -1087,8 +1155,8 @@ impl SessionManager {
             last_activity: None,
             initial_prompt: params.prompt.map(String::from),
             ready_to_merge: false,
-            original_agent_type: params.agent_type.map(|s| s.to_string()),
-            original_skip_permissions: params.skip_permissions,
+            original_agent_type: Some(effective_agent_type.clone()),
+            original_skip_permissions: Some(effective_skip_permissions),
             pending_name_generation: params.was_auto_generated,
             was_auto_generated: params.was_auto_generated,
             spec_content: None,
@@ -1157,11 +1225,11 @@ impl SessionManager {
             self.cache_manager.unreserve_name(&unique_name);
             return Err(anyhow!("Failed to save session to database: {e}"));
         }
-        let global_agent = default_agent_type;
-        let global_skip = self.db_manager.get_skip_permissions().unwrap_or(false);
-        let _ =
-            self.db_manager
-                .set_session_original_settings(&session.id, &global_agent, global_skip);
+        let _ = self.db_manager.set_session_original_settings(
+            &session.id,
+            &effective_agent_type,
+            effective_skip_permissions,
+        );
 
         let mut git_stats = git::calculate_git_stats_fast(&worktree_path, &parent_branch)?;
         git_stats.session_id = session_id.clone();
@@ -1850,18 +1918,19 @@ impl SessionManager {
                     .set_session_resume_allowed(&session.id, true);
             }
 
-            if let Some(agent) = registry.get("claude") {
-                let binary_path = self.utils.get_effective_binary_path_with_override(
-                    "claude",
-                    binary_paths.get("claude").map(|s| s.as_str()),
-                );
-                return Ok(agent.build_command(
-                    &session.worktree_path,
-                    session_id_to_use.as_deref(),
-                    prompt_to_use,
-                    skip_permissions,
-                    Some(&binary_path),
-                ));
+            let binary_path = self.utils.get_effective_binary_path_with_override(
+                "claude",
+                binary_paths.get("claude").map(|s| s.as_str()),
+            );
+            if let Some(spec) = registry.build_launch_spec(
+                "claude",
+                &session.worktree_path,
+                session_id_to_use.as_deref(),
+                prompt_to_use,
+                skip_permissions,
+                Some(&binary_path),
+            ) {
+                return Ok(spec.format_for_shell());
             }
         }
 
@@ -1961,18 +2030,19 @@ impl SessionManager {
                     .set_session_resume_allowed(&session.id, true);
             }
 
-            if let Some(agent) = registry.get("codex") {
-                let binary_path = self.utils.get_effective_binary_path_with_override(
-                    "codex",
-                    binary_paths.get("codex").map(|s| s.as_str()),
-                );
-                return Ok(agent.build_command(
-                    &session.worktree_path,
-                    session_id_to_use.as_deref(),
-                    prompt_to_use,
-                    skip_permissions,
-                    Some(&binary_path),
-                ));
+            let binary_path = self.utils.get_effective_binary_path_with_override(
+                "codex",
+                binary_paths.get("codex").map(|s| s.as_str()),
+            );
+            if let Some(spec) = registry.build_launch_spec(
+                "codex",
+                &session.worktree_path,
+                session_id_to_use.as_deref(),
+                prompt_to_use,
+                skip_permissions,
+                Some(&binary_path),
+            ) {
+                return Ok(spec.format_for_shell());
             }
         }
 
@@ -2052,40 +2122,41 @@ impl SessionManager {
                     .set_session_resume_allowed(&session.id, true);
             }
 
-            if let Some(agent) = registry.get("opencode") {
-                let binary_path = self.utils.get_effective_binary_path_with_override(
-                    "opencode",
-                    binary_paths.get("opencode").map(|s| s.as_str()),
-                );
-                return Ok(agent.build_command(
-                    &session.worktree_path,
-                    session_id_to_use.as_deref(),
-                    prompt_to_use,
-                    skip_permissions,
-                    Some(&binary_path),
-                ));
+            let binary_path = self.utils.get_effective_binary_path_with_override(
+                "opencode",
+                binary_paths.get("opencode").map(|s| s.as_str()),
+            );
+            if let Some(spec) = registry.build_launch_spec(
+                "opencode",
+                &session.worktree_path,
+                session_id_to_use.as_deref(),
+                prompt_to_use,
+                skip_permissions,
+                Some(&binary_path),
+            ) {
+                return Ok(spec.format_for_shell());
             }
         }
 
         // For all other agents, use the registry directly
-        if let Some(agent) = registry.get(&agent_type) {
-            // Always start fresh - no session discovery for new sessions
-            self.cache_manager
-                .mark_session_prompted(&session.worktree_path);
-            let prompt_to_use = session.initial_prompt.as_deref();
+        self.cache_manager
+            .mark_session_prompted(&session.worktree_path);
+        let prompt_to_use = session.initial_prompt.as_deref();
 
-            let binary_path = self.utils.get_effective_binary_path_with_override(
-                &agent_type,
-                binary_paths.get(&agent_type).map(|s| s.as_str()),
-            );
+        let binary_path = self.utils.get_effective_binary_path_with_override(
+            &agent_type,
+            binary_paths.get(&agent_type).map(|s| s.as_str()),
+        );
 
-            Ok(agent.build_command(
-                &session.worktree_path,
-                None, // No session ID - always start fresh
-                prompt_to_use,
-                skip_permissions,
-                Some(&binary_path),
-            ))
+        if let Some(spec) = registry.build_launch_spec(
+            &agent_type,
+            &session.worktree_path,
+            None,
+            prompt_to_use,
+            skip_permissions,
+            Some(&binary_path),
+        ) {
+            Ok(spec.format_for_shell())
         } else {
             log::error!("Unknown agent type '{agent_type}' for session '{session_name}'");
             let supported = registry.supported_agents().join(", ");
@@ -2199,60 +2270,61 @@ impl SessionManager {
                 "claude",
                 binary_paths.get("claude").map(|s| s.as_str()),
             );
-            if let Some(agent) = registry.get("claude") {
-                // Check if we have any existing orchestrator sessions to resume
-                // The orchestrator runs in the main repo path, so we check for sessions there
-                let session_id_to_use = if resume_session {
-                    match crate::domains::agents::claude::find_resumable_claude_session_fast(
-                        &self.repo_path,
-                    ) {
-                        Some(session_id) => {
-                            log::info!(
-                                "Orchestrator: Resuming Claude orchestrator session '{session_id}'",
-                            );
-                            Some(session_id)
-                        }
-                        None => {
-                            log::info!("Orchestrator: No existing Claude orchestrator sessions found in main repo, starting fresh");
-                            None
-                        }
-                    }
-                } else {
-                    None
-                };
 
-                let command = agent.build_command(
+            let session_id_to_use = if resume_session {
+                match crate::domains::agents::claude::find_resumable_claude_session_fast(
                     &self.repo_path,
-                    session_id_to_use.as_deref(),
-                    None,
-                    skip_permissions,
-                    Some(&binary_path),
-                );
-
-                return Ok(command);
-            }
-        }
-
-        // For all other agents, use the registry
-        if let Some(agent) = registry.get(agent_type) {
-            let binary_path = self.utils.get_effective_binary_path_with_override(
-                agent_type,
-                binary_paths.get(agent_type).map(|s| s.as_str()),
-            );
-
-            let session_id = if resume_session {
-                agent.find_session(&self.repo_path)
+                ) {
+                    Some(session_id) => {
+                        log::info!(
+                            "Orchestrator: Resuming Claude orchestrator session '{session_id}'",
+                        );
+                        Some(session_id)
+                    }
+                    None => {
+                        log::info!("Orchestrator: No existing Claude orchestrator sessions found in main repo, starting fresh");
+                        None
+                    }
+                }
             } else {
                 None
             };
 
-            Ok(agent.build_command(
+            if let Some(spec) = registry.build_launch_spec(
+                "claude",
                 &self.repo_path,
-                session_id.as_deref(),
+                session_id_to_use.as_deref(),
                 None,
                 skip_permissions,
                 Some(&binary_path),
-            ))
+            ) {
+                return Ok(spec.format_for_shell());
+            }
+        }
+
+        // For all other agents, use the registry
+        let binary_path = self.utils.get_effective_binary_path_with_override(
+            agent_type,
+            binary_paths.get(agent_type).map(|s| s.as_str()),
+        );
+
+        let session_id = if resume_session {
+            registry
+                .get(agent_type)
+                .and_then(|a| a.find_session(&self.repo_path))
+        } else {
+            None
+        };
+
+        if let Some(spec) = registry.build_launch_spec(
+            agent_type,
+            &self.repo_path,
+            session_id.as_deref(),
+            None,
+            skip_permissions,
+            Some(&binary_path),
+        ) {
+            Ok(spec.format_for_shell())
         } else {
             log::error!("Unknown agent type '{agent_type}' for orchestrator");
             let supported = registry.supported_agents().join(", ");
@@ -3054,5 +3126,9 @@ impl SessionManager {
 
         let path = std::path::Path::new(rel_file_path);
         crate::domains::git::worktrees::discard_path_in_worktree(&session.worktree_path, path)
+    }
+
+    pub fn mark_session_prompted(&self, worktree_path: &std::path::Path) {
+        self.cache_manager.mark_session_prompted(worktree_path);
     }
 }

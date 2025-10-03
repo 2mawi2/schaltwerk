@@ -40,6 +40,7 @@ export enum KeyboardShortcutAction {
   RunSpecAgent = 'runSpecAgent',
   ToggleRunMode = 'toggleRunMode',
   OpenTerminalSearch = 'openTerminalSearch',
+  OpenInApp = 'openInApp',
 }
 
 export type KeyboardShortcutConfig = Record<KeyboardShortcutAction, string[]>
@@ -99,6 +100,7 @@ export const defaultShortcutConfig: KeyboardShortcutConfig = {
   [KeyboardShortcutAction.RunSpecAgent]: createNormalizedBindings(['Mod+Enter']),
   [KeyboardShortcutAction.ToggleRunMode]: createNormalizedBindings(['Mod+E']),
   [KeyboardShortcutAction.OpenTerminalSearch]: createNormalizedBindings(['Mod+F']),
+  [KeyboardShortcutAction.OpenInApp]: createNormalizedBindings(['Mod+Shift+O']),
 }
 
 export const mergeShortcutConfig = (

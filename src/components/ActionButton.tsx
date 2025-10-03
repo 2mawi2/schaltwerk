@@ -24,7 +24,8 @@ export function ActionButton({ action, projectId, onExecute }: ActionButtonProps
       // Use paste_and_submit_terminal to properly paste into AI session
       await invoke(TauriCommands.PasteAndSubmitTerminal, {
         id: terminalId,
-        data: action.prompt
+        data: action.prompt,
+        useBracketedPaste: true
       })
 
       onExecute?.(action)

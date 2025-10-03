@@ -506,6 +506,57 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
     const reloadInFlightRef = useRef<Promise<void> | null>(null)
     const reloadDirtyRef = useRef(false)
 
+    const autoStartRunningSessions = useCallback((sessions: EnrichedSession[], options?: { reason?: string; previousStates?: Map<string, string> }) => {
+        if (!Array.isArray(sessions) || sessions.length === 0) {
+            return
+        }
+
+        const previousStates = options?.previousStates ?? prevStatesRef.current
+        const reason = options?.reason ?? 'sessions-refresh'
+
+        for (const session of sessions) {
+            const sessionId = session?.info?.session_id
+            if (!sessionId) {
+                continue
+            }
+
+            const nextState = mapSessionUiState(session.info)
+            if (nextState !== 'running') {
+                continue
+            }
+
+            const wasRunning = previousStates.get(sessionId) === 'running'
+            if (wasRunning) {
+                continue
+            }
+
+            const sanitized = sessionId.replace(/[^a-zA-Z0-9_-]/g, '_')
+            const topId = `session-${sanitized}-top`
+
+            if (hasBackgroundStart(topId) || hasInflight(topId)) {
+                logger.debug(`[SessionsContext] Skipping auto-start for ${sessionId}; background mark or inflight present (${reason})`)
+                continue
+            }
+
+            const launch = async () => {
+                try {
+                    const projectOrchestratorId = computeProjectOrchestratorId(projectPath)
+                    await startSessionTop({ sessionName: sessionId, topId, projectOrchestratorId })
+                    logger.info(`[SessionsContext] Started agent for ${sessionId} (${reason}).`)
+                } catch (error) {
+                    const message = getErrorMessage(error)
+                    if (message.includes('Permission required for folder:')) {
+                        emitUiEvent(UiEvent.PermissionError, { error: message })
+                    } else {
+                        logger.warn(`[SessionsContext] Auto-start failed for ${sessionId} (${reason}):`, error)
+                    }
+                }
+            }
+
+            void launch()
+        }
+    }, [projectPath])
+
     const executeReload = useCallback(async () => {
         if (!projectPath) {
             setAllSessions([])
@@ -561,6 +612,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             if (hasSpecSessions(enriched)) {
                 const normalized = enriched.map(attachMergeSnapshot)
                 setAllSessions(normalized)
+                autoStartRunningSessions(normalized, { reason: 'initial-load', previousStates: prevStatesRef.current })
                 syncMergeStatuses(normalized)
                 const nextStates = new Map<string, string>()
                 for (const s of normalized) {
@@ -609,6 +661,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                 }
 
                 setAllSessions(all)
+                autoStartRunningSessions(all, { reason: 'initial-load', previousStates: prevStatesRef.current })
                 syncMergeStatuses(all)
                 const nextStates = new Map<string, string>()
                 for (const s of all) {
@@ -623,7 +676,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             setLoading(false)
             hasInitialLoadCompleted.current = true
         }
-    }, [projectPath, mergeSessionsPreferDraft, syncMergeStatuses])
+    }, [projectPath, mergeSessionsPreferDraft, syncMergeStatuses, autoStartRunningSessions])
 
     const reloadSessions = useCallback(() => {
         if (reloadInFlightRef.current) {
@@ -985,6 +1038,8 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                             return updated
                         })
 
+                        autoStartRunningSessions(event, { reason: 'sessions-refreshed', previousStates: prevStatesRef.current })
+
                         const nextStates = new Map<string, string>()
                         for (const session of event) {
                             nextStates.set(session.info.session_id, mapSessionUiState(session.info))
@@ -1212,7 +1267,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         }
 
         setupListeners()
-    }, [projectPath, addListener, reloadSessions, syncMergeStatuses])
+    }, [projectPath, addListener, reloadSessions, syncMergeStatuses, autoStartRunningSessions])
 
     useEffect(() => {
         let disposed = false

@@ -171,6 +171,12 @@ describe('agentSpawn', () => {
       vi.mocked(hasInflight).mockReturnValue(false)
       vi.mocked(singleflight).mockImplementation(async (_, fn) => fn())
       vi.mocked(bestBootstrapSize).mockReturnValue({ cols: 120, rows: 40 })
+      vi.mocked(invoke).mockImplementation(async (cmd) => {
+        if (cmd === TauriCommands.SchaltwerkCoreGetSession) {
+          return { original_agent_type: null }
+        }
+        return null
+      })
     })
 
     it('skips start if already inflight', async () => {
@@ -192,7 +198,7 @@ describe('agentSpawn', () => {
       })
 
       expect(markBackgroundStart).toHaveBeenCalledWith('session-test-top')
-      expect(invoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartClaude, {
+      expect(invoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartSessionAgent, {
         sessionName: 'test-session',
         cols: 118, // 120 - 2
         rows: 40
@@ -206,7 +212,7 @@ describe('agentSpawn', () => {
         measured: { cols: 140, rows: 50 }
       })
 
-      expect(invoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartClaude, {
+      expect(invoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartSessionAgent, {
         sessionName: 'test-session',
         cols: 138, // 140 - 2
         rows: 50

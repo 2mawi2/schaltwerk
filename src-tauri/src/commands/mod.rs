@@ -45,7 +45,8 @@ pub use schaltwerk_core::{
     schaltwerk_core_set_orchestrator_skip_permissions, schaltwerk_core_set_session_agent_type,
     schaltwerk_core_set_skip_permissions, schaltwerk_core_start_claude,
     schaltwerk_core_start_claude_orchestrator, schaltwerk_core_start_claude_with_restart,
-    schaltwerk_core_start_fresh_orchestrator, schaltwerk_core_start_spec_session,
+    schaltwerk_core_start_fresh_orchestrator, schaltwerk_core_start_session_agent,
+    schaltwerk_core_start_session_agent_with_restart, schaltwerk_core_start_spec_session,
     schaltwerk_core_unmark_session_ready, schaltwerk_core_update_git_stats,
     schaltwerk_core_update_session_state, schaltwerk_core_update_spec_content,
 };

@@ -168,15 +168,15 @@ pub async fn get_all_agent_binary_configs() -> Result<Vec<AgentBinaryConfig>, St
         .ok_or_else(|| "Settings manager not initialized".to_string())?;
     let mut settings = settings_manager.lock().await;
 
-    let known_agents = vec!["claude", "codex", "opencode", "gemini"];
+    let known_agents: Vec<String> =
+        schaltwerk::domains::agents::manifest::AgentManifest::supported_agents();
     let mut configs = Vec::new();
 
     for agent in known_agents {
-        if let Some(config) = settings.get_agent_binary_config(agent) {
+        if let Some(config) = settings.get_agent_binary_config(&agent) {
             configs.push(config);
         } else {
-            // Create default config with detection
-            let detected_binaries = BinaryDetector::detect_agent_binaries(agent);
+            let detected_binaries = BinaryDetector::detect_agent_binaries(&agent);
             let config = AgentBinaryConfig {
                 agent_name: agent.to_string(),
                 custom_path: None,
@@ -184,7 +184,6 @@ pub async fn get_all_agent_binary_configs() -> Result<Vec<AgentBinaryConfig>, St
                 detected_binaries,
             };
 
-            // Save it for future use
             if let Err(e) = settings.set_agent_binary_config(config.clone()) {
                 log::warn!("Failed to save binary config for {agent}: {e}");
             }
@@ -204,13 +203,14 @@ pub async fn detect_all_agent_binaries() -> Result<Vec<AgentBinaryConfig>, Strin
         .ok_or_else(|| "Settings manager not initialized".to_string())?;
     let mut settings = settings_manager.lock().await;
 
-    let known_agents = vec!["claude", "codex", "opencode", "gemini"];
+    let known_agents: Vec<String> =
+        schaltwerk::domains::agents::manifest::AgentManifest::supported_agents();
     let mut configs = Vec::new();
 
     for agent in known_agents {
-        let detected_binaries = BinaryDetector::detect_agent_binaries(agent);
+        let detected_binaries = BinaryDetector::detect_agent_binaries(&agent);
 
-        let existing_config = settings.get_agent_binary_config(agent);
+        let existing_config = settings.get_agent_binary_config(&agent);
         let custom_path = existing_config.and_then(|c| c.custom_path);
 
         let config = AgentBinaryConfig {

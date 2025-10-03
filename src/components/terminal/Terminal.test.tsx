@@ -311,7 +311,10 @@ beforeEach(() => {
   ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.ResizeTerminal, () => undefined)
   ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.WriteTerminal, () => undefined)
   ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.SchaltwerkCoreStartClaudeOrchestrator, () => undefined)
-  ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.SchaltwerkCoreStartClaude, () => undefined)
+;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(
+  TauriCommands.SchaltwerkCoreStartSessionAgent,
+  () => undefined
+)
   ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.GetTerminalSettings, () => ({ fontFamily: null }))
   const mockFontSizes = [14, 14] as [number, number];
   ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.SchaltwerkCoreGetFontSizes, () => mockFontSizes)
@@ -612,7 +615,7 @@ describe('Terminal component', () => {
     vi.advanceTimersByTime(1)
     await flushAll()
 
-    const startSess = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.find((c: unknown[]) => c[0] === TauriCommands.SchaltwerkCoreStartClaude)
+  const startSess = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.find((c: unknown[]) => c[0] === TauriCommands.SchaltwerkCoreStartSessionAgent)
     expect(startSess).toBeTruthy()
     expect(startSess![1]).toMatchObject({ sessionName: 'work' })
   })
@@ -1471,7 +1474,7 @@ describe('Terminal component', () => {
     await flushAll()
     vi.advanceTimersByTime(1)
     await flushAll()
-    const startCallsFirst = core.invoke.mock.calls.filter(call => call[0] === TauriCommands.SchaltwerkCoreStartClaude)
+    const startCallsFirst = core.invoke.mock.calls.filter(call => call[0] === TauriCommands.SchaltwerkCoreStartSessionAgent)
     expect(startCallsFirst.length).toBeGreaterThan(0)
     first.unmount()
 
@@ -1480,7 +1483,7 @@ describe('Terminal component', () => {
     await flushAll()
     vi.advanceTimersByTime(1)
     await flushAll()
-    const startCallsSecond = core.invoke.mock.calls.filter(call => call[0] === TauriCommands.SchaltwerkCoreStartClaude)
+    const startCallsSecond = core.invoke.mock.calls.filter(call => call[0] === TauriCommands.SchaltwerkCoreStartSessionAgent)
     expect(startCallsSecond.length).toBe(0)
     second.unmount()
 
@@ -1492,7 +1495,7 @@ describe('Terminal component', () => {
     await flushAll()
     vi.advanceTimersByTime(1)
     await flushAll()
-    const startCallsThird = core.invoke.mock.calls.filter(call => call[0] === TauriCommands.SchaltwerkCoreStartClaude)
+    const startCallsThird = core.invoke.mock.calls.filter(call => call[0] === TauriCommands.SchaltwerkCoreStartSessionAgent)
     expect(startCallsThird.length).toBeGreaterThan(0)
     third.unmount()
     clearTerminalStartedTracking([terminalId])

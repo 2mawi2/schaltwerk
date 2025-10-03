@@ -8,6 +8,13 @@ export const AGENT_SUPPORTS_SKIP_PERMISSIONS: Record<AgentType, boolean> = {
     codex: true
 }
 
+export function createAgentRecord<T>(factory: (agent: AgentType) => T): Record<AgentType, T> {
+    return AGENT_TYPES.reduce((acc, agent) => {
+        acc[agent] = factory(agent)
+        return acc
+    }, {} as Record<AgentType, T>)
+}
+
 export enum SessionState {
     Spec = 'spec',
     Running = 'running',

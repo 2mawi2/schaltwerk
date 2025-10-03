@@ -17,7 +17,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { getActionButtonColorClasses } from '../../constants/actionButtonColors'
 import { ConfirmResetDialog } from '../common/ConfirmResetDialog'
 import { VscDiscard } from 'react-icons/vsc'
-import { useRef, useEffect, useState, useMemo, useCallback } from 'react'
+import { useRef, useEffect, useState, useMemo, useCallback, memo } from 'react'
 import { useShortcutDisplay } from '../../keyboardShortcuts/useShortcutDisplay'
 import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
 import { mapSessionUiState } from '../../utils/sessionFilters'
@@ -48,7 +48,7 @@ const cloneTabsState = (state: TerminalTabsUiState): TerminalTabsUiState => ({
     canAddTab: state.canAddTab,
 })
 
-export function TerminalGrid() {
+const TerminalGridComponent = () => {
     const { selection, terminals, isReady, isSpec } = useSelection()
     const { getFocusForSession, setFocusForSession, currentFocus } = useFocus()
     const { addRunningSession, removeRunningSession } = useRun()
@@ -312,24 +312,66 @@ export function TerminalGrid() {
         }
     }, [selection, sessions, getAgentType, getOrchestratorAgentType])
 
-    // Load run script availability and manage run mode state
-    useEffect(() => {
-        const initializeRunMode = async () => {
-            const sessionKey = getSessionKey()
-            const config = await loadRunScriptConfiguration(sessionKey)
-            
+    const persistRunModeState = useCallback((sessionKeyValue: string, isActive: boolean) => {
+        sessionStorage.setItem(`schaltwerk:run-mode:${sessionKeyValue}`, String(isActive))
+        setRunModeActive(isActive)
+    }, [setRunModeActive])
+
+    const syncActiveTab = useCallback((targetIndex: number, shouldUpdate?: (state: TerminalTabsUiState) => boolean) => {
+        applyTabsState(prev => {
+            if (prev.activeTab === targetIndex) {
+                return prev
+            }
+            if (shouldUpdate && !shouldUpdate(prev)) {
+                return prev
+            }
+            sessionStorage.setItem(activeTabKey, String(targetIndex))
+            return { ...prev, activeTab: targetIndex }
+        })
+    }, [applyTabsState, activeTabKey])
+
+    const refreshRunScriptConfiguration = useCallback(async () => {
+        const currentSessionKey = getSessionKey()
+        try {
+            const config = await loadRunScriptConfiguration(currentSessionKey)
+
             setHasRunScripts(config.hasRunScripts)
-            setRunModeActive(config.shouldActivateRunMode)
-            
-            // Restore saved active tab if available
+            persistRunModeState(currentSessionKey, config.shouldActivateRunMode)
+
             if (config.savedActiveTab !== null) {
                 const savedTab = config.savedActiveTab
-                applyTabsState(prev => ({ ...prev, activeTab: savedTab }))
+                syncActiveTab(savedTab)
+            } else if (!config.shouldActivateRunMode) {
+                syncActiveTab(0, state => state.activeTab === RUN_TAB_INDEX)
             }
+        } catch (error) {
+            logger.error('[TerminalGrid] Failed to load run script configuration:', error)
         }
-        
-        initializeRunMode()
-    }, [selection, getSessionKey, applyTabsState])
+    }, [getSessionKey, persistRunModeState, syncActiveTab, RUN_TAB_INDEX])
+
+    // Load run script availability and manage run mode state
+    useEffect(() => {
+        void refreshRunScriptConfiguration()
+    }, [selection, refreshRunScriptConfiguration])
+
+    useEffect(() => {
+        const cleanup = listenUiEvent(UiEvent.RunScriptUpdated, detail => {
+            const hasScript = detail?.hasRunScript ?? false
+            const sessionKeyForUpdate = getSessionKey()
+
+            setHasRunScripts(hasScript)
+            persistRunModeState(sessionKeyForUpdate, hasScript)
+
+            if (hasScript) {
+                syncActiveTab(RUN_TAB_INDEX)
+            } else {
+                syncActiveTab(0, state => state.activeTab === RUN_TAB_INDEX)
+            }
+
+            void refreshRunScriptConfiguration()
+        })
+        return cleanup
+    }, [refreshRunScriptConfiguration, getSessionKey, persistRunModeState, syncActiveTab, RUN_TAB_INDEX])
 
     // Focus appropriate terminal when selection changes
     useEffect(() => {
@@ -718,26 +760,26 @@ export function TerminalGrid() {
         previousTerminalKeyRef.current = terminalKey
     }, [terminals.bottomBase, terminalKey])
 
-    const handleClaudeSessionClick = async (e?: React.MouseEvent) => {
+    const handleClaudeSessionClick = useCallback(async (e?: React.MouseEvent) => {
         // Prevent event from bubbling if called from child
         e?.stopPropagation()
-        
+
         const sessionKey = getSessionKey()
         setFocusForSession(sessionKey, 'claude')
         setLocalFocus('claude')
-        
+
         // Only focus the terminal, don't restart Claude
         // Claude is already auto-started by the Terminal component when first mounted
         // Use requestAnimationFrame for more reliable focus
         safeTerminalFocus(() => {
             claudeTerminalRef.current?.focus()
         }, isAnyModalOpen)
-    }
+    }, [getSessionKey, isAnyModalOpen, setFocusForSession, setLocalFocus])
 
-    const handleTerminalClick = (e?: React.MouseEvent) => {
+    const handleTerminalClick = useCallback((e?: React.MouseEvent) => {
         // Prevent event from bubbling if called from child
         e?.stopPropagation()
-        
+
         const sessionKey = getSessionKey()
         setFocusForSession(sessionKey, 'terminal')
         setLocalFocus('terminal')
@@ -754,7 +796,7 @@ export function TerminalGrid() {
         safeTerminalFocus(() => {
             terminalTabsRef.current?.focus()
         }, isAnyModalOpen)
-    }
+    }, [getSessionKey, isBottomCollapsed, isAnyModalOpen, lastExpandedBottomPercent, setFocusForSession, setIsBottomCollapsed, setLocalFocus, setSizes])
 
     // No prompt UI here anymore; moved to right panel dock
 
@@ -762,24 +804,13 @@ export function TerminalGrid() {
     const hasProjectScopedIds = terminals.top && !terminals.top.includes('orchestrator-default')
     const shouldRenderTerminals = isReady || hasProjectScopedIds
 
-    // Spec sessions show placeholder instead of terminals
-    if (selection.kind === 'session' && isSpec) {
-        return (
-            <div className="h-full p-2 relative">
-                <div className="bg-panel rounded border border-slate-800 overflow-hidden min-h-0 h-full">
-                    <SpecPlaceholder />
-                </div>
-            </div>
-        )
-    }
-
     // When collapsed, adjust sizes to show just the terminal header
     const effectiveSizes = isBottomCollapsed 
         ? [100 - collapsedPercent, collapsedPercent]
         : sizes
 
     // Get all running sessions for background terminals
-    const dispatchOpencodeFinalResize = () => {
+    const dispatchOpencodeFinalResize = useCallback(() => {
         try {
             if (selection.kind === 'session' && selection.payload) {
                 emitUiEvent(UiEvent.OpencodeSelectionResize, { kind: 'session', sessionId: selection.payload })
@@ -800,15 +831,25 @@ export function TerminalGrid() {
         } catch (e) {
             logger.warn('[TerminalGrid] Failed to dispatch generic terminal resize request', e)
         }
-    };
+    }, [selection])
 
-    const handlePanelTransitionEnd = (e: React.TransitionEvent<HTMLDivElement>) => {
+    const handlePanelTransitionEnd = useCallback((e: React.TransitionEvent<HTMLDivElement>) => {
         const prop = e.propertyName;
         // Only react to geometry-affecting transitions
         if (prop === 'height' || prop === 'width' || prop === 'flex-basis' || prop === 'max-height') {
             dispatchOpencodeFinalResize();
         }
-    };
+    }, [dispatchOpencodeFinalResize]);
+
+    if (selection.kind === 'session' && isSpec) {
+        return (
+            <div className="h-full p-2 relative">
+                <div className="bg-panel rounded border border-slate-800 overflow-hidden min-h-0 h-full">
+                    <SpecPlaceholder />
+                </div>
+            </div>
+        )
+    }
 
     return (
         <div ref={containerRef} className="h-full px-2 pb-2 pt-0 relative">
@@ -1151,3 +1192,7 @@ export function TerminalGrid() {
         </div>
     )
 }
+
+TerminalGridComponent.displayName = 'TerminalGrid';
+
+export const TerminalGrid = memo(TerminalGridComponent);
