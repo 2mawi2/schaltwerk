@@ -45,6 +45,7 @@ export async function startSessionTop(params: {
   topId: string
   projectOrchestratorId?: string | null
   measured?: { cols?: number | null; rows?: number | null }
+  agentType?: string
 }) {
   const { sessionName, topId, projectOrchestratorId, measured } = params
   if (hasInflight(topId)) return

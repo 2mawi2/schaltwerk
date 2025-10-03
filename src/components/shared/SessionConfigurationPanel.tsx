@@ -19,6 +19,7 @@ interface SessionConfigurationPanelProps {
     initialSkipPermissions?: boolean
     disabled?: boolean
     hideLabels?: boolean
+    hideAgentType?: boolean
 }
 
 export interface SessionConfiguration {
@@ -37,7 +38,8 @@ export function SessionConfigurationPanel({
     initialAgentType = 'claude',
     initialSkipPermissions = false,
     disabled = false,
-    hideLabels = false
+    hideLabels = false,
+    hideAgentType = false
 }: SessionConfigurationPanelProps) {
     const [baseBranch, setBaseBranch] = useState(initialBaseBranch)
     const [branches, setBranches] = useState<string[]>([])
@@ -300,21 +302,23 @@ export function SessionConfigurationPanel({
                 </p>
             </div>
 
-            <div>
-                <label className="block text-sm mb-2" style={{ color: theme.colors.text.secondary }}>
-                    Agent
-                </label>
-                <ModelSelector
-                    value={agentType}
-                    onChange={handleAgentTypeChange}
-                    disabled={disabled}
-                    skipPermissions={skipPermissions}
-                    onSkipPermissionsChange={handleSkipPermissionsChange}
-                />
-                <p className="text-xs mt-2" style={{ color: theme.colors.text.muted }}>
-                    AI agent to use for this session
-                </p>
-            </div>
+            {!hideAgentType && (
+                <div>
+                    <label className="block text-sm mb-2" style={{ color: theme.colors.text.secondary }}>
+                        Agent
+                    </label>
+                    <ModelSelector
+                        value={agentType}
+                        onChange={handleAgentTypeChange}
+                        disabled={disabled}
+                        skipPermissions={skipPermissions}
+                        onSkipPermissionsChange={handleSkipPermissionsChange}
+                    />
+                    <p className="text-xs mt-2" style={{ color: theme.colors.text.muted }}>
+                        AI agent to use for this session
+                    </p>
+                </div>
+            )}
         </div>
     )
 }

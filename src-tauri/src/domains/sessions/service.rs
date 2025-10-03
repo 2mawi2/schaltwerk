@@ -767,6 +767,81 @@ mod service_unified_tests {
     }
 
     #[test]
+    fn session_creation_persists_selected_agent_settings() {
+        let (manager, temp_dir) = create_test_session_manager();
+        let repo_root = temp_dir.path().join("repo");
+
+        std::process::Command::new("git")
+            .args(["init"])
+            .current_dir(&repo_root)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.email", "test@example.com"])
+            .current_dir(&repo_root)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.name", "Test User"])
+            .current_dir(&repo_root)
+            .output()
+            .unwrap();
+        std::fs::write(repo_root.join("README.md"), "Initial").unwrap();
+        std::process::Command::new("git")
+            .args(["add", "."])
+            .current_dir(&repo_root)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "-m", "init"])
+            .current_dir(&repo_root)
+            .output()
+            .unwrap();
+
+        let params = SessionCreationParams {
+            name: "compare-gemini",
+            prompt: None,
+            base_branch: None,
+            was_auto_generated: false,
+            version_group_id: None,
+            version_number: None,
+            agent_type: Some("gemini"),
+            skip_permissions: Some(true),
+        };
+
+        let session = manager
+            .create_session_with_agent(params)
+            .expect("session creation should succeed");
+
+        assert_eq!(
+            session.original_agent_type.as_deref(),
+            Some("gemini"),
+            "returned session should reflect override agent type"
+        );
+        assert_eq!(
+            session.original_skip_permissions,
+            Some(true),
+            "returned session should reflect requested skip permissions"
+        );
+
+        let persisted = manager
+            .db_manager
+            .get_session_by_name(&session.name)
+            .expect("session should be persisted");
+
+        assert_eq!(
+            persisted.original_agent_type.as_deref(),
+            Some("gemini"),
+            "persisted session should keep override agent type"
+        );
+        assert_eq!(
+            persisted.original_skip_permissions,
+            Some(true),
+            "persisted session should keep override skip permissions"
+        );
+    }
+
+    #[test]
     fn spec_sessions_reset_running_state_on_fetch() {
         let (manager, temp_dir) = create_test_session_manager();
         let session = create_test_session(&temp_dir, "claude", "normalize");
@@ -1051,10 +1126,22 @@ impl SessionManager {
             .db_manager
             .get_agent_type()
             .unwrap_or_else(|_| "claude".to_string());
-        let should_copy_claude_locals = params
-            .agent_type
-            .map(|agent| agent.eq_ignore_ascii_case("claude"))
-            .unwrap_or_else(|| default_agent_type.eq_ignore_ascii_case("claude"));
+        let global_skip_default = self
+            .db_manager
+            .get_skip_permissions()
+            .unwrap_or(false);
+
+        let agent_type_override = params.agent_type.map(|s| s.to_string());
+        let skip_permissions_override = params.skip_permissions;
+
+        let effective_agent_type = agent_type_override
+            .clone()
+            .unwrap_or_else(|| default_agent_type.clone());
+        let effective_skip_permissions =
+            skip_permissions_override.unwrap_or(global_skip_default);
+
+        let should_copy_claude_locals =
+            effective_agent_type.eq_ignore_ascii_case("claude");
 
         let session = Session {
             id: session_id.clone(),
@@ -1073,8 +1160,8 @@ impl SessionManager {
             last_activity: None,
             initial_prompt: params.prompt.map(String::from),
             ready_to_merge: false,
-            original_agent_type: params.agent_type.map(|s| s.to_string()),
-            original_skip_permissions: params.skip_permissions,
+            original_agent_type: Some(effective_agent_type.clone()),
+            original_skip_permissions: Some(effective_skip_permissions),
             pending_name_generation: params.was_auto_generated,
             was_auto_generated: params.was_auto_generated,
             spec_content: None,
@@ -1143,11 +1230,11 @@ impl SessionManager {
             self.cache_manager.unreserve_name(&unique_name);
             return Err(anyhow!("Failed to save session to database: {e}"));
         }
-        let global_agent = default_agent_type;
-        let global_skip = self.db_manager.get_skip_permissions().unwrap_or(false);
-        let _ =
-            self.db_manager
-                .set_session_original_settings(&session.id, &global_agent, global_skip);
+        let _ = self.db_manager.set_session_original_settings(
+            &session.id,
+            &effective_agent_type,
+            effective_skip_permissions,
+        );
 
         let mut git_stats = git::calculate_git_stats_fast(&worktree_path, &parent_branch)?;
         git_stats.session_id = session_id.clone();
