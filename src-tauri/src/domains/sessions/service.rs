@@ -1126,10 +1126,7 @@ impl SessionManager {
             .db_manager
             .get_agent_type()
             .unwrap_or_else(|_| "claude".to_string());
-        let global_skip_default = self
-            .db_manager
-            .get_skip_permissions()
-            .unwrap_or(false);
+        let global_skip_default = self.db_manager.get_skip_permissions().unwrap_or(false);
 
         let agent_type_override = params.agent_type.map(|s| s.to_string());
         let skip_permissions_override = params.skip_permissions;
@@ -1137,11 +1134,9 @@ impl SessionManager {
         let effective_agent_type = agent_type_override
             .clone()
             .unwrap_or_else(|| default_agent_type.clone());
-        let effective_skip_permissions =
-            skip_permissions_override.unwrap_or(global_skip_default);
+        let effective_skip_permissions = skip_permissions_override.unwrap_or(global_skip_default);
 
-        let should_copy_claude_locals =
-            effective_agent_type.eq_ignore_ascii_case("claude");
+        let should_copy_claude_locals = effective_agent_type.eq_ignore_ascii_case("claude");
 
         let session = Session {
             id: session_id.clone(),

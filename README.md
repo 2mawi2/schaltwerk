@@ -61,7 +61,9 @@ See [installation docs](https://schaltwerk.mintlify.app/installation) for manual
 
 Built with Tauri (Rust backend + React/TypeScript frontend), git worktrees for isolation, and PTY terminals for native shell emulation.
 
-## For Contributors
+## Contributing
+
+We actively welcome contributions—whether that’s reporting issues, improving docs, or shipping code. Start with [CONTRIBUTING.md](./CONTRIBUTING.md) for ways to get involved and the project’s quality checklist.
 
 ### Development
 
