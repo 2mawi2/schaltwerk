@@ -241,6 +241,18 @@ impl SettingsService {
         self.save()
     }
 
+    pub fn get_tutorial_completed(&self) -> bool {
+        self.settings.tutorial_completed
+    }
+
+    pub fn set_tutorial_completed(
+        &mut self,
+        completed: bool,
+    ) -> Result<(), SettingsServiceError> {
+        self.settings.tutorial_completed = completed;
+        self.save()
+    }
+
     pub fn get_auto_commit_on_review(&self) -> bool {
         self.settings.session.auto_commit_on_review
     }

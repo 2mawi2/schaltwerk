@@ -185,6 +185,16 @@ impl SettingsManager {
             .map_err(|e| e.to_string())
     }
 
+    pub fn get_tutorial_completed(&self) -> bool {
+        self.service.get_tutorial_completed()
+    }
+
+    pub fn set_tutorial_completed(&mut self, completed: bool) -> Result<(), String> {
+        self.service
+            .set_tutorial_completed(completed)
+            .map_err(|e| e.to_string())
+    }
+
     pub fn get_auto_commit_on_review(&self) -> bool {
         self.service.get_auto_commit_on_review()
     }
