@@ -41,7 +41,7 @@
   },
   "overrides": {},
   "dependencies": {
-    "@codemirror/lang-markdown": "^6.3.4",
+    "@codemirror/lang-markdown": "^6.4.0",
     "@codemirror/autocomplete": "^6.19.0",
     "@codemirror/state": "^6.5.2",
     "@codemirror/view": "^6.38.4",
@@ -83,7 +83,7 @@
     "happy-dom": "^19.0.2",
     "terser": "^5.44.0",
     "typescript": "~5.9.3",
-    "vite": "^7.1.7",
+    "vite": "^7.1.9",
     "vitest": "^3.2.4"
   }
 }
