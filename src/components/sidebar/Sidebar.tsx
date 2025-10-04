@@ -990,7 +990,6 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
 
             <div className="h-8 px-3 border-t border-b border-slate-800 text-xs text-slate-300 flex items-center">
                 <div className="flex items-center gap-2 w-full">
-                    <span className="text-xs flex-shrink-0">Agents</span>
                     <div className="flex items-center gap-1 ml-auto flex-nowrap overflow-x-auto" style={{ scrollbarGutter: 'stable both-edges' }}>
                         {/* Search Icon */}
                                 <button
