@@ -55,6 +55,18 @@ open -a Schaltwerk
 
 First launch requires security approval (System Settings → Privacy & Security → Open Anyway).
 
+### Updating from 0.2.2 or earlier
+
+The Homebrew cask now cleans up old installs automatically. If you’re on 0.2.2 or an older build that refuses to upgrade, do a one-time cleanup and reinstall:
+
+```bash
+brew uninstall --cask --force schaltwerk
+rm -rf /opt/homebrew/Caskroom/schaltwerk/0.2.0/Schaltwerk.app
+brew install --cask 2mawi2/tap/schaltwerk
+```
+
+After this reset, future `brew upgrade --cask schaltwerk` runs will succeed without manual steps.
+
 See [installation docs](https://schaltwerk.mintlify.app/installation) for manual install and troubleshooting.
 
 ## Architecture

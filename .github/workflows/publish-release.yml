@@ -55,6 +55,19 @@ jobs:
             desc "Visual interface for managing Para sessions"
             homepage "https://github.com/2mawi2/schaltwerk"
 
+            uninstall_preflight do
+              staged_app = staged_path/"Schaltwerk.app"
+              next unless staged_app.exist?
+
+              # The staged path should normally be a symlink. If it is a real directory,
+              # a previous upgrade was interrupted and left a full copy behind which
+              # breaks subsequent upgrades. Clean it up before Homebrew runs move_back.
+              next if staged_app.symlink?
+
+              require "fileutils"
+              FileUtils.rm_rf(staged_app)
+            end
+
             app "Schaltwerk.app"
 
             postflight do
@@ -94,6 +107,10 @@ jobs:
 
               ohai "Schaltwerk MCP configuration is now available through Settings → Agent Configuration → Claude tab."
             end
+
+            uninstall delete: [
+              "#{HOMEBREW_PREFIX}/bin/schaltwerk",
+            ]
 
             zap trash: [
               "~/Library/Application Support/schaltwerk",
