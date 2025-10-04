@@ -26,6 +26,8 @@ const MarkdownEditor = lazy(() => import('../plans/MarkdownEditor').then(m => ({
 interface Props {
     open: boolean
     initialIsDraft?: boolean
+    cachedPrompt?: string
+    onPromptChange?: (prompt: string) => void
     onClose: () => void
     onCreate: (data: {
         name: string
@@ -40,7 +42,7 @@ interface Props {
     }) => void | Promise<void>
 }
 
-export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreate }: Props) {
+export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '', onPromptChange, onClose, onCreate }: Props) {
     const { registerModal, unregisterModal } = useModal()
     const [name, setName] = useState(() => generateDockerStyleName())
     const [, setWasEdited] = useState(false)
@@ -373,13 +375,12 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                 setName(gen)
                 setWasEdited(false)
                 wasEditedRef.current = false
-                setTaskContent('')
+                setTaskContent(cachedPrompt)
                 setValidationError('')
                 setCreateAsDraft(initialIsDraft)
                 setNameLocked(false)
                 setOriginalSpecName('')
                 setShowVersionMenu(false)
-                // Default version count is 1 (not from settings anymore)
                 setVersionCount(1)
                 setCompareAgents(false)
                 setSelectedAgents(new Set(['claude']))
@@ -406,7 +407,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             
             wasOpenRef.current = true
             lastInitialIsDraftRef.current = initialIsDraft
-            
+
             // Check if repository is empty for display purposes
             invoke<boolean>(TauriCommands.RepositoryIsEmpty)
                 .then(setRepositoryIsEmpty)
@@ -414,20 +415,21 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                     logger.warn('Failed to check if repository is empty:', err)
                     setRepositoryIsEmpty(false)
                 })
-            
-            // Focus the prompt textarea when modal opens
+
             setTimeout(() => {
-                markdownEditorRef.current?.focus()
+                if (cachedPrompt) {
+                    markdownEditorRef.current?.focusEnd()
+                } else {
+                    markdownEditorRef.current?.focus()
+                }
             }, 100)
         } else {
-            // Reset ALL state when modal closes to prevent stale state
-            logger.info('[NewSessionModal] Modal closed - resetting all state')
+            logger.info('[NewSessionModal] Modal closed - resetting all state except taskContent')
             setIsPrefillPending(false)
             setHasPrefillData(false)
             setCreateAsDraft(false)
             setNameLocked(false)
             setOriginalSpecName('')
-            setTaskContent('')
             setName('')
             setValidationError('')
             setCreating(false)
@@ -444,7 +446,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             wasOpenRef.current = false
             lastInitialIsDraftRef.current = undefined
         }
-    }, [open, initialIsDraft, isPrefillPending, hasPrefillData, createAsDraft])
+    }, [open, initialIsDraft, isPrefillPending, hasPrefillData, createAsDraft, cachedPrompt])
 
     const ensureProjectFiles = projectFileIndex.ensureIndex
 
@@ -634,6 +636,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                                     value={taskContent}
                                     onChange={value => {
                                         setTaskContent(value)
+                                        onPromptChange?.(value)
                                         if (validationError) {
                                             setValidationError('')
                                         }

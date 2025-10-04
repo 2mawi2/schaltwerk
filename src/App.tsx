@@ -94,6 +94,7 @@ function AppContent() {
   const [showPermissionPrompt, setShowPermissionPrompt] = useState(false)
   const [permissionDeniedPath, setPermissionDeniedPath] = useState<string | null>(null)
   const [openAsDraft, setOpenAsSpec] = useState(false)
+  const [cachedPrompt, setCachedPrompt] = useState('')
   const [triggerOpenInApp, setTriggerOpenInApp] = useState<number>(0)
   const projectSwitchPromiseRef = useRef<Promise<boolean> | null>(null)
   const projectSwitchAbortControllerRef = useRef<AbortController | null>(null)
@@ -601,6 +602,7 @@ function AppContent() {
 
           setNewSessionOpen(false)
           setStartFromSpecName(null)
+          setCachedPrompt('')
 
           // Dispatch event for other components to know a session was created from spec
           emitUiEvent(UiEvent.SessionCreated, { name: firstSessionName })
@@ -629,6 +631,7 @@ function AppContent() {
             skipPermissions: data.skipPermissions,
           })
           setNewSessionOpen(false)
+          setCachedPrompt('')
 
           // Dispatch event for other components to know a spec was created
           emitUiEvent(UiEvent.SpecCreated, { name: data.name })
@@ -703,8 +706,9 @@ function AppContent() {
               }
             }, 1000)
           }
-          
+
           setNewSessionOpen(false)
+          setCachedPrompt('')
 
           // Don't automatically switch focus when creating new sessions
           // The user should remain focused on their current session
@@ -1135,6 +1139,8 @@ function AppContent() {
            <NewSessionModal
              open={newSessionOpen}
              initialIsDraft={openAsDraft}
+             cachedPrompt={cachedPrompt}
+             onPromptChange={setCachedPrompt}
              onClose={() => {
                logger.info('[App] NewSessionModal closing - resetting state')
                setNewSessionOpen(false)
