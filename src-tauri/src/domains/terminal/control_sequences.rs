@@ -65,53 +65,94 @@ pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
         }
 
         let kind = input[i + 1];
-        if kind != b'[' {
-            data.push(input[i]);
-            i += 1;
-            continue;
-        }
+        match kind {
+            b'[' => {
+                let mut cursor = i + 2;
+                let prefix = if cursor < input.len() && (input[cursor] == b'?' || input[cursor] == b'>') {
+                    let p = input[cursor];
+                    cursor += 1;
+                    Some(p)
+                } else {
+                    None
+                };
 
-        let mut cursor = i + 2;
-        let prefix = if cursor < input.len() && (input[cursor] == b'?' || input[cursor] == b'>') {
-            let p = input[cursor];
-            cursor += 1;
-            Some(p)
-        } else {
-            None
-        };
+                let params_start = cursor;
+                while cursor < input.len() && (input[cursor].is_ascii_digit() || input[cursor] == b';') {
+                    cursor += 1;
+                }
 
-        let params_start = cursor;
-        while cursor < input.len() && (input[cursor].is_ascii_digit() || input[cursor] == b';') {
-            cursor += 1;
-        }
+                if cursor >= input.len() {
+                    remainder = Some(input[i..].to_vec());
+                    break;
+                }
 
-        if cursor >= input.len() {
-            remainder = Some(input[i..].to_vec());
-            break;
-        }
+                let terminator = input[cursor];
+                let params = &input[params_start..cursor];
+                let action = analyze_control_sequence(prefix, params, terminator);
 
-        let terminator = input[cursor];
-        let params = &input[params_start..cursor];
-        let action = analyze_control_sequence(prefix, params, terminator);
-
-        match action {
-            ControlSequenceAction::Respond(reply) => {
-                log::debug!("Handled terminal query {:?}", &input[i..=cursor]);
-                responses.push(SequenceResponse::Immediate(reply.to_vec()));
-                i = cursor + 1;
+                match action {
+                    ControlSequenceAction::Respond(reply) => {
+                        log::debug!("Handled terminal query {:?}", &input[i..=cursor]);
+                        responses.push(SequenceResponse::Immediate(reply.to_vec()));
+                        i = cursor + 1;
+                    }
+                    ControlSequenceAction::RespondCursorPosition => {
+                        log::debug!("Captured cursor position query {:?}", &input[i..=cursor]);
+                        cursor_queries = cursor_queries.saturating_add(1);
+                        i = cursor + 1;
+                    }
+                    ControlSequenceAction::Drop => {
+                        log::debug!("Dropped terminal handshake {:?}", &input[i..=cursor]);
+                        i = cursor + 1;
+                    }
+                    ControlSequenceAction::Pass => {
+                        data.extend_from_slice(&input[i..=cursor]);
+                        i = cursor + 1;
+                    }
+                }
+                continue;
             }
-            ControlSequenceAction::RespondCursorPosition => {
-                log::debug!("Captured cursor position query {:?}", &input[i..=cursor]);
-                cursor_queries = cursor_queries.saturating_add(1);
-                i = cursor + 1;
+            b']' => {
+                let mut cursor = i + 2;
+                let mut terminator_index = None;
+                let mut terminator_len = 0usize;
+                while cursor < input.len() {
+                    if input[cursor] == 0x07 {
+                        terminator_index = Some(cursor);
+                        terminator_len = 1;
+                        break;
+                    }
+                    if input[cursor] == 0x1b && cursor + 1 < input.len() && input[cursor + 1] == b'\\' {
+                        terminator_index = Some(cursor);
+                        terminator_len = 2;
+                        break;
+                    }
+                    cursor += 1;
+                }
+
+                if let Some(term_idx) = terminator_index {
+                    if let Ok(text) = std::str::from_utf8(&input[i + 2..term_idx]) {
+                        if text.starts_with("10;?") {
+                            log::debug!("Responding to OSC foreground query {text:?}");
+                            responses.push(SequenceResponse::Immediate(b"\x1b]10;rgb:ef/ef/ef\x07".to_vec()));
+                        } else if text.starts_with("11;?") {
+                            log::debug!("Responding to OSC background query {text:?}");
+                            responses.push(SequenceResponse::Immediate(b"\x1b]11;rgb:1e/1e/1e\x07".to_vec()));
+                        } else {
+                            log::debug!("Dropping OSC sequence {text:?}");
+                        }
+                    }
+                    i = term_idx + terminator_len;
+                } else {
+                    remainder = Some(input[i..].to_vec());
+                    break;
+                }
+                continue;
             }
-            ControlSequenceAction::Drop => {
-                log::debug!("Dropped terminal handshake {:?}", &input[i..=cursor]);
-                i = cursor + 1;
-            }
-            ControlSequenceAction::Pass => {
-                data.extend_from_slice(&input[i..=cursor]);
-                i = cursor + 1;
+            _ => {
+                data.push(input[i]);
+                i += 1;
+                continue;
             }
         }
     }
@@ -171,5 +212,35 @@ mod tests {
         assert_eq!(result.remainder, Some(b"\x1b[".to_vec()));
         assert_eq!(result.cursor_queries, 0);
         assert!(result.responses.is_empty());
+    }
+
+    #[test]
+    fn drops_osc_palette_queries_and_responds_to_foreground_request() {
+        let result = sanitize_control_sequences(b"pre\x1b]10;?\x07post");
+
+        assert_eq!(result.data, b"prepost");
+        assert!(result.remainder.is_none());
+        assert_eq!(result.cursor_queries, 0);
+
+        assert_eq!(result.responses.len(), 1);
+        assert_eq!(
+            result.responses[0],
+            SequenceResponse::Immediate(b"\x1b]10;rgb:ef/ef/ef\x07".to_vec()),
+        );
+    }
+
+    #[test]
+    fn drops_osc_queries_terminated_with_st_and_responds_background() {
+        let result = sanitize_control_sequences(b"pre\x1b]11;?\x1b\\post");
+
+        assert_eq!(result.data, b"prepost");
+        assert!(result.remainder.is_none());
+        assert_eq!(result.cursor_queries, 0);
+
+        assert_eq!(result.responses.len(), 1);
+        assert_eq!(
+            result.responses[0],
+            SequenceResponse::Immediate(b"\x1b]11;rgb:1e/1e/1e\x07".to_vec()),
+        );
     }
 }
