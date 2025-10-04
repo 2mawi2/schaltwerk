@@ -1309,6 +1309,12 @@ impl SessionManager {
         let session = self.db_manager.get_session_by_name(name)?;
         log::debug!("Cancel {name}: Retrieved session");
 
+        if session.session_state == SessionState::Spec {
+            log::info!("Cancel {name}: Archiving spec session instead of cancelling");
+            self.archive_spec_session(name)?;
+            return Ok(());
+        }
+
         let has_uncommitted = if session.worktree_path.exists() {
             git::has_uncommitted_changes(&session.worktree_path).unwrap_or(false)
         } else {

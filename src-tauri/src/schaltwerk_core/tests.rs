@@ -416,6 +416,23 @@ fn test_cancel_session() {
 }
 
 #[test]
+fn test_cancel_spec_session_archives() {
+    let env = TestEnvironment::new().unwrap();
+    let manager = env.get_session_manager().unwrap();
+
+    let name = "spec-cancel";
+    manager
+        .create_spec_session(name, "Spec planning content")
+        .unwrap();
+
+    manager.cancel_session(name).unwrap();
+
+    assert!(manager.get_session(name).is_err());
+    let archived = manager.list_archived_specs().unwrap();
+    assert!(archived.iter().any(|entry| entry.session_name == name));
+}
+
+#[test]
 fn test_list_enriched_sessions() {
     let env = TestEnvironment::new().unwrap();
     let manager = env.get_session_manager().unwrap();
