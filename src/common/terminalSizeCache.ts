@@ -39,7 +39,7 @@ export function bestBootstrapSize(opts: {
     getTerminalSize(opts.topId) ??
     (opts.projectOrchestratorId ? getTerminalSize(opts.projectOrchestratorId) : null);
 
-  // If no direct match, try to find any other top terminal (avoid bottom terminals)
+  // If no direct match, try to find any other top or run terminal (avoid bottom terminals)
   let fallbackCand = null;
   if (!cand) {
     for (const [id, size] of cache.entries()) {
@@ -47,8 +47,7 @@ export function bestBootstrapSize(opts: {
         cache.delete(id);
         continue;
       }
-      // Prefer top terminals over bottom terminals for size bootstrapping
-      if (id.endsWith('-top')) {
+      if (id.endsWith('-top') || id.startsWith('run-terminal-')) {
         fallbackCand = { cols: size.cols, rows: size.rows };
         break;
       }

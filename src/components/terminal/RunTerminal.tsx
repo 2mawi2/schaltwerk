@@ -6,6 +6,7 @@ import { AnimatedText } from '../common/AnimatedText'
 import { logger } from '../../utils/logger'
 import { listenEvent, SchaltEvent, listenTerminalOutput } from '../../common/eventSystem'
 import { theme } from '../../common/theme'
+import { bestBootstrapSize } from '../../common/terminalSizeCache'
 import {
   createRunTerminalBackend,
   terminalExistsBackend,
@@ -347,11 +348,16 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
               pendingScrollToBottomRef.current = true
               setScrollRequestId(id => id + 1)
             }
+
+            const sizeHint = bestBootstrapSize({ topId: runTerminalId })
+
             await createRunTerminalBackend({
               id: runTerminalId,
               cwd,
               command: script.command,
               env: Object.entries(script.environmentVariables || {}),
+              cols: sizeHint.cols,
+              rows: sizeHint.rows,
             })
           } else {
             setTerminalCreated(true)
