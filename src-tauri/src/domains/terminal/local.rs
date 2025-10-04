@@ -1,5 +1,4 @@
 use super::coalescing::{handle_coalesced_output, CoalescingParams, CoalescingState};
-use super::idle_detection::{IdleDetector, IdleTransition};
 use super::visible::VisibleScreen;
 use super::{CreateParams, TerminalBackend, TerminalSnapshot};
 use crate::infrastructure::events::{emit_event, SchaltEvent};
@@ -15,8 +14,6 @@ use tokio::sync::{broadcast, Mutex, RwLock};
 
 const DEFAULT_MAX_BUFFER_SIZE: usize = 2 * 1024 * 1024;
 const AGENT_MAX_BUFFER_SIZE: usize = 64 * 1024 * 1024;
-const IDLE_THRESHOLD_MS: u64 = 5000;
-const IDLE_WINDOW_LINES: usize = 15;
 
 struct TerminalState {
     buffer: Vec<u8>,
@@ -24,8 +21,6 @@ struct TerminalState {
     start_seq: u64,
     last_output: SystemTime,
     screen: VisibleScreen,
-    idle_detector: IdleDetector,
-    session_id: Option<String>,
 }
 
 impl TerminalState {
@@ -33,9 +28,6 @@ impl TerminalState {
         if count == 0 {
             return None;
         }
-
-        self.idle_detector
-            .apply_pending_now(Instant::now(), &mut self.screen);
 
         let (row_zero, col_zero) = self.screen.cursor_position();
         let row = u32::from(row_zero.saturating_add(1));
@@ -233,56 +225,6 @@ impl LocalPtyAdapter {
 
     pub async fn set_app_handle(&self, handle: AppHandle) {
         *self.coalescing_state.app_handle.lock().await = Some(handle.clone());
-        self.spawn_idle_ticker(handle).await;
-    }
-
-    async fn spawn_idle_ticker(&self, handle: AppHandle) {
-        let terminals = Arc::clone(&self.terminals);
-        tokio::spawn(async move {
-            let mut interval = tokio::time::interval(Duration::from_millis(250));
-            loop {
-                interval.tick().await;
-                let now = Instant::now();
-
-                let transitions = {
-                    let mut terminals = terminals.write().await;
-                    let mut transitions = Vec::new();
-                    for (id, state) in terminals.iter_mut() {
-                        if state.session_id.is_none() {
-                            continue;
-                        }
-
-                        if !state.idle_detector.needs_tick() {
-                            continue;
-                        }
-
-                        if let Some(transition) = state.idle_detector.tick(now, &mut state.screen) {
-                            let needs_attention = match transition {
-                                IdleTransition::BecameIdle => true,
-                                IdleTransition::BecameActive => false,
-                            };
-                            transitions.push((
-                                state.session_id.clone().unwrap(),
-                                id.clone(),
-                                needs_attention,
-                            ));
-                        }
-                    }
-                    transitions
-                };
-
-                if !transitions.is_empty() {
-                    for (session_id, terminal_id, needs_attention) in transitions {
-                        let payload = serde_json::json!({
-                            "session_id": session_id,
-                            "terminal_id": terminal_id,
-                            "needs_attention": needs_attention
-                        });
-                        let _ = emit_event(&handle, SchaltEvent::TerminalAttention, &payload);
-                    }
-                }
-            }
-        });
     }
 
     fn resolve_command(command: &str) -> String {
@@ -475,9 +417,6 @@ impl LocalPtyAdapter {
 
                                     state.seq = state.seq.saturating_add(sanitized_len as u64);
                                     state.last_output = SystemTime::now();
-
-                                    let now = Instant::now();
-                                    state.idle_detector.observe_bytes(now, &sanitized_data);
 
                                     if state.buffer.len() > max_size {
                                         let excess = state.buffer.len() - max_size;
@@ -764,16 +703,12 @@ impl TerminalBackend for LocalPtyAdapter {
         )
         .await;
 
-        let session_id = session_id_from_terminal_id(&id);
-
         let state = TerminalState {
             buffer: Vec::new(),
             seq: 0,
             start_seq: 0,
             last_output: SystemTime::now(),
             screen: VisibleScreen::new(rows, cols),
-            idle_detector: IdleDetector::new(IDLE_THRESHOLD_MS, IDLE_WINDOW_LINES),
-            session_id,
         };
 
         self.terminals.write().await.insert(id.clone(), state);
@@ -997,30 +932,6 @@ impl TerminalBackend for LocalPtyAdapter {
     async fn is_suspended(&self, id: &str) -> Result<bool, String> {
         Ok(self.suspended.read().await.contains(id))
     }
-}
-
-fn session_id_from_terminal_id(id: &str) -> Option<String> {
-    let mut rest = if let Some(suffix) = id.strip_prefix("session-") {
-        suffix
-    } else if let Some(suffix) = id.strip_prefix("orchestrator-") {
-        suffix
-    } else {
-        return None;
-    };
-
-    if let Some((prefix, maybe_index)) = rest.rsplit_once('-') {
-        if maybe_index.chars().all(|c| c.is_ascii_digit()) {
-            rest = prefix;
-        }
-    }
-
-    for suffix in ["-top", "-bottom"] {
-        if let Some(stripped) = rest.strip_suffix(suffix) {
-            return Some(stripped.to_string());
-        }
-    }
-
-    None
 }
 
 impl LocalPtyAdapter {
@@ -1542,38 +1453,11 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex};
-    use std::time::{Duration, Instant, SystemTime};
+    use std::time::{Duration, SystemTime};
     use tempfile::TempDir;
     use tokio::time::sleep;
 
     static COUNTER: AtomicUsize = AtomicUsize::new(0);
-
-    #[test]
-    fn extracts_session_id_for_basic_top_terminal() {
-        let id = "session-pr-68-top";
-        assert_eq!(session_id_from_terminal_id(id), Some("pr-68".to_string()));
-    }
-
-    #[test]
-    fn retains_embedded_top_segment_in_session_name() {
-        let id = "session-feature-top-top";
-        assert_eq!(
-            session_id_from_terminal_id(id),
-            Some("feature-top".to_string())
-        );
-    }
-
-    #[test]
-    fn supports_bottom_terminals_with_indices() {
-        let id = "session-top-nav-bottom-0";
-        assert_eq!(session_id_from_terminal_id(id), Some("top-nav".to_string()));
-    }
-
-    #[test]
-    fn accepts_orchestrator_terminals() {
-        let id = "orchestrator-main-top";
-        assert_eq!(session_id_from_terminal_id(id), Some("main".to_string()));
-    }
 
     struct RecordingWriter {
         records: Arc<Mutex<Vec<String>>>,
@@ -1712,12 +1596,9 @@ mod tests {
             start_seq: 0,
             last_output: SystemTime::now(),
             screen: VisibleScreen::new(6, 40),
-            idle_detector: IdleDetector::new(IDLE_THRESHOLD_MS, IDLE_WINDOW_LINES),
-            session_id: None,
         };
 
-        let now = Instant::now();
-        state.idle_detector.observe_bytes(now, b"\x1b[4;12H");
+        state.screen.feed_bytes(b"\x1b[4;12H");
 
         let response = state
             .cursor_position_response("cursor-position-test", 2)

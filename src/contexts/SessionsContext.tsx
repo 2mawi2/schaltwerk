@@ -999,18 +999,9 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                             for (const existing of prev) {
                                 const newSession = newSessionsMap.get(existing.info.session_id)
                                 if (newSession) {
-                                    // Preserve frontend-only state fields
-                                    const preservedInfo = {
-                                        ...newSession.info,
-                                        attention_required: existing.info.attention_required
-                                    }
-
                                     // Check if the session has actually changed using efficient shallow comparison
-                                    if (!areSessionInfosEqual(existing.info, preservedInfo)) {
-                                        updated.push({
-                                            ...newSession,
-                                            info: preservedInfo
-                                        })
+                                    if (!areSessionInfosEqual(existing.info, newSession.info)) {
+                                        updated.push(newSession)
                                     } else {
                                         updated.push(existing) // Keep existing reference to avoid re-render
                                     }
@@ -1157,27 +1148,6 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                     }
 
                     return next
-                })
-            }))
-
-            // Terminal attention (idle detection)
-            addListener(listenEvent(SchaltEvent.TerminalAttention, (event) => {
-                const { session_id, needs_attention } = event
-                setAllSessions(prev => {
-                    const targetIndex = prev.findIndex(s => s.info.session_id === session_id)
-                    if (targetIndex === -1) return prev
-
-                    const target = prev[targetIndex]
-                    const newValue = needs_attention ? true : undefined
-
-                    if (target.info.attention_required === newValue) return prev
-
-                    const updated = [...prev]
-                    updated[targetIndex] = {
-                        ...target,
-                        info: { ...target.info, attention_required: newValue }
-                    }
-                    return updated
                 })
             }))
 

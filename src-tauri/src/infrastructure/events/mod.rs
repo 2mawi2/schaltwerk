@@ -14,7 +14,6 @@ pub enum SchaltEvent {
 
     SessionActivity,
     SessionGitStats,
-    TerminalAttention,
     TerminalClosed,
     TerminalSuspended,
     TerminalResumed,
@@ -48,7 +47,6 @@ impl SchaltEvent {
 
             SchaltEvent::SessionActivity => "schaltwerk:session-activity",
             SchaltEvent::SessionGitStats => "schaltwerk:session-git-stats",
-            SchaltEvent::TerminalAttention => "schaltwerk:terminal-attention",
             SchaltEvent::TerminalClosed => "schaltwerk:terminal-closed",
             SchaltEvent::TerminalSuspended => "schaltwerk:terminal-suspended",
             SchaltEvent::TerminalResumed => "schaltwerk:terminal-resumed",

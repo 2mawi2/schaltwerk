@@ -10,7 +10,6 @@ export enum SchaltEvent {
 
   SessionActivity = 'schaltwerk:session-activity',
   SessionGitStats = 'schaltwerk:session-git-stats',
-  TerminalAttention = 'schaltwerk:terminal-attention',
   TerminalClosed = 'schaltwerk:terminal-closed',
   TerminalSuspended = 'schaltwerk:terminal-suspended',
   TerminalResumed = 'schaltwerk:terminal-resumed',
@@ -139,7 +138,6 @@ export type EventPayloadMap = {
 
   [SchaltEvent.SessionActivity]: SessionActivityUpdated
   [SchaltEvent.SessionGitStats]: SessionGitStatsUpdated
-  [SchaltEvent.TerminalAttention]: { session_id: string, terminal_id: string, needs_attention: boolean }
   [SchaltEvent.TerminalClosed]: { terminal_id: string }
   [SchaltEvent.TerminalSuspended]: { terminal_id: string }
   [SchaltEvent.TerminalResumed]: { terminal_id: string }

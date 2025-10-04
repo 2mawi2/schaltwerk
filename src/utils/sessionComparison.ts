@@ -23,7 +23,6 @@ const SESSION_INFO_KEYS: ReadonlyArray<keyof SessionInfo> = [
     'current_task',
     'todo_percentage',
     'is_blocked',
-    'attention_required',
     'version_group_id',
     'version_number',
     'original_agent_type',
