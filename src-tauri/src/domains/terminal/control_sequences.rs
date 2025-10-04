@@ -1,0 +1,175 @@
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SequenceResponse {
+    Immediate(Vec<u8>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SanitizedOutput {
+    pub data: Vec<u8>,
+    pub remainder: Option<Vec<u8>>,
+    pub cursor_queries: usize,
+    pub responses: Vec<SequenceResponse>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ControlSequenceAction {
+    Respond(&'static [u8]),
+    RespondCursorPosition,
+    Drop,
+    Pass,
+}
+
+fn analyze_control_sequence(
+    prefix: Option<u8>,
+    params: &[u8],
+    terminator: u8,
+) -> ControlSequenceAction {
+    match terminator {
+        b'n' => {
+            if params == b"5" && prefix.is_none() {
+                ControlSequenceAction::Respond(b"\x1b[0n")
+            } else if params == b"6" && (prefix.is_none() || prefix == Some(b'?')) {
+                ControlSequenceAction::RespondCursorPosition
+            } else {
+                ControlSequenceAction::Pass
+            }
+        }
+        b'c' => match prefix {
+            Some(b'>') => ControlSequenceAction::Respond(b"\x1b[>0;95;0c"),
+            Some(b'?') => ControlSequenceAction::Respond(b"\x1b[?1;2c"),
+            None => ControlSequenceAction::Respond(b"\x1b[?1;2c"),
+            _ => ControlSequenceAction::Pass,
+        },
+        b'R' => ControlSequenceAction::Drop,
+        _ => ControlSequenceAction::Pass,
+    }
+}
+
+pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
+    let mut data = Vec::with_capacity(input.len());
+    let mut remainder = None;
+    let mut cursor_queries = 0usize;
+    let mut responses = Vec::new();
+
+    let mut i = 0;
+    while i < input.len() {
+        if input[i] != 0x1b {
+            data.push(input[i]);
+            i += 1;
+            continue;
+        }
+
+        if i + 1 >= input.len() {
+            remainder = Some(input[i..].to_vec());
+            break;
+        }
+
+        let kind = input[i + 1];
+        if kind != b'[' {
+            data.push(input[i]);
+            i += 1;
+            continue;
+        }
+
+        let mut cursor = i + 2;
+        let prefix = if cursor < input.len() && (input[cursor] == b'?' || input[cursor] == b'>') {
+            let p = input[cursor];
+            cursor += 1;
+            Some(p)
+        } else {
+            None
+        };
+
+        let params_start = cursor;
+        while cursor < input.len() && (input[cursor].is_ascii_digit() || input[cursor] == b';') {
+            cursor += 1;
+        }
+
+        if cursor >= input.len() {
+            remainder = Some(input[i..].to_vec());
+            break;
+        }
+
+        let terminator = input[cursor];
+        let params = &input[params_start..cursor];
+        let action = analyze_control_sequence(prefix, params, terminator);
+
+        match action {
+            ControlSequenceAction::Respond(reply) => {
+                log::debug!("Handled terminal query {:?}", &input[i..=cursor]);
+                responses.push(SequenceResponse::Immediate(reply.to_vec()));
+                i = cursor + 1;
+            }
+            ControlSequenceAction::RespondCursorPosition => {
+                log::debug!("Captured cursor position query {:?}", &input[i..=cursor]);
+                cursor_queries = cursor_queries.saturating_add(1);
+                i = cursor + 1;
+            }
+            ControlSequenceAction::Drop => {
+                log::debug!("Dropped terminal handshake {:?}", &input[i..=cursor]);
+                i = cursor + 1;
+            }
+            ControlSequenceAction::Pass => {
+                data.extend_from_slice(&input[i..=cursor]);
+                i = cursor + 1;
+            }
+        }
+    }
+
+    SanitizedOutput {
+        data,
+        remainder,
+        cursor_queries,
+        responses,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{sanitize_control_sequences, SanitizedOutput, SequenceResponse};
+
+    #[test]
+    fn handles_cursor_position_queries() {
+        let result = sanitize_control_sequences(b"pre\x1b[6npost");
+        assert_eq!(
+            result,
+            SanitizedOutput {
+                data: b"prepost".to_vec(),
+                remainder: None,
+                cursor_queries: 1,
+                responses: Vec::new(),
+            }
+        );
+    }
+
+    #[test]
+    fn handles_device_attributes_queries() {
+        let result = sanitize_control_sequences(b"pre\x1b[?1;2cpost");
+        assert_eq!(result.data, b"prepost");
+        assert_eq!(result.remainder, None);
+        assert_eq!(result.cursor_queries, 0);
+        assert_eq!(result.responses.len(), 1);
+        assert_eq!(
+            result.responses[0],
+            SequenceResponse::Immediate(b"\x1b[?1;2c".to_vec())
+        );
+    }
+
+    #[test]
+    fn passes_through_unknown_sequences() {
+        let result = sanitize_control_sequences(b"pre\x1b[123Xpost");
+        assert_eq!(result.data, b"pre\x1b[123Xpost");
+        assert!(result.remainder.is_none());
+        assert_eq!(result.cursor_queries, 0);
+        assert!(result.responses.is_empty());
+    }
+
+    #[test]
+    fn preserves_partial_sequences_as_remainder() {
+        let result = sanitize_control_sequences(b"partial\x1b[");
+        assert_eq!(result.data, b"partial");
+        assert_eq!(result.remainder, Some(b"\x1b[".to_vec()));
+        assert_eq!(result.cursor_queries, 0);
+        assert!(result.responses.is_empty());
+    }
+}
