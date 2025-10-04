@@ -190,12 +190,11 @@ impl MergeService {
 
     fn after_success(&self, context: &SessionMergeContext) -> Result<()> {
         info!(
-            "{OPERATION_LABEL}: clearing review flag for session '{session_name}' after successful merge",
+            "{OPERATION_LABEL}: refreshing session '{session_name}' state after successful merge",
             session_name = context.session_name
         );
         let manager = self.session_manager();
-        manager.unmark_session_ready(&context.session_name)?;
-        manager.update_session_state(&context.session_name, SessionState::Running)?;
+        manager.update_session_state(&context.session_name, SessionState::Reviewed)?;
 
         if let Err(err) = manager.update_git_stats(&context.session_id) {
             warn!(
@@ -971,8 +970,8 @@ mod tests {
         assert_eq!(parent_commit.summary(), Some("Squash merge"));
 
         let session_after = manager.get_session(&session.name).unwrap();
-        assert!(!session_after.ready_to_merge);
-        assert_eq!(session_after.session_state, SessionState::Running);
+        assert!(session_after.ready_to_merge);
+        assert_eq!(session_after.session_state, SessionState::Reviewed);
     }
 
     #[tokio::test]
@@ -1140,8 +1139,8 @@ mod tests {
         assert_eq!(parent_oid.to_string(), outcome.new_commit);
 
         let final_session = manager.get_session(&session_after.name).unwrap();
-        assert!(!final_session.ready_to_merge);
-        assert_eq!(final_session.session_state, SessionState::Running);
+        assert!(final_session.ready_to_merge);
+        assert_eq!(final_session.session_state, SessionState::Reviewed);
     }
 
     #[tokio::test]
@@ -1194,7 +1193,7 @@ mod tests {
         assert_eq!(parent_oid.to_string(), outcome.new_commit);
 
         let session_after = manager.get_session(&session.name).unwrap();
-        assert!(!session_after.ready_to_merge);
-        assert_eq!(session_after.session_state, SessionState::Running);
+        assert!(session_after.ready_to_merge);
+        assert_eq!(session_after.session_state, SessionState::Reviewed);
     }
 }
