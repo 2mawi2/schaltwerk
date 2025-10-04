@@ -1,9 +1,11 @@
 use anyhow::Result;
 use std::path::Path;
 
+#[cfg(all(target_family = "unix", not(target_os = "linux")))]
+use anyhow::Context;
+
 #[cfg(target_family = "unix")]
 use {
-    anyhow::Context,
     log::{debug, warn},
     std::collections::HashSet,
     tokio::process::Command,
