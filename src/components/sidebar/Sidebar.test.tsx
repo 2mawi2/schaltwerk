@@ -237,7 +237,7 @@ describe('Sidebar', () => {
 
       await waitFor(() => {
         // no session selection buttons should be rendered
-        expect(screen.queryAllByTitle(/Select session/i).length).toBe(0)
+        expect(screen.queryAllByLabelText(/Select session/i).length).toBe(0)
       })
     })
 
@@ -294,7 +294,7 @@ describe('Sidebar', () => {
       await waitFor(() => {
         expect(screen.getByText('simple-session')).toBeInTheDocument()
         // session selection buttons should be present (1 for 1 session)
-        expect(screen.getAllByTitle(/Select session/i).length).toBe(1)
+        expect(screen.getAllByLabelText(/Select session/i).length).toBe(1)
       })
     })
   })
@@ -471,7 +471,7 @@ describe('Sidebar', () => {
 
       render(<TestProviders><Sidebar /></TestProviders>)
       // The button uses a title attribute
-      const orchestratorButton = screen.getByTitle(/Select orchestrator/i)
+      const orchestratorButton = screen.getByLabelText(/Select orchestrator/i)
       expect(orchestratorButton).toBeInTheDocument()
     })
 
@@ -588,7 +588,7 @@ describe('Sidebar', () => {
 
       await waitFor(() => {
         // no session selection buttons rendered on failure
-        expect(screen.queryAllByTitle(/Select session/i).length).toBe(0)
+        expect(screen.queryAllByLabelText(/Select session/i).length).toBe(0)
       })
       
       consoleErrorSpy.mockRestore()

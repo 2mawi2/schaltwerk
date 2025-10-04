@@ -80,21 +80,21 @@ describe('Sidebar keyboard navigation basic', () => {
     })
 
     // Orchestrator selected by default (has blue ring class)
-    const orchestratorBtn = screen.getByTitle(/Select orchestrator/i)
+    const orchestratorBtn = screen.getByLabelText(/Select orchestrator/i)
     expect(orchestratorBtn.className).toContain('session-ring-blue')
 
     // Move down
     await press('ArrowDown', { metaKey: true })
 
     await waitFor(() => {
-      expect(screen.getByTitle(/Selected session/)).toBeInTheDocument()
+      expect(screen.getByLabelText(/Selected session/)).toBeInTheDocument()
     })
 
     // Move up to orchestrator
     await press('ArrowUp', { metaKey: true })
 
     await waitFor(() => {
-      const orch = screen.getByTitle(/Select orchestrator/i)
+      const orch = screen.getByLabelText(/Select orchestrator/i)
       expect(orch.className).toContain('session-ring-blue')
     })
   })

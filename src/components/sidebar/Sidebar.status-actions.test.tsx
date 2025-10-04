@@ -85,7 +85,7 @@ describe('Sidebar status indicators and actions', () => {
     expect(reviewedItem).toHaveTextContent('Reviewed')
 
     // Click Unmark
-    const unmarkCandidates = within(reviewedItem).getAllByTitle(/Unmark as reviewed/)
+    const unmarkCandidates = within(reviewedItem).getAllByRole('button', { name: /Unmark as reviewed/i })
     const unmarkBtn = unmarkCandidates.find(el => (el as HTMLElement).tagName === 'BUTTON') as HTMLElement
     fireEvent.click(unmarkBtn)
 
@@ -102,7 +102,7 @@ describe('Sidebar status indicators and actions', () => {
       expect(items.length).toBe(2)
     })
 
-    const cancelBtn = screen.getAllByTitle(/Cancel session/)[0]
+    const cancelBtn = screen.getAllByRole('button', { name: /Cancel session/i })[0]
 
     const eventSpy = vi.fn()
     window.addEventListener('schaltwerk:session-action', eventSpy as EventListener, { once: true })
@@ -205,7 +205,7 @@ describe('Sidebar status indicators and actions', () => {
       expect(button).toBeTruthy()
     })
 
-    const convertButton = screen.getAllByTitle('Move to spec (⌘S)')[0]
+    const convertButton = screen.getAllByRole('button', { name: /Move to spec/i })[0]
     fireEvent.click(convertButton)
 
     await waitFor(() => {

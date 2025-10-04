@@ -951,7 +951,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 <button
                     onClick={handleSelectOrchestrator}
                     className={clsx('w-full text-left px-3 py-2 rounded-md mb-1 group', selection.kind === 'orchestrator' ? 'bg-slate-800/60 session-ring session-ring-blue' : 'hover:bg-slate-800/30')}
-                    title="Select orchestrator (⌘1)"
+                    aria-label="Select orchestrator (⌘1)"
                 >
                     <div className="flex items-center justify-between">
                         <div className="font-medium text-slate-100">orchestrator</div>

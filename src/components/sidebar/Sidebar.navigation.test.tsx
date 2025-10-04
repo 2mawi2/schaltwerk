@@ -177,13 +177,13 @@ describe('Sidebar navigation with arrow keys including orchestrator', () => {
   })
 
   it('ArrowDown from orchestrator selects the first session', async () => {
-    const { getByTitle, queryByTitle, findAllByTitle } = render(<TestProviders><Sidebar /></TestProviders>)
+    const { getByLabelText, queryByLabelText, findAllByLabelText } = render(<TestProviders><Sidebar /></TestProviders>)
 
     // Wait for sessions to load and render buttons
-    await findAllByTitle(/Select session \(⌘/i)
+    await findAllByLabelText(/Select session \(⌘/i)
 
     // Orchestrator initially selected
-    const orchestratorBtn = getByTitle(/Select orchestrator/i)
+    const orchestratorBtn = getByLabelText(/Select orchestrator/i)
     await waitFor(() => {
       expect(orchestratorBtn.className).toContain('session-ring-blue')
     })
@@ -193,32 +193,32 @@ describe('Sidebar navigation with arrow keys including orchestrator', () => {
 
     // Expect some session to be selected (button title changes when selected)
     await waitFor(() => {
-      expect(getByTitle(/Selected session/i)).toBeTruthy()
+      expect(getByLabelText(/Selected session/i)).toBeTruthy()
     })
 
     // Orchestrator not selected anymore
     await waitFor(() => {
-      expect(queryByTitle(/Select orchestrator/i)?.className || '').not.toContain('session-ring-blue')
+      expect(queryByLabelText(/Select orchestrator/i)?.className || '').not.toContain('session-ring-blue')
     })
   })
 
   it('ArrowUp from first session selects orchestrator', async () => {
-    const { getByTitle, findAllByTitle } = render(<TestProviders><Sidebar /></TestProviders>)
+    const { getByLabelText, findAllByLabelText } = render(<TestProviders><Sidebar /></TestProviders>)
 
     // Wait for sessions to load
-    await findAllByTitle(/Select session \(⌘/i)
+    await findAllByLabelText(/Select session \(⌘/i)
 
     // Move to first session first
     pressKey('ArrowDown', { metaKey: true })
 
     await waitFor(() => {
-      expect(getByTitle(/Selected session/i)).toBeTruthy()
+      expect(getByLabelText(/Selected session/i)).toBeTruthy()
     })
 
     // Press Cmd+ArrowUp
     pressKey('ArrowUp', { metaKey: true })
 
-    const orchestratorBtn = getByTitle(/Select orchestrator/i)
+    const orchestratorBtn = getByLabelText(/Select orchestrator/i)
     await waitFor(() => {
       expect(orchestratorBtn.className).toContain('session-ring-blue')
     })
@@ -238,9 +238,9 @@ describe('Sidebar navigation with arrow keys including orchestrator', () => {
   })
 
   it('Cmd+Y resets a running session', async () => {
-    const { findAllByTitle } = render(<TestProviders><Sidebar /></TestProviders>)
+    const { findAllByLabelText } = render(<TestProviders><Sidebar /></TestProviders>)
 
-    await findAllByTitle(/Select session \(⌘/i)
+    await findAllByLabelText(/Select session \(⌘/i)
 
     pressKey('ArrowDown', { metaKey: true })
 

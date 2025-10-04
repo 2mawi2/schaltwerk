@@ -104,7 +104,7 @@ export function IconButton({
           !disabled && 'cursor-pointer',
           className
         )}
-        title={tooltip || ariaLabel}
+        title={tooltip ? undefined : ariaLabel}
       >
         <span className="w-4 h-4 flex items-center justify-center">
           {icon}

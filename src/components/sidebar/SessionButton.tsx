@@ -141,10 +141,10 @@ export const SessionButton = memo<SessionButtonProps>(({
                  isRunning && !isSelected &&
                      'ring-2 ring-pink-500/50 shadow-lg shadow-pink-500/20 bg-pink-950/20'
             )}
-            title={isSelected 
-                ? `Selected session • Diff: ⌘G • Cancel: ⌘D (⇧⌘D force) • Mark Reviewed: ⌘R` 
-                : index < 8 
-                    ? `Select session (⌘${index + 2})` 
+            aria-label={isSelected 
+                ? `Selected session • Diff: ⌘G • Cancel: ⌘D (⇧⌘D force) • Mark Reviewed: ⌘R`
+                : index < 8
+                    ? `Select session (⌘${index + 2})`
                     : `Select session`}
         >
             <div className="flex items-start justify-between gap-2">
