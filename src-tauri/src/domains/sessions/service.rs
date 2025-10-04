@@ -60,6 +60,7 @@ use crate::{
         DiffStats, EnrichedSession, FilterMode, GitStats, Session, SessionInfo, SessionState,
         SessionStatus, SessionStatusType, SessionType, SortMode,
     },
+    domains::sessions::process_cleanup::terminate_processes_with_cwd,
     domains::sessions::repository::SessionDbManager,
     domains::sessions::utils::SessionUtils,
     infrastructure::database::db_archived_specs::ArchivedSpecMethods as _,
@@ -1326,6 +1327,23 @@ impl SessionManager {
         }
 
         if session.worktree_path.exists() {
+            match tauri::async_runtime::block_on(terminate_processes_with_cwd(
+                &session.worktree_path,
+            )) {
+                Ok(pids) => {
+                    if !pids.is_empty() {
+                        log::info!(
+                            "Cancel {name}: terminated {} lingering process(es): {:?}",
+                            pids.len(),
+                            pids
+                        );
+                    }
+                }
+                Err(e) => {
+                    log::warn!("Cancel {name}: failed to terminate lingering processes: {e}");
+                }
+            }
+
             if let Err(e) = git::remove_worktree(&self.repo_path, &session.worktree_path) {
                 return Err(anyhow!("Failed to remove worktree: {e}"));
             }
@@ -1377,6 +1395,23 @@ impl SessionManager {
         } else {
             false
         };
+
+        if session.worktree_path.exists() {
+            match terminate_processes_with_cwd(&session.worktree_path).await {
+                Ok(pids) => {
+                    if !pids.is_empty() {
+                        log::info!(
+                            "Fast cancel {name}: terminated {} lingering process(es): {:?}",
+                            pids.len(),
+                            pids
+                        );
+                    }
+                }
+                Err(e) => {
+                    log::warn!("Fast cancel {name}: failed to terminate lingering processes: {e}");
+                }
+            }
+        }
 
         if has_uncommitted {
             log::warn!("Fast canceling session '{name}' with uncommitted changes");

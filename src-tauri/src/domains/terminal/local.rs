@@ -133,65 +133,118 @@ impl LocalPtyAdapter {
             }
 
             let kind = data[i + 1];
-            if kind != b'[' {
-                // Not a CSI sequence we care about; keep ESC and advance
-                result.push(data[i]);
-                i += 1;
-                continue;
-            }
+            match kind {
+                b'[' => {
+                    let mut cursor = i + 2;
+                    let prefix =
+                        if cursor < data.len() && (data[cursor] == b'?' || data[cursor] == b'>') {
+                            let p = data[cursor];
+                            cursor += 1;
+                            Some(p)
+                        } else {
+                            None
+                        };
 
-            let mut cursor = i + 2;
-            let prefix = if cursor < data.len() && (data[cursor] == b'?' || data[cursor] == b'>') {
-                let p = data[cursor];
-                cursor += 1;
-                Some(p)
-            } else {
-                None
-            };
-
-            let params_start = cursor;
-            while cursor < data.len() && (data[cursor].is_ascii_digit() || data[cursor] == b';') {
-                cursor += 1;
-            }
-
-            if cursor >= data.len() {
-                return (result, Some(data[i..].to_vec()), cursor_queries);
-            }
-
-            let terminator = data[cursor];
-            let params = &data[params_start..cursor];
-
-            let action = Self::analyze_control_sequence(prefix, params, terminator);
-
-            match action {
-                ControlSequenceAction::Respond(reply) => {
-                    if let Some(writer) = writers.get_mut(id) {
-                        let _ = writer.write_all(reply);
-                        let _ = writer.flush();
+                    let params_start = cursor;
+                    while cursor < data.len()
+                        && (data[cursor].is_ascii_digit() || data[cursor] == b';')
+                    {
+                        cursor += 1;
                     }
-                    debug!("Handled terminal query {:?} for {}", &data[i..=cursor], id);
-                    i = cursor + 1;
+
+                    if cursor >= data.len() {
+                        return (result, Some(data[i..].to_vec()), cursor_queries);
+                    }
+
+                    let terminator = data[cursor];
+                    let params = &data[params_start..cursor];
+
+                    let action = Self::analyze_control_sequence(prefix, params, terminator);
+
+                    match action {
+                        ControlSequenceAction::Respond(reply) => {
+                            if let Some(writer) = writers.get_mut(id) {
+                                let _ = writer.write_all(reply);
+                                let _ = writer.flush();
+                            }
+                            debug!("Handled terminal query {:?} for {}", &data[i..=cursor], id);
+                            i = cursor + 1;
+                        }
+                        ControlSequenceAction::RespondCursorPosition => {
+                            cursor_queries = cursor_queries.saturating_add(1);
+                            debug!(
+                                "Captured cursor position query {:?} for {}",
+                                &data[i..=cursor],
+                                id
+                            );
+                            i = cursor + 1;
+                        }
+                        ControlSequenceAction::Drop => {
+                            debug!(
+                                "Dropped terminal handshake {:?} for {}",
+                                &data[i..=cursor],
+                                id
+                            );
+                            i = cursor + 1;
+                        }
+                        ControlSequenceAction::Pass => {
+                            result.extend_from_slice(&data[i..=cursor]);
+                            i = cursor + 1;
+                        }
+                    }
                 }
-                ControlSequenceAction::RespondCursorPosition => {
-                    cursor_queries = cursor_queries.saturating_add(1);
-                    debug!(
-                        "Captured cursor position query {:?} for {}",
-                        &data[i..=cursor],
-                        id
-                    );
-                    i = cursor + 1;
+                b']' => {
+                    let mut cursor = i + 2;
+                    let mut terminator_index = None;
+                    let mut terminator_len = 0usize;
+                    while cursor < data.len() {
+                        if data[cursor] == 0x07 {
+                            terminator_index = Some(cursor);
+                            terminator_len = 1;
+                            break;
+                        }
+                        if data[cursor] == 0x1b
+                            && cursor + 1 < data.len()
+                            && data[cursor + 1] == b'\\'
+                        {
+                            terminator_index = Some(cursor);
+                            terminator_len = 2;
+                            break;
+                        }
+                        cursor += 1;
+                    }
+
+                    if let Some(term_idx) = terminator_index {
+                        let osc_payload = &data[i + 2..term_idx];
+                        if let Ok(text) = std::str::from_utf8(osc_payload) {
+                            if let Some(writer) = writers.get_mut(id) {
+                                match text {
+                                    t if t.starts_with("10;?") => {
+                                        let _ = writer.write_all(b"\x1b]10;rgb:ef/ef/ef\x07");
+                                        let _ = writer.flush();
+                                    }
+                                    t if t.starts_with("11;?") => {
+                                        let _ = writer.write_all(b"\x1b]11;rgb:1e/1e/1e\x07");
+                                        let _ = writer.flush();
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        }
+                        debug!(
+                            "Dropped OSC sequence {:?} for {}",
+                            &data[i..term_idx + terminator_len],
+                            id
+                        );
+                        i = term_idx + terminator_len;
+                    } else {
+                        return (result, Some(data[i..].to_vec()), cursor_queries);
+                    }
                 }
-                ControlSequenceAction::Drop => {
-                    debug!(
-                        "Dropped terminal handshake {:?} for {}",
-                        &data[i..=cursor],
-                        id
-                    );
-                    i = cursor + 1;
-                }
-                ControlSequenceAction::Pass => {
-                    result.extend_from_slice(&data[i..=cursor]);
-                    i = cursor + 1;
+                _ => {
+                    // Not a sequence we handle; keep ESC and advance
+                    result.push(data[i]);
+                    i += 1;
                 }
             }
         }
@@ -1620,6 +1673,38 @@ mod tests {
 
         assert!(sanitized.is_empty());
         assert_eq!(remainder.unwrap(), b"\x1b[".to_vec());
+        assert_eq!(cursor_queries, 0);
+    }
+
+    #[test]
+    fn sanitize_control_sequences_drops_osc_palette_queries() {
+        let id = "sanitize-osc".to_string();
+        let mut writers: HashMap<String, Box<dyn Write + Send>> = HashMap::new();
+
+        let (sanitized, remainder, cursor_queries) = LocalPtyAdapter::sanitize_control_sequences(
+            &id,
+            b"pre\x1b]4;0;?\x07post",
+            &mut writers,
+        );
+
+        assert_eq!(sanitized, b"prepost");
+        assert!(remainder.is_none());
+        assert_eq!(cursor_queries, 0);
+    }
+
+    #[test]
+    fn sanitize_control_sequences_drops_osc_with_st() {
+        let id = "sanitize-osc-st".to_string();
+        let mut writers: HashMap<String, Box<dyn Write + Send>> = HashMap::new();
+
+        let (sanitized, remainder, cursor_queries) = LocalPtyAdapter::sanitize_control_sequences(
+            &id,
+            b"pre\x1b]10;?\x1b\\post",
+            &mut writers,
+        );
+
+        assert_eq!(sanitized, b"prepost");
+        assert!(remainder.is_none());
         assert_eq!(cursor_queries, 0);
     }
 

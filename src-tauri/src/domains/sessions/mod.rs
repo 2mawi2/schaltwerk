@@ -2,6 +2,7 @@ pub mod activity;
 pub mod cache;
 pub mod db_sessions;
 pub mod entity;
+pub mod process_cleanup;
 pub mod repository;
 pub mod service;
 pub mod utils;
