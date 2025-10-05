@@ -35,6 +35,7 @@ export const TauriCommands = {
   GetDiffViewPreferences: 'get_diff_view_preferences',
   GetKeyboardShortcuts: 'get_keyboard_shortcuts',
   GetFileDiffFromMain: 'get_file_diff_from_main',
+  GetGitGraphHistory: 'get_git_graph_history',
   GetMcpStatus: 'get_mcp_status',
   GetOrchestratorWorkingChanges: 'get_orchestrator_working_changes',
   GetProjectActionButtons: 'get_project_action_buttons',

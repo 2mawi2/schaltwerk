@@ -4,11 +4,12 @@ import { useSelection } from '../../contexts/SelectionContext'
 import { useProject } from '../../contexts/ProjectContext'
 import { useFocus } from '../../contexts/FocusContext'
 import { useSessions } from '../../contexts/SessionsContext'
-import { VscDiff, VscNotebook, VscInfo } from 'react-icons/vsc'
+import { VscDiff, VscNotebook, VscInfo, VscGitCommit } from 'react-icons/vsc'
 import clsx from 'clsx'
 import { SpecContentView as SpecContentView } from '../plans/SpecContentView'
 import { SpecInfoPanel as SpecInfoPanel } from '../plans/SpecInfoPanel'
 import { SpecMetadataPanel as SpecMetadataPanel } from '../plans/SpecMetadataPanel'
+import { GitGraphPanel } from '../git-graph/GitGraphPanel'
 import Split from 'react-split'
 import { CopyBundleBar } from './CopyBundleBar'
 import { logger } from '../../utils/logger'
@@ -27,7 +28,7 @@ const RightPanelTabsComponent = ({ onFileSelect, selectionOverride, isSpecOverri
   const { projectPath } = useProject()
   const { setFocusForSession, currentFocus } = useFocus()
   const { allSessions } = useSessions()
-    const [userSelectedTab, setUserSelectedTab] = useState<'changes' | 'agent' | 'info' | null>(null)
+    const [userSelectedTab, setUserSelectedTab] = useState<'changes' | 'agent' | 'info' | 'history' | null>(null)
     const [localFocus, setLocalFocus] = useState<boolean>(false)
 
   const effectiveSelection = selectionOverride ?? selection
@@ -117,6 +118,7 @@ const RightPanelTabsComponent = ({ onFileSelect, selectionOverride, isSpecOverri
   const showChangesTab = (effectiveSelection.kind === 'session' && !effectiveIsSpec) || isCommander
   const showInfoTab = effectiveSelection.kind === 'session' && effectiveIsSpec
   const showSpecTab = effectiveSelection.kind === 'session' && !effectiveIsSpec
+  const showHistoryTab = isCommander
 
   // Enable split mode for normal running sessions: Changes (top) + Requirements (bottom)
   const useSplitMode = effectiveSelection.kind === 'session' && !effectiveIsSpec
@@ -189,6 +191,26 @@ const RightPanelTabsComponent = ({ onFileSelect, selectionOverride, isSpecOverri
               <span>Spec</span>
             </button>
           )}
+          {showHistoryTab && (
+            <button
+              onClick={() => setUserSelectedTab('history')}
+              className={clsx(
+                'h-full flex-1 px-3 text-xs font-medium flex items-center justify-center gap-1.5',
+                activeTab === 'history'
+                  ? localFocus
+                    ? 'text-cyan-200 bg-cyan-800/30'
+                    : 'text-slate-200 bg-slate-800/50'
+                  : localFocus
+                    ? 'text-cyan-300 hover:text-cyan-200 hover:bg-cyan-800/20'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
+              )}
+              data-active={activeTab === 'history' || undefined}
+              title="Git History"
+            >
+              <VscGitCommit className="text-sm" />
+              <span>History</span>
+            </button>
+          )}
         </div>
       )}
 
@@ -237,8 +259,8 @@ const RightPanelTabsComponent = ({ onFileSelect, selectionOverride, isSpecOverri
         ) : (
           <div className="absolute inset-0" key={activeTab}>
             {activeTab === 'changes' ? (
-              <SimpleDiffPanel 
-                onFileSelect={onFileSelect} 
+              <SimpleDiffPanel
+                onFileSelect={onFileSelect}
                 sessionNameOverride={effectiveSelection.kind === 'session' ? (effectiveSelection.payload as string) : undefined}
                 isCommander={effectiveSelection.kind === 'orchestrator'}
               />
@@ -246,6 +268,8 @@ const RightPanelTabsComponent = ({ onFileSelect, selectionOverride, isSpecOverri
               effectiveSelection.kind === 'session' && effectiveIsSpec ? (
                 <SpecMetadataPanel sessionName={effectiveSelection.payload!} />
               ) : null
+            ) : activeTab === 'history' ? (
+              <GitGraphPanel />
             ) : (
               effectiveSelection.kind === 'session' ? (
                 effectiveIsSpec ? (

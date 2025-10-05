@@ -784,6 +784,7 @@ fn main() {
             remove_recent_project,
             is_git_repository,
             directory_exists,
+            get_git_graph_history,
             create_new_project,
             initialize_project,
             get_project_default_branch,

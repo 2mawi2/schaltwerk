@@ -18,6 +18,7 @@ pub use super::operations::{
     commit_all_changes, has_conflicts, has_uncommitted_changes, is_valid_session_name,
 };
 pub use super::stats::{calculate_git_stats_fast, get_changed_files};
+pub use super::history::{get_git_history, HistoryProviderSnapshot};
 #[cfg(test)]
 pub use super::worktrees::is_worktree_registered;
 
