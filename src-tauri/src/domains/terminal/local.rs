@@ -769,6 +769,27 @@ impl TerminalBackend for LocalPtyAdapter {
     async fn is_suspended(&self, id: &str) -> Result<bool, String> {
         Ok(self.suspended.read().await.contains(id))
     }
+
+    async fn force_kill_all(&self) -> Result<(), String> {
+        info!("Force killing all terminals for app exit");
+
+        let mut children = self.pty_children.lock().await;
+        for (_id, mut child) in children.drain() {
+            let _ = child.kill();
+        }
+        drop(children);
+
+        self.pty_masters.lock().await.clear();
+        self.pty_writers.lock().await.clear();
+        self.reader_handles.lock().await.clear();
+        self.terminals.write().await.clear();
+        self.suspended.write().await.clear();
+        self.pending_control_sequences.lock().await.clear();
+        self.coalescing_state.clear_all().await;
+
+        info!("All terminals force killed");
+        Ok(())
+    }
 }
 
 #[cfg(test)]

@@ -2,14 +2,14 @@ use log::info;
 
 /// Cleanup all running terminals
 pub async fn cleanup_all_terminals() {
-    info!("Cleaning up all terminals...");
+    info!("Emergency cleanup (panic/unexpected exit)");
 
-    // Use the project manager to clean up all projects
+    // Use force kill for speed even in emergency scenarios
     if let Some(manager) = crate::PROJECT_MANAGER.get() {
-        manager.cleanup_all().await;
+        manager.force_kill_all().await;
     }
 
-    info!("Terminal cleanup complete");
+    info!("Emergency cleanup complete");
 }
 
 /// Ensure cleanup happens even on panic

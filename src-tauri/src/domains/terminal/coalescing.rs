@@ -28,6 +28,18 @@ impl CoalescingState {
         self.norm_last_cr.write().await.remove(id);
         self.utf8_streams.write().await.remove(id);
     }
+
+    /// Clear all coalescing buffers for all terminals in parallel
+    /// Used during application exit for fast cleanup
+    pub async fn clear_all(&self) {
+        tokio::join!(
+            async { self.emit_buffers.write().await.clear() },
+            async { self.emit_scheduled.write().await.clear() },
+            async { self.emit_buffers_norm.write().await.clear() },
+            async { self.norm_last_cr.write().await.clear() },
+            async { self.utf8_streams.write().await.clear() }
+        );
+    }
 }
 
 /// Parameters for a single coalescing operation

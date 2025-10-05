@@ -269,6 +269,30 @@ impl ProjectManager {
         }
     }
 
+    /// Force kill all terminals across all projects for app exit
+    pub async fn force_kill_all(&self) {
+        info!("Force killing terminals for all projects");
+
+        let projects = self.projects.read().await;
+
+        let futures: Vec<_> = projects
+            .iter()
+            .map(|(path, project)| {
+                let path = path.clone();
+                let tm = project.terminal_manager.clone();
+                async move {
+                    debug!("Force killing terminals for project: {}", path.display());
+                    if let Err(e) = tm.force_kill_all().await {
+                        warn!("Failed to force kill terminals for {}: {}", path.display(), e);
+                    }
+                }
+            })
+            .collect();
+
+        futures::future::join_all(futures).await;
+        info!("All project terminals force killed");
+    }
+
     /// Clean up terminals for a specific project path only
     pub async fn cleanup_project_terminals(&self, path: &PathBuf) -> Result<(), String> {
         // Canonicalize for consistent lookup

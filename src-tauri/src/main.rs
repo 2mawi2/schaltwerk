@@ -993,17 +993,10 @@ fn main() {
         })
         .on_window_event(|_window, event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event {
-                // Cleanup all project terminals when window is closed
+                // Kill all terminal child processes
                 tauri::async_runtime::block_on(async {
                     let manager = get_project_manager().await;
-                    manager.cleanup_all().await;
-                });
-
-                // Stop all file watchers
-                tauri::async_runtime::block_on(async {
-                    if let Ok(watcher_manager) = get_file_watcher_manager().await {
-                        watcher_manager.stop_all_watchers().await;
-                    }
+                    manager.force_kill_all().await;
                 });
 
                 // Stop MCP server if running
@@ -1014,6 +1007,9 @@ fn main() {
                         }
                     }
                 }
+
+                // Exit immediately - OS will clean up all remaining resources
+                std::process::exit(0);
             }
         })
         .run(tauri::generate_context!())

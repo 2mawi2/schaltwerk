@@ -489,6 +489,16 @@ impl TerminalManager {
         close_result
     }
 
+    pub async fn force_kill_all(&self) -> Result<(), String> {
+        info!("Force killing all terminals via manager");
+
+        self.active_ids.write().await.clear();
+        self.metadata.write().await.clear();
+        self.session_index.write().await.clear();
+
+        self.backend.force_kill_all().await
+    }
+
     async fn cleanup_orphaned_processes(&self) {
         info!("Checking for orphaned terminal processes");
 

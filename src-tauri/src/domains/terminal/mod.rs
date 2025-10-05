@@ -46,6 +46,9 @@ pub trait TerminalBackend: Send + Sync {
     async fn is_suspended(&self, _id: &str) -> Result<bool, String> {
         Ok(false)
     }
+    async fn force_kill_all(&self) -> Result<(), String> {
+        Ok(())
+    }
 }
 
 pub mod ansi;
