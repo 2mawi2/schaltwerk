@@ -1,6 +1,4 @@
-use std::sync::Arc;
-
-use once_cell::sync::OnceCell;
+use std::sync::{Arc, OnceLock};
 use pty_host::{
     AckRequest, EventSink, KillRequest, PtyHost, ResizeRequest, SpawnRequest, SpawnResponse,
     SubscribeRequest, SubscribeResponse, WriteRequest,
@@ -133,7 +131,7 @@ impl PtyHostManager {
     }
 }
 
-static PTY_HOST_INSTANCE: OnceCell<Arc<PtyHostManager>> = OnceCell::new();
+static PTY_HOST_INSTANCE: OnceLock<Arc<PtyHostManager>> = OnceLock::new();
 
 pub fn get_pty_host() -> Arc<PtyHostManager> {
     PTY_HOST_INSTANCE

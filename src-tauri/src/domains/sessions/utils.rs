@@ -7,7 +7,6 @@ use crate::{
     schaltwerk_core::db_project_config::{ProjectConfigMethods, DEFAULT_BRANCH_PREFIX},
 };
 use anyhow::{anyhow, Result};
-use rand::Rng;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
@@ -57,10 +56,11 @@ impl SessionUtils {
     }
 
     pub fn generate_random_suffix(len: usize) -> String {
-        let mut rng = rand::rng();
-        (0..len)
-            .map(|_| rng.random_range(b'a'..=b'z') as char)
-            .collect()
+        let mut bytes = vec![0u8; len];
+        getrandom::getrandom(&mut bytes).unwrap_or_else(|_| {
+            log::warn!("Failed to get random bytes, using fallback");
+        });
+        bytes.iter().map(|&b| (b'a' + (b % 26)) as char).collect()
     }
 
     pub fn generate_session_id() -> String {

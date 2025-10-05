@@ -1,6 +1,6 @@
-use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::LazyLock;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AgentDefinition {
@@ -17,7 +17,7 @@ struct ManifestRoot {
     agents: HashMap<String, AgentDefinition>,
 }
 
-static AGENT_MANIFEST: Lazy<HashMap<String, AgentDefinition>> = Lazy::new(|| {
+static AGENT_MANIFEST: LazyLock<HashMap<String, AgentDefinition>> = LazyLock::new(|| {
     let manifest_content = include_str!("../../../agents_manifest.toml");
     let root: ManifestRoot = toml::from_str(manifest_content)
         .expect("Failed to parse agents_manifest.toml - this is a fatal build error");

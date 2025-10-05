@@ -1,9 +1,8 @@
 use dashmap::DashMap;
-use once_cell::sync::Lazy;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use tokio::sync::{Mutex, OwnedMutexGuard};
 
-static MERGE_LOCKS: Lazy<DashMap<String, Arc<Mutex<()>>>> = Lazy::new(DashMap::new);
+static MERGE_LOCKS: LazyLock<DashMap<String, Arc<Mutex<()>>>> = LazyLock::new(DashMap::new);
 
 pub fn try_acquire(session_name: &str) -> Option<OwnedMutexGuard<()>> {
     let entry = MERGE_LOCKS

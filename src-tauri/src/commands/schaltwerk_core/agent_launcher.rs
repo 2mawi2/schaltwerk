@@ -1,17 +1,13 @@
 use super::{agent_ctx, terminals};
 use crate::get_terminal_manager;
-use once_cell::sync::Lazy;
 use schaltwerk::domains::agents::parse_agent_command;
 use schaltwerk::domains::terminal::manager::CreateTerminalWithAppAndSizeParams;
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use tokio::sync::Mutex as AsyncMutex;
 
-// Serialize launches per terminal to prevent interleaved close/create races that could
-// momentarily run two different agents in the same PTY. This avoids the UI symptom of
-// two AIs appearing in one terminal due to overlapping spawns.
-static START_LOCKS: Lazy<AsyncMutex<HashMap<String, Arc<AsyncMutex<()>>>>> =
-    Lazy::new(|| AsyncMutex::new(HashMap::new()));
+static START_LOCKS: LazyLock<AsyncMutex<HashMap<String, Arc<AsyncMutex<()>>>>> =
+    LazyLock::new(|| AsyncMutex::new(HashMap::new()));
 
 pub async fn launch_in_terminal(
     terminal_id: String,

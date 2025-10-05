@@ -85,8 +85,8 @@ impl SessionLookupCache {
 }
 
 pub fn global_session_lookup_cache() -> &'static SessionLookupCache {
-    use once_cell::sync::Lazy;
-    static CACHE: Lazy<SessionLookupCache> = Lazy::new(SessionLookupCache::new);
+    use std::sync::LazyLock;
+    static CACHE: LazyLock<SessionLookupCache> = LazyLock::new(SessionLookupCache::new);
     &CACHE
 }
 

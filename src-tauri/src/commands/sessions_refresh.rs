@@ -1,7 +1,7 @@
+use std::sync::LazyLock;
 use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, Result};
-use once_cell::sync::Lazy;
 use tauri::AppHandle;
 use tokio::sync::Mutex;
 
@@ -51,7 +51,7 @@ struct RefreshHub {
     state: Mutex<HubState>,
 }
 
-static REFRESH_HUB: Lazy<RefreshHub> = Lazy::new(|| RefreshHub {
+static REFRESH_HUB: LazyLock<RefreshHub> = LazyLock::new(|| RefreshHub {
     state: Mutex::new(HubState::default()),
 });
 

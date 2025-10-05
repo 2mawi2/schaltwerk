@@ -1,8 +1,7 @@
-use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::{OnceLock, RwLock};
+use std::sync::{LazyLock, OnceLock, RwLock};
 
 use super::extract_session_cwds;
 
@@ -167,7 +166,7 @@ pub(crate) struct MatchResult {
     pub(crate) is_global_newest: bool,
 }
 
-static CODEX_SESSION_INDEX: Lazy<CodexSessionIndex> = Lazy::new(CodexSessionIndex::new);
+static CODEX_SESSION_INDEX: LazyLock<CodexSessionIndex> = LazyLock::new(CodexSessionIndex::new);
 static PREWARM_ONCE: OnceLock<()> = OnceLock::new();
 
 pub(crate) fn match_for_cwd(

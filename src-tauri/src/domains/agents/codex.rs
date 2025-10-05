@@ -1,9 +1,8 @@
 use super::format_binary_invocation;
-use once_cell::sync::Lazy;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::RwLock;
+use std::sync::{LazyLock, RwLock};
 use std::time::{Duration, Instant};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -155,7 +154,7 @@ impl CodexSessionIndex {
     }
 }
 
-static CODEX_SESSION_INDEX: Lazy<CodexSessionIndex> = Lazy::new(CodexSessionIndex::new);
+static CODEX_SESSION_INDEX: LazyLock<CodexSessionIndex> = LazyLock::new(CodexSessionIndex::new);
 
 #[derive(Debug, Clone, Default)]
 pub struct CodexConfig {

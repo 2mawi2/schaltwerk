@@ -1,12 +1,11 @@
 use anyhow::{anyhow, Context, Result};
-use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::Mutex;
+use std::sync::{LazyLock, Mutex};
 
-static FILE_CACHE: Lazy<Mutex<HashMap<PathBuf, Vec<String>>>> =
-    Lazy::new(|| Mutex::new(HashMap::new()));
+static FILE_CACHE: LazyLock<Mutex<HashMap<PathBuf, Vec<String>>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 fn cache_key(repo_path: &Path) -> PathBuf {
     repo_path
