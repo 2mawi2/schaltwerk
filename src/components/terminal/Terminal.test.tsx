@@ -724,28 +724,6 @@ describe('Terminal component', () => {
     expect(xterm.options.cursorBlink).toBe(true)
   })
 
-  it('tightens Codex bottom space on font-size change (not during streaming)', async () => {
-    ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => ({
-      seq: 0,
-      startSeq: 0,
-      data: ''
-    }))
-    renderTerminal({ terminalId: 'session-codex-top', sessionName: 'codex', agentType: 'codex' })
-    await flushAll()
-
-    const xterm = getLastXtermInstance()
-    // Simulate being at bottom with trailing blanks
-    xterm.buffer.active.baseY = 50
-    xterm.buffer.active.viewportY = 50
-    xterm.buffer.active.length = 100
-    xterm.__setTrailingBlankLines(3)
-
-    // Font-size change SHOULD tighten
-    emitUiEvent(UiEvent.FontSizeChanged, { terminalFontSize: 14, uiFontSize: 14 })
-    await advanceAndFlush(150)
-    expect(xterm.scrollLines.mock.calls.some((c: unknown[]) => c[0] === -3)).toBe(true)
-  })
-
 
   it('drains output queue while scrolled up (no auto-scroll requirement)', async () => {
     ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => ({
@@ -1292,6 +1270,30 @@ describe('Terminal component', () => {
     expect(restoreCalls[restoreCalls.length - 1]).toBe(420)
     expect(xterm.buffer.active.viewportY).toBe(420)
     expect(xterm.buffer.active.viewportY).not.toBe(xterm.buffer.active.baseY)
+  })
+
+  it('pins to bottom after large snapshot hydration without negative scroll', async () => {
+    const core = TauriCore as unknown as MockTauriCore
+
+    const largeSnapshot = 'LINE\n'.repeat(1000) + '\n\n\n'
+    core.__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => ({
+      seq: 1,
+      startSeq: 0,
+      data: largeSnapshot
+    }))
+
+    renderTerminal({ terminalId: 'session-large-top', sessionName: 'large', agentType: 'codex' })
+    await flushAll()
+
+    const xterm = getLastXtermInstance()
+
+    await advanceAndFlush(100)
+
+    const scrollLinesCalls = xterm.scrollLines.mock.calls.map(call => call[0])
+
+    expect(scrollLinesCalls.every(delta => delta >= 0)).toBe(true)
+
+    expect(xterm.buffer.active.viewportY).toBe(xterm.buffer.active.baseY)
   })
 
   it('rehydrates after frontend queue overflow to recover dropped output', async () => {

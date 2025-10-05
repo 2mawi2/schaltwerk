@@ -1,7 +1,5 @@
-// Utilities for terminal scroll behavior that must stay deterministic
-// and avoid any timing-based logic.
+import { logger } from './logger'
 
-// Minimal xterm-like active buffer surface we rely on
 export interface ActiveBufferLike {
   length: number
   // xterm's getLine returns a BufferLine with translateToString(trimRight?: boolean, startCol?: number, endCol?: number)
@@ -71,5 +69,76 @@ export function applyScrollPosition(target: ScrollCommandTarget, buffer: ScrollB
     if (delta !== 0) {
       target.scrollLines.call(target, delta)
     }
+  }
+}
+
+export interface XTermLike {
+  buffer: {
+    active: {
+      baseY: number
+      viewportY: number
+    }
+  }
+  scrollToLine?: (line: number) => void
+  scrollLines: (amount: number) => void
+}
+
+export type ScrollState = { atBottom: boolean; y: number }
+
+export function readScrollState(term: XTermLike): ScrollState {
+  const buf = term.buffer.active
+  const atBottom = buf.viewportY === buf.baseY
+  return { atBottom, y: buf.viewportY }
+}
+
+export function restoreScrollState(term: XTermLike, state: ScrollState): void {
+  const buf = term.buffer.active
+  const target = state.atBottom ? buf.baseY : Math.max(0, Math.min(state.y, buf.baseY))
+  if (typeof term.scrollToLine === 'function') {
+    term.scrollToLine(target)
+  } else {
+    const delta = target - buf.viewportY
+    if (delta !== 0) {
+      term.scrollLines(delta)
+    }
+  }
+}
+
+export function pinBottomDefinitive(term: XTermLike): void {
+  try {
+    const b0 = term.buffer.active.baseY
+    if (typeof term.scrollToLine === 'function') {
+      term.scrollToLine(b0)
+    } else {
+      const cur = term.buffer.active.viewportY
+      const d = b0 - cur
+      if (d !== 0) {
+        term.scrollLines(d)
+      }
+    }
+    const raf =
+      typeof requestAnimationFrame === 'function'
+        ? requestAnimationFrame
+        : (cb: FrameRequestCallback) => setTimeout(cb, 0)
+    raf(() => {
+      try {
+        const b1 = term.buffer.active.baseY
+        if (b1 !== b0) {
+          if (typeof term.scrollToLine === 'function') {
+            term.scrollToLine(b1)
+          } else {
+            const cur = term.buffer.active.viewportY
+            const d = b1 - cur
+            if (d !== 0) {
+              term.scrollLines(d)
+            }
+          }
+        }
+      } catch (error) {
+        logger.warn('[termScroll] pinBottomDefinitive RAF correction failed:', error)
+      }
+    })
+  } catch (error) {
+    logger.warn('[termScroll] pinBottomDefinitive initial scroll failed:', error)
   }
 }

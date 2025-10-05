@@ -1954,9 +1954,9 @@ impl SessionManager {
 
             // If we started fresh and resume had been disallowed, flip resume_allowed back to true for future resumes
             if did_start_fresh && !resume_allowed {
-                let _ = self
-                    .db_manager
-                    .set_session_resume_allowed(&session.id, true);
+                if let Err(err) = self.db_manager.set_session_resume_allowed(&session.id, true) {
+                    log::warn!("Failed to re-enable resume for session {}: {err}", session.id);
+                }
             }
 
             let binary_path = self.utils.get_effective_binary_path_with_override(
@@ -2066,9 +2066,9 @@ impl SessionManager {
 
             // If we started fresh and resume had been disallowed, flip resume_allowed back to true for future resumes
             if did_start_fresh && !resume_allowed {
-                let _ = self
-                    .db_manager
-                    .set_session_resume_allowed(&session.id, true);
+                if let Err(err) = self.db_manager.set_session_resume_allowed(&session.id, true) {
+                    log::warn!("Failed to re-enable resume for session {}: {err}", session.id);
+                }
             }
 
             let binary_path = self.utils.get_effective_binary_path_with_override(
@@ -2866,9 +2866,8 @@ impl SessionManager {
         self.db_manager
             .update_session_state(&session.id, SessionState::Running)?;
         // Ensure we gate resume on first agent start after spec start
-        let _ = self
-            .db_manager
-            .set_session_resume_allowed(&session.id, false);
+        self.db_manager
+            .set_session_resume_allowed(&session.id, false)?;
 
         if let Some(spec_content) = session.spec_content {
             log::info!("Copying spec content to initial_prompt for session '{session_name}': '{spec_content}'");

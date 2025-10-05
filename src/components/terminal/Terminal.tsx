@@ -19,7 +19,7 @@ import { logger } from '../../utils/logger'
 import { useModal } from '../../contexts/ModalContext'
 import { safeTerminalFocus, safeTerminalFocusImmediate } from '../../utils/safeFocus'
 import { buildTerminalFontFamily } from '../../utils/terminalFonts'
-import { countTrailingBlankLines, ActiveBufferLike, applyScrollPosition, ScrollBufferMetrics, ScrollCommandTarget } from '../../utils/termScroll'
+import { ActiveBufferLike, readScrollState, restoreScrollState, pinBottomDefinitive, type XTermLike } from '../../utils/termScroll'
 import { makeAgentQueueConfig, makeDefaultQueueConfig } from '../../utils/terminalQueue'
 import { useTerminalWriteQueue } from '../../hooks/useTerminalWriteQueue'
 import { TerminalLoadingOverlay } from './TerminalLoadingOverlay'
@@ -104,7 +104,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const hydratedRef = useRef<boolean>(false);
     const pendingOutput = useRef<string[]>([]);
     const snapshotCursorRef = useRef<number | null>(null);
-    const rehydrateScrollRef = useRef<{ wasAtBottom: boolean; scrollPosition: number } | null>(null);
+    const rehydrateScrollRef = useRef<{ atBottom: boolean; y: number } | null>(null);
     const rehydrateSkipAutoScrollRef = useRef<boolean>(false);
     const rehydrateInProgressRef = useRef<boolean>(false);
     const rehydrateHandledRef = useRef<boolean>(false);
@@ -233,28 +233,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
     const scrollToBottomInstant = useCallback(() => {
         if (!terminal.current) return;
-        try {
-            const buf = terminal.current.buffer.active as { baseY: number; viewportY?: number };
-            const target = buf.baseY;
-            const scrollToLine = (terminal.current as { scrollToLine?: (line: number) => void }).scrollToLine;
-
-            if (typeof scrollToLine === 'function') {
-                scrollToLine.call(terminal.current, target);
-                return;
-            }
-
-            const fallbackScroll = terminal.current.scrollLines;
-            if (typeof fallbackScroll === 'function') {
-                const currentViewport = buf.viewportY ?? target;
-                const delta = target - currentViewport;
-                if (delta !== 0) {
-                    fallbackScroll.call(terminal.current, delta);
-                }
-            }
-        } catch (error) {
-            logger.debug(`[Terminal ${terminalId}] Failed to scroll to bottom:`, error);
-        }
-    }, [terminalId]);
+        pinBottomDefinitive(terminal.current as unknown as XTermLike);
+    }, []);
 
      // Agent conversation terminal detection reused across sizing logic and scrollback config
      const isAgentTopTerminal = useMemo(() => (
@@ -427,14 +407,10 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             }
         }
         if (!wasAtBottom) return false;
-        if (rehydrateScrollRef.current && !rehydrateScrollRef.current.wasAtBottom) return false;
-        if (agentType === 'run') {
-            if (dragSelectingRef.current) return false;
-            if (selectionActiveRef.current) return false;
-            if (isUserSelectingInTerminal()) return false;
-        }
+        if (rehydrateScrollRef.current && !rehydrateScrollRef.current.atBottom) return false;
+        if (isUserSelectingInTerminal()) return false;
         return true;
-    }, [agentType, isUserSelectingInTerminal]);
+    }, [isUserSelectingInTerminal]);
 
     const applyPostHydrationScroll = useCallback((phase: 'success' | 'failure') => {
         if (!terminal.current) {
@@ -442,53 +418,34 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             return;
         }
 
-        const previous = rehydrateScrollRef.current;
+        const saved = rehydrateScrollRef.current;
         rehydrateScrollRef.current = null;
 
-        if (rehydrateInProgressRef.current && !previous) {
+        if (rehydrateInProgressRef.current && !saved) {
             rehydrateInProgressRef.current = false;
             return;
         }
 
-        if (!previous && rehydrateHandledRef.current) {
+        if (!saved && rehydrateHandledRef.current) {
             rehydrateHandledRef.current = false;
             return;
         }
 
-        const shouldScrollToBottom = !previous || previous.wasAtBottom;
-
-        if (shouldScrollToBottom) {
-            rehydrateSkipAutoScrollRef.current = false;
-            try {
-                scrollToBottomInstant();
-                if (phase === 'success' && agentType === 'codex') {
-                    const buf = terminal.current.buffer.active as unknown as ActiveBufferLike;
-                    const trailing = typeof buf?.getLine === 'function' ? countTrailingBlankLines(buf) : 0;
-                    if (trailing > 0) terminal.current.scrollLines(-trailing);
-                    if (termDebug()) logger.debug(`[Terminal ${terminalId}] tighten(${phase}): trailing=${trailing}`);
-                }
-            } catch (error) {
-                logger.warn(`[Terminal ${terminalId}] Failed to scroll to bottom after hydration ${phase}:`, error);
-            }
-            rehydrateInProgressRef.current = false;
-            rehydrateHandledRef.current = Boolean(previous);
-            return;
-        }
-
         try {
-            rehydrateSkipAutoScrollRef.current = true;
-            const buffer = terminal.current.buffer.active as ActiveBufferLike & ScrollBufferMetrics;
-            applyScrollPosition(
-                terminal.current as unknown as ScrollCommandTarget,
-                buffer,
-                previous.scrollPosition
-            );
+            if (!saved || saved.atBottom) {
+                pinBottomDefinitive(terminal.current as unknown as XTermLike);
+                rehydrateSkipAutoScrollRef.current = false;
+            } else {
+                restoreScrollState(terminal.current as unknown as XTermLike, saved);
+                rehydrateSkipAutoScrollRef.current = true;
+            }
         } catch (error) {
-            logger.warn(`[Terminal ${terminalId}] Failed to restore scroll after hydration ${phase}:`, error);
+            logger.warn(`[Terminal ${terminalId}] Failed to apply scroll after hydration ${phase}:`, error);
         }
-        rehydrateHandledRef.current = true;
+
+        rehydrateHandledRef.current = Boolean(saved);
         rehydrateInProgressRef.current = false;
-    }, [agentType, scrollToBottomInstant, terminalId]);
+    }, [terminalId]);
 
     const enqueueWrite = useCallback((data: string) => {
         if (data.length === 0) return;
@@ -1552,25 +1509,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             }
         };
 
-        const captureScrollPosition = () => {
-            let wasAtBottom = false;
-            let scrollPosition = 0;
-
-            try {
-                if (!terminal.current) {
-                    return { wasAtBottom: true, scrollPosition: 0 };
-                }
-
-                const buffer = terminal.current.buffer.active;
-                wasAtBottom = buffer.viewportY === buffer.baseY;
-                scrollPosition = buffer.viewportY;
-            } catch (error) {
-                logger.warn(`[Terminal ${terminalId}] Failed to capture scroll position:`, error);
-                wasAtBottom = true;
-            }
-
-            return { wasAtBottom, scrollPosition };
-        };
 
         const forceRehydrate = async (reason: 'resume' | 'overflow'): Promise<'completed' | 'deferred' | 'failed'> => {
             if (!mountedRef.current) {
@@ -1599,14 +1537,15 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 }
 
                 logger.debug(`[Terminal ${terminalId}] Starting rehydration - CLEARING TERMINAL`);
-                let snapshotBefore: { wasAtBottom: boolean; scrollPosition: number } | null = null;
                 if (reason !== 'resume' || !rehydrateScrollRef.current) {
-                    snapshotBefore = captureScrollPosition();
-                    rehydrateScrollRef.current = snapshotBefore;
-                } else {
-                    snapshotBefore = rehydrateScrollRef.current;
+                    if (terminal.current) {
+                        rehydrateScrollRef.current = readScrollState(terminal.current as unknown as XTermLike);
+                    } else {
+                        rehydrateScrollRef.current = { atBottom: true, y: 0 };
+                    }
                 }
-                rehydrateSkipAutoScrollRef.current = snapshotBefore ? !snapshotBefore.wasAtBottom : false;
+                const snapshotBefore = rehydrateScrollRef.current;
+                rehydrateSkipAutoScrollRef.current = snapshotBefore ? !snapshotBefore.atBottom : false;
                 rehydrateHandledRef.current = false;
                 rehydrateInProgressRef.current = true;
                 pendingOutput.current = [];
@@ -1670,8 +1609,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 suspendUnlisten = await listenEvent(SchaltEvent.TerminalSuspended, (payload) => {
                     if (payload?.terminal_id !== terminalId) return
                     wasSuspendedRef.current = true
-                    if (!rehydrateScrollRef.current) {
-                        rehydrateScrollRef.current = captureScrollPosition();
+                    if (!rehydrateScrollRef.current && terminal.current) {
+                        rehydrateScrollRef.current = readScrollState(terminal.current as unknown as XTermLike);
                     }
                     logger.debug(`[Terminal ${terminalId}] Marked as suspended`)
                 })
@@ -1701,30 +1640,17 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 fontSizeRafPending = false;
                 if (!fitAddon.current || !terminal.current || !mountedRef.current) return;
 
-                // Capture scroll position before font size change
-                const { wasAtBottom } = captureScrollPosition();
+                const { atBottom } = readScrollState(terminal.current as unknown as XTermLike);
 
                 try {
                     fitAddon.current.fit();
                     const { cols, rows } = terminal.current;
 
-                    // Only scroll to bottom on font size change if user was at bottom AND we're not during session switching
                     const isUILayoutChange = document.body.classList.contains('session-switching');
-                    if (wasAtBottom && !isUILayoutChange && (agentType !== 'run' || !isUserSelectingInTerminal())) {
+                    if (atBottom && !isUILayoutChange && !isUserSelectingInTerminal()) {
                         requestAnimationFrame(() => {
-                            try {
-                                if (!terminal.current) return
-                                if (agentType === 'codex') {
-                                    const buf = terminal.current.buffer.active as unknown as ActiveBufferLike
-                                    const trailing = typeof buf?.getLine === 'function' ? countTrailingBlankLines(buf) : 0
-                                    scrollToBottomInstant()
-                                    if (trailing > 0) terminal.current.scrollLines(-trailing)
-                                } else {
-                                    scrollToBottomInstant()
-                                }
-                            } catch (error) {
-                                logger.debug('Failed to scroll to bottom after font size change', error);
-                            }
+                            if (!terminal.current) return
+                            pinBottomDefinitive(terminal.current as unknown as XTermLike);
                         });
                     }
 
@@ -1774,9 +1700,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 return;
             }
 
-            // Capture scroll position before resize (not used here but available for future logic)
-            const { wasAtBottom: _wasAtBottom } = captureScrollPosition();
-
             try {
                 fitAddon.current.fit();
                 const { cols, rows } = terminal.current;
@@ -1819,22 +1742,19 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             // After drag ends, run a strong fit on next frame
             try {
                 if (fitAddon.current && terminal.current && termRef.current) {
-                    // Wait a frame for DOM to stabilize after drag
                     requestAnimationFrame(() => {
                         if (!fitAddon.current || !terminal.current) return;
-                        
-                        // Capture scroll position before final fit
-                        const { wasAtBottom } = captureScrollPosition();
 
-                        // Force a complete refit after drag ends
+                        const { atBottom } = readScrollState(terminal.current as unknown as XTermLike);
+
                         fitAddon.current.fit();
                         const { cols, rows } = terminal.current;
-                        
-                        // Only scroll to bottom after drag if user was at bottom AND we're not during session switching
+
                         const isUILayoutChange = document.body.classList.contains('session-switching');
-                        if (wasAtBottom && !isUILayoutChange) {
+                        if (atBottom && !isUILayoutChange) {
                             requestAnimationFrame(() => {
-                                scrollToBottomInstant();
+                                if (!terminal.current) return
+                                pinBottomDefinitive(terminal.current as unknown as XTermLike);
                             });
                        }
 
