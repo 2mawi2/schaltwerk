@@ -2044,13 +2044,15 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                      setAgentLoading(false);
                      startingTerminals.current.set(terminalId, false);
                 } else {
-                    const expectedId = sessionName ? `session-${sessionName}-top` : null;
                     if (!sessionName) {
                         startingTerminals.current.set(terminalId, false);
                         return;
                     }
+                    const sanitizedSessionName = sessionName.replace(/[^a-zA-Z0-9_-]/g, '_');
+                    const expectedId = `session-${sanitizedSessionName}-top`;
                     if (expectedId !== terminalId) {
                         startingTerminals.current.set(terminalId, false);
+                        setAgentLoading(false);
                         return;
                     }
                     // OPTIMIZATION: Skip session terminal_exists check too

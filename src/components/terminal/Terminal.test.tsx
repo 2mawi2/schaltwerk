@@ -1603,6 +1603,24 @@ describe('Terminal component', () => {
     clearTerminalStartedTracking([terminalId])
   })
 
+  it('auto-starts session agent when session name requires sanitization', async () => {
+    const core = TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][], clear: () => void } } }
+    const terminalId = 'session-ui_polish-top'
+
+    core.invoke.mockClear()
+
+    const instance = renderTerminal({ terminalId, sessionName: 'ui polish' })
+    await flushAll()
+    vi.advanceTimersByTime(1)
+    await flushAll()
+
+    const startCalls = core.invoke.mock.calls.filter(call => call[0] === TauriCommands.SchaltwerkCoreStartSessionAgent)
+    expect(startCalls.length).toBeGreaterThan(0)
+
+    instance.unmount()
+    clearTerminalStartedTracking([terminalId])
+  })
+
   it.each([
     { message: 'No project is currently open', event: 'schaltwerk:no-project-error' },
     { message: 'Permission required for folder: /tmp/project', event: 'schaltwerk:permission-error' },
