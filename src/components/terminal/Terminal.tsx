@@ -19,7 +19,7 @@ import { logger } from '../../utils/logger'
 import { useModal } from '../../contexts/ModalContext'
 import { safeTerminalFocus, safeTerminalFocusImmediate } from '../../utils/safeFocus'
 import { buildTerminalFontFamily } from '../../utils/terminalFonts'
-import { countTrailingBlankLines, ActiveBufferLike } from '../../utils/termScroll'
+import { countTrailingBlankLines, ActiveBufferLike, applyScrollPosition, ScrollBufferMetrics, ScrollCommandTarget } from '../../utils/termScroll'
 import { makeAgentQueueConfig, makeDefaultQueueConfig } from '../../utils/terminalQueue'
 import { useTerminalWriteQueue } from '../../hooks/useTerminalWriteQueue'
 import { TerminalLoadingOverlay } from './TerminalLoadingOverlay'
@@ -97,23 +97,27 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const searchAddon = useRef<SearchAddon | null>(null);
     const lastSize = useRef<{ cols: number; rows: number }>({ cols: 80, rows: 24 });
     const lastEffectiveRef = useRef<{ cols: number; rows: number }>(lastEffectiveRefInit);
-     const [hydrated, setHydrated] = useState(false);
-     const [agentLoading, setAgentLoading] = useState(false);
-      const [agentStopped, setAgentStopped] = useState(false);
-      const terminalEverStartedRef = useRef<boolean>(false);
-     const hydratedRef = useRef<boolean>(false);
-     const pendingOutput = useRef<string[]>([]);
-     const snapshotCursorRef = useRef<number | null>(null);
-     const wasSuspendedRef = useRef<boolean>(false);
-     // Tracks user-initiated SIGINT (Ctrl+C) to distinguish from startup/other exits.
-     const lastSigintAtRef = useRef<number | null>(null);
-     const [overflowEpoch, setOverflowEpoch] = useState(0);
-     const overflowNoticesRef = useRef<number[]>([]);
-     const overflowReplayNeededRef = useRef<boolean>(false);
-     const rehydrateByReasonRef = useRef<((reason: 'resume' | 'overflow') => Promise<'completed' | 'deferred' | 'failed'>) | null>(null);
-     const overflowQueuedRef = useRef<boolean>(false);
-     const overflowProcessingRef = useRef<boolean>(false);
-     const rehydrateInFlightRef = useRef<boolean>(false);
+    const [hydrated, setHydrated] = useState(false);
+    const [agentLoading, setAgentLoading] = useState(false);
+    const [agentStopped, setAgentStopped] = useState(false);
+    const terminalEverStartedRef = useRef<boolean>(false);
+    const hydratedRef = useRef<boolean>(false);
+    const pendingOutput = useRef<string[]>([]);
+    const snapshotCursorRef = useRef<number | null>(null);
+    const rehydrateScrollRef = useRef<{ wasAtBottom: boolean; scrollPosition: number } | null>(null);
+    const rehydrateSkipAutoScrollRef = useRef<boolean>(false);
+    const rehydrateInProgressRef = useRef<boolean>(false);
+    const rehydrateHandledRef = useRef<boolean>(false);
+    const wasSuspendedRef = useRef<boolean>(false);
+    // Tracks user-initiated SIGINT (Ctrl+C) to distinguish from startup/other exits.
+    const lastSigintAtRef = useRef<number | null>(null);
+    const [overflowEpoch, setOverflowEpoch] = useState(0);
+    const overflowNoticesRef = useRef<number[]>([]);
+    const overflowReplayNeededRef = useRef<boolean>(false);
+    const rehydrateByReasonRef = useRef<((reason: 'resume' | 'overflow') => Promise<'completed' | 'deferred' | 'failed'>) | null>(null);
+    const overflowQueuedRef = useRef<boolean>(false);
+    const overflowProcessingRef = useRef<boolean>(false);
+    const rehydrateInFlightRef = useRef<boolean>(false);
     const [isSearchVisible, setIsSearchVisible] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const handleSearchTermChange = useCallback((value: string) => {
@@ -415,7 +419,15 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     }, []);
 
     const shouldAutoScroll = useCallback((wasAtBottom: boolean) => {
+        if (rehydrateSkipAutoScrollRef.current) {
+            if (wasAtBottom) {
+                rehydrateSkipAutoScrollRef.current = false;
+            } else {
+                return false;
+            }
+        }
         if (!wasAtBottom) return false;
+        if (rehydrateScrollRef.current && !rehydrateScrollRef.current.wasAtBottom) return false;
         if (agentType === 'run') {
             if (dragSelectingRef.current) return false;
             if (selectionActiveRef.current) return false;
@@ -424,20 +436,74 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         return true;
     }, [agentType, isUserSelectingInTerminal]);
 
-     const enqueueWrite = useCallback((data: string) => {
-         if (data.length === 0) return;
-         enqueueQueue(data);
-         if (termDebug()) {
-             const { queueLength } = getQueueStats();
-             logger.debug(`[Terminal ${terminalId}] enqueue +${data.length}B qlen=${queueLength}`);
-         }
-     }, [enqueueQueue, getQueueStats, terminalId]);
+    const applyPostHydrationScroll = useCallback((phase: 'success' | 'failure') => {
+        if (!terminal.current) {
+            rehydrateScrollRef.current = null;
+            return;
+        }
 
-     const restartAgent = useCallback(async () => {
-         if (!isAgentTopTerminal) return;
-         setAgentLoading(true);
-         sessionStorage.removeItem(`schaltwerk:agent-stopped:${terminalId}`);
-         clearTerminalStartedTracking([terminalId]); // clears startedGlobal + inflights/background marks
+        const previous = rehydrateScrollRef.current;
+        rehydrateScrollRef.current = null;
+
+        if (rehydrateInProgressRef.current && !previous) {
+            rehydrateInProgressRef.current = false;
+            return;
+        }
+
+        if (!previous && rehydrateHandledRef.current) {
+            rehydrateHandledRef.current = false;
+            return;
+        }
+
+        const shouldScrollToBottom = !previous || previous.wasAtBottom;
+
+        if (shouldScrollToBottom) {
+            rehydrateSkipAutoScrollRef.current = false;
+            try {
+                scrollToBottomInstant();
+                if (phase === 'success' && agentType === 'codex') {
+                    const buf = terminal.current.buffer.active as unknown as ActiveBufferLike;
+                    const trailing = typeof buf?.getLine === 'function' ? countTrailingBlankLines(buf) : 0;
+                    if (trailing > 0) terminal.current.scrollLines(-trailing);
+                    if (termDebug()) logger.debug(`[Terminal ${terminalId}] tighten(${phase}): trailing=${trailing}`);
+                }
+            } catch (error) {
+                logger.warn(`[Terminal ${terminalId}] Failed to scroll to bottom after hydration ${phase}:`, error);
+            }
+            rehydrateInProgressRef.current = false;
+            rehydrateHandledRef.current = Boolean(previous);
+            return;
+        }
+
+        try {
+            rehydrateSkipAutoScrollRef.current = true;
+            const buffer = terminal.current.buffer.active as ActiveBufferLike & ScrollBufferMetrics;
+            applyScrollPosition(
+                terminal.current as unknown as ScrollCommandTarget,
+                buffer,
+                previous.scrollPosition
+            );
+        } catch (error) {
+            logger.warn(`[Terminal ${terminalId}] Failed to restore scroll after hydration ${phase}:`, error);
+        }
+        rehydrateHandledRef.current = true;
+        rehydrateInProgressRef.current = false;
+    }, [agentType, scrollToBottomInstant, terminalId]);
+
+    const enqueueWrite = useCallback((data: string) => {
+        if (data.length === 0) return;
+        enqueueQueue(data);
+        if (termDebug()) {
+            const { queueLength } = getQueueStats();
+            logger.debug(`[Terminal ${terminalId}] enqueue +${data.length}B qlen=${queueLength}`);
+        }
+    }, [enqueueQueue, getQueueStats, terminalId]);
+
+    const restartAgent = useCallback(async () => {
+        if (!isAgentTopTerminal) return;
+        setAgentLoading(true);
+        sessionStorage.removeItem(`schaltwerk:agent-stopped:${terminalId}`);
+        clearTerminalStartedTracking([terminalId]); // clears startedGlobal + inflights/background marks
 
              try {
                  // Provide initial size to avoid early overflow (apply guard)
@@ -882,7 +948,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         terminal.current.open(termRef.current);
         // Allow streaming immediately; proper fits will still run later
         rendererReadyRef.current = true;
-        
+
         // Ensure proper initial fit after terminal is opened
         // CRITICAL: Wait for container dimensions before fitting - essential for xterm.js 5.x cursor positioning
         const performInitialFit = () => {
@@ -1457,21 +1523,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
                   // Scroll to bottom after hydration to show latest content (Codex: then tighten once)
                   requestAnimationFrame(() => {
-                      if (terminal.current) {
-                          try {
-                              if (agentType !== 'run' || !isUserSelectingInTerminal()) {
-                                  scrollToBottomInstant();
-                              }
-                              if (agentType === 'codex') {
-                                  const buf = terminal.current.buffer.active as unknown as ActiveBufferLike
-                                  const trailing = typeof buf?.getLine === 'function' ? countTrailingBlankLines(buf) : 0
-                                  if (trailing > 0) terminal.current.scrollLines(-trailing)
-                                  if (termDebug()) logger.debug(`[Terminal ${terminalId}] tighten(after hydration): trailing=${trailing}`)
-                              }
-                          } catch (error) {
-                              logger.warn(`[Terminal ${terminalId}] Failed to scroll to bottom after hydration:`, error);
-                          }
-                      }
+                      applyPostHydrationScroll('success');
                   });
 
                   // Emit terminal ready event for focus management after we've fully flushed and fitted
@@ -1479,11 +1531,11 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                       emitUiEvent(UiEvent.TerminalReady, { terminalId });
                  }
                 
-            } catch (error) {
-                logger.error(`[Terminal ${terminalId}] Failed to hydrate:`, error);
-                // On failure, still shift to live streaming and flush any buffered output to avoid drops
-                setHydrated(true);
-                hydratedRef.current = true;
+        } catch (error) {
+            logger.error(`[Terminal ${terminalId}] Failed to hydrate:`, error);
+            // On failure, still shift to live streaming and flush any buffered output to avoid drops
+            setHydrated(true);
+            hydratedRef.current = true;
                 if (pendingOutput.current.length > 0) {
                     for (const output of pendingOutput.current) {
                         enqueueWrite(output);
@@ -1494,18 +1546,30 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                     
                     // Scroll to bottom even on hydration failure
                     requestAnimationFrame(() => {
-                        if (terminal.current) {
-                            try {
-                                if (agentType !== 'run' || !isUserSelectingInTerminal()) {
-                                    scrollToBottomInstant();
-                                }
-                            } catch (error) {
-                                logger.warn(`[Terminal ${terminalId}] Failed to scroll to bottom after hydration failure:`, error);
-                            }
-                        }
+                        applyPostHydrationScroll('failure');
                     });
                 }
             }
+        };
+
+        const captureScrollPosition = () => {
+            let wasAtBottom = false;
+            let scrollPosition = 0;
+
+            try {
+                if (!terminal.current) {
+                    return { wasAtBottom: true, scrollPosition: 0 };
+                }
+
+                const buffer = terminal.current.buffer.active;
+                wasAtBottom = buffer.viewportY === buffer.baseY;
+                scrollPosition = buffer.viewportY;
+            } catch (error) {
+                logger.warn(`[Terminal ${terminalId}] Failed to capture scroll position:`, error);
+                wasAtBottom = true;
+            }
+
+            return { wasAtBottom, scrollPosition };
         };
 
         const forceRehydrate = async (reason: 'resume' | 'overflow'): Promise<'completed' | 'deferred' | 'failed'> => {
@@ -1535,6 +1599,16 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 }
 
                 logger.debug(`[Terminal ${terminalId}] Starting rehydration - CLEARING TERMINAL`);
+                let snapshotBefore: { wasAtBottom: boolean; scrollPosition: number } | null = null;
+                if (reason !== 'resume' || !rehydrateScrollRef.current) {
+                    snapshotBefore = captureScrollPosition();
+                    rehydrateScrollRef.current = snapshotBefore;
+                } else {
+                    snapshotBefore = rehydrateScrollRef.current;
+                }
+                rehydrateSkipAutoScrollRef.current = snapshotBefore ? !snapshotBefore.wasAtBottom : false;
+                rehydrateHandledRef.current = false;
+                rehydrateInProgressRef.current = true;
                 pendingOutput.current = [];
                 resetQueue();
                 if (terminal.current) {
@@ -1556,6 +1630,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 if (reason === 'overflow') {
                     overflowReplayNeededRef.current = true;
                 }
+                rehydrateInProgressRef.current = false;
                 return 'failed';
             } finally {
                 rehydrateInFlightRef.current = false;
@@ -1595,6 +1670,9 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 suspendUnlisten = await listenEvent(SchaltEvent.TerminalSuspended, (payload) => {
                     if (payload?.terminal_id !== terminalId) return
                     wasSuspendedRef.current = true
+                    if (!rehydrateScrollRef.current) {
+                        rehydrateScrollRef.current = captureScrollPosition();
+                    }
                     logger.debug(`[Terminal ${terminalId}] Marked as suspended`)
                 })
             } catch (error) {
@@ -1605,28 +1683,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         attachResumeListener()
         attachSuspendListener()
         hydrateTerminal();
-
-        // Helper functions for scroll position management
-        const captureScrollPosition = () => {
-            let wasAtBottom = false;
-            let scrollPosition = 0;
-            
-            try {
-                if (!terminal.current) {
-                    return { wasAtBottom: true, scrollPosition: 0 };
-                }
-                
-                const buffer = terminal.current.buffer.active;
-                wasAtBottom = buffer.viewportY === buffer.baseY;
-                scrollPosition = buffer.viewportY;
-            } catch (error) {
-                logger.warn(`[Terminal ${terminalId}] Failed to capture scroll position:`, error);
-                wasAtBottom = true;
-            }
-            
-            return { wasAtBottom, scrollPosition };
-        };
-
 
         // Handle font size changes with better debouncing
         let fontSizeRafPending = false;
@@ -1805,7 +1861,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             ackState.lastSeq = 0;
             
             // no timers to clear
-            
+
             // Synchronously detach if possible to avoid races in tests
             const fn = unlistenRef.current;
             if (fn) { try { fn(); } catch (error) {
@@ -1848,7 +1904,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             // All terminals are cleaned up when the app exits via the backend cleanup handler
             // useCleanupRegistry handles other cleanup automatically
         };
-    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, shouldAutoScroll, isUserSelectingInTerminal, applySizeUpdate, flushQueuePending, getQueueStats, resetQueue, inputFilter, isAgentTopTerminal, scrollToBottomInstant, pluginTransportActive, acknowledgeChunk]);
+    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, shouldAutoScroll, isUserSelectingInTerminal, applySizeUpdate, flushQueuePending, getQueueStats, resetQueue, inputFilter, isAgentTopTerminal, scrollToBottomInstant, pluginTransportActive, acknowledgeChunk, applyPostHydrationScroll]);
 
     useEffect(() => {
         if (overflowEpoch === 0) return;

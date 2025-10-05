@@ -1248,6 +1248,52 @@ describe('Terminal component', () => {
     expect(writes).toContain('RESUMED')
   })
 
+  it('restores scroll history after resume hydration when user scrolled up', async () => {
+    const core = TauriCore as unknown as MockTauriCore
+    const events = TauriEvent as unknown as MockTauriEvent
+
+    core.__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => ({
+      seq: 3,
+      startSeq: 0,
+      data: 'SNAPSHOT'
+    }))
+
+    renderTerminal({ terminalId: 'session-resume-scroll-top', sessionName: 'resume-scroll' })
+    await flushAll()
+
+    const xterm = getLastXtermInstance()
+
+    // Simulate a deep scroll history with the viewport well above the bottom
+    xterm.buffer.active.baseY = 480
+    xterm.buffer.active.viewportY = 420
+    expect(xterm.buffer.active.viewportY).toBe(420)
+    expect(xterm.buffer.active.baseY).toBe(480)
+
+    // Resume snapshot includes additional content
+    core.__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => ({
+      seq: 4,
+      startSeq: 0,
+      data: 'RESUME-SNAPSHOT'
+    }))
+
+    await act(async () => {
+      events.__emit('schaltwerk:terminal-suspended', { terminal_id: 'session-resume-scroll-top' })
+    })
+    await advanceAndFlush(50)
+
+    await act(async () => {
+      events.__emit('schaltwerk:terminal-resumed', { terminal_id: 'session-resume-scroll-top' })
+    })
+    await advanceAndFlush(400)
+
+    // Viewport should stay pinned to the saved position, not jump to the buffer base
+    const restoreCalls = xterm.scrollToLine.mock.calls.map(call => call[0])
+    expect(restoreCalls).toContain(420)
+    expect(restoreCalls[restoreCalls.length - 1]).toBe(420)
+    expect(xterm.buffer.active.viewportY).toBe(420)
+    expect(xterm.buffer.active.viewportY).not.toBe(xterm.buffer.active.baseY)
+  })
+
   it('rehydrates after frontend queue overflow to recover dropped output', async () => {
     const queueSpy = vi.spyOn(terminalQueue, 'makeAgentQueueConfig').mockReturnValue({
       maxQueueBytes: 64,

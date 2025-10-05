@@ -8,6 +8,17 @@ export interface ActiveBufferLike {
   getLine: (index: number) => { translateToString: (trimRight?: boolean, start?: number, end?: number) => string } | undefined
 }
 
+export interface ScrollBufferMetrics {
+  baseY?: number
+  viewportY?: number
+  length?: number
+}
+
+export interface ScrollCommandTarget {
+  scrollToLine?: (line: number) => void
+  scrollLines?: (amount: number) => void
+}
+
 /**
  * Counts trailing blank lines at the end of the active buffer.
  * We cap the scan to a small window (e.g. last 200 lines) for performance on huge scrollbacks.
@@ -33,5 +44,32 @@ export function countTrailingBlankLines(buf: ActiveBufferLike, maxLookback = 200
     return trailing
   } catch {
     return 0
+  }
+}
+
+export function clampScrollPosition(buffer: ScrollBufferMetrics | undefined, desired: number): number {
+  if (!buffer) return Math.max(0, desired)
+  const maxLine = typeof buffer.baseY === 'number'
+    ? buffer.baseY
+    : typeof buffer.length === 'number'
+      ? Math.max(0, buffer.length - 1)
+      : 0
+  if (!Number.isFinite(desired)) return maxLine
+  return Math.max(0, Math.min(maxLine, desired))
+}
+
+export function applyScrollPosition(target: ScrollCommandTarget, buffer: ScrollBufferMetrics | undefined, desired: number): void {
+  const resolved = clampScrollPosition(buffer, desired)
+  if (typeof target.scrollToLine === 'function') {
+    target.scrollToLine.call(target, resolved)
+    return
+  }
+
+  if (typeof target.scrollLines === 'function') {
+    const current = typeof buffer?.viewportY === 'number' ? buffer.viewportY : 0
+    const delta = resolved - current
+    if (delta !== 0) {
+      target.scrollLines.call(target, delta)
+    }
   }
 }
