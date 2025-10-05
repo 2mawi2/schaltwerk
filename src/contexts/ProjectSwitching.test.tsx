@@ -93,7 +93,7 @@ describe('Project Switching Selection Behavior', () => {
             })
 
             await waitFor(() => {
-                expect(result.current.selection).toEqual({
+                expect(result.current.selection).toMatchObject({
                     kind: 'session',
                     payload: 'test-session',
                     worktreePath: '/test/path'
@@ -126,7 +126,7 @@ describe('Project Switching Selection Behavior', () => {
             })
 
             await waitFor(() => {
-                expect(result.current.selection.selection).toEqual({ kind: 'session', payload: 'my-session' })
+                expect(result.current.selection.selection).toMatchObject({ kind: 'session', payload: 'my-session' })
             })
 
             // Switch to the same project again - this should be synchronous
@@ -135,7 +135,7 @@ describe('Project Switching Selection Behavior', () => {
             })
 
             // Selection should remain unchanged (synchronous check)
-            expect(result.current.selection.selection).toEqual({ kind: 'session', payload: 'my-session' })
+            expect(result.current.selection.selection).toMatchObject({ kind: 'session', payload: 'my-session' })
         })
 
         it('should handle null project path gracefully', async () => {

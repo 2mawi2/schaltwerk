@@ -50,6 +50,7 @@ const cloneTabsState = (state: TerminalTabsUiState): TerminalTabsUiState => ({
 
 const TerminalGridComponent = () => {
     const { selection, terminals, isReady, isSpec } = useSelection()
+    const selectionIsSpec = selection.kind === 'session' && (isSpec || selection.sessionState === 'spec')
     const { getFocusForSession, setFocusForSession, currentFocus } = useFocus()
     const { addRunningSession, removeRunningSession } = useRun()
     const { getAgentType, getOrchestratorAgentType } = useClaudeSession()
@@ -841,7 +842,7 @@ const TerminalGridComponent = () => {
         }
     }, [dispatchOpencodeFinalResize]);
 
-    if (selection.kind === 'session' && isSpec) {
+    if (selectionIsSpec) {
         return (
             <div className="h-full p-2 relative">
                 <div className="bg-panel rounded border border-slate-800 overflow-hidden min-h-0 h-full">

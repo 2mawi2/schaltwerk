@@ -112,7 +112,10 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     })
     // Start as not ready, will become ready once we have initialized with a project
     const [isReady, setIsReady] = useState(false)
-    const [isSpec, setIsSpec] = useState(false)
+    const [isSpecState, setIsSpecState] = useState(false)
+    const isSpec = selection.kind === 'session' && selection.sessionState === 'spec'
+        ? true
+        : isSpecState
     const previousProjectPath = useRef<string | null>(null)
     const hasInitialized = useRef(false)
     // Project epoch and user selection marker to arbitrate auto-restore vs user selection
@@ -156,6 +159,8 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         }
     }, [allSessions])
     const sessionSnapshotsRef = useRef(new Map<string, SessionSnapshot>())
+    const latestSessionsRef = useRef<EnrichedSession[]>([])
+    useEffect(() => { latestSessionsRef.current = allSessions }, [allSessions])
     const sessionFetchPromisesRef = useRef(new Map<string, Promise<SessionSnapshot | null>>())
     const lastSelectionByProjectRef = useRef(new Map<string, Selection>())
 
@@ -392,12 +397,51 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         }
     }, [])
 
+    const resolveSessionState = useCallback((options: {
+        sessionId?: string | null
+        desiredState?: NormalizedSessionState | null
+        snapshot: SessionSnapshot | null
+    }): { state: NormalizedSessionState; snapshot: SessionSnapshot | null } => {
+        const { sessionId, desiredState, snapshot } = options
+
+        if (desiredState === 'spec') {
+            return { state: 'spec', snapshot }
+        }
+
+        let finalSnapshot = snapshot
+
+        if (sessionId) {
+            const enriched = latestSessionsRef.current.find(s => s.info.session_id === sessionId)
+            if (enriched) {
+                const enrichedSnapshot = snapshotFromEnrichedSession(enriched)
+                sessionSnapshotsRef.current.set(sessionId, enrichedSnapshot)
+                finalSnapshot = finalSnapshot ?? enrichedSnapshot
+                if (enrichedSnapshot.sessionState === 'spec') {
+                    return { state: 'spec', snapshot: enrichedSnapshot }
+                }
+                if (!desiredState && enrichedSnapshot.sessionState) {
+                    return { state: enrichedSnapshot.sessionState, snapshot: enrichedSnapshot }
+                }
+            }
+        }
+
+        if (desiredState) {
+            return { state: desiredState, snapshot: finalSnapshot }
+        }
+
+        if (finalSnapshot?.sessionState) {
+            return { state: finalSnapshot.sessionState, snapshot: finalSnapshot }
+        }
+
+        return { state: 'running', snapshot: finalSnapshot }
+    }, [])
+
     // Ensure terminals exist for a selection
     const ensureTerminals = useCallback(async (sel: Selection): Promise<TerminalSet> => {
         const ids = getTerminalIds(sel)
 
         if (sel.kind === 'orchestrator') {
-            setIsSpec(false)
+            setIsSpecState(false)
             let cwd = projectPath
             if (!cwd) {
                 try {
@@ -415,7 +459,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
 
         const sessionId = sel.payload
         if (!sessionId) {
-            setIsSpec(false)
+            setIsSpecState(false)
             return ids
         }
 
@@ -432,10 +476,22 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             }
         }
 
+        const { state: resolvedState, snapshot: adjustedSnapshot } = resolveSessionState({
+            sessionId,
+            desiredState: desiredState ?? null,
+            snapshot: snapshot ?? null
+        })
+        snapshot = adjustedSnapshot
+
+        const isSpecSession = resolvedState === 'spec'
+        setIsSpecState(isSpecSession)
+        if (isSpecSession) {
+            return ids
+        }
+
         if (!snapshot) {
-            if (desiredState === 'running' && sel.worktreePath) {
+            if (resolvedState === 'running' && sel.worktreePath) {
                 const fallbackWorktree = sel.worktreePath
-                setIsSpec(false)
                 await createTerminal(ids.top, fallbackWorktree)
                 await registerTerminalsForSelection([ids.top], sel)
                 return {
@@ -445,14 +501,6 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             }
 
             logger.warn('[SelectionContext] Missing session snapshot while ensuring terminals', { sessionId })
-            setIsSpec(false)
-            return ids
-        }
-
-        const resolvedState = desiredState ?? snapshot.sessionState ?? 'running'
-        const isSpecSession = resolvedState === 'spec'
-        setIsSpec(isSpecSession)
-        if (isSpecSession) {
             return ids
         }
 
@@ -496,7 +544,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             ...ids,
             workingDirectory: worktreePath
         }
-    }, [getTerminalIds, projectPath, createTerminal, registerTerminalsForSelection, getCachedSessionSnapshot, ensureSessionSnapshot])
+    }, [getTerminalIds, projectPath, createTerminal, registerTerminalsForSelection, getCachedSessionSnapshot, ensureSessionSnapshot, resolveSessionState])
 
     // Helper to get default selection for current project
     const getDefaultSelection = useCallback(async (): Promise<Selection> => {
@@ -628,28 +676,39 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 if (newSelection.kind === 'session') {
                     let resolvedState = newSelection.sessionState
                     let resolvedWorktree = newSelection.worktreePath
-                    if (!resolvedState || !resolvedWorktree) {
-                        const shouldForceRefresh = selection.kind === 'session' && selection.payload === newSelection.payload && newSelection.sessionState === undefined
-                        let snapshot = getCachedSessionSnapshot(newSelection.payload)
-                        if (!snapshot || shouldForceRefresh) {
-                            try {
-                                snapshot = await ensureSessionSnapshot(newSelection.payload, { refresh: shouldForceRefresh })
-                            } catch (error) {
-                                logger.warn('[SelectionContext] Failed to resolve session state for optimistic switch:', error)
-                            }
-                        }
-                        if (snapshot) {
-                            resolvedState = resolvedState ?? snapshot.sessionState
-                            resolvedWorktree = resolvedWorktree ?? snapshot.worktreePath
+                    let snapshot = getCachedSessionSnapshot(newSelection.payload)
+                    const shouldForceRefresh = selection.kind === 'session' && selection.payload === newSelection.payload && newSelection.sessionState === undefined
+
+                    if (!snapshot || shouldForceRefresh) {
+                        try {
+                            snapshot = await ensureSessionSnapshot(newSelection.payload, { refresh: shouldForceRefresh })
+                        } catch (error) {
+                            logger.warn('[SelectionContext] Failed to resolve session state for optimistic switch:', error)
                         }
                     }
-                    setIsSpec(resolvedState === 'spec')
-                    const optimistic = { ...newSelection, sessionState: resolvedState, worktreePath: resolvedWorktree }
+
+                    if (snapshot) {
+                        resolvedState = resolvedState ?? snapshot.sessionState
+                        resolvedWorktree = resolvedWorktree ?? snapshot.worktreePath
+                    }
+
+                    const { state: finalState, snapshot: adjustedSnapshot } = resolveSessionState({
+                        sessionId: newSelection.payload,
+                        desiredState: resolvedState ?? null,
+                        snapshot: snapshot ?? null
+                    })
+
+                    const finalWorktree = finalState === 'spec'
+                        ? undefined
+                        : (resolvedWorktree ?? adjustedSnapshot?.worktreePath)
+
+                    setIsSpecState(finalState === 'spec')
+                    const optimistic = { ...newSelection, sessionState: finalState, worktreePath: finalWorktree }
                     setSelectionState(optimistic)
                     setTerminals(newTerminalIds)
                     setCurrentSelection(optimistic.payload || null)
                 } else {
-                    setIsSpec(false)
+                    setIsSpecState(false)
                     setSelectionState(newSelection)
                     setTerminals(newTerminalIds)
                     setCurrentSelection(null)
@@ -700,27 +759,36 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 if (newSelection.kind === 'session') {
                     let resolvedState = newSelection.sessionState
                     let resolvedWorktree = newSelection.worktreePath
-                    if (!resolvedState) {
-                        const shouldForceRefresh = selection.kind === 'session' && selection.payload === newSelection.payload && newSelection.sessionState === undefined
-                        let snapshot = getCachedSessionSnapshot(newSelection.payload)
-                        if (!snapshot || shouldForceRefresh) {
-                            try {
-                                snapshot = await ensureSessionSnapshot(newSelection.payload, { refresh: shouldForceRefresh })
-                            } catch (error) {
-                                logger.warn('[SelectionContext] Failed to resolve session state during immediate switch:', error)
-                            }
-                        }
-                        if (snapshot) {
-                            resolvedState = snapshot.sessionState
-                            if (!resolvedWorktree) {
-                                resolvedWorktree = snapshot.worktreePath
-                            }
+                    let snapshot = getCachedSessionSnapshot(newSelection.payload)
+                    const shouldForceRefresh = selection.kind === 'session' && selection.payload === newSelection.payload && newSelection.sessionState === undefined
+
+                    if (!snapshot || shouldForceRefresh) {
+                        try {
+                            snapshot = await ensureSessionSnapshot(newSelection.payload, { refresh: shouldForceRefresh })
+                        } catch (error) {
+                            logger.warn('[SelectionContext] Failed to resolve session state during immediate switch:', error)
                         }
                     }
-                    setIsSpec(resolvedState === 'spec')
-                    newSelection = { ...newSelection, sessionState: resolvedState, worktreePath: resolvedWorktree }
+
+                    if (snapshot) {
+                        resolvedState = resolvedState ?? snapshot.sessionState
+                        resolvedWorktree = resolvedWorktree ?? snapshot.worktreePath
+                    }
+
+                    const { state: finalState, snapshot: adjustedSnapshot } = resolveSessionState({
+                        sessionId: newSelection.payload,
+                        desiredState: resolvedState ?? null,
+                        snapshot: snapshot ?? null
+                    })
+
+                    const finalWorktree = finalState === 'spec'
+                        ? undefined
+                        : (resolvedWorktree ?? adjustedSnapshot?.worktreePath)
+
+                    setIsSpecState(finalState === 'spec')
+                    newSelection = { ...newSelection, sessionState: finalState, worktreePath: finalWorktree }
                 } else {
-                    setIsSpec(false)
+                    setIsSpecState(false)
                 }
 
                 await suspendIfNeeded()
@@ -742,8 +810,8 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 return
             }
 
-            const terminalIds = await ensureTerminals(newSelection)
-            if (callToken !== selectionTokenRef.current) {
+           const terminalIds = await ensureTerminals(newSelection)
+           if (callToken !== selectionTokenRef.current) {
                 const lastWasAuto = lastTokenWasAutoRef.current ?? false
                 if (!(!isAuto && lastWasAuto)) {
                     return
@@ -756,6 +824,22 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             }
 
             await suspendIfNeeded()
+
+            if (newSelection.kind === 'session') {
+                const currentSnapshot = getCachedSessionSnapshot(newSelection.payload)
+                const { state: finalState, snapshot: adjustedSnapshot } = resolveSessionState({
+                    sessionId: newSelection.payload,
+                    desiredState: newSelection.sessionState ?? null,
+                    snapshot: currentSnapshot ?? null
+                })
+                const finalWorktree = finalState === 'spec'
+                    ? undefined
+                    : (newSelection.worktreePath ?? adjustedSnapshot?.worktreePath)
+                setIsSpecState(finalState === 'spec')
+                newSelection = { ...newSelection, sessionState: finalState, worktreePath: finalWorktree }
+            } else {
+                setIsSpecState(false)
+            }
 
             setSelectionState(newSelection)
             setTerminals(terminalIds)
@@ -787,7 +871,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 userSelectionInFlightRef.current = false
             }
         }
-    }, [ensureTerminals, getTerminalIds, clearTerminalTracking, isReady, selection, terminals, isSpec, setCurrentSelection, finalizeSelectionChange, suspendTerminalsForSelection, resumeTerminalsForSelection, getCachedSessionSnapshot, ensureSessionSnapshot, rememberSelection])
+    }, [ensureTerminals, getTerminalIds, clearTerminalTracking, isReady, selection, terminals, isSpec, setCurrentSelection, finalizeSelectionChange, suspendTerminalsForSelection, resumeTerminalsForSelection, getCachedSessionSnapshot, ensureSessionSnapshot, rememberSelection, resolveSessionState])
 
     // Start a lightweight backend watcher for the currently selected running session
     useEffect(() => {
@@ -859,7 +943,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                         const wasSpec = isSpec
 
                         // Update isSpec state
-                        setIsSpec(!!nowSpec)
+                        setIsSpecState(!!nowSpec)
 
                         // If state changed from spec to running, update selection and ensure terminals
                         if (wasSpec && !nowSpec) {
