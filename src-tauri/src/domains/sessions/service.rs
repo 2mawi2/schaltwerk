@@ -1356,20 +1356,16 @@ impl SessionManager {
         }
 
         if git::branch_exists(&self.repo_path, &session.branch)? {
-            match git::archive_branch(&self.repo_path, &session.branch, &session.name) {
-                Ok(archived_name) => {
-                    log::info!(
-                        "Archived branch '{}' to '{}'",
-                        session.branch,
-                        archived_name
-                    );
+            match git::delete_branch(&self.repo_path, &session.branch) {
+                Ok(()) => {
+                    log::info!("Deleted branch '{}'", session.branch);
                 }
                 Err(e) => {
-                    log::warn!("Failed to archive branch '{}': {}", session.branch, e);
+                    log::warn!("Failed to delete branch '{}': {}", session.branch, e);
                 }
             }
         } else {
-            log::debug!("Cancel {name}: Branch doesn't exist, skipping archive");
+            log::debug!("Cancel {name}: Branch doesn't exist, skipping deletion");
         }
 
         self.db_manager
@@ -1454,25 +1450,12 @@ impl SessionManager {
         let branch_future = if git::branch_exists(&self.repo_path, &session.branch)? {
             let repo_path = self.repo_path.clone();
             let branch = session.branch.clone();
-            let session_name = session.name.clone();
             Some(tokio::spawn(async move {
                 let res = tokio::task::spawn_blocking(move || {
                     let repo = Repository::open(&repo_path)?;
-                    let ts = chrono::Utc::now().format("%Y%m%d-%H%M%S");
-                    let archive_name = format!("archive/{session_name}-{ts}");
-
-                    // Create lightweight tag pointing to branch tip if branch exists
                     if let Ok(mut br) = repo.find_branch(&branch, BranchType::Local) {
-                        if let Some(target) = br.get().target() {
-                            let _ = repo.tag_lightweight(
-                                &archive_name,
-                                &repo.find_object(target, None)?,
-                                false,
-                            );
-                            // Delete the branch
-                            br.delete().ok();
-                            log::info!("Archived branch '{branch}' to '{archive_name}'");
-                        }
+                        br.delete().ok();
+                        log::info!("Deleted branch '{branch}'");
                     }
                     Ok::<(), anyhow::Error>(())
                 })
@@ -1490,7 +1473,7 @@ impl SessionManager {
                 }
             }))
         } else {
-            log::debug!("Fast cancel {name}: Branch doesn't exist, skipping archive");
+            log::debug!("Fast cancel {name}: Branch doesn't exist, skipping deletion");
             None
         };
 

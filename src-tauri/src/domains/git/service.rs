@@ -4,9 +4,7 @@ pub use super::repository::{
     repository_has_commits, INITIAL_COMMIT_MESSAGE,
 };
 
-pub use super::branches::{
-    archive_branch, branch_exists, delete_branch, list_branches, rename_branch,
-};
+pub use super::branches::{branch_exists, delete_branch, list_branches, rename_branch};
 #[cfg(test)]
 pub use super::repository::{get_commit_hash, get_current_branch};
 pub use super::worktrees::{
