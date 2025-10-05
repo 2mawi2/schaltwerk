@@ -1272,6 +1272,60 @@ describe('Terminal component', () => {
     expect(xterm.buffer.active.viewportY).not.toBe(xterm.buffer.active.baseY)
   })
 
+  it('clears hydration scroll state when switching session terminals', async () => {
+    const core = TauriCore as unknown as MockTauriCore
+    const events = TauriEvent as unknown as MockTauriEvent
+
+    core.__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => ({
+      seq: 1,
+      startSeq: 0,
+      data: 'ALPHA-SNAPSHOT'
+    }))
+
+    const view = render(
+      <TestProviders>
+        <Terminal terminalId="session-alpha-top" sessionName="alpha" />
+      </TestProviders>
+    )
+
+    await flushAll()
+
+    const alphaTerm = getLastXtermInstance()
+    alphaTerm.buffer.active.baseY = 600
+    alphaTerm.buffer.active.viewportY = 420
+
+    await act(async () => {
+      events.__emit('schaltwerk:terminal-suspended', { terminal_id: 'session-alpha-top' })
+    })
+    await flushAll()
+
+    core.__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => ({
+      seq: 2,
+      startSeq: 0,
+      data: 'BETA-SNAPSHOT'
+    }))
+
+    view.rerender(
+      <TestProviders>
+        <Terminal terminalId="session-beta-top" sessionName="beta" />
+      </TestProviders>
+    )
+
+    await flushAll()
+
+    const betaTerm = getLastXtermInstance()
+    betaTerm.buffer.active.baseY = 600
+    betaTerm.buffer.active.viewportY = 0
+
+    await advanceAndFlush(200)
+
+    const restoreCalls = betaTerm.scrollToLine.mock.calls.map(call => call[0])
+    expect(restoreCalls).not.toContain(420)
+    expect(betaTerm.buffer.active.viewportY).toBe(betaTerm.buffer.active.baseY)
+
+    view.unmount()
+  })
+
   it('pins to bottom after large snapshot hydration without negative scroll', async () => {
     const core = TauriCore as unknown as MockTauriCore
 

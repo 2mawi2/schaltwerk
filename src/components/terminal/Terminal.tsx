@@ -2138,11 +2138,31 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     }, [resolvedFontFamily, terminalId, applySizeUpdate])
 
     useLayoutEffect(() => {
-        if (previousTerminalId.current !== terminalId) {
-            snapshotCursorRef.current = null
-            previousTerminalId.current = terminalId;
+        if (previousTerminalId.current === terminalId) {
+            return
         }
-    }, [terminalId]);
+
+        previousTerminalId.current = terminalId
+        snapshotCursorRef.current = null
+        pendingOutput.current = []
+        rehydrateScrollRef.current = null
+        rehydrateSkipAutoScrollRef.current = false
+        rehydrateHandledRef.current = false
+        rehydrateInProgressRef.current = false
+        rehydrateInFlightRef.current = false
+        rehydrateByReasonRef.current = null
+        wasSuspendedRef.current = false
+        overflowReplayNeededRef.current = false
+        overflowQueuedRef.current = false
+        overflowNoticesRef.current = []
+
+        if (hydratedRef.current) {
+            hydratedRef.current = false
+            setHydrated(false)
+        }
+
+        resetQueue()
+    }, [terminalId, resetQueue]);
 
 
     const handleTerminalClick = (event?: React.MouseEvent<HTMLDivElement>) => {
