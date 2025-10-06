@@ -4,8 +4,9 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { TestProviders } from './tests/test-utils'
 import App from './App'
 import { validatePanelPercentage } from './utils/panel'
-import { vi } from 'vitest'
+import { vi, type MockInstance } from 'vitest'
 import { UiEvent, emitUiEvent } from './common/uiEvents'
+import { SchaltEvent } from './common/eventSystem'
 
 // ---- Mock: react-split (layout only) ----
 vi.mock('react-split', () => ({
@@ -22,8 +23,13 @@ vi.mock('./components/terminal/TerminalGrid', () => ({
 vi.mock('./components/right-panel/RightPanelTabs', () => ({
   RightPanelTabs: () => <div data-testid="right-panel-tabs" />,
 }))
+const newSessionModalMock = vi.fn((props: unknown) => props)
+
 vi.mock('./components/modals/NewSessionModal', () => ({
-  NewSessionModal: () => null,
+  NewSessionModal: (props: unknown) => {
+    newSessionModalMock(props)
+    return null
+  },
 }))
 vi.mock('./components/modals/CancelConfirmation', () => ({
   CancelConfirmation: () => null,
@@ -55,6 +61,40 @@ vi.mock('./components/home/HomeScreen', () => ({
   ),
 }))
 
+// ---- Mock helpers ----
+const listenEventHandlers: Array<{ event: unknown; handler: (detail: unknown) => void }> = []
+
+vi.mock('./common/eventSystem', async () => {
+  const actual = await vi.importActual<typeof import('./common/eventSystem')>('./common/eventSystem')
+  return {
+    ...actual,
+    listenEvent: vi.fn(async (event, handler) => {
+      listenEventHandlers.push({ event, handler: handler as (detail: unknown) => void })
+      return () => {}
+    }),
+  }
+})
+
+type StartSessionTopParams = {
+  sessionName: string
+  topId: string
+  projectOrchestratorId?: string | null
+  measured?: { cols?: number | null; rows?: number | null }
+  agentType?: string | null
+}
+
+const startSessionTopMock = vi.hoisted(() =>
+  vi.fn(async (_params: StartSessionTopParams) => {})
+) as unknown as MockInstance<(params: StartSessionTopParams) => Promise<void>>
+
+vi.mock('./common/agentSpawn', async () => {
+  const actual = await vi.importActual<typeof import('./common/agentSpawn')>('./common/agentSpawn')
+  return {
+    ...actual,
+    startSessionTop: startSessionTopMock,
+  }
+})
+
 // ---- Mock: @tauri-apps/api/core (invoke) with adjustable behavior per test ----
 const mockState = {
   isGitRepo: false,
@@ -62,36 +102,38 @@ const mockState = {
   defaultBranch: 'main',
 }
 
+async function defaultInvokeImpl(cmd: string, _args?: unknown) {
+  switch (cmd) {
+    case TauriCommands.GetCurrentDirectory:
+      return mockState.currentDir
+    case TauriCommands.IsGitRepository:
+      return mockState.isGitRepo
+    case TauriCommands.GetProjectDefaultBranch:
+      return mockState.defaultBranch
+    // Selection/terminal lifecycle stubs
+    case TauriCommands.TerminalExists:
+      return false
+    case TauriCommands.CreateTerminal:
+      return null
+    case TauriCommands.SchaltwerkCoreGetSession:
+      return { worktree_path: '/tmp/worktrees/abc' }
+    case TauriCommands.GetProjectActionButtons:
+      return []
+    case TauriCommands.InitializeProject:
+    case TauriCommands.AddRecentProject:
+    case TauriCommands.SchaltwerkCoreCreateSession:
+    case TauriCommands.SchaltwerkCoreCancelSession:
+    case TauriCommands.DirectoryExists:
+    case TauriCommands.UpdateRecentProjectTimestamp:
+    case TauriCommands.RemoveRecentProject:
+      return null
+    default:
+      return null
+  }
+}
+
 vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(async (cmd: string) => {
-    switch (cmd) {
-      case TauriCommands.GetCurrentDirectory:
-        return mockState.currentDir
-      case TauriCommands.IsGitRepository:
-        return mockState.isGitRepo
-      case TauriCommands.GetProjectDefaultBranch:
-        return mockState.defaultBranch
-      // Selection/terminal lifecycle stubs
-      case TauriCommands.TerminalExists:
-        return false
-      case TauriCommands.CreateTerminal:
-        return null
-      case TauriCommands.SchaltwerkCoreGetSession:
-        return { worktree_path: '/tmp/worktrees/abc' }
-      case TauriCommands.GetProjectActionButtons:
-        return []
-      case TauriCommands.InitializeProject:
-      case TauriCommands.AddRecentProject:
-      case TauriCommands.SchaltwerkCoreCreateSession:
-      case TauriCommands.SchaltwerkCoreCancelSession:
-      case TauriCommands.DirectoryExists:
-      case TauriCommands.UpdateRecentProjectTimestamp:
-      case TauriCommands.RemoveRecentProject:
-        return null
-      default:
-        return null
-    }
-  }),
+  invoke: vi.fn(defaultInvokeImpl),
 }))
 
 function renderApp() {
@@ -103,8 +145,13 @@ function renderApp() {
 }
 
 describe('App.tsx', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks()
+    const { invoke } = await import('@tauri-apps/api/core')
+    ;(invoke as unknown as ReturnType<typeof vi.fn>).mockImplementation(defaultInvokeImpl)
+    newSessionModalMock.mockClear()
+    startSessionTopMock.mockClear()
+    listenEventHandlers.length = 0
     mockState.isGitRepo = false
     mockState.currentDir = '/Users/me/sample-project'
     mockState.defaultBranch = 'main'
@@ -250,6 +297,97 @@ describe('validatePanelPercentage', () => {
   it('should work with different default values', () => {
     expect(validatePanelPercentage(null, 50)).toBe(50)
     expect(validatePanelPercentage('invalid', 75)).toBe(75)
+  })
+
+  it('starts each created version using the actual names returned by the backend', async () => {
+    renderApp()
+
+    fireEvent.click(await screen.findByTestId('open-project'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('sidebar-mock')).toBeInTheDocument()
+    })
+
+    const modalCall = newSessionModalMock.mock.calls.at(-1)
+    expect(modalCall).toBeTruthy()
+    type OnCreatePayload = {
+      name: string
+      prompt?: string
+      baseBranch: string
+      versionCount?: number
+      agentType?: string
+      isSpec?: boolean
+      userEditedName?: boolean
+      skipPermissions?: boolean
+      agentTypes?: string[]
+    }
+    type OnCreateFn = (data: OnCreatePayload) => Promise<void>
+    const modalProps = modalCall![0] as { onCreate: OnCreateFn }
+    expect(typeof modalProps.onCreate).toBe('function')
+
+    const createdResponses = [
+      { name: 'feature-unique', version_number: 1 },
+      { name: 'feature-unique_v2', version_number: 2 },
+      { name: 'feature-unique_v3', version_number: 3 },
+    ]
+
+    const { invoke } = await import('@tauri-apps/api/core')
+    const invokeMock = invoke as unknown as ReturnType<typeof vi.fn>
+    invokeMock.mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
+      if (cmd === TauriCommands.SchaltwerkCoreCreateSession) {
+        const next = createdResponses.shift()
+        if (!next) {
+          throw new Error('Unexpected extra session creation')
+        }
+        return {
+          name: next.name,
+          branch: `${args?.baseBranch ?? 'main'}/${next.name}`,
+          parent_branch: args?.baseBranch ?? 'main',
+          worktree_path: `/tmp/${next.name}`,
+          version_number: next.version_number,
+        }
+      }
+      return defaultInvokeImpl(cmd, args)
+    })
+
+    const createPromise = modalProps.onCreate({
+      name: 'feature',
+      prompt: undefined,
+      baseBranch: 'main',
+      versionCount: 3,
+      agentType: 'claude',
+      isSpec: false,
+      userEditedName: true,
+    })
+
+    await waitFor(() => {
+      const hasHandler = listenEventHandlers.some(entry => String(entry.event) === String(SchaltEvent.SessionsRefreshed))
+      expect(hasHandler).toBe(true)
+    })
+    const sessionsRefreshedHandlers = listenEventHandlers.filter(entry => String(entry.event) === String(SchaltEvent.SessionsRefreshed))
+    for (const { handler } of sessionsRefreshedHandlers) {
+      handler({})
+    }
+    listenEventHandlers.length = 0
+
+    await createPromise
+
+    expect(startSessionTopMock).toHaveBeenCalledTimes(3)
+    const callArgs = startSessionTopMock.mock.calls as Array<[StartSessionTopParams]>
+    const firstCall = callArgs[0]?.[0]
+    const secondCall = callArgs[1]?.[0]
+    const thirdCall = callArgs[2]?.[0]
+
+    expect(firstCall).toBeDefined()
+    expect(secondCall).toBeDefined()
+    expect(thirdCall).toBeDefined()
+
+    expect(firstCall!.sessionName).toBe('feature-unique')
+    expect(secondCall!.sessionName).toBe('feature-unique_v2')
+    expect(thirdCall!.sessionName).toBe('feature-unique_v3')
+    expect([firstCall!.sessionName, secondCall!.sessionName, thirdCall!.sessionName]).not.toContain('feature')
+
+    invokeMock.mockImplementation(defaultInvokeImpl)
   })
 })
 
