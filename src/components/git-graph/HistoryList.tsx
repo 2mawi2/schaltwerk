@@ -1,5 +1,6 @@
 import { memo, useRef, useState, useLayoutEffect } from 'react'
-import { FixedSizeList as VirtualList, ListChildComponentProps } from 'react-window'
+import { FixedSizeList as VirtualList } from 'react-window'
+import type { ListChildComponentProps } from 'react-window'
 import type { HistoryItemViewModel } from './types'
 import { HistoryItemRow } from './HistoryItemRow'
 
