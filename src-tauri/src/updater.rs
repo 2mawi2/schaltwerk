@@ -183,9 +183,8 @@ async fn perform_update_check(
         .and_then(|cfg| cfg.get("endpoints"))
         .and_then(|value| serde_json::from_value::<Vec<String>>(value.clone()).ok());
 
-    log::debug!(
-        "Starting updater check (initiated_by={:?}) with configured endpoints: {:?}",
-        initiated_by, configured_endpoints
+    debug!(
+        "Starting updater check (initiated_by={initiated_by:?}) with configured endpoints: {configured_endpoints:?}"
     );
 
     match updater.check().await {
@@ -230,8 +229,7 @@ async fn perform_update_check(
         }
         Err(err) => {
             warn!(
-                "Updater check failed after querying endpoints {:?}: {err}",
-                configured_endpoints
+                "Updater check failed after querying endpoints {configured_endpoints:?}: {err}"
             );
             let kind = classify_error(&err);
             UpdateResultPayload::error(current_version, initiated_by, kind, err.to_string())
