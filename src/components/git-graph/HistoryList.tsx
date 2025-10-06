@@ -1,27 +1,37 @@
 import { memo, useRef, useState, useLayoutEffect } from 'react'
 import { List as VirtualList, type RowComponentProps } from 'react-window'
-import type { HistoryItemViewModel } from './types'
+import type { HistoryItemViewModel, HistoryItem } from './types'
 import { HistoryItemRow } from './HistoryItemRow'
 
 interface HistoryListProps {
   items: HistoryItemViewModel[]
+  selectedCommitId: string | null
+  onSelectCommit: (commitId: string) => void
+  onContextMenu: (event: React.MouseEvent, commit: HistoryItem) => void
+}
+
+interface RowData {
+  items: HistoryItemViewModel[]
+  selectedCommitId: string | null
+  onSelectCommit: (commitId: string) => void
+  onContextMenu: (event: React.MouseEvent, commit: HistoryItem) => void
 }
 
 const ROW_HEIGHT = 22
 
-const Row = memo(({ items, index, style }: RowComponentProps<{ items: HistoryItemViewModel[] }>) => {
+const Row = memo(({ items, selectedCommitId, onSelectCommit, onContextMenu, index, style }: RowComponentProps<RowData>) => {
   const item = items[index]
 
   return (
     <div style={style}>
-      <HistoryItemRow viewModel={item} />
+      <HistoryItemRow viewModel={item} isSelected={item.historyItem.id === selectedCommitId} onSelect={onSelectCommit} onContextMenu={onContextMenu} />
     </div>
   )
 })
 
 Row.displayName = 'HistoryVirtualRow'
 
-export const HistoryList = memo(({ items }: HistoryListProps) => {
+export const HistoryList = memo(({ items, selectedCommitId, onSelectCommit, onContextMenu }: HistoryListProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [height, setHeight] = useState(0)
 
@@ -51,7 +61,7 @@ export const HistoryList = memo(({ items }: HistoryListProps) => {
           defaultHeight={height}
           rowCount={items.length}
           rowHeight={ROW_HEIGHT}
-          rowProps={{ items }}
+          rowProps={{ items, selectedCommitId, onSelectCommit, onContextMenu }}
           rowComponent={Row}
         />
       )}

@@ -8,6 +8,7 @@ import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import type { ChangedFile } from '../../common/events'
 import { logger } from '../../utils/logger'
 import type { DiffResponse } from '../../types/diff'
+import { writeClipboard } from '../../utils/clipboard'
 
 import {
   wrapBlock,
@@ -69,27 +70,6 @@ function formatSectionSummary(sections: SectionName[], fileCount: number) {
       return section
     })
     .join(' + ')
-}
-
-async function writeClipboard(text: string) {
-  try {
-    await invoke(TauriCommands.ClipboardWriteText, { text })
-    return true
-  } catch (err) {
-    logger.warn('[CopyBundleBar] Native clipboard write failed, falling back to browser API', err)
-  }
-
-  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-    try {
-      await navigator.clipboard.writeText(text)
-      return true
-    } catch (browserErr) {
-      logger.error('[CopyBundleBar] Browser clipboard write failed', browserErr)
-      return false
-    }
-  }
-
-  return false
 }
 
 export function CopyBundleBar({ sessionName }: CopyBundleBarProps) {
