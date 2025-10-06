@@ -91,7 +91,10 @@ just release major      # Create major release (x.0.0) - creates DRAFT
 
 # Step 2: Generate and review release notes
 # User asks: "Generate release notes for vX.Y.Z"
-# I run: git log vPREV..vX.Y.Z, analyze commits, categorize changes
+# I fetch last published (non-draft) release to anchor the range:
+# LAST_RELEASE=$(gh release list --exclude-drafts --limit 1 | awk '{print $3}')
+# LAST_RELEASE_COMMIT=$(git rev-list -n1 "$LAST_RELEASE")
+# I run: git log ${LAST_RELEASE_COMMIT}..vX.Y.Z, analyze commits, categorize changes
 # I run: gh release edit vX.Y.Z --notes "generated notes"
 # User reviews notes (can ask for edits)
 
@@ -303,6 +306,11 @@ just release major  # Major release
 ```
 
 Automatically updates versions, commits, tags, and triggers GitHub Actions.
+
+### Release Notes Checklist
+- Always discover the base commit by querying the latest published GitHub release (exclude drafts) and diffing from that commit to the new tag.
+- Confirm no commits are skipped (a released tag may lag behind newer lightweight tags or drafts).
+- Capture dependency bumps, infrastructure fixes, and workflow changes alongside feature work.
 
 ## Development Workflow
 
