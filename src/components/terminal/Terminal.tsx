@@ -882,7 +882,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             },
             fontFamily: resolvedFontFamily || 'Menlo, Monaco, ui-monospace, SFMono-Regular, monospace',
             fontSize: terminalFontSize,
-            lineHeight: 1.18,
             cursorBlink: true,
             cursorStyle: 'block',
             cursorInactiveStyle: 'outline',
