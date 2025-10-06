@@ -40,6 +40,9 @@
     "validate-migration": "node scripts/validate-migration.cjs"
   },
   "overrides": {},
+  "optionalDependencies": {
+    "@rollup/rollup-linux-x64-gnu": "^4.50.1"
+  },
   "dependencies": {
     "@codemirror/autocomplete": "^6.19.0",
     "@codemirror/lang-markdown": "^6.4.0",
