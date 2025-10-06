@@ -24,7 +24,12 @@
     "types": [
       "vitest/globals",
       "@testing-library/jest-dom"
-    ]
+    ],
+    "paths": {
+      "react-window": [
+        "./node_modules/@types/react-window/index.d.ts"
+      ]
+    }
   },
   "include": [
     "src"
