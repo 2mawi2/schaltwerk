@@ -1,10 +1,10 @@
-use std::sync::{Arc, OnceLock};
 use pty_host::{
     AckRequest, EventSink, KillRequest, PtyHost, ResizeRequest, SpawnRequest, SpawnResponse,
     SubscribeRequest, SubscribeResponse, WriteRequest,
 };
 use serde::Serialize;
 use std::sync::RwLock;
+use std::sync::{Arc, OnceLock};
 use tauri::{AppHandle, Emitter};
 
 use crate::events::{emit_event, SchaltEvent};

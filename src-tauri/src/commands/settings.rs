@@ -1133,22 +1133,18 @@ mod tests {
     async fn test_get_tutorial_completed_uninitialized_core() {
         let result = get_tutorial_completed().await;
         assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .contains("Settings manager not initialized")
-        );
+        assert!(result
+            .unwrap_err()
+            .contains("Settings manager not initialized"));
     }
 
     #[tokio::test]
     async fn test_set_tutorial_completed_uninitialized_core() {
         let result = set_tutorial_completed(true).await;
         assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .contains("Settings manager not initialized")
-        );
+        assert!(result
+            .unwrap_err()
+            .contains("Settings manager not initialized"));
     }
 
     #[test]

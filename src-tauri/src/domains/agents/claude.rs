@@ -16,11 +16,7 @@ pub struct ClaudeConfig {
 /// Returns the most recently modified session ID so callers can resume deterministically
 /// Falls back to `None` when no usable conversation files are present
 pub fn find_resumable_claude_session_fast(path: &Path) -> Option<String> {
-    // Prefer explicit HOME (tests set this), then dirs::home_dir()
-    let home = std::env::var("HOME")
-        .ok()
-        .map(PathBuf::from)
-        .or_else(dirs::home_dir)?;
+    let home = claude_home_directory()?;
     let claude_dir = home.join(".claude");
     let projects_dir = claude_dir.join("projects");
 
@@ -166,6 +162,20 @@ pub fn find_resumable_claude_session_fast(path: &Path) -> Option<String> {
 
 fn sanitize_path_for_claude(path: &Path) -> String {
     path.to_string_lossy().replace(['/', '.', '_'], "-")
+}
+
+fn claude_home_directory() -> Option<PathBuf> {
+    if let Ok(override_path) = std::env::var("SCHALTWERK_CLAUDE_HOME_OVERRIDE") {
+        let trimmed = override_path.trim();
+        if !trimmed.is_empty() {
+            return Some(PathBuf::from(trimmed));
+        }
+    }
+
+    std::env::var("HOME")
+        .ok()
+        .map(PathBuf::from)
+        .or_else(dirs::home_dir)
 }
 
 fn session_file_contains_session_metadata(path: &Path, expected_session_id: &str) -> bool {

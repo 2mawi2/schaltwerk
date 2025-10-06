@@ -42,8 +42,7 @@ pub struct HistoryProviderSnapshot {
 }
 
 pub fn get_git_history(repo_path: &Path) -> Result<HistoryProviderSnapshot> {
-    let repo = Repository::open(repo_path)
-        .context("Failed to open git repository")?;
+    let repo = Repository::open(repo_path).context("Failed to open git repository")?;
 
     let mut items = Vec::new();
     let mut oid_to_refs: HashMap<Oid, Vec<HistoryItemRef>> = HashMap::new();
@@ -117,15 +116,8 @@ pub fn get_git_history(repo_path: &Path) -> Result<HistoryProviderSnapshot> {
         let history_item = HistoryItem {
             id: oid.to_string()[..7].to_string(),
             parent_ids,
-            subject: commit
-                .summary()
-                .unwrap_or("(no message)")
-                .to_string(),
-            author: commit
-                .author()
-                .name()
-                .unwrap_or("Unknown")
-                .to_string(),
+            subject: commit.summary().unwrap_or("(no message)").to_string(),
+            author: commit.author().name().unwrap_or("Unknown").to_string(),
             timestamp: commit.time().seconds() * 1000,
             references,
             summary: None,

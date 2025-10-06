@@ -245,10 +245,7 @@ impl SettingsService {
         self.settings.tutorial_completed
     }
 
-    pub fn set_tutorial_completed(
-        &mut self,
-        completed: bool,
-    ) -> Result<(), SettingsServiceError> {
+    pub fn set_tutorial_completed(&mut self, completed: bool) -> Result<(), SettingsServiceError> {
         self.settings.tutorial_completed = completed;
         self.save()
     }
@@ -269,10 +266,7 @@ impl SettingsService {
         self.settings.updater.auto_update_enabled
     }
 
-    pub fn set_auto_update_enabled(
-        &mut self,
-        enabled: bool,
-    ) -> Result<(), SettingsServiceError> {
+    pub fn set_auto_update_enabled(&mut self, enabled: bool) -> Result<(), SettingsServiceError> {
         self.settings.updater.auto_update_enabled = enabled;
         self.save()
     }

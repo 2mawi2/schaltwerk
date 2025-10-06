@@ -283,7 +283,11 @@ impl ProjectManager {
                 async move {
                     debug!("Force killing terminals for project: {}", path.display());
                     if let Err(e) = tm.force_kill_all().await {
-                        warn!("Failed to force kill terminals for {}: {}", path.display(), e);
+                        warn!(
+                            "Failed to force kill terminals for {}: {}",
+                            path.display(),
+                            e
+                        );
                     }
                 }
             })

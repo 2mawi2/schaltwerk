@@ -197,15 +197,14 @@ async fn perform_update_check(
                 update.current_version, target_version, initiated_by
             );
 
-            let install_result = update
-                .download_and_install(|_, _| {}, || {})
-                .await
-                .map_err(|err| {
-                    error!(
-                        "Failed to download/install update to {target_version}: {err}"
-                    );
-                    err
-                });
+            let install_result =
+                update
+                    .download_and_install(|_, _| {}, || {})
+                    .await
+                    .map_err(|err| {
+                        error!("Failed to download/install update to {target_version}: {err}");
+                        err
+                    });
 
             match install_result {
                 Ok(()) => {
@@ -228,9 +227,7 @@ async fn perform_update_check(
             UpdateResultPayload::up_to_date(current_version, initiated_by)
         }
         Err(err) => {
-            warn!(
-                "Updater check failed after querying endpoints {configured_endpoints:?}: {err}"
-            );
+            warn!("Updater check failed after querying endpoints {configured_endpoints:?}: {err}");
             let kind = classify_error(&err);
             UpdateResultPayload::error(current_version, initiated_by, kind, err.to_string())
         }

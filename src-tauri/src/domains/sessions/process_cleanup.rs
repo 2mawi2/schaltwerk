@@ -51,7 +51,8 @@ async fn terminate_processes_with_cwd_unix(path: &Path) -> Result<Vec<i32>> {
 
             #[cfg(not(target_os = "linux"))]
             {
-                return Err(e).with_context(|| format!("failed to execute lsof for {path_display}"));
+                return Err(e)
+                    .with_context(|| format!("failed to execute lsof for {path_display}"));
             }
         }
     };

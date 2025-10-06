@@ -273,6 +273,16 @@ fn resolve_command(command: &str) -> String {
                 return full_path.to_string_lossy().to_string();
             }
         }
+    }
+
+    if let Ok(path_env) = std::env::var("PATH") {
+        for component in path_env.split(':').map(str::trim).filter(|c| !c.is_empty()) {
+            let full_path = PathBuf::from(component).join(command);
+            if full_path.exists() {
+                log::info!("Found {command} via PATH entry {}", full_path.display());
+                return full_path.to_string_lossy().to_string();
+            }
+        }
     } else {
         for path in &common_paths {
             let full_path = PathBuf::from(path).join(command);

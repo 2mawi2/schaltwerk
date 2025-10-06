@@ -108,8 +108,6 @@ fn extract_first_segment(agent_part: &str) -> String {
         return segment;
     }
 
-    let end = trimmed
-        .find(char::is_whitespace)
-        .unwrap_or(trimmed.len());
+    let end = trimmed.find(char::is_whitespace).unwrap_or(trimmed.len());
     trimmed[..end].to_string()
 }

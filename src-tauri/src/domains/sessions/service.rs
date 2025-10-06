@@ -128,7 +128,10 @@ mod service_unified_tests {
         // Arrange temp HOME to simulate Claude history existing
         let home_dir = tempfile::tempdir().unwrap();
         let prev_home = std::env::var("HOME").ok();
+        let override_key = "SCHALTWERK_CLAUDE_HOME_OVERRIDE";
+        let prev_override = std::env::var(override_key).ok();
         std::env::set_var("HOME", home_dir.path());
+        std::env::set_var(override_key, home_dir.path());
 
         // Make the repo a valid git repo with an initial commit
         std::process::Command::new("git")
@@ -210,6 +213,11 @@ mod service_unified_tests {
             std::env::set_var("HOME", h);
         } else {
             std::env::remove_var("HOME");
+        }
+        if let Some(v) = prev_override {
+            std::env::set_var(override_key, v);
+        } else {
+            std::env::remove_var(override_key);
         }
     }
 
@@ -1937,8 +1945,14 @@ impl SessionManager {
 
             // If we started fresh and resume had been disallowed, flip resume_allowed back to true for future resumes
             if did_start_fresh && !resume_allowed {
-                if let Err(err) = self.db_manager.set_session_resume_allowed(&session.id, true) {
-                    log::warn!("Failed to re-enable resume for session {}: {err}", session.id);
+                if let Err(err) = self
+                    .db_manager
+                    .set_session_resume_allowed(&session.id, true)
+                {
+                    log::warn!(
+                        "Failed to re-enable resume for session {}: {err}",
+                        session.id
+                    );
                 }
             }
 
@@ -2049,8 +2063,14 @@ impl SessionManager {
 
             // If we started fresh and resume had been disallowed, flip resume_allowed back to true for future resumes
             if did_start_fresh && !resume_allowed {
-                if let Err(err) = self.db_manager.set_session_resume_allowed(&session.id, true) {
-                    log::warn!("Failed to re-enable resume for session {}: {err}", session.id);
+                if let Err(err) = self
+                    .db_manager
+                    .set_session_resume_allowed(&session.id, true)
+                {
+                    log::warn!(
+                        "Failed to re-enable resume for session {}: {err}",
+                        session.id
+                    );
                 }
             }
 

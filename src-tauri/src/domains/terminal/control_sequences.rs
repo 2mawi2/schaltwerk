@@ -68,16 +68,19 @@ pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
         match kind {
             b'[' => {
                 let mut cursor = i + 2;
-                let prefix = if cursor < input.len() && (input[cursor] == b'?' || input[cursor] == b'>') {
-                    let p = input[cursor];
-                    cursor += 1;
-                    Some(p)
-                } else {
-                    None
-                };
+                let prefix =
+                    if cursor < input.len() && (input[cursor] == b'?' || input[cursor] == b'>') {
+                        let p = input[cursor];
+                        cursor += 1;
+                        Some(p)
+                    } else {
+                        None
+                    };
 
                 let params_start = cursor;
-                while cursor < input.len() && (input[cursor].is_ascii_digit() || input[cursor] == b';') {
+                while cursor < input.len()
+                    && (input[cursor].is_ascii_digit() || input[cursor] == b';')
+                {
                     cursor += 1;
                 }
 
@@ -122,7 +125,10 @@ pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
                         terminator_len = 1;
                         break;
                     }
-                    if input[cursor] == 0x1b && cursor + 1 < input.len() && input[cursor + 1] == b'\\' {
+                    if input[cursor] == 0x1b
+                        && cursor + 1 < input.len()
+                        && input[cursor + 1] == b'\\'
+                    {
                         terminator_index = Some(cursor);
                         terminator_len = 2;
                         break;
@@ -134,10 +140,14 @@ pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
                     if let Ok(text) = std::str::from_utf8(&input[i + 2..term_idx]) {
                         if text.starts_with("10;?") {
                             log::debug!("Responding to OSC foreground query {text:?}");
-                            responses.push(SequenceResponse::Immediate(b"\x1b]10;rgb:ef/ef/ef\x07".to_vec()));
+                            responses.push(SequenceResponse::Immediate(
+                                b"\x1b]10;rgb:ef/ef/ef\x07".to_vec(),
+                            ));
                         } else if text.starts_with("11;?") {
                             log::debug!("Responding to OSC background query {text:?}");
-                            responses.push(SequenceResponse::Immediate(b"\x1b]11;rgb:1e/1e/1e\x07".to_vec()));
+                            responses.push(SequenceResponse::Immediate(
+                                b"\x1b]11;rgb:1e/1e/1e\x07".to_vec(),
+                            ));
                         } else {
                             log::debug!("Dropping OSC sequence {text:?}");
                         }
