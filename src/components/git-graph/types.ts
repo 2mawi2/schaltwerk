@@ -14,6 +14,7 @@ export interface HistoryItem {
   timestamp: number
   references?: HistoryItemRef[]
   summary?: string
+  fullHash?: string
 }
 
 export interface HistoryGraphNode {
@@ -33,4 +34,6 @@ export interface HistoryProviderSnapshot {
   currentRef?: HistoryItemRef
   currentRemoteRef?: HistoryItemRef
   currentBaseRef?: HistoryItemRef
+  nextCursor?: string
+  hasMore?: boolean
 }

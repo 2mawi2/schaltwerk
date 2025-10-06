@@ -89,8 +89,13 @@ function compareRefs(
 export function toViewModel(snapshot: HistoryProviderSnapshot): HistoryItemViewModel[] {
   const { items, currentRef, currentRemoteRef, currentBaseRef } = snapshot
   const colorMap = new Map<string, string | undefined>()
+  const itemLookup = new Map<string, HistoryItem>()
   let colorIndex = 0
   const viewModels: HistoryItemViewModel[] = []
+
+  for (const item of items) {
+    itemLookup.set(item.id, item)
+  }
 
   for (let index = 0; index < items.length; index++) {
     const historyItem = items[index]
@@ -100,6 +105,7 @@ export function toViewModel(snapshot: HistoryProviderSnapshot): HistoryItemViewM
     const outputSwimlanes: HistoryGraphNode[] = []
 
     let firstParentAssigned = false
+    const labelColor = selectLabelColor(historyItem, colorMap)
 
     if (historyItem.parentIds.length > 0) {
       for (const node of inputSwimlanes) {
@@ -107,7 +113,7 @@ export function toViewModel(snapshot: HistoryProviderSnapshot): HistoryItemViewM
           if (!firstParentAssigned) {
             outputSwimlanes.push({
               id: historyItem.parentIds[0],
-              color: selectLabelColor(historyItem, colorMap) ?? node.color
+              color: labelColor ?? node.color
             })
             firstParentAssigned = true
           }
@@ -120,11 +126,11 @@ export function toViewModel(snapshot: HistoryProviderSnapshot): HistoryItemViewM
     }
 
     for (let parentIndex = firstParentAssigned ? 1 : 0; parentIndex < historyItem.parentIds.length; parentIndex++) {
-      let color = selectLabelColor(historyItem, colorMap)
+      let color = labelColor
 
       if (parentIndex > 0) {
-        const parent = items.find(item => item.id === historyItem.parentIds[parentIndex])
-        color = parent ? selectLabelColor(parent, colorMap) : undefined
+        const parent = itemLookup.get(historyItem.parentIds[parentIndex])
+        color = parent ? selectLabelColor(parent, colorMap) : color
       }
 
       if (!color) {

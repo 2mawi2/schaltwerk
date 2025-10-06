@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, memo, useCallback } from 'react'
+import { useState, useEffect, useMemo, memo, useCallback, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
 import { useProject } from '../../contexts/ProjectContext'
@@ -10,54 +10,148 @@ import { theme } from '../../common/theme'
 import { useToast } from '../../common/toast/ToastProvider'
 import { writeClipboard } from '../../utils/clipboard'
 
+const HISTORY_PAGE_SIZE = 400
+
 export const GitGraphPanel = memo(() => {
   const { projectPath } = useProject()
   const { pushToast } = useToast()
   const [snapshot, setSnapshot] = useState<HistoryProviderSnapshot | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null)
+  const activeProjectRef = useRef<string | null>(projectPath ?? null)
   const [selectedCommitId, setSelectedCommitId] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; commit: HistoryItem } | null>(null)
+
+  useEffect(() => {
+    activeProjectRef.current = projectPath ?? null
+  }, [projectPath])
+
+  const mergeSnapshot = useCallback(
+    (incoming: HistoryProviderSnapshot, append: boolean) => {
+      setSnapshot(prev => {
+        if (append && prev) {
+          const existingKeys = new Set(prev.items.map(item => item.fullHash ?? item.id))
+          const deduped = incoming.items.filter(item => {
+            const key = item.fullHash ?? item.id
+            if (existingKeys.has(key)) {
+              return false
+            }
+            existingKeys.add(key)
+            return true
+          })
+
+          return {
+            ...prev,
+            items: [...prev.items, ...deduped],
+            currentRef: incoming.currentRef ?? prev.currentRef,
+            currentRemoteRef: incoming.currentRemoteRef ?? prev.currentRemoteRef,
+            currentBaseRef: incoming.currentBaseRef ?? prev.currentBaseRef,
+            nextCursor: incoming.nextCursor,
+            hasMore: incoming.hasMore,
+          }
+        }
+
+        return {
+          ...incoming,
+        }
+      })
+    },
+    []
+  )
+
+  const loadHistory = useCallback(
+    async (options?: { cursor?: string }) => {
+      if (!projectPath) {
+        return
+      }
+
+      const cursor = options?.cursor
+      const append = Boolean(cursor)
+      if (append) {
+        setIsLoadingMore(true)
+        setLoadMoreError(null)
+      } else {
+        setIsLoading(true)
+        setError(null)
+      }
+
+      try {
+        const result = await invoke<HistoryProviderSnapshot>(TauriCommands.GetGitGraphHistory, {
+          repoPath: projectPath,
+          limit: HISTORY_PAGE_SIZE,
+          cursor,
+        })
+
+        logger.debug('[GitGraphPanel] Received history page', {
+          itemCount: result.items.length,
+          append,
+          hasMore: result.hasMore,
+          nextCursor: result.nextCursor,
+        })
+
+        if (activeProjectRef.current !== projectPath) {
+          return
+        }
+
+        mergeSnapshot(result, append)
+      } catch (err) {
+        if (activeProjectRef.current !== projectPath) {
+          return
+        }
+        const errorMsg = err instanceof Error ? err.message : String(err)
+        logger.error('[GitGraphPanel] Failed to fetch git history', err)
+        if (append) {
+          setLoadMoreError(errorMsg)
+        } else {
+          setError(errorMsg)
+        }
+      } finally {
+        if (activeProjectRef.current === projectPath) {
+          if (append) {
+            setIsLoadingMore(false)
+          } else {
+            setIsLoading(false)
+          }
+        }
+      }
+    },
+    [projectPath, mergeSnapshot]
+  )
 
   useEffect(() => {
     if (!projectPath) {
       setSnapshot(null)
       setIsLoading(false)
+      setIsLoadingMore(false)
+      setError(null)
+      setLoadMoreError(null)
+      setSelectedCommitId(null)
+      setContextMenu(null)
       return
     }
 
-    const fetchHistory = async () => {
-      setIsLoading(true)
-      setError(null)
-      try {
-        const result = await invoke<HistoryProviderSnapshot>(TauriCommands.GetGitGraphHistory, {
-          repoPath: projectPath
-        })
-        logger.debug('[GitGraphPanel] Received history data:', {
-          itemCount: result.items.length,
-          firstFewItems: result.items.slice(0, 3).map(item => ({
-            id: item.id,
-            parentIds: item.parentIds,
-            subject: item.subject,
-            refCount: item.references?.length || 0
-          }))
-        })
-        setSnapshot(result)
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err)
-        logger.error('[GitGraphPanel] Failed to fetch git history', err)
-        setError(errorMsg)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    fetchHistory()
-  }, [projectPath])
+    setSnapshot(null)
+    setLoadMoreError(null)
+    setSelectedCommitId(null)
+    setContextMenu(null)
+    loadHistory()
+  }, [projectPath, loadHistory])
 
   const historyItems = useMemo(() => {
     return snapshot ? toViewModel(snapshot) : []
   }, [snapshot])
+
+  const hasMore = snapshot?.hasMore ?? false
+  const nextCursor = snapshot?.nextCursor
+
+  const handleLoadMore = useCallback(() => {
+    if (!nextCursor || isLoadingMore) {
+      return
+    }
+    loadHistory({ cursor: nextCursor })
+  }, [nextCursor, isLoadingMore, loadHistory])
 
   const handleContextMenu = useCallback((event: React.MouseEvent, commit: HistoryItem) => {
     event.preventDefault()
@@ -141,14 +235,37 @@ export const GitGraphPanel = memo(() => {
 
   return (
     <div className="h-full flex flex-col bg-panel relative">
-      <HistoryList items={historyItems} selectedCommitId={selectedCommitId} onSelectCommit={setSelectedCommitId} onContextMenu={handleContextMenu} />
+      <HistoryList
+        items={historyItems}
+        selectedCommitId={selectedCommitId}
+        onSelectCommit={setSelectedCommitId}
+        onContextMenu={handleContextMenu}
+      />
+      {hasMore && (
+        <div className="border-t border-slate-800 px-3 py-2 text-xs text-slate-400 flex items-center justify-between">
+          {loadMoreError ? (
+            <span className="text-red-400" title={loadMoreError}>
+              Failed to load more commits
+            </span>
+          ) : (
+            <span>More commits available</span>
+          )}
+          <button
+            onClick={handleLoadMore}
+            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed border border-slate-700 rounded text-slate-200"
+            disabled={isLoadingMore}
+          >
+            {isLoadingMore ? 'Loading…' : 'Load more commits'}
+          </button>
+        </div>
+      )}
       {contextMenu && (
         <>
           <div
             className="fixed inset-0 z-40"
             onClick={handleCloseContextMenu}
-            onContextMenu={(e) => {
-              e.preventDefault()
+            onContextMenu={event => {
+              event.preventDefault()
               handleCloseContextMenu()
             }}
           />
