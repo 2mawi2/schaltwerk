@@ -183,7 +183,7 @@ async fn perform_update_check(
         .and_then(|cfg| cfg.get("endpoints"))
         .and_then(|value| serde_json::from_value::<Vec<String>>(value.clone()).ok());
 
-    log::debug!(
+    debug!(
         "Starting updater check (initiated_by={initiated_by:?}) with configured endpoints: {configured_endpoints:?}"
     );
 
