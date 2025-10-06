@@ -23,6 +23,32 @@ interface ProjectSettings {
 
 const DEFAULT_BRANCH_PREFIX = 'schaltwerk'
 
+const extractErrorMessage = (error: unknown): string => {
+    if (error instanceof Error && error.message) return error.message
+    if (typeof error === 'string') return error
+    if (error && typeof error === 'object' && 'message' in error) {
+        const maybeMessage = (error as { message?: unknown }).message
+        if (typeof maybeMessage === 'string') return maybeMessage
+    }
+    return ''
+}
+
+const isProjectUnavailableError = (error: unknown): boolean => {
+    const message = extractErrorMessage(error)
+    return message.includes('Project manager not initialized') || message.includes('Failed to get current project')
+}
+
+const isCommandUnavailableError = (error: unknown, command: string): boolean => {
+    const message = extractErrorMessage(error)
+    if (!message) return false
+    const patterns = [
+        `Command "${command}"`,
+        `command "${command}" not found`,
+        'command not found',
+    ]
+    return patterns.some(pattern => message.includes(pattern))
+}
+
 interface TerminalSettings {
     shell: string | null
     shellArgs: string[]
@@ -153,8 +179,14 @@ export const useSettings = () => {
             await saveMergePreferences(mergePreferences)
             savedSettings.push('merge preferences')
         } catch (error) {
-            logger.error('Failed to save project merge preferences:', error)
-            failedSettings.push('merge preferences')
+            if (isProjectUnavailableError(error)) {
+                logger.info('Merge preferences not saved - requires active project', error)
+            } else if (isCommandUnavailableError(error, TauriCommands.SetProjectMergePreferences)) {
+                logger.info('Merge preferences command unavailable - skipping save', error)
+            } else {
+                logger.error('Failed to save project merge preferences:', error)
+                failedSettings.push('merge preferences')
+            }
         }
 
         setSaving(false)

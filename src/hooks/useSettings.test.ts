@@ -327,6 +327,68 @@ describe('useSettings', () => {
         failedSettings: ['agent configurations']
       })
     })
+
+    it('ignores merge preferences errors when project context is unavailable', async () => {
+      const { result } = renderHook(() => useSettings())
+
+      mockInvoke.mockImplementation((command: string) => {
+        if (command === TauriCommands.SetProjectMergePreferences) {
+          return Promise.reject(new Error('Project manager not initialized'))
+        }
+        return Promise.resolve()
+      })
+
+      const envVars: Record<AgentType, Array<{key: string, value: string}>> = {
+        claude: [],
+        opencode: [],
+        gemini: [],
+        codex: []
+      }
+
+      const cliArgs: Record<AgentType, string> = {
+        claude: '',
+        opencode: '',
+        gemini: '',
+        codex: ''
+      }
+
+      const projectSettings = {
+        setupScript: '',
+        environmentVariables: [],
+        branchPrefix: 'feature'
+      }
+
+      const terminalSettings = {
+        shell: null,
+        shellArgs: []
+      }
+
+      const sessionPreferences = {
+        auto_commit_on_review: false,
+        skip_confirmation_modals: false
+      }
+
+      const mergePreferences = {
+        autoCancelAfterMerge: false
+      }
+
+      const saveResult = await act(async () => {
+        return await result.current.saveAllSettings(
+          envVars,
+          cliArgs,
+          projectSettings,
+          terminalSettings,
+          sessionPreferences,
+          mergePreferences
+        )
+      })
+
+      expect(saveResult).toEqual({
+        success: true,
+        savedSettings: ['agent configurations', 'project settings', 'terminal settings', 'session preferences'],
+        failedSettings: []
+      })
+    })
   })
 
   describe('merge preferences', () => {
