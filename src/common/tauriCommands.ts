@@ -25,6 +25,7 @@ export const TauriCommands = {
   GetAllAgentBinaryConfigs: 'get_all_agent_binary_configs',
   GetAppVersion: 'get_app_version',
   GetAutoCommitOnReview: 'get_auto_commit_on_review',
+  GetAutoUpdateEnabled: 'get_auto_update_enabled',
   GetBaseBranchName: 'get_base_branch_name',
   GetChangedFilesFromMain: 'get_changed_files_from_main',
   GetCommitComparisonInfo: 'get_commit_comparison_info',
@@ -135,6 +136,7 @@ export const TauriCommands = {
   SetProjectSettings: 'set_project_settings',
   SetProjectMergePreferences: 'set_project_merge_preferences',
   SetSessionPreferences: 'set_session_preferences',
+  SetAutoUpdateEnabled: 'set_auto_update_enabled',
   SetTerminalCollapsed: 'set_terminal_collapsed',
   SetTerminalDividerPosition: 'set_terminal_divider_position',
   SetTerminalSettings: 'set_terminal_settings',
@@ -150,6 +152,7 @@ export const TauriCommands = {
   WriteTerminal: 'write_terminal',
   // Clipboard operations
   ClipboardWriteText: 'clipboard_write_text',
+  CheckForUpdatesNow: 'check_for_updates_now',
 } as const
 
 export type TauriCommand = typeof TauriCommands[keyof typeof TauriCommands]

@@ -13,12 +13,14 @@ mod cli;
 mod commands;
 mod diff_commands;
 mod diff_engine;
+mod events;
 mod file_utils;
 mod macos_prefs;
 mod mcp_api;
 mod permissions;
 mod project_manager;
 mod projects;
+mod updater;
 
 use crate::commands::sessions_refresh::{request_sessions_refresh, SessionsRefreshReason};
 use clap::Parser;
@@ -28,6 +30,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::sync::OnceCell;
+
+const UPDATER_PUBLIC_KEY: &str = include_str!("../updater-public.pem");
 
 #[cfg(target_os = "macos")]
 fn extend_process_path() {
@@ -662,6 +666,9 @@ fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new()
+            .pubkey(UPDATER_PUBLIC_KEY.trim())
+            .build())
         .invoke_handler(tauri::generate_handler![
             // Development info
             get_development_info,
@@ -702,6 +709,7 @@ fn main() {
             path_exists,
             get_environment_variable,
             get_app_version,
+            check_for_updates_now,
             schaltwerk_core_log_frontend_message,
             // Clipboard
             #[cfg(target_os = "macos")] commands::clipboard::clipboard_write_text,
@@ -812,7 +820,9 @@ fn main() {
             get_session_preferences,
             set_session_preferences,
             get_auto_commit_on_review,
+            get_auto_update_enabled,
             set_auto_commit_on_review,
+            set_auto_update_enabled,
             get_keyboard_shortcuts,
             set_keyboard_shortcuts,
             get_project_settings,
@@ -924,16 +934,21 @@ fn main() {
                         let _ = SETTINGS_MANAGER.set(arc_mgr.clone());
                         log::info!("Settings manager initialized successfully");
 
-                        // Propagate terminal shell preferences to the domain layer
-                        let (shell, args) = {
+                        // Propagate terminal shell preferences to the domain layer and schedule updater
+                        let (auto_update_enabled, shell, args) = {
                             let mgr = arc_mgr.lock().await;
                             let term = mgr.get_terminal_settings();
                             let shell = term.shell.unwrap_or_else(|| {
                                 std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string())
                             });
-                            (shell, term.shell_args)
+                            (mgr.get_auto_update_enabled(), shell, term.shell_args)
                         };
                         schaltwerk::domains::terminal::put_terminal_shell_override(shell, args);
+
+                        let updater_handle = settings_handle.clone();
+                        tauri::async_runtime::spawn(async move {
+                            updater::run_auto_update(&updater_handle, auto_update_enabled).await;
+                        });
                     }
                     Err(e) => {
                         log::error!("Failed to initialize settings manager: {e}");

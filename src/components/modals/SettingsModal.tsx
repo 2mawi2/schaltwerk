@@ -27,6 +27,8 @@ import { detectPlatformSafe, getDisplayLabelForSegment, splitShortcutBinding } f
 import { useKeyboardShortcutsConfig } from '../../contexts/KeyboardShortcutsContext'
 import { theme } from '../../common/theme'
 import { emitUiEvent, UiEvent } from '../../common/uiEvents'
+import { useOptionalToast } from '../../common/toast/ToastProvider'
+import { AppUpdateResultPayload } from '../../common/events'
 
 const shortcutArraysEqual = (a: string[] = [], b: string[] = []) => {
     if (a.length !== b.length) return false
@@ -270,6 +272,10 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         visible: false
     })
     const [appVersion, setAppVersion] = useState<string>('')
+    const toast = useOptionalToast()
+    const [autoUpdateEnabled, setAutoUpdateEnabled] = useState<boolean>(true)
+    const [loadingAutoUpdate, setLoadingAutoUpdate] = useState<boolean>(true)
+    const [checkingUpdate, setCheckingUpdate] = useState<boolean>(false)
 
     const [selectedSpec, setSelectedSpec] = useState<{ name: string; content: string } | null>(null)
 
@@ -326,23 +332,90 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
             environmentVariables: {}
         }
     }, [])
+
+    const handleAutoUpdateToggle = useCallback(async () => {
+        const previous = autoUpdateEnabled
+        const next = !previous
+        setAutoUpdateEnabled(next)
+        setLoadingAutoUpdate(true)
+
+        try {
+            await invoke(TauriCommands.SetAutoUpdateEnabled, { enabled: next })
+            toast?.pushToast({
+                tone: 'success',
+                title: next ? 'Automatic updates enabled' : 'Automatic updates disabled',
+                durationMs: 2400,
+            })
+        } catch (error) {
+            logger.error('Failed to update automatic update preference:', error)
+            setAutoUpdateEnabled(previous)
+            toast?.pushToast({
+                tone: 'error',
+                title: 'Could not update preference',
+                description: 'Try again or restart Schaltwerk.',
+                durationMs: 5000,
+            })
+        } finally {
+            setLoadingAutoUpdate(false)
+        }
+    }, [autoUpdateEnabled, toast])
+
+    const handleManualUpdateCheck = useCallback(async () => {
+        setCheckingUpdate(true)
+        try {
+            await invoke<AppUpdateResultPayload>(TauriCommands.CheckForUpdatesNow)
+        } catch (error) {
+            logger.error('Failed to start manual update check:', error)
+            toast?.pushToast({
+                tone: 'error',
+                title: 'Unable to check for updates',
+                description: 'Please try again in a few minutes.',
+                durationMs: 5000,
+            })
+        } finally {
+            setCheckingUpdate(false)
+        }
+    }, [toast])
     
     // JS normalizers removed; native fix handles inputs globally.
 
 
-    // Load app version when the version category is opened
+    // Load app version and updater preference whenever the modal opens
     useEffect(() => {
-        const loadVersion = async () => {
-            if (activeCategory !== 'version') return
+        if (!open) return
+
+        let cancelled = false
+        const loadMetadata = async () => {
             try {
                 const version = await invoke<string>(TauriCommands.GetAppVersion)
-                setAppVersion(version)
+                if (!cancelled) {
+                    setAppVersion(version)
+                }
             } catch (error) {
                 logger.error('Failed to load app version:', error)
             }
+
+            try {
+                const enabled = await invoke<boolean>(TauriCommands.GetAutoUpdateEnabled)
+                if (!cancelled) {
+                    setAutoUpdateEnabled(enabled)
+                }
+            } catch (error) {
+                logger.warn('Failed to load auto update preference:', error)
+            } finally {
+                if (!cancelled) {
+                    setLoadingAutoUpdate(false)
+                }
+            }
         }
-        loadVersion()
-    }, [activeCategory])
+
+        setLoadingAutoUpdate(true)
+        loadMetadata()
+
+        return () => {
+            cancelled = true
+        }
+    }, [open])
 
     // Sync action buttons when modal opens or buttons change
     useEffect(() => {
@@ -1816,6 +1889,44 @@ fi`}
                                 <span className="text-body font-mono text-slate-300 bg-slate-900/50 px-3 py-1 rounded">
                                     {appVersion || 'Loading...'}
                                 </span>
+                            </div>
+                            <div className="flex items-center justify-between py-3 px-4 bg-slate-800/50 rounded-lg">
+                                <div className="flex flex-col">
+                                    <span className="text-body font-medium text-slate-200">Automatic updates</span>
+                                    <span className="text-caption text-slate-400 mt-1">
+                                        Keep Schaltwerk up to date by installing releases on startup.
+                                    </span>
+                                </div>
+                                <label className="flex items-center gap-3" htmlFor="auto-update-toggle">
+                                    <input
+                                        id="auto-update-toggle"
+                                        type="checkbox"
+                                        aria-label="Automatically install updates"
+                                        className={`w-4 h-4 ${theme.colors.accent.cyan.dark} bg-slate-800 border-slate-600 rounded focus:ring-${theme.colors.accent.cyan.DEFAULT} focus:ring-2`}
+                                        checked={autoUpdateEnabled}
+                                        disabled={loadingAutoUpdate}
+                                        onChange={handleAutoUpdateToggle}
+                                    />
+                                    <span className="text-caption text-slate-300">
+                                        {loadingAutoUpdate ? 'Loading...' : autoUpdateEnabled ? 'Enabled' : 'Disabled'}
+                                    </span>
+                                </label>
+                            </div>
+                            <div className="flex items-center justify-between py-3 px-4 bg-slate-800/50 rounded-lg">
+                                <div className="flex flex-col">
+                                    <span className="text-body font-medium text-slate-200">Manual update check</span>
+                                    <span className="text-caption text-slate-400 mt-1">
+                                        Fetch the latest release information from GitHub and install it immediately if available.
+                                    </span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={handleManualUpdateCheck}
+                                    disabled={checkingUpdate}
+                                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-slate-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {checkingUpdate ? 'Checking...' : 'Check for updates'}
+                                </button>
                             </div>
                         </div>
                     </div>

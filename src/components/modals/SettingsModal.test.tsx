@@ -1,10 +1,11 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { vi } from 'vitest'
 import { SettingsModal } from './SettingsModal'
 import { defaultShortcutConfig } from '../../keyboardShortcuts/config'
 import { TauriCommands } from '../../common/tauriCommands'
 
-const invokeMock = vi.fn(async (command: string) => {
+const invokeMock = vi.fn(async (command: string, _args?: unknown) => {
   switch (command) {
     case TauriCommands.GetAllAgentBinaryConfigs:
       return []
@@ -22,13 +23,29 @@ const invokeMock = vi.fn(async (command: string) => {
         auto_detect: true,
         detected_binaries: [],
       }
+    case TauriCommands.GetAppVersion:
+      return '0.2.2'
+    case TauriCommands.GetAutoUpdateEnabled:
+      return true
+    case TauriCommands.SetAutoUpdateEnabled:
+      return null
+    case TauriCommands.CheckForUpdatesNow:
+      return {
+        status: 'upToDate',
+        initiatedBy: 'manual',
+        currentVersion: '0.2.2',
+        newVersion: null,
+        notes: null,
+        errorKind: null,
+        errorMessage: null,
+      }
     default:
       return null
   }
 })
 
 vi.mock('@tauri-apps/api/core', () => ({
-  invoke: (...args: unknown[]) => invokeMock(...(args as [string])),
+  invoke: (...args: unknown[]) => invokeMock(...(args as [string, unknown])),
 }))
 
 vi.mock('@tauri-apps/plugin-dialog', () => ({
@@ -173,5 +190,56 @@ describe('SettingsModal loading indicators', () => {
     )
 
     expect(await screen.findByRole('button', { name: 'Saving...' })).toBeInTheDocument()
+  })
+})
+
+describe('SettingsModal version settings', () => {
+  beforeEach(() => {
+    useSettingsMock.mockReset()
+    useSessionsMock.mockReset()
+    invokeMock.mockClear()
+  })
+
+  it('loads auto update preference on mount', async () => {
+    render(
+      <SettingsModal
+        open={true}
+        onClose={() => {}}
+      />
+    )
+
+    await waitFor(() => {
+      expect(invokeMock).toHaveBeenCalledWith(TauriCommands.GetAutoUpdateEnabled)
+    })
+  })
+
+  it('allows toggling automatic updates from the version tab', async () => {
+    render(
+      <SettingsModal
+        open={true}
+        onClose={() => {}}
+      />
+    )
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Version' }))
+    const toggle = await screen.findByRole('checkbox', { name: /Automatically install updates/i })
+    await userEvent.click(toggle)
+
+    expect(invokeMock).toHaveBeenCalledWith(TauriCommands.SetAutoUpdateEnabled, { enabled: false })
+  })
+
+  it('invokes manual update check command', async () => {
+    render(
+      <SettingsModal
+        open={true}
+        onClose={() => {}}
+      />
+    )
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Version' }))
+    const checkButton = await screen.findByRole('button', { name: /Check for updates/i })
+    await userEvent.click(checkButton)
+
+    expect(invokeMock).toHaveBeenCalledWith(TauriCommands.CheckForUpdatesNow)
   })
 })

@@ -205,6 +205,16 @@ impl SettingsManager {
             .map_err(|e| e.to_string())
     }
 
+    pub fn get_auto_update_enabled(&self) -> bool {
+        self.service.get_auto_update_enabled()
+    }
+
+    pub fn set_auto_update_enabled(&mut self, enabled: bool) -> Result<(), String> {
+        self.service
+            .set_auto_update_enabled(enabled)
+            .map_err(|e| e.to_string())
+    }
+
     pub fn get_agent_binary_config(
         &self,
         agent_name: &str,

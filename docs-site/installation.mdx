@@ -29,15 +29,13 @@ Prefer manual installation? Download the latest release and install manually.
 
 <Steps>
   <Step title="Download the application">
-    Go to the [Releases page](https://github.com/2mawi2/schaltwerk/releases) and download:
-    - `schaltwerk-*-aarch64-apple-darwin.tar.gz` for Apple Silicon (M1/M2/M3)
-    - `schaltwerk-*-x86_64-apple-darwin.tar.gz` for Intel Macs
+    Go to the [Releases page](https://github.com/2mawi2/schaltwerk/releases) and download `Schaltwerk-<version>-macos-universal.app.tar.gz`
   </Step>
 
   <Step title="Extract and install">
     ```bash
     # Extract the archive
-    tar -xzf schaltwerk-*.tar.gz
+    tar -xzf Schaltwerk-*-macos-universal.app.tar.gz
 
     # Move to Applications folder
     mv Schaltwerk.app /Applications/
@@ -85,6 +83,15 @@ Prefer manual installation? Download the latest release and install manually.
 <Tip>
   **Next step:** [Your First Session](/first-session) to create and run an agent
 </Tip>
+
+## Automatic Updates
+
+Schaltwerk checks for updates on startup and applies them automatically by default. You can:
+
+- Toggle automatic installs in **Settings → Version**
+- Trigger a manual check at any time with the "Check for updates" button
+
+If an update fails because macOS cannot replace the existing bundle, reopen Schaltwerk directly from `/Applications` or reinstall from the latest tarball. A toast notification appears once an update has been installed—restart Schaltwerk to launch the new build.
 
 ## Where Schaltwerk Stores Data
 

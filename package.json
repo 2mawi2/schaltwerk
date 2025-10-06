@@ -48,6 +48,7 @@
     "@tailwindcss/postcss": "^4.1.14",
     "@tauri-apps/api": "^2.8.0",
     "@tauri-apps/plugin-dialog": "^2.4.0",
+    "@tauri-apps/plugin-updater": "^2.3.1",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@types/react-window": "^1.8.8",

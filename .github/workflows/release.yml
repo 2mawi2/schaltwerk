@@ -208,6 +208,72 @@ jobs:
           # Clear extended attributes
           xattr -cr ./Schaltwerk.app
 
+      - name: Create Updater Artifacts
+        env:
+          VERSION: ${{ github.event.inputs.version || github.ref_name }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.SCHALTWERK_UPDATER_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.SCHALTWERK_UPDATER_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${TAURI_SIGNING_PRIVATE_KEY}" ]; then
+            echo "Updater signing key is not configured"
+            exit 1
+          fi
+
+          VERSION="${VERSION#v}"
+          ARCHIVE_NAME="Schaltwerk-${VERSION}-macos-universal.app.tar.gz"
+          RELEASE_TAG="v${VERSION}"
+          RELEASE_URL="https://github.com/2mawi2/schaltwerk/releases/download/${RELEASE_TAG}/${ARCHIVE_NAME}"
+
+          echo "Creating updater archive ${ARCHIVE_NAME}"
+          tar -czf "$ARCHIVE_NAME" -C . Schaltwerk.app
+
+          echo "Signing updater archive"
+          printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" > updater-private.key
+          SIGN_ARGS=(signer sign "$ARCHIVE_NAME" --private-key-path updater-private.key)
+          if [ -n "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" ]; then
+            SIGN_ARGS+=(--password "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD")
+          fi
+
+          SIGNATURE=$(npm run tauri -- "${SIGN_ARGS[@]}" | awk '/Public signature:/{getline; gsub(/\r/, ""); print}' | tr -d '\n')
+          rm -f updater-private.key "$ARCHIVE_NAME.sig"
+
+          if [ -z "$SIGNATURE" ]; then
+            echo "Failed to extract updater signature"
+            exit 1
+          fi
+
+          PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          cat > latest.json <<JSON
+          {
+            "version": "${VERSION}",
+            "pub_date": "${PUB_DATE}",
+            "notes": "",
+            "platforms": {
+              "darwin-aarch64-app": {
+                "signature": "${SIGNATURE}",
+                "url": "${RELEASE_URL}"
+              },
+              "darwin-x86_64-app": {
+                "signature": "${SIGNATURE}",
+                "url": "${RELEASE_URL}"
+              },
+              "darwin-aarch64": {
+                "signature": "${SIGNATURE}",
+                "url": "${RELEASE_URL}"
+              },
+              "darwin-x86_64": {
+                "signature": "${SIGNATURE}",
+                "url": "${RELEASE_URL}"
+              }
+            }
+          }
+          JSON
+
+          echo "latest.json"
+          cat latest.json
+
       - name: Create DMG
         run: |
           VERSION="${{ github.event.inputs.version || github.ref_name }}"
@@ -242,7 +308,9 @@ jobs:
           name: macos-universal
           path: |
             Schaltwerk-*.dmg
+            Schaltwerk-*.app.tar.gz
             checksums.txt
+            latest.json
 
   create-release:
     name: Create GitHub Release
@@ -270,7 +338,9 @@ jobs:
           prerelease: false
           files: |
             artifacts/*.dmg
+            artifacts/*.app.tar.gz
             artifacts/checksums.txt
+            artifacts/latest.json
           body: |
             ## Installation
 

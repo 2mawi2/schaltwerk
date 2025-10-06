@@ -12,6 +12,7 @@ pub mod sessions_refresh;
 pub mod settings;
 pub mod terminal;
 pub mod utility;
+pub mod updater;
 
 #[cfg(test)]
 mod tests;
@@ -55,3 +56,4 @@ pub use schaltwerk_core::{
 pub use settings::*;
 pub use terminal::*;
 pub use utility::*;
+pub use updater::*;

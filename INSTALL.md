@@ -48,14 +48,12 @@ If you prefer to install manually or can't use Homebrew:
 
 ### Download the Application
 1. Go to the [Releases page](https://github.com/2mawi2/schaltwerk/releases)
-2. Download the appropriate version:
-   - `schaltwerk-*-aarch64-apple-darwin.tar.gz` for Apple Silicon (M1/M2/M3)
-   - `schaltwerk-*-x86_64-apple-darwin.tar.gz` for Intel Macs
+2. Download `Schaltwerk-<version>-macos-universal.app.tar.gz`
 
 ### Install the Application
 ```bash
 # 1. Extract the archive
-tar -xzf schaltwerk-*.tar.gz
+tar -xzf Schaltwerk-*-macos-universal.app.tar.gz
 
 # 2. Move to Applications folder
 mv Schaltwerk.app /Applications/
@@ -74,6 +72,13 @@ codesign --force --deep -s - /Applications/Schaltwerk.app
 4. Follow the First Launch Setup steps above if blocked
 
 ## Troubleshooting
+
+## Automatic Updates
+
+- Schaltwerk checks GitHub releases on startup and installs new versions silently when "Automatic updates" is enabled (default).
+- You can toggle this behavior in **Settings → Version** and run a manual check with the "Check for updates" button. Manual checks work even when automatic updates are disabled.
+- Updates require internet connectivity and the ability to overwrite the existing `/Applications/Schaltwerk.app`. If macOS prevents the update, reopen the app directly from `/Applications` or reinstall from the latest DMG/tarball.
+- After an update is applied you will be prompted with a toast; restart Schaltwerk to launch the new build.
 
 ### "Schaltwerk is damaged and can't be opened"
 This usually means the quarantine attribute needs to be removed:

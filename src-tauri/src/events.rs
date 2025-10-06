@@ -28,6 +28,7 @@ pub enum SchaltEvent {
     GitOperationFailed,
     ProjectFilesUpdated,
     GitHubStatusChanged,
+    AppUpdateResult,
 }
 
 impl SchaltEvent {
@@ -58,6 +59,7 @@ impl SchaltEvent {
             SchaltEvent::GitOperationFailed => "schaltwerk:git-operation-failed",
             SchaltEvent::ProjectFilesUpdated => "schaltwerk:project-files-updated",
             SchaltEvent::GitHubStatusChanged => "schaltwerk:github-status-changed",
+            SchaltEvent::AppUpdateResult => "schaltwerk:app-update-result",
         }
     }
 }

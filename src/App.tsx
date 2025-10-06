@@ -48,6 +48,8 @@ import { useSelectionPreserver } from './hooks/useSelectionPreserver'
 import { startSessionTop, computeProjectOrchestratorId } from './common/agentSpawn'
 import { createTerminalBackend } from './terminal/transport/backend'
 import { beginSplitDrag, endSplitDrag } from './utils/splitDragCoordinator'
+import { useOptionalToast } from './common/toast/ToastProvider'
+import { AppUpdateResultPayload } from './common/events'
 
 
 
@@ -63,6 +65,7 @@ function AppContent() {
   const { isOnboardingOpen, completeOnboarding, closeOnboarding, openOnboarding } = useOnboarding()
   const { fetchSessionForPrefill } = useSessionPrefill()
   const github = useGithubIntegrationContext()
+  const toast = useOptionalToast()
 
   const refreshGithubStatus = github.refreshStatus
 
@@ -72,6 +75,109 @@ function AppContent() {
       logger.warn('[App] Failed to refresh GitHub status after project change', error)
     })
   }, [projectPath, refreshGithubStatus])
+
+  useEffect(() => {
+    if (!toast) return
+
+    let cancelled = false
+    let unlisten: (() => void) | null = null
+
+    const subscribe = async () => {
+      try {
+        const stop = await listenEvent(SchaltEvent.AppUpdateResult, (payload: AppUpdateResultPayload) => {
+          logger.info('[Updater] Received result', payload)
+          if (!toast) return
+
+          if (payload.status === 'updated') {
+            const versionLabel = payload.newVersion ?? payload.currentVersion
+            if (payload.initiatedBy === 'auto' && payload.newVersion) {
+              if (lastAutoUpdateVersionRef.current === payload.newVersion) {
+                return
+              }
+              lastAutoUpdateVersionRef.current = payload.newVersion
+            }
+
+            toast.pushToast({
+              tone: 'success',
+              title: `Schaltwerk updated to ${versionLabel}`,
+              description: 'Restart Schaltwerk to finish applying the update.',
+              durationMs: 6000,
+            })
+            return
+          }
+
+          if (payload.status === 'upToDate') {
+            if (payload.initiatedBy === 'manual') {
+              toast.pushToast({
+                tone: 'info',
+                title: `You're up to date`,
+                description: `Schaltwerk ${payload.currentVersion} is the latest release.`,
+                durationMs: 3500,
+              })
+            }
+            return
+          }
+
+          if (payload.status === 'busy') {
+            if (payload.initiatedBy === 'manual') {
+              toast.pushToast({
+                tone: 'warning',
+                title: 'Update already running',
+                description: 'Please wait for the current check to finish.',
+                durationMs: 3500,
+              })
+            }
+            return
+          }
+
+          if (payload.status === 'error') {
+            const kind = payload.errorKind ?? 'unknown'
+            if (payload.initiatedBy === 'auto' && kind !== 'permission') {
+              logger.warn('[Updater] Auto update failed without user action required', payload)
+              return
+            }
+
+            const description = (() => {
+              switch (kind) {
+                case 'network':
+                  return 'Connect to the internet and try again.'
+                case 'permission':
+                  return 'Schaltwerk could not replace the application. Open it directly from /Applications or reinstall from the latest DMG.'
+                case 'signature':
+                  return 'The downloaded update failed verification. A fresh build will be published shortly.'
+                default:
+                  return payload.errorMessage ?? 'Unexpected updater error.'
+              }
+            })()
+
+            toast.pushToast({
+              tone: 'error',
+              title: 'Update failed',
+              description,
+              durationMs: 7000,
+            })
+          }
+        })
+
+        if (cancelled) {
+          stop()
+        } else {
+          unlisten = stop
+        }
+      } catch (error) {
+        logger.error('[Updater] Failed to attach listener', error)
+      }
+    }
+
+    subscribe()
+
+    return () => {
+      cancelled = true
+      if (unlisten) {
+        unlisten()
+      }
+    }
+  }, [toast])
 
   // Get dynamic shortcut displays
   const shortcuts = useMultipleShortcutDisplays([
@@ -100,6 +206,7 @@ function AppContent() {
   const projectSwitchAbortControllerRef = useRef<AbortController | null>(null)
   const projectSwitchTargetRef = useRef<string | null>(null)
   const previousFocusRef = useRef<Element | null>(null)
+  const lastAutoUpdateVersionRef = useRef<string | null>(null)
   const { config: keyboardShortcutConfig } = useKeyboardShortcutsConfig()
   const platform = useMemo(() => detectPlatformSafe(), [])
   const preserveSelection = useSelectionPreserver()

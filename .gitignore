@@ -40,3 +40,4 @@ coverage/
 
 # OpenCode configuration file
 opencode.json
+updater-private.key*

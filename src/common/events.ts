@@ -26,7 +26,8 @@ export enum SchaltEvent {
   GitOperationCompleted = 'schaltwerk:git-operation-completed',
   GitOperationFailed = 'schaltwerk:git-operation-failed',
   ProjectFilesUpdated = 'schaltwerk:project-files-updated',
-  GitHubStatusChanged = 'schaltwerk:github-status-changed'
+  GitHubStatusChanged = 'schaltwerk:github-status-changed',
+  AppUpdateResult = 'schaltwerk:app-update-result'
 }
 
 
@@ -110,6 +111,20 @@ export interface GitHubPrPayload {
   url: string
 }
 
+export type UpdateResultStatus = 'updated' | 'upToDate' | 'error' | 'busy'
+export type UpdateInitiator = 'auto' | 'manual'
+export type UpdateErrorKind = 'network' | 'permission' | 'signature' | 'unknown'
+
+export interface AppUpdateResultPayload {
+  status: UpdateResultStatus
+  initiatedBy: UpdateInitiator
+  currentVersion: string
+  newVersion?: string
+  notes?: string | null
+  errorKind?: UpdateErrorKind
+  errorMessage?: string
+}
+
 import { EnrichedSession } from '../types/session'
 
 export interface SelectionPayload {
@@ -159,4 +174,5 @@ export type EventPayloadMap = {
   [SchaltEvent.GitOperationFailed]: GitOperationFailedPayload
   [SchaltEvent.ProjectFilesUpdated]: string[]
   [SchaltEvent.GitHubStatusChanged]: GitHubStatusPayload
+  [SchaltEvent.AppUpdateResult]: AppUpdateResultPayload
 }

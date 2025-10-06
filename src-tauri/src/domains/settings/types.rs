@@ -60,6 +60,20 @@ pub struct SessionPreferences {
     pub skip_confirmation_modals: bool,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct UpdaterPreferences {
+    #[serde(default = "default_true")]
+    pub auto_update_enabled: bool,
+}
+
+impl Default for UpdaterPreferences {
+    fn default() -> Self {
+        Self {
+            auto_update_enabled: true,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct TerminalSettings {
@@ -96,6 +110,8 @@ pub struct Settings {
     pub agent_binaries: AgentBinaryConfigs,
     pub diff_view: DiffViewPreferences,
     pub session: SessionPreferences,
+    #[serde(default)]
+    pub updater: UpdaterPreferences,
     #[serde(default)]
     pub keyboard_shortcuts: HashMap<String, Vec<String>>,
     #[serde(default)]
