@@ -29,6 +29,7 @@ vi.mock('../../contexts/ProjectContext', async () => {
 
 import { invoke } from '@tauri-apps/api/core'
 import { EnrichedSession, SessionInfo } from '../../types/session'
+import { sessionTerminalTopId, sessionTerminalBottomId } from '../../utils/sessionTerminalIds'
 import { listen } from '@tauri-apps/api/event'
 import type { Event } from '@tauri-apps/api/event'
 
@@ -124,8 +125,8 @@ export const sessionReducers = {
     }
     
     const terminals = [
-      `session-${payload.session_name}-top`,
-      `session-${payload.session_name}-bottom`,
+      sessionTerminalTopId(payload.session_name),
+      sessionTerminalBottomId(payload.session_name),
     ]
     
     const enriched: EnrichedSession = { info, status: undefined, terminals }

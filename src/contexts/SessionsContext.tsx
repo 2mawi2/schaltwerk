@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { UnlistenFn } from '@tauri-apps/api/event'
 import { listenEvent, SchaltEvent } from '../common/eventSystem'
 import { useProject } from './ProjectContext'
+import { sessionTerminalTopId, sessionTerminalBottomId } from '../utils/sessionTerminalIds'
 import { useCleanupRegistry } from '../hooks/useCleanupRegistry'
 import { SortMode, FilterMode, getDefaultSortMode, getDefaultFilterMode, isValidSortMode, isValidFilterMode } from '../types/sessionFilters'
 import { mapSessionUiState, searchSessions as searchSessionsUtil } from '../utils/sessionFilters'
@@ -530,8 +531,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                 continue
             }
 
-            const sanitized = sessionId.replace(/[^a-zA-Z0-9_-]/g, '_')
-            const topId = `session-${sanitized}-top`
+            const topId = sessionTerminalTopId(sessionId)
 
             if (hasBackgroundStart(topId) || hasInflight(topId)) {
                 logger.debug(`[SessionsContext] Skipping auto-start for ${sessionId}; background mark or inflight present (${reason})`)
@@ -1203,7 +1203,10 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                         diff_stats: undefined,
                         ready_to_merge: false,
                     }
-                    const terminals = [`session-${session_name}-top`, `session-${session_name}-bottom`]
+                    const terminals = [
+                        sessionTerminalTopId(session_name),
+                        sessionTerminalBottomId(session_name),
+                    ]
                     const enriched: EnrichedSession = { info, status: undefined, terminals }
                     return [enriched, ...prev]
                 })
@@ -1213,8 +1216,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                 // Only auto-start if this session wasn't already started by the App.tsx modal path
                 ;(async () => {
                     // Compute terminal id once
-                    const sanitized = session_name.replace(/[^a-zA-Z0-9_-]/g, '_')
-                    const topId = `session-${sanitized}-top`
+                    const topId = sessionTerminalTopId(session_name)
 
                     // If a start is already intended or in-flight, skip.
                     if (hasBackgroundStart(topId) || hasInflight(topId)) {

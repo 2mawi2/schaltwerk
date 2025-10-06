@@ -7,6 +7,7 @@ import { ProjectProvider, useProject } from './ProjectContext'
 import { FilterMode, SortMode } from '../types/sessionFilters'
 import type { Event } from '@tauri-apps/api/event'
 import { SchaltEvent } from '../common/eventSystem'
+import { sessionTerminalTopId, sessionTerminalBottomId } from '../utils/sessionTerminalIds'
 
 // Mock Tauri API
 vi.mock('@tauri-apps/api/core', () => ({
@@ -74,7 +75,10 @@ const mockSessions = [
                 insertions: 10,
             }
         },
-        terminals: ['session-test-active-top', 'session-test-active-bottom']
+        terminals: [
+            sessionTerminalTopId('test-active'),
+            sessionTerminalBottomId('test-active'),
+        ]
     },
     {
         info: {
@@ -98,7 +102,10 @@ const mockSessions = [
                 insertions: 0,
             }
         },
-        terminals: ['session-test-ready-top', 'session-test-ready-bottom']
+        terminals: [
+            sessionTerminalTopId('test-ready'),
+            sessionTerminalBottomId('test-ready'),
+        ]
     }
 ]
 
@@ -1095,7 +1102,7 @@ describe('SessionsContext', () => {
 
         // Prepare the background-start mark as if App.tsx had already claimed start authority.
         const sessionName = 'bg-marked'
-        const topId = `session-${sessionName.replace(/[^a-zA-Z0-9_-]/g, '_')}-top`
+        const topId = sessionTerminalTopId(sessionName)
         markBackgroundStart(topId)
         expect(__debug_getBackgroundStartIds()).toContain(topId)
 

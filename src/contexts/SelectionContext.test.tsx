@@ -4,6 +4,7 @@ import { renderHook, waitFor, act } from '@testing-library/react'
 import { ReactNode } from 'react'
 import { MockTauriInvokeArgs } from '../types/testing'
 import { EnrichedSession, RawSession, SessionState } from '../types/session'
+import { sessionTerminalTopId, sessionTerminalBottomId } from '../utils/sessionTerminalIds'
 
 // Mock Tauri APIs BEFORE importing provider modules
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
@@ -220,6 +221,7 @@ describe('SelectionContext', () => {
       // Accept any orchestrator id format, but ensure shape is correct
       expect(result.current.terminals.top).toMatch(/^orchestrator-.*-top$/)
       expect(result.current.terminals.bottomBase).toMatch(/^orchestrator-.*-bottom$/)
+
     })
 
     it('should map session selection to session-specific terminals', async () => {
@@ -240,10 +242,32 @@ describe('SelectionContext', () => {
 
       await waitFor(() => {
         expect(result.current.terminals).toEqual({
-          top: 'session-test-session-top',
-          bottomBase: 'session-test-session-bottom',
+          top: sessionTerminalTopId('test-session'),
+          bottomBase: sessionTerminalBottomId('test-session'),
           workingDirectory: '/test/session/path'
         })
+      })
+
+      const registerCall = mockInvoke.mock.calls.find(
+        ([command, args]) =>
+          command === TauriCommands.RegisterSessionTerminals &&
+          (args as { payload?: { sessionId?: string } })?.payload?.sessionId === 'test-session'
+      )
+      expect(registerCall?.[1]).toEqual({
+        payload: expect.objectContaining({
+          projectId: '/test/project',
+          sessionId: 'test-session',
+          terminalIds: expect.arrayContaining([sessionTerminalTopId('test-session')]),
+        }),
+      })
+
+      const sessionResumeCall = mockInvoke.mock.calls.find(
+        ([command, args]) =>
+          command === TauriCommands.ResumeSessionTerminals &&
+          (args as { payload?: { sessionId?: string } })?.payload?.sessionId === 'test-session'
+      )
+      expect(sessionResumeCall?.[1]).toEqual({
+        payload: { projectId: '/test/project', sessionId: 'test-session' },
       })
     })
 
@@ -265,8 +289,8 @@ describe('SelectionContext', () => {
 
       await waitFor(() => {
         expect(result.current.terminals).toEqual({
-          top: 'session-my-test_session_123-top',
-          bottomBase: 'session-my-test_session_123-bottom',
+          top: sessionTerminalTopId('my-test_session.123'),
+          bottomBase: sessionTerminalBottomId('my-test_session.123'),
           workingDirectory: '/test/session/path'
         })
       })
