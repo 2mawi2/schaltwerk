@@ -70,5 +70,8 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
+      - name: Force install optional dependencies
+        run: npm install --force @rollup/rollup-linux-x64-gnu
+
       - name: Run full test suite (lint, TS, clippy, frontend, Rust, build)
         run: npm run test
