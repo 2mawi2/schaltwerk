@@ -130,6 +130,7 @@ jobs:
           CARGO_PROFILE_RELEASE_LTO: 'false'
           CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '256'
           CARGO_PROFILE_RELEASE_OPT_LEVEL: '2'
+          CARGO_TARGET_AARCH64_APPLE_DARWIN_RUSTFLAGS: '-C target-feature=+aes,+sha2,+crc,+neon'
         run: |
           # Build both targets in parallel with optimized settings (saves 2-3 minutes)
           npm run tauri build -- --target x86_64-apple-darwin &
