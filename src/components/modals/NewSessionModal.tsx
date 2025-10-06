@@ -67,6 +67,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
     const [agentConfigLoading, setAgentConfigLoading] = useState(false)
     const nameInputRef = useRef<HTMLInputElement>(null)
     const markdownEditorRef = useRef<MarkdownEditorRef>(null)
+    const hasFocusedDuringOpenRef = useRef(false)
     const projectFileIndex = useProjectFileIndex()
     const wasEditedRef = useRef(false)
     const createRef = useRef<() => void>(() => {})
@@ -416,13 +417,16 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                     setRepositoryIsEmpty(false)
                 })
 
-            setTimeout(() => {
-                if (cachedPrompt) {
-                    markdownEditorRef.current?.focusEnd()
-                } else {
-                    markdownEditorRef.current?.focus()
-                }
-            }, 100)
+            if (!hasFocusedDuringOpenRef.current) {
+                hasFocusedDuringOpenRef.current = true
+                setTimeout(() => {
+                    if (cachedPrompt) {
+                        markdownEditorRef.current?.focusEnd()
+                    } else {
+                        markdownEditorRef.current?.focus()
+                    }
+                }, 100)
+            }
         } else {
             logger.info('[NewSessionModal] Modal closed - resetting all state except taskContent')
             setIsPrefillPending(false)
@@ -445,6 +449,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
             setAgentConfigLoading(false)
             wasOpenRef.current = false
             lastInitialIsDraftRef.current = undefined
+            hasFocusedDuringOpenRef.current = false
         }
     }, [open, initialIsDraft, isPrefillPending, hasPrefillData, createAsDraft, cachedPrompt])
 

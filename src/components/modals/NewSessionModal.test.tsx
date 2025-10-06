@@ -1,9 +1,69 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { useState } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import { NewSessionModal } from './NewSessionModal'
 import { ModalProvider } from '../../contexts/ModalContext'
 import { UiEvent, emitUiEvent } from '../../common/uiEvents'
+
+const markdownFocus = {
+  focus: vi.fn(),
+  focusEnd: vi.fn(),
+}
+
+vi.mock('../plans/MarkdownEditor', async () => {
+  const React = await import('react')
+  const { forwardRef, useImperativeHandle, useRef } = React
+
+  const MockMarkdownEditor = forwardRef(({ value, onChange, placeholder, className }: { value: string; onChange: (next: string) => void; placeholder?: string; className?: string }, ref) => {
+    const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+
+    useImperativeHandle(ref, () => ({
+      focus: () => {
+        markdownFocus.focus()
+        textareaRef.current?.focus()
+      },
+      focusEnd: () => {
+        markdownFocus.focusEnd()
+        const el = textareaRef.current
+        if (el) {
+          el.focus()
+          const len = el.value.length
+          el.selectionStart = len
+          el.selectionEnd = len
+        }
+      },
+    }))
+
+    return (
+      <div data-testid="mock-markdown-editor" className={className}>
+        <textarea
+          ref={textareaRef}
+          value={value}
+          onChange={event => onChange(event.target.value)}
+          style={{ width: '100%', minHeight: '100px' }}
+        />
+        <div className="cm-editor">
+          <div className="cm-scroller">
+            <div className="cm-content">
+              {value ? (
+                value.split('\n').map((line, index) => (
+                  <div key={index} className="cm-line">
+                    {line}
+                  </div>
+                ))
+              ) : (
+                <div className="cm-placeholder">{placeholder ?? ''}</div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  })
+
+  return { MarkdownEditor: MockMarkdownEditor }
+})
 
 // Expose spies so tests can assert persistence/saves
 const mockGetSkipPermissions = vi.fn().mockResolvedValue(false)
@@ -97,10 +157,52 @@ describe('NewSessionModal', () => {
   beforeEach(() => {
     vi.useRealTimers()
     vi.mocked(invoke).mockClear()
+    markdownFocus.focus.mockClear()
+    markdownFocus.focusEnd.mockClear()
   })
 
   afterEach(() => {
     cleanup()
+  })
+
+  it('keeps caret position while typing in cached prompt', async () => {
+    function ControlledModal() {
+      const [prompt, setPrompt] = useState('Initial cached prompt')
+      const handleClose = () => {}
+      const handleCreate = () => {}
+      return (
+        <ModalProvider>
+          <NewSessionModal
+            open={true}
+            cachedPrompt={prompt}
+            onPromptChange={setPrompt}
+            onClose={handleClose}
+            onCreate={handleCreate}
+          />
+        </ModalProvider>
+      )
+    }
+
+    render(<ControlledModal />)
+
+    const editorContainer = await screen.findByTestId('mock-markdown-editor') as HTMLDivElement
+    const textarea = editorContainer.querySelector('textarea') as HTMLTextAreaElement
+
+    expect(textarea).toBeTruthy()
+
+    await waitFor(() => {
+      expect(markdownFocus.focusEnd).toHaveBeenCalledTimes(1)
+    })
+
+    fireEvent.change(textarea, { target: { value: 'Updated cached prompt' } })
+
+    await waitFor(() => {
+      expect(textarea.value).toBe('Updated cached prompt')
+    })
+
+    await new Promise(resolve => setTimeout(resolve, 150))
+
+    expect(markdownFocus.focusEnd).toHaveBeenCalledTimes(1)
   })
 
   it('initializes and can create a session', async () => {
