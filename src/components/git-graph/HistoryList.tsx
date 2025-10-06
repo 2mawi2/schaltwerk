@@ -1,5 +1,5 @@
-import { memo, useMemo, useRef, useState, useLayoutEffect, forwardRef } from 'react'
-import { FixedSizeList as VirtualList, ListChildComponentProps } from 'react-window'
+import { memo, useMemo, useRef, useState, useLayoutEffect } from 'react'
+import { List as VirtualList, RowComponentProps } from 'react-window'
 import type { HistoryItemViewModel } from './types'
 import { HistoryItemRow } from './HistoryItemRow'
 
@@ -9,8 +9,8 @@ interface HistoryListProps {
 
 const ROW_HEIGHT = 22
 
-const Row = memo(({ data, index, style }: ListChildComponentProps<HistoryItemViewModel[]>) => {
-  const item = data[index]
+const Row = memo(({ items, index, style }: RowComponentProps<{ items: HistoryItemViewModel[] }>) => {
+  const item = items[index]
 
   return (
     <div style={style}>
@@ -43,29 +43,22 @@ export const HistoryList = memo(({ items }: HistoryListProps) => {
     return () => resizeObserver.disconnect()
   }, [])
 
-  const itemData = useMemo(() => items, [items])
+  const rowProps = useMemo(() => ({ items }), [items])
 
   return (
     <div ref={containerRef} className="flex-1 flex min-h-0 relative">
       {height > 0 && (
         <VirtualList
           className="history-list"
-          height={height}
-          itemCount={itemData.length}
-          itemSize={ROW_HEIGHT}
-          width="100%"
-          itemData={itemData}
-          outerElementType={OuterElement}
-        >
-          {Row}
-        </VirtualList>
+          defaultHeight={height}
+          rowCount={items.length}
+          rowHeight={ROW_HEIGHT}
+          rowComponent={Row}
+          rowProps={rowProps}
+        />
       )}
     </div>
   )
 })
 
 HistoryList.displayName = 'HistoryList'
-
-const OuterElement = forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(function Outer(props, ref) {
-  return <div ref={ref} {...props} className="history-list" />
-})
