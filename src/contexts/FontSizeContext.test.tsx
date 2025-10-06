@@ -108,28 +108,41 @@ describe('FontSizeContext', () => {
   })
 
   it('persists font sizes to database', async () => {
-    const mockInvoke = vi.mocked((await import('@tauri-apps/api/core')).invoke)
-    
-    const { getByTestId } = render(
-      <FontSizeProvider>
-        <TestComponent />
-      </FontSizeProvider>
-    )
+    const realSetTimeout = globalThis.setTimeout
+    type TimeoutParameters = Parameters<typeof setTimeout>
+    const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(((callback: TimeoutParameters[0], delay?: number, ...callbackArgs: unknown[]) => {
+      if (typeof callback === 'function' && delay === 400) {
+        ;(callback as (...cbArgs: unknown[]) => void)(...callbackArgs)
+        return 0 as unknown as ReturnType<typeof setTimeout>
+      }
 
-    await waitFor(() => {
-      expect(getByTestId('terminal-font-size')).toHaveTextContent('13')
-    })
+      return Reflect.apply(realSetTimeout, globalThis, [callback, delay, ...callbackArgs] as unknown[]) as ReturnType<typeof setTimeout>
+    }) as typeof setTimeout)
 
-    act(() => {
-      getByTestId('increase').click()
-    })
+    try {
+      const mockInvoke = vi.mocked((await import('@tauri-apps/api/core')).invoke)
+      
+      const { getByTestId } = render(
+        <FontSizeProvider>
+          <TestComponent />
+        </FontSizeProvider>
+      )
 
-    await waitFor(() => {
+      await waitFor(() => {
+        expect(getByTestId('terminal-font-size')).toHaveTextContent('13')
+      })
+
+      act(() => {
+        getByTestId('increase').click()
+      })
+
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreSetFontSizes, { 
         terminalFontSize: 14,
         uiFontSize: 13
       })
-    })
+    } finally {
+      setTimeoutSpy.mockRestore()
+    }
   })
 
   it('respects min and max font size limits', () => {

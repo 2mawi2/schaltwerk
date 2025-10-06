@@ -1,7 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { renderHook, waitFor, act } from '@testing-library/react'
+import { renderHook, act } from '@testing-library/react'
 import { useSpecContentCache, invalidateSpecCache, clearAllSpecCache } from './useSpecContentCache'
 import * as TauriCore from '@tauri-apps/api/core'
+import { flushPromises } from '../test/flushPromises'
+
+const advanceTimers = async (ms: number) => {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(ms)
+  })
+  await flushPromises()
+}
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
@@ -29,9 +37,8 @@ describe('useSpecContentCache', () => {
     expect(result.current.loading).toBe(true)
     expect(result.current.content).toBe('')
 
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false)
-    })
+    await flushPromises()
+    expect(result.current.loading).toBe(false)
 
     expect(result.current.content).toBe('Draft content')
     expect(result.current.error).toBe(null)
@@ -49,9 +56,8 @@ describe('useSpecContentCache', () => {
       useSpecContentCache('test-session', 'running')
     )
 
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false)
-    })
+    await flushPromises()
+    expect(result.current.loading).toBe(false)
 
     expect(result.current.content).toBe('Draft content')
   })
@@ -63,9 +69,8 @@ describe('useSpecContentCache', () => {
       useSpecContentCache('test-session', 'running')
     )
 
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false)
-    })
+    await flushPromises()
+    expect(result.current.loading).toBe(false)
 
     expect(result.current.content).toBe('Initial prompt')
   })
@@ -77,9 +82,8 @@ describe('useSpecContentCache', () => {
       useSpecContentCache('test-session', 'running')
     )
 
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false)
-    })
+    await flushPromises()
+    expect(result.current.loading).toBe(false)
 
     expect(result.current.content).toBe('')
   })
@@ -91,9 +95,8 @@ describe('useSpecContentCache', () => {
       useSpecContentCache('test-session', 'running')
     )
 
-    await waitFor(() => {
-      expect(result1.current.loading).toBe(false)
-    })
+    await flushPromises()
+    expect(result1.current.loading).toBe(false)
 
     expect(mockInvoke).toHaveBeenCalledTimes(1)
 
@@ -115,9 +118,8 @@ describe('useSpecContentCache', () => {
       useSpecContentCache('test-session', 'reviewed')
     )
 
-    await waitFor(() => {
-      expect(result1.current.loading).toBe(false)
-    })
+    await flushPromises()
+    expect(result1.current.loading).toBe(false)
 
     expect(mockInvoke).toHaveBeenCalledTimes(1)
 
@@ -140,9 +142,8 @@ describe('useSpecContentCache', () => {
       useSpecContentCache('test-session', 'spec')
     )
 
-    await waitFor(() => {
-      expect(result1.current.loading).toBe(false)
-    })
+    await flushPromises()
+    expect(result1.current.loading).toBe(false)
 
     expect(result1.current.content).toBe('First fetch')
     expect(mockInvoke).toHaveBeenCalledTimes(1)
@@ -151,9 +152,8 @@ describe('useSpecContentCache', () => {
       useSpecContentCache('test-session', 'spec')
     )
 
-    await waitFor(() => {
-      expect(result2.current.loading).toBe(false)
-    })
+    await flushPromises()
+    expect(result2.current.loading).toBe(false)
 
     expect(result2.current.content).toBe('Second fetch')
     expect(mockInvoke).toHaveBeenCalledTimes(2)
@@ -167,9 +167,8 @@ describe('useSpecContentCache', () => {
       useSpecContentCache('test-session', 'running')
     )
 
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false)
-    })
+    await flushPromises()
+    expect(result.current.loading).toBe(false)
 
     expect(result.current.error).toBe(`Error: ${errorMessage}`)
     expect(result.current.content).toBe('')
@@ -182,9 +181,8 @@ describe('useSpecContentCache', () => {
       useSpecContentCache('test-session', 'spec')
     )
 
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false)
-    })
+    await flushPromises()
+    expect(result.current.loading).toBe(false)
 
     expect(result.current.content).toBe('Initial content')
 
@@ -210,9 +208,8 @@ describe('useSpecContentCache', () => {
       useSpecContentCache('test-session', 'running')
     )
 
-    await waitFor(() => {
-      expect(result1.current.loading).toBe(false)
-    })
+    await flushPromises()
+    expect(result1.current.loading).toBe(false)
 
     expect(mockInvoke).toHaveBeenCalledTimes(1)
 
@@ -227,9 +224,8 @@ describe('useSpecContentCache', () => {
       useSpecContentCache('test-session', 'running')
     )
 
-    await waitFor(() => {
-      expect(result2.current.loading).toBe(false)
-    })
+    await flushPromises()
+    expect(result2.current.loading).toBe(false)
 
     expect(result2.current.content).toBe('Fresh content')
     expect(mockInvoke).toHaveBeenCalledTimes(1)
@@ -242,9 +238,8 @@ describe('useSpecContentCache', () => {
       useSpecContentCache('test-session', 'running')
     )
 
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false)
-    })
+    await flushPromises()
+    expect(result.current.loading).toBe(false)
 
     expect(mockInvoke).toHaveBeenCalledTimes(1)
 
@@ -257,9 +252,8 @@ describe('useSpecContentCache', () => {
       useSpecContentCache('test-session', 'running')
     )
 
-    await waitFor(() => {
-      expect(result2.current.loading).toBe(false)
-    })
+    await flushPromises()
+    expect(result2.current.loading).toBe(false)
 
     expect(result2.current.content).toBe('Fresh content')
     expect(mockInvoke).toHaveBeenCalledTimes(1)
@@ -272,9 +266,8 @@ describe('useSpecContentCache', () => {
       useSpecContentCache('session-1', 'running')
     )
 
-    await waitFor(() => {
-      expect(result1.current.loading).toBe(false)
-    })
+    await flushPromises()
+    expect(result1.current.loading).toBe(false)
 
     mockInvoke.mockResolvedValue(['Session 2 content', null])
 
@@ -282,9 +275,8 @@ describe('useSpecContentCache', () => {
       useSpecContentCache('session-2', 'running')
     )
 
-    await waitFor(() => {
-      expect(result2.current.loading).toBe(false)
-    })
+    await flushPromises()
+    expect(result2.current.loading).toBe(false)
 
     expect(mockInvoke).toHaveBeenCalledTimes(2)
 
@@ -297,37 +289,40 @@ describe('useSpecContentCache', () => {
       useSpecContentCache('session-1', 'running')
     )
 
-    await waitFor(() => {
-      expect(result3.current.loading).toBe(false)
-    })
+    await flushPromises()
+    expect(result3.current.loading).toBe(false)
 
     expect(result3.current.content).toBe('Fresh session 1')
     expect(mockInvoke).toHaveBeenCalledTimes(1)
   })
 
   it('handles race conditions with multiple renders', async () => {
-    mockInvoke.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          setTimeout(() => resolve(['Content', null]), 10)
-        })
-    )
+    vi.useFakeTimers()
+    try {
+      mockInvoke.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            setTimeout(() => resolve(['Content', null]), 10)
+          })
+      )
 
-    const { result, rerender } = renderHook(
-      ({ sessionName }) => useSpecContentCache(sessionName, 'running'),
-      { initialProps: { sessionName: 'session-1' } }
-    )
+      const { result, rerender } = renderHook(
+        ({ sessionName }) => useSpecContentCache(sessionName, 'running'),
+        { initialProps: { sessionName: 'session-1' } }
+      )
 
-    rerender({ sessionName: 'session-2' })
+      rerender({ sessionName: 'session-2' })
 
-    await waitFor(() => {
+      await advanceTimers(10)
       expect(result.current.loading).toBe(false)
-    })
 
-    expect(mockInvoke).toHaveBeenCalledWith(
-      'schaltwerk_core_get_session_agent_content',
-      { name: 'session-2' }
-    )
+      expect(mockInvoke).toHaveBeenCalledWith(
+        'schaltwerk_core_get_session_agent_content',
+        { name: 'session-2' }
+      )
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('handles switching between sessionStates correctly', async () => {
@@ -338,18 +333,16 @@ describe('useSpecContentCache', () => {
       { initialProps: { sessionState: 'spec' as 'spec' | 'running' | 'reviewed' } }
     )
 
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false)
-    })
+    await flushPromises()
+    expect(result.current.loading).toBe(false)
 
     expect(mockInvoke).toHaveBeenCalledTimes(1)
     mockInvoke.mockClear()
 
     rerender({ sessionState: 'running' as 'spec' | 'running' | 'reviewed' })
 
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false)
-    })
+    await flushPromises()
+    expect(result.current.loading).toBe(false)
 
     expect(mockInvoke).toHaveBeenCalledTimes(1)
 

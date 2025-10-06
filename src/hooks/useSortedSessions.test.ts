@@ -6,6 +6,14 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { SortMode, FilterMode } from '../types/sessionFilters'
 import { mockEnrichedSession, mockDraftSession } from '../test-utils/sessionMocks'
+import { flushPromises } from '../test/flushPromises'
+
+const advanceTimers = async (ms: number) => {
+    await act(async () => {
+        await vi.advanceTimersByTimeAsync(ms)
+    })
+    await flushPromises()
+}
 
 // Mock Tauri APIs
 vi.mock('@tauri-apps/api/core', () => ({
@@ -60,10 +68,7 @@ describe('useSortedSessions', () => {
                 useSortedSessions({ sortMode: SortMode.Name, filterMode: FilterMode.All })
             )
 
-            await act(async () => {
-                // Wait for useEffect to run
-                await new Promise(resolve => setTimeout(resolve, 0))
-            })
+            await flushPromises()
 
             expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted, {
                 sortMode: SortMode.Name,
@@ -80,9 +85,7 @@ describe('useSortedSessions', () => {
                 useSortedSessions({ sortMode: SortMode.Name, filterMode: FilterMode.All })
             )
 
-            await act(async () => {
-                await new Promise(resolve => setTimeout(resolve, 0))
-            })
+            await flushPromises()
 
             expect(mockInvoke).not.toHaveBeenCalled()
             expect(result.current.sessions).toEqual([])
@@ -119,9 +122,7 @@ describe('useSortedSessions', () => {
                 useSortedSessions({ sortMode: SortMode.Name, filterMode: FilterMode.All })
             )
 
-            await act(async () => {
-                await new Promise(resolve => setTimeout(resolve, 0))
-            })
+            await flushPromises()
 
             expect(result.current.sessions).toEqual(mockSessions)
             expect(result.current.error).toBeNull()
@@ -135,9 +136,7 @@ describe('useSortedSessions', () => {
                 useSortedSessions({ sortMode: SortMode.Name, filterMode: FilterMode.All })
             )
 
-            await act(async () => {
-                await new Promise(resolve => setTimeout(resolve, 0))
-            })
+            await flushPromises()
 
             expect(result.current.sessions).toEqual([])
             expect(result.current.error).toBeNull()
@@ -151,9 +150,7 @@ describe('useSortedSessions', () => {
                 useSortedSessions({ sortMode: SortMode.Name, filterMode: FilterMode.All })
             )
 
-            await act(async () => {
-                await new Promise(resolve => setTimeout(resolve, 0))
-            })
+            await flushPromises()
 
             expect(result.current.sessions).toEqual([])
             expect(result.current.error).toBe('Failed to load sessions')
@@ -167,9 +164,7 @@ describe('useSortedSessions', () => {
                 useSortedSessions({ sortMode: SortMode.Name, filterMode: FilterMode.All })
             )
 
-            await act(async () => {
-                await new Promise(resolve => setTimeout(resolve, 0))
-            })
+            await flushPromises()
 
             expect(result.current.error).toBe('String error')
         })
@@ -186,9 +181,7 @@ describe('useSortedSessions', () => {
                 useSortedSessions({ sortMode, filterMode })
             )
 
-            await act(async () => {
-                await new Promise(resolve => setTimeout(resolve, 0))
-            })
+            await flushPromises()
 
             expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted, {
                 sortMode,
@@ -202,17 +195,13 @@ describe('useSortedSessions', () => {
                 { initialProps: { sortMode: SortMode.Name } }
             )
 
-            await act(async () => {
-                await new Promise(resolve => setTimeout(resolve, 0))
-            })
+            await flushPromises()
 
             expect(mockInvoke).toHaveBeenCalledTimes(1)
 
             rerender({ sortMode: SortMode.Created })
 
-            await act(async () => {
-                await new Promise(resolve => setTimeout(resolve, 0))
-            })
+            await flushPromises()
 
             expect(mockInvoke).toHaveBeenCalledTimes(2)
             expect(mockInvoke).toHaveBeenLastCalledWith(TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted, {
@@ -227,17 +216,13 @@ describe('useSortedSessions', () => {
                 { initialProps: { filterMode: FilterMode.All } }
             )
 
-            await act(async () => {
-                await new Promise(resolve => setTimeout(resolve, 0))
-            })
+            await flushPromises()
 
             expect(mockInvoke).toHaveBeenCalledTimes(1)
 
             rerender({ filterMode: FilterMode.Spec })
 
-            await act(async () => {
-                await new Promise(resolve => setTimeout(resolve, 0))
-            })
+            await flushPromises()
 
             expect(mockInvoke).toHaveBeenCalledTimes(2)
             expect(mockInvoke).toHaveBeenLastCalledWith(TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted, {
@@ -253,9 +238,7 @@ describe('useSortedSessions', () => {
                 useSortedSessions({ sortMode: SortMode.Name, filterMode: FilterMode.All })
             )
 
-            await act(async () => {
-                await new Promise(resolve => setTimeout(resolve, 0))
-            })
+            await flushPromises()
 
             expect(mockListen).toHaveBeenCalledTimes(3)
             expect(mockListen).toHaveBeenCalledWith('schaltwerk:sessions-refreshed', expect.any(Function))
@@ -270,98 +253,99 @@ describe('useSortedSessions', () => {
                 useSortedSessions({ sortMode: SortMode.Name, filterMode: FilterMode.All })
             )
 
-            await act(async () => {
-                await new Promise(resolve => setTimeout(resolve, 0))
-            })
+            await flushPromises()
 
             expect(mockListen).not.toHaveBeenCalled()
         })
 
         it('should reload sessions when sessions-refreshed event is emitted', async () => {
-            renderHook(() =>
-                useSortedSessions({ sortMode: SortMode.Name, filterMode: FilterMode.All })
-            )
+            vi.useFakeTimers()
+            try {
+                renderHook(() =>
+                    useSortedSessions({ sortMode: SortMode.Name, filterMode: FilterMode.All })
+                )
 
-            await act(async () => {
-                await new Promise(resolve => setTimeout(resolve, 0))
-            })
+                await flushPromises()
 
-            // Get the event handler
-            const refreshHandler = mockListen.mock.calls.find(call =>
-                call[0] === 'schaltwerk:sessions-refreshed'
-            )?.[1]
+                const refreshHandler = mockListen.mock.calls.find(call =>
+                    call[0] === 'schaltwerk:sessions-refreshed'
+                )?.[1]
 
-            expect(refreshHandler).toBeDefined()
+                expect(refreshHandler).toBeDefined()
 
-            // Reset mock to track new calls
-            mockInvoke.mockClear()
+                mockInvoke.mockClear()
 
-            // Emit the event
-            await act(async () => {
-                await refreshHandler!({ event: 'schaltwerk:sessions-refreshed', id: 1, payload: {} })
-                // Wait for debounce (increased to 200ms)
-                await new Promise(resolve => setTimeout(resolve, 250))
-            })
+                await act(async () => {
+                    await refreshHandler!({ event: 'schaltwerk:sessions-refreshed', id: 1, payload: {} })
+                })
+                await advanceTimers(250)
 
-            expect(mockInvoke).toHaveBeenCalledTimes(1)
+                expect(mockInvoke).toHaveBeenCalledTimes(1)
+            } finally {
+                vi.useRealTimers()
+            }
         })
 
         it('should reload sessions when session-added event is emitted', async () => {
-            renderHook(() =>
-                useSortedSessions({ sortMode: SortMode.Name, filterMode: FilterMode.All })
-            )
+            vi.useFakeTimers()
+            try {
+                renderHook(() =>
+                    useSortedSessions({ sortMode: SortMode.Name, filterMode: FilterMode.All })
+                )
 
-            await act(async () => {
-                await new Promise(resolve => setTimeout(resolve, 0))
-            })
+                await flushPromises()
 
-            const addHandler = mockListen.mock.calls.find(call =>
-                call[0] === 'schaltwerk:session-added'
-            )?.[1]
+                const addHandler = mockListen.mock.calls.find(call =>
+                    call[0] === 'schaltwerk:session-added'
+                )?.[1]
 
-            mockInvoke.mockClear()
+                mockInvoke.mockClear()
 
-            await act(async () => {
-                await addHandler!({
-                    event: 'schaltwerk:session-added',
-                    id: 1,
-                    payload: {
-                        session_name: 'new-session',
-                        branch: 'branch',
-                        worktree_path: '/tmp',
-                        parent_branch: 'main',
-                        created_at: new Date().toISOString(),
-                    }
+                await act(async () => {
+                    await addHandler!({
+                        event: 'schaltwerk:session-added',
+                        id: 1,
+                        payload: {
+                            session_name: 'new-session',
+                            branch: 'branch',
+                            worktree_path: '/tmp',
+                            parent_branch: 'main',
+                            created_at: new Date().toISOString(),
+                        }
+                    })
                 })
-                // Wait for debounce (increased to 200ms)
-                await new Promise(resolve => setTimeout(resolve, 250))
-            })
+                await advanceTimers(250)
 
-            expect(mockInvoke).toHaveBeenCalledTimes(1)
+                expect(mockInvoke).toHaveBeenCalledTimes(1)
+            } finally {
+                vi.useRealTimers()
+            }
         })
 
         it('should reload sessions when session-removed event is emitted', async () => {
-            renderHook(() =>
-                useSortedSessions({ sortMode: SortMode.Name, filterMode: FilterMode.All })
-            )
+            vi.useFakeTimers()
+            try {
+                renderHook(() =>
+                    useSortedSessions({ sortMode: SortMode.Name, filterMode: FilterMode.All })
+                )
 
-            await act(async () => {
-                await new Promise(resolve => setTimeout(resolve, 0))
-            })
+                await flushPromises()
 
-            const removeHandler = mockListen.mock.calls.find(call =>
-                call[0] === 'schaltwerk:session-removed'
-            )?.[1]
+                const removeHandler = mockListen.mock.calls.find(call =>
+                    call[0] === 'schaltwerk:session-removed'
+                )?.[1]
 
-            mockInvoke.mockClear()
+                mockInvoke.mockClear()
 
-            await act(async () => {
-                await removeHandler!({ event: 'schaltwerk:session-removed', id: 2, payload: {} })
-                // Wait for debounce (increased to 200ms)
-                await new Promise(resolve => setTimeout(resolve, 250))
-            })
+                await act(async () => {
+                    await removeHandler!({ event: 'schaltwerk:session-removed', id: 2, payload: {} })
+                })
+                await advanceTimers(250)
 
-            expect(mockInvoke).toHaveBeenCalledTimes(1)
+                expect(mockInvoke).toHaveBeenCalledTimes(1)
+            } finally {
+                vi.useRealTimers()
+            }
         })
 
         it('should clean up event listeners on unmount', async () => {
@@ -369,16 +353,12 @@ describe('useSortedSessions', () => {
                 useSortedSessions({ sortMode: SortMode.Name, filterMode: FilterMode.All })
             )
 
-            await act(async () => {
-                await new Promise(resolve => setTimeout(resolve, 0))
-            })
+            await flushPromises()
 
             unmount()
 
             // The unlisten promises should be resolved and called
-            await act(async () => {
-                await new Promise(resolve => setTimeout(resolve, 0))
-            })
+            await flushPromises()
 
             expect(mockUnlisten).toHaveBeenCalledTimes(3)
         })
@@ -390,9 +370,7 @@ describe('useSortedSessions', () => {
                 useSortedSessions({ sortMode: SortMode.Name, filterMode: FilterMode.All })
             )
 
-            await act(async () => {
-                await new Promise(resolve => setTimeout(resolve, 0))
-            })
+            await flushPromises()
 
             mockInvoke.mockClear()
 
@@ -416,9 +394,7 @@ describe('useSortedSessions', () => {
                 useSortedSessions({ sortMode: SortMode.Name, filterMode: FilterMode.All })
             )
 
-            await act(async () => {
-                await new Promise(resolve => setTimeout(resolve, 0))
-            })
+            await flushPromises()
 
             // Clear the mock to track the reload call
             mockInvoke.mockClear()
@@ -440,9 +416,7 @@ describe('useSortedSessions', () => {
                 useSortedSessions({ sortMode: SortMode.Name, filterMode: FilterMode.All })
             )
 
-            await act(async () => {
-                await new Promise(resolve => setTimeout(resolve, 0))
-            })
+            await flushPromises()
 
             expect(mockInvoke).not.toHaveBeenCalled()
 
@@ -451,9 +425,7 @@ describe('useSortedSessions', () => {
 
             rerender()
 
-            await act(async () => {
-                await new Promise(resolve => setTimeout(resolve, 0))
-            })
+            await flushPromises()
 
             expect(mockInvoke).toHaveBeenCalledTimes(1)
         })
@@ -465,9 +437,7 @@ describe('useSortedSessions', () => {
                 useSortedSessions({ sortMode: SortMode.Name, filterMode: FilterMode.All })
             )
 
-            await act(async () => {
-                await new Promise(resolve => setTimeout(resolve, 0))
-            })
+            await flushPromises()
 
             expect(mockListen).toHaveBeenCalledTimes(3)
 
@@ -476,9 +446,7 @@ describe('useSortedSessions', () => {
 
             rerender()
 
-            await act(async () => {
-                await new Promise(resolve => setTimeout(resolve, 0))
-            })
+            await flushPromises()
 
             expect(mockUnlisten).toHaveBeenCalledTimes(3)
         })
@@ -492,9 +460,7 @@ describe('useSortedSessions', () => {
                 useSortedSessions({ sortMode: SortMode.Name, filterMode: FilterMode.All })
             )
 
-            await act(async () => {
-                await new Promise(resolve => setTimeout(resolve, 0))
-            })
+            await flushPromises()
 
             expect(result.current.sessions).toEqual([])
             expect(result.current.error).toBeNull()
@@ -507,9 +473,7 @@ describe('useSortedSessions', () => {
                 useSortedSessions({ sortMode: SortMode.Name, filterMode: FilterMode.All })
             )
 
-            await act(async () => {
-                await new Promise(resolve => setTimeout(resolve, 0))
-            })
+            await flushPromises()
 
             expect(result.current.sessions).toEqual([])
         })
@@ -526,9 +490,7 @@ describe('useSortedSessions', () => {
                 useSortedSessions({ sortMode: SortMode.Name, filterMode: FilterMode.All })
             )
 
-            await act(async () => {
-                await new Promise(resolve => setTimeout(resolve, 0))
-            })
+            await flushPromises()
 
             expect(result.current.sessions).toEqual(malformedSessions)
         })
@@ -540,9 +502,7 @@ describe('useSortedSessions', () => {
                 useSortedSessions({ sortMode: SortMode.Name, filterMode: FilterMode.All })
             )
 
-            await act(async () => {
-                await new Promise(resolve => setTimeout(resolve, 0))
-            })
+            await flushPromises()
 
             mockInvoke.mockClear()
 
@@ -565,33 +525,32 @@ describe('useSortedSessions', () => {
             })
             mockInvoke.mockReturnValueOnce(loadingPromise)
 
-            renderHook(() =>
-                useSortedSessions({ sortMode: SortMode.Name, filterMode: FilterMode.All })
-            )
+            vi.useFakeTimers()
+            try {
+                renderHook(() =>
+                    useSortedSessions({ sortMode: SortMode.Name, filterMode: FilterMode.All })
+                )
 
-            await act(async () => {
-                await new Promise(resolve => setTimeout(resolve, 0))
-            })
+                await flushPromises()
 
-            // While still loading, emit an event
-            const refreshHandler = mockListen.mock.calls.find(call =>
-                call[0] === 'schaltwerk:sessions-refreshed'
-            )?.[1]
+                const refreshHandler = mockListen.mock.calls.find(call =>
+                    call[0] === 'schaltwerk:sessions-refreshed'
+                )?.[1]
 
-            await act(async () => {
-                await refreshHandler!({ event: 'schaltwerk:sessions-refreshed', id: 3, payload: {} })
-                // Wait for debounce (increased to 200ms)
-                await new Promise(resolve => setTimeout(resolve, 250))
-            })
+                await act(async () => {
+                    await refreshHandler!({ event: 'schaltwerk:sessions-refreshed', id: 3, payload: {} })
+                })
+                await advanceTimers(250)
 
-            // Resolve the original load
-            resolveInvoke!()
-            await act(async () => {
-                await loadingPromise
-            })
+                resolveInvoke!()
+                await act(async () => {
+                    await loadingPromise
+                })
 
-            // Should have called invoke twice (initial load + event)
-            expect(mockInvoke).toHaveBeenCalledTimes(2)
+                expect(mockInvoke).toHaveBeenCalledTimes(2)
+            } finally {
+                vi.useRealTimers()
+            }
         })
     })
 })

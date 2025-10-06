@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { TauriCommands } from '../../common/tauriCommands'
 import React, { useEffect } from 'react'
 import { vi } from 'vitest'
@@ -283,14 +283,15 @@ describe('DiffFileList', () => {
   it('prevents concurrent loads with isLoading state', async () => {
     const { invoke } = await import('@tauri-apps/api/core')
     let callCount = 0
+    const pendingResolves: Array<() => void> = []
 
     const mockInvoke = invoke as ReturnType<typeof vi.fn>
     mockInvoke.mockImplementation(async (cmd: string, _args?: Record<string, unknown>) => {
       if (cmd === TauriCommands.GetOrchestratorWorkingChanges) {
         callCount++
-        // Simulate slow network call
-        await new Promise(resolve => setTimeout(resolve, 100))
-        return [{ path: 'test.ts', change_type: 'modified' }]
+        return await new Promise(resolve => {
+          pendingResolves.push(() => resolve([{ path: 'test.ts', change_type: 'modified' }]))
+        })
       }
       if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
       return undefined
@@ -313,6 +314,14 @@ describe('DiffFileList', () => {
         <DiffFileList onFileSelect={() => {}} isCommander={true} />
       </Wrapper>
     )
+
+    // While the first request is still pending, ensure the throttling prevented duplicate calls
+    expect(callCount).toBe(1)
+
+    await act(async () => {
+      pendingResolves.splice(0).forEach(resolve => resolve())
+      await Promise.resolve()
+    })
 
     await screen.findByText('test.ts')
 

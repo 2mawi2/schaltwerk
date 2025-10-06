@@ -476,6 +476,7 @@ describe('SelectionContext', () => {
     it('should handle parallel terminal creation with deduplication lock', async () => {
       let createTerminalCalls = 0
       const createdTerminals = new Set<string>()
+      const pendingTerminalResolves: Array<() => void> = []
       
       mockInvoke.mockImplementation((command: string, args?: MockTauriInvokeArgs) => {
       const typedArgs = args as { name?: string; id?: string } | undefined
@@ -485,8 +486,10 @@ describe('SelectionContext', () => {
               createTerminalCalls++
               createdTerminals.add(typedArgs.id)
             }
-            // Simulate slow terminal creation
-            return new Promise(resolve => setTimeout(resolve, 50))
+            // Defer terminal readiness until the test flushes queued resolvers
+            return new Promise<void>(resolve => {
+              pendingTerminalResolves.push(() => resolve())
+            })
           case TauriCommands.TerminalExists:
             return Promise.resolve(false)
           case TauriCommands.GetCurrentDirectory:
@@ -524,8 +527,13 @@ describe('SelectionContext', () => {
         expect(result.current.isReady).toBe(true)
       })
 
-      // Wait a bit more to ensure orchestrator initialization is complete
-      await new Promise(resolve => setTimeout(resolve, 100))
+      // Flush any orchestrator terminals created during initialization
+      if (pendingTerminalResolves.length) {
+        await act(async () => {
+          pendingTerminalResolves.splice(0).forEach(resolve => resolve())
+          await Promise.resolve()
+        })
+      }
 
       // Reset counter after orchestrator initialization
       createTerminalCalls = 0
@@ -538,15 +546,24 @@ describe('SelectionContext', () => {
         { kind: 'session' as const, payload: 'same-session', worktreePath: '/path' }
       ]
 
-      // Avoid overlapping act() calls: batch concurrent selection promises inside a single act
+      let selectionPromise!: Promise<unknown>
       await act(async () => {
-        await Promise.all(selections.map(selection => result.current.setSelection(selection)))
+        selectionPromise = Promise.all(selections.map(selection => result.current.setSelection(selection)))
       })
 
-      // Should only create terminals once per ID despite multiple calls
-      // Allow for possible orchestrator fallback during race conditions, but verify deduplication works
-      expect(createTerminalCalls).toBeLessThanOrEqual(2) 
-      // Verify that each terminal ID was only created once
+      // While terminal creation promises are pending, ensure deduplication has limited the calls
+      expect(createTerminalCalls).toBeLessThanOrEqual(2)
+      expect(createdTerminals.size).toBe(createTerminalCalls)
+
+      await act(async () => {
+        if (pendingTerminalResolves.length) {
+          pendingTerminalResolves.splice(0).forEach(resolve => resolve())
+        }
+        await selectionPromise
+      })
+
+      // After all selections settle, deduplication should still hold
+      expect(createTerminalCalls).toBeLessThanOrEqual(2)
       expect(createdTerminals.size).toBe(createTerminalCalls)
     })
   })

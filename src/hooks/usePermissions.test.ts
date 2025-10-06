@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { TauriCommands } from '../common/tauriCommands'
 import { useFolderPermission } from './usePermissions'
 import { renderHook, act } from '@testing-library/react'
+import { flushPromises } from '../test/flushPromises'
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn()
@@ -10,10 +11,16 @@ vi.mock('@tauri-apps/api/core', () => ({
 import { invoke } from '@tauri-apps/api/core'
 const mockInvoke = vi.mocked(invoke)
 
+const advanceTimers = async (ms: number) => {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(ms)
+  })
+  await flushPromises()
+}
+
 describe('useFolderPermission', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.useFakeTimers()
   })
 
   afterEach(() => {
@@ -50,9 +57,7 @@ describe('useFolderPermission', () => {
       expect(result.current.isChecking).toBe(true)
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.CheckFolderAccess, { path: testPath })
 
-      await act(async () => {
-        await vi.runAllTimersAsync()
-      })
+      await flushPromises()
 
       expect(result.current.hasPermission).toBe(true)
       expect(result.current.isChecking).toBe(false)
@@ -69,9 +74,7 @@ describe('useFolderPermission', () => {
 
       expect(result.current.isChecking).toBe(true)
 
-      await act(async () => {
-        await vi.runAllTimersAsync()
-      })
+      await flushPromises()
 
       expect(result.current.hasPermission).toBe(false)
       expect(result.current.isChecking).toBe(false)
@@ -85,9 +88,7 @@ describe('useFolderPermission', () => {
 
       const { result } = renderHook(() => useFolderPermission(testPath))
 
-      await act(async () => {
-        await vi.runAllTimersAsync()
-      })
+      await flushPromises()
 
       expect(result.current.hasPermission).toBe(false)
       expect(result.current.deniedPath).toBe(testPath)
@@ -156,8 +157,8 @@ describe('useFolderPermission', () => {
 
   describe('requestPermission function', () => {
     it('successfully requests and grants permission', async () => {
-      vi.useRealTimers() // Use real timers for this test since we need actual async behavior
-      
+      vi.useFakeTimers()
+
       const testPath = '/test/path'
       mockInvoke.mockResolvedValueOnce(undefined) // ensure_folder_permission
       mockInvoke.mockResolvedValueOnce(true) // check_folder_access after delay
@@ -166,7 +167,9 @@ describe('useFolderPermission', () => {
 
       let returnValue: boolean | undefined
       await act(async () => {
-        returnValue = await result.current.requestPermission(testPath)
+        const promise = result.current.requestPermission(testPath)
+        await advanceTimers(500)
+        returnValue = await promise
       })
 
       expect(returnValue).toBe(true)
@@ -178,8 +181,8 @@ describe('useFolderPermission', () => {
     })
 
     it('waits for 500ms delay before checking permission', async () => {
-      vi.useRealTimers() // Use real timers for this test since we need actual async behavior
-      
+      vi.useFakeTimers()
+
       const testPath = '/test/path'
       mockInvoke.mockResolvedValueOnce(undefined)
       mockInvoke.mockResolvedValueOnce(true)
@@ -187,7 +190,13 @@ describe('useFolderPermission', () => {
       const { result } = renderHook(() => useFolderPermission())
 
       await act(async () => {
-        await result.current.requestPermission(testPath)
+        const promise = result.current.requestPermission(testPath)
+        expect(mockInvoke).toHaveBeenCalledTimes(1)
+        await vi.advanceTimersByTimeAsync(499)
+        expect(mockInvoke).toHaveBeenCalledTimes(1)
+        await vi.advanceTimersByTimeAsync(1)
+        await flushPromises()
+        await promise
       })
 
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.EnsureFolderPermission, { path: testPath })
