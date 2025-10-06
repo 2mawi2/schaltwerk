@@ -1,6 +1,5 @@
 import { memo, useRef, useState, useLayoutEffect } from 'react'
-import { FixedSizeList as VirtualList } from 'react-window'
-import type { ListChildComponentProps } from 'react-window'
+import { List as VirtualList, type RowComponentProps } from 'react-window'
 import type { HistoryItemViewModel } from './types'
 import { HistoryItemRow } from './HistoryItemRow'
 
@@ -10,8 +9,7 @@ interface HistoryListProps {
 
 const ROW_HEIGHT = 22
 
-const Row = memo(({ data, index, style }: ListChildComponentProps<HistoryItemViewModel[]>) => {
-  const items = data
+const Row = memo(({ items, index, style }: RowComponentProps<{ items: HistoryItemViewModel[] }>) => {
   const item = items[index]
 
   return (
@@ -50,14 +48,12 @@ export const HistoryList = memo(({ items }: HistoryListProps) => {
       {height > 0 && (
         <VirtualList
           className="history-list"
-          height={height}
-          itemCount={items.length}
-          itemSize={ROW_HEIGHT}
-          itemData={items}
-          width="100%"
-        >
-          {Row}
-        </VirtualList>
+          defaultHeight={height}
+          rowCount={items.length}
+          rowHeight={ROW_HEIGHT}
+          rowProps={{ items }}
+          rowComponent={Row}
+        />
       )}
     </div>
   )

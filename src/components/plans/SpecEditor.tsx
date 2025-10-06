@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, lazy, Suspense, useMemo, useCallback } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
-import { VscCopy, VscPlay } from 'react-icons/vsc'
+import { VscCopy, VscPlay, VscEye, VscEdit } from 'react-icons/vsc'
 import { AnimatedText } from '../common/AnimatedText'
 import { logger } from '../../utils/logger'
 import type { MarkdownEditorRef } from './MarkdownEditor'
@@ -10,6 +10,7 @@ import { useKeyboardShortcutsConfig } from '../../contexts/KeyboardShortcutsCont
 import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
 import { detectPlatformSafe, isShortcutForAction } from '../../keyboardShortcuts/helpers'
 import { useSpecContent } from '../../hooks/useSpecContent'
+import { MarkdownRenderer } from './MarkdownRenderer'
 
 const MarkdownEditor = lazy(() => import('./MarkdownEditor').then(m => ({ default: m.MarkdownEditor })))
 
@@ -27,6 +28,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
   const [starting, setStarting] = useState(false)
   const [hasLocalChanges, setHasLocalChanges] = useState(false)
   const [displayName, setDisplayName] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit')
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastServerContentRef = useRef<string>('')
   const contentRef = useRef<string>('')
@@ -249,13 +251,22 @@ export function SpecEditor({ sessionName, onStart }: Props) {
 
   return (
     <div className="h-full flex flex-col bg-panel">
-      {/* Header with read-only title */}
       <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <h2 className="text-sm font-semibold text-slate-200 truncate">{displayName || sessionName}</h2>
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400" title="Focus spec content (⌘T)">⌘T</span>
+          {viewMode === 'edit' && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400" title="Focus spec content (⌘T)">⌘T</span>
+          )}
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setViewMode(viewMode === 'edit' ? 'preview' : 'edit')}
+            className="px-2 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600 text-white flex items-center gap-1"
+            title={viewMode === 'edit' ? 'Preview markdown' : 'Edit markdown'}
+          >
+            {viewMode === 'edit' ? <VscEye /> : <VscEdit />}
+            {viewMode === 'edit' ? 'Preview' : 'Edit'}
+          </button>
           <button
             onClick={handleRun}
             disabled={starting}
@@ -281,35 +292,39 @@ export function SpecEditor({ sessionName, onStart }: Props) {
         </div>
       </div>
       
-      {/* Status bar */}
       <div className="px-4 py-1 border-b border-slate-800 flex items-center justify-between">
         <div className="text-xs text-slate-400">
           {saving ? (
             <AnimatedText text="loading" size="xs" centered={false} />
           ) : error ? (
             <span className="text-red-400">{error}</span>
-          ) : (
+          ) : viewMode === 'edit' ? (
             'Editing spec'
+          ) : (
+            'Preview mode'
           )}
         </div>
       </div>
-      
-      {/* Editor */}
+
       <div className="flex-1 overflow-hidden">
-        <Suspense fallback={
-          <div className="h-full flex items-center justify-center">
-            <AnimatedText text="loading" size="md" />
-          </div>
-        }>
-          <MarkdownEditor
-            ref={markdownEditorRef}
-            value={content}
-            onChange={handleContentChange}
-            placeholder="Enter agent description in markdown…"
-            className="h-full"
-            fileReferenceProvider={projectFileIndex}
-          />
-        </Suspense>
+        {viewMode === 'edit' ? (
+          <Suspense fallback={
+            <div className="h-full flex items-center justify-center">
+              <AnimatedText text="loading" size="md" />
+            </div>
+          }>
+            <MarkdownEditor
+              ref={markdownEditorRef}
+              value={content}
+              onChange={handleContentChange}
+              placeholder="Enter agent description in markdown…"
+              className="h-full"
+              fileReferenceProvider={projectFileIndex}
+            />
+          </Suspense>
+        ) : (
+          <MarkdownRenderer content={content} className="h-full" />
+        )}
       </div>
     </div>
   )

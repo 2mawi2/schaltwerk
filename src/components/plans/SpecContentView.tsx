@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, lazy, Suspense } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
+import { VscEye, VscEdit } from 'react-icons/vsc'
 import { AnimatedText } from '../common/AnimatedText'
 import { logger } from '../../utils/logger'
 import type { MarkdownEditorRef } from './MarkdownEditor'
 import { useSpecContentCache } from '../../hooks/useSpecContentCache'
+import { MarkdownRenderer } from './MarkdownRenderer'
 
 const MarkdownEditor = lazy(() => import('./MarkdownEditor').then(m => ({ default: m.MarkdownEditor })))
 
@@ -18,6 +20,7 @@ interface Props {
 export function SpecContentView({ sessionName, editable = true, debounceMs = 1000, sessionState }: Props) {
   const { content, loading, error, updateContent } = useSpecContentCache(sessionName, sessionState)
   const [saving, setSaving] = useState(false)
+  const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit')
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const markdownEditorRef = useRef<MarkdownEditorRef>(null)
 
@@ -76,25 +79,40 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
         <div className="px-3 py-2 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="text-xs text-slate-400">
-              {saving ? 'Saving…' : error ? <span className="text-red-400">{error}</span> : 'Editing spec'}
+              {saving ? 'Saving…' : error ? <span className="text-red-400">{error}</span> : viewMode === 'edit' ? 'Editing spec' : 'Preview mode'}
             </div>
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400" title="Focus spec content (⌘T)">⌘T</span>
+            {viewMode === 'edit' && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400" title="Focus spec content (⌘T)">⌘T</span>
+            )}
           </div>
-          {/* Copy button removed in favor of Copy Bundle bar in RightPanel */}
+          <button
+            onClick={() => setViewMode(viewMode === 'edit' ? 'preview' : 'edit')}
+            className="px-2 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600 text-white flex items-center gap-1"
+            title={viewMode === 'edit' ? 'Preview markdown' : 'Edit markdown'}
+          >
+            {viewMode === 'edit' ? <VscEye /> : <VscEdit />}
+            {viewMode === 'edit' ? 'Preview' : 'Edit'}
+          </button>
         </div>
-        <Suspense fallback={
-          <div className="flex-1 flex items-center justify-center">
-            <AnimatedText text="loading" size="md" />
+        {viewMode === 'edit' ? (
+          <Suspense fallback={
+            <div className="flex-1 flex items-center justify-center">
+              <AnimatedText text="loading" size="md" />
+            </div>
+          }>
+            <MarkdownEditor
+              ref={markdownEditorRef}
+              value={content}
+              onChange={updateContent}
+              placeholder="Enter agent description in markdown…"
+              className="flex-1"
+            />
+          </Suspense>
+        ) : (
+          <div className="flex-1 overflow-hidden">
+            <MarkdownRenderer content={content} className="h-full" />
           </div>
-        }>
-          <MarkdownEditor
-            ref={markdownEditorRef}
-            value={content}
-            onChange={updateContent}
-            placeholder="Enter agent description in markdown…"
-            className="flex-1"
-          />
-        </Suspense>
+        )}
       </div>
     )
   }
@@ -105,22 +123,9 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
         <div className="flex items-center gap-2">
           <div className="text-xs text-slate-400">Spec</div>
         </div>
-        <div className="flex items-center gap-2" />
       </div>
       <div className="flex-1 overflow-auto">
-        <Suspense fallback={
-          <div className="h-full flex items-center justify-center">
-            <AnimatedText text="loading" size="md" />
-          </div>
-        }>
-          <MarkdownEditor
-            ref={markdownEditorRef}
-            value={content}
-            onChange={() => {}}
-            readOnly={true}
-            className="h-full"
-          />
-        </Suspense>
+        <MarkdownRenderer content={content} className="h-full" />
       </div>
     </div>
   )
