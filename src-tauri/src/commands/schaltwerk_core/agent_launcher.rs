@@ -1,6 +1,6 @@
 use super::{agent_ctx, terminals};
 use crate::get_terminal_manager;
-use schaltwerk::domains::agents::parse_agent_command;
+use schaltwerk::domains::agents::{parse_agent_command, AgentLaunchSpec};
 use schaltwerk::domains::terminal::manager::CreateTerminalWithAppAndSizeParams;
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock};
@@ -11,23 +11,11 @@ static START_LOCKS: LazyLock<AsyncMutex<HashMap<String, Arc<AsyncMutex<()>>>>> =
 
 pub async fn launch_in_terminal(
     terminal_id: String,
-    command_line: String,
+    launch_spec: AgentLaunchSpec,
     db: &schaltwerk::schaltwerk_core::Database,
     repo_path: &std::path::Path,
     cols: Option<u16>,
     rows: Option<u16>,
-) -> Result<String, String> {
-    launch_in_terminal_with_prompt(terminal_id, command_line, db, repo_path, cols, rows, None).await
-}
-
-pub async fn launch_in_terminal_with_prompt(
-    terminal_id: String,
-    command_line: String,
-    db: &schaltwerk::schaltwerk_core::Database,
-    repo_path: &std::path::Path,
-    cols: Option<u16>,
-    rows: Option<u16>,
-    _initial_prompt: Option<String>,
 ) -> Result<String, String> {
     // Acquire (or create) a lock specific to this terminal id and hold it for the
     // whole close→create sequence. This guarantees only one launch pipeline runs
@@ -40,6 +28,7 @@ pub async fn launch_in_terminal_with_prompt(
     };
     let _guard = term_lock.lock().await;
 
+    let command_line = launch_spec.format_for_shell();
     let (cwd, agent_name, agent_args) = parse_agent_command(&command_line)?;
     terminals::ensure_cwd_access(&cwd)?;
 
@@ -77,5 +66,5 @@ pub async fn launch_in_terminal_with_prompt(
             .await?;
     }
 
-    Ok(command_line)
+    Ok(launch_spec.shell_command)
 }

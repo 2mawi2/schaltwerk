@@ -2,7 +2,7 @@ use crate::{
     commands::session_lookup_cache::global_session_lookup_cache, get_schaltwerk_core,
     get_terminal_manager, SETTINGS_MANAGER,
 };
-use schaltwerk::domains::agents::{naming, parse_agent_command};
+use schaltwerk::domains::agents::{manifest::AgentManifest, naming, parse_agent_command};
 use schaltwerk::domains::merge::types::MergeStateSnapshot;
 use schaltwerk::domains::merge::{MergeMode, MergePreview, MergeService};
 use schaltwerk::domains::sessions::db_sessions::SessionMethods;
@@ -1063,7 +1063,7 @@ pub async fn schaltwerk_core_start_claude_with_restart(
         let mut paths = std::collections::HashMap::new();
 
         // Get resolved binary paths for all agents
-        for agent in ["claude", "codex", "opencode", "gemini"] {
+        for agent in ["claude", "codex", "opencode", "gemini", "droid"] {
             match settings.get_effective_binary_path(agent) {
                 Ok(path) => {
                     log::debug!("Cached binary path for {agent}: {path}");
@@ -1077,7 +1077,7 @@ pub async fn schaltwerk_core_start_claude_with_restart(
         std::collections::HashMap::new()
     };
 
-    let command = manager
+    let spec = manager
         .start_claude_in_session_with_restart_and_binary(
             &session_name,
             force_restart,
@@ -1088,9 +1088,16 @@ pub async fn schaltwerk_core_start_claude_with_restart(
             format!("Failed to start Claude in session: {e}")
         })?;
 
+    let command = spec.shell_command.clone();
+    let initial_command = spec.initial_command.clone();
+
     log::info!("Claude command for session {session_name}: {command}");
 
     let (cwd, agent_name, agent_args) = parse_agent_command(&command)?;
+    let agent_kind = agent_ctx::infer_agent_kind(&agent_name);
+    let (auto_send_initial_command, ready_marker) = AgentManifest::get(agent_kind.manifest_key())
+        .map(|m| (m.auto_send_initial_command, m.ready_marker.clone()))
+        .unwrap_or((false, None));
 
     // Check if we have permission to access the working directory
     log::info!("Checking permissions for working directory: {cwd}");
@@ -1105,7 +1112,14 @@ pub async fn schaltwerk_core_start_claude_with_restart(
         terminal_manager.close_terminal(terminal_id.clone()).await?;
     }
 
-    let agent_kind = agent_ctx::infer_agent_kind(&agent_name);
+    if auto_send_initial_command {
+        if let Some(initial) = initial_command.clone().filter(|v| !v.trim().is_empty()) {
+            terminal_manager
+                .queue_initial_command(terminal_id.clone(), initial, ready_marker.clone())
+                .await?;
+        }
+    }
+
     let (env_vars, cli_args) =
         agent_ctx::collect_agent_env_and_cli(&agent_kind, &core.repo_path, &core.db).await;
     log::info!("Creating terminal with {agent_name} directly: {terminal_id} with {} env vars and CLI args: '{cli_args}'", env_vars.len());
@@ -1167,6 +1181,7 @@ pub async fn schaltwerk_core_start_claude_with_restart(
         agent_ctx::AgentKind::Codex => "codex",
         agent_ctx::AgentKind::OpenCode => "opencode",
         agent_ctx::AgentKind::Gemini => "gemini",
+        agent_ctx::AgentKind::Droid => "droid",
         agent_ctx::AgentKind::Fallback => "claude",
     };
     log::info!(
@@ -1293,7 +1308,7 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
         let mut paths = std::collections::HashMap::new();
 
         // Get resolved binary paths for all agents
-        for agent in ["claude", "codex", "opencode", "gemini"] {
+        for agent in ["claude", "codex", "opencode", "gemini", "droid"] {
             match settings.get_effective_binary_path(agent) {
                 Ok(path) => {
                     log::debug!("Cached binary path for {agent}: {path}");
@@ -1307,17 +1322,20 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
         std::collections::HashMap::new()
     };
 
-    let command = manager
+    let command_spec = manager
         .start_claude_in_orchestrator_with_binary(&binary_paths)
         .map_err(|e| {
             log::error!("Failed to build orchestrator command: {e}");
             format!("Failed to start Claude in orchestrator: {e}")
         })?;
 
-    log::info!("Claude command for orchestrator: {command}");
+    log::info!(
+        "Claude command for orchestrator: {}",
+        command_spec.shell_command.as_str()
+    );
     let result = agent_launcher::launch_in_terminal(
         terminal_id.clone(),
-        command.clone(),
+        command_spec,
         &core.db,
         &core.repo_path,
         cols,
@@ -2143,7 +2161,7 @@ pub async fn schaltwerk_core_start_fresh_orchestrator(
         let mut paths = std::collections::HashMap::new();
 
         // Get resolved binary paths for all agents
-        for agent in ["claude", "codex", "opencode", "gemini"] {
+        for agent in ["claude", "codex", "opencode", "gemini", "droid"] {
             match settings.get_effective_binary_path(agent) {
                 Ok(path) => {
                     log::debug!("Cached binary path for {agent}: {path}");
@@ -2158,19 +2176,22 @@ pub async fn schaltwerk_core_start_fresh_orchestrator(
     };
 
     // Build command for FRESH session (no session resume)
-    let command = manager
+    let command_spec = manager
         .start_claude_in_orchestrator_fresh_with_binary(&binary_paths)
         .map_err(|e| {
             log::error!("Failed to build fresh orchestrator command: {e}");
             format!("Failed to start fresh Claude in orchestrator: {e}")
         })?;
 
-    log::info!("Fresh Claude command for orchestrator: {command}");
+    log::info!(
+        "Fresh Claude command for orchestrator: {}",
+        command_spec.shell_command.as_str()
+    );
 
     // Delegate to shared launcher (no initial size for fresh)
     let result = agent_launcher::launch_in_terminal(
         terminal_id.clone(),
-        command.clone(),
+        command_spec,
         &core.db,
         &core.repo_path,
         None,

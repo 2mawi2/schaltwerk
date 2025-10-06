@@ -78,7 +78,7 @@ export const useSettings = () => {
         envVars: Record<AgentType, Array<{key: string, value: string}>>,
         cliArgs: Record<AgentType, string>
     ): Promise<void> => {
-        const agents: AgentType[] = ['claude', 'opencode', 'gemini', 'codex']
+        const agents: AgentType[] = [...AGENT_TYPES]
         
         for (const agent of agents) {
             const vars: EnvVars = {}

@@ -1,3 +1,4 @@
+use crate::domains::agents::AgentLaunchSpec;
 use anyhow::{anyhow, Result};
 use chrono::{TimeZone, Utc};
 use log::{info, warn};
@@ -195,16 +196,18 @@ mod service_unified_tests {
         let cmd1 = manager
             .start_claude_in_session_with_restart_and_binary(spec_name, false, &HashMap::new())
             .unwrap();
-        assert!(cmd1.contains(" claude"));
-        assert!(!cmd1.contains("--continue"));
-        assert!(!cmd1.contains(" -r "));
+        let shell1 = &cmd1.shell_command;
+        assert!(shell1.contains(" claude"));
+        assert!(!shell1.contains("--continue"));
+        assert!(!shell1.contains(" -r "));
 
         // Second start should allow resume now (resume_allowed flipped true)
         let cmd2 = manager
             .start_claude_in_session_with_restart_and_binary(spec_name, false, &HashMap::new())
             .unwrap();
+        let shell2 = &cmd2.shell_command;
         assert!(
-            cmd2.contains(" -r resume-session-id"),
+            shell2.contains(" -r resume-session-id"),
             "Expected resume via explicit -r <session> on second start"
         );
 
@@ -245,12 +248,13 @@ mod service_unified_tests {
             assert!(result.is_ok(), "Agent {} should be supported", agent_type);
 
             let command = result.unwrap();
+            let shell_command = &command.shell_command;
 
             // Verify command contains expected elements
-            assert!(command.contains(&format!("cd {}", session.worktree_path.display())));
+            assert!(shell_command.contains(&format!("cd {}", session.worktree_path.display())));
             // Verify the command contains the agent type
             assert!(
-                command.contains(agent_type),
+                shell_command.contains(agent_type),
                 "Command for {} should contain agent name",
                 agent_type
             );
@@ -275,7 +279,9 @@ mod service_unified_tests {
 
         assert!(result.is_ok());
         let command = result.unwrap();
-        assert!(command.contains("--sandbox danger-full-access"));
+        assert!(command
+            .shell_command
+            .contains("--sandbox danger-full-access"));
 
         // Test with skip_permissions = false
         session.id = Uuid::new_v4().to_string();
@@ -291,7 +297,7 @@ mod service_unified_tests {
 
         assert!(result.is_ok());
         let command = result.unwrap();
-        assert!(command.contains("--sandbox workspace-write"));
+        assert!(command.shell_command.contains("--sandbox workspace-write"));
     }
 
     fn sanitize_path_for_opencode(path: &Path) -> String {
@@ -364,18 +370,22 @@ mod service_unified_tests {
         let cmd = manager
             .start_claude_in_session_with_restart_and_binary(&session.name, false, &HashMap::new())
             .expect("expected OpenCode command");
+        let shell_command = &cmd.shell_command;
 
         assert!(
-            cmd.contains("opencode"),
-            "expected opencode binary to be invoked: {cmd}"
+            shell_command.contains("opencode"),
+            "expected opencode binary to be invoked: {}",
+            shell_command
         );
         assert!(
-            cmd.contains("--session \"oc-session\""),
-            "expected resume via --session when history exists: {cmd}"
+            shell_command.contains("--session \"oc-session\""),
+            "expected resume via --session when history exists: {}",
+            shell_command
         );
         assert!(
-            !cmd.contains("--prompt"),
-            "should not include prompt when resuming: {cmd}"
+            !shell_command.contains("--prompt"),
+            "should not include prompt when resuming: {}",
+            shell_command
         );
 
         if let Some(prev) = prev_home {
@@ -404,13 +414,14 @@ mod service_unified_tests {
         let cmd_first = manager
             .start_claude_in_session_with_restart_and_binary(&session.name, false, &HashMap::new())
             .expect("expected OpenCode command");
+        let first_shell = &cmd_first.shell_command;
 
         assert!(
-            !cmd_first.contains("--session"),
+            !first_shell.contains("--session"),
             "resume should be gated off on first start"
         );
         assert!(
-            cmd_first.contains("--prompt \"test prompt\""),
+            first_shell.contains("--prompt \"test prompt\""),
             "first start should use initial prompt when resume is gated"
         );
 
@@ -426,13 +437,14 @@ mod service_unified_tests {
         let cmd_second = manager
             .start_claude_in_session_with_restart_and_binary(&session.name, false, &HashMap::new())
             .expect("expected OpenCode command");
+        let second_shell = &cmd_second.shell_command;
 
         assert!(
-            cmd_second.contains("--session \"oc-gate\""),
+            second_shell.contains("--session \"oc-gate\""),
             "second start should resume once gate is lifted"
         );
         assert!(
-            !cmd_second.contains("--prompt"),
+            !second_shell.contains("--prompt"),
             "resume path should not include prompt"
         );
 
@@ -496,23 +508,28 @@ mod service_unified_tests {
         let cmd = manager
             .start_claude_in_session(&running.name)
             .expect("expected start command");
+        let shell_command = &cmd.shell_command;
 
         // Verify Codex is used with the correct sandbox and prompt, and no resume flags on first start
         assert!(
-            cmd.contains(" codex ") || cmd.ends_with(" codex"),
-            "expected Codex binary in command: {cmd}"
+            shell_command.contains(" codex ") || shell_command.ends_with(" codex"),
+            "expected Codex binary in command: {}",
+            shell_command
         );
         assert!(
-            cmd.contains("--sandbox danger-full-access"),
-            "expected danger sandbox when skip_permissions=true: {cmd}"
+            shell_command.contains("--sandbox danger-full-access"),
+            "expected danger sandbox when skip_permissions=true: {}",
+            shell_command
         );
         assert!(
-            cmd.contains(spec_content),
-            "expected spec content to be used as initial prompt: {cmd}"
+            shell_command.contains(spec_content),
+            "expected spec content to be used as initial prompt: {}",
+            shell_command
         );
         assert!(
-            !(cmd.contains(" codex --sandbox ") && cmd.contains(" resume")),
-            "should not resume on first start after spec: {cmd}"
+            !(shell_command.contains(" codex --sandbox ") && shell_command.contains(" resume")),
+            "should not resume on first start after spec: {}",
+            shell_command
         );
 
         // Prepare a fake Codex sessions directory so resume detection finds a matching session
@@ -541,10 +558,12 @@ mod service_unified_tests {
 
         // Second start should allow resume now (gate flips after fresh start and session file exists)
         let cmd2 = manager.start_claude_in_session(&running.name).unwrap();
-        let resumed = cmd2.contains(" codex --sandbox ") && cmd2.contains(" resume");
+        let resumed = cmd2.shell_command.contains(" codex --sandbox ")
+            && cmd2.shell_command.contains(" resume");
         assert!(
             resumed,
-            "expected resume-capable command on second start: {cmd2}"
+            "expected resume-capable command on second start: {}",
+            cmd2.shell_command
         );
 
         // Restore HOME
@@ -1833,7 +1852,7 @@ impl SessionManager {
         Ok(sorted_sessions)
     }
 
-    pub fn start_claude_in_session(&self, session_name: &str) -> Result<String> {
+    pub fn start_claude_in_session(&self, session_name: &str) -> Result<AgentLaunchSpec> {
         self.start_claude_in_session_with_restart(session_name, false)
     }
 
@@ -1841,7 +1860,7 @@ impl SessionManager {
         &self,
         session_name: &str,
         force_restart: bool,
-    ) -> Result<String> {
+    ) -> Result<AgentLaunchSpec> {
         self.start_claude_in_session_with_restart_and_binary(
             session_name,
             force_restart,
@@ -1853,7 +1872,7 @@ impl SessionManager {
         &self,
         session_name: &str,
         binary_paths: &HashMap<String, String>,
-    ) -> Result<String> {
+    ) -> Result<AgentLaunchSpec> {
         self.start_claude_in_session_with_restart_and_binary(session_name, false, binary_paths)
     }
 
@@ -1861,7 +1880,7 @@ impl SessionManager {
         &self,
         session_name: &str,
         _cli_args: Option<&str>,
-    ) -> Result<String> {
+    ) -> Result<AgentLaunchSpec> {
         self.start_claude_in_session_with_args_and_binary(session_name, _cli_args, &HashMap::new())
     }
 
@@ -1870,7 +1889,7 @@ impl SessionManager {
         session_name: &str,
         _cli_args: Option<&str>,
         binary_paths: &HashMap<String, String>,
-    ) -> Result<String> {
+    ) -> Result<AgentLaunchSpec> {
         self.start_claude_in_session_with_restart_and_binary(session_name, false, binary_paths)
     }
 
@@ -1879,7 +1898,7 @@ impl SessionManager {
         session_name: &str,
         force_restart: bool,
         binary_paths: &HashMap<String, String>,
-    ) -> Result<String> {
+    ) -> Result<AgentLaunchSpec> {
         let session = self.db_manager.get_session_by_name(session_name)?;
         let skip_permissions = session
             .original_skip_permissions
@@ -1968,7 +1987,7 @@ impl SessionManager {
                 skip_permissions,
                 Some(&binary_path),
             ) {
-                return Ok(spec.format_for_shell());
+                return Ok(spec);
             }
         }
 
@@ -2086,7 +2105,7 @@ impl SessionManager {
                 skip_permissions,
                 Some(&binary_path),
             ) {
-                return Ok(spec.format_for_shell());
+                return Ok(spec);
             }
         }
 
@@ -2178,7 +2197,7 @@ impl SessionManager {
                 skip_permissions,
                 Some(&binary_path),
             ) {
-                return Ok(spec.format_for_shell());
+                return Ok(spec);
             }
         }
 
@@ -2200,7 +2219,7 @@ impl SessionManager {
             skip_permissions,
             Some(&binary_path),
         ) {
-            Ok(spec.format_for_shell())
+            Ok(spec)
         } else {
             log::error!("Unknown agent type '{agent_type}' for session '{session_name}'");
             let supported = registry.supported_agents().join(", ");
@@ -2210,18 +2229,18 @@ impl SessionManager {
         }
     }
 
-    pub fn start_claude_in_orchestrator(&self) -> Result<String> {
+    pub fn start_claude_in_orchestrator(&self) -> Result<AgentLaunchSpec> {
         self.start_claude_in_orchestrator_with_args(None)
     }
 
-    pub fn start_claude_in_orchestrator_fresh(&self) -> Result<String> {
+    pub fn start_claude_in_orchestrator_fresh(&self) -> Result<AgentLaunchSpec> {
         self.start_claude_in_orchestrator_fresh_with_binary(&HashMap::new())
     }
 
     pub fn start_claude_in_orchestrator_fresh_with_binary(
         &self,
         binary_paths: &HashMap<String, String>,
-    ) -> Result<String> {
+    ) -> Result<AgentLaunchSpec> {
         log::info!(
             "Building FRESH orchestrator command (no session resume) for repo: {}",
             self.repo_path.display()
@@ -2256,14 +2275,14 @@ impl SessionManager {
     pub fn start_claude_in_orchestrator_with_binary(
         &self,
         binary_paths: &HashMap<String, String>,
-    ) -> Result<String> {
+    ) -> Result<AgentLaunchSpec> {
         self.start_claude_in_orchestrator_with_args_and_binary(None, binary_paths)
     }
 
     pub fn start_claude_in_orchestrator_with_args(
         &self,
         _cli_args: Option<&str>,
-    ) -> Result<String> {
+    ) -> Result<AgentLaunchSpec> {
         self.start_claude_in_orchestrator_with_args_and_binary(_cli_args, &HashMap::new())
     }
 
@@ -2271,7 +2290,7 @@ impl SessionManager {
         &self,
         _cli_args: Option<&str>,
         binary_paths: &HashMap<String, String>,
-    ) -> Result<String> {
+    ) -> Result<AgentLaunchSpec> {
         log::info!(
             "Building orchestrator command for repo: {}",
             self.repo_path.display()
@@ -2305,7 +2324,7 @@ impl SessionManager {
         skip_permissions: bool,
         binary_paths: &HashMap<String, String>,
         resume_session: bool,
-    ) -> Result<String> {
+    ) -> Result<AgentLaunchSpec> {
         let registry = crate::domains::agents::unified::AgentRegistry::new();
 
         // Special handling for Claude orchestrator resumes (deterministic session lookup)
@@ -2342,7 +2361,7 @@ impl SessionManager {
                 skip_permissions,
                 Some(&binary_path),
             ) {
-                return Ok(spec.format_for_shell());
+                return Ok(spec);
             }
         }
 
@@ -2368,7 +2387,7 @@ impl SessionManager {
             skip_permissions,
             Some(&binary_path),
         ) {
-            Ok(spec.format_for_shell())
+            Ok(spec)
         } else {
             log::error!("Unknown agent type '{agent_type}' for orchestrator");
             let supported = registry.supported_agents().join(", ");

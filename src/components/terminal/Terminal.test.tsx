@@ -382,6 +382,38 @@ describe('Terminal component', () => {
     }
   })
 
+  it('avoids duplicating snapshot output when events arrive during hydration', async () => {
+    let snapshotCalls = 0
+    ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => {
+      snapshotCalls += 1
+      if (snapshotCalls === 1) {
+        ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-dup-top', 'READY')
+        return {
+          seq: 1,
+          startSeq: 0,
+          data: 'READY'
+        }
+      }
+      return {
+        seq: 1,
+        startSeq: 0,
+        data: ''
+      }
+    })
+
+    renderTerminal({ terminalId: 'session-dup-top', sessionName: 'dup' })
+
+    await flushAll()
+    await flushAll()
+
+    const xterm = getLastXtermInstance()
+    const allWrites = (xterm.write as unknown as { mock: { calls: unknown[][] } }).mock.calls
+      .map((call: unknown[]) => call[0])
+      .join('')
+    const occurrences = allWrites.split('READY').length - 1
+    expect(occurrences).toBe(1)
+  })
+
   it('flushes output even when container has zero size (renderer ready after open)', async () => {
     ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => ({
       seq: 0,

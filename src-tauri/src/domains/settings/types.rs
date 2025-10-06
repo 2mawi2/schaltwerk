@@ -8,6 +8,7 @@ pub struct AgentCliArgs {
     pub opencode: String,
     pub gemini: String,
     pub codex: String,
+    pub droid: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -16,6 +17,7 @@ pub struct AgentInitialCommands {
     pub opencode: String,
     pub gemini: String,
     pub codex: String,
+    pub droid: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -24,6 +26,7 @@ pub struct AgentEnvVars {
     pub opencode: HashMap<String, String>,
     pub gemini: HashMap<String, String>,
     pub codex: HashMap<String, String>,
+    pub droid: HashMap<String, String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -83,7 +86,7 @@ pub struct TerminalSettings {
     pub font_family: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct AgentBinaryConfig {
     pub agent_name: String,
     pub custom_path: Option<String>,
@@ -97,6 +100,7 @@ pub struct AgentBinaryConfigs {
     pub opencode: Option<AgentBinaryConfig>,
     pub gemini: Option<AgentBinaryConfig>,
     pub codex: Option<AgentBinaryConfig>,
+    pub droid: Option<AgentBinaryConfig>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]

@@ -202,6 +202,45 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_queue_initial_command_dispatches_on_ready_marker() {
+        let manager = TerminalManager::new();
+        let id = unique_id("initial-cmd-ready");
+
+        manager
+            .create_terminal(id.clone(), "/tmp".to_string())
+            .await
+            .unwrap();
+
+        manager
+            .queue_initial_command(
+                id.clone(),
+                "echo AUTO_COMMAND".to_string(),
+                Some("READY_MARKER".to_string()),
+            )
+            .await
+            .unwrap();
+
+        manager
+            .write_terminal(id.clone(), b"echo READY_MARKER\n".to_vec())
+            .await
+            .unwrap();
+
+        sleep(Duration::from_millis(400)).await;
+
+        let buffer = read_buffer(&manager, id.clone()).await;
+        assert!(
+            buffer.contains("echo AUTO_COMMAND"),
+            "Terminal buffer should include queued command"
+        );
+        assert!(
+            buffer.contains("AUTO_COMMAND"),
+            "Terminal buffer should include command output"
+        );
+
+        safe_close(&manager, &id).await;
+    }
+
+    #[tokio::test]
     async fn test_environment_variable_handling() {
         let manager = TerminalManager::new();
         let id = unique_id("env-vars");

@@ -1,11 +1,12 @@
-export const AGENT_TYPES = ['claude', 'opencode', 'gemini', 'codex'] as const
+export const AGENT_TYPES = ['claude', 'opencode', 'gemini', 'codex', 'droid'] as const
 export type AgentType = (typeof AGENT_TYPES)[number]
 
 export const AGENT_SUPPORTS_SKIP_PERMISSIONS: Record<AgentType, boolean> = {
     claude: true,
     opencode: false,
     gemini: true,
-    codex: true
+    codex: true,
+    droid: true
 }
 
 export function createAgentRecord<T>(factory: (agent: AgentType) => T): Record<AgentType, T> {

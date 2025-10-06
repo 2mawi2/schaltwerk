@@ -11,6 +11,8 @@ const markdownFocus = {
   focusEnd: vi.fn(),
 }
 
+const DROID_PROMPT_LIMIT_MESSAGE = 'Droid currently supports up to 6 lines in initial prompts. You can paste additional content after the agent starts.'
+
 vi.mock('../plans/MarkdownEditor', async () => {
   const React = await import('react')
   const { forwardRef, useImperativeHandle, useRef } = React
@@ -394,6 +396,46 @@ describe('NewSessionModal', () => {
     await waitFor(() => expect(onCreate).toHaveBeenCalled())
     const payload = onCreate.mock.calls[0][0]
     expect(payload.versionCount).toBe(3)
+  })
+
+  it('enforces Droid prompt line limit', async () => {
+    openModal()
+
+    // Wait for modal ready
+    await waitFor(() => {
+      expect(screen.getByText('Start new agent')).toBeInTheDocument()
+    })
+
+    const agentDropdown = await screen.findByRole('button', { name: /Claude/i })
+    fireEvent.click(agentDropdown)
+
+    const droidOptions = await screen.findAllByRole('button', { name: /droid/i })
+    const droidOption = droidOptions[droidOptions.length - 1]
+    fireEvent.click(droidOption)
+
+    const editorContainer = await screen.findByTestId('mock-markdown-editor') as HTMLDivElement
+    const textarea = editorContainer.querySelector('textarea') as HTMLTextAreaElement
+    const longPrompt = Array.from({ length: 7 }, (_, index) => `line ${index + 1}`).join('\n')
+
+    fireEvent.change(textarea, { target: { value: longPrompt } })
+
+    await waitFor(() => {
+      expect(screen.getByText(DROID_PROMPT_LIMIT_MESSAGE)).toBeInTheDocument()
+    })
+
+    const startButton = screen.getByTitle('Start agent (Cmd+Enter)') as HTMLButtonElement
+    expect(startButton).toBeDisabled()
+
+    const validPrompt = Array.from({ length: 6 }, (_, index) => `line ${index + 1}`).join('\n')
+    fireEvent.change(textarea, { target: { value: validPrompt } })
+
+    await waitFor(() => {
+      expect(screen.queryByText(DROID_PROMPT_LIMIT_MESSAGE)).not.toBeInTheDocument()
+    })
+
+    await waitFor(() => {
+      expect(startButton).not.toBeDisabled()
+    })
   })
 
   it('hides version selector when creating a spec', async () => {

@@ -10,6 +10,8 @@ pub struct AgentDefinition {
     pub default_binary_path: String,
     pub auto_send_initial_command: bool,
     pub supports_resume: bool,
+    #[serde(default)]
+    pub ready_marker: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -57,6 +59,7 @@ mod tests {
         assert!(AgentManifest::get("codex").is_some());
         assert!(AgentManifest::get("gemini").is_some());
         assert!(AgentManifest::get("opencode").is_some());
+        assert!(AgentManifest::get("droid").is_some());
     }
 
     #[test]
@@ -73,12 +76,30 @@ mod tests {
     #[test]
     fn test_supported_agents_sorted() {
         let agents = AgentManifest::supported_agents();
-        assert!(agents.len() >= 4);
+        assert!(agents.len() >= 5);
 
-        let expected = vec!["claude", "codex", "gemini", "opencode"];
+        let expected = vec!["claude", "codex", "droid", "gemini", "opencode"];
         for agent in expected {
             assert!(agents.contains(&agent.to_string()));
         }
+    }
+
+    #[test]
+    fn test_droid_definition() {
+        let droid = AgentManifest::get("droid").expect("Droid manifest entry missing");
+        assert_eq!(droid.id, "droid");
+        assert_eq!(droid.display_name, "Droid");
+        assert_eq!(droid.binary_name, "droid");
+        assert_eq!(
+            droid.default_binary_path,
+            "/Users/marius.wichtner/.local/bin/droid"
+        );
+        assert!(droid.auto_send_initial_command);
+        assert!(!droid.supports_resume);
+        assert_eq!(
+            droid.ready_marker.as_deref(),
+            Some("You are standing in an open terminal. An AI awaits your commands.")
+        );
     }
 
     #[test]

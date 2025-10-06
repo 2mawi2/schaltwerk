@@ -19,6 +19,8 @@ export const displayNameForAgent = (agent: AgentType) => {
             return 'Gemini'
         case 'codex':
             return 'Codex'
+        case 'droid':
+            return 'Droid'
         default:
             return 'Claude'
     }

@@ -7,7 +7,7 @@ import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
 import { invoke } from '@tauri-apps/api/core'
-import { startOrchestratorTop, startSessionTop } from '../../common/agentSpawn'
+import { startOrchestratorTop, startSessionTop, AGENT_START_TIMEOUT_MESSAGE } from '../../common/agentSpawn'
 import { schedulePtyResize } from '../../common/ptyResizeScheduler'
 import { clearInflights } from '../../utils/singleflight'
 import { UnlistenFn } from '@tauri-apps/api/event';
@@ -1398,6 +1398,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 }
                 logger.info(`[Terminal ${terminalId}] Hydration started (plugin=${pluginTransportActive})`);
                 let snapshotBytes = 0;
+                let pendingSkipCount = 0;
                 if (!pluginTransportActive) {
                     const snapshot = await invoke<TerminalBufferResponse>(TauriCommands.GetTerminalBuffer, {
                         id: terminalId,
@@ -1410,10 +1411,16 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                         enqueueWrite(snapshot.data);
                         snapshotBytes = snapshot.data.length;
                     }
+                    pendingSkipCount = pendingOutput.current.length;
                 }
                 // Queue any pending output that arrived during hydration
                 if (pendingOutput.current.length > 0) {
-                    for (const output of pendingOutput.current) {
+                    const outputs = pendingOutput.current;
+                    const startIndex = pluginTransportActive
+                        ? 0
+                        : Math.min(pendingSkipCount, outputs.length);
+                    for (let i = startIndex; i < outputs.length; i += 1) {
+                        const output = outputs[i];
                         enqueueWrite(output);
                     }
                     pendingOutput.current = [];
@@ -2033,6 +2040,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                         } else if (errorMessage.includes('Failed to spawn command')) {
                             logger.error(`[Terminal ${terminalId}] Spawn failure details:`, errorMessage);
                             emitUiEvent(UiEvent.SpawnError, { error: errorMessage, terminalId });
+                        } else if (errorMessage.includes(AGENT_START_TIMEOUT_MESSAGE)) {
+                            emitUiEvent(UiEvent.SpawnError, { error: errorMessage, terminalId });
                          } else if (errorMessage.includes('not a git repository')) {
                              logger.error(`[Terminal ${terminalId}] Not a git repository:`, errorMessage);
                              emitUiEvent(UiEvent.NotGitError, { error: errorMessage, terminalId });
@@ -2095,6 +2104,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                         const errorMessage = String(e);
                         if (errorMessage.includes('Permission required for folder:')) {
                             emitUiEvent(UiEvent.PermissionError, { error: errorMessage });
+                        } else if (errorMessage.includes(AGENT_START_TIMEOUT_MESSAGE)) {
+                            emitUiEvent(UiEvent.SpawnError, { error: errorMessage, terminalId });
                          }
                          throw e;
                      }

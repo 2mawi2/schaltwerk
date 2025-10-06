@@ -4,11 +4,12 @@ import { theme } from '../../common/theme'
 import { Dropdown } from './Dropdown'
 import { AgentType, AGENT_TYPES, AGENT_SUPPORTS_SKIP_PERMISSIONS } from '../../types/session'
 
-const MODEL_METADATA: Record<AgentType, { label: string; color: 'blue' | 'green' | 'orange' | 'red' }> = {
+const MODEL_METADATA: Record<AgentType, { label: string; color: 'blue' | 'green' | 'orange' | 'red' | 'violet' }> = {
     claude: { label: 'Claude', color: 'blue' },
     opencode: { label: 'OpenCode', color: 'green' },
     gemini: { label: 'Gemini', color: 'orange' },
-    codex: { label: 'Codex', color: 'red' }
+    codex: { label: 'Codex', color: 'red' },
+    droid: { label: 'Droid', color: 'violet' }
 }
 
 interface ModelSelectorProps {
@@ -84,6 +85,7 @@ export function ModelSelector({ value, onChange, disabled = false, skipPermissio
                                   backgroundColor: model.color === 'blue' ? theme.colors.accent.blue.DEFAULT :
                                                   model.color === 'green' ? theme.colors.accent.green.DEFAULT :
                                                   model.color === 'orange' ? theme.colors.accent.amber.DEFAULT :
+                                                  model.color === 'violet' ? theme.colors.accent.violet.DEFAULT :
                                                   theme.colors.accent.red.DEFAULT
                               }} />
                     )}

@@ -46,6 +46,90 @@ impl TerminalState {
     }
 }
 
+#[derive(Clone)]
+struct InitialCommandState {
+    command: String,
+    ready_marker: Option<Vec<u8>>,
+    buffer: Vec<u8>,
+}
+
+fn contains_subsequence(haystack: &[u8], needle: &[u8]) -> bool {
+    if needle.is_empty() {
+        return true;
+    }
+
+    if needle.len() > haystack.len() {
+        return false;
+    }
+
+    haystack
+        .windows(needle.len())
+        .any(|window| window == needle)
+}
+
+async fn maybe_dispatch_initial_command(
+    initial_commands: &Arc<Mutex<HashMap<String, InitialCommandState>>>,
+    pty_writers: &Arc<Mutex<HashMap<String, Box<dyn Write + Send>>>>,
+    coalescing_state: &CoalescingState,
+    terminal_id: &str,
+    chunk: &[u8],
+) {
+    let mut command_to_send: Option<String> = None;
+
+    {
+        let mut commands_guard = initial_commands.lock().await;
+        if let Some(state) = commands_guard.get_mut(terminal_id) {
+            match &state.ready_marker {
+                Some(marker) if !marker.is_empty() => {
+                    state.buffer.extend_from_slice(chunk);
+                    if contains_subsequence(&state.buffer, marker) {
+                        command_to_send = Some(state.command.clone());
+                        commands_guard.remove(terminal_id);
+                    } else if state.buffer.len() > marker.len() {
+                        let keep = marker.len();
+                        let start = state.buffer.len() - keep;
+                        state.buffer.drain(0..start);
+                    }
+                }
+                _ => {
+                    command_to_send = Some(state.command.clone());
+                    commands_guard.remove(terminal_id);
+                }
+            }
+        }
+    }
+
+    if let Some(command) = command_to_send {
+        info!("Dispatching queued initial command for terminal {terminal_id}");
+
+        let mut writers_guard = pty_writers.lock().await;
+        if let Some(writer) = writers_guard.get_mut(terminal_id) {
+            let mut payload = Vec::with_capacity(command.len() + 6);
+            payload.extend_from_slice(b"\x1b[200~");
+            payload.extend_from_slice(command.as_bytes());
+            payload.extend_from_slice(b"\x1b[201~");
+            payload.push(b'\r');
+
+            if let Err(e) = writer.write_all(&payload) {
+                warn!("Failed to write initial command for terminal {terminal_id}: {e}");
+            } else if let Err(e) = writer.flush() {
+                warn!("Failed to flush initial command for terminal {terminal_id}: {e}");
+            }
+        } else {
+            warn!("No writer found to dispatch initial command for terminal {terminal_id}");
+        }
+        drop(writers_guard);
+
+        let handle_guard = coalescing_state.app_handle.lock().await;
+        if let Some(handle) = handle_guard.as_ref() {
+            let event_payload = serde_json::json!({ "terminal_id": terminal_id });
+            if let Err(e) = emit_event(handle, SchaltEvent::TerminalForceScroll, &event_payload) {
+                warn!("Failed to emit terminal force scroll event for {terminal_id}: {e}");
+            }
+        }
+    }
+}
+
 pub struct LocalPtyAdapter {
     terminals: Arc<RwLock<HashMap<String, TerminalState>>>,
     creating: Arc<Mutex<HashSet<String>>>,
@@ -59,6 +143,7 @@ pub struct LocalPtyAdapter {
     coalescing_state: CoalescingState,
     suspended: Arc<RwLock<HashSet<String>>>,
     pending_control_sequences: Arc<Mutex<HashMap<String, Vec<u8>>>>,
+    initial_commands: Arc<Mutex<HashMap<String, InitialCommandState>>>,
     // Event broadcasting for deterministic testing
     output_event_sender: Arc<broadcast::Sender<(String, u64)>>, // (terminal_id, new_seq)
 }
@@ -71,6 +156,7 @@ struct ReaderState {
     coalescing_state: CoalescingState,
     suspended: Arc<RwLock<HashSet<String>>>,
     pending_control_sequences: Arc<Mutex<HashMap<String, Vec<u8>>>>,
+    initial_commands: Arc<Mutex<HashMap<String, InitialCommandState>>>,
     output_event_sender: Arc<broadcast::Sender<(String, u64)>>,
 }
 
@@ -110,6 +196,7 @@ impl LocalPtyAdapter {
             },
             suspended: Arc::new(RwLock::new(HashSet::new())),
             pending_control_sequences: Arc::new(Mutex::new(HashMap::new())),
+            initial_commands: Arc::new(Mutex::new(HashMap::new())),
             output_event_sender: Arc::new(output_event_sender),
         }
     }
@@ -292,7 +379,10 @@ impl LocalPtyAdapter {
 
                         let id_clone = id.clone();
                         let terminals_clone = Arc::clone(&reader_state.terminals);
-                        let coalescing_state_clone = reader_state.coalescing_state.clone();
+                        let coalescing_state_output = reader_state.coalescing_state.clone();
+                        let coalescing_state_ready = reader_state.coalescing_state.clone();
+                        let initial_commands_clone = Arc::clone(&reader_state.initial_commands);
+                        let pty_writers_clone_for_ready = Arc::clone(&reader_state.pty_writers);
                         let suspended_clone = Arc::clone(&reader_state.suspended);
                         let output_event_sender_clone =
                             Arc::clone(&reader_state.output_event_sender);
@@ -333,11 +423,20 @@ impl LocalPtyAdapter {
                                     }
 
                                     handle_coalesced_output(
-                                        &coalescing_state_clone,
+                                        &coalescing_state_output,
                                         CoalescingParams {
                                             terminal_id: &id_clone,
                                             data: &sanitized_data,
                                         },
+                                    )
+                                    .await;
+
+                                    maybe_dispatch_initial_command(
+                                        &initial_commands_clone,
+                                        &pty_writers_clone_for_ready,
+                                        &coalescing_state_ready,
+                                        &id_clone,
+                                        &sanitized_data,
                                     )
                                     .await;
 
@@ -433,6 +532,7 @@ impl LocalPtyAdapter {
                 coalescing_state: self.coalescing_state.clone(),
                 suspended: Arc::clone(&self.suspended),
                 pending_control_sequences: Arc::clone(&self.pending_control_sequences),
+                initial_commands: Arc::clone(&self.initial_commands),
                 output_event_sender: Arc::clone(&self.output_event_sender),
             },
         );
@@ -622,6 +722,34 @@ impl TerminalBackend for LocalPtyAdapter {
         }
     }
 
+    async fn queue_initial_command(
+        &self,
+        id: &str,
+        command: String,
+        ready_marker: Option<String>,
+    ) -> Result<(), String> {
+        let marker_bytes = ready_marker.and_then(|marker| {
+            if marker.trim().is_empty() {
+                None
+            } else {
+                Some(marker.into_bytes())
+            }
+        });
+
+        let state = InitialCommandState {
+            command,
+            ready_marker: marker_bytes,
+            buffer: Vec::new(),
+        };
+
+        self.initial_commands
+            .lock()
+            .await
+            .insert(id.to_string(), state);
+
+        Ok(())
+    }
+
     async fn resize(&self, id: &str, cols: u16, rows: u16) -> Result<(), String> {
         if let Some(master) = self.pty_masters.lock().await.get(id) {
             master
@@ -689,6 +817,7 @@ impl TerminalBackend for LocalPtyAdapter {
         self.terminals.write().await.remove(id);
         self.suspended.write().await.remove(id);
         self.pending_control_sequences.lock().await.remove(id);
+        self.initial_commands.lock().await.remove(id);
 
         // Clear coalescing buffers
         self.coalescing_state.clear_for(id).await;
@@ -785,6 +914,7 @@ impl TerminalBackend for LocalPtyAdapter {
         self.terminals.write().await.clear();
         self.suspended.write().await.clear();
         self.pending_control_sequences.lock().await.clear();
+        self.initial_commands.lock().await.clear();
         self.coalescing_state.clear_all().await;
 
         info!("All terminals force killed");

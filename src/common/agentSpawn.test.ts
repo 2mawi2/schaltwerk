@@ -1,5 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { computeProjectOrchestratorId, computeSpawnSize, RIGHT_EDGE_GUARD_COLUMNS, startSessionTop, startOrchestratorTop } from './agentSpawn'
+import {
+  computeProjectOrchestratorId,
+  computeSpawnSize,
+  RIGHT_EDGE_GUARD_COLUMNS,
+  startSessionTop,
+  startOrchestratorTop,
+  AGENT_START_TIMEOUT_MS,
+  AGENT_START_TIMEOUT_MESSAGE,
+} from './agentSpawn'
 import { TauriCommands } from './tauriCommands'
 
 // Mock dependencies
@@ -246,6 +254,36 @@ describe('agentSpawn', () => {
       expect(clearBackgroundStarts).toHaveBeenCalledWith(['session-test-top'])
     })
 
+    it('rejects when start exceeds timeout and cleans up marks', async () => {
+      vi.useFakeTimers()
+      const pending = new Promise<never>(() => {})
+      vi.mocked(invoke).mockImplementation((cmd: string) => {
+        if (cmd === TauriCommands.SchaltwerkCoreGetSession) {
+          return Promise.resolve({ original_agent_type: null })
+        }
+        if (cmd === TauriCommands.SchaltwerkCoreStartSessionAgent) {
+          return pending
+        }
+        return Promise.resolve(null)
+      })
+
+      try {
+        const startPromise = startSessionTop({
+          sessionName: 'test-session',
+          topId: 'session-test-top'
+        })
+
+        const expectation = expect(startPromise).rejects.toThrow(AGENT_START_TIMEOUT_MESSAGE)
+
+        await vi.advanceTimersByTimeAsync(AGENT_START_TIMEOUT_MS)
+
+        await expectation
+        expect(clearBackgroundStarts).toHaveBeenCalledWith(['session-test-top'])
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     it('continues to throw error after cleanup', async () => {
       const error = new Error('Start failed')
       vi.mocked(singleflight).mockRejectedValue(error)
@@ -324,6 +362,32 @@ describe('agentSpawn', () => {
       })).rejects.toThrow('Orchestrator start failed')
 
       expect(clearBackgroundStarts).toHaveBeenCalledWith(['orchestrator-test-top'])
+    })
+
+    it('rejects orchestrator start when timeout elapses', async () => {
+      vi.useFakeTimers()
+      const pending = new Promise<never>(() => {})
+      vi.mocked(invoke).mockImplementation((cmd: string) => {
+        if (cmd === TauriCommands.SchaltwerkCoreStartClaudeOrchestrator) {
+          return pending
+        }
+        return Promise.resolve(null)
+      })
+
+      try {
+        const startPromise = startOrchestratorTop({
+          terminalId: 'orchestrator-timeout-top'
+        })
+
+        const expectation = expect(startPromise).rejects.toThrow(AGENT_START_TIMEOUT_MESSAGE)
+
+        await vi.advanceTimersByTimeAsync(AGENT_START_TIMEOUT_MS)
+
+        await expectation
+        expect(clearBackgroundStarts).toHaveBeenCalledWith(['orchestrator-timeout-top'])
+      } finally {
+        vi.useRealTimers()
+      }
     })
   })
 

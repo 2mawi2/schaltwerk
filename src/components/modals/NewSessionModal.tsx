@@ -23,6 +23,9 @@ import type { MarkdownEditorRef } from '../plans/MarkdownEditor'
 
 const MarkdownEditor = lazy(() => import('../plans/MarkdownEditor').then(m => ({ default: m.MarkdownEditor })))
 
+const DROID_PROMPT_MAX_LINES = 6
+const DROID_PROMPT_LIMIT_MESSAGE = 'Droid currently supports up to 6 lines in initial prompts. You can paste additional content after the agent starts.'
+
 interface Props {
     open: boolean
     initialIsDraft?: boolean
@@ -51,6 +54,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
     const [agentType, setAgentType] = useState<AgentType>('claude')
     const [skipPermissions, setSkipPermissions] = useState(false)
     const [validationError, setValidationError] = useState('')
+    const [promptValidationError, setPromptValidationError] = useState('')
     const [creating, setCreating] = useState(false)
     const [createAsDraft, setCreateAsDraft] = useState(false)
     const [versionCount, setVersionCount] = useState<number>(1)
@@ -83,6 +87,9 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
 
     const handleAgentTypeChange = (type: AgentType) => {
         setAgentType(type)
+        if (promptValidationError) {
+            setPromptValidationError('')
+        }
     }
 
     const handleSkipPermissionsChange = (enabled: boolean) => {
@@ -159,6 +166,14 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
         [updateEnvVarsForAgent]
     )
 
+    const countPromptLines = useCallback((value: string): number => {
+        const normalized = value.replace(/\r\n/g, '\n').replace(/\n+$/, '')
+        if (!normalized) {
+            return 0
+        }
+        return normalized.split('\n').length
+    }, [])
+
     const validateSessionName = useCallback((sessionName: string): string | null => {
         if (!sessionName.trim()) {
             return 'Agent name is required'
@@ -208,6 +223,14 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
              setValidationError('Please enter spec content')
              return
          }
+
+        if (!createAsDraft && agentType === 'droid') {
+            const lineCount = countPromptLines(taskContent)
+            if (lineCount > DROID_PROMPT_MAX_LINES) {
+                setPromptValidationError(DROID_PROMPT_LIMIT_MESSAGE)
+                return
+            }
+        }
         
         // Replace spaces with underscores for the actual session name
         finalName = finalName.replace(/ /g, '_')
@@ -255,7 +278,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
             // Parent handles showing the error; re-enable to allow retry
             setCreating(false)
         }
-    }, [creating, name, taskContent, baseBranch, onCreate, validateSessionName, createAsDraft, versionCount, agentType, skipPermissions, compareAgents, selectedAgents])
+    }, [creating, name, taskContent, baseBranch, onCreate, validateSessionName, createAsDraft, versionCount, agentType, skipPermissions, compareAgents, selectedAgents, countPromptLines])
 
     // Keep ref in sync immediately on render to avoid stale closures in tests
     createRef.current = handleCreate
@@ -263,6 +286,21 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
     // Track if the modal was previously open and with what initialIsDraft value
     const wasOpenRef = useRef(false)
     const lastInitialIsDraftRef = useRef<boolean | undefined>(undefined)
+
+    // TODO: Remove this validation once Droid CLI supports arbitrary-length prompts natively.
+    useEffect(() => {
+        const enforceLimit = !createAsDraft && agentType === 'droid'
+        if (!enforceLimit) {
+            setPromptValidationError(prev => (prev ? '' : prev))
+            return
+        }
+        const lineCount = countPromptLines(taskContent)
+        if (lineCount > DROID_PROMPT_MAX_LINES) {
+            setPromptValidationError(prev => (prev === DROID_PROMPT_LIMIT_MESSAGE ? prev : DROID_PROMPT_LIMIT_MESSAGE))
+        } else {
+            setPromptValidationError(prev => (prev ? '' : prev))
+        }
+    }, [agentType, createAsDraft, taskContent, countPromptLines])
 
     useEffect(() => {
         if (!open) return
@@ -378,6 +416,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                 wasEditedRef.current = false
                 setTaskContent(cachedPrompt)
                 setValidationError('')
+                setPromptValidationError('')
                 setCreateAsDraft(initialIsDraft)
                 setNameLocked(false)
                 setOriginalSpecName('')
@@ -436,6 +475,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
             setOriginalSpecName('')
             setName('')
             setValidationError('')
+            setPromptValidationError('')
             setCreating(false)
             setBaseBranch('')
             setAgentType('claude')
@@ -558,6 +598,13 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
 
     if (!open) return null
 
+    const isStartDisabled =
+        !name.trim() ||
+        (!createAsDraft && !baseBranch) ||
+        creating ||
+        (createAsDraft && !taskContent.trim()) ||
+        Boolean(promptValidationError)
+
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: theme.colors.overlay.backdrop }}>
             <div className="w-[720px] max-w-[95vw] rounded-xl shadow-xl" style={{ backgroundColor: theme.colors.background.tertiary, borderColor: theme.colors.border.subtle, border: '1px solid' }}>
@@ -624,6 +671,9 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                 if (validationError) {
                                     setValidationError('')
                                 }
+                                if (promptValidationError) {
+                                    setPromptValidationError('')
+                                }
                             }}
                             style={{ color: theme.colors.accent.cyan.DEFAULT }}
                         />
@@ -645,6 +695,9 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                         if (validationError) {
                                             setValidationError('')
                                         }
+                                        if (promptValidationError) {
+                                            setPromptValidationError('')
+                                        }
                                     }}
                                     placeholder={createAsDraft ? 'Enter spec content in markdown...' : 'Describe the agent for the Claude session'}
                                     className="h-full"
@@ -662,6 +715,14 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                 </>
                             )}
                         </p>
+                        {promptValidationError && (
+                            <div className="flex items-start gap-2 mt-1">
+                                <svg className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <p className="text-xs text-red-400">{promptValidationError}</p>
+                            </div>
+                        )}
                     </div>
 
                     {repositoryIsEmpty && !createAsDraft && (
@@ -832,8 +893,8 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                     </button>
                     <button 
                         onClick={handleCreate} 
-                        disabled={!name.trim() || (!createAsDraft && !baseBranch) || creating || (createAsDraft && !taskContent.trim())}
-                        className={`px-3 h-9 disabled:cursor-not-allowed rounded text-white group relative inline-flex items-center gap-2 ${(!name.trim() || (!createAsDraft && !baseBranch) || creating || (createAsDraft && !taskContent.trim())) ? 'opacity-60' : 'hover:opacity-90'}`}
+                        disabled={isStartDisabled}
+                        className={`px-3 h-9 disabled:cursor-not-allowed rounded text-white group relative inline-flex items-center gap-2 ${isStartDisabled ? 'opacity-60' : 'hover:opacity-90'}`}
                         style={{ 
                             backgroundColor: createAsDraft ? theme.colors.accent.amber.DEFAULT : theme.colors.accent.blue.DEFAULT,
                             opacity: creating ? 0.9 : 1

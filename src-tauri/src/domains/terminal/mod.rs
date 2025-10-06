@@ -37,6 +37,14 @@ pub trait TerminalBackend: Send + Sync {
     async fn close(&self, id: &str) -> Result<(), String>;
     async fn exists(&self, id: &str) -> Result<bool, String>;
     async fn snapshot(&self, id: &str, from_seq: Option<u64>) -> Result<TerminalSnapshot, String>;
+    async fn queue_initial_command(
+        &self,
+        _id: &str,
+        _command: String,
+        _ready_marker: Option<String>,
+    ) -> Result<(), String> {
+        Ok(())
+    }
     async fn suspend(&self, _id: &str) -> Result<(), String> {
         Ok(())
     }

@@ -54,6 +54,7 @@ impl SettingsService {
             "opencode" => self.settings.agent_env_vars.opencode.clone(),
             "gemini" => self.settings.agent_env_vars.gemini.clone(),
             "codex" => self.settings.agent_env_vars.codex.clone(),
+            "droid" => self.settings.agent_env_vars.droid.clone(),
             _ => HashMap::new(),
         }
     }
@@ -68,6 +69,7 @@ impl SettingsService {
             "opencode" => self.settings.agent_env_vars.opencode = env_vars,
             "gemini" => self.settings.agent_env_vars.gemini = env_vars,
             "codex" => self.settings.agent_env_vars.codex = env_vars,
+            "droid" => self.settings.agent_env_vars.droid = env_vars,
             _ => {
                 return Err(SettingsServiceError::UnknownAgentType(
                     agent_type.to_string(),
@@ -104,6 +106,7 @@ impl SettingsService {
             "opencode" => self.settings.agent_cli_args.opencode.clone(),
             "gemini" => self.settings.agent_cli_args.gemini.clone(),
             "codex" => self.settings.agent_cli_args.codex.clone(),
+            "droid" => self.settings.agent_cli_args.droid.clone(),
             _ => String::new(),
         }
     }
@@ -122,6 +125,7 @@ impl SettingsService {
             "opencode" => self.settings.agent_cli_args.opencode = cli_args.clone(),
             "gemini" => self.settings.agent_cli_args.gemini = cli_args.clone(),
             "codex" => self.settings.agent_cli_args.codex = cli_args.clone(),
+            "droid" => self.settings.agent_cli_args.droid = cli_args.clone(),
             _ => {
                 let error = format!("Unknown agent type: {agent_type}");
                 log::error!("Invalid agent type in set_agent_cli_args: {error}");
@@ -151,6 +155,7 @@ impl SettingsService {
             "opencode" => self.settings.agent_initial_commands.opencode.clone(),
             "gemini" => self.settings.agent_initial_commands.gemini.clone(),
             "codex" => self.settings.agent_initial_commands.codex.clone(),
+            "droid" => self.settings.agent_initial_commands.droid.clone(),
             _ => String::new(),
         }
     }
@@ -170,6 +175,7 @@ impl SettingsService {
             "opencode" => self.settings.agent_initial_commands.opencode = initial_command.clone(),
             "gemini" => self.settings.agent_initial_commands.gemini = initial_command.clone(),
             "codex" => self.settings.agent_initial_commands.codex = initial_command.clone(),
+            "droid" => self.settings.agent_initial_commands.droid = initial_command.clone(),
             _ => {
                 let error = format!("Unknown agent type: {agent_type}");
                 log::error!("Invalid agent type in set_agent_initial_command: {error}");
@@ -277,6 +283,7 @@ impl SettingsService {
             "opencode" => self.settings.agent_binaries.opencode.clone(),
             "gemini" => self.settings.agent_binaries.gemini.clone(),
             "codex" => self.settings.agent_binaries.codex.clone(),
+            "droid" => self.settings.agent_binaries.droid.clone(),
             _ => None,
         }
     }
@@ -290,6 +297,7 @@ impl SettingsService {
             "opencode" => self.settings.agent_binaries.opencode = Some(config),
             "gemini" => self.settings.agent_binaries.gemini = Some(config),
             "codex" => self.settings.agent_binaries.codex = Some(config),
+            "droid" => self.settings.agent_binaries.droid = Some(config),
             _ => return Err(SettingsServiceError::UnknownAgentType(config.agent_name)),
         }
         self.save()
@@ -307,6 +315,9 @@ impl SettingsService {
             configs.push(config.clone());
         }
         if let Some(config) = &self.settings.agent_binaries.codex {
+            configs.push(config.clone());
+        }
+        if let Some(config) = &self.settings.agent_binaries.droid {
             configs.push(config.clone());
         }
         configs
@@ -382,5 +393,70 @@ mod tests {
 
         assert!(service.set_auto_update_enabled(true).is_ok());
         assert!(repo_handle.snapshot().updater.auto_update_enabled);
+    }
+
+    #[test]
+    fn set_agent_cli_args_supports_droid() {
+        let repo = InMemoryRepository::default();
+        let repo_handle = repo.clone();
+        let mut service = SettingsService::new(Box::new(repo));
+
+        service
+            .set_agent_cli_args("droid", "--auto medium".to_string())
+            .expect("should accept droid CLI args");
+
+        assert_eq!(repo_handle.snapshot().agent_cli_args.droid, "--auto medium");
+    }
+
+    #[test]
+    fn set_agent_initial_command_supports_droid() {
+        let repo = InMemoryRepository::default();
+        let repo_handle = repo.clone();
+        let mut service = SettingsService::new(Box::new(repo));
+
+        service
+            .set_agent_initial_command("droid", "build project".to_string())
+            .expect("should accept droid initial command");
+
+        assert_eq!(
+            repo_handle.snapshot().agent_initial_commands.droid,
+            "build project"
+        );
+    }
+
+    #[test]
+    fn set_agent_env_vars_supports_droid() {
+        let repo = InMemoryRepository::default();
+        let repo_handle = repo.clone();
+        let mut service = SettingsService::new(Box::new(repo));
+
+        let mut vars = HashMap::new();
+        vars.insert("DROID_KEY".to_string(), "secret".to_string());
+
+        service
+            .set_agent_env_vars("droid", vars.clone())
+            .expect("should accept droid env vars");
+
+        assert_eq!(repo_handle.snapshot().agent_env_vars.droid, vars);
+    }
+
+    #[test]
+    fn set_agent_binary_config_supports_droid() {
+        let repo = InMemoryRepository::default();
+        let repo_handle = repo.clone();
+        let mut service = SettingsService::new(Box::new(repo));
+
+        let config = AgentBinaryConfig {
+            agent_name: "droid".to_string(),
+            custom_path: Some("/custom/droid".to_string()),
+            auto_detect: false,
+            detected_binaries: vec![],
+        };
+
+        service
+            .set_agent_binary_config(config.clone())
+            .expect("should accept droid binary config");
+
+        assert_eq!(repo_handle.snapshot().agent_binaries.droid, Some(config));
     }
 }

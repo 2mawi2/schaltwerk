@@ -24,14 +24,16 @@ describe('useSettings', () => {
         claude: [{ key: 'API_KEY', value: 'test-key' }],
         opencode: [{ key: 'OPENAI_API_KEY', value: 'openai-key' }],
         gemini: [{ key: 'PROJECT_ID', value: 'test-id' }],
-        codex: []
+        codex: [],
+        droid: [{ key: 'WELCOME_PROMPT', value: 'ready' }]
       }
 
       const cliArgs: Record<AgentType, string> = {
         claude: '--verbose',
         opencode: '--temperature 0.8',
         gemini: '--project test',
-        codex: ''
+        codex: '',
+        droid: '--auto medium'
       }
 
       await act(async () => {
@@ -62,7 +64,15 @@ describe('useSettings', () => {
         agentType: 'gemini',
         cliArgs: '--project test'
       })
-      expect(mockInvoke).toHaveBeenCalledTimes(8)
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetAgentEnvVars, {
+        agentType: 'droid',
+        envVars: { WELCOME_PROMPT: 'ready' }
+      })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetAgentCliArgs, {
+        agentType: 'droid',
+        cliArgs: '--auto medium'
+      })
+      expect(mockInvoke).toHaveBeenCalledTimes(10)
     })
 
     it('filters out empty environment variable keys', async () => {
@@ -76,14 +86,16 @@ describe('useSettings', () => {
         ],
         opencode: [],
         gemini: [],
-        codex: []
+        codex: [],
+        droid: []
       }
 
       const cliArgs: Record<AgentType, string> = {
         claude: '',
         opencode: '',
         gemini: '',
-        codex: ''
+        codex: '',
+        droid: ''
       }
 
       await act(async () => {
@@ -213,14 +225,16 @@ describe('useSettings', () => {
         claude: [],
         opencode: [],
         gemini: [],
-        codex: []
+        codex: [],
+        droid: []
       }
 
       const cliArgs: Record<AgentType, string> = {
         claude: '',
         opencode: '',
         gemini: '',
-        codex: ''
+        codex: '',
+        droid: ''
       }
       
       const projectSettings = {
@@ -280,14 +294,16 @@ describe('useSettings', () => {
         claude: [],
         opencode: [],
         gemini: [],
-        codex: []
+        codex: [],
+        droid: []
       }
 
       const cliArgs: Record<AgentType, string> = {
         claude: '',
         opencode: '',
         gemini: '',
-        codex: ''
+        codex: '',
+        droid: ''
       }
       
       const projectSettings = {
@@ -342,14 +358,16 @@ describe('useSettings', () => {
         claude: [],
         opencode: [],
         gemini: [],
-        codex: []
+        codex: [],
+        droid: []
       }
 
       const cliArgs: Record<AgentType, string> = {
         claude: '',
         opencode: '',
         gemini: '',
-        codex: ''
+        codex: '',
+        droid: ''
       }
 
       const projectSettings = {
@@ -436,7 +454,8 @@ describe('useSettings', () => {
         claude: [{ key: 'API_KEY', value: 'claude-key' }],
         opencode: [],
         gemini: [{ key: 'PROJECT', value: 'gemini-project' }],
-        codex: []
+        codex: [],
+        droid: []
       })
       expect(result.current.loading).toBe(false)
     })
@@ -454,7 +473,8 @@ describe('useSettings', () => {
         claude: [],
         opencode: [],
         gemini: [],
-        codex: []
+        codex: [],
+        droid: []
       })
     })
   })
@@ -485,7 +505,8 @@ describe('useSettings', () => {
         claude: '--verbose --debug',
         opencode: '--silent',
         gemini: '',
-        codex: ''
+        codex: '',
+        droid: ''
       })
     })
 
@@ -502,7 +523,8 @@ describe('useSettings', () => {
         claude: '',
         opencode: '',
         gemini: '',
-        codex: ''
+        codex: '',
+        droid: ''
       })
     })
   })

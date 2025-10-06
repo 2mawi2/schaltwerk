@@ -19,14 +19,15 @@ export interface AgentBinaryConfig {
     detected_binaries: DetectedBinary[]
 }
 
-export type AgentType = 'claude' | 'opencode' | 'gemini' | 'codex'
+export type AgentType = 'claude' | 'opencode' | 'gemini' | 'codex' | 'droid'
 
 // UI agent names to backend agent names mapping
 const AGENT_TO_BINARY_MAPPING: Record<string, AgentType> = {
     'claude': 'claude',
     'opencode': 'opencode',
     'gemini': 'gemini',
-    'codex': 'codex'
+    'codex': 'codex',
+    'droid': 'droid'
 }
 
 export function mapAgentToBinary(agentName: string): AgentType {
@@ -42,7 +43,8 @@ const DEFAULT_CONFIGS: Record<AgentType, AgentBinaryConfig> = {
     'claude': { agent_name: 'claude', custom_path: null, auto_detect: true, detected_binaries: [] },
     'opencode': { agent_name: 'opencode', custom_path: null, auto_detect: true, detected_binaries: [] },
     'gemini': { agent_name: 'gemini', custom_path: null, auto_detect: true, detected_binaries: [] },
-    'codex': { agent_name: 'codex', custom_path: null, auto_detect: true, detected_binaries: [] }
+    'codex': { agent_name: 'codex', custom_path: null, auto_detect: true, detected_binaries: [] },
+    'droid': { agent_name: 'droid', custom_path: null, auto_detect: true, detected_binaries: [] }
 }
 
 // Cache for binary configs to avoid repeated backend calls

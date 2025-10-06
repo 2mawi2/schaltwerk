@@ -33,3 +33,12 @@ binary_name = "opencode"
 default_binary_path = "opencode"
 auto_send_initial_command = false
 supports_resume = true
+
+[agents.droid]
+id = "droid"
+display_name = "Droid"
+binary_name = "droid"
+default_binary_path = "/Users/marius.wichtner/.local/bin/droid"
+auto_send_initial_command = true
+supports_resume = false
+ready_marker = "You are standing in an open terminal. An AI awaits your commands."

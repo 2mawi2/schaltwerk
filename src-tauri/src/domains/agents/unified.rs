@@ -1,4 +1,5 @@
 use super::adapter::{AgentAdapter, AgentLaunchContext, DefaultAdapter};
+use super::format_binary_invocation;
 use super::launch_spec::AgentLaunchSpec;
 use super::manifest::AgentManifest;
 use std::collections::HashMap;
@@ -95,6 +96,32 @@ impl AgentAdapter for GeminiAdapter {
 
 pub struct OpenCodeAdapter;
 
+pub struct DroidAdapter;
+
+impl AgentAdapter for DroidAdapter {
+    fn build_launch_spec(&self, ctx: AgentLaunchContext) -> AgentLaunchSpec {
+        let binary = ctx
+            .binary_override
+            .unwrap_or(&ctx.manifest.default_binary_path);
+        let binary_invocation = format_binary_invocation(binary);
+        let cwd_quoted = format_binary_invocation(&ctx.worktree_path.display().to_string());
+
+        let autonomy = if ctx.skip_permissions {
+            "high"
+        } else {
+            "medium"
+        };
+
+        let mut command = format!("cd {cwd_quoted} && {binary_invocation} --auto {autonomy}");
+        if ctx.skip_permissions {
+            command.push_str(" --skip-permissions-unsafe");
+        }
+
+        AgentLaunchSpec::new(command, ctx.worktree_path.to_path_buf())
+            .with_initial_command(ctx.initial_prompt.map(|prompt| prompt.to_string()))
+    }
+}
+
 impl AgentAdapter for OpenCodeAdapter {
     fn find_session(&self, path: &Path) -> Option<String> {
         super::opencode::find_opencode_session(path).map(|info| info.id)
@@ -138,6 +165,7 @@ impl AgentRegistry {
         adapters.insert("codex".to_string(), Box::new(CodexAdapter));
         adapters.insert("gemini".to_string(), Box::new(GeminiAdapter));
         adapters.insert("opencode".to_string(), Box::new(OpenCodeAdapter));
+        adapters.insert("droid".to_string(), Box::new(DroidAdapter));
 
         for agent_id in AgentManifest::supported_agents() {
             if !adapters.contains_key(&agent_id) {
@@ -200,15 +228,17 @@ mod tests {
         assert!(registry.get("codex").is_some());
         assert!(registry.get("gemini").is_some());
         assert!(registry.get("opencode").is_some());
+        assert!(registry.get("droid").is_some());
     }
 
     #[test]
     fn test_registry_supported_agents() {
         let registry = AgentRegistry::new();
         let supported = registry.supported_agents();
-        assert!(supported.len() >= 4);
+        assert!(supported.len() >= 5);
         assert!(supported.contains(&"claude".to_string()));
         assert!(supported.contains(&"codex".to_string()));
+        assert!(supported.contains(&"droid".to_string()));
         assert!(supported.contains(&"gemini".to_string()));
         assert!(supported.contains(&"opencode".to_string()));
     }
@@ -316,6 +346,49 @@ mod tests {
 
             let spec = adapter.build_launch_spec(ctx);
             assert!(spec.shell_command.contains("opencode"));
+        }
+    }
+
+    mod droid_tests {
+        use super::*;
+
+        #[test]
+        fn test_droid_adapter_basic_flags() {
+            let adapter = DroidAdapter;
+            let manifest = AgentManifest::get("droid").unwrap();
+
+            let ctx = AgentLaunchContext {
+                worktree_path: Path::new("/test/path"),
+                session_id: None,
+                initial_prompt: Some("review the diff"),
+                skip_permissions: false,
+                binary_override: Some("/bin/droid"),
+                manifest,
+            };
+
+            let spec = adapter.build_launch_spec(ctx);
+            assert!(spec.shell_command.contains("droid"));
+            assert!(spec.shell_command.contains("--auto medium"));
+            assert_eq!(spec.initial_command, Some("review the diff".to_string()));
+        }
+
+        #[test]
+        fn test_droid_adapter_respects_skip_permissions() {
+            let adapter = DroidAdapter;
+            let manifest = AgentManifest::get("droid").unwrap();
+
+            let ctx = AgentLaunchContext {
+                worktree_path: Path::new("/tmp/work"),
+                session_id: None,
+                initial_prompt: Some("sync"),
+                skip_permissions: true,
+                binary_override: None,
+                manifest,
+            };
+
+            let spec = adapter.build_launch_spec(ctx);
+            assert!(spec.shell_command.contains("--auto high"));
+            assert!(spec.shell_command.contains("--skip-permissions-unsafe"));
         }
     }
 }

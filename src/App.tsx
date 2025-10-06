@@ -71,6 +71,27 @@ function AppContent() {
   const refreshGithubStatus = github.refreshStatus
 
   useEffect(() => {
+    if (!toast) return
+    const spawnCleanup = listenUiEvent(UiEvent.SpawnError, (detail: { error?: string }) => {
+      const description = detail?.error?.trim() || 'Agent failed to start.'
+      toast.pushToast({ tone: 'error', title: 'Failed to start agent', description })
+    })
+    const noProjectCleanup = listenUiEvent(UiEvent.NoProjectError, (detail: { error?: string }) => {
+      const description = detail?.error?.trim() || 'Open a project before starting an agent.'
+      toast.pushToast({ tone: 'error', title: 'Project required', description })
+    })
+    const notGitCleanup = listenUiEvent(UiEvent.NotGitError, (detail: { error?: string }) => {
+      const description = detail?.error?.trim() || 'Initialize a Git repository to start agents.'
+      toast.pushToast({ tone: 'error', title: 'Git repository required', description })
+    })
+    return () => {
+      spawnCleanup()
+      noProjectCleanup()
+      notGitCleanup()
+    }
+  }, [toast])
+
+  useEffect(() => {
     if (!projectPath) return
     refreshGithubStatus().catch(error => {
       logger.warn('[App] Failed to refresh GitHub status after project change', error)

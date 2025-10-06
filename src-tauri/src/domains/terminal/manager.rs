@@ -442,6 +442,17 @@ impl TerminalManager {
         self.backend.exists(id).await
     }
 
+    pub async fn queue_initial_command(
+        &self,
+        id: String,
+        command: String,
+        ready_marker: Option<String>,
+    ) -> Result<(), String> {
+        self.backend
+            .queue_initial_command(&id, command, ready_marker)
+            .await
+    }
+
     pub async fn get_terminal_buffer(
         &self,
         id: String,

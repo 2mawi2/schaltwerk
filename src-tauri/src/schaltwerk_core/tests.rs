@@ -1544,35 +1544,37 @@ fn test_codex_spec_start_respects_resume_gate() {
 
     // First start should be a fresh start using the prompt (resume gate is false)
     let cmd1 = manager.start_claude_in_session(&running.name).unwrap();
+    let shell1 = &cmd1.shell_command;
     assert!(
-        cmd1.contains("codex"),
+        shell1.contains("codex"),
         "expected Codex command, got: {}",
-        cmd1
+        shell1
     );
     assert!(
-        cmd1.contains(&spec_content),
+        shell1.contains(spec_content),
         "expected initial prompt in first start command: {}",
-        cmd1
+        shell1
     );
     assert!(
-        !cmd1.contains(" resume"),
+        !shell1.contains(" resume"),
         "should not resume on first start: {}",
-        cmd1
+        shell1
     );
 
     // Second start should allow resume now (resume_allowed flipped true)
     let cmd2 = manager.start_claude_in_session(&running.name).unwrap();
+    let shell2 = &cmd2.shell_command;
     assert!(
-        cmd2.contains("codex"),
+        shell2.contains("codex"),
         "expected Codex command on second start, got: {}",
-        cmd2
+        shell2
     );
     // Should prefer resuming via the dedicated resume subcommand
-    let resumed = cmd2.contains(" codex --sandbox ") && cmd2.contains(" resume");
+    let resumed = shell2.contains(" codex --sandbox ") && shell2.contains(" resume");
     assert!(
         resumed,
         "expected a resume-capable command on second start: {}",
-        cmd2
+        shell2
     );
 
     // Restore HOME
@@ -1619,21 +1621,22 @@ fn test_orchestrator_codex_prefers_explicit_resume_path() {
 
     // Build orchestrator command (resume enabled by default)
     let cmd = manager.start_claude_in_orchestrator().unwrap();
+    let shell = &cmd.shell_command;
     assert!(
-        cmd.contains("codex"),
+        shell.contains("codex"),
         "expected Codex orchestrator command: {}",
-        cmd
+        shell
     );
     // Should prefer explicit resume via session identifier
     assert!(
-        cmd.contains(" codex --sandbox "),
+        shell.contains(" codex --sandbox "),
         "expected Codex sandbox flag in orchestrator start: {}",
-        cmd
+        shell
     );
     assert!(
-        cmd.contains(" resume "),
+        shell.contains(" resume "),
         "expected resume subcommand in orchestrator start: {}",
-        cmd
+        shell
     );
 
     // Restore HOME

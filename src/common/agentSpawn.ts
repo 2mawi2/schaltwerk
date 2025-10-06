@@ -3,8 +3,50 @@ import { TauriCommands } from '../common/tauriCommands'
 import { bestBootstrapSize } from './terminalSizeCache'
 import { markBackgroundStart, clearBackgroundStarts } from './uiEvents'
 import { singleflight, hasInflight } from '../utils/singleflight'
+import { logger } from '../utils/logger'
 
 export const RIGHT_EDGE_GUARD_COLUMNS = 2
+export const AGENT_START_TIMEOUT_MS = 5000
+export const AGENT_START_TIMEOUT_MESSAGE = 'Agent start timed out after 5 seconds'
+
+function withAgentStartTimeout<T>(promise: Promise<T>, context: { id: string; command: string }) {
+  let settled = false
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null
+
+  return new Promise<T>((resolve, reject) => {
+    const clearTimer = () => {
+      if (timeoutHandle !== null) {
+        clearTimeout(timeoutHandle)
+        timeoutHandle = null
+      }
+    }
+
+    timeoutHandle = setTimeout(() => {
+      if (settled) return
+      settled = true
+      clearTimer()
+      reject(new Error(AGENT_START_TIMEOUT_MESSAGE))
+    }, AGENT_START_TIMEOUT_MS)
+
+    promise.then(value => {
+      if (settled) {
+        logger.warn(`[agentSpawn] ${context.command} resolved after timeout for ${context.id}`)
+        return
+      }
+      settled = true
+      clearTimer()
+      resolve(value)
+    }).catch(error => {
+      if (settled) {
+        logger.warn(`[agentSpawn] ${context.command} rejected after timeout for ${context.id}:`, error)
+        return
+      }
+      settled = true
+      clearTimer()
+      reject(error)
+    })
+  })
+}
 
 export function computeProjectOrchestratorId(projectPath?: string | null): string | null {
   if (!projectPath) return null
@@ -56,7 +98,10 @@ export async function startSessionTop(params: {
     const command = TauriCommands.SchaltwerkCoreStartSessionAgent
 
     await singleflight(topId, () =>
-      invoke(command, { sessionName, cols, rows })
+      withAgentStartTimeout(
+        invoke(command, { sessionName, cols, rows }),
+        { id: topId, command }
+      )
     )
   } catch (e) {
     try {
@@ -78,7 +123,10 @@ export async function startOrchestratorTop(params: {
   try {
     const { cols, rows } = computeSpawnSize({ topId: terminalId, measured })
     await singleflight(terminalId, () =>
-      invoke(TauriCommands.SchaltwerkCoreStartClaudeOrchestrator, { terminalId, cols, rows })
+      withAgentStartTimeout(
+        invoke(TauriCommands.SchaltwerkCoreStartClaudeOrchestrator, { terminalId, cols, rows }),
+        { id: terminalId, command: TauriCommands.SchaltwerkCoreStartClaudeOrchestrator }
+      )
     )
   } catch (e) {
     try {
