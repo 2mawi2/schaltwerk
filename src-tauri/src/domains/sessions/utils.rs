@@ -57,9 +57,9 @@ impl SessionUtils {
 
     pub fn generate_random_suffix(len: usize) -> String {
         let mut bytes = vec![0u8; len];
-        getrandom::getrandom(&mut bytes).unwrap_or_else(|_| {
-            log::warn!("Failed to get random bytes, using fallback");
-        });
+        if let Err(e) = getrandom::fill(&mut bytes) {
+            log::warn!("Failed to get random bytes: {e}, using fallback");
+        }
         bytes.iter().map(|&b| (b'a' + (b % 26)) as char).collect()
     }
 
