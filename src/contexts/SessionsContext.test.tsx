@@ -1129,6 +1129,79 @@ describe('SessionsContext', () => {
         expect(calls.length).toBe(0)
     })
 
+    it('does not restart existing running sessions when a spec-only refresh is followed by a full refresh', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+        const { startSessionTop } = await import('../common/agentSpawn')
+
+        vi.mocked(invoke).mockImplementation(async (cmd: string, _args?: unknown) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
+            if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
+            if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+            if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
+            return undefined
+        })
+
+        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+        await waitFor(() => expect(result.current.loading).toBe(false))
+
+        // Initial auto-start from the first load is expected; ignore it for this regression scenario.
+        vi.mocked(startSessionTop).mockClear()
+
+        const { listen } = await import('@tauri-apps/api/event')
+        await waitFor(() => {
+            expect(vi.mocked(listen).mock.calls.some(call => call[0] === SchaltEvent.SessionsRefreshed)).toBe(true)
+        })
+
+        const sessionsRefreshedHandler = vi
+            .mocked(listen)
+            .mock.calls
+            .reverse()
+            .find(call => call[0] === SchaltEvent.SessionsRefreshed)?.[1]
+
+        expect(typeof sessionsRefreshedHandler).toBe('function')
+
+        const specOnlyPayload = [
+            {
+                info: {
+                    session_id: 'brand-new-spec',
+                    display_name: 'Brand New Spec',
+                    branch: 'specs/brand-new-spec',
+                    worktree_path: '',
+                    base_branch: 'main',
+                    status: 'spec',
+                    session_state: 'spec',
+                    created_at: '2024-05-01T12:00:00.000Z',
+                    is_current: false,
+                    session_type: 'worktree',
+                    ready_to_merge: false,
+                    has_uncommitted_changes: false,
+                    has_conflicts: false,
+                },
+                terminals: []
+            }
+        ]
+
+        await act(async () => {
+            await sessionsRefreshedHandler?.({
+                event: SchaltEvent.SessionsRefreshed,
+                id: 2001,
+                payload: specOnlyPayload
+            } as Event<typeof specOnlyPayload>)
+        })
+
+        expect(startSessionTop).not.toHaveBeenCalled()
+
+        await act(async () => {
+            await sessionsRefreshedHandler?.({
+                event: SchaltEvent.SessionsRefreshed,
+                id: 2002,
+                payload: mockSessions
+            } as Event<typeof mockSessions>)
+        })
+
+        expect(startSessionTop).not.toHaveBeenCalledWith(expect.objectContaining({ sessionName: 'test-active' }))
+    })
+
     it('deduplicates merge failure toasts per session', async () => {
         const { listen } = await import('@tauri-apps/api/event')
         const listeners: Record<string, (event: Event<unknown>) => void> = {}

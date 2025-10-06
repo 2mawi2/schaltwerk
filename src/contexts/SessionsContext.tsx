@@ -982,6 +982,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             addListener(listenEvent(SchaltEvent.SessionsRefreshed, async (event) => {
                 try {
                     if (event && event.length > 0) {
+                        let updatedSessionIds: string[] | null = null
                         // Do a smart merge instead of replacing the entire array to reduce flashing
                         // This preserves session order and references to avoid selection jumping
                         setAllSessions(prev => {
@@ -1026,16 +1027,38 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                                 return prev // No change, keep same reference
                             }
 
+                            updatedSessionIds = updated.map(session => session.info.session_id)
                             return updated
                         })
 
-                        autoStartRunningSessions(event, { reason: 'sessions-refreshed', previousStates: prevStatesRef.current })
+                        const previousStatesSnapshot = new Map(prevStatesRef.current)
+                        autoStartRunningSessions(event, { reason: 'sessions-refreshed', previousStates: previousStatesSnapshot })
 
-                        const nextStates = new Map<string, string>()
+                        const mergedStates = new Map(previousStatesSnapshot)
+                        const payloadIds = new Set<string>()
                         for (const session of event) {
-                            nextStates.set(session.info.session_id, mapSessionUiState(session.info))
+                            const sessionId = session.info.session_id
+                            const nextState = mapSessionUiState(session.info)
+                            mergedStates.set(sessionId, nextState)
+                            payloadIds.add(sessionId)
                         }
-                        prevStatesRef.current = nextStates
+
+                        if (Array.isArray(updatedSessionIds)) {
+                            const updatedIds = updatedSessionIds as string[]
+                            const isFullSnapshot = payloadIds.size === event.length
+                                && updatedIds.length === event.length
+                                && updatedIds.every(id => payloadIds.has(id))
+
+                            if (isFullSnapshot) {
+                                for (const knownId of Array.from(mergedStates.keys())) {
+                                    if (!payloadIds.has(knownId)) {
+                                        mergedStates.delete(knownId)
+                                    }
+                                }
+                            }
+                        }
+
+                        prevStatesRef.current = mergedStates
 
                         syncMergeStatuses(event)
                     } else {
@@ -1233,6 +1256,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             // Session removed (actual removal after cancellation completes)
             addListener(listenEvent(SchaltEvent.SessionRemoved, (event) => {
                 setAllSessions(prev => prev.filter(s => s.info.session_id !== event.session_name))
+                prevStatesRef.current.delete(event.session_name)
             }))
         }
 
