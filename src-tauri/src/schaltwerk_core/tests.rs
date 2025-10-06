@@ -485,6 +485,7 @@ fn test_list_enriched_sessions_skips_spec_git_stats() {
         .unwrap();
 
     reset_git_stats_call_count();
+    crate::domains::git::stats::clear_stats_cache();
 
     let enriched = manager.list_enriched_sessions().unwrap();
     assert_eq!(enriched.len(), 3);

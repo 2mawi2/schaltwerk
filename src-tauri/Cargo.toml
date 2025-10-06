@@ -49,9 +49,9 @@ hyper = { version = "1.7", default-features = false, features = ["server", "http
 hyper-util = { version = "0.1", default-features = false, features = ["tokio"] }
 http-body-util = "0.1"
 urlencoding = "2.1"
-getrandom = "0.2"
+getrandom = "0.3"
 shell-words = "1.1"
-toml = "0.8"
+toml = "0.9"
 futures = "0.3"
 clap = { version = "4", features = ["derive"] }
 notify = "8"
