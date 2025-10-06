@@ -8,5 +8,6 @@ declare module 'react-window' {
     isScrolling?: boolean
   }
 
-  export const FixedSizeList: ComponentType<any>
+  export type FixedSizeListProps = Record<string, unknown>
+  export const FixedSizeList: ComponentType<FixedSizeListProps>
 }
