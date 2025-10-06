@@ -34,6 +34,7 @@ import { useRun } from '../../contexts/RunContext'
 import { useModal } from '../../contexts/ModalContext'
 import { useProject } from '../../contexts/ProjectContext'
 import { getSessionDisplayName } from '../../utils/sessionDisplayName'
+import { theme } from '../../common/theme'
 
 // Normalize backend states to UI categories
 function mapSessionUiState(info: SessionInfo): 'spec' | 'running' | 'reviewed' {
@@ -147,6 +148,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const [switchOrchestratorModal, setSwitchOrchestratorModal] = useState(false)
     const [switchModelSessionId, setSwitchModelSessionId] = useState<string | null>(null)
     const orchestratorResetting = resettingSelection?.kind === 'orchestrator'
+    const orchestratorRunning = isSessionRunning('orchestrator')
 
     const isSessionMergeInFlight = useCallback(
         (sessionId: string) =>
@@ -950,11 +952,33 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             <div className="px-2 pt-2">
                 <button
                     onClick={handleSelectOrchestrator}
-                    className={clsx('w-full text-left px-3 py-2 rounded-md mb-1 group', selection.kind === 'orchestrator' ? 'bg-slate-800/60 session-ring session-ring-blue' : 'hover:bg-slate-800/30')}
+                    className={clsx(
+                        'w-full text-left px-3 py-2 rounded-md mb-1 group border transition-all duration-300',
+                        selection.kind === 'orchestrator'
+                            ? 'bg-slate-800/60 session-ring session-ring-blue border-transparent'
+                            : 'hover:bg-slate-800/30 border-slate-800',
+                        orchestratorRunning && selection.kind !== 'orchestrator' &&
+                            'ring-2 ring-pink-500/50 shadow-lg shadow-pink-500/20 bg-pink-950/20'
+                    )}
                     aria-label="Select orchestrator (⌘1)"
                 >
                     <div className="flex items-center justify-between">
-                        <div className="font-medium text-slate-100">orchestrator</div>
+                        <div className="font-medium text-slate-100 flex items-center gap-2">
+                            orchestrator
+                            {orchestratorRunning && (
+                                <span className={clsx(
+                                    'text-[10px] px-1.5 py-0.5 rounded border'
+                                )}
+                                style={{
+                                    backgroundColor: theme.colors.accent.magenta.bg,
+                                    color: theme.colors.accent.magenta.DEFAULT,
+                                    borderColor: theme.colors.accent.magenta.border
+                                }}
+                                >
+                                    Running
+                                </span>
+                            )}
+                        </div>
                         <div className="flex items-center gap-2">
                             <div className="flex items-center gap-0.5">
                                 <IconButton
