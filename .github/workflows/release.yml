@@ -122,13 +122,14 @@ jobs:
           CARGO_INCREMENTAL: '0'
           MACOSX_DEPLOYMENT_TARGET: '11.0'
           CARGO_TARGET_AARCH64_APPLE_DARWIN_RUSTFLAGS: '-C target-feature=+aes,+sha2,+crc,+neon'
+          CARGO_PROFILE: 'ci'
         run: |
           TARGET_DIR="${CARGO_TARGET_DIR:-src-tauri/target}"
 
-          npm run tauri build -- --profile ci --target x86_64-apple-darwin --timings
+          npm run tauri build -- --target x86_64-apple-darwin --timings
           cp -R "$TARGET_DIR/cargo-timings" cargo-timings-x64
 
-          npm run tauri build -- --profile ci --target aarch64-apple-darwin --timings
+          npm run tauri build -- --target aarch64-apple-darwin --timings
           cp -R "$TARGET_DIR/cargo-timings" cargo-timings-arm
 
       - name: Display sccache stats
