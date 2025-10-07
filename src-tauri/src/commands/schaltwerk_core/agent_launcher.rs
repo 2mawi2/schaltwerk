@@ -35,6 +35,7 @@ pub async fn launch_in_terminal(
     let agent_kind = agent_ctx::infer_agent_kind(&agent_name);
     let (env_vars, cli_text) =
         agent_ctx::collect_agent_env_and_cli(&agent_kind, repo_path, db).await;
+    let merged_env = merge_env_vars(env_vars, &launch_spec.env_vars);
     let final_args = agent_ctx::build_final_args(&agent_kind, agent_args, &cli_text);
 
     let manager = get_terminal_manager().await?;
@@ -49,7 +50,7 @@ pub async fn launch_in_terminal(
                 cwd: cwd.clone(),
                 command: agent_name.clone(),
                 args: final_args.clone(),
-                env: env_vars.clone(),
+                env: merged_env.clone(),
                 cols: c,
                 rows: r,
             })
@@ -61,10 +62,50 @@ pub async fn launch_in_terminal(
                 cwd.clone(),
                 agent_name.clone(),
                 final_args.clone(),
-                env_vars.clone(),
+                merged_env.clone(),
             )
             .await?;
     }
 
     Ok(launch_spec.shell_command)
+}
+
+fn merge_env_vars(
+    base: Vec<(String, String)>,
+    extra: &HashMap<String, String>,
+) -> Vec<(String, String)> {
+    if extra.is_empty() {
+        return base;
+    }
+
+    let mut merged: HashMap<String, String> = base.into_iter().collect();
+    for (key, value) in extra {
+        merged.insert(key.clone(), value.clone());
+    }
+
+    merged.into_iter().collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::merge_env_vars;
+    use std::collections::HashMap;
+
+    #[test]
+    fn merge_env_vars_overrides_duplicates() {
+        let base = vec![
+            ("PATH".to_string(), "/usr/bin".to_string()),
+            ("API_KEY".to_string(), "123".to_string()),
+        ];
+        let mut extra = HashMap::new();
+        extra.insert("PATH".to_string(), "/tmp/shim:/usr/bin".to_string());
+        extra.insert("NEW_VAR".to_string(), "value".to_string());
+
+        let merged = merge_env_vars(base, &extra);
+        let map: HashMap<_, _> = merged.into_iter().collect();
+
+        assert_eq!(map.get("PATH"), Some(&"/tmp/shim:/usr/bin".to_string()));
+        assert_eq!(map.get("API_KEY"), Some(&"123".to_string()));
+        assert_eq!(map.get("NEW_VAR"), Some(&"value".to_string()));
+    }
 }

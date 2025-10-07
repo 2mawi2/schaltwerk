@@ -2,6 +2,7 @@ pub mod adapter;
 pub mod claude;
 pub mod codex;
 pub mod command_parser;
+pub mod droid;
 pub mod gemini;
 pub mod launch_spec;
 pub mod manifest;

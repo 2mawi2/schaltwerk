@@ -1,7 +1,9 @@
 use super::adapter::{AgentAdapter, AgentLaunchContext, DefaultAdapter};
+use super::droid;
 use super::format_binary_invocation;
 use super::launch_spec::AgentLaunchSpec;
 use super::manifest::AgentManifest;
+use log::warn;
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -117,8 +119,26 @@ impl AgentAdapter for DroidAdapter {
             command.push_str(" --skip-permissions-unsafe");
         }
 
-        AgentLaunchSpec::new(command, ctx.worktree_path.to_path_buf())
-            .with_initial_command(ctx.initial_prompt.map(|prompt| prompt.to_string()))
+        let mut spec = AgentLaunchSpec::new(command, ctx.worktree_path.to_path_buf())
+            .with_initial_command(ctx.initial_prompt.map(|prompt| prompt.to_string()));
+
+        let system_path = std::env::var("PATH").unwrap_or_default();
+        match droid::ensure_vscode_cli_shim(ctx.worktree_path, &system_path) {
+            Ok(Some(updated_path)) => {
+                let mut env = HashMap::new();
+                env.insert("PATH".to_string(), updated_path);
+                spec = spec.with_env_vars(env);
+            }
+            Ok(None) => {}
+            Err(err) => {
+                warn!(
+                    "Failed to prepare VSCode shim for droid session at {}: {err}",
+                    ctx.worktree_path.display()
+                );
+            }
+        }
+
+        spec
     }
 }
 
@@ -351,6 +371,7 @@ mod tests {
 
     mod droid_tests {
         use super::*;
+        use serial_test::serial;
 
         #[test]
         fn test_droid_adapter_basic_flags() {
@@ -389,6 +410,56 @@ mod tests {
             let spec = adapter.build_launch_spec(ctx);
             assert!(spec.shell_command.contains("--auto high"));
             assert!(spec.shell_command.contains("--skip-permissions-unsafe"));
+        }
+
+        #[test]
+        #[serial]
+        fn test_droid_adapter_creates_vscode_shim_and_sets_path_env() {
+            use tempfile::tempdir;
+
+            let adapter = DroidAdapter;
+            let manifest = AgentManifest::get("droid").unwrap();
+            let temp = tempdir().expect("failed to create temp dir");
+            let worktree_path = temp.path();
+
+            // Guard original PATH so we can assert override behaviour deterministically.
+            let original_path_var = std::env::var("PATH").ok();
+            let original_path = "/usr/local/bin:/usr/bin:/bin";
+            std::env::set_var("PATH", original_path);
+
+            let ctx = AgentLaunchContext {
+                worktree_path,
+                session_id: None,
+                initial_prompt: None,
+                skip_permissions: false,
+                binary_override: Some("/bin/droid"),
+                manifest,
+            };
+
+            let spec = adapter.build_launch_spec(ctx);
+
+            let shim_dir = worktree_path.join(".schaltwerk/droid/shims");
+            let shim_binary = shim_dir.join("code");
+            assert!(shim_binary.exists(), "expected VSCode shim to be created");
+
+            let path_env = spec
+                .env_vars
+                .get("PATH")
+                .expect("PATH override not set in launch spec");
+
+            let shim_dir_str = shim_dir.to_string_lossy();
+            #[cfg(target_os = "windows")]
+            let expected = format!("{};{}", shim_dir_str, original_path);
+            #[cfg(not(target_os = "windows"))]
+            let expected = format!("{}:{}", shim_dir_str, original_path);
+
+            assert_eq!(path_env, &expected);
+
+            if let Some(value) = original_path_var {
+                std::env::set_var("PATH", value);
+            } else {
+                std::env::remove_var("PATH");
+            }
         }
     }
 }
