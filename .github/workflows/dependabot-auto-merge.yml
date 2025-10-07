@@ -1,0 +1,75 @@
+name: Dependabot Auto Merge
+
+on:
+  workflow_run:
+    workflows:
+      - Test
+    types:
+      - completed
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Merge eligible Dependabot PRs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { workflow_run } = context.payload;
+            const runPRs = workflow_run.pull_requests ?? [];
+            if (!runPRs.length) {
+              core.info('No pull requests associated with workflow run; exiting.');
+              return;
+            }
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            for (const prRef of runPRs) {
+              const prNumber = prRef.number;
+              const prResponse = await github.rest.pulls.get({
+                owner,
+                repo,
+                pull_number: prNumber
+              });
+
+              const pr = prResponse.data;
+
+              if (pr.user?.login !== 'dependabot[bot]') {
+                core.info(`PR #${prNumber} is not authored by Dependabot; skipping.`);
+                continue;
+              }
+
+              if (pr.draft) {
+                core.info(`PR #${prNumber} is a draft; skipping.`);
+                continue;
+              }
+
+              if (pr.mergeable !== true) {
+                core.info(`PR #${prNumber} is not mergeable (state: ${pr.mergeable_state}); skipping.`);
+                continue;
+              }
+
+              if (!['clean', 'has_hooks'].includes(pr.mergeable_state)) {
+                core.info(`PR #${prNumber} mergeable_state is ${pr.mergeable_state}; skipping.`);
+                continue;
+              }
+
+              try {
+                await github.rest.pulls.merge({
+                  owner,
+                  repo,
+                  pull_number: prNumber,
+                  merge_method: 'squash',
+                  commit_title: `chore(deps): merge Dependabot PR #${prNumber}`
+                });
+                core.info(`Merged Dependabot PR #${prNumber}.`);
+              } catch (error) {
+                core.warning(`Failed to merge PR #${prNumber}: ${error.message}`);
+              }
+            }
