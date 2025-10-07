@@ -103,9 +103,7 @@ strip = true
 [profile.ci]
 inherits = "release"
 lto = "thin"
-codegen-units = 64
-opt-level = 2
-split-debuginfo = "unpacked"
+codegen-units = 16
 
 # Standard dev profile - optimized for fast compilation
 [profile.dev]
