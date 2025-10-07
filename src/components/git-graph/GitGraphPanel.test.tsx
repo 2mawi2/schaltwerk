@@ -6,7 +6,6 @@ import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
 
 declare global {
-  // eslint-disable-next-line no-var
   var ResizeObserver: typeof globalThis.ResizeObserver
 }
 

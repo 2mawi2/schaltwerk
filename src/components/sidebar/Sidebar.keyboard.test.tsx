@@ -87,7 +87,10 @@ describe('Sidebar keyboard navigation basic', () => {
     await press('ArrowDown', { metaKey: true })
 
     await waitFor(() => {
-      expect(screen.getByLabelText(/Selected session/)).toBeInTheDocument()
+      const selectedSession = screen
+        .getAllByRole('button')
+        .find((btn) => btn.getAttribute('data-session-selected') === 'true' && btn.getAttribute('data-session-id') !== 'orchestrator')
+      expect(selectedSession).toBeDefined()
     })
 
     // Move up to orchestrator

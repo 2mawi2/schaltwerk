@@ -311,6 +311,7 @@ Automatically updates versions, commits, tags, and triggers GitHub Actions.
 - Always discover the base commit by querying the latest published GitHub release (exclude drafts) and diffing from that commit to the new tag.
 - Confirm no commits are skipped (a released tag may lag behind newer lightweight tags or drafts).
 - Capture dependency bumps, infrastructure fixes, and workflow changes alongside feature work.
+- Keep release notes focused on what changed (e.g., Features/Fixes/Performance/Maintenance) and avoid repeating installation or first-launch instructions in the body.
 
 ## Development Workflow
 
