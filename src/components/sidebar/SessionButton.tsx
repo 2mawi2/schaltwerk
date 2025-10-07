@@ -40,6 +40,7 @@ interface SessionButtonProps {
     disableMerge?: boolean
     mergeStatus?: MergeStatus
     isMarkReadyDisabled?: boolean
+    isBusy?: boolean
 }
 
 function getSessionStateColor(state?: string): 'green' | 'violet' | 'gray' {
@@ -79,7 +80,8 @@ export const SessionButton = memo<SessionButtonProps>(({
     onMerge,
     disableMerge = false,
     mergeStatus = 'idle',
-    isMarkReadyDisabled = false
+    isMarkReadyDisabled = false,
+    isBusy = false
 }) => {
     const s = session.info
     const color = getSessionStateColor(s.session_state)
@@ -122,9 +124,15 @@ export const SessionButton = memo<SessionButtonProps>(({
     return (
         <div
             role="button"
-            tabIndex={0}
-            onClick={() => onSelect(index)}
+            tabIndex={isBusy ? -1 : 0}
+            aria-disabled={isBusy}
+            aria-busy={isBusy}
+            onClick={() => {
+                if (isBusy) return
+                onSelect(index)
+            }}
             onKeyDown={(e) => {
+                if (isBusy) return
                 if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault()
                     onSelect(index)
@@ -133,13 +141,14 @@ export const SessionButton = memo<SessionButtonProps>(({
             data-session-id={session.info.session_id}
             data-session-selected={isSelected ? 'true' : 'false'}
             className={clsx(
-                'group w-full text-left px-3 py-2.5 rounded-md mb-2 border transition-all duration-300 cursor-pointer',
+                'group relative w-full text-left px-3 py-2.5 rounded-md mb-2 border transition-all duration-300',
                 getStateBackground(),
 
                 hasFollowUpMessage && !isSelected &&
                      'ring-2 ring-blue-400/50 shadow-lg shadow-blue-400/20 bg-blue-950/20',
                  isRunning && !isSelected &&
-                     'ring-2 ring-pink-500/50 shadow-lg shadow-pink-500/20 bg-pink-950/20'
+                     'ring-2 ring-pink-500/50 shadow-lg shadow-pink-500/20 bg-pink-950/20',
+                isBusy ? 'cursor-progress opacity-60' : 'cursor-pointer'
             )}
             aria-label={isSelected 
                 ? `Selected session • Diff: ⌘G • Cancel: ⌘D (⇧⌘D force) • Mark Reviewed: ⌘R`
@@ -147,6 +156,24 @@ export const SessionButton = memo<SessionButtonProps>(({
                     ? `Select session (⌘${index + 2})`
                     : `Select session`}
         >
+            {isBusy && (
+                <div
+                    className="absolute inset-0 z-10 flex items-center justify-center rounded-md pointer-events-none"
+                    data-testid="session-busy-indicator"
+                    style={{
+                        backgroundColor: theme.colors.background.primary,
+                        opacity: 0.72
+                    }}
+                >
+                    <span
+                        className="h-4 w-4 border-2 border-solid rounded-full animate-spin"
+                        style={{
+                            borderColor: theme.colors.accent.blue.border,
+                            borderTopColor: 'transparent'
+                        }}
+                    />
+                </div>
+            )}
             <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
                     <div className="font-medium text-slate-100 truncate flex items-center gap-2">

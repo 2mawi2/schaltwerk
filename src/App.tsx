@@ -18,6 +18,7 @@ import { useSelection } from './contexts/SelectionContext'
 import { clearTerminalStartedTracking } from './components/terminal/Terminal'
 import { useProject } from './contexts/ProjectContext'
 import { useFontSize } from './contexts/FontSizeContext'
+import { useSessions } from './contexts/SessionsContext'
 import { HomeScreen } from './components/home/HomeScreen'
 import { ProjectTab, determineNextActiveTab } from './common/projectTabs'
 import { TopBar } from './components/TopBar'
@@ -67,6 +68,7 @@ function AppContent() {
   const { fetchSessionForPrefill } = useSessionPrefill()
   const github = useGithubIntegrationContext()
   const toast = useOptionalToast()
+  const { beginSessionMutation, endSessionMutation } = useSessions()
 
   const refreshGithubStatus = github.refreshStatus
 
@@ -328,10 +330,12 @@ function AppContent() {
   const handleCancelSession = useCallback(async () => {
     if (!currentSession) return
 
+    const sessionName = currentSession.name
+    beginSessionMutation(sessionName, 'remove')
     try {
       setIsCancelling(true)
       await invoke(TauriCommands.SchaltwerkCoreCancelSession, {
-        name: currentSession.name
+        name: sessionName
       })
       setCancelModalOpen(false)
 
@@ -339,9 +343,10 @@ function AppContent() {
       logger.error('Failed to cancel session:', error)
       alert(`Failed to cancel session: ${error}`)
     } finally {
+      endSessionMutation(sessionName, 'remove')
       setIsCancelling(false)
     }
-  }, [currentSession])
+  }, [beginSessionMutation, currentSession, endSessionMutation])
 
   // Local helper to apply project activation consistently
   const applyActiveProject = useCallback(async (path: string, options: { initializeBackend?: boolean } = {}) => {
@@ -619,15 +624,18 @@ function AppContent() {
   const handleDeleteSpec = async () => {
     if (!currentSession) return
 
+    const sessionName = currentSession.name
+    beginSessionMutation(sessionName, 'remove')
     try {
       setIsCancelling(true)
-      await invoke(TauriCommands.SchaltwerkCoreArchiveSpecSession, { name: currentSession.name })
+      await invoke(TauriCommands.SchaltwerkCoreArchiveSpecSession, { name: sessionName })
       setDeleteSpecModalOpen(false)
       // No manual selection here; SessionRemoved + SessionsRefreshed will drive next focus
     } catch (error) {
       logger.error('Failed to delete spec:', error)
       alert(`Failed to delete spec: ${error}`)
     } finally {
+      endSessionMutation(sessionName, 'remove')
       setIsCancelling(false)
     }
   }

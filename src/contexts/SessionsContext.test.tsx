@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { TauriCommands } from '../common/tauriCommands'
 import { renderHook, act, waitFor } from '@testing-library/react'
 import { ReactNode, useEffect } from 'react'
-import { SessionsProvider, useSessions } from './SessionsContext'
+import { SessionsProvider, useSessions, applySessionMutationState } from './SessionsContext'
 import { ProjectProvider, useProject } from './ProjectContext'
 import { FilterMode, SortMode } from '../types/sessionFilters'
 import type { Event } from '@tauri-apps/api/event'
@@ -109,6 +109,38 @@ const ProjectSetter = ({ path }: { path: string }) => {
     }, [path, setProjectPath])
     return null
 }
+
+describe('applySessionMutationState', () => {
+    it('adds the kind when activating a new session mutation', () => {
+        const prev = new Map<string, Set<'merge' | 'remove'>>()
+
+        const next = applySessionMutationState(prev, 'session-a', 'remove', true)
+
+        expect(prev.size).toBe(0)
+        expect(Array.from(next.get('session-a') ?? [])).toEqual(['remove'])
+    })
+
+    it('removes the session entry when the last kind is cleared', () => {
+        const prev = new Map<string, Set<'merge' | 'remove'>>([
+            ['session-a', new Set(['merge'])]
+        ])
+
+        const next = applySessionMutationState(prev, 'session-a', 'merge', false)
+
+        expect(prev.get('session-a')?.has('merge')).toBe(true)
+        expect(next.has('session-a')).toBe(false)
+    })
+
+    it('keeps remaining kinds when clearing only one', () => {
+        const prev = new Map<string, Set<'merge' | 'remove'>>([
+            ['session-a', new Set(['merge', 'remove'])]
+        ])
+
+        const next = applySessionMutationState(prev, 'session-a', 'remove', false)
+
+        expect(Array.from(next.get('session-a') ?? [])).toEqual(['merge'])
+    })
+})
 
 describe('SessionsContext', () => {
     beforeEach(() => {
@@ -1318,11 +1350,40 @@ describe('SessionsContext', () => {
                     error: 'merge failed'
                 }
             } as Event<unknown>)
-        })
+    })
 
         expect(pushToastMock).toHaveBeenCalledTimes(2)
         expect(pushToastMock.mock.calls[1][0]).toMatchObject({ tone: 'error' })
         expect(result.current.getMergeStatus('test-ready')).toBe('conflict')
+    })
+
+    it('tracks session mutation state helpers', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+        vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
+            if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
+            if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+            if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
+            return undefined
+        })
+
+        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+
+        await waitFor(() => {
+            expect(result.current.loading).toBe(false)
+        })
+
+        act(() => {
+            result.current.beginSessionMutation('test-active', 'remove')
+        })
+
+        expect(result.current.isSessionMutating('test-active')).toBe(true)
+
+        act(() => {
+            result.current.endSessionMutation('test-active', 'remove')
+        })
+
+        expect(result.current.isSessionMutating('test-active')).toBe(false)
     })
 
     it('auto-cancels session after successful merge when preference enabled', async () => {

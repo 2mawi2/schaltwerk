@@ -84,6 +84,9 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         getMergeStatus,
         autoCancelAfterMerge,
         updateAutoCancelAfterMerge,
+        beginSessionMutation,
+        endSessionMutation,
+        isSessionMutating,
     } = useSessions()
     const { isResetting, resettingSelection, resetSession, switchModel } = useSessionManagement()
 
@@ -1261,6 +1264,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                         }
                                     }}
                                     onDeleteSpec={async (sessionId) => {
+                                        beginSessionMutation(sessionId, 'remove')
                                         try {
                                             await invoke(TauriCommands.SchaltwerkCoreCancelSession, { name: sessionId })
                                             // Reload both regular and spec sessions to ensure remaining specs persist
@@ -1271,6 +1275,8 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                             await reloadSessionsAndRefreshIdle()
                                         } catch (err) {
                                             logger.error('Failed to delete spec:', err)
+                                        } finally {
+                                            endSessionMutation(sessionId, 'remove')
                                         }
                                     }}
                                     onSelectBestVersion={handleSelectBestVersion}
@@ -1290,6 +1296,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                     isMergeDisabled={isSessionMergeInFlight}
                                     getMergeStatus={getMergeStatus}
                                     isMarkReadyDisabled={isMarkReadyCoolingDown}
+                                    isSessionBusy={isSessionMutating}
                                 />
                             )
                         })

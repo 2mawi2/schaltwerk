@@ -39,6 +39,32 @@ interface MergeDialogState {
     error?: string | null
 }
 
+type SessionMutationKind = 'merge' | 'remove'
+
+export function applySessionMutationState(
+    previous: Map<string, Set<SessionMutationKind>>,
+    sessionId: string,
+    kind: SessionMutationKind,
+    active: boolean
+): Map<string, Set<SessionMutationKind>> {
+    const next = new Map(previous)
+    const existing = new Set(next.get(sessionId) ?? [])
+
+    if (active) {
+        existing.add(kind)
+        next.set(sessionId, existing)
+        return next
+    }
+
+    existing.delete(kind)
+    if (existing.size > 0) {
+        next.set(sessionId, existing)
+    } else {
+        next.delete(sessionId)
+    }
+    return next
+}
+
 function getErrorMessage(value: unknown): string {
     if (typeof value === 'string') {
         return value
@@ -135,6 +161,9 @@ interface SessionsContextValue {
     getMergeStatus: (sessionId: string) => MergeStatus
     autoCancelAfterMerge: boolean
     updateAutoCancelAfterMerge: (next: boolean, persist?: boolean) => Promise<void>
+    beginSessionMutation: (sessionId: string, kind: SessionMutationKind) => void
+    endSessionMutation: (sessionId: string, kind: SessionMutationKind) => void
+    isSessionMutating: (sessionId: string) => boolean
 }
 
 const SessionsContext = createContext<SessionsContextValue | undefined>(undefined)
@@ -167,6 +196,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         error: null,
     })
     const [mergeInFlight, setMergeInFlight] = useState<Map<string, boolean>>(new Map())
+    const [sessionMutations, setSessionMutations] = useState<Map<string, Set<SessionMutationKind>>>(new Map())
     const mergeErrorCacheRef = useRef(new Map<string, string>())
     const [mergeStatuses, setMergeStatuses] = useState<Map<string, MergeStatus>>(new Map())
     const mergePreviewCacheRef = useRef(new Map<string, MergePreviewResponse | null>())
@@ -179,7 +209,25 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         setAutoCancelAfterMerge(next)
     }, [autoCancelAfterMergeRef])
 
+    const updateSessionMutation = useCallback((sessionId: string, kind: SessionMutationKind, active: boolean) => {
+        setSessionMutations(prev => applySessionMutationState(prev, sessionId, kind, active))
+    }, [])
+
+    const beginSessionMutation = useCallback((sessionId: string, kind: SessionMutationKind) => {
+        updateSessionMutation(sessionId, kind, true)
+    }, [updateSessionMutation])
+
+    const endSessionMutation = useCallback((sessionId: string, kind: SessionMutationKind) => {
+        updateSessionMutation(sessionId, kind, false)
+    }, [updateSessionMutation])
+
+    const isSessionMutating = useCallback((sessionId: string) => {
+        const kinds = sessionMutations.get(sessionId)
+        return Boolean(kinds && kinds.size > 0)
+    }, [sessionMutations])
+
     const updateMergeInFlight = useCallback((sessionId: string, running: boolean) => {
+        updateSessionMutation(sessionId, 'merge', running)
         setMergeInFlight(prev => {
             const next = new Map(prev)
             if (running) {
@@ -189,7 +237,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             }
             return next
         })
-    }, [])
+    }, [updateSessionMutation])
 
     const isMergeInFlight = useCallback(
         (sessionId: string) => mergeInFlight.has(sessionId),
@@ -1257,6 +1305,14 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             addListener(listenEvent(SchaltEvent.SessionRemoved, (event) => {
                 setAllSessions(prev => prev.filter(s => s.info.session_id !== event.session_name))
                 prevStatesRef.current.delete(event.session_name)
+                setSessionMutations(prev => {
+                    if (!prev.has(event.session_name)) {
+                        return prev
+                    }
+                    const next = new Map(prev)
+                    next.delete(event.session_name)
+                    return next
+                })
             }))
         }
 
@@ -1433,6 +1489,9 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             getMergeStatus,
             autoCancelAfterMerge,
             updateAutoCancelAfterMerge,
+            beginSessionMutation,
+            endSessionMutation,
+            isSessionMutating,
         }}>
             {children}
         </SessionsContext.Provider>

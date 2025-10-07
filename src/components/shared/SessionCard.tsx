@@ -30,6 +30,7 @@ export interface SessionCardProps {
     onMerge?: (sessionId: string) => void
     disableMerge?: boolean
     isMarkReadyDisabled?: boolean
+    isBusy?: boolean
 }
 
 export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
@@ -50,7 +51,8 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
     index,
     onMerge,
     disableMerge = false,
-    isMarkReadyDisabled = false
+    isMarkReadyDisabled = false,
+    isBusy = false
 }, ref) => {
     const s = session.info
     const sessionName = getSessionDisplayName(s)
@@ -264,17 +266,48 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
         </>
     )
 
+    const busyOverlay = isBusy ? (
+        <div
+            className="absolute inset-0 z-10 flex items-center justify-center rounded-md pointer-events-none"
+            data-testid="session-busy-indicator"
+            style={{
+                backgroundColor: theme.colors.background.primary,
+                opacity: 0.72
+            }}
+        >
+            <span
+                className="h-4 w-4 border-2 border-solid rounded-full animate-spin"
+                style={{
+                    borderColor: theme.colors.accent.blue.border,
+                    borderTopColor: 'transparent'
+                }}
+            />
+        </div>
+    ) : null
+
+    const commonClassName = clsx(
+        'group relative w-full text-left px-3 py-2.5 rounded-md border transition-all duration-300',
+        getStateBackground(),
+        isBusy && 'cursor-progress opacity-60',
+        className
+    )
+
     if (onSelect) {
         return (
             <button
                 ref={ref as unknown as React.Ref<HTMLButtonElement>}
-                onClick={onSelect}
-                className={clsx(
-                    'group w-full text-left px-3 py-2.5 rounded-md border transition-all duration-300',
-                    getStateBackground(),
-                    className
-                )}
+                onClick={(event) => {
+                    if (isBusy) {
+                        event.preventDefault()
+                        return
+                    }
+                    onSelect()
+                }}
+                className={commonClassName}
+                aria-busy={isBusy}
+                data-session-id={session.info.session_id}
             >
+                {busyOverlay}
                 {cardContent}
             </button>
         )
@@ -283,12 +316,11 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
     return (
         <div
             ref={ref}
-            className={clsx(
-                'group w-full text-left px-3 py-2.5 rounded-md border transition-all duration-300',
-                getStateBackground(),
-                className
-            )}
+            className={commonClassName}
+            aria-busy={isBusy}
+            data-session-id={session.info.session_id}
         >
+            {busyOverlay}
             {cardContent}
         </div>
     )
