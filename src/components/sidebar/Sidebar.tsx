@@ -1027,8 +1027,9 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                         }
                                         // Generic resize request for all terminals in the active context
                                         try {
+                                            const sanitize = (s?: string | null) => (s ?? '').replace(/[^a-zA-Z0-9_-]/g, '_')
                                             if (selection.kind === 'session' && selection.payload) {
-                                                emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'session', sessionId: selection.payload })
+                                                emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'session', sessionId: sanitize(selection.payload) })
                                             } else {
                                                 emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'orchestrator' })
                                             }
@@ -1122,8 +1123,9 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                     emitUiEvent(UiEvent.OpencodeSearchResize, { kind: 'orchestrator' })
                                 }
                                 try {
+                                    const sanitize = (s?: string | null) => (s ?? '').replace(/[^a-zA-Z0-9_-]/g, '_')
                                     if (selection.kind === 'session' && selection.payload) {
-                                        emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'session', sessionId: selection.payload })
+                                        emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'session', sessionId: sanitize(selection.payload) })
                                     } else {
                                         emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'orchestrator' })
                                     }
@@ -1151,8 +1153,9 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                     emitUiEvent(UiEvent.OpencodeSearchResize, { kind: 'orchestrator' })
                                 }
                                 try {
+                                    const sanitize = (s?: string | null) => (s ?? '').replace(/[^a-zA-Z0-9_-]/g, '_')
                                     if (selection.kind === 'session' && selection.payload) {
-                                        emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'session', sessionId: selection.payload })
+                                        emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'session', sessionId: sanitize(selection.payload) })
                                     } else {
                                         emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'orchestrator' })
                                     }

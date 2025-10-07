@@ -7,7 +7,6 @@ import {
     calculateFilterCounts, 
     searchSessions 
 } from './sessionFilters'
-import { sessionTerminalTopId, sessionTerminalBottomId } from './sessionTerminalIds'
 
 // Mock session data for testing
 const createMockSession = (overrides: Record<string, unknown> = {}) => {
@@ -27,7 +26,7 @@ const createMockSession = (overrides: Record<string, unknown> = {}) => {
             ...overrides
         },
         status: undefined,
-        terminals: [sessionTerminalTopId('test-session'), sessionTerminalBottomId('test-session')]
+        terminals: [`session-test-session-top`, `session-test-session-bottom`]
     }
 }
 

@@ -258,7 +258,6 @@ class MockResizeObserver {
 
 // Now import the component under test
 import { Terminal, clearTerminalStartedTracking, type TerminalHandle } from './Terminal'
-import { sessionTerminalTopId } from '../../utils/sessionTerminalIds'
 import { getTerminalSize } from '../../common/terminalSizeCache'
 import { TestProviders } from '../../tests/test-utils'
 // Also import mocked helpers for control
@@ -1638,7 +1637,7 @@ describe('Terminal component', () => {
 
   it('auto-starts session agent when session name requires sanitization', async () => {
     const core = TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][], clear: () => void } } }
-    const terminalId = sessionTerminalTopId('ui polish')
+    const terminalId = 'session-ui_polish-top'
 
     core.invoke.mockClear()
 

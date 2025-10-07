@@ -3893,7 +3893,6 @@ dependencies = [
  "clap",
  "core-foundation",
  "core-foundation-sys",
- "crc32fast",
  "dashmap",
  "dirs",
  "env_logger",

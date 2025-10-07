@@ -24,7 +24,6 @@ import { makeAgentQueueConfig, makeDefaultQueueConfig } from '../../utils/termin
 import { useTerminalWriteQueue } from '../../hooks/useTerminalWriteQueue'
 import { TerminalLoadingOverlay } from './TerminalLoadingOverlay'
 import { TerminalSearchPanel } from './TerminalSearchPanel'
-import { sessionTerminalTopId, sessionTerminalBaseId } from '../../utils/sessionTerminalIds'
 import {
     writeTerminalBackend,
     resizeTerminalBackend,
@@ -786,6 +785,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     useEffect(() => {
         const handler = (e: Event) => {
             const detail = (e as CustomEvent<{ target: 'session' | 'orchestrator' | 'all'; sessionId?: string }>).detail
+            const sanitize = (s?: string) => (s ?? '').replace(/[^a-zA-Z0-9_-]/g, '_')
             // Determine if this terminal should react
             let shouldHandle = false
             if (!detail || detail.target === 'all') {
@@ -794,8 +794,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 shouldHandle = terminalId.startsWith('orchestrator-')
             } else if (detail.target === 'session') {
                 if (detail.sessionId) {
-                    const base = sessionTerminalBaseId(detail.sessionId)
-                    shouldHandle = terminalId.startsWith(`${base}-`)
+                    const prefix = `session-${sanitize(detail.sessionId)}-`
+                    shouldHandle = terminalId.startsWith(prefix)
                 }
             }
 
@@ -2056,7 +2056,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                         startingTerminals.current.set(terminalId, false);
                         return;
                     }
-                    const expectedId = sessionTerminalTopId(sessionName);
+                    const sanitizedSessionName = sessionName.replace(/[^a-zA-Z0-9_-]/g, '_');
+                    const expectedId = `session-${sanitizedSessionName}-top`;
                     if (expectedId !== terminalId) {
                         startingTerminals.current.set(terminalId, false);
                         setAgentLoading(false);

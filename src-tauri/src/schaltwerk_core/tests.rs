@@ -1,7 +1,5 @@
 #[cfg(test)]
-use crate::domains::git::stats::{
-    get_git_stats_call_count, reset_git_stats_call_count, set_git_stats_tracking,
-};
+use crate::domains::git::stats::{get_git_stats_call_count, reset_git_stats_call_count};
 #[cfg(test)]
 use crate::domains::sessions::entity::SessionStatus;
 #[cfg(test)]
@@ -471,23 +469,6 @@ fn test_list_enriched_sessions() {
 #[test]
 #[serial_test::serial]
 fn test_list_enriched_sessions_skips_spec_git_stats() {
-    struct GitStatsTrackingGuard;
-
-    impl GitStatsTrackingGuard {
-        fn enable() -> Self {
-            set_git_stats_tracking(true);
-            reset_git_stats_call_count();
-            Self
-        }
-    }
-
-    impl Drop for GitStatsTrackingGuard {
-        fn drop(&mut self) {
-            set_git_stats_tracking(false);
-        }
-    }
-
-    let _tracking_guard = GitStatsTrackingGuard::enable();
     let env = TestEnvironment::new().unwrap();
     let manager = env.get_session_manager().unwrap();
 

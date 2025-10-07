@@ -1,5 +1,3 @@
-import { sessionTerminalTopId, sessionTerminalBottomId } from '../utils/sessionTerminalIds'
-
 export const mockEnrichedSession = (name: string, status: string = 'active', readyToMerge: boolean = false) => ({
   id: name,
   info: {
@@ -19,8 +17,8 @@ export const mockEnrichedSession = (name: string, status: string = 'active', rea
     session_type: "worktree" as const,
   },
   terminals: [
-    sessionTerminalTopId(name),
-    sessionTerminalBottomId(name)
+    `session-${name}-top`,
+    `session-${name}-bottom`
   ]
 })
 

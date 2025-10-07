@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
 #[cfg(test)]
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
 
 const LARGE_SESSION_THRESHOLD: usize = 500;
@@ -14,22 +14,12 @@ const VERY_LARGE_SESSION_THRESHOLD: usize = 2000;
 
 #[cfg(test)]
 static GIT_STATS_CALL_COUNT: OnceLock<AtomicUsize> = OnceLock::new();
-#[cfg(test)]
-static GIT_STATS_TRACKING_ENABLED: OnceLock<AtomicBool> = OnceLock::new();
-
-#[cfg(test)]
-fn tracking_flag() -> &'static AtomicBool {
-    GIT_STATS_TRACKING_ENABLED
-        .get_or_init(|| AtomicBool::new(false))
-}
 
 #[cfg(test)]
 fn increment_git_stats_call_count() {
-    if tracking_flag().load(Ordering::Relaxed) {
-        GIT_STATS_CALL_COUNT
-            .get_or_init(|| AtomicUsize::new(0))
-            .fetch_add(1, Ordering::Relaxed);
-    }
+    GIT_STATS_CALL_COUNT
+        .get_or_init(|| AtomicUsize::new(0))
+        .fetch_add(1, Ordering::Relaxed);
 }
 
 #[cfg(test)]
@@ -44,11 +34,6 @@ pub fn get_git_stats_call_count() -> usize {
     GIT_STATS_CALL_COUNT
         .get_or_init(|| AtomicUsize::new(0))
         .load(Ordering::Relaxed)
-}
-
-#[cfg(test)]
-pub fn set_git_stats_tracking(enabled: bool) {
-    tracking_flag().store(enabled, Ordering::Relaxed);
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

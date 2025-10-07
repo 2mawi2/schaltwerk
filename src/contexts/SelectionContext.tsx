@@ -15,10 +15,6 @@ import {
     terminalExistsBackend,
     closeTerminalBackend,
 } from '../terminal/transport/backend'
-import {
-    sessionTerminalTopId,
-    sessionTerminalBottomId,
-} from '../utils/sessionTerminalIds'
 
 type NormalizedSessionState = 'spec' | 'running' | 'reviewed'
 
@@ -192,8 +188,9 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
 
             // Also request a generic terminal resize so all terminals recompute cols/rows deterministically
             try {
+                const sanitize = (s?: string | null) => (s ?? '').replace(/[^a-zA-Z0-9_-]/g, '_')
                 if (sel.kind === 'session' && sel.payload) {
-                    emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'session', sessionId: sel.payload })
+                    emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'session', sessionId: sanitize(sel.payload) })
                 } else {
                     emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'orchestrator' })
                 }
@@ -249,13 +246,13 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 workingDirectory: workingDir
             }
         } else {
-            const sessionId = sel.payload || 'unknown'
-            const topId = sessionTerminalTopId(sessionId)
-            const bottomBaseId = sessionTerminalBottomId(sessionId)
+            // Sanitize session name: replace spaces and special chars with underscores
+            const sanitizedSessionName = (sel.payload || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '_')
+            const base = `session-${sanitizedSessionName}`
             const sessionWorkingDir = sel.sessionState === 'running' && sel.worktreePath ? sel.worktreePath : ''
             return {
-                top: topId,
-                bottomBase: bottomBaseId,
+                top: `${base}-top`,
+                bottomBase: `${base}-bottom`,
                 workingDirectory: sessionWorkingDir
             }
         }
@@ -328,11 +325,9 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         if (!params) return
         try {
             await invoke(TauriCommands.RegisterSessionTerminals, {
-                payload: {
-                    projectId: params.projectId,
-                    sessionId: params.sessionId,
-                    terminalIds,
-                },
+                projectId: params.projectId,
+                sessionId: params.sessionId,
+                terminalIds,
             })
         } catch (error) {
             logger.warn('[SelectionContext] Failed to register terminals for session', error)
@@ -344,10 +339,8 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         if (!params) return
         try {
             await invoke(TauriCommands.SuspendSessionTerminals, {
-                payload: {
-                    projectId: params.projectId,
-                    sessionId: params.sessionId,
-                },
+                projectId: params.projectId,
+                sessionId: params.sessionId,
             })
         } catch (error) {
             logger.warn('[SelectionContext] Failed to suspend terminals for selection', error)
@@ -359,10 +352,8 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         if (!params) return
         try {
             await invoke(TauriCommands.ResumeSessionTerminals, {
-                payload: {
-                    projectId: params.projectId,
-                    sessionId: params.sessionId,
-                },
+                projectId: params.projectId,
+                sessionId: params.sessionId,
             })
         } catch (error) {
             logger.warn('[SelectionContext] Failed to resume terminals for selection', error)

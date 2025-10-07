@@ -21,7 +21,6 @@ import { logger } from '../../utils/logger'
 // AnimatedText imported elsewhere in this file; remove unused import here
 import { useSessions } from '../../contexts/SessionsContext'
 import { mapSessionUiState } from '../../utils/sessionFilters'
-import { sessionTerminalTopId } from '../../utils/sessionTerminalIds'
 import { DiffSessionActions } from './DiffSessionActions'
 import { useKeyboardShortcutsConfig } from '../../contexts/KeyboardShortcutsContext'
 import { KeyboardShortcutAction, KeyboardShortcutConfig } from '../../keyboardShortcuts/config'
@@ -1040,7 +1039,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
         await setSelection({ kind: 'orchestrator' })
         setCurrentFocus('claude')
       } else if (sessionName) {
-        const terminalId = sessionTerminalTopId(sessionName)
+        const terminalId = `session-${sessionName}-top`
         await invoke(TauriCommands.PasteAndSubmitTerminal, {
           id: terminalId,
           data: reviewText,

@@ -48,7 +48,6 @@ import { useSelectionPreserver } from './hooks/useSelectionPreserver'
 import { startSessionTop, computeProjectOrchestratorId } from './common/agentSpawn'
 import { createTerminalBackend } from './terminal/transport/backend'
 import { beginSplitDrag, endSplitDrag } from './utils/splitDragCoordinator'
-import { sessionTerminalTopId } from './utils/sessionTerminalIds'
 import { useOptionalToast } from './common/toast/ToastProvider'
 import { AppUpdateResultPayload } from './common/events'
 import { RawSession } from './types/session'
@@ -286,8 +285,9 @@ function AppContent() {
     }
 
     try {
+      const sanitize = (s?: string | null) => (s ?? '').replace(/[^a-zA-Z0-9_-]/g, '_')
       if (selection.kind === 'session' && selection.payload) {
-        emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'session', sessionId: selection.payload })
+        emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'session', sessionId: sanitize(selection.payload) })
       } else {
         emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'orchestrator' })
       }
@@ -649,7 +649,8 @@ function AppContent() {
       const worktreePath = sessionData.worktree_path
       
       // Create terminals for this session using consistent naming pattern
-      const topTerminalId = sessionTerminalTopId(sessionName)
+      const sanitizedSessionName = sessionName.replace(/[^a-zA-Z0-9_-]/g, '_')
+      const topTerminalId = `session-${sanitizedSessionName}-top`
       
       // Create only the top terminal. Bottom terminals are tabbed and created by TerminalTabs as needed (-bottom-0)
       await createTerminalBackend({ id: topTerminalId, cwd: worktreePath })
@@ -868,7 +869,8 @@ function AppContent() {
             for (const createdSession of createdSessions) {
               const sessionName = createdSession.name
               const agentTypeForVersion = createdSession.agentType ?? undefined
-              const topId = sessionTerminalTopId(sessionName)
+              const sanitized = sessionName.replace(/[^a-zA-Z0-9_-]/g, '_')
+              const topId = `session-${sanitized}-top`
               try {
                 await startSessionTop({
                   sessionName,
