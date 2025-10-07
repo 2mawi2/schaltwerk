@@ -1,8 +1,8 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { theme } from '../theme'
 import { makeId, calculateToastOverflow } from './toastUtils'
 import { logger } from '../../utils/logger'
+import { ToastCard } from './ToastCard'
 
 export interface ToastOptions {
   tone: 'success' | 'warning' | 'error' | 'info'
@@ -85,95 +85,31 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       {typeof document !== 'undefined' && createPortal(
         <div
-          className="pointer-events-none fixed bottom-4 right-4 z-[2000] flex w-full max-w-sm flex-col gap-2 px-2"
+          className="pointer-events-none fixed bottom-4 right-4 z-[2000] flex w-full max-w-sm flex-col gap-3 px-2"
           aria-live="polite"
           aria-atomic="false"
         >
-          {toasts.map((toast) => {
-            const background = (() => {
-              switch (toast.tone) {
-                case 'success':
-                  return theme.colors.accent.green.dark
-                case 'warning':
-                  return theme.colors.accent.yellow.dark
-                case 'info':
-                  return theme.colors.accent.blue.dark
-                case 'error':
-                default:
-                  return theme.colors.accent.red.dark
-              }
-            })()
-
-            const border = (() => {
-              switch (toast.tone) {
-                case 'success':
-                  return theme.colors.accent.green.DEFAULT
-                case 'warning':
-                  return theme.colors.accent.yellow.DEFAULT
-                case 'info':
-                  return theme.colors.accent.blue.DEFAULT
-                case 'error':
-                default:
-                  return theme.colors.accent.red.DEFAULT
-              }
-            })()
-
-            return (
-              <div
-                key={toast.id}
-                className="pointer-events-auto overflow-hidden rounded-md shadow-lg"
-                style={{
-                  backgroundColor: background,
-                  border: `1px solid ${border}`,
-                }}
-              >
-                <div className="flex items-start gap-3 px-3 py-2 text-sm" style={{ color: theme.colors.text.primary }}>
-                  <div className="flex-1">
-                    <div className="font-semibold leading-tight">{toast.title}</div>
-                    {toast.description && (
-                      <div className="mt-0.5 text-xs opacity-80 leading-snug">{toast.description}</div>
-                    )}
-                  </div>
-                  <div className="flex flex-col gap-1 items-end">
-                    {toast.action && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          try {
-                            toast.action?.onClick()
-                          } catch (error) {
-                            logger.warn('Toast action failed', error)
-                          } finally {
-                            dismissToast(toast.id)
-                          }
-                        }}
-                        className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors disabled:opacity-60 hover:opacity-90"
-                        style={{
-                          backgroundColor: theme.colors.accent.blue.DEFAULT,
-                          border: `1px solid ${theme.colors.accent.blue.light}`,
-                          color: theme.colors.background.primary,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {toast.action.label}
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      aria-label="Dismiss notification"
-                      onClick={() => dismissToast(toast.id)}
-                      className="rounded p-1 text-xs transition-colors duration-150"
-                      style={{
-                        color: theme.colors.text.secondary,
-                      }}
-                    >
-                      ×
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )
-          })}
+          {toasts.map((toast) => (
+            <ToastCard
+              key={toast.id}
+              tone={toast.tone}
+              title={toast.title}
+              description={toast.description}
+              action={toast.action ? {
+                label: toast.action.label,
+                onClick: () => {
+                  try {
+                    toast.action?.onClick()
+                  } catch (error) {
+                    logger.warn('Toast action failed', error)
+                  } finally {
+                    dismissToast(toast.id)
+                  }
+                }
+              } : undefined}
+              onDismiss={() => dismissToast(toast.id)}
+            />
+          ))}
         </div>,
         document.body
       )}
