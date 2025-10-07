@@ -118,15 +118,15 @@ Use the Settings modal (⌘,) in Schaltwerk to restart the orchestrator and relo
 
 ## Usage
 
-Once configured, Claude can use the following tools:
+Once configured, Claude (and other supported agents) can use the following tools:
 
 ### Creating Sessions
 
 ```
 Use schaltwerk_create to start a new session:
-- name: "feature-auth" 
+- name: "feature-auth"
 - prompt: "implement user authentication with JWT"
-- agent_type: "claude" (supported: claude, opencode, gemini, codex)
+- agent_type: "claude" (supported: claude, opencode, gemini, codex, droid)
 - base_branch: "main" (optional)
 - skip_permissions: true (for autonomous operation)
 ```

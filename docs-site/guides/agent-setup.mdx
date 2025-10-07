@@ -41,7 +41,7 @@ Configure each agent from **Settings → Agent Configuration** before you launch
 
 <Steps>
   <Step title="Select agent tab">
-    Choose from: Claude, Codex, OpenCode, or Gemini
+    Choose from: Claude, Codex, OpenCode, Gemini, or Factory Droid
   </Step>
 
   <Step title="Pick binary">
@@ -66,6 +66,10 @@ Configure each agent from **Settings → Agent Configuration** before you launch
 
 ```bash Codex (npm global)
 ~/.npm-global/bin/codex
+```
+
+```bash Factory Droid
+~/.local/bin/droid
 ```
 
 ```bash Google Gemini
@@ -125,7 +129,7 @@ Add key/value pairs for the agent terminal (API keys, profile names, feature fla
 ![Agent Configuration settings showing detected binaries section with Claude Code path, CLI Arguments field with --permission-mode plan example, and Environment Variables section with ANTHROPIC_MODEL set to claude-sonnet-4](/images/agent-configuration-env-vars-custom-arguments.png)
 
 **Key points:**
-- Variables are scoped per agent type (Claude doesn't see Codex vars)
+- Variables are scoped per agent type (Claude doesn't see Codex vars, Factory Droid stays isolated)
 - Merged with project-level variables at agent start
 - Stored unencrypted - rotate keys on shared machines
 - Use **Edit variables** button for bulk editing

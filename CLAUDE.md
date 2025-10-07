@@ -1,7 +1,7 @@
 # CLAUDE.md - Schaltwerk Development Guidelines
 
 ## Project Overview
-Tauri-based desktop app for managing AI coding sessions using git worktrees. Each session gets an isolated branch/worktree where AI agents (Claude, Gemini, OpenCode, Codex, etc.) can work without affecting the main codebase.
+Tauri-based desktop app for managing AI coding sessions using git worktrees. Each session gets an isolated branch/worktree where AI agents (Claude, Gemini, OpenCode, Codex, Factory Droid, etc.) can work without affecting the main codebase.
 
 ## Platform Support
 - macOS only. Windows and Linux are not supported at this time.
@@ -64,7 +64,7 @@ just test          # Run ALL validations: TypeScript, Rust lints, tests, and bui
 - Rust build verification (`cargo build`)
 
 ### Autonomy for Tests (MANDATORY)
-- Codex may run `just test`, `npm run test`, `npm run lint`, `npm run lint:rust`, `npm run test:rust`, and `cargo` checks without asking for user approval, even when the CLI approval mode is set to “on-request”.
+- Codex and Factory Droid may run `just test`, `npm run test`, `npm run lint`, `npm run lint:rust`, `npm run test:rust`, and `cargo` checks without asking for user approval, even when the CLI approval mode is set to “on-request”.
 - Rationale: Running the full validation suite is required to keep the repository green and accelerate iteration. Do not pause to request permission before executing these commands.
 
 ### Development Commands

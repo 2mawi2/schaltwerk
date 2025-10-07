@@ -126,6 +126,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 - 'opencode': Run the OpenCode CLI agent
 - 'gemini': Use Google's Gemini CLI tooling
 - 'codex': Use Codex CLI with sandbox controls
+- 'droid': Use Factory Droid for build-and-test automation
 
 📝 PROMPTING:
 When creating sessions for AI agents, provide clear, specific prompts:
@@ -179,7 +180,7 @@ The prompt becomes the initial context for the AI agent working in that session.
  - status: "new" | "reviewed"
  - created_at: ISO timestamp
  - last_activity: ISO timestamp or null
- - agent_type: "claude" | "opencode" | "gemini" | "codex"
+ - agent_type: "claude" | "opencode" | "gemini" | "codex" | "droid"
  - branch: Git branch name
  - worktree_path: Local path
  - initial_prompt: Original agent description
@@ -517,6 +518,7 @@ REQUIREMENTS: Target session must exist and be active.`,
 - 'opencode': OpenCode assistant
 - 'gemini': Gemini CLI agent
 - 'codex': Codex assistant with sandbox controls
+- 'droid': Factory Droid for build-and-test automation
 
 ⚡ WHAT HAPPENS:
 1. Creates Git worktree from base branch

@@ -3,7 +3,7 @@ title: MCP Integration
 description: 'Automate session management with the Model Context Protocol REST API'
 ---
 
-Schaltwerk ships with a Model Context Protocol (MCP) server so AI assistants (Claude, etc.) can automate session management.
+Schaltwerk ships with a Model Context Protocol (MCP) server so AI assistants (Claude, Codex, Factory Droid, etc.) can automate session management.
 
 ## Setup
 
@@ -55,6 +55,21 @@ If you prefer manual setup or your agent doesn't appear in settings:
     ```
 
     Then restart Claude Code to load the MCP server.
+  </Tab>
+
+  <Tab title="Factory Droid">
+    ```bash
+    # Build the MCP server
+    cd mcp-server
+    npm install
+    npm run build
+
+    # Register with Factory Droid
+    droid mcp add --transport stdio --scope project schaltwerk \
+      node /absolute/path/to/schaltwerk/mcp-server/build/schaltwerk-mcp-server.js
+    ```
+
+    Then restart Factory Droid to load the MCP server.
   </Tab>
 
   <Tab title="Manual Config">

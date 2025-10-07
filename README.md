@@ -18,7 +18,7 @@ Installation, workflows, agent setup, keyboard shortcuts, MCP integration, troub
 
 ## What is Schaltwerk?
 
-An orchestration tool for agentic coding. Delegate work to terminal-based AI agents (Claude Code, Codex, Gemini, OpenCode) that write code in isolated git worktrees. Review their work locally, run tests, and merge what works.
+An orchestration tool for agentic coding. Delegate work to terminal-based AI agents (Claude Code, Codex, Gemini, OpenCode, Factory Droid) that write code in isolated git worktrees. Review their work locally, run tests, and merge what works.
 
 ## How It Works
 
