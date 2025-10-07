@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { logger } from '../utils/logger'
-import type { SyntaxHighlightRequest, SyntaxHighlightResponse } from '../workers/syntaxHighlighter.worker'
+import type {
+  SyntaxHighlightBlockRequest,
+  SyntaxHighlightBlockResponse,
+  SyntaxHighlightResponse,
+  SyntaxHighlightSingleRequest,
+  SyntaxHighlightSingleResponse
+} from '../workers/syntaxHighlighter.worker'
 
 export interface HighlightOptions {
   code: string
@@ -11,11 +17,30 @@ export interface HighlightOptions {
 
 export interface HighlightWorkerHandle {
   highlightCode: (options: HighlightOptions) => string
+  requestBlockHighlight: (options: HighlightBlockOptions) => void
+  readBlockLine: (cacheKey: string, index: number, fallback: string) => string
 }
 
-interface PendingRequest {
+export interface HighlightBlockOptions {
+  cacheKey: string
+  lines: string[]
+  language?: string | null
+  bypass?: boolean
+  autoDetect?: boolean
+}
+
+type PendingRequest = PendingSingleRequest | PendingBlockRequest
+
+interface PendingSingleRequest {
+  kind: 'single'
   key: string
   code: string
+}
+
+interface PendingBlockRequest {
+  kind: 'block'
+  cacheKey: string
+  lines: string[]
 }
 
 export function useHighlightWorker(): HighlightWorkerHandle {
@@ -23,6 +48,8 @@ export function useHighlightWorker(): HighlightWorkerHandle {
   const cacheRef = useRef<Map<string, string>>(new Map())
   const pendingByIdRef = useRef<Map<number, PendingRequest>>(new Map())
   const pendingByKeyRef = useRef<Map<string, number>>(new Map())
+  const pendingBlocksRef = useRef<Map<string, number>>(new Map())
+  const blockCacheRef = useRef<Map<string, string[]>>(new Map())
   const requestIdRef = useRef(0)
   const [, setVersion] = useState(0)
 
@@ -39,9 +66,11 @@ export function useHighlightWorker(): HighlightWorkerHandle {
     const cache = cacheRef.current
     const pendingById = pendingByIdRef.current
     const pendingByKey = pendingByKeyRef.current
+    const pendingBlocks = pendingBlocksRef.current
+    const blockCache = blockCacheRef.current
 
     const handleMessage = (event: MessageEvent<SyntaxHighlightResponse>) => {
-      const { id, result, error } = event.data
+      const { id, error } = event.data
       const pending = pendingById.get(id)
 
       if (!pending) {
@@ -49,14 +78,28 @@ export function useHighlightWorker(): HighlightWorkerHandle {
       }
 
       pendingById.delete(id)
-      pendingByKey.delete(pending.key)
+      if (pending.kind === 'single') {
+        pendingByKey.delete(pending.key)
 
-      const output = error ? pending.code : result
-      if (error) {
-        logger.error('Highlight worker failed', { error })
+        const typedResult = event.data as SyntaxHighlightSingleResponse
+        const output = error ? pending.code : typedResult.result
+        if (error) {
+          logger.error('Highlight worker failed', { error })
+        }
+
+        cache.set(pending.key, output)
+      } else {
+        pendingBlocks.delete(pending.cacheKey)
+
+        const typedResult = event.data as SyntaxHighlightBlockResponse
+        const lines = error ? pending.lines : typedResult.result
+        if (error) {
+          logger.error('Highlight worker block failed', { error })
+        }
+
+        blockCache.set(pending.cacheKey, Array.isArray(lines) ? lines : pending.lines)
       }
 
-      cache.set(pending.key, output)
       forceRender()
     }
 
@@ -64,11 +107,16 @@ export function useHighlightWorker(): HighlightWorkerHandle {
       logger.error('Highlight worker crashed', { message: event.message })
 
       pendingById.forEach((pending) => {
-        cache.set(pending.key, pending.code)
+        if (pending.kind === 'single') {
+          cache.set(pending.key, pending.code)
+        } else {
+          blockCache.set(pending.cacheKey, pending.lines)
+        }
       })
 
       pendingById.clear()
       pendingByKey.clear()
+      pendingBlocks.clear()
       forceRender()
     }
 
@@ -95,11 +143,16 @@ export function useHighlightWorker(): HighlightWorkerHandle {
       workerRef.current = null
 
       pendingById.forEach((pending) => {
-        cache.set(pending.key, pending.code)
+        if (pending.kind === 'single') {
+          cache.set(pending.key, pending.code)
+        } else {
+          blockCache.set(pending.cacheKey, pending.lines)
+        }
       })
 
       pendingById.clear()
       pendingByKey.clear()
+      pendingBlocks.clear()
     }
   }, [forceRender])
 
@@ -128,11 +181,12 @@ export function useHighlightWorker(): HighlightWorkerHandle {
 
     if (!pendingByKeyRef.current.has(cacheKey)) {
       const requestId = requestIdRef.current++
-      pendingByIdRef.current.set(requestId, { key: cacheKey, code })
+      pendingByIdRef.current.set(requestId, { kind: 'single', key: cacheKey, code })
       pendingByKeyRef.current.set(cacheKey, requestId)
 
-      const payload: SyntaxHighlightRequest = {
+      const payload: SyntaxHighlightSingleRequest = {
         id: requestId,
+        type: 'single',
         code,
         language: language ?? null,
         autoDetect
@@ -144,5 +198,61 @@ export function useHighlightWorker(): HighlightWorkerHandle {
     return code
   }, [])
 
-  return { highlightCode }
+  const requestBlockHighlight = useCallback((options: HighlightBlockOptions) => {
+    const { cacheKey, lines, language, bypass, autoDetect } = options
+
+    if (!cacheKey) {
+      return
+    }
+
+    if (!lines || lines.length === 0) {
+      blockCacheRef.current.set(cacheKey, [])
+      return
+    }
+
+    if (blockCacheRef.current.has(cacheKey)) {
+      return
+    }
+
+    if (bypass) {
+      blockCacheRef.current.set(cacheKey, lines.slice())
+      forceRender()
+      return
+    }
+
+    const worker = workerRef.current
+    if (!worker) {
+      blockCacheRef.current.set(cacheKey, lines.slice())
+      forceRender()
+      return
+    }
+
+    if (pendingBlocksRef.current.has(cacheKey)) {
+      return
+    }
+
+    const requestId = requestIdRef.current++
+    pendingByIdRef.current.set(requestId, { kind: 'block', cacheKey, lines: lines.slice() })
+    pendingBlocksRef.current.set(cacheKey, requestId)
+
+    const payload: SyntaxHighlightBlockRequest = {
+      id: requestId,
+      type: 'block',
+      lines,
+      language: language ?? null,
+      autoDetect
+    }
+
+    worker.postMessage(payload)
+  }, [forceRender])
+
+  const readBlockLine = useCallback((cacheKey: string, index: number, fallback: string) => {
+    const block = blockCacheRef.current.get(cacheKey)
+    if (!block) {
+      return fallback
+    }
+    return block[index] ?? fallback
+  }, [])
+
+  return { highlightCode, requestBlockHighlight, readBlockLine }
 }

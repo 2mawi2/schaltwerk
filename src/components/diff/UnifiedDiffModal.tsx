@@ -28,6 +28,7 @@ import { KeyboardShortcutAction, KeyboardShortcutConfig } from '../../keyboardSh
 import { detectPlatformSafe, isShortcutForAction } from '../../keyboardShortcuts/helpers'
 import type { Platform } from '../../keyboardShortcuts/matcher'
 import { useHighlightWorker } from '../../hooks/useHighlightWorker'
+import { hashSegments } from '../../utils/hashSegments'
 
 // ChangedFile type now imported from DiffFileExplorer
 
@@ -699,28 +700,78 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   // Keyboard handler moved below after handleFinishReview is defined
 
 
-  const language = useMemo(() => {
-    if (!selectedFile) return undefined
-    const diffData = allFileDiffs.get(selectedFile)
-    // Get language from Rust backend fileInfo, fallback to shared helper
-    return diffData?.fileInfo?.language || getFileLanguage(selectedFile)
-  }, [selectedFile, allFileDiffs])
   const HIGHLIGHT_LINE_CAP = 3000
+  const HIGHLIGHT_BLOCK_SIZE = 200
 
-  const { highlightCode: highlightWithWorker } = useHighlightWorker()
-  const highlightCode = useCallback((code: string) => {
+  const { requestBlockHighlight, readBlockLine } = useHighlightWorker()
+
+  const highlightPlans = useMemo(() => {
+    const plans = new Map<string, FileHighlightPlan>()
+
+    for (const file of files) {
+      const diff = allFileDiffs.get(file.path)
+      if (!diff || !('diffResult' in diff)) continue
+
+      const descriptors = collectLineDescriptors(file.path, diff)
+      if (descriptors.length === 0) continue
+
+      const blocks: HighlightBlockDescriptor[] = []
+      const lineMap = new Map<string, HighlightLocation>()
+      const versionToken = `${diff.changedLinesCount}-${descriptors.length}-${diff.fileInfo?.sizeBytes ?? 0}`
+
+      for (let i = 0; i < descriptors.length; i += HIGHLIGHT_BLOCK_SIZE) {
+        const chunk = descriptors.slice(i, i + HIGHLIGHT_BLOCK_SIZE)
+        const blockIndex = blocks.length
+        const lines = chunk.map(entry => entry.content)
+        const blockHash = hashSegments(lines)
+        const cacheKey = `${file.path}::${versionToken}::${blockIndex}::${blockHash}`
+
+        blocks.push({ cacheKey, lines })
+        chunk.forEach((entry, offset) => {
+          lineMap.set(entry.key, { cacheKey, index: offset })
+        })
+      }
+
+      plans.set(file.path, {
+        blocks,
+        lineMap,
+        language: diff.fileInfo?.language || getFileLanguage(file.path) || null,
+        bypass: shouldBypassHighlighting(diff, HIGHLIGHT_LINE_CAP)
+      })
+    }
+
+    return plans
+  }, [files, allFileDiffs])
+
+  useEffect(() => {
+    highlightPlans.forEach((plan) => {
+      plan.blocks.forEach((block) => {
+        requestBlockHighlight({
+          cacheKey: block.cacheKey,
+          lines: block.lines,
+          language: plan.language,
+          autoDetect: !plan.language,
+          bypass: plan.bypass
+        })
+      })
+    })
+  }, [highlightPlans, requestBlockHighlight])
+
+  const highlightCode = useCallback((filePath: string, lineKey: string, code: string) => {
     if (!code) return ''
 
-    const fileDiff = selectedFile ? allFileDiffs.get(selectedFile) : undefined
-    const bypass = shouldBypassHighlighting(fileDiff as FileDiffData | undefined, HIGHLIGHT_LINE_CAP)
+    const plan = highlightPlans.get(filePath)
+    if (!plan || plan.bypass) {
+      return code
+    }
 
-    return highlightWithWorker({
-      code,
-      language: language ?? null,
-      bypass,
-      autoDetect: !language
-    })
-  }, [selectedFile, allFileDiffs, highlightWithWorker, language])
+    const location = plan.lineMap.get(lineKey)
+    if (!location) {
+      return code
+    }
+
+    return readBlockLine(location.cacheKey, location.index, code)
+  }, [highlightPlans, readBlockLine])
 
   // Performance marks to capture compute and render timings (visible in devtools Timeline)
   useEffect(() => {
@@ -1267,6 +1318,55 @@ export function shouldBypassHighlighting(fileDiff: FileDiffData | undefined, cap
   if (!fileDiff) return false
   const { changedLinesCount } = fileDiff
   return typeof changedLinesCount === 'number' && changedLinesCount > cap
+}
+
+interface HighlightBlockDescriptor {
+  cacheKey: string
+  lines: string[]
+}
+
+interface HighlightLocation {
+  cacheKey: string
+  index: number
+}
+
+interface FileHighlightPlan {
+  blocks: HighlightBlockDescriptor[]
+  lineMap: Map<string, HighlightLocation>
+  language: string | null
+  bypass: boolean
+}
+
+interface LineDescriptor {
+  key: string
+  content: string
+}
+
+function collectLineDescriptors(filePath: string, diff: FileDiffData): LineDescriptor[] {
+  if (!('diffResult' in diff)) {
+    return []
+  }
+
+  const descriptors: LineDescriptor[] = []
+
+  diff.diffResult.forEach((line, index) => {
+    const baseKey = `${filePath}-${index}`
+
+    if (line.isCollapsible) {
+      line.collapsedLines?.forEach((collapsedLine, collapsedIndex) => {
+        if (collapsedLine.content !== undefined) {
+          descriptors.push({ key: `${baseKey}-expanded-${collapsedIndex}`, content: collapsedLine.content })
+        }
+      })
+      return
+    }
+
+    if (line.content !== undefined) {
+      descriptors.push({ key: baseKey, content: line.content })
+    }
+  })
+
+  return descriptors
 }
 
 function CommentForm({ onSubmit, onCancel, keyboardShortcutConfig, platform }: {

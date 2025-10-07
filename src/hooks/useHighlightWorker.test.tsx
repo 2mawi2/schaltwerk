@@ -109,7 +109,7 @@ describe('useHighlightWorker', () => {
     expect(request).toMatchObject({ code: 'const value = 1', language: 'typescript' })
 
     act(() => {
-      worker.dispatchMessage({ id: request!.id, result: '<span>highlighted</span>' })
+      worker.dispatchMessage({ id: request!.id, type: 'single', result: '<span>highlighted</span>' })
     })
 
     await waitFor(() => {
@@ -128,6 +128,70 @@ describe('useHighlightWorker', () => {
 
     expect(output).toBe('function noop() {}')
     expect(MockWorker.lastInstance?.messages ?? []).toHaveLength(0)
+  })
+
+  it('highlights blocks of lines and caches results', async () => {
+    const { result } = renderHook(() => useHighlightWorker())
+
+    act(() => {
+      result.current.requestBlockHighlight({
+        cacheKey: 'example.ts::0',
+        lines: ['const value = 1;', 'console.log(value);'],
+        language: 'typescript'
+      })
+    })
+
+    await waitFor(() => {
+      expect(MockWorker.lastInstance).not.toBeNull()
+    })
+
+    const worker = MockWorker.lastInstance!
+    const request = worker.messages.at(-1)!
+    expect(request).toMatchObject({
+      type: 'block',
+      lines: ['const value = 1;', 'console.log(value);']
+    })
+
+    expect(result.current.readBlockLine('example.ts::0', 0, 'fallback')).toBe('fallback')
+
+    act(() => {
+      worker.dispatchMessage({
+        id: request.id,
+        type: 'block',
+        result: ['<span>hl-0</span>', '<span>hl-1</span>']
+      })
+    })
+
+    await waitFor(() => {
+      expect(result.current.readBlockLine('example.ts::0', 0, 'fallback')).toBe('<span>hl-0</span>')
+      expect(result.current.readBlockLine('example.ts::0', 1, 'fallback')).toBe('<span>hl-1</span>')
+    })
+
+    act(() => {
+      result.current.requestBlockHighlight({
+        cacheKey: 'example.ts::0',
+        lines: ['ignored'],
+        language: 'typescript'
+      })
+    })
+
+    const blockRequests = worker.messages.filter(message => message.type === 'block')
+    expect(blockRequests).toHaveLength(1)
+  })
+
+  it('stores raw lines when block highlight is bypassed', () => {
+    const { result } = renderHook(() => useHighlightWorker())
+
+    act(() => {
+      result.current.requestBlockHighlight({
+        cacheKey: 'plain.txt::0',
+        lines: ['no highlight needed'],
+        bypass: true
+      })
+    })
+
+    expect(MockWorker.lastInstance?.messages ?? []).toHaveLength(0)
+    expect(result.current.readBlockLine('plain.txt::0', 0, 'fallback')).toBe('no highlight needed')
   })
 
   it('falls back to raw code when worker reports an error', async () => {
@@ -151,7 +215,7 @@ describe('useHighlightWorker', () => {
     expect(request).toBeDefined()
 
     act(() => {
-      worker.dispatchMessage({ id: request!.id, result: 'ignored', error: 'boom' })
+      worker.dispatchMessage({ id: request!.id, type: 'single', result: 'ignored', error: 'boom' })
     })
 
     await waitFor(() => {

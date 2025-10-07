@@ -44,7 +44,7 @@ const mockProps: Partial<DiffViewerProps> = {
   onFileBodyHeightChange: vi.fn(),
   getCommentsForFile: vi.fn(() => []),
   getCommentForLine: vi.fn(() => undefined),
-  highlightCode: vi.fn((code: string) => code),
+  highlightCode: vi.fn((_filePath: string, _lineKey: string, code: string) => code),
   toggleCollapsed: vi.fn(),
   handleLineMouseDown: vi.fn(),
   handleLineMouseEnter: vi.fn(),
@@ -186,7 +186,7 @@ describe('DiffViewer', () => {
   })
 
   it('applies syntax highlighting when provided', () => {
-    const highlightCode = vi.fn((code) => `<span class="highlighted">${code}</span>`)
+    const highlightCode = vi.fn((_filePath: string, _lineKey: string, code: string) => `<span class="highlighted">${code}</span>`)
     render(<DiffViewer {...mockProps as DiffViewerProps} highlightCode={highlightCode} />)
 
     // Should call highlight function for visible content

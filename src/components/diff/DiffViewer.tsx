@@ -33,7 +33,7 @@ export interface DiffViewerProps {
   onFileBodyHeightChange: (filePath: string, height: number) => void
   getCommentsForFile: (filePath: string) => ReviewComment[]
   getCommentForLine: (lineNum: number | undefined, side: 'old' | 'new') => ReviewComment | undefined
-  highlightCode: (code: string) => string
+  highlightCode: (filePath: string, lineKey: string, code: string) => string
   toggleCollapsed: (filePath: string, index: number) => void
   handleLineMouseDown: (lineNum: number, side: 'old' | 'new', event: React.MouseEvent) => void
   handleLineMouseEnter: (lineNum: number, side: 'old' | 'new') => void
@@ -268,7 +268,7 @@ export function DiffViewer({
                                 onLineMouseEnter={handleLineMouseEnter}
                                 onLineMouseLeave={handleLineMouseLeave}
                                 onLineMouseUp={handleLineMouseUp}
-                                highlightedContent={collapsedLine.content ? highlightCode(collapsedLine.content) : undefined}
+                                highlightedContent={collapsedLine.content !== undefined ? highlightCode(file.path, `${globalIdx}-expanded-${collapsedIdx}`, collapsedLine.content) : undefined}
                                 hasComment={!!collapsedComment}
                                 commentText={collapsedComment?.comment}
                                 filePath={file.path}
@@ -291,7 +291,7 @@ export function DiffViewer({
                           onLineMouseEnter={handleLineMouseEnter}
                           onLineMouseLeave={handleLineMouseLeave}
                           onLineMouseUp={handleLineMouseUp}
-                          highlightedContent={line.content ? highlightCode(line.content) : undefined}
+                          highlightedContent={line.content !== undefined ? highlightCode(file.path, globalIdx, line.content) : undefined}
                           hasComment={!!comment}
                           commentText={comment?.comment}
                           filePath={file.path}
@@ -417,7 +417,7 @@ export function DiffViewer({
                                     onLineMouseEnter={handleLineMouseEnter}
                                     onLineMouseLeave={handleLineMouseLeave}
                                     onLineMouseUp={handleLineMouseUp}
-                                    highlightedContent={collapsedLine.content ? highlightCode(collapsedLine.content) : undefined}
+                                    highlightedContent={collapsedLine.content !== undefined ? highlightCode(file.path, `${globalIdx}-expanded-${collapsedIdx}`, collapsedLine.content) : undefined}
                                     hasComment={!!collapsedComment}
                                     commentText={collapsedComment?.comment}
                                     filePath={file.path}
@@ -440,7 +440,7 @@ export function DiffViewer({
                               onLineMouseEnter={handleLineMouseEnter}
                               onLineMouseLeave={handleLineMouseLeave}
                               onLineMouseUp={handleLineMouseUp}
-                              highlightedContent={line.content ? highlightCode(line.content) : undefined}
+                              highlightedContent={line.content !== undefined ? highlightCode(file.path, globalIdx, line.content) : undefined}
                               hasComment={!!comment}
                               commentText={comment?.comment}
                               filePath={file.path}
