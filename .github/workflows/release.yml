@@ -80,6 +80,7 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: '20'
+          cache: 'npm'
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -87,24 +88,15 @@ jobs:
           targets: x86_64-apple-darwin,aarch64-apple-darwin
 
       - name: Cache Rust dependencies
-        uses: actions/cache@v4
+        uses: swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            src-tauri/target/
-          key: ${{ runner.os }}-cargo-ci-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-ci-
-            ${{ runner.os }}-cargo-
+          workspaces: 'src-tauri -> target'
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Install dependencies
-        run: |
-          npm cache clean --force
-          rm -rf node_modules
-          npm install
+        run: npm ci
 
       # Tests run in separate workflow - releases depend on successful test runs
       # This saves ~3-4 minutes in release workflow
@@ -125,56 +117,51 @@ jobs:
 
       - name: Build for Intel and Apple Silicon with CI profile
         env:
+          RUSTC_WRAPPER: sccache
+          SCCACHE_GHA_ENABLED: 'true'
+          CARGO_INCREMENTAL: '0'
           MACOSX_DEPLOYMENT_TARGET: '11.0'
-          # Use CI profile for much faster builds
-          CARGO_PROFILE_RELEASE_LTO: 'false'
-          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '256'
-          CARGO_PROFILE_RELEASE_OPT_LEVEL: '2'
           CARGO_TARGET_AARCH64_APPLE_DARWIN_RUSTFLAGS: '-C target-feature=+aes,+sha2,+crc,+neon'
         run: |
-          # Build both targets in parallel with optimized settings (saves 2-3 minutes)
-          npm run tauri build -- --target x86_64-apple-darwin &
-          PID_INTEL=$!
-          npm run tauri build -- --target aarch64-apple-darwin &
-          PID_ARM=$!
-          
-          # Wait for both builds to complete
-          wait $PID_INTEL
-          INTEL_STATUS=$?
-          wait $PID_ARM
-          ARM_STATUS=$?
-          
-          # Check if both builds succeeded
-          if [ $INTEL_STATUS -ne 0 ] || [ $ARM_STATUS -ne 0 ]; then
-            echo "Build failed"
-            exit 1
-          fi
+          TARGET_DIR="${CARGO_TARGET_DIR:-src-tauri/target}"
+
+          npm run tauri build -- --profile ci --target x86_64-apple-darwin --timings
+          cp -R "$TARGET_DIR/cargo-timings" cargo-timings-x64
+
+          npm run tauri build -- --profile ci --target aarch64-apple-darwin --timings
+          cp -R "$TARGET_DIR/cargo-timings" cargo-timings-arm
+
+      - name: Display sccache stats
+        if: always()
+        run: $SCCACHE_PATH --show-stats || sccache --show-stats || true
+
+      - name: Upload timing reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-timings
+          path: |
+            cargo-timings-x64/
+            cargo-timings-arm/
+          if-no-files-found: warn
 
       - name: Create Universal Binary
         run: |
-          # Create a universal binary app
-          # Check multiple possible target directories
+          PROFILE_DIR="ci"
           TARGET_DIR="${CARGO_TARGET_DIR:-src-tauri/target}"
-          
-          # First check if files exist in the expected locations
-          echo "🔍 Checking for app bundles..."
-          
+
+          echo "🔍 Checking for app bundles in $TARGET_DIR/$PROFILE_DIR..."
+
           ARM64_APP=""
           X64_APP=""
-          
-          # Check standard target directory first
-          if [ -d "src-tauri/target/aarch64-apple-darwin/release/bundle/macos/schaltwerk.app" ]; then
-            ARM64_APP="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/schaltwerk.app"
-            X64_APP="src-tauri/target/x86_64-apple-darwin/release/bundle/macos/schaltwerk.app"
-            echo "✅ Found apps in standard target directory"
-          elif [ -d "/tmp/schaltwerk-shared-target/aarch64-apple-darwin/release/bundle/macos/schaltwerk.app" ]; then
-            ARM64_APP="/tmp/schaltwerk-shared-target/aarch64-apple-darwin/release/bundle/macos/schaltwerk.app"
-            X64_APP="/tmp/schaltwerk-shared-target/x86_64-apple-darwin/release/bundle/macos/schaltwerk.app"
-            echo "✅ Found apps in shared target directory"
+
+          if [ -d "$TARGET_DIR/aarch64-apple-darwin/$PROFILE_DIR/bundle/macos/schaltwerk.app" ]; then
+            ARM64_APP="$TARGET_DIR/aarch64-apple-darwin/$PROFILE_DIR/bundle/macos/schaltwerk.app"
+            X64_APP="$TARGET_DIR/x86_64-apple-darwin/$PROFILE_DIR/bundle/macos/schaltwerk.app"
+            echo "✅ Found apps in target directory"
           else
-            echo "❌ App bundles not found. Searching for them..."
-            find . -name "schaltwerk.app" -type d 2>/dev/null || true
-            find /tmp -name "schaltwerk.app" -type d 2>/dev/null || true
+            echo "❌ App bundles not found. Searching..."
+            find "$TARGET_DIR" -path "*/bundle/macos/schaltwerk.app" -type d 2>/dev/null || true
             exit 1
           fi
           
@@ -257,14 +244,6 @@ jobs:
                 "url": "${RELEASE_URL}"
               },
               "darwin-x86_64-app": {
-                "signature": "${SIGNATURE}",
-                "url": "${RELEASE_URL}"
-              },
-              "darwin-aarch64": {
-                "signature": "${SIGNATURE}",
-                "url": "${RELEASE_URL}"
-              },
-              "darwin-x86_64": {
                 "signature": "${SIGNATURE}",
                 "url": "${RELEASE_URL}"
               }
