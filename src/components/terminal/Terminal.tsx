@@ -102,6 +102,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const [agentStopped, setAgentStopped] = useState(false);
     const terminalEverStartedRef = useRef<boolean>(false);
     const hydratedRef = useRef<boolean>(false);
+    const pendingRevealRef = useRef<'fast' | 'post-flush' | 'failure' | null>(null);
     const pendingOutput = useRef<string[]>([]);
     const snapshotCursorRef = useRef<number | null>(null);
     const rehydrateScrollRef = useRef<{ atBottom: boolean; y: number } | null>(null);
@@ -412,7 +413,16 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
         rehydrateHandledRef.current = Boolean(saved);
         rehydrateInProgressRef.current = false;
-    }, [terminalId]);
+        const pendingReveal = pendingRevealRef.current;
+        if (pendingReveal) {
+            pendingRevealRef.current = null;
+            setHydrated(true);
+            logger.info(`[Terminal ${terminalId}] Hydration revealed via ${pendingReveal}`);
+            if (onReady) {
+                onReady();
+            }
+        }
+    }, [terminalId, onReady]);
 
     const enqueueWrite = useCallback((data: string) => {
         if (data.length === 0) return;
@@ -807,6 +817,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         }
 
         setHydrated(false);
+        pendingRevealRef.current = null;
         hydratedRef.current = false;
         pendingOutput.current = [];
         resetQueue();
@@ -1395,12 +1406,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
                 const markHydrated = (reason: 'fast' | 'post-flush') => {
                     if (hydratedRef.current) return;
-                    setHydrated(true);
                     hydratedRef.current = true;
-                    logger.info(`[Terminal ${terminalId}] Hydration revealed via ${reason}`);
-                    if (onReady) {
-                        onReady();
-                    }
+                    pendingRevealRef.current = reason;
                 };
 
                 const shouldRevealEarly = snapshotBytes >= FAST_HYDRATION_REVEAL_THRESHOLD || startedGlobal.has(terminalId);
@@ -1465,22 +1472,20 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         } catch (error) {
             logger.error(`[Terminal ${terminalId}] Failed to hydrate:`, error);
             // On failure, still shift to live streaming and flush any buffered output to avoid drops
-            setHydrated(true);
             hydratedRef.current = true;
-                if (pendingOutput.current.length > 0) {
-                    for (const output of pendingOutput.current) {
-                        enqueueWrite(output);
-                    }
-                    pendingOutput.current = [];
-                    // Flush immediately; subsequent events will be batched
-                    flushNow();
-                    
-                    // Scroll to bottom even on hydration failure
-                    requestAnimationFrame(() => {
-                        applyPostHydrationScroll('failure');
-                    });
+            pendingRevealRef.current = 'failure';
+            if (pendingOutput.current.length > 0) {
+                for (const output of pendingOutput.current) {
+                    enqueueWrite(output);
                 }
+                pendingOutput.current = [];
+                // Flush immediately; subsequent events will be batched
+                flushNow();
             }
+            requestAnimationFrame(() => {
+                applyPostHydrationScroll('failure');
+            });
+        }
         };
 
 
@@ -1533,6 +1538,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                     }
                 }
                 setHydrated(false);
+                pendingRevealRef.current = null;
                 hydratedRef.current = false;
                 snapshotCursorRef.current = null;
                 await hydrateTerminal();
@@ -1792,6 +1798,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             terminal.current?.dispose();
             terminal.current = null;
             setHydrated(false);
+            pendingRevealRef.current = null;
             pendingOutput.current = [];
             resetQueue();
             // Note: We intentionally don't close terminals here to allow switching between sessions
@@ -2138,6 +2145,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         if (hydratedRef.current) {
             hydratedRef.current = false
             setHydrated(false)
+            pendingRevealRef.current = null
         }
 
         resetQueue()

@@ -644,10 +644,11 @@ describe('Terminal component', () => {
   it('session top with correct id starts claude for session', async () => {
     renderTerminal({ terminalId: "session-work-top", sessionName: "work" })
     await flushAll()
-    vi.advanceTimersByTime(1)
+    await advanceAndFlush(200)
+    await flushAll()
     await flushAll()
 
-  const startSess = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.find((c: unknown[]) => c[0] === TauriCommands.SchaltwerkCoreStartSessionAgent)
+    const startSess = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.find((c: unknown[]) => c[0] === TauriCommands.SchaltwerkCoreStartSessionAgent)
     expect(startSess).toBeTruthy()
     expect(startSess![1]).toMatchObject({ sessionName: 'work' })
   })
@@ -1382,6 +1383,34 @@ describe('Terminal component', () => {
     expect(xterm.buffer.active.viewportY).toBe(xterm.buffer.active.baseY)
   })
 
+  it('keeps terminal hidden until hydration scroll completes for large snapshots', async () => {
+    const core = TauriCore as unknown as MockTauriCore
+
+    const largeSnapshot = 'BLOCK\n'.repeat(110000)
+    core.__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => ({
+      seq: 1,
+      startSeq: 0,
+      data: largeSnapshot
+    }))
+
+    const view = renderTerminal({ terminalId: 'session-hydrate-anim-top', sessionName: 'hydrate-anim', agentType: 'codex' })
+    await flushAll()
+
+    const termRoot = view.container.querySelector('.transition-opacity') as HTMLDivElement | null
+    expect(termRoot).not.toBeNull()
+    expect(termRoot?.className).toContain('opacity-0')
+
+    const xterm = getLastXtermInstance()
+    expect(xterm.scrollToLine).not.toHaveBeenCalled()
+
+    await advanceAndFlush(200)
+
+    expect(xterm.scrollToLine).toHaveBeenCalled()
+    expect(termRoot?.className).toContain('opacity-100')
+
+    view.unmount()
+  })
+
   it('rehydrates after frontend queue overflow to recover dropped output', async () => {
     const queueSpy = vi.spyOn(terminalQueue, 'makeAgentQueueConfig').mockReturnValue({
       maxQueueBytes: 64,
@@ -1604,7 +1633,7 @@ describe('Terminal component', () => {
 
     const first = renderTerminal({ terminalId, sessionName: 'restart' })
     await flushAll()
-    vi.advanceTimersByTime(1)
+    await advanceAndFlush(200)
     await flushAll()
     vi.advanceTimersByTime(1)
     await flushAll()
@@ -1643,7 +1672,7 @@ describe('Terminal component', () => {
 
     const instance = renderTerminal({ terminalId, sessionName: 'ui polish' })
     await flushAll()
-    vi.advanceTimersByTime(1)
+    await advanceAndFlush(200)
     await flushAll()
 
     const startCalls = core.invoke.mock.calls.filter(call => call[0] === TauriCommands.SchaltwerkCoreStartSessionAgent)
@@ -1747,6 +1776,7 @@ describe('Terminal component', () => {
     const core = TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }
     const { container } = renderTerminal({ terminalId: 'session-tiny-top', sessionName: 'tiny' })
     await flushAll()
+    await advanceAndFlush(200)
 
     const outer = container.querySelector('[data-smartdash-exempt="true"]') as HTMLDivElement | null
     const termEl = outer?.querySelector('div') as HTMLDivElement | null
