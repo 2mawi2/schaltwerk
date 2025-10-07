@@ -161,39 +161,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const skipNextFocusCallbackRef = useRef<boolean>(false);
 
     useEffect(() => {
-        const el = termRef.current;
-        if (!el) return;
-
-        const handlePaste = (event: ClipboardEvent) => {
-            if (readOnly) {
-                event.preventDefault();
-                return;
-            }
-
-            const clipboard = event.clipboardData;
-            if (!clipboard) return;
-
-            const items = Array.from(clipboard.items ?? []);
-            const hasBinaryPayload = items.some(item => item.kind === 'file' || (item.type && !item.type.startsWith('text/')));
-            const plainText = clipboard.getData('text/plain') ?? '';
-            const hasHtmlOnly = !plainText && clipboard.types.includes('text/html');
-
-            if (!hasBinaryPayload && !hasHtmlOnly) {
-                return;
-            }
-
-            event.preventDefault();
-            if (!plainText || !terminal.current) {
-                return;
-            }
-
-            terminal.current.paste(plainText);
-        };
-
-        addEventListener(el, 'paste', handlePaste as EventListener, { capture: true });
-    }, [addEventListener, readOnly]);
-
-    useEffect(() => {
         let cancelled = false;
         const refresh = () => {
             const active = isPluginTerminal(terminalId);

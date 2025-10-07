@@ -402,10 +402,10 @@ mod tests {
         let mut service = SettingsService::new(Box::new(repo));
 
         service
-            .set_agent_cli_args("droid", "--auto medium".to_string())
+            .set_agent_cli_args("droid", "--log-level debug".to_string())
             .expect("should accept droid CLI args");
 
-        assert_eq!(repo_handle.snapshot().agent_cli_args.droid, "--auto medium");
+        assert_eq!(repo_handle.snapshot().agent_cli_args.droid, "--log-level debug");
     }
 
     #[test]

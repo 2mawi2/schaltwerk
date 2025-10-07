@@ -33,7 +33,7 @@ describe('useSettings', () => {
         opencode: '--temperature 0.8',
         gemini: '--project test',
         codex: '',
-        droid: '--auto medium'
+        droid: '--log-level debug'
       }
 
       await act(async () => {
@@ -70,7 +70,7 @@ describe('useSettings', () => {
       })
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetAgentCliArgs, {
         agentType: 'droid',
-        cliArgs: '--auto medium'
+        cliArgs: '--log-level debug'
       })
       expect(mockInvoke).toHaveBeenCalledTimes(10)
     })

@@ -98,6 +98,23 @@ impl AgentAdapter for GeminiAdapter {
 
 pub struct OpenCodeAdapter;
 
+fn build_droid_prompt_arg(prompt: &str) -> String {
+    let normalized = prompt.replace("\r\n", "\n").replace('\r', "\n");
+    let mut escaped = String::with_capacity(normalized.len() + 2);
+    escaped.push('"');
+    for ch in normalized.chars() {
+        match ch {
+            '"' => escaped.push_str("\\\""),
+            '\\' => escaped.push_str("\\\\"),
+            '$' => escaped.push_str("\\$"),
+            '`' => escaped.push_str("\\`"),
+            _ => escaped.push(ch),
+        }
+    }
+    escaped.push('"');
+    escaped
+}
+
 pub struct DroidAdapter;
 
 impl AgentAdapter for DroidAdapter {
@@ -108,19 +125,15 @@ impl AgentAdapter for DroidAdapter {
         let binary_invocation = format_binary_invocation(binary);
         let cwd_quoted = format_binary_invocation(&ctx.worktree_path.display().to_string());
 
-        let autonomy = if ctx.skip_permissions {
-            "high"
-        } else {
-            "medium"
-        };
+        let mut command = format!("cd {cwd_quoted} && {binary_invocation}");
 
-        let mut command = format!("cd {cwd_quoted} && {binary_invocation} --auto {autonomy}");
-        if ctx.skip_permissions {
-            command.push_str(" --skip-permissions-unsafe");
+        if let Some(prompt) = ctx.initial_prompt {
+            let prompt_arg = build_droid_prompt_arg(prompt);
+            command.push(' ');
+            command.push_str(&prompt_arg);
         }
 
-        let mut spec = AgentLaunchSpec::new(command, ctx.worktree_path.to_path_buf())
-            .with_initial_command(ctx.initial_prompt.map(|prompt| prompt.to_string()));
+        let mut spec = AgentLaunchSpec::new(command, ctx.worktree_path.to_path_buf());
 
         let system_path = std::env::var("PATH").unwrap_or_default();
         match droid::ensure_vscode_cli_shim(ctx.worktree_path, &system_path) {
@@ -374,7 +387,7 @@ mod tests {
         use serial_test::serial;
 
         #[test]
-        fn test_droid_adapter_basic_flags() {
+        fn test_droid_adapter_basic_prompt_argument() {
             let adapter = DroidAdapter;
             let manifest = AgentManifest::get("droid").unwrap();
 
@@ -389,8 +402,9 @@ mod tests {
 
             let spec = adapter.build_launch_spec(ctx);
             assert!(spec.shell_command.contains("droid"));
-            assert!(spec.shell_command.contains("--auto medium"));
-            assert_eq!(spec.initial_command, Some("review the diff".to_string()));
+            assert!(spec.shell_command.contains("review the diff"));
+            assert!(!spec.shell_command.contains("--auto"));
+            assert!(spec.initial_command.is_none());
         }
 
         #[test]
@@ -408,8 +422,52 @@ mod tests {
             };
 
             let spec = adapter.build_launch_spec(ctx);
-            assert!(spec.shell_command.contains("--auto high"));
-            assert!(spec.shell_command.contains("--skip-permissions-unsafe"));
+            assert!(spec.shell_command.contains("droid"));
+            assert!(!spec.shell_command.contains("--auto"));
+            assert!(!spec.shell_command.contains("--skip-permissions-unsafe"));
+        }
+
+        #[test]
+        fn test_droid_adapter_handles_multiline_prompt() {
+            let adapter = DroidAdapter;
+            let manifest = AgentManifest::get("droid").unwrap();
+            let prompt = "line1\nline2";
+
+            let ctx = AgentLaunchContext {
+                worktree_path: Path::new("/test/path"),
+                session_id: None,
+                initial_prompt: Some(prompt),
+                skip_permissions: false,
+                binary_override: Some("/bin/droid"),
+                manifest,
+            };
+
+            let spec = adapter.build_launch_spec(ctx);
+            assert!(spec.shell_command.contains("line1"));
+            assert!(spec.shell_command.contains("line2"));
+            assert!(spec.shell_command.contains('\n'));
+        }
+
+        #[test]
+        fn test_droid_adapter_prompt_round_trip_through_parser() {
+            use crate::domains::agents::command_parser::parse_agent_command;
+
+            let adapter = DroidAdapter;
+            let manifest = AgentManifest::get("droid").unwrap();
+            let prompt = "first line\nsecond line with \"quotes\" and $vars";
+
+            let ctx = AgentLaunchContext {
+                worktree_path: Path::new("/work"),
+                session_id: None,
+                initial_prompt: Some(prompt),
+                skip_permissions: false,
+                binary_override: Some("droid"),
+                manifest,
+            };
+
+            let spec = adapter.build_launch_spec(ctx);
+            let (_, _, args) = parse_agent_command(&spec.shell_command).expect("command should parse");
+            assert_eq!(args.last().unwrap(), prompt);
         }
 
         #[test]
