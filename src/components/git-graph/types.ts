@@ -17,6 +17,18 @@ export interface HistoryItem {
   fullHash?: string
 }
 
+export interface CommitFileChange {
+  path: string
+  changeType: string
+}
+
+export interface CommitDetailState {
+  isExpanded: boolean
+  isLoading: boolean
+  files: CommitFileChange[] | null
+  error: string | null
+}
+
 export interface HistoryGraphNode {
   id: string
   color: string

@@ -12,7 +12,9 @@ pub use super::worktrees::{
     update_worktree_branch,
 };
 
-pub use super::history::{get_git_history, HistoryProviderSnapshot};
+pub use super::history::{
+    get_commit_file_changes, get_git_history, CommitFileChange, HistoryProviderSnapshot,
+};
 pub use super::operations::{
     commit_all_changes, has_conflicts, has_uncommitted_changes, is_valid_session_name,
 };

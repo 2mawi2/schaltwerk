@@ -228,13 +228,15 @@ function renderGraph(viewModel: HistoryItemViewModel): ReactElement {
   }
 
   const width = SWIMLANE_WIDTH * (Math.max(inputSwimlanes.length, outputSwimlanes.length, 1) + 1)
+  const height = SWIMLANE_HEIGHT + 1
+  const viewBoxHeight = SWIMLANE_HEIGHT + 1
 
   return (
     <svg
       className="graph git-graph"
       width={width}
-      height={SWIMLANE_HEIGHT}
-      viewBox={`0 0 ${width} ${SWIMLANE_HEIGHT}`}
+      height={height}
+      viewBox={`0 0 ${width} ${viewBoxHeight}`}
       role="presentation"
     >
       <defs>

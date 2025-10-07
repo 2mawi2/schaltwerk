@@ -793,6 +793,7 @@ fn main() {
             is_git_repository,
             directory_exists,
             get_git_graph_history,
+            get_git_graph_commit_files,
             create_new_project,
             initialize_project,
             get_project_default_branch,

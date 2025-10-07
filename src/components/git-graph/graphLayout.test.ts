@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { toViewModel } from './graphLayout'
-import type { HistoryProviderSnapshot, HistoryItem } from './types'
+import { toViewModel, findNodeColor } from './graphLayout'
+import type { HistoryProviderSnapshot, HistoryItem, HistoryItemViewModel } from './types'
 
 const SWIMLANE_COLORS = [
   '#FFB000',
@@ -339,5 +339,54 @@ describe('graphLayout - toViewModel', () => {
       expect(refs[2].id).toBe('origin/main')    // Base
       expect(refs[3].id).toBe('feature')        // Other
     })
+  })
+})
+
+describe('graphLayout - findNodeColor', () => {
+  it('returns color from matching output lane when available', () => {
+    const snapshot = createSnapshot([
+      { id: 'a', parentIds: ['b'], subject: 'A', author: 'Test', timestamp: 2000 },
+      { id: 'b', parentIds: [], subject: 'B', author: 'Test', timestamp: 1000 }
+    ])
+
+    const [aViewModel] = toViewModel(snapshot)
+    const color = findNodeColor(aViewModel)
+
+    expect(color).toBeDefined()
+    expect(color).toBe(aViewModel.outputSwimlanes[0]?.color)
+  })
+
+  it('falls back to input lane color when no output lane matches', () => {
+    const viewModel: HistoryItemViewModel = {
+      historyItem: {
+        id: 'a',
+        parentIds: ['b'],
+        subject: 'subject',
+        author: 'author',
+        timestamp: Date.now(),
+      },
+      isCurrent: false,
+      inputSwimlanes: [{ id: 'a', color: '#abcdef' }],
+      outputSwimlanes: []
+    }
+
+    expect(findNodeColor(viewModel)).toBe('#abcdef')
+  })
+
+  it('returns default color when neither input nor output lanes exist', () => {
+    const viewModel: HistoryItemViewModel = {
+      historyItem: {
+        id: 'a',
+        parentIds: [],
+        subject: 'subject',
+        author: 'author',
+        timestamp: Date.now(),
+      },
+      isCurrent: false,
+      inputSwimlanes: [],
+      outputSwimlanes: []
+    }
+
+    expect(findNodeColor(viewModel)).toBe('#81b88b')
   })
 })

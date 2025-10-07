@@ -210,3 +210,19 @@ export function findExtraParents(viewModel: HistoryItemViewModel): HistoryGraphN
 
   return extras
 }
+
+export function findNodeColor(viewModel: HistoryItemViewModel): string {
+  const { historyItem, inputSwimlanes, outputSwimlanes } = viewModel
+  const inputIndex = inputSwimlanes.findIndex(node => node.id === historyItem.id)
+  const circleIndex = inputIndex !== -1 ? inputIndex : inputSwimlanes.length
+
+  if (circleIndex < outputSwimlanes.length) {
+    return outputSwimlanes[circleIndex].color
+  }
+
+  if (circleIndex < inputSwimlanes.length) {
+    return inputSwimlanes[circleIndex].color
+  }
+
+  return '#81b88b'
+}

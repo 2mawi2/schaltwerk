@@ -4,7 +4,7 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { useProject } from '../../contexts/ProjectContext'
 import { HistoryList } from './HistoryList'
 import { toViewModel } from './graphLayout'
-import type { HistoryProviderSnapshot, HistoryItem } from './types'
+import type { CommitDetailState, CommitFileChange, HistoryProviderSnapshot, HistoryItem, HistoryItemViewModel } from './types'
 import { logger } from '../../utils/logger'
 import { theme } from '../../common/theme'
 import { useToast } from '../../common/toast/ToastProvider'
@@ -23,6 +23,8 @@ export const GitGraphPanel = memo(() => {
   const activeProjectRef = useRef<string | null>(projectPath ?? null)
   const [selectedCommitId, setSelectedCommitId] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; commit: HistoryItem } | null>(null)
+  const [commitDetails, setCommitDetails] = useState<Record<string, CommitDetailState>>({})
+  const commitDetailsRef = useRef<Record<string, CommitDetailState>>({})
 
   useEffect(() => {
     activeProjectRef.current = projectPath ?? null
@@ -136,6 +138,8 @@ export const GitGraphPanel = memo(() => {
     setLoadMoreError(null)
     setSelectedCommitId(null)
     setContextMenu(null)
+    setCommitDetails({})
+    commitDetailsRef.current = {}
     loadHistory()
   }, [projectPath, loadHistory])
 
@@ -186,6 +190,90 @@ export const GitGraphPanel = memo(() => {
     }
     setContextMenu(null)
   }, [contextMenu, pushToast])
+
+  useEffect(() => {
+    commitDetailsRef.current = commitDetails
+  }, [commitDetails])
+
+  const handleToggleCommitDetails = useCallback((viewModel: HistoryItemViewModel) => {
+    if (!projectPath) {
+      return
+    }
+
+    const commitId = viewModel.historyItem.id
+    const commitHash = viewModel.historyItem.fullHash ?? viewModel.historyItem.id
+    const current = commitDetailsRef.current[commitId]
+    const willExpand = !(current?.isExpanded ?? false)
+
+    logger.debug('[GitGraphPanel] toggle commit details', {
+      commitId,
+      willExpand,
+      hasExistingState: Boolean(current),
+    })
+
+    if (!willExpand) {
+      setCommitDetails(prev => ({
+        ...prev,
+        [commitId]: current
+          ? { ...current, isExpanded: false, isLoading: false }
+          : { isExpanded: false, isLoading: false, files: null, error: null }
+      }))
+      return
+    }
+
+    const shouldFetch = !current?.files || Boolean(current?.error)
+
+    setCommitDetails(prev => ({
+      ...prev,
+      [commitId]: {
+        isExpanded: true,
+        isLoading: shouldFetch,
+        files: current?.files ?? null,
+        error: null,
+      },
+    }))
+
+    if (!shouldFetch) {
+      logger.debug('[GitGraphPanel] skipping fetch for commit details', { commitId })
+      return
+    }
+
+    logger.debug('[GitGraphPanel] fetching commit files', { commitId })
+    invoke<CommitFileChange[]>(TauriCommands.GetGitGraphCommitFiles, {
+      repoPath: projectPath,
+      commitHash,
+    })
+      .then(files => {
+        if (activeProjectRef.current !== projectPath) {
+          return
+        }
+        setCommitDetails(prev => ({
+          ...prev,
+          [commitId]: {
+            isExpanded: true,
+            isLoading: false,
+            files,
+            error: null,
+          },
+        }))
+      })
+      .catch(err => {
+        if (activeProjectRef.current !== projectPath) {
+          return
+        }
+        const message = err instanceof Error ? err.message : String(err)
+        logger.error('[GitGraphPanel] Failed to load commit files', err)
+        setCommitDetails(prev => ({
+          ...prev,
+          [commitId]: {
+            isExpanded: true,
+            isLoading: false,
+            files: prev[commitId]?.files ?? null,
+            error: message,
+          },
+        }))
+      })
+  }, [projectPath])
 
   useEffect(() => {
     if (!contextMenu) return
@@ -240,6 +328,8 @@ export const GitGraphPanel = memo(() => {
         selectedCommitId={selectedCommitId}
         onSelectCommit={setSelectedCommitId}
         onContextMenu={handleContextMenu}
+        commitDetails={commitDetails}
+        onToggleCommitDetails={handleToggleCommitDetails}
       />
       {hasMore && (
         <div className="border-t border-slate-800 px-3 py-2 text-xs text-slate-400 flex items-center justify-between">

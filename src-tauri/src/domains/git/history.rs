@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use git2::{Oid, Repository};
+use git2::{Delta, DiffFindOptions, DiffOptions, Oid, Repository};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
@@ -14,6 +14,13 @@ pub struct HistoryItemRef {
     pub color: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommitFileChange {
+    pub path: String,
+    #[serde(rename = "changeType")]
+    pub change_type: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,6 +52,76 @@ pub struct HistoryProviderSnapshot {
     pub next_cursor: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none", rename = "hasMore")]
     pub has_more: Option<bool>,
+}
+
+pub fn get_commit_file_changes(
+    repo_path: &Path,
+    commit_hash: &str,
+) -> Result<Vec<CommitFileChange>> {
+    let repo = Repository::open(repo_path).context("Failed to open git repository")?;
+
+    let oid = Oid::from_str(commit_hash).or_else(|_| {
+        repo.revparse_single(commit_hash)
+            .map(|obj| obj.id())
+            .context("Failed to resolve commit hash")
+    })?;
+
+    let commit = repo
+        .find_commit(oid)
+        .context("Failed to find commit for history details")?;
+
+    let new_tree = commit
+        .tree()
+        .context("Failed to read commit tree for history details")?;
+    let old_tree = if commit.parent_count() > 0 {
+        commit.parent(0).ok().and_then(|parent| parent.tree().ok())
+    } else {
+        None
+    };
+
+    let mut opts = DiffOptions::new();
+    opts.include_untracked(false)
+        .recurse_untracked_dirs(false)
+        .ignore_submodules(true);
+
+    let mut diff = match old_tree {
+        Some(tree) => repo.diff_tree_to_tree(Some(&tree), Some(&new_tree), Some(&mut opts)),
+        None => repo.diff_tree_to_tree(None, Some(&new_tree), Some(&mut opts)),
+    }
+    .context("Failed to compute commit diff for history details")?;
+
+    let mut find_opts = DiffFindOptions::new();
+    diff.find_similar(Some(&mut find_opts))
+        .context("Failed to analyse commit diff for history details")?;
+
+    let mut files = Vec::new();
+    for delta in diff.deltas() {
+        let status = match delta.status() {
+            Delta::Added => "A",
+            Delta::Deleted => "D",
+            Delta::Modified => "M",
+            Delta::Renamed => "R",
+            Delta::Copied => "C",
+            _ => "M",
+        };
+
+        if let Some(path) = delta
+            .new_file()
+            .path()
+            .or_else(|| delta.old_file().path())
+            .and_then(|path| path.to_str())
+        {
+            if !path.is_empty() {
+                files.push(CommitFileChange {
+                    path: path.to_string(),
+                    change_type: status.to_string(),
+                });
+            }
+        }
+    }
+
+    files.sort_by(|a, b| a.path.cmp(&b.path));
+    Ok(files)
 }
 
 const DEFAULT_HISTORY_LIMIT: usize = 400;
@@ -291,6 +368,37 @@ mod tests {
 
         let latest_commit_id = commits.last().expect("commits");
         assert_ne!(snapshot.next_cursor.unwrap(), *latest_commit_id);
+    }
+
+    #[test]
+    fn get_commit_file_changes_reports_added_and_modified_files() {
+        let (_dir, repo) = init_repo().expect("seed repo");
+
+        write_file(&repo, 0).expect("seed file");
+        let first_commit = create_commit(&repo, "initial", None).expect("first commit");
+
+        let workdir = repo.workdir().expect("workdir");
+        std::fs::write(workdir.join("file_0.txt"), "updated").expect("modify file");
+        std::fs::write(workdir.join("new_file.txt"), "second").expect("new file");
+
+        let second_commit =
+            create_commit(&repo, "second", Some(&first_commit)).expect("second commit");
+
+        let files = get_commit_file_changes(workdir, &second_commit.id().to_string())
+            .expect("commit files");
+
+        assert!(
+            files
+                .iter()
+                .any(|file| file.path == "file_0.txt" && file.change_type == "M"),
+            "expected modified file to be reported"
+        );
+        assert!(
+            files
+                .iter()
+                .any(|file| file.path == "new_file.txt" && file.change_type == "A"),
+            "expected added file to be reported"
+        );
     }
 
     #[test]
