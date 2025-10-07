@@ -82,17 +82,19 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
     const agentType = s.original_agent_type as (SessionInfo['original_agent_type'])
     const agentKey = (agentType || '').toLowerCase()
     const agentLabel = agentKey
-    const agentColor = agentKey === 'claude'
-        ? 'blue'
-        : agentKey === 'opencode'
-            ? 'green'
-            : agentKey === 'gemini'
-                ? 'orange'
-                : agentKey === 'droid'
-                    ? 'violet'
-                    : agentKey === 'codex'
-                        ? 'red'
-                        : ''
+
+    const getAgentColor = (agent: string): 'blue' | 'green' | 'orange' | 'violet' | 'red' => {
+        switch (agent) {
+            case 'claude': return 'blue'
+            case 'opencode': return 'green'
+            case 'gemini': return 'orange'
+            case 'droid': return 'violet'
+            case 'codex': return 'red'
+            default: return 'red'
+        }
+    }
+
+    const agentColor = getAgentColor(agentKey)
 
     const cardContent = (
         <>
