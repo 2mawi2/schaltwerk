@@ -405,7 +405,10 @@ mod tests {
             .set_agent_cli_args("droid", "--log-level debug".to_string())
             .expect("should accept droid CLI args");
 
-        assert_eq!(repo_handle.snapshot().agent_cli_args.droid, "--log-level debug");
+        assert_eq!(
+            repo_handle.snapshot().agent_cli_args.droid,
+            "--log-level debug"
+        );
     }
 
     #[test]

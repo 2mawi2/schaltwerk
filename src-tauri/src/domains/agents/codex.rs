@@ -615,7 +615,7 @@ pub fn build_codex_command_with_config(
         // Start fresh with initial prompt
         log::debug!("✨ Codex command builder: Starting fresh session with initial prompt");
         log::debug!("✨ Prompt: {prompt:?}");
-        let escaped = prompt.replace('"', r#"\""#);
+        let escaped = super::escape_prompt_for_shell(prompt);
         cmd.push_str(&format!(r#" "{escaped}""#));
     } else {
         // Start fresh without prompt
@@ -843,6 +843,27 @@ mod tests {
             cmd,
             r#"cd /path/to/worktree && codex --sandbox workspace-write "implement \"feature\" with quotes""#
         );
+    }
+
+    #[test]
+    fn test_prompt_with_trailing_backslash_round_trips() {
+        use crate::domains::agents::command_parser::parse_agent_command;
+
+        let config = CodexConfig {
+            binary_path: Some("codex".to_string()),
+        };
+        let prompt = "Send Windows path: C:\\Users\\codex\\Sandbox\\";
+        let cmd = build_codex_command_with_config(
+            Path::new("/path/to/worktree"),
+            None,
+            Some(prompt),
+            "workspace-write",
+            Some(&config),
+        );
+
+        let (_, _, args) =
+            parse_agent_command(&cmd).expect("codex prompt ending with backslash must parse");
+        assert_eq!(args.last().unwrap(), prompt);
     }
 
     #[test]

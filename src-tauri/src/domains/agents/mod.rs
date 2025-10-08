@@ -13,6 +13,19 @@ pub mod unified;
 pub use adapter::{AgentAdapter, AgentLaunchContext};
 pub use command_parser::parse_agent_command;
 pub use launch_spec::AgentLaunchSpec;
+pub(crate) fn escape_prompt_for_shell(prompt: &str) -> String {
+    let mut escaped = String::with_capacity(prompt.len());
+    for ch in prompt.chars() {
+        match ch {
+            '"' => escaped.push_str("\\\""),
+            '\\' => escaped.push_str("\\\\"),
+            '$' => escaped.push_str("\\$"),
+            '`' => escaped.push_str("\\`"),
+            _ => escaped.push(ch),
+        }
+    }
+    escaped
+}
 
 #[cfg(test)]
 pub mod tests;

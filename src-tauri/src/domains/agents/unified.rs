@@ -100,19 +100,8 @@ pub struct OpenCodeAdapter;
 
 fn build_droid_prompt_arg(prompt: &str) -> String {
     let normalized = prompt.replace("\r\n", "\n").replace('\r', "\n");
-    let mut escaped = String::with_capacity(normalized.len() + 2);
-    escaped.push('"');
-    for ch in normalized.chars() {
-        match ch {
-            '"' => escaped.push_str("\\\""),
-            '\\' => escaped.push_str("\\\\"),
-            '$' => escaped.push_str("\\$"),
-            '`' => escaped.push_str("\\`"),
-            _ => escaped.push(ch),
-        }
-    }
-    escaped.push('"');
-    escaped
+    let escaped = super::escape_prompt_for_shell(&normalized);
+    format!("\"{escaped}\"")
 }
 
 pub struct DroidAdapter;
@@ -466,7 +455,8 @@ mod tests {
             };
 
             let spec = adapter.build_launch_spec(ctx);
-            let (_, _, args) = parse_agent_command(&spec.shell_command).expect("command should parse");
+            let (_, _, args) =
+                parse_agent_command(&spec.shell_command).expect("command should parse");
             assert_eq!(args.last().unwrap(), prompt);
         }
 

@@ -63,7 +63,7 @@ pub fn build_gemini_command_with_config(
     // Fallback: launch TUI and inject prompt via terminal manager.
     if let Some(prompt) = _initial_prompt {
         if !prompt.trim().is_empty() {
-            let escaped = prompt.replace('"', r#"\""#);
+            let escaped = super::escape_prompt_for_shell(prompt);
             cmd.push_str(&format!(r#" --prompt-interactive "{escaped}""#));
         }
     }
@@ -156,5 +156,26 @@ mod tests {
             cmd,
             r#"cd /path/to/worktree && gemini --prompt-interactive "implement \"feature\" with quotes""#
         );
+    }
+
+    #[test]
+    fn test_prompt_with_trailing_backslash_round_trips() {
+        use crate::domains::agents::command_parser::parse_agent_command;
+
+        let config = GeminiConfig {
+            binary_path: Some("gemini".to_string()),
+        };
+        let prompt = "Inspect path: C:\\Users\\gemini\\Workspace\\";
+        let cmd = build_gemini_command_with_config(
+            Path::new("/path/to/worktree"),
+            None,
+            Some(prompt),
+            false,
+            Some(&config),
+        );
+
+        let (_, _, args) =
+            parse_agent_command(&cmd).expect("gemini prompt ending with backslash should parse");
+        assert_eq!(args.last().unwrap(), prompt);
     }
 }

@@ -281,7 +281,7 @@ pub fn build_claude_command_with_config(
         log::info!(
             "Claude command builder: Starting fresh session with initial prompt: '{prompt}'"
         );
-        let escaped = prompt.replace('"', r#"\""#);
+        let escaped = super::escape_prompt_for_shell(prompt);
         cmd.push_str(&format!(r#" "{escaped}""#));
     } else {
         // Start fresh without prompt
@@ -391,6 +391,27 @@ mod tests {
             sanitized,
             "-Users-marius-wichtner-Documents-git-schaltwerk--schaltwerk-worktrees-eager-tesla"
         );
+    }
+
+    #[test]
+    fn test_prompt_with_trailing_backslash_round_trips() {
+        use crate::domains::agents::command_parser::parse_agent_command;
+
+        let config = ClaudeConfig {
+            binary_path: Some("claude".to_string()),
+        };
+        let prompt = "Check Windows path: C:\\Users\\tester\\Projects\\";
+        let cmd = build_claude_command_with_config(
+            Path::new("/path/to/worktree"),
+            None,
+            Some(prompt),
+            false,
+            Some(&config),
+        );
+
+        let (_, _, args) =
+            parse_agent_command(&cmd).expect("command with trailing backslash prompt should parse");
+        assert_eq!(args.last().unwrap(), prompt);
     }
 
     #[test]
