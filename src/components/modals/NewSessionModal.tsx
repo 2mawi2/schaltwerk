@@ -81,9 +81,9 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
         }
     }
 
-    const handleAgentTypeChange = (type: AgentType) => {
+    const handleAgentTypeChange = useCallback((type: AgentType) => {
         setAgentType(type)
-    }
+    }, [])
 
     const handleSkipPermissionsChange = (enabled: boolean) => {
         setSkipPermissions(enabled)
@@ -524,25 +524,38 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') {
                 e.preventDefault()
-                // Prevent other listeners (e.g., terminals, editors) from seeing ESC while modal is open
                 e.stopPropagation()
                 if (typeof e.stopImmediatePropagation === 'function') {
                     e.stopImmediatePropagation()
                 }
                 onClose()
             } else if (e.key === 'Enter' && e.metaKey) {
-                // Prioritize Cmd+Enter for this modal even if other views are visible
                 e.preventDefault()
                 e.stopPropagation()
                 if (typeof e.stopImmediatePropagation === 'function') {
                     e.stopImmediatePropagation()
                 }
-                // Use ref to ensure latest state is used when creating
                 createRef.current()
+            } else if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && e.metaKey) {
+                e.preventDefault()
+                e.stopPropagation()
+                if (typeof e.stopImmediatePropagation === 'function') {
+                    e.stopImmediatePropagation()
+                }
+
+                const currentIndex = AGENT_TYPES.indexOf(agentType)
+                let nextIndex: number
+
+                if (e.key === 'ArrowUp') {
+                    nextIndex = currentIndex === 0 ? AGENT_TYPES.length - 1 : currentIndex - 1
+                } else {
+                    nextIndex = currentIndex === AGENT_TYPES.length - 1 ? 0 : currentIndex + 1
+                }
+
+                handleAgentTypeChange(AGENT_TYPES[nextIndex])
             }
         }
 
-        // Use capture phase so this handler runs before others and can stop propagation
         window.addEventListener('keydown', handleKeyDown, true)
         const setDraftHandler = () => {
             logger.info('[NewSessionModal] Received set-spec event - setting createAsDraft to true')
@@ -553,7 +566,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
             window.removeEventListener('keydown', handleKeyDown, true)
             window.removeEventListener('schaltwerk:new-session:set-spec', setDraftHandler)
         }
-    }, [open, onClose, createAsDraft])
+    }, [open, onClose, agentType, handleAgentTypeChange])
 
     if (!open) return null
 

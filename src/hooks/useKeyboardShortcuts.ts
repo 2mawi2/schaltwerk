@@ -27,6 +27,7 @@ interface KeyboardShortcutsProps {
   onNavigateToPrevFilter?: () => void
   onNavigateToNextFilter?: () => void
   isDiffViewerOpen?: boolean
+  isModalOpen?: boolean
   onResetSelection?: () => void
   onOpenSwitchModel?: () => void
   onOpenMergeModal?: () => void
@@ -58,6 +59,7 @@ export function useKeyboardShortcuts(
     onNavigateToPrevFilter,
     onNavigateToNextFilter,
     isDiffViewerOpen,
+    isModalOpen,
     onResetSelection,
     onOpenSwitchModel,
     onOpenMergeModal,
@@ -98,13 +100,13 @@ export function useKeyboardShortcuts(
         }
       }
 
-      if (!isDiffViewerOpen && onSelectPrevSession && isShortcutForAction(event, KeyboardShortcutAction.SelectPrevSession, shortcutConfig, { platform })) {
+      if (!isDiffViewerOpen && !isModalOpen && onSelectPrevSession && isShortcutForAction(event, KeyboardShortcutAction.SelectPrevSession, shortcutConfig, { platform })) {
         event.preventDefault()
         onSelectPrevSession()
         return
       }
 
-      if (!isDiffViewerOpen && onSelectNextSession && isShortcutForAction(event, KeyboardShortcutAction.SelectNextSession, shortcutConfig, { platform })) {
+      if (!isDiffViewerOpen && !isModalOpen && onSelectNextSession && isShortcutForAction(event, KeyboardShortcutAction.SelectNextSession, shortcutConfig, { platform })) {
         event.preventDefault()
         onSelectNextSession()
         return
@@ -238,6 +240,7 @@ export function useKeyboardShortcuts(
     onCreatePullRequest,
     onOpenInApp,
     isDiffViewerOpen,
+    isModalOpen,
     shortcutConfig,
     platform,
   ])

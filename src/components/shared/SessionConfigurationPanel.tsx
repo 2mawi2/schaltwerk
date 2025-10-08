@@ -221,6 +221,7 @@ export function SessionConfigurationPanel({
     }, [initialAgentType, agentType])
 
     const isCompact = variant === 'compact'
+    const shouldShowShortcutHint = variant === 'modal' && !hideAgentType
 
     if (isCompact) {
         return (
@@ -264,6 +265,7 @@ export function SessionConfigurationPanel({
                             disabled={disabled}
                             skipPermissions={skipPermissions}
                             onSkipPermissionsChange={handleSkipPermissionsChange}
+                            showShortcutHint={shouldShowShortcutHint}
                         />
                     </div>
                 </div>
@@ -313,6 +315,7 @@ export function SessionConfigurationPanel({
                         disabled={disabled}
                         skipPermissions={skipPermissions}
                         onSkipPermissionsChange={handleSkipPermissionsChange}
+                        showShortcutHint={shouldShowShortcutHint}
                     />
                     <p className="text-xs mt-2" style={{ color: theme.colors.text.muted }}>
                         AI agent to use for this session

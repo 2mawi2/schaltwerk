@@ -19,9 +19,18 @@ interface ModelSelectorProps {
     skipPermissions?: boolean
     onSkipPermissionsChange?: (value: boolean) => void
     onDropdownOpenChange?: (open: boolean) => void
+    showShortcutHint?: boolean
 }
 
-export function ModelSelector({ value, onChange, disabled = false, skipPermissions, onSkipPermissionsChange, onDropdownOpenChange }: ModelSelectorProps) {
+export function ModelSelector({
+    value,
+    onChange,
+    disabled = false,
+    skipPermissions,
+    onSkipPermissionsChange,
+    onDropdownOpenChange,
+    showShortcutHint = false
+}: ModelSelectorProps) {
     const [isOpen, setIsOpen] = useState(false)
     const { isAvailable, getRecommendedPath, getInstallationMethod, loading } = useAgentAvailability()
 
@@ -151,7 +160,17 @@ export function ModelSelector({ value, onChange, disabled = false, skipPermissio
                         title={getTooltipText(selectedModel.value)}
                         aria-label={selectedModel.label}
                     >
-                        <span>{selectedModel.label}</span>
+                        <span className="flex items-center gap-2">
+                            <span>{selectedModel.label}</span>
+                            {showShortcutHint && (
+                                <span
+                                    aria-hidden="true"
+                                    style={{ color: theme.colors.text.muted, fontSize: theme.fontSize.caption }}
+                                >
+                                    ⌘↑ · ⌘↓
+                                </span>
+                            )}
+                        </span>
                         <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 120ms ease' }}>
                             <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clipRule="evenodd" />
                         </svg>

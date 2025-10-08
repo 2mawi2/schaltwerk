@@ -829,7 +829,8 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         onOpenSwitchModel: handleOpenSwitchModelShortcut,
         onOpenMergeModal: handleOpenMergeShortcut,
         onCreatePullRequest: handleCreatePullRequestShortcut,
-        isDiffViewerOpen
+        isDiffViewerOpen,
+        isModalOpen: isAnyModalOpen()
     })
 
     // Sessions are now managed by SessionsContext with integrated sorting/filtering

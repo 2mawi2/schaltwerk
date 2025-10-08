@@ -295,6 +295,31 @@ describe('useKeyboardShortcuts', () => {
       expect(onSelectPrevSession).toHaveBeenCalledTimes(1)
     })
 
+    it('does not navigate sessions with Cmd+ArrowUp when a modal is open', () => {
+      const onSelectPrevSession = vi.fn()
+      const onSelectOrchestrator = vi.fn()
+      const onSelectSession = vi.fn()
+
+      renderHook(() =>
+        useKeyboardShortcuts({
+          onSelectOrchestrator,
+          onSelectSession,
+          onSelectPrevSession,
+          sessionCount: 3,
+          isModalOpen: true,
+        })
+      )
+
+      let prevented = false
+      const listener = (e: Event) => { prevented = (e as KeyboardEvent).defaultPrevented }
+      window.addEventListener('keydown', listener)
+      pressKey('ArrowUp', { metaKey: true })
+      window.removeEventListener('keydown', listener)
+
+      expect(onSelectPrevSession).not.toHaveBeenCalled()
+      expect(prevented).toBe(false)
+    })
+
     it('navigates to next session with Cmd+ArrowDown', () => {
       const onSelectNextSession = vi.fn()
       const onSelectOrchestrator = vi.fn()
@@ -309,6 +334,31 @@ describe('useKeyboardShortcuts', () => {
 
       pressKey('ArrowDown', { metaKey: true })
       expect(onSelectNextSession).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not navigate sessions with Cmd+ArrowDown when a modal is open', () => {
+      const onSelectNextSession = vi.fn()
+      const onSelectOrchestrator = vi.fn()
+      const onSelectSession = vi.fn()
+
+      renderHook(() =>
+        useKeyboardShortcuts({
+          onSelectOrchestrator,
+          onSelectSession,
+          onSelectNextSession,
+          sessionCount: 3,
+          isModalOpen: true,
+        })
+      )
+
+      let prevented = false
+      const listener = (e: Event) => { prevented = (e as KeyboardEvent).defaultPrevented }
+      window.addEventListener('keydown', listener)
+      pressKey('ArrowDown', { metaKey: true })
+      window.removeEventListener('keydown', listener)
+
+      expect(onSelectNextSession).not.toHaveBeenCalled()
+      expect(prevented).toBe(false)
     })
 
     it('switches to previous project with Cmd+Shift+ArrowLeft', () => {
