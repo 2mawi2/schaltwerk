@@ -82,7 +82,7 @@ pub async fn github_connect_project(app: AppHandle) -> Result<GitHubRepositoryPa
     })?;
 
     {
-        let core = project.schaltwerk_core.lock().await;
+        let core = project.schaltwerk_core.write().await;
         let db = core.database();
         let config = ProjectGithubConfig {
             repository: repo_info.name_with_owner.clone(),
@@ -120,7 +120,7 @@ pub async fn github_create_reviewed_pr(
     let project_path = project.path.clone();
 
     let repository_config = {
-        let core = project.schaltwerk_core.lock().await;
+        let core = project.schaltwerk_core.read().await;
         let db = core.database();
         db.get_project_github_config(&project.path)
             .map_err(|e| format!("Failed to load GitHub project config: {e}"))?
@@ -193,7 +193,7 @@ async fn build_status() -> Result<GitHubStatusPayload, String> {
     let project_manager = get_project_manager().await;
     let repository_payload = match project_manager.current_project().await {
         Ok(project) => {
-            let core = project.schaltwerk_core.lock().await;
+            let core = project.schaltwerk_core.read().await;
             let db = core.database();
             db.get_project_github_config(&project.path)
                 .map_err(|e| format!("Failed to load GitHub project config: {e}"))?

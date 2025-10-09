@@ -28,8 +28,9 @@ use project_manager::ProjectManager;
 use schaltwerk::infrastructure::config::SettingsManager;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::sync::Mutex;
-use tokio::sync::OnceCell;
+use tokio::sync::{
+    Mutex, OnceCell, OwnedRwLockReadGuard, OwnedRwLockWriteGuard, RwLock,
+};
 
 const UPDATER_PUBLIC_KEY: &str = include_str!("../updater-public.pem");
 
@@ -178,12 +179,24 @@ pub async fn get_terminal_manager(
 }
 
 pub async fn get_schaltwerk_core(
-) -> Result<Arc<tokio::sync::Mutex<schaltwerk::schaltwerk_core::SchaltwerkCore>>, String> {
+) -> Result<Arc<RwLock<schaltwerk::schaltwerk_core::SchaltwerkCore>>, String> {
     let manager = get_project_manager().await;
     manager.current_schaltwerk_core().await.map_err(|e| {
         log::error!("Failed to get para core: {e}");
         format!("Failed to get para core: {e}")
     })
+}
+
+pub async fn get_core_read(
+) -> Result<OwnedRwLockReadGuard<schaltwerk::schaltwerk_core::SchaltwerkCore>, String> {
+    let core = get_schaltwerk_core().await?;
+    Ok(Arc::clone(&core).read_owned().await)
+}
+
+pub async fn get_core_write(
+) -> Result<OwnedRwLockWriteGuard<schaltwerk::schaltwerk_core::SchaltwerkCore>, String> {
+    let core = get_schaltwerk_core().await?;
+    Ok(Arc::clone(&core).write_owned().await)
 }
 
 pub async fn get_file_watcher_manager(
@@ -196,9 +209,10 @@ pub async fn get_file_watcher_manager(
 
 #[tauri::command]
 async fn start_file_watcher(session_name: String) -> Result<(), String> {
-    let schaltwerk_core = get_schaltwerk_core().await?;
-    let core = schaltwerk_core.lock().await;
-    let session_manager = core.session_manager();
+    let session_manager = {
+        let core = get_core_read().await?;
+        core.session_manager()
+    };
 
     let sessions = session_manager
         .list_enriched_sessions()
@@ -412,8 +426,7 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                                 });
 
                             // Move reviewed sessions back to running upon follow-up (only if reviewed)
-                            if let Ok(core) = get_schaltwerk_core().await {
-                                let core = core.lock().await;
+                            if let Ok(core) = get_core_write().await {
                                 let manager = core.session_manager();
                                 match manager.unmark_reviewed_on_follow_up(session_name) {
                                     Ok(true) => {
@@ -977,12 +990,9 @@ fn main() {
                 tokio::spawn(async move {
                     // Retry until a project is initialized, then start tracking once
                     loop {
-                        match get_schaltwerk_core().await {
+                        match get_core_read().await {
                             Ok(core) => {
-                                let db = {
-                                    let core_lock = core.lock().await;
-                                    Arc::new(core_lock.db.clone())
-                                };
+                                let db = Arc::new(core.db.clone());
                                 schaltwerk::domains::sessions::activity::start_activity_tracking_with_app(db, activity_handle.clone());
                                 break;
                             }

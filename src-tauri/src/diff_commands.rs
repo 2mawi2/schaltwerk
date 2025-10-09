@@ -6,7 +6,7 @@ use crate::diff_engine::{
     compute_unified_diff, get_file_language, DiffResponse, FileInfo, SplitDiffResponse,
 };
 use crate::file_utils;
-use crate::get_schaltwerk_core;
+use crate::get_core_read;
 use git2::{Delta, DiffFindOptions, DiffOptions, ObjectType, Oid, Repository, Sort, Status};
 use schaltwerk::binary_detection::{get_unsupported_reason, is_binary_file_by_extension};
 use schaltwerk::domains::git;
@@ -81,7 +81,7 @@ pub async fn get_orchestrator_working_changes() -> Result<Vec<ChangedFile>, Stri
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{get_project_manager, get_schaltwerk_core};
+    use crate::{get_core_write, get_project_manager};
     use std::collections::HashMap;
     use std::fs;
     use std::process::Command as StdCommand;
@@ -262,9 +262,10 @@ mod tests {
                 .unwrap();
 
             let (session_name, session_parent, worktree_path) = {
-                let core = get_schaltwerk_core().await.unwrap();
-                let core_guard = core.lock().await;
-                let session_manager = core_guard.session_manager();
+                let session_manager = {
+                    let core = get_core_write().await.unwrap();
+                    core.session_manager()
+                };
                 let params = schaltwerk::domains::sessions::service::SessionCreationParams {
                     name: "diff-non-main",
                     prompt: None,
@@ -830,10 +831,11 @@ async fn resolve_session_info(session_name: &str) -> Result<(String, String), St
         return Ok((worktree_path, base_branch));
     }
 
-    let core = get_schaltwerk_core().await?;
     let (worktree_path, base_branch) = {
-        let core_guard = core.lock().await;
-        let manager = core_guard.session_manager();
+        let manager = {
+            let core = get_core_read().await?;
+            core.session_manager()
+        };
         let session = match manager.get_session_by_id(session_name) {
             Ok(session) => session,
             Err(id_err) => {

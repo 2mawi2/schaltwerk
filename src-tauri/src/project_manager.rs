@@ -4,7 +4,7 @@ use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::RwLock;
 
 use schaltwerk::domains::terminal::TerminalManager;
 use schaltwerk::schaltwerk_core::SchaltwerkCore;
@@ -13,7 +13,7 @@ use schaltwerk::schaltwerk_core::SchaltwerkCore;
 pub struct Project {
     pub path: PathBuf,
     pub terminal_manager: Arc<TerminalManager>,
-    pub schaltwerk_core: Arc<Mutex<SchaltwerkCore>>,
+    pub schaltwerk_core: Arc<RwLock<SchaltwerkCore>>,
 }
 
 impl Project {
@@ -33,7 +33,7 @@ impl Project {
 
         info!("Using database at: {}", db_path.display());
 
-        let schaltwerk_core = Arc::new(Mutex::new(SchaltwerkCore::new_with_repo_path(
+        let schaltwerk_core = Arc::new(RwLock::new(SchaltwerkCore::new_with_repo_path(
             Some(db_path),
             path.clone(),
         )?));
@@ -97,7 +97,7 @@ impl Project {
         let temp_dir = std::env::temp_dir();
         let temp_db_path = temp_dir.join(format!("test-{}.db", uuid::Uuid::new_v4()));
 
-        let schaltwerk_core = Arc::new(Mutex::new(SchaltwerkCore::new_with_repo_path(
+        let schaltwerk_core = Arc::new(RwLock::new(SchaltwerkCore::new_with_repo_path(
             Some(temp_db_path),
             path.clone(),
         )?));
@@ -343,7 +343,7 @@ impl ProjectManager {
     }
 
     /// Get SchaltwerkCore for current project
-    pub async fn current_schaltwerk_core(&self) -> Result<Arc<Mutex<SchaltwerkCore>>> {
+    pub async fn current_schaltwerk_core(&self) -> Result<Arc<RwLock<SchaltwerkCore>>> {
         let project = self.current_project().await?;
         Ok(project.schaltwerk_core.clone())
     }
@@ -352,7 +352,7 @@ impl ProjectManager {
     pub async fn get_schaltwerk_core_for_path(
         &self,
         path: &PathBuf,
-    ) -> Result<Arc<Mutex<SchaltwerkCore>>> {
+    ) -> Result<Arc<RwLock<SchaltwerkCore>>> {
         // Canonicalize the input path for consistent comparison
         let canonical_path = match std::fs::canonicalize(path) {
             Ok(p) => p,
@@ -539,5 +539,30 @@ mod tests {
 
         // Cleanup p2 to avoid leaks for the test
         let _ = p2.terminal_manager.cleanup_all().await;
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_core_reads() {
+        let mgr = ProjectManager::new();
+        let tmp = TempDir::new().unwrap();
+        let project = mgr
+            .switch_to_project_in_memory(tmp.path().to_path_buf())
+            .await
+            .unwrap();
+
+        let core = project.schaltwerk_core.clone();
+
+        let (path_a, path_b) = tokio::join!(
+            async {
+                let guard = core.read().await;
+                guard.repo_path.clone()
+            },
+            async {
+                let guard = core.read().await;
+                guard.repo_path.clone()
+            },
+        );
+
+        assert_eq!(path_a, path_b);
     }
 }

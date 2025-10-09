@@ -30,7 +30,7 @@ pub async fn create_terminal(
     // Get project environment variables if we have a project
     let env_vars = if let Some(project_manager) = PROJECT_MANAGER.get() {
         if let Ok(project) = project_manager.current_project().await {
-            let core = project.schaltwerk_core.lock().await;
+            let core = project.schaltwerk_core.read().await;
             let db = core.database();
             db.get_project_environment_variables(&project.path)
                 .unwrap_or_default()
@@ -78,7 +78,7 @@ pub async fn create_run_terminal(
     // Merge project-level env with provided env (provided takes precedence)
     let mut env_vars: Vec<(String, String)> = if let Some(project_manager) = PROJECT_MANAGER.get() {
         if let Ok(project) = project_manager.current_project().await {
-            let core = project.schaltwerk_core.lock().await;
+            let core = project.schaltwerk_core.read().await;
             let db = core.database();
             db.get_project_environment_variables(&project.path)
                 .unwrap_or_default()
@@ -139,7 +139,7 @@ pub async fn create_terminal_with_size(
     // Get project environment variables if we have a project
     let env_vars = if let Some(project_manager) = PROJECT_MANAGER.get() {
         if let Ok(project) = project_manager.current_project().await {
-            let core = project.schaltwerk_core.lock().await;
+            let core = project.schaltwerk_core.read().await;
             let db = core.database();
             db.get_project_environment_variables(&project.path)
                 .unwrap_or_default()

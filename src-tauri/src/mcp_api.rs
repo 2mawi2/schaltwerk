@@ -3,7 +3,7 @@ use hyper::{body::Incoming, Method, Request, Response, StatusCode};
 use log::{error, info, warn};
 
 use crate::commands::sessions_refresh::{request_sessions_refresh, SessionsRefreshReason};
-use crate::get_schaltwerk_core;
+use crate::{get_core_read, get_core_write};
 use schaltwerk::domains::sessions::entity::Session;
 use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
 use schaltwerk::schaltwerk_core::{SessionManager, SessionState};
@@ -248,8 +248,8 @@ async fn create_draft(
     let agent_type = payload["agent_type"].as_str();
     let skip_permissions = payload["skip_permissions"].as_bool();
 
-    let core = match get_schaltwerk_core().await {
-        Ok(c) => c,
+    let manager = match get_core_write().await {
+        Ok(core) => core.session_manager(),
         Err(e) => {
             error!("Failed to get para core: {e}");
             return Ok(error_response(
@@ -258,10 +258,6 @@ async fn create_draft(
             ));
         }
     };
-
-    let core_lock = core.lock().await;
-    let manager = core_lock.session_manager();
-
     match create_spec_session_with_notifications(
         &manager,
         name,
@@ -292,8 +288,8 @@ async fn create_draft(
 }
 
 async fn list_drafts() -> Result<Response<String>, hyper::Error> {
-    let core = match get_schaltwerk_core().await {
-        Ok(c) => c,
+    let manager = match get_core_read().await {
+        Ok(core) => core.session_manager(),
         Err(e) => {
             error!("Failed to get para core: {e}");
             return Ok(error_response(
@@ -302,9 +298,6 @@ async fn list_drafts() -> Result<Response<String>, hyper::Error> {
             ));
         }
     };
-
-    let core_lock = core.lock().await;
-    let manager = core_lock.session_manager();
 
     match manager.list_sessions_by_state(SessionState::Spec) {
         Ok(sessions) => {
@@ -354,8 +347,8 @@ async fn update_spec_content(
 
     let append = payload["append"].as_bool().unwrap_or(false);
 
-    let core = match get_schaltwerk_core().await {
-        Ok(c) => c,
+    let manager = match get_core_write().await {
+        Ok(core) => core.session_manager(),
         Err(e) => {
             error!("Failed to get para core: {e}");
             return Ok(error_response(
@@ -364,9 +357,6 @@ async fn update_spec_content(
             ));
         }
     };
-
-    let core_lock = core.lock().await;
-    let manager = core_lock.session_manager();
 
     match if append {
         manager.append_spec_content(name, content)
@@ -418,8 +408,8 @@ async fn start_spec_session(
     let version_group_id = payload["version_group_id"].as_str().map(|s| s.to_string());
     let version_number = payload["version_number"].as_i64().map(|n| n as i32);
 
-    let core = match get_schaltwerk_core().await {
-        Ok(c) => c,
+    let manager = match get_core_write().await {
+        Ok(core) => core.session_manager(),
         Err(e) => {
             error!("Failed to get schaltwerk core: {e}");
             return Ok(error_response(
@@ -428,9 +418,6 @@ async fn start_spec_session(
             ));
         }
     };
-
-    let core_lock = core.lock().await;
-    let manager = core_lock.session_manager();
 
     // Use the manager method that encapsulates all configuration and session starting logic
     match manager.start_spec_session_with_config(
@@ -457,8 +444,8 @@ async fn start_spec_session(
 }
 
 async fn delete_draft(name: &str, app: tauri::AppHandle) -> Result<Response<String>, hyper::Error> {
-    let core = match get_schaltwerk_core().await {
-        Ok(c) => c,
+    let manager = match get_core_write().await {
+        Ok(core) => core.session_manager(),
         Err(e) => {
             error!("Failed to get para core: {e}");
             return Ok(error_response(
@@ -467,9 +454,6 @@ async fn delete_draft(name: &str, app: tauri::AppHandle) -> Result<Response<Stri
             ));
         }
     };
-
-    let core_lock = core.lock().await;
-    let manager = core_lock.session_manager();
 
     match manager.cancel_session(name) {
         Ok(()) => {
@@ -529,8 +513,8 @@ async fn create_session(
     let base_branch = payload["base_branch"].as_str().map(|s| s.to_string());
     let user_edited_name = payload["user_edited_name"].as_bool();
 
-    let core = match get_schaltwerk_core().await {
-        Ok(c) => c,
+    let manager = match get_core_write().await {
+        Ok(core) => core.session_manager(),
         Err(e) => {
             error!("Failed to get para core: {e}");
             return Ok(error_response(
@@ -539,9 +523,6 @@ async fn create_session(
             ));
         }
     };
-
-    let core_lock = core.lock().await;
-    let manager = core_lock.session_manager();
 
     let looks_docker_style = name.contains('_') && name.split('_').count() == 2;
     let was_user_edited = user_edited_name.unwrap_or(false);
@@ -590,8 +571,8 @@ async fn list_sessions(req: Request<Incoming>) -> Result<Response<String>, hyper
         filter_state = Some(SessionState::Spec);
     }
 
-    let core = match get_schaltwerk_core().await {
-        Ok(c) => c,
+    let manager = match get_core_write().await {
+        Ok(core) => core.session_manager(),
         Err(e) => {
             error!("Failed to get para core: {e}");
             return Ok(error_response(
@@ -600,9 +581,6 @@ async fn list_sessions(req: Request<Incoming>) -> Result<Response<String>, hyper
             ));
         }
     };
-
-    let core_lock = core.lock().await;
-    let manager = core_lock.session_manager();
 
     match manager.list_enriched_sessions() {
         Ok(mut sessions) => {
@@ -634,8 +612,8 @@ async fn list_sessions(req: Request<Incoming>) -> Result<Response<String>, hyper
 }
 
 async fn get_session(name: &str) -> Result<Response<String>, hyper::Error> {
-    let core = match get_schaltwerk_core().await {
-        Ok(c) => c,
+    let manager = match get_core_read().await {
+        Ok(core) => core.session_manager(),
         Err(e) => {
             error!("Failed to get para core: {e}");
             return Ok(error_response(
@@ -644,9 +622,6 @@ async fn get_session(name: &str) -> Result<Response<String>, hyper::Error> {
             ));
         }
     };
-
-    let core_lock = core.lock().await;
-    let manager = core_lock.session_manager();
 
     match manager.get_session(name) {
         Ok(session) => {
@@ -670,8 +645,8 @@ async fn delete_session(
     name: &str,
     app: tauri::AppHandle,
 ) -> Result<Response<String>, hyper::Error> {
-    let core = match get_schaltwerk_core().await {
-        Ok(c) => c,
+    let manager = match get_core_write().await {
+        Ok(core) => core.session_manager(),
         Err(e) => {
             error!("Failed to get para core: {e}");
             return Ok(error_response(
@@ -680,9 +655,6 @@ async fn delete_session(
             ));
         }
     };
-
-    let core_lock = core.lock().await;
-    let manager = core_lock.session_manager();
 
     match manager.cancel_session(name) {
         Ok(()) => {
@@ -715,8 +687,8 @@ async fn mark_session_reviewed(
     name: &str,
     app: tauri::AppHandle,
 ) -> Result<Response<String>, hyper::Error> {
-    let core = match get_schaltwerk_core().await {
-        Ok(c) => c,
+    let manager = match get_core_write().await {
+        Ok(core) => core.session_manager(),
         Err(e) => {
             error!("Failed to get schaltwerk core: {e}");
             return Ok(error_response(
@@ -725,9 +697,6 @@ async fn mark_session_reviewed(
             ));
         }
     };
-
-    let core_lock = core.lock().await;
-    let manager = core_lock.session_manager();
 
     // Use the manager method that encapsulates all validation and business logic
     match manager.mark_session_as_reviewed(name) {
@@ -751,8 +720,8 @@ async fn convert_session_to_spec(
     name: &str,
     app: tauri::AppHandle,
 ) -> Result<Response<String>, hyper::Error> {
-    let core = match get_schaltwerk_core().await {
-        Ok(c) => c,
+    let manager = match get_core_write().await {
+        Ok(core) => core.session_manager(),
         Err(e) => {
             error!("Failed to get schaltwerk core: {e}");
             return Ok(error_response(
@@ -761,9 +730,6 @@ async fn convert_session_to_spec(
             ));
         }
     };
-
-    let core_lock = core.lock().await;
-    let manager = core_lock.session_manager();
 
     // Use the manager method that encapsulates all validation and business logic
     match manager.convert_session_to_spec(name) {

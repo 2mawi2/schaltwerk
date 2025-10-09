@@ -1,5 +1,5 @@
 use crate::{
-    commands::session_lookup_cache::global_session_lookup_cache, get_schaltwerk_core,
+    commands::session_lookup_cache::global_session_lookup_cache, get_core_read, get_core_write,
     get_terminal_manager, SETTINGS_MANAGER,
 };
 use schaltwerk::domains::agents::{manifest::AgentManifest, naming, parse_agent_command};
@@ -17,6 +17,8 @@ use schaltwerk::domains::workspace::get_project_files_with_status;
 use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
 use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
 use schaltwerk::schaltwerk_core::db_project_config::{ProjectConfigMethods, DEFAULT_BRANCH_PREFIX};
+use schaltwerk::schaltwerk_core::SessionManager;
+use std::path::PathBuf;
 mod agent_ctx;
 pub mod agent_launcher;
 pub mod events;
@@ -79,6 +81,10 @@ fn get_agent_env_and_cli_args(agent_type: &str) -> (Vec<(String, String)>, Strin
     }
 }
 
+async fn session_manager_read() -> Result<SessionManager, String> {
+    Ok(get_core_read().await?.session_manager())
+}
+
 // CLI helpers live in schaltwerk_core_cli.rs and are consumed by agent_ctx
 
 // CODEX FLAG NORMALIZATION - Why It's Needed:
@@ -106,9 +112,7 @@ fn get_agent_env_and_cli_args(agent_type: &str) -> (Vec<(String, String)>, Strin
 pub async fn schaltwerk_core_list_enriched_sessions() -> Result<Vec<EnrichedSession>, String> {
     log::debug!("Listing enriched sessions from schaltwerk_core");
 
-    let core = get_schaltwerk_core().await?;
-    let core = core.lock().await;
-    let manager = core.session_manager();
+    let manager = session_manager_read().await?;
 
     match manager.list_enriched_sessions() {
         Ok(sessions) => {
@@ -124,9 +128,8 @@ pub async fn schaltwerk_core_list_enriched_sessions() -> Result<Vec<EnrichedSess
 
 #[tauri::command]
 pub async fn schaltwerk_core_get_merge_preview(name: String) -> Result<MergePreview, String> {
-    let core = get_schaltwerk_core().await?;
     let (db, repo_path) = {
-        let core = core.lock().await;
+        let core = get_core_read().await?;
         (core.db.clone(), core.repo_path.clone())
     };
 
@@ -141,9 +144,8 @@ pub async fn schaltwerk_core_merge_session_to_main(
     mode: MergeMode,
     commit_message: Option<String>,
 ) -> Result<(), String> {
-    let core = get_schaltwerk_core().await?;
     let (db, repo_path) = {
-        let core = core.lock().await;
+        let core = get_core_write().await?;
         (core.db.clone(), core.repo_path.clone())
     };
 
@@ -203,16 +205,16 @@ pub async fn schaltwerk_core_archive_spec_session(
     app: tauri::AppHandle,
     name: String,
 ) -> Result<(), String> {
-    let core = get_schaltwerk_core().await?;
-    let core = core.lock().await;
-    let manager = core.session_manager();
-    manager
-        .archive_spec_session(&name)
-        .map_err(|e| format!("Failed to archive spec: {e}"))?;
-
-    // Emit events to refresh UI
-    let repo = core.repo_path.to_string_lossy().to_string();
-    let count = manager.list_archived_specs().map(|v| v.len()).unwrap_or(0);
+    let (repo, count) = {
+        let core = get_core_write().await?;
+        let manager = core.session_manager();
+        manager
+            .archive_spec_session(&name)
+            .map_err(|e| format!("Failed to archive spec: {e}"))?;
+        let repo = core.repo_path.to_string_lossy().to_string();
+        let count = manager.list_archived_specs().map(|v| v.len()).unwrap_or(0);
+        (repo, count)
+    };
     events::emit_archive_updated(&app, &repo, count);
     // Also emit a SessionRemoved event so the frontend can compute the next selection consistently
     events::emit_session_removed(&app, &name);
@@ -225,9 +227,7 @@ pub async fn schaltwerk_core_archive_spec_session(
 #[tauri::command]
 pub async fn schaltwerk_core_list_archived_specs(
 ) -> Result<Vec<schaltwerk::domains::sessions::entity::ArchivedSpec>, String> {
-    let core = get_schaltwerk_core().await?;
-    let core = core.lock().await;
-    let manager = core.session_manager();
+    let manager = session_manager_read().await?;
     manager
         .list_archived_specs()
         .map_err(|e| format!("Failed to list archived specs: {e}"))
@@ -239,16 +239,16 @@ pub async fn schaltwerk_core_restore_archived_spec(
     id: String,
     new_name: Option<String>,
 ) -> Result<schaltwerk::domains::sessions::entity::Session, String> {
-    let core = get_schaltwerk_core().await?;
-    let core = core.lock().await;
-    let manager = core.session_manager();
-    let session = manager
-        .restore_archived_spec(&id, new_name.as_deref())
-        .map_err(|e| format!("Failed to restore archived spec: {e}"))?;
-
-    // Notify UI
-    let repo = core.repo_path.to_string_lossy().to_string();
-    let count = manager.list_archived_specs().map(|v| v.len()).unwrap_or(0);
+    let (session, repo, count) = {
+        let core = get_core_write().await?;
+        let manager = core.session_manager();
+        let session = manager
+            .restore_archived_spec(&id, new_name.as_deref())
+            .map_err(|e| format!("Failed to restore archived spec: {e}"))?;
+        let repo = core.repo_path.to_string_lossy().to_string();
+        let count = manager.list_archived_specs().map(|v| v.len()).unwrap_or(0);
+        (session, repo, count)
+    };
     events::emit_archive_updated(&app, &repo, count);
     events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SpecSync);
     Ok(session)
@@ -259,23 +259,23 @@ pub async fn schaltwerk_core_delete_archived_spec(
     app: tauri::AppHandle,
     id: String,
 ) -> Result<(), String> {
-    let core = get_schaltwerk_core().await?;
-    let core = core.lock().await;
-    let manager = core.session_manager();
-    manager
-        .delete_archived_spec(&id)
-        .map_err(|e| format!("Failed to delete archived spec: {e}"))?;
-    let repo = core.repo_path.to_string_lossy().to_string();
-    let count = manager.list_archived_specs().map(|v| v.len()).unwrap_or(0);
+    let (repo, count) = {
+        let core = get_core_write().await?;
+        let manager = core.session_manager();
+        manager
+            .delete_archived_spec(&id)
+            .map_err(|e| format!("Failed to delete archived spec: {e}"))?;
+        let repo = core.repo_path.to_string_lossy().to_string();
+        let count = manager.list_archived_specs().map(|v| v.len()).unwrap_or(0);
+        (repo, count)
+    };
     events::emit_archive_updated(&app, &repo, count);
     Ok(())
 }
 
 #[tauri::command]
 pub async fn schaltwerk_core_get_archive_max_entries() -> Result<i32, String> {
-    let core = get_schaltwerk_core().await?;
-    let core = core.lock().await;
-    let manager = core.session_manager();
+    let manager = session_manager_read().await?;
     manager
         .get_archive_max_entries()
         .map_err(|e| format!("Failed to get archive limit: {e}"))
@@ -283,9 +283,10 @@ pub async fn schaltwerk_core_get_archive_max_entries() -> Result<i32, String> {
 
 #[tauri::command]
 pub async fn schaltwerk_core_set_archive_max_entries(limit: i32) -> Result<(), String> {
-    let core = get_schaltwerk_core().await?;
-    let core = core.lock().await;
-    let manager = core.session_manager();
+    let manager = {
+        let core = get_core_write().await?;
+        core.session_manager()
+    };
     manager
         .set_archive_max_entries(limit)
         .map_err(|e| format!("Failed to set archive limit: {e}"))
@@ -298,9 +299,8 @@ pub async fn schaltwerk_core_list_project_files(
 ) -> Result<Vec<String>, String> {
     let force_refresh = force_refresh.unwrap_or(false);
 
-    let core = get_schaltwerk_core().await?;
     let repo_path = {
-        let core = core.lock().await;
+        let core = get_core_read().await?;
         core.repo_path.clone()
     };
 
@@ -330,9 +330,7 @@ pub async fn schaltwerk_core_list_enriched_sessions_sorted(
         .parse::<FilterMode>()
         .map_err(|e| format!("Invalid filter mode '{filter_mode_str}': {e}"))?;
 
-    let core = get_schaltwerk_core().await?;
-    let core = core.lock().await;
-    let manager = core.session_manager();
+    let manager = session_manager_read().await?;
 
     match manager.list_enriched_sessions_sorted(sort_mode, filter_mode) {
         Ok(sessions) => {
@@ -389,10 +387,6 @@ pub async fn schaltwerk_core_create_session(
     // 2. OR it wasn't user edited at all (even custom names should be renamed if not edited)
     let was_auto_generated = !was_user_edited;
 
-    let core = get_schaltwerk_core().await?;
-    let core_lock = core.lock().await;
-    let manager = core_lock.session_manager();
-
     let creation_params = schaltwerk::domains::sessions::service::SessionCreationParams {
         name: &params.name,
         prompt: params.prompt.as_deref(),
@@ -403,9 +397,13 @@ pub async fn schaltwerk_core_create_session(
         agent_type: params.agent_type.as_deref(),
         skip_permissions: params.skip_permissions,
     };
-    let session = manager
-        .create_session_with_agent(creation_params)
-        .map_err(|e| format!("Failed to create session: {e}"))?;
+    let session = {
+        let core = get_core_write().await?;
+        let manager = core.session_manager();
+        manager
+            .create_session_with_agent(creation_params)
+            .map_err(|e| format!("Failed to create session: {e}"))?
+    };
 
     let session_name_clone = session.name.clone();
     let app_handle = app.clone();
@@ -432,8 +430,6 @@ pub async fn schaltwerk_core_create_session(
         },
     );
 
-    drop(core_lock);
-
     // Only trigger auto-rename for non-versioned Docker-style names
     // Versioned names (ending with _v1, _v2, etc.) will be handled by group rename
     if was_auto_generated && !is_versioned_session_name(&params.name) {
@@ -443,7 +439,7 @@ pub async fn schaltwerk_core_create_session(
         );
         tokio::spawn(async move {
             let (session_info, db_clone) = {
-                let core = match get_schaltwerk_core().await {
+                let core = match get_core_read().await {
                     Ok(c) => c,
                     Err(e) => {
                         log::warn!(
@@ -452,7 +448,6 @@ pub async fn schaltwerk_core_create_session(
                         return;
                     }
                 };
-                let core = core.lock().await;
                 let manager = core.session_manager();
                 let session = match manager.get_session(&session_name_clone) {
                     Ok(s) => s,
@@ -495,8 +490,14 @@ pub async fn schaltwerk_core_create_session(
                 )
             };
 
-            let (session_id, worktree_path, repo_path, current_branch, agent, initial_prompt) =
-                session_info;
+            let (
+                session_id,
+                worktree_path,
+                repo_path,
+                current_branch,
+                agent,
+                initial_prompt,
+            ): (String, PathBuf, PathBuf, String, String, Option<String>) = session_info;
 
             log::info!(
                 "Starting name generation for session '{}' with prompt: {:?}",
@@ -609,24 +610,26 @@ pub async fn schaltwerk_core_rename_version_group(
     log::info!("Base name: '{base_name}'");
 
     // Get all sessions with this base name pattern
-    let core = get_schaltwerk_core().await?;
-    let core_lock = core.lock().await;
-    let manager = core_lock.session_manager();
-
-    // Find all versions of this session
-    let all_sessions = manager
-        .list_sessions()
-        .map_err(|e| format!("Failed to list sessions: {e}"))?;
+    let (all_sessions, db) = {
+        let core = get_core_read().await?;
+        let manager = core.session_manager();
+        let sessions = manager
+            .list_sessions()
+            .map_err(|e| format!("Failed to list sessions: {e}"))?;
+        (sessions, core.db.clone())
+    };
 
     // Prefer grouping by version_group_id if provided
     let version_sessions: Vec<Session> = if let Some(group_id) = &version_group_id {
         let filtered: Vec<Session> = all_sessions
-            .into_iter()
+            .iter()
             .filter(|s| s.version_group_id.as_ref() == Some(group_id))
+            .cloned()
             .collect();
         if filtered.is_empty() {
-            log::warn!("No sessions found for version_group_id '{group_id}', falling back to name-based matching");
-            // fallback to name-based grouping
+            log::warn!(
+                "No sessions found for version_group_id '{group_id}', falling back to name-based matching"
+            );
             Vec::new()
         } else {
             filtered
@@ -637,9 +640,7 @@ pub async fn schaltwerk_core_rename_version_group(
 
     let version_sessions: Vec<Session> = if version_sessions.is_empty() {
         // Fallback to name-based matching for backward compatibility
-        manager
-            .list_sessions()
-            .map_err(|e| format!("Failed to list sessions: {e}"))?
+        all_sessions
             .into_iter()
             .filter(|s| s.name == base_name || matches_version_pattern(&s.name, &base_name))
             .collect()
@@ -659,15 +660,12 @@ pub async fn schaltwerk_core_rename_version_group(
 
     // Get the first session's details for name generation
     let first_session = &version_sessions[0];
-    let db = core_lock.db.clone();
     let worktree_path = first_session.worktree_path.clone();
     let repo_path = first_session.repository_path.clone();
     let agent_type = first_session
         .original_agent_type
         .clone()
         .unwrap_or_else(|| db.get_agent_type().unwrap_or_else(|_| "claude".to_string()));
-
-    drop(core_lock);
 
     // Get environment variables for the agent
     let (mut env_vars, cli_args, binary_path) = get_agent_env_and_cli_args(&agent_type);
@@ -708,10 +706,6 @@ pub async fn schaltwerk_core_rename_version_group(
     };
 
     log::info!("Generated name '{generated_name}' for version group '{base_name}'");
-
-    // Now rename all versions with the new base name
-    let core = get_schaltwerk_core().await?;
-    let core_lock = core.lock().await;
 
     let branch_prefix = db
         .get_project_branch_prefix(&repo_path)
@@ -778,8 +772,6 @@ pub async fn schaltwerk_core_rename_version_group(
         let _ = db.set_pending_name_generation(&session.id, false);
     }
 
-    drop(core_lock);
-
     log::info!("Queueing sessions refresh after version group rename");
     events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SessionLifecycle);
 
@@ -788,22 +780,16 @@ pub async fn schaltwerk_core_rename_version_group(
 
 #[tauri::command]
 pub async fn schaltwerk_core_list_sessions() -> Result<Vec<Session>, String> {
-    let core = get_schaltwerk_core().await?;
-    let core = core.lock().await;
-    let manager = core.session_manager();
-
-    manager
+    session_manager_read()
+        .await?
         .list_sessions()
         .map_err(|e| format!("Failed to list sessions: {e}"))
 }
 
 #[tauri::command]
 pub async fn schaltwerk_core_get_session(name: String) -> Result<Session, String> {
-    let core = get_schaltwerk_core().await?;
-    let core = core.lock().await;
-    let manager = core.session_manager();
-
-    manager
+    session_manager_read()
+        .await?
         .get_session(&name)
         .map_err(|e| format!("Failed to get session: {e}"))
 }
@@ -812,11 +798,8 @@ pub async fn schaltwerk_core_get_session(name: String) -> Result<Session, String
 pub async fn schaltwerk_core_get_session_agent_content(
     name: String,
 ) -> Result<(Option<String>, Option<String>), String> {
-    let core = get_schaltwerk_core().await?;
-    let core = core.lock().await;
-    let manager = core.session_manager();
-
-    manager
+    session_manager_read()
+        .await?
         .get_session_task_content(&name)
         .map_err(|e| format!("Failed to get session agent content: {e}"))
 }
@@ -830,8 +813,7 @@ pub async fn schaltwerk_core_cancel_session(
 
     // Determine session state first to handle Spec vs non-Spec behavior
     let (is_spec, repo_path_str, archive_count_after_opt) = {
-        let core = get_schaltwerk_core().await?;
-        let core = core.lock().await;
+        let core = get_core_write().await?;
         let manager = core.session_manager();
 
         let session = manager.get_session(&name).map_err(|e| {
@@ -891,13 +873,13 @@ pub async fn schaltwerk_core_cancel_session(
             }
         }
 
-        let cancel_result = if let Ok(core) = get_schaltwerk_core().await {
-            let core = core.lock().await;
-            let manager = core.session_manager();
-            // Use fast async cancellation
-            manager.fast_cancel_session(&name_for_bg).await
-        } else {
-            Err(anyhow::anyhow!("Could not get core"))
+        let cancel_result = match get_core_write().await {
+            Ok(core) => {
+                let manager = core.session_manager();
+                // Use fast async cancellation
+                manager.fast_cancel_session(&name_for_bg).await
+            }
+            Err(e) => Err(anyhow::anyhow!(e)),
         };
 
         match cancel_result {
@@ -962,8 +944,7 @@ pub async fn schaltwerk_core_convert_session_to_draft(
 ) -> Result<(), String> {
     log::info!("Converting session to spec: {name}");
 
-    let core = get_schaltwerk_core().await?;
-    let core = core.lock().await;
+    let core = get_core_write().await?;
     let manager = core.session_manager();
 
     // Close associated terminals BEFORE removing the worktree to avoid leaving shells
@@ -1003,8 +984,7 @@ pub async fn schaltwerk_core_convert_session_to_draft(
 
 #[tauri::command]
 pub async fn schaltwerk_core_update_git_stats(session_id: String) -> Result<(), String> {
-    let core = get_schaltwerk_core().await?;
-    let core = core.lock().await;
+    let core = get_core_write().await?;
     let manager = core.session_manager();
 
     manager
@@ -1014,8 +994,7 @@ pub async fn schaltwerk_core_update_git_stats(session_id: String) -> Result<(), 
 
 #[tauri::command]
 pub async fn schaltwerk_core_cleanup_orphaned_worktrees() -> Result<(), String> {
-    let core = get_schaltwerk_core().await?;
-    let core = core.lock().await;
+    let core = get_core_write().await?;
     let manager = core.session_manager();
 
     manager
@@ -1053,8 +1032,7 @@ pub async fn schaltwerk_core_start_claude_with_restart(
 ) -> Result<String, String> {
     log::info!("Starting Claude for session: {session_name}");
 
-    let core = get_schaltwerk_core().await?;
-    let core = core.lock().await;
+    let core = get_core_write().await?;
     let manager = core.session_manager();
 
     // Resolve binary paths at command level (with caching)
@@ -1288,7 +1266,7 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
     log::info!("Starting Claude for orchestrator in terminal: {terminal_id}");
 
     // First check if we have a valid project initialized
-    let core = match get_schaltwerk_core().await {
+    let core = match get_core_write().await {
         Ok(c) => c,
         Err(e) => {
             log::error!("Failed to get schaltwerk_core for orchestrator: {e}");
@@ -1299,7 +1277,6 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
             return Err(format!("Failed to initialize orchestrator: {e}"));
         }
     };
-    let core = core.lock().await;
     let manager = core.session_manager();
 
     // Resolve binary paths at command level (with caching)
@@ -1347,9 +1324,7 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
 
 #[tauri::command]
 pub async fn schaltwerk_core_set_skip_permissions(enabled: bool) -> Result<(), String> {
-    let core = get_schaltwerk_core().await?;
-    let core = core.lock().await;
-
+    let core = get_core_write().await?;
     core.db
         .set_skip_permissions(enabled)
         .map_err(|e| format!("Failed to set skip permissions: {e}"))
@@ -1357,9 +1332,7 @@ pub async fn schaltwerk_core_set_skip_permissions(enabled: bool) -> Result<(), S
 
 #[tauri::command]
 pub async fn schaltwerk_core_get_skip_permissions() -> Result<bool, String> {
-    let core = get_schaltwerk_core().await?;
-    let core = core.lock().await;
-
+    let core = get_core_read().await?;
     core.db
         .get_skip_permissions()
         .map_err(|e| format!("Failed to get skip permissions: {e}"))
@@ -1369,9 +1342,7 @@ pub async fn schaltwerk_core_get_skip_permissions() -> Result<bool, String> {
 pub async fn schaltwerk_core_set_orchestrator_skip_permissions(
     enabled: bool,
 ) -> Result<(), String> {
-    let core = get_schaltwerk_core().await?;
-    let core = core.lock().await;
-
+    let core = get_core_write().await?;
     core.db
         .set_orchestrator_skip_permissions(enabled)
         .map_err(|e| format!("Failed to set orchestrator skip permissions: {e}"))
@@ -1379,9 +1350,7 @@ pub async fn schaltwerk_core_set_orchestrator_skip_permissions(
 
 #[tauri::command]
 pub async fn schaltwerk_core_get_orchestrator_skip_permissions() -> Result<bool, String> {
-    let core = get_schaltwerk_core().await?;
-    let core = core.lock().await;
-
+    let core = get_core_read().await?;
     core.db
         .get_orchestrator_skip_permissions()
         .map_err(|e| format!("Failed to get orchestrator skip permissions: {e}"))
@@ -1389,9 +1358,7 @@ pub async fn schaltwerk_core_get_orchestrator_skip_permissions() -> Result<bool,
 
 #[tauri::command]
 pub async fn schaltwerk_core_set_agent_type(agent_type: String) -> Result<(), String> {
-    let core = get_schaltwerk_core().await?;
-    let core = core.lock().await;
-
+    let core = get_core_write().await?;
     core.db
         .set_agent_type(&agent_type)
         .map_err(|e| format!("Failed to set agent type: {e}"))
@@ -1402,8 +1369,7 @@ pub async fn schaltwerk_core_set_session_agent_type(
     session_name: String,
     agent_type: String,
 ) -> Result<(), String> {
-    let core = get_schaltwerk_core().await?;
-    let core = core.lock().await;
+    let core = get_core_write().await?;
 
     // Update global agent type
     core.db
@@ -1439,9 +1405,7 @@ pub async fn schaltwerk_core_set_session_agent_type(
 
 #[tauri::command]
 pub async fn schaltwerk_core_get_agent_type() -> Result<String, String> {
-    let core = get_schaltwerk_core().await?;
-    let core = core.lock().await;
-
+    let core = get_core_read().await?;
     core.db
         .get_agent_type()
         .map_err(|e| format!("Failed to get agent type: {e}"))
@@ -1449,9 +1413,7 @@ pub async fn schaltwerk_core_get_agent_type() -> Result<String, String> {
 
 #[tauri::command]
 pub async fn schaltwerk_core_set_orchestrator_agent_type(agent_type: String) -> Result<(), String> {
-    let core = get_schaltwerk_core().await?;
-    let core = core.lock().await;
-
+    let core = get_core_write().await?;
     core.db
         .set_orchestrator_agent_type(&agent_type)
         .map_err(|e| format!("Failed to set orchestrator agent type: {e}"))
@@ -1459,9 +1421,7 @@ pub async fn schaltwerk_core_set_orchestrator_agent_type(agent_type: String) -> 
 
 #[tauri::command]
 pub async fn schaltwerk_core_get_orchestrator_agent_type() -> Result<String, String> {
-    let core = get_schaltwerk_core().await?;
-    let core = core.lock().await;
-
+    let core = get_core_read().await?;
     core.db
         .get_orchestrator_agent_type()
         .map_err(|e| format!("Failed to get orchestrator agent type: {e}"))
@@ -1469,9 +1429,7 @@ pub async fn schaltwerk_core_get_orchestrator_agent_type() -> Result<String, Str
 
 #[tauri::command]
 pub async fn schaltwerk_core_get_font_sizes() -> Result<(i32, i32), String> {
-    let core = get_schaltwerk_core().await?;
-    let core = core.lock().await;
-
+    let core = get_core_read().await?;
     core.db
         .get_font_sizes()
         .map_err(|e| format!("Failed to get font sizes: {e}"))
@@ -1482,9 +1440,7 @@ pub async fn schaltwerk_core_set_font_sizes(
     terminal_font_size: i32,
     ui_font_size: i32,
 ) -> Result<(), String> {
-    let core = get_schaltwerk_core().await?;
-    let core = core.lock().await;
-
+    let core = get_core_write().await?;
     core.db
         .set_font_sizes(terminal_font_size, ui_font_size)
         .map_err(|e| format!("Failed to set font sizes: {e}"))
@@ -1512,8 +1468,7 @@ pub async fn schaltwerk_core_mark_session_ready(
 
     log::info!("Effective auto_commit setting: {effective_auto_commit}");
 
-    let core = get_schaltwerk_core().await?;
-    let core = core.lock().await;
+    let core = get_core_write().await?;
     let manager = core.session_manager();
 
     let result = manager
@@ -1570,9 +1525,7 @@ pub async fn schaltwerk_core_mark_session_ready(
 
 #[tauri::command]
 pub async fn schaltwerk_core_has_uncommitted_changes(name: String) -> Result<bool, String> {
-    let core = get_schaltwerk_core().await?;
-    let core = core.lock().await;
-    let manager = core.session_manager();
+    let manager = session_manager_read().await?;
 
     let session = manager
         .get_session(&name)
@@ -1589,8 +1542,7 @@ pub async fn schaltwerk_core_unmark_session_ready(
 ) -> Result<(), String> {
     log::info!("Unmarking session {name} as reviewed");
 
-    let core = get_schaltwerk_core().await?;
-    let core = core.lock().await;
+    let core = get_core_write().await?;
     let manager = core.session_manager();
 
     manager
@@ -1615,9 +1567,8 @@ pub async fn schaltwerk_core_create_spec_session(
 ) -> Result<Session, String> {
     log::info!("Creating spec session: {name} with agent_type={agent_type:?}");
 
-    let core = get_schaltwerk_core().await?;
-    let core_lock = core.lock().await;
-    let manager = core_lock.session_manager();
+    let core = get_core_write().await?;
+    let manager = core.session_manager();
 
     let session = manager
         .create_spec_session_with_agent(
@@ -1642,7 +1593,7 @@ pub async fn schaltwerk_core_create_spec_session(
     events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SpecSync);
 
     // Drop the lock before spawning async task
-    drop(core_lock);
+    drop(core);
 
     // Trigger name generation for specs created with agent type
     if should_generate_name {
@@ -1656,14 +1607,13 @@ pub async fn schaltwerk_core_create_spec_session(
         tokio::spawn(async move {
             // Get fresh session data
             let (repo_path, worktree_path, branch, db_clone) = {
-                let core = match get_schaltwerk_core().await {
+                let core = match get_core_read().await {
                     Ok(c) => c,
                     Err(e) => {
                         log::warn!("Cannot get schaltwerk_core for spec name generation: {e}");
                         return;
                     }
                 };
-                let core = core.lock().await;
                 let manager = core.session_manager();
                 let session = match manager.get_session(&session_name) {
                     Ok(s) => s,
@@ -1764,9 +1714,8 @@ pub async fn schaltwerk_core_create_and_start_spec_session(
 ) -> Result<(), String> {
     log::info!("Creating and starting spec session: {name}");
 
-    let core = get_schaltwerk_core().await?;
-    let core_lock = core.lock().await;
-    let manager = core_lock.session_manager();
+    let core = get_core_write().await?;
+    let manager = core.session_manager();
 
     manager
         .create_and_start_spec_session_with_config(
@@ -1785,7 +1734,7 @@ pub async fn schaltwerk_core_create_and_start_spec_session(
     events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SpecSync);
 
     // Drop the lock
-    drop(core_lock);
+    drop(core);
 
     Ok(())
 }
@@ -1802,9 +1751,8 @@ pub async fn schaltwerk_core_start_spec_session(
 ) -> Result<(), String> {
     log::info!("Starting spec session: {name}");
 
-    let core = get_schaltwerk_core().await?;
-    let core_lock = core.lock().await;
-    let manager = core_lock.session_manager();
+    let core = get_core_write().await?;
+    let manager = core.session_manager();
 
     manager
         .start_spec_session_with_config(
@@ -1829,7 +1777,7 @@ pub async fn schaltwerk_core_start_spec_session(
     let session = match manager.get_session(&name) {
         Ok(s) => s,
         Err(_) => {
-            drop(core_lock);
+            drop(core);
             return Ok(());
         }
     };
@@ -1839,7 +1787,7 @@ pub async fn schaltwerk_core_start_spec_session(
     let has_display_name = session.display_name.is_some();
     if has_display_name {
         log::info!("Spec session '{name}' already has display name, skipping regeneration");
-        drop(core_lock);
+        drop(core);
         return Ok(());
     }
 
@@ -1860,14 +1808,14 @@ pub async fn schaltwerk_core_start_spec_session(
         log::info!("Spec session '{name}' has content (prompt or spec), enabling AI renaming");
 
         // Set the pending_name_generation flag to enable AI renaming
-        let db = core_lock.db.clone();
+        let db = core.db.clone();
         if let Err(e) = db.set_pending_name_generation(&session.id, true) {
             log::warn!("Failed to set pending_name_generation for spec session '{name}': {e}");
         }
     }
 
     // Drop the lock
-    drop(core_lock);
+    drop(core);
 
     // Trigger AI renaming for spec-started sessions with meaningful content
     if should_trigger_renaming && !is_versioned_session_name(&name) && !has_display_name {
@@ -1877,7 +1825,7 @@ pub async fn schaltwerk_core_start_spec_session(
 
         tokio::spawn(async move {
             let (session_info, db_clone) = {
-                let core = match get_schaltwerk_core().await {
+                let core = match get_core_read().await {
                     Ok(c) => c,
                     Err(e) => {
                         log::warn!(
@@ -1886,7 +1834,6 @@ pub async fn schaltwerk_core_start_spec_session(
                         return;
                     }
                 };
-                let core = core.lock().await;
                 let manager = core.session_manager();
                 let session = match manager.get_session(&session_name_clone) {
                     Ok(s) => s,
@@ -1933,8 +1880,14 @@ pub async fn schaltwerk_core_start_spec_session(
                 )
             };
 
-            let (session_id, worktree_path, repo_path, current_branch, agent, initial_prompt) =
-                session_info;
+            let (
+                session_id,
+                worktree_path,
+                repo_path,
+                current_branch,
+                agent,
+                initial_prompt,
+            ): (String, PathBuf, PathBuf, String, String, Option<String>) = session_info;
 
             log::info!(
                 "Starting name generation for spec-started session '{}' with prompt: {:?}",
@@ -2036,9 +1989,8 @@ pub async fn schaltwerk_core_update_session_state(
         .parse::<SessionState>()
         .map_err(|e| format!("Invalid session state: {e}"))?;
 
-    let core = get_schaltwerk_core().await?;
-    let core_lock = core.lock().await;
-    let manager = core_lock.session_manager();
+    let core = get_core_write().await?;
+    let manager = core.session_manager();
 
     manager
         .update_session_state(&name, session_state)
@@ -2053,9 +2005,8 @@ pub async fn schaltwerk_core_update_spec_content(
 ) -> Result<(), String> {
     log::info!("Updating spec content for session: {name}");
 
-    let core = get_schaltwerk_core().await?;
-    let core_lock = core.lock().await;
-    let manager = core_lock.session_manager();
+    let core = get_core_write().await?;
+    let manager = core.session_manager();
 
     manager
         .update_spec_content(&name, &content)
@@ -2072,9 +2023,8 @@ pub async fn schaltwerk_core_rename_draft_session(
 ) -> Result<(), String> {
     log::info!("Renaming spec session from '{old_name}' to '{new_name}'");
 
-    let core = get_schaltwerk_core().await?;
-    let core_lock = core.lock().await;
-    let manager = core_lock.session_manager();
+    let core = get_core_write().await?;
+    let manager = core.session_manager();
 
     manager
         .rename_draft_session(&old_name, &new_name)
@@ -2093,9 +2043,8 @@ pub async fn schaltwerk_core_append_spec_content(
 ) -> Result<(), String> {
     log::info!("Appending to spec content for session: {name}");
 
-    let core = get_schaltwerk_core().await?;
-    let core_lock = core.lock().await;
-    let manager = core_lock.session_manager();
+    let core = get_core_write().await?;
+    let manager = core.session_manager();
 
     manager
         .append_spec_content(&name, &content)
@@ -2110,9 +2059,8 @@ pub async fn schaltwerk_core_list_sessions_by_state(state: String) -> Result<Vec
         .parse::<SessionState>()
         .map_err(|e| format!("Invalid session state: {e}"))?;
 
-    let core = get_schaltwerk_core().await?;
-    let core_lock = core.lock().await;
-    let manager = core_lock.session_manager();
+    let core = get_core_write().await?;
+    let manager = core.session_manager();
 
     manager
         .list_sessions_by_state(session_state)
@@ -2141,7 +2089,7 @@ pub async fn schaltwerk_core_start_fresh_orchestrator(
     log::info!("Starting FRESH Claude for orchestrator in terminal: {terminal_id}");
 
     // First check if we have a valid project initialized
-    let core = match get_schaltwerk_core().await {
+    let core = match get_core_read().await {
         Ok(c) => c,
         Err(e) => {
             log::error!("Failed to get schaltwerk_core for fresh orchestrator: {e}");
@@ -2152,7 +2100,6 @@ pub async fn schaltwerk_core_start_fresh_orchestrator(
             return Err(format!("Failed to initialize orchestrator: {e}"));
         }
     };
-    let core = core.lock().await;
     let manager = core.session_manager();
 
     // Resolve binary paths at command level (with caching)
@@ -2252,8 +2199,7 @@ pub async fn reset_session_worktree_impl(
     session_name: String,
 ) -> Result<(), String> {
     log::info!("Resetting session worktree to base for: {session_name}");
-    let core = get_schaltwerk_core().await?;
-    let core = core.lock().await;
+    let core = get_core_write().await?;
     let manager = core.session_manager();
 
     // Delegate to SessionManager (defensive checks live there)
@@ -2282,8 +2228,7 @@ pub async fn schaltwerk_core_discard_file_in_session(
     file_path: String,
 ) -> Result<(), String> {
     log::info!("Discarding file changes in session '{session_name}' for path: {file_path}");
-    let core = get_schaltwerk_core().await?;
-    let core = core.lock().await;
+    let core = get_core_write().await?;
     let manager = core.session_manager();
     manager
         .discard_file_in_session(&session_name, &file_path)
@@ -2293,8 +2238,7 @@ pub async fn schaltwerk_core_discard_file_in_session(
 #[tauri::command]
 pub async fn schaltwerk_core_discard_file_in_orchestrator(file_path: String) -> Result<(), String> {
     log::info!("Discarding file changes in orchestrator for path: {file_path}");
-    let core = get_schaltwerk_core().await?;
-    let core = core.lock().await;
+    let core = get_core_write().await?;
     // Operate directly on the main repo workdir
     let repo_path = std::path::Path::new(&core.repo_path).to_path_buf();
 

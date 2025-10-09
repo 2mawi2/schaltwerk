@@ -4,7 +4,7 @@ use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::RwLock;
 
 use crate::domains::terminal::TerminalManager;
 use crate::schaltwerk_core::SchaltwerkCore;
@@ -13,7 +13,7 @@ use crate::schaltwerk_core::SchaltwerkCore;
 pub struct Project {
     pub path: PathBuf,
     pub terminal_manager: Arc<TerminalManager>,
-    pub schaltwerk_core: Arc<Mutex<SchaltwerkCore>>,
+    pub schaltwerk_core: Arc<RwLock<SchaltwerkCore>>,
 }
 
 impl Project {
@@ -33,7 +33,7 @@ impl Project {
 
         info!("Using database at: {}", db_path.display());
 
-        let schaltwerk_core = Arc::new(Mutex::new(SchaltwerkCore::new_with_repo_path(
+        let schaltwerk_core = Arc::new(RwLock::new(SchaltwerkCore::new_with_repo_path(
             Some(db_path),
             path.clone(),
         )?));
@@ -94,7 +94,7 @@ impl Project {
         let terminal_manager = Arc::new(TerminalManager::new());
 
         // Use in-memory database for tests
-        let schaltwerk_core = Arc::new(Mutex::new(SchaltwerkCore::new_in_memory_with_repo_path(
+        let schaltwerk_core = Arc::new(RwLock::new(SchaltwerkCore::new_in_memory_with_repo_path(
             path.clone(),
         )?));
 
@@ -300,7 +300,7 @@ impl ProjectManager {
     }
 
     /// Get SchaltwerkCore for current project
-    pub async fn current_schaltwerk_core(&self) -> Result<Arc<Mutex<SchaltwerkCore>>> {
+    pub async fn current_schaltwerk_core(&self) -> Result<Arc<RwLock<SchaltwerkCore>>> {
         let project = self.current_project().await?;
         Ok(project.schaltwerk_core.clone())
     }
@@ -309,7 +309,7 @@ impl ProjectManager {
     pub async fn get_schaltwerk_core_for_path(
         &self,
         path: &PathBuf,
-    ) -> Result<Arc<Mutex<SchaltwerkCore>>> {
+    ) -> Result<Arc<RwLock<SchaltwerkCore>>> {
         // Canonicalize the input path for consistent comparison
         let canonical_path = match std::fs::canonicalize(path) {
             Ok(p) => p,

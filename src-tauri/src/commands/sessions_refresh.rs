@@ -7,7 +7,7 @@ use tokio::sync::Mutex;
 
 use crate::{
     commands::session_lookup_cache::{current_repo_cache_key, global_session_lookup_cache},
-    get_schaltwerk_core,
+    get_core_read,
 };
 use schaltwerk::domains::sessions::EnrichedSession;
 use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
@@ -154,10 +154,9 @@ impl RefreshHub {
     }
 
     async fn snapshot(&self) -> Result<(String, Vec<EnrichedSession>)> {
-        let core = get_schaltwerk_core().await.map_err(|e| anyhow!(e))?;
         let manager = {
-            let guard = core.lock().await;
-            guard.session_manager()
+            let core = get_core_read().await.map_err(|e| anyhow!(e))?;
+            core.session_manager()
         };
         let sessions = manager.list_enriched_sessions()?;
         let repo_key = current_repo_cache_key().await.map_err(|e| anyhow!(e))?;
