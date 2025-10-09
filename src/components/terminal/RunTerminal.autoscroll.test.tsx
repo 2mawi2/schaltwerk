@@ -66,20 +66,34 @@ vi.mock('@tauri-apps/api/core', () => {
 // Tauri event mock
 vi.mock('@tauri-apps/api/event', () => {
   const map = new Map<string, Array<(evt: { event: string; payload: unknown }) => void>>()
+  const SAFE = /[^a-zA-Z0-9/:_-]/g
+  const normalize = (event: string) => {
+    if (event.startsWith('terminal-output-')) {
+      const prefix = 'terminal-output-'
+      return `${prefix}${event.slice(prefix.length).replace(SAFE, '_')}`
+    }
+    if (event.startsWith('terminal-output-normalized-')) {
+      const prefix = 'terminal-output-normalized-'
+      return `${prefix}${event.slice(prefix.length).replace(SAFE, '_')}`
+    }
+    return event
+  }
   const listen = vi.fn(async (channel: string, cb: (evt: { event: string; payload: unknown }) => void) => {
-    const list = map.get(channel) ?? []
+    const normalized = normalize(channel)
+    const list = map.get(normalized) ?? []
     list.push(cb)
-    map.set(channel, list)
+    map.set(normalized, list)
     return () => {
-      const arr = map.get(channel) ?? []
+      const arr = map.get(normalized) ?? []
       const idx = arr.indexOf(cb)
       if (idx >= 0) arr.splice(idx, 1)
-      map.set(channel, arr)
+      map.set(normalized, arr)
     }
   })
   function __emit(event: string, payload: unknown) {
-    const arr = map.get(event) ?? []
-    for (const cb of arr) cb({ event, payload })
+    const normalized = normalize(event)
+    const arr = map.get(normalized) ?? []
+    for (const cb of arr) cb({ event: normalized, payload })
   }
   function __clear() { map.clear() }
   return { listen, __emit, __clear }

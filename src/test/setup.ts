@@ -31,23 +31,39 @@ if (!global.window) {
 // Prevents happy-dom from calling into real Tauri internals (transformCallback)
 vi.mock('@tauri-apps/api/event', () => {
   const listeners = new Map<string, Array<(evt: { event: string; payload?: unknown }) => void>>()
+  const EVENT_NAME_SAFE_PATTERN = /[^a-zA-Z0-9/:_-]/g
+  const normalizeEventName = (event: string) => {
+    if (event.startsWith('terminal-output-')) {
+      const prefix = 'terminal-output-'
+      const name = event.slice(prefix.length).replace(EVENT_NAME_SAFE_PATTERN, '_')
+      return `${prefix}${name}`
+    }
+    if (event.startsWith('terminal-output-normalized-')) {
+      const prefix = 'terminal-output-normalized-'
+      const name = event.slice(prefix.length).replace(EVENT_NAME_SAFE_PATTERN, '_')
+      return `${prefix}${name}`
+    }
+    return event
+  }
   return {
     listen: vi.fn(async (event: string, handler: (evt: { event: string; payload?: unknown }) => void) => {
-      const arr = listeners.get(event) ?? []
+      const normalized = normalizeEventName(event)
+      const arr = listeners.get(normalized) ?? []
       arr.push(handler)
-      listeners.set(event, arr)
+      listeners.set(normalized, arr)
       // Return unlisten function
       return () => {
-        const current = listeners.get(event) ?? []
+        const current = listeners.get(normalized) ?? []
         const idx = current.indexOf(handler)
         if (idx >= 0) current.splice(idx, 1)
-        listeners.set(event, current)
+        listeners.set(normalized, current)
       }
     }),
     // Optional helper for tests that want to emit events manually
     __emit: (event: string, payload?: unknown) => {
-      const arr = listeners.get(event) ?? []
-      for (const fn of arr) fn({ event, payload })
+      const normalized = normalizeEventName(event)
+      const arr = listeners.get(normalized) ?? []
+      for (const fn of arr) fn({ event: normalized, payload })
     }
   }
 })

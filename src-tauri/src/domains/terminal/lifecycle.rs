@@ -37,10 +37,17 @@ pub(crate) fn get_agent_type_from_terminal(terminal_id: &str) -> Option<&'static
     }
 }
 
+/// Extracts the sanitized session name component from a session terminal identifier.
+/// Returns `None` for non-session terminals.
 pub(crate) fn extract_session_name(terminal_id: &str) -> Option<String> {
     if terminal_id.starts_with("session-") && terminal_id.ends_with("-top") {
         let without_prefix = terminal_id.strip_prefix("session-")?;
         let without_suffix = without_prefix.strip_suffix("-top")?;
+        if let Some((name_part, hash_part)) = without_suffix.rsplit_once('~') {
+            if hash_part.len() == 6 && hash_part.chars().all(|c| c.is_ascii_hexdigit()) {
+                return Some(name_part.to_string());
+            }
+        }
         Some(without_suffix.to_string())
     } else if terminal_id.starts_with("orchestrator-") && terminal_id.ends_with("-top") {
         let without_prefix = terminal_id.strip_prefix("orchestrator-")?;
@@ -291,6 +298,7 @@ pub(super) async fn start_process_monitor(id: String, deps: LifecycleDeps) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::shared::terminal_id::{terminal_id_for_session_bottom, terminal_id_for_session_top};
 
     #[test]
     fn detects_agent_terminals() {
@@ -319,14 +327,25 @@ mod tests {
 
     #[test]
     fn extracts_session_name_from_terminal_id() {
+        let session_top = terminal_id_for_session_top("alpha");
         assert_eq!(
-            extract_session_name("session-alpha-top"),
+            extract_session_name(&session_top),
             Some("alpha".to_string())
         );
         assert_eq!(
             extract_session_name("orchestrator-coordinator-top"),
             Some("coordinator".to_string())
         );
-        assert_eq!(extract_session_name("session-alpha-bottom"), None);
+        let session_bottom = terminal_id_for_session_bottom("alpha");
+        assert_eq!(extract_session_name(&session_bottom), None);
+    }
+
+    #[test]
+    fn extracts_sanitized_name_component() {
+        let session_top = terminal_id_for_session_top("alpha beta");
+        assert_eq!(
+            extract_session_name(&session_top),
+            Some("alpha_beta".to_string())
+        );
     }
 }

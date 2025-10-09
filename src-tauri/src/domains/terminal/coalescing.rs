@@ -42,6 +42,17 @@ impl CoalescingState {
     }
 }
 
+fn terminal_output_event_name(terminal_id: &str) -> String {
+    let mut safe_id = String::with_capacity(terminal_id.len());
+    for ch in terminal_id.chars() {
+        match ch {
+            'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '/' | ':' => safe_id.push(ch),
+            _ => safe_id.push('_'),
+        }
+    }
+    format!("terminal-output-{safe_id}")
+}
+
 /// Parameters for a single coalescing operation
 pub struct CoalescingParams<'a> {
     pub terminal_id: &'a str,
@@ -96,7 +107,7 @@ pub async fn handle_coalesced_output(
 
     if let Some(bytes) = emit_bytes {
         if let Some(handle) = coalescing_state.app_handle.lock().await.as_ref() {
-            let event_name = format!("terminal-output-{}", params.terminal_id);
+            let event_name = terminal_output_event_name(params.terminal_id);
             let (payload, remainder_prefix) = {
                 let mut utf8_streams = coalescing_state.utf8_streams.write().await;
                 decode_coalesced_bytes(bytes, params.terminal_id, &mut utf8_streams)

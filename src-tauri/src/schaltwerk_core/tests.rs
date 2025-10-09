@@ -3,6 +3,8 @@ use crate::domains::git::stats::{get_git_stats_call_count, reset_git_stats_call_
 #[cfg(test)]
 use crate::domains::sessions::entity::SessionStatus;
 #[cfg(test)]
+use crate::shared::terminal_id::{terminal_id_for_session_bottom, terminal_id_for_session_top};
+#[cfg(test)]
 use crate::{
     domains::sessions::service::SessionManager,
     schaltwerk_core::{git, Database},
@@ -458,12 +460,10 @@ fn test_list_enriched_sessions() {
         Some("First session".to_string())
     );
     assert_eq!(session1.terminals.len(), 2);
-    assert!(session1
-        .terminals
-        .contains(&"session-session-1-top".to_string()));
-    assert!(session1
-        .terminals
-        .contains(&"session-session-1-bottom".to_string()));
+    let expected_top = terminal_id_for_session_top("session-1");
+    let expected_bottom = terminal_id_for_session_bottom("session-1");
+    assert!(session1.terminals.contains(&expected_top));
+    assert!(session1.terminals.contains(&expected_bottom));
 }
 
 #[test]

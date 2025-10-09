@@ -15,6 +15,7 @@ import {
     terminalExistsBackend,
     closeTerminalBackend,
 } from '../terminal/transport/backend'
+import { sessionTerminalGroup } from '../common/terminalIdentity'
 
 type NormalizedSessionState = 'spec' | 'running' | 'reviewed'
 
@@ -188,9 +189,8 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
 
             // Also request a generic terminal resize so all terminals recompute cols/rows deterministically
             try {
-                const sanitize = (s?: string | null) => (s ?? '').replace(/[^a-zA-Z0-9_-]/g, '_')
                 if (sel.kind === 'session' && sel.payload) {
-                    emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'session', sessionId: sanitize(sel.payload) })
+                    emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'session', sessionId: sel.payload })
                 } else {
                     emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'orchestrator' })
                 }
@@ -246,13 +246,11 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 workingDirectory: workingDir
             }
         } else {
-            // Sanitize session name: replace spaces and special chars with underscores
-            const sanitizedSessionName = (sel.payload || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '_')
-            const base = `session-${sanitizedSessionName}`
+            const group = sessionTerminalGroup(sel.payload)
             const sessionWorkingDir = sel.sessionState === 'running' && sel.worktreePath ? sel.worktreePath : ''
             return {
-                top: `${base}-top`,
-                bottomBase: `${base}-bottom`,
+                top: group.top,
+                bottomBase: group.bottomBase,
                 workingDirectory: sessionWorkingDir
             }
         }

@@ -52,6 +52,7 @@ import { beginSplitDrag, endSplitDrag } from './utils/splitDragCoordinator'
 import { useOptionalToast } from './common/toast/ToastProvider'
 import { AppUpdateResultPayload } from './common/events'
 import { RawSession } from './types/session'
+import { stableSessionTerminalId } from './common/terminalIdentity'
 
 
 
@@ -287,9 +288,8 @@ function AppContent() {
     }
 
     try {
-      const sanitize = (s?: string | null) => (s ?? '').replace(/[^a-zA-Z0-9_-]/g, '_')
       if (selection.kind === 'session' && selection.payload) {
-        emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'session', sessionId: sanitize(selection.payload) })
+        emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'session', sessionId: selection.payload })
       } else {
         emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'orchestrator' })
       }
@@ -657,8 +657,7 @@ function AppContent() {
       const worktreePath = sessionData.worktree_path
       
       // Create terminals for this session using consistent naming pattern
-      const sanitizedSessionName = sessionName.replace(/[^a-zA-Z0-9_-]/g, '_')
-      const topTerminalId = `session-${sanitizedSessionName}-top`
+      const topTerminalId = stableSessionTerminalId(sessionName, 'top')
       
       // Create only the top terminal. Bottom terminals are tabbed and created by TerminalTabs as needed (-bottom-0)
       await createTerminalBackend({ id: topTerminalId, cwd: worktreePath })
@@ -877,8 +876,7 @@ function AppContent() {
             for (const createdSession of createdSessions) {
               const sessionName = createdSession.name
               const agentTypeForVersion = createdSession.agentType ?? undefined
-              const sanitized = sessionName.replace(/[^a-zA-Z0-9_-]/g, '_')
-              const topId = `session-${sanitized}-top`
+              const topId = stableSessionTerminalId(sessionName, 'top')
               try {
                 await startSessionTop({
                   sessionName,

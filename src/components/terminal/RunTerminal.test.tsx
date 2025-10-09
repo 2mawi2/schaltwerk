@@ -20,10 +20,23 @@ vi.mock('@tauri-apps/api/core', () => ({
 
 // Mock tauri event layer so listen resolves with a controllable unlisten
 const eventHandlers: Record<string, ((e: unknown) => void) | null> = {}
+const EVENT_NAME_SAFE_PATTERN = /[^a-zA-Z0-9/:_-]/g
+const normalizeEventName = (event: string) => {
+  if (event.startsWith('terminal-output-')) {
+    const prefix = 'terminal-output-'
+    return `${prefix}${event.slice(prefix.length).replace(EVENT_NAME_SAFE_PATTERN, '_')}`
+  }
+  if (event.startsWith('terminal-output-normalized-')) {
+    const prefix = 'terminal-output-normalized-'
+    return `${prefix}${event.slice(prefix.length).replace(EVENT_NAME_SAFE_PATTERN, '_')}`
+  }
+  return event
+}
 vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn(async (event: string, handler: (e: unknown) => void) => {
-    eventHandlers[event] = handler
-    return () => { eventHandlers[event] = null }
+    const normalized = normalizeEventName(event)
+    eventHandlers[normalized] = handler
+    return () => { eventHandlers[normalized] = null }
   }),
   emit: vi.fn()
 }))
@@ -200,7 +213,7 @@ describe('RunTerminal', () => {
     await screen.findByText('Running:')
     expect(onRunningStateChange).toHaveBeenCalledWith(true)
 
-    const sentinelEvent = eventHandlers['terminal-output-run-terminal-test']
+    const sentinelEvent = eventHandlers[normalizeEventName('terminal-output-run-terminal-test')]
     expect(sentinelEvent).toBeTruthy()
 
     // Deliver sentinel in two chunks to verify buffer handling

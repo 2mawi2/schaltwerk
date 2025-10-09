@@ -28,6 +28,7 @@ import { detectPlatformSafe, isShortcutForAction } from '../../keyboardShortcuts
 import type { Platform } from '../../keyboardShortcuts/matcher'
 import { useHighlightWorker } from '../../hooks/useHighlightWorker'
 import { hashSegments } from '../../utils/hashSegments'
+import { stableSessionTerminalId } from '../../common/terminalIdentity'
 
 // ChangedFile type now imported from DiffFileExplorer
 
@@ -1039,7 +1040,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
         await setSelection({ kind: 'orchestrator' })
         setCurrentFocus('claude')
       } else if (sessionName) {
-        const terminalId = `session-${sessionName}-top`
+        const terminalId = stableSessionTerminalId(sessionName, 'top')
         await invoke(TauriCommands.PasteAndSubmitTerminal, {
           id: terminalId,
           data: reviewText,

@@ -19,6 +19,7 @@ use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
 use schaltwerk::schaltwerk_core::db_project_config::{ProjectConfigMethods, DEFAULT_BRANCH_PREFIX};
 use schaltwerk::schaltwerk_core::SessionManager;
 use schaltwerk::services::ServiceHandles;
+use std::collections::HashSet;
 use std::path::PathBuf;
 use tauri::State;
 mod agent_ctx;
@@ -429,7 +430,10 @@ pub async fn schaltwerk_core_create_session(
             params.name
         );
         tokio::spawn(async move {
-            let (session_info, db_clone) = {
+            let (
+                (session_id, worktree_path, repo_path, current_branch, agent, initial_prompt),
+                db_clone,
+            ) = {
                 let core = match get_core_read().await {
                     Ok(c) => c,
                     Err(e) => {
@@ -480,15 +484,6 @@ pub async fn schaltwerk_core_create_session(
                     core.db.clone(),
                 )
             };
-
-            let (session_id, worktree_path, repo_path, current_branch, agent, initial_prompt): (
-                String,
-                PathBuf,
-                PathBuf,
-                String,
-                String,
-                Option<String>,
-            ) = session_info;
 
             log::info!(
                 "Starting name generation for session '{}' with prompt: {:?}",
@@ -853,10 +848,16 @@ pub async fn schaltwerk_core_cancel_session(
         // Always close terminals BEFORE removing the worktree to avoid leaving
         // shells in deleted directories (which causes getcwd errors in tools like `just`).
         if let Ok(terminal_manager) = get_terminal_manager().await {
-            let ids = vec![
-                format!("session-{}-top", name_for_bg),
-                format!("session-{}-bottom", name_for_bg),
-            ];
+            let mut ids: HashSet<String> = HashSet::new();
+            ids.insert(terminals::terminal_id_for_session_top(&name_for_bg));
+            ids.insert(terminals::terminal_id_for_session_bottom(&name_for_bg));
+            ids.insert(terminals::previous_hashed_terminal_id_for_session_top(&name_for_bg));
+            ids.insert(terminals::previous_hashed_terminal_id_for_session_bottom(&name_for_bg));
+            ids.insert(terminals::legacy_terminal_id_for_session_top(&name_for_bg));
+            ids.insert(
+                terminals::legacy_terminal_id_for_session_bottom(&name_for_bg),
+            );
+
             for id in ids {
                 if let Err(e) = terminal_manager.close_terminal(id.clone()).await {
                     log::debug!("Terminal {id} cleanup (pre-cancel): {e}");

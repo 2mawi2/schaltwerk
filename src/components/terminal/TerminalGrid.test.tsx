@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, act, waitFor, fireEvent } from '@testing-library/react'
 import { MockTauriInvokeArgs } from '../../types/testing'
 import { UiEvent, emitUiEvent } from '../../common/uiEvents'
+import { sessionTerminalGroup } from '../../common/terminalIdentity'
 import { resetSplitDragForTests } from '../../utils/splitDragCoordinator'
 
 // Type definitions for proper typing
@@ -40,6 +41,18 @@ interface MockTerminalTabsRef {
     addTab: ReturnType<typeof vi.fn>
     closeTab: ReturnType<typeof vi.fn>
     setActiveTab: ReturnType<typeof vi.fn>
+  }
+}
+
+function terminalIdsFor(sessionName: string) {
+  const group = sessionTerminalGroup(sessionName)
+  return {
+    base: group.base,
+    topId: group.top,
+    bottomBase: group.bottomBase,
+    testIdTop: `terminal-${group.base}-top`,
+    testIdBottom: `terminal-${group.base}-bottom`,
+    tabsBottomTestId: `terminal-tabs-${group.base}-bottom`,
   }
 }
 
@@ -524,23 +537,24 @@ describe('TerminalGrid', () => {
     expect(screen.getByText('⌘/')).toBeInTheDocument()
 
     // New terminal ids mounted (remounted due to key change)
-    expect(screen.getByTestId('terminal-session-dev-top')).toBeInTheDocument()
+    const devIds = terminalIdsFor('dev')
+    expect(screen.getByTestId(devIds.testIdTop)).toBeInTheDocument()
     // Bottom terminal is now in tabs, wait for it to be created
     await waitFor(() => {
-      expect(screen.getByTestId('terminal-session-dev-bottom')).toBeInTheDocument()
+      expect(screen.getByTestId(devIds.testIdBottom)).toBeInTheDocument()
     }, { timeout: 3000 })
 
     // Click headers to drive focus
     const m = (await import('./Terminal')) as unknown as MockTerminalModule
     // Click directly on bottom terminal to focus it
-    const bottomEl = screen.getByTestId('terminal-session-dev-bottom')
+    const bottomEl = screen.getByTestId(devIds.testIdBottom)
     fireEvent.click(bottomEl)
     await waitFor(() => {
-      expect(m.__getFocusSpy('session-dev-bottom')).toHaveBeenCalled()
+      expect(m.__getFocusSpy(devIds.bottomBase)).toHaveBeenCalled()
     }, { timeout: 2000 })
     fireEvent.click(screen.getByText(/Agent\s+[—-]{1,2}\s+dev/))
     await waitFor(() => {
-      expect(m.__getFocusSpy('session-dev-top')).toHaveBeenCalled()
+      expect(m.__getFocusSpy(devIds.topId)).toHaveBeenCalled()
     }, { timeout: 2000 })
   })
 
@@ -1049,7 +1063,8 @@ describe('TerminalGrid', () => {
       // Terminal should be visible and functional after expansion
       // Terminal shortcuts should be visible
       expect(screen.getByText('⌘/')).toBeInTheDocument()
-      expect(screen.getByTestId('terminal-session-test-bottom')).toBeInTheDocument()
+      const testIds = terminalIdsFor('test')
+      expect(screen.getByTestId(testIds.testIdBottom)).toBeInTheDocument()
     })
 
     it('maintains correct UI state when rapidly toggling collapse', async () => {

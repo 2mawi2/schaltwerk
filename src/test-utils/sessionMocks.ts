@@ -1,3 +1,5 @@
+import { stableSessionTerminalId } from '../common/terminalIdentity'
+
 export const mockEnrichedSession = (name: string, status: string = 'active', readyToMerge: boolean = false) => ({
   id: name,
   info: {
@@ -17,8 +19,8 @@ export const mockEnrichedSession = (name: string, status: string = 'active', rea
     session_type: "worktree" as const,
   },
   terminals: [
-    `session-${name}-top`,
-    `session-${name}-bottom`
+    stableSessionTerminalId(name, 'top'),
+    stableSessionTerminalId(name, 'bottom')
   ]
 })
 

@@ -1,10 +1,11 @@
 import { render, act, fireEvent } from '@testing-library/react'
-import { TauriCommands } from '../../common/tauriCommands'
+import { TauriCommands, type TauriCommand } from '../../common/tauriCommands'
 import { createRef } from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { MockTauriInvokeArgs } from '../../types/testing'
 import { UiEvent, emitUiEvent } from '../../common/uiEvents'
 import { beginSplitDrag, endSplitDrag, resetSplitDragForTests } from '../../utils/splitDragCoordinator'
+import { stableSessionTerminalId, sessionTerminalGroup } from '../../common/terminalIdentity'
 
 const CLAUDE_SHIFT_ENTER_SEQUENCE = '\\'
 
@@ -214,20 +215,34 @@ vi.mock('@tauri-apps/api/core', () => {
 // ---- Mock: @tauri-apps/api/event (listen) ----
 vi.mock('@tauri-apps/api/event', () => {
   const listenerMap = new Map<string, Array<(evt: { event: string; payload: unknown }) => void>>()
+  const SAFE_PATTERN = /[^a-zA-Z0-9/:_-]/g
+  const normalize = (event: string) => {
+    if (event.startsWith('terminal-output-')) {
+      const prefix = 'terminal-output-'
+      return `${prefix}${event.slice(prefix.length).replace(SAFE_PATTERN, '_')}`
+    }
+    if (event.startsWith('terminal-output-normalized-')) {
+      const prefix = 'terminal-output-normalized-'
+      return `${prefix}${event.slice(prefix.length).replace(SAFE_PATTERN, '_')}`
+    }
+    return event
+  }
   const listen = vi.fn(async (channel: string, cb: (evt: { event: string; payload: unknown }) => void) => {
-    const arr = listenerMap.get(channel) ?? []
+    const normalized = normalize(channel)
+    const arr = listenerMap.get(normalized) ?? []
     arr.push(cb)
-    listenerMap.set(channel, arr)
+    listenerMap.set(normalized, arr)
     return () => {
-      const list = listenerMap.get(channel) ?? []
+      const list = listenerMap.get(normalized) ?? []
       const idx = list.indexOf(cb)
       if (idx >= 0) list.splice(idx, 1)
-      listenerMap.set(channel, list)
+      listenerMap.set(normalized, list)
     }
   })
   function __emit(event: string, payload: unknown) {
-    const arr = listenerMap.get(event) ?? []
-    for (const cb of arr) cb({ event, payload })
+    const normalized = normalize(event)
+    const arr = listenerMap.get(normalized) ?? []
+    for (const cb of arr) cb({ event: normalized, payload })
   }
   function __clear() {
     listenerMap.clear()
@@ -334,11 +349,44 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
+function toStableTerminalId(legacyId: string | undefined): string | undefined {
+  if (!legacyId || !legacyId.startsWith('session-')) return legacyId
+  const prefixLength = 'session-'.length
+  const hashedTopPattern = /^session-.*(?:-|~)[0-9a-f]{6}-top$/i
+  const hashedBottomPattern = /^session-.*(?:-|~)[0-9a-f]{6}-bottom.*$/i
+  if (hashedTopPattern.test(legacyId) || hashedBottomPattern.test(legacyId)) {
+    return legacyId
+  }
+  if (legacyId.endsWith('-top')) {
+    const name = legacyId.slice(prefixLength, -4)
+    return stableSessionTerminalId(name, 'top')
+  }
+  const bottomIndex = legacyId.indexOf('-bottom')
+  if (bottomIndex !== -1) {
+    const name = legacyId.slice(prefixLength, bottomIndex)
+    const suffix = legacyId.slice(bottomIndex + '-bottom'.length)
+    return stableSessionTerminalId(name, 'bottom') + suffix
+  }
+  return legacyId
+}
+
+const stableId = (legacyId: string): string => toStableTerminalId(legacyId) ?? legacyId
+const topIdFor = (name: string): string => stableSessionTerminalId(name, 'top')
+const bottomBaseFor = (name: string): string => sessionTerminalGroup(name).bottomBase
+const bottomIdFor = (name: string, suffix = ''): string => `${bottomBaseFor(name)}${suffix}`
+const SESSION_START_COMMANDS = new Set<TauriCommand>([
+  TauriCommands.SchaltwerkCoreStartSessionAgent,
+  TauriCommands.SchaltwerkCoreStartSessionAgentWithRestart,
+])
+const filterSessionStartCalls = (calls: unknown[][]) =>
+  calls.filter(([cmd]) => SESSION_START_COMMANDS.has(cmd as TauriCommand))
+
 // Helper function to render Terminal with all required providers
 function renderTerminal(props: React.ComponentProps<typeof Terminal>) {
+  const terminalId = toStableTerminalId(props.terminalId)
   return render(
     <TestProviders>
-      <Terminal {...props} />
+      <Terminal {...props} terminalId={terminalId ?? props.terminalId} />
     </TestProviders>
   )
 }
@@ -359,8 +407,8 @@ describe('Terminal component', () => {
     await flushAll()
 
     // Emit outputs after initialization
-    ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-demo-top', 'A')
-    ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-demo-top', 'B')
+    ;(TauriEvent as unknown as MockTauriEvent).__emit(`terminal-output-${stableId('session-demo-top')}`, 'A')
+    ;(TauriEvent as unknown as MockTauriEvent).__emit(`terminal-output-${stableId('session-demo-top')}`, 'B')
 
     await flushAll()
 
@@ -387,7 +435,7 @@ describe('Terminal component', () => {
     ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => {
       snapshotCalls += 1
       if (snapshotCalls === 1) {
-        ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-dup-top', 'READY')
+        ;(TauriEvent as unknown as MockTauriEvent).__emit(`terminal-output-${stableId('session-dup-top')}`, 'READY')
         return {
           seq: 1,
           startSeq: 0,
@@ -433,7 +481,7 @@ describe('Terminal component', () => {
     }
 
     // Emit some output; it should still flush despite zero size
-    ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-hidden-top', 'A')
+    ;(TauriEvent as unknown as MockTauriEvent).__emit(`terminal-output-${stableId('session-hidden-top')}`, 'A')
 
     // Allow internal debounced flush (2ms) and readiness retry timers to run
     await advanceAndFlush(50)
@@ -489,7 +537,7 @@ describe('Terminal component', () => {
       expect(afterCalls.length).toBeLessThanOrEqual(8)
       const lastCall = afterCalls[0]
       // Allow Claude guard-band to adjust reported columns; rows should still match
-      expect(lastCall[1]).toMatchObject({ id: 'session-defer-top', rows: 40 })
+      expect(lastCall[1]).toMatchObject({ id: topIdFor('defer'), rows: 40 })
   })
 
   // Test removed - Codex normalization confirmed working in production
@@ -511,7 +559,7 @@ describe('Terminal component', () => {
     expect(
       writeCalls.some(call => {
         const args = call[1] as { id: string, data: string }
-        return args.id === 'session-io-top' && args.data === 'hello'
+        return args.id === topIdFor('io') && args.data === 'hello'
       })
     ).toBe(true)
   })
@@ -610,7 +658,7 @@ describe('Terminal component', () => {
       .filter((call) => call[0] === TauriCommands.WriteTerminal)
       .map((call) => call[1] as { data?: string; id?: string })
 
-    expect(callData).toContainEqual({ id: 'session-claude-shift-top', data: CLAUDE_SHIFT_ENTER_SEQUENCE })
+    expect(callData).toContainEqual({ id: topIdFor('claude-shift'), data: CLAUDE_SHIFT_ENTER_SEQUENCE })
   })
 
   it('does not intercept Shift+Enter for non-Claude terminals', async () => {
@@ -662,7 +710,7 @@ describe('Terminal component', () => {
     const ref = createRef<{ focus: () => void; showSearch: () => void; scrollToBottom: () => void }>()
     render(
       <TestProviders>
-        <Terminal terminalId="session-focus-top" sessionName="focus" ref={ref} />
+        <Terminal terminalId={topIdFor('focus')} sessionName="focus" ref={ref} />
       </TestProviders>
     )
     await flushAll()
@@ -701,7 +749,7 @@ describe('Terminal component', () => {
     const ref = createRef<{ focus: () => void; showSearch: () => void; scrollToBottom: () => void }>()
     render(
       <TestProviders>
-        <Terminal terminalId="session-search-bottom-0" sessionName="search-bottom" ref={ref} />
+        <Terminal terminalId={bottomIdFor('search-bottom', '-0')} sessionName="search-bottom" ref={ref} />
       </TestProviders>
     )
 
@@ -778,7 +826,7 @@ describe('Terminal component', () => {
     const bigChunk = 'X'.repeat(70 * 1024) // 70KB > 64KB
     const payload = bigChunk + bigChunk + bigChunk // ~210KB
 
-    ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-stream-top', payload)
+    ;(TauriEvent as unknown as MockTauriEvent).__emit(`terminal-output-${stableId('session-stream-top')}`, payload)
 
     // Allow internal coalescing timers to run
     await advanceAndFlush(250)
@@ -1084,7 +1132,7 @@ describe('Terminal component', () => {
     ro.trigger()
     await advanceAndFlush(100)
 
-    const size = getTerminalSize('session-metrics-bottom-0')
+    const size = getTerminalSize(bottomIdFor('metrics', '-0'))
     const resizeCalls = core.invoke.mock.calls.filter(call => call[0] === TauriCommands.ResizeTerminal)
     const last = resizeCalls.at(-1)?.[1] as { cols: number; rows: number } | undefined
     expect(last).toBeDefined()
@@ -1102,11 +1150,11 @@ describe('Terminal component', () => {
     const scrollSpy = vi.spyOn(xterm, 'scrollToLine')
     scrollSpy.mockClear()
 
-    ;(TauriEvent as unknown as MockTauriEvent).__emit('schaltwerk:terminal-force-scroll', { terminal_id: 'session-other-top' })
+    ;(TauriEvent as unknown as MockTauriEvent).__emit('schaltwerk:terminal-force-scroll', { terminal_id: stableId('session-other-top') })
     expect(scrollSpy).not.toHaveBeenCalled()
 
     scrollSpy.mockClear()
-    ;(TauriEvent as unknown as MockTauriEvent).__emit('schaltwerk:terminal-force-scroll', { terminal_id: 'session-force-top' })
+    ;(TauriEvent as unknown as MockTauriEvent).__emit('schaltwerk:terminal-force-scroll', { terminal_id: stableId('session-force-top') })
     expect(scrollSpy).toHaveBeenCalledWith(100)
   })
 
@@ -1114,7 +1162,7 @@ describe('Terminal component', () => {
     const eventModule = TauriEvent as unknown as MockTauriEvent
     const { rerender } = render(
       <TestProviders>
-        <Terminal terminalId="session-agent-top" sessionName="agent" agentType="codex" />
+        <Terminal terminalId={topIdFor('agent')} sessionName="agent" agentType="codex" />
       </TestProviders>
     )
 
@@ -1123,7 +1171,7 @@ describe('Terminal component', () => {
 
     rerender(
       <TestProviders>
-        <Terminal terminalId="session-agent-top" sessionName="agent" agentType="run" />
+        <Terminal terminalId={topIdFor('agent')} sessionName="agent" agentType="run" />
       </TestProviders>
     )
 
@@ -1131,7 +1179,7 @@ describe('Terminal component', () => {
     const afterListenCalls = eventModule.listen.mock.calls.length
     expect(afterListenCalls).toBeGreaterThan(initialListenCalls)
 
-    ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-agent-top', 'hello-world')
+    ;(TauriEvent as unknown as MockTauriEvent).__emit(`terminal-output-${stableId('session-agent-top')}`, 'hello-world')
     await flushAll()
 
     const xterm = getLastXtermInstance()
@@ -1204,10 +1252,10 @@ describe('Terminal component', () => {
     getSelectionSpy.mockReturnValue(selectionMock)
 
     scrollSpy.mockClear()
-    ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-run-bottom-0', 'SELECTING-1')
+    ;(TauriEvent as unknown as MockTauriEvent).__emit(`terminal-output-${stableId('session-run-bottom-0')}`, 'SELECTING-1')
     await advanceAndFlush(200)
     const selectingCalls = scrollSpy.mock.calls.length
-    ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-run-bottom-0', 'SELECTING-2')
+    ;(TauriEvent as unknown as MockTauriEvent).__emit(`terminal-output-${stableId('session-run-bottom-0')}`, 'SELECTING-2')
     await advanceAndFlush(200)
     expect(scrollSpy.mock.calls.length).toBe(selectingCalls)
 
@@ -1223,7 +1271,7 @@ describe('Terminal component', () => {
       xterm.buffer.active.baseY = 105
       return originalWrite.call(xterm, d, cb)
     })
-    ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-run-bottom-0', 'CLEARED')
+    ;(TauriEvent as unknown as MockTauriEvent).__emit(`terminal-output-${stableId('session-run-bottom-0')}`, 'CLEARED')
     await advanceAndFlush(200)
     expect(scrollSpy).toHaveBeenCalledWith(105)
     getSelectionSpy.mockRestore()
@@ -1249,10 +1297,10 @@ describe('Terminal component', () => {
       data: 'RESUMED'
     }))
 
-    ;(TauriEvent as unknown as MockTauriEvent).__emit('schaltwerk:terminal-suspended', { terminal_id: 'session-resume-top' })
+    ;(TauriEvent as unknown as MockTauriEvent).__emit('schaltwerk:terminal-suspended', { terminal_id: stableId('session-resume-top') })
     await advanceAndFlush(100)
 
-    ;(TauriEvent as unknown as MockTauriEvent).__emit('schaltwerk:terminal-resumed', { terminal_id: 'session-resume-top' })
+    ;(TauriEvent as unknown as MockTauriEvent).__emit('schaltwerk:terminal-resumed', { terminal_id: stableId('session-resume-top') })
     await advanceAndFlush(400)
 
     const writes = (xterm.write as unknown as { mock: { calls: unknown[][] } }).mock.calls.map(call => call[0]).join('')
@@ -1288,12 +1336,12 @@ describe('Terminal component', () => {
     }))
 
     await act(async () => {
-      events.__emit('schaltwerk:terminal-suspended', { terminal_id: 'session-resume-scroll-top' })
+      events.__emit('schaltwerk:terminal-suspended', { terminal_id: stableId('session-resume-scroll-top') })
     })
     await advanceAndFlush(50)
 
     await act(async () => {
-      events.__emit('schaltwerk:terminal-resumed', { terminal_id: 'session-resume-scroll-top' })
+      events.__emit('schaltwerk:terminal-resumed', { terminal_id: stableId('session-resume-scroll-top') })
     })
     await advanceAndFlush(400)
 
@@ -1317,7 +1365,7 @@ describe('Terminal component', () => {
 
     const view = render(
       <TestProviders>
-        <Terminal terminalId="session-alpha-top" sessionName="alpha" />
+        <Terminal terminalId={topIdFor('alpha')} sessionName="alpha" />
       </TestProviders>
     )
 
@@ -1328,7 +1376,7 @@ describe('Terminal component', () => {
     alphaTerm.buffer.active.viewportY = 420
 
     await act(async () => {
-      events.__emit('schaltwerk:terminal-suspended', { terminal_id: 'session-alpha-top' })
+      events.__emit('schaltwerk:terminal-suspended', { terminal_id: stableId('session-alpha-top') })
     })
     await flushAll()
 
@@ -1340,7 +1388,7 @@ describe('Terminal component', () => {
 
     view.rerender(
       <TestProviders>
-        <Terminal terminalId="session-beta-top" sessionName="beta" />
+        <Terminal terminalId={topIdFor('beta')} sessionName="beta" />
       </TestProviders>
     )
 
@@ -1441,7 +1489,7 @@ describe('Terminal component', () => {
       ;(xterm.write as unknown as ReturnType<typeof vi.fn>).mockClear()
 
       const payload = 'X'.repeat(256)
-      ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-overflow-top', payload)
+      ;(TauriEvent as unknown as MockTauriEvent).__emit(`terminal-output-${stableId('session-overflow-top')}`, payload)
 
       await advanceAndFlush(600)
 
@@ -1487,7 +1535,7 @@ describe('Terminal component', () => {
       ;(xterm.write as unknown as ReturnType<typeof vi.fn>).mockClear()
 
       const payloadA = 'A'.repeat(256)
-      ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-overflow-multi-top', payloadA)
+      ;(TauriEvent as unknown as MockTauriEvent).__emit(`terminal-output-${stableId('session-overflow-multi-top')}`, payloadA)
 
       await advanceAndFlush(800)
 
@@ -1497,7 +1545,7 @@ describe('Terminal component', () => {
       ;(xterm.write as unknown as ReturnType<typeof vi.fn>).mockClear()
 
       const payloadB = 'B'.repeat(256)
-      ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-overflow-multi-top', payloadB)
+      ;(TauriEvent as unknown as MockTauriEvent).__emit(`terminal-output-${stableId('session-overflow-multi-top')}`, payloadB)
 
       await advanceAndFlush(800)
 
@@ -1543,14 +1591,14 @@ describe('Terminal component', () => {
       const xterm = getLastXtermInstance()
       ;(xterm.write as unknown as ReturnType<typeof vi.fn>).mockClear()
 
-      ;(TauriEvent as unknown as MockTauriEvent).__emit('schaltwerk:terminal-suspended', { terminal_id: 'session-overflow-retry-top' })
+      ;(TauriEvent as unknown as MockTauriEvent).__emit('schaltwerk:terminal-suspended', { terminal_id: stableId('session-overflow-retry-top') })
       await advanceAndFlush(50)
 
-      ;(TauriEvent as unknown as MockTauriEvent).__emit('schaltwerk:terminal-resumed', { terminal_id: 'session-overflow-retry-top' })
+      ;(TauriEvent as unknown as MockTauriEvent).__emit('schaltwerk:terminal-resumed', { terminal_id: stableId('session-overflow-retry-top') })
       await advanceAndFlush(50)
 
       const payload = 'X'.repeat(256)
-      ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-overflow-retry-top', payload)
+      ;(TauriEvent as unknown as MockTauriEvent).__emit(`terminal-output-${stableId('session-overflow-retry-top')}`, payload)
 
       await advanceAndFlush(50)
 
@@ -1595,7 +1643,7 @@ describe('Terminal component', () => {
       data: 'LATEST'
     }))
 
-    ;(TauriEvent as unknown as MockTauriEvent).__emit('schaltwerk:terminal-resumed', { terminal_id: 'session-resume-offscreen' })
+    ;(TauriEvent as unknown as MockTauriEvent).__emit('schaltwerk:terminal-resumed', { terminal_id: stableId('session-resume-offscreen') })
     await advanceAndFlush(400)
 
     const writes = (xterm.write as unknown as { mock: { calls: unknown[][] } }).mock.calls.map(call => call[0]).join('')
@@ -1629,7 +1677,7 @@ describe('Terminal component', () => {
 
   it('allows Claude restart after clearing started tracking for session terminals', async () => {
     const core = TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][], clear: () => void } } }
-    const terminalId = 'session-restart-top'
+    const terminalId = topIdFor('restart')
 
     const first = renderTerminal({ terminalId, sessionName: 'restart' })
     await flushAll()
@@ -1637,7 +1685,7 @@ describe('Terminal component', () => {
     await flushAll()
     vi.advanceTimersByTime(1)
     await flushAll()
-    const startCallsFirst = core.invoke.mock.calls.filter(call => call[0] === TauriCommands.SchaltwerkCoreStartSessionAgent)
+    const startCallsFirst = filterSessionStartCalls(core.invoke.mock.calls as unknown[][])
     expect(startCallsFirst.length).toBeGreaterThan(0)
     first.unmount()
 
@@ -1646,7 +1694,7 @@ describe('Terminal component', () => {
     await flushAll()
     vi.advanceTimersByTime(1)
     await flushAll()
-    const startCallsSecond = core.invoke.mock.calls.filter(call => call[0] === TauriCommands.SchaltwerkCoreStartSessionAgent)
+    const startCallsSecond = filterSessionStartCalls(core.invoke.mock.calls as unknown[][])
     expect(startCallsSecond.length).toBe(0)
     second.unmount()
 
@@ -1658,7 +1706,7 @@ describe('Terminal component', () => {
     await flushAll()
     vi.advanceTimersByTime(1)
     await flushAll()
-    const startCallsThird = core.invoke.mock.calls.filter(call => call[0] === TauriCommands.SchaltwerkCoreStartSessionAgent)
+    const startCallsThird = filterSessionStartCalls(core.invoke.mock.calls as unknown[][])
     expect(startCallsThird.length).toBeGreaterThan(0)
     third.unmount()
     clearTerminalStartedTracking([terminalId])
@@ -1666,7 +1714,7 @@ describe('Terminal component', () => {
 
   it('auto-starts session agent when session name requires sanitization', async () => {
     const core = TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][], clear: () => void } } }
-    const terminalId = 'session-ui_polish-top'
+    const terminalId = stableSessionTerminalId('ui polish', 'top')
 
     core.invoke.mockClear()
 
@@ -1675,7 +1723,7 @@ describe('Terminal component', () => {
     await advanceAndFlush(200)
     await flushAll()
 
-    const startCalls = core.invoke.mock.calls.filter(call => call[0] === TauriCommands.SchaltwerkCoreStartSessionAgent)
+    const startCalls = filterSessionStartCalls(core.invoke.mock.calls as unknown[][])
     expect(startCalls.length).toBeGreaterThan(0)
 
     instance.unmount()
@@ -1715,7 +1763,7 @@ describe('Terminal component', () => {
     const ref = createRef<TerminalHandle>()
     render(
       <TestProviders>
-        <Terminal terminalId="session-search-ui-top" sessionName="search-ui" ref={ref} />
+        <Terminal terminalId={topIdFor('search-ui')} sessionName="search-ui" ref={ref} />
       </TestProviders>
     )
     await flushAll()
@@ -1833,7 +1881,7 @@ describe('Terminal component', () => {
     const ref = createRef<TerminalHandle>()
     render(
       <TestProviders>
-        <Terminal terminalId="session-scroll-ref-top" sessionName="scroll-ref" ref={ref} />
+        <Terminal terminalId={topIdFor('scroll-ref')} sessionName="scroll-ref" ref={ref} />
       </TestProviders>
     )
     await flushAll()
@@ -1875,7 +1923,7 @@ describe('Terminal component', () => {
     renderTerminal({ terminalId: 'session-hydration-fail-top', sessionName: 'hydration-fail' })
     await flushAll()
 
-    ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-hydration-fail-top', 'RECOVER')
+    ;(TauriEvent as unknown as MockTauriEvent).__emit(`terminal-output-${stableId('session-hydration-fail-top')}`, 'RECOVER')
     await advanceAndFlush(400)
 
     const xterm = getLastXtermInstance()
@@ -1890,7 +1938,7 @@ describe('Terminal component', () => {
     renderTerminal({ terminalId: 'session-debug-top', sessionName: 'debug' })
     await flushAll()
 
-    ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-debug-top', 'DEBUGDATA')
+    ;(TauriEvent as unknown as MockTauriEvent).__emit(`terminal-output-${stableId('session-debug-top')}`, 'DEBUGDATA')
     await advanceAndFlush(200)
 
     expect(debugSpy).toHaveBeenCalled()

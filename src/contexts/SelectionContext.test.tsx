@@ -11,6 +11,7 @@ vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(async () => () => {}) })
 
 import { useSelection } from './SelectionContext'
 import { TestProviders } from '../tests/test-utils'
+import { sessionTerminalGroup, stableSessionTerminalId } from '../common/terminalIdentity'
 
 import { invoke } from '@tauri-apps/api/core'
 const mockInvoke = invoke as MockedFunction<typeof invoke>
@@ -238,10 +239,12 @@ describe('SelectionContext', () => {
         })
       })
 
+      const expectedGroup = sessionTerminalGroup('test-session')
+
       await waitFor(() => {
         expect(result.current.terminals).toEqual({
-          top: 'session-test-session-top',
-          bottomBase: 'session-test-session-bottom',
+          top: expectedGroup.top,
+          bottomBase: expectedGroup.bottomBase,
           workingDirectory: '/test/session/path'
         })
       })
@@ -263,10 +266,12 @@ describe('SelectionContext', () => {
         })
       })
 
+      const expectedGroup = sessionTerminalGroup('my-test_session.123')
+
       await waitFor(() => {
         expect(result.current.terminals).toEqual({
-          top: 'session-my-test_session_123-top',
-          bottomBase: 'session-my-test_session_123-bottom',
+          top: expectedGroup.top,
+          bottomBase: expectedGroup.bottomBase,
           workingDirectory: '/test/session/path'
         })
       })
@@ -351,8 +356,9 @@ describe('SelectionContext', () => {
         })
       })
 
+      const expectedTop = stableSessionTerminalId('test-session', 'top')
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.CreateTerminal, {
-        id: 'session-test-session-top',
+        id: expectedTop,
         cwd: '/custom/worktree/path'
       })
     })
@@ -370,8 +376,9 @@ describe('SelectionContext', () => {
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreGetSession, {
         name: 'test-session'
       })
+      const expectedTop = stableSessionTerminalId('test-session', 'top')
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.CreateTerminal, {
-        id: 'session-test-session-top',
+        id: expectedTop,
         cwd: '/test/session/path'
       })
     })
@@ -405,8 +412,9 @@ describe('SelectionContext', () => {
       })
 
       // Should not create terminals when session lookup fails
+      const missingTopId = stableSessionTerminalId('missing-session', 'top')
       expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.CreateTerminal, expect.objectContaining({
-        id: 'session-missing-session-top'
+        id: missingTopId
       }))
       
       // Should have tried to get the session info
@@ -420,9 +428,10 @@ describe('SelectionContext', () => {
     it('should not create terminals that already exist', async () => {
       mockInvoke.mockImplementation((command: string, args?: MockTauriInvokeArgs) => {
       const typedArgs = args as { name?: string; id?: string } | undefined
+        const testTopId = stableSessionTerminalId('test', 'top')
         switch (command) {
           case TauriCommands.TerminalExists:
-            if (typedArgs?.id === 'session-test-top') {
+            if (typedArgs?.id === testTopId) {
               return Promise.resolve(true)
             }
             return Promise.resolve(false)
@@ -464,11 +473,12 @@ describe('SelectionContext', () => {
       })
 
       // Should check existence for top terminal only (bottom handled by tab system)
-      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.TerminalExists, { id: 'session-test-top' })
+      const testTopId = stableSessionTerminalId('test', 'top')
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.TerminalExists, { id: testTopId })
       
       // Should not create top terminal since it already exists
       expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.CreateTerminal, {
-        id: 'session-test-top',
+        id: testTopId,
         cwd: '/test/session/path'
       })
     })
@@ -724,6 +734,48 @@ describe('SelectionContext', () => {
       }
 
       expect(testStateTransition('session-1', 'session-2', true, false)).toBe(false)
+    })
+  })
+
+  describe('terminal identifiers', () => {
+    it('uses distinct terminal IDs for sessions whose sanitized names would collide', async () => {
+      const sessionA = 'alpha beta'
+      const sessionB = 'alpha?beta'
+      const worktreeA = '/sessions/alpha-beta-1'
+      const worktreeB = '/sessions/alpha-beta-2'
+
+      rawSessionsMock[sessionA] = createRawSession(sessionA, worktreeA)
+      rawSessionsMock[sessionB] = createRawSession(sessionB, worktreeB)
+
+      const { result } = renderHook(() => useSelection(), { wrapper })
+
+      await waitFor(() => {
+        expect(result.current.isReady).toBe(true)
+      })
+
+      await act(async () => {
+        await result.current.setSelection({
+          kind: 'session',
+          payload: sessionA,
+          worktreePath: worktreeA,
+          sessionState: 'running',
+        })
+      })
+
+      const firstTop = result.current.terminals.top
+
+      await act(async () => {
+        await result.current.setSelection({
+          kind: 'session',
+          payload: sessionB,
+          worktreePath: worktreeB,
+          sessionState: 'running',
+        })
+      })
+
+      const secondTop = result.current.terminals.top
+
+      expect(firstTop).not.toEqual(secondTop)
     })
   })
 })

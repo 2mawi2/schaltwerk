@@ -7,6 +7,7 @@ import { ProjectProvider, useProject } from './ProjectContext'
 import { FilterMode, SortMode } from '../types/sessionFilters'
 import type { Event } from '@tauri-apps/api/event'
 import { SchaltEvent } from '../common/eventSystem'
+import { stableSessionTerminalId } from '../common/terminalIdentity'
 
 // Mock Tauri API
 vi.mock('@tauri-apps/api/core', () => ({
@@ -74,7 +75,10 @@ const mockSessions = [
                 insertions: 10,
             }
         },
-        terminals: ['session-test-active-top', 'session-test-active-bottom']
+        terminals: [
+            stableSessionTerminalId('test-active', 'top'),
+            stableSessionTerminalId('test-active', 'bottom')
+        ]
     },
     {
         info: {
@@ -98,7 +102,10 @@ const mockSessions = [
                 insertions: 0,
             }
         },
-        terminals: ['session-test-ready-top', 'session-test-ready-bottom']
+        terminals: [
+            stableSessionTerminalId('test-ready', 'top'),
+            stableSessionTerminalId('test-ready', 'bottom')
+        ]
     }
 ]
 
@@ -1071,7 +1078,7 @@ describe('SessionsContext', () => {
         await waitFor(() => {
             expect(startSessionTop).toHaveBeenCalledWith(expect.objectContaining({
                 sessionName: 'bg-new',
-                topId: 'session-bg-new-top'
+                topId: stableSessionTerminalId('bg-new', 'top')
             }))
         })
 
@@ -1099,7 +1106,7 @@ describe('SessionsContext', () => {
         await waitFor(() => {
             expect(startSessionTop).toHaveBeenCalledWith(expect.objectContaining({
                 sessionName: 'test-active',
-                topId: 'session-test-active-top'
+                topId: stableSessionTerminalId('test-active', 'top')
             }))
         })
     })
@@ -1127,7 +1134,7 @@ describe('SessionsContext', () => {
 
         // Prepare the background-start mark as if App.tsx had already claimed start authority.
         const sessionName = 'bg-marked'
-        const topId = `session-${sessionName.replace(/[^a-zA-Z0-9_-]/g, '_')}-top`
+        const topId = stableSessionTerminalId(sessionName, 'top')
         markBackgroundStart(topId)
         expect(__debug_getBackgroundStartIds()).toContain(topId)
 

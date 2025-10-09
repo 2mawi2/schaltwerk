@@ -9,6 +9,7 @@ import { SearchAddon } from '@xterm/addon-search';
 import { invoke } from '@tauri-apps/api/core'
 import { startOrchestratorTop, startSessionTop, AGENT_START_TIMEOUT_MESSAGE } from '../../common/agentSpawn'
 import { schedulePtyResize } from '../../common/ptyResizeScheduler'
+import { sessionTerminalBase, stableSessionTerminalId } from '../../common/terminalIdentity'
 import { clearInflights } from '../../utils/singleflight'
 import { UnlistenFn } from '@tauri-apps/api/event';
 import { useFontSize } from '../../contexts/FontSizeContext';
@@ -762,7 +763,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     useEffect(() => {
         const handler = (e: Event) => {
             const detail = (e as CustomEvent<{ target: 'session' | 'orchestrator' | 'all'; sessionId?: string }>).detail
-            const sanitize = (s?: string) => (s ?? '').replace(/[^a-zA-Z0-9_-]/g, '_')
             // Determine if this terminal should react
             let shouldHandle = false
             if (!detail || detail.target === 'all') {
@@ -771,7 +771,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 shouldHandle = terminalId.startsWith('orchestrator-')
             } else if (detail.target === 'session') {
                 if (detail.sessionId) {
-                    const prefix = `session-${sanitize(detail.sessionId)}-`
+                    const prefix = `${sessionTerminalBase(detail.sessionId)}-`
                     shouldHandle = terminalId.startsWith(prefix)
                 }
             }
@@ -2030,8 +2030,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                         startingTerminals.current.set(terminalId, false);
                         return;
                     }
-                    const sanitizedSessionName = sessionName.replace(/[^a-zA-Z0-9_-]/g, '_');
-                    const expectedId = `session-${sanitizedSessionName}-top`;
+                    const expectedId = stableSessionTerminalId(sessionName, 'top');
                     if (expectedId !== terminalId) {
                         startingTerminals.current.set(terminalId, false);
                         setAgentLoading(false);

@@ -5,10 +5,12 @@ import { TestProviders } from '../../tests/test-utils'
 import { TauriCommands } from '../../common/tauriCommands'
 import type { EnrichedSession } from '../../types/session'
 import { FilterMode, SortMode } from '../../types/sessionFilters'
+import { sessionTerminalGroup, stableSessionTerminalId } from '../../common/terminalIdentity'
 
 let selectionState: { kind: 'session' | 'orchestrator'; payload?: string; sessionState?: 'spec' | 'running' | 'reviewed' }
 let sessionsState: EnrichedSession[]
 const reloadSessionsMock = vi.fn(async () => {})
+const demoTerminals = sessionTerminalGroup('demo')
 
 vi.mock('../../contexts/SelectionContext', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('../../contexts/SelectionContext')
@@ -16,7 +18,11 @@ vi.mock('../../contexts/SelectionContext', async () => {
     ...actual,
     useSelection: () => ({
       selection: selectionState,
-      terminals: { top: 'session-demo-top', bottomBase: 'session-demo-bottom', workingDirectory: '/tmp' },
+      terminals: {
+        top: demoTerminals.top,
+        bottomBase: demoTerminals.bottomBase,
+        workingDirectory: '/tmp'
+      },
       setSelection: vi.fn(),
       clearTerminalTracking: vi.fn(),
       isReady: true,
@@ -219,6 +225,9 @@ function createSession(overrides: Partial<EnrichedSession['info']> = {}): Enrich
       ...overrides
     },
     status: undefined,
-    terminals: ['session-demo-top', 'session-demo-bottom']
+    terminals: [
+      stableSessionTerminalId('demo', 'top'),
+      stableSessionTerminalId('demo', 'bottom')
+    ]
   }
 }

@@ -24,6 +24,10 @@ mod updater;
 use crate::commands::sessions_refresh::{request_sessions_refresh, SessionsRefreshReason};
 use clap::Parser;
 use schaltwerk::infrastructure::config::SettingsManager;
+use schaltwerk::shared::terminal_id::{
+    legacy_terminal_id_for_session_top, previous_hashed_terminal_id_for_session_top,
+    terminal_id_for_session_top,
+};
 use schaltwerk::project_manager::ProjectManager;
 use schaltwerk::services::ServiceHandles;
 use std::path::PathBuf;
@@ -445,32 +449,56 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                                 log::warn!("Could not access SchaltwerkCore to update session state on follow-up");
                             }
 
-                            let terminal_id = format!("session-{session_name}-top");
+                            let primary_terminal_id = terminal_id_for_session_top(session_name);
+                            let mut candidate_ids = Vec::new();
+                            for candidate in [
+                                primary_terminal_id.clone(),
+                                previous_hashed_terminal_id_for_session_top(session_name),
+                                legacy_terminal_id_for_session_top(session_name),
+                            ] {
+                                if !candidate_ids.contains(&candidate) {
+                                    candidate_ids.push(candidate);
+                                }
+                            }
+
+                            let mut delivered_terminal_id = primary_terminal_id.clone();
+                            let mut delivered = false;
 
                             if let Ok(manager) = get_terminal_manager().await {
-                                match manager.terminal_exists(&terminal_id).await {
-                                    Ok(true) => {
-                                        if let Err(e) = manager
-                                            .paste_and_submit_terminal(
-                                                terminal_id.clone(),
-                                                message.as_bytes().to_vec(),
-                                                false,
-                                            )
-                                            .await
-                                        {
-                                            log::warn!("Failed to paste follow-up message to terminal {terminal_id}: {e}");
-                                        } else {
-                                            log::info!("Successfully pasted follow-up message to terminal {terminal_id}");
+                                for candidate in candidate_ids.iter() {
+                                    match manager.terminal_exists(candidate).await {
+                                        Ok(true) => {
+                                            match manager
+                                                .paste_and_submit_terminal(
+                                                    candidate.clone(),
+                                                    message.as_bytes().to_vec(),
+                                                    false,
+                                                )
+                                                .await
+                                            {
+                                                Ok(_) => {
+                                                    delivered_terminal_id = candidate.clone();
+                                                    delivered = true;
+                                                    log::info!("Successfully pasted follow-up message to terminal {candidate}");
+                                                    break;
+                                                }
+                                                Err(e) => {
+                                                    log::warn!("Failed to paste follow-up message to terminal {candidate}: {e}");
+                                                    // Try next candidate in case this ID is stale.
+                                                }
+                                            }
+                                        }
+                                        Ok(false) => {
+                                            log::debug!("Terminal {candidate} not found while handling follow-up; checking next candidate");
+                                        }
+                                        Err(e) => {
+                                            log::warn!("Failed to check if terminal {candidate} exists: {e}");
                                         }
                                     }
-                                    Ok(false) => {
-                                        log::warn!("Terminal {terminal_id} doesn't exist - cannot deliver message");
-                                    }
-                                    Err(e) => {
-                                        log::warn!(
-                                            "Failed to check if terminal {terminal_id} exists: {e}"
-                                        );
-                                    }
+                                }
+
+                                if !delivered {
+                                    log::warn!("No matching terminal found for follow-up message to session '{session_name}'. Tried: {candidate_ids:?}");
                                 }
                             } else {
                                 log::warn!("Could not get terminal manager for follow-up message");
@@ -488,7 +516,7 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                                 session_name: session_name.to_string(),
                                 message: message.to_string(),
                                 timestamp,
-                                terminal_id,
+                                terminal_id: delivered_terminal_id,
                             };
 
                             if let Err(e) =

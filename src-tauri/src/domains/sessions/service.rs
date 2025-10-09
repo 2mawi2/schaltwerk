@@ -1,4 +1,5 @@
 use crate::domains::agents::AgentLaunchSpec;
+use crate::shared::terminal_id::{terminal_id_for_session_bottom, terminal_id_for_session_top};
 use anyhow::{anyhow, Result};
 use chrono::{TimeZone, Utc};
 use log::{info, warn};
@@ -1798,8 +1799,8 @@ impl SessionManager {
             };
 
             let terminals = vec![
-                format!("session-{}-top", session.name),
-                format!("session-{}-bottom", session.name),
+                terminal_id_for_session_top(&session.name),
+                terminal_id_for_session_bottom(&session.name),
             ];
 
             enriched.push(EnrichedSession {

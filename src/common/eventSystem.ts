@@ -1,13 +1,19 @@
 import { listen as tauriListen, emit as tauriEmit, UnlistenFn } from '@tauri-apps/api/event'
 import { SchaltEvent, EventPayloadMap } from './events'
 
-// Terminal output events are not enum-based, they use dynamic terminal IDs
-function createTerminalOutputEvent(terminalId: string): string {
-  return `terminal-output-${terminalId}`
+const EVENT_NAME_SAFE_PATTERN = /[^a-zA-Z0-9/:_-]/g
+
+function toEventSafeTerminalId(terminalId: string): string {
+  return terminalId.replace(EVENT_NAME_SAFE_PATTERN, '_')
 }
 
-function createTerminalOutputNormalizedEvent(terminalId: string): string {
-  return `terminal-output-normalized-${terminalId}`
+// Expose helpers so tests and other modules can reuse the exact event channel naming
+export function terminalOutputEventName(terminalId: string): string {
+  return `terminal-output-${toEventSafeTerminalId(terminalId)}`
+}
+
+export function terminalOutputNormalizedEventName(terminalId: string): string {
+  return `terminal-output-normalized-${toEventSafeTerminalId(terminalId)}`
 }
 
 // Re-export SchaltEvent for convenience
@@ -26,7 +32,7 @@ export async function listenTerminalOutput(
   terminalId: string,
   handler: (payload: string) => void | Promise<void>
 ): Promise<UnlistenFn> {
-  const eventName = createTerminalOutputEvent(terminalId)
+  const eventName = terminalOutputEventName(terminalId)
   return await tauriListen(eventName, (event) => handler(event.payload as string))
 }
 
@@ -34,7 +40,7 @@ export async function listenTerminalOutputNormalized(
   terminalId: string,
   handler: (payload: string) => void | Promise<void>
 ): Promise<UnlistenFn> {
-  const eventName = createTerminalOutputNormalizedEvent(terminalId)
+  const eventName = terminalOutputNormalizedEventName(terminalId)
   return await tauriListen(eventName, (event) => handler(event.payload as string))
 }
 
@@ -50,7 +56,7 @@ export async function emitTerminalOutput(
   terminalId: string,
   payload: string
 ): Promise<void> {
-  const eventName = createTerminalOutputEvent(terminalId)
+  const eventName = terminalOutputEventName(terminalId)
   return await tauriEmit(eventName, payload)
 }
 
@@ -58,6 +64,6 @@ export async function emitTerminalOutputNormalized(
   terminalId: string,
   payload: string
 ): Promise<void> {
-  const eventName = createTerminalOutputNormalizedEvent(terminalId)
+  const eventName = terminalOutputNormalizedEventName(terminalId)
   return await tauriEmit(eventName, payload)
 }
