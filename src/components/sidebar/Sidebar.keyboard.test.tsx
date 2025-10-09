@@ -45,13 +45,16 @@ describe('Sidebar keyboard navigation basic', () => {
 
     vi.mocked(invoke).mockImplementation(async (cmd) => {
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
-            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) return sessions
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) return sessions
       if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
       if (cmd === TauriCommands.GetCurrentDirectory) return '/cwd'
       if (cmd === TauriCommands.TerminalExists) return false
       if (cmd === TauriCommands.CreateTerminal) return true
       if (cmd === TauriCommands.ListAvailableOpenApps) return [{ id: 'finder', name: 'Finder', kind: 'system' }]
       if (cmd === TauriCommands.GetDefaultOpenApp) return 'finder'
+      if (cmd === TauriCommands.PathExists) return true
+      if (cmd === TauriCommands.DirectoryExists) return true
+      if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
       if (cmd === TauriCommands.GetProjectSessionsSettings) {
         return { filter_mode: 'all', sort_mode: 'name' }
       }
@@ -121,6 +124,9 @@ describe('Sidebar keyboard navigation basic', () => {
       if (cmd === TauriCommands.CreateTerminal) return true
       if (cmd === TauriCommands.ListAvailableOpenApps) return [{ id: 'finder', name: 'Finder', kind: 'system' }]
       if (cmd === TauriCommands.GetDefaultOpenApp) return 'finder'
+      if (cmd === TauriCommands.PathExists) return true
+      if (cmd === TauriCommands.DirectoryExists) return true
+      if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
       if (cmd === TauriCommands.GetProjectSessionsSettings) {
         return { filter_mode: 'all', sort_mode: 'name' }
       }
@@ -207,6 +213,9 @@ describe('Sidebar keyboard navigation basic', () => {
       if (cmd === TauriCommands.CreateTerminal) return true
       if (cmd === TauriCommands.ListAvailableOpenApps) return [{ id: 'finder', name: 'Finder', kind: 'system' }]
       if (cmd === TauriCommands.GetDefaultOpenApp) return 'finder'
+      if (cmd === TauriCommands.PathExists) return true
+      if (cmd === TauriCommands.DirectoryExists) return true
+      if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
       if (cmd === TauriCommands.GetProjectSessionsSettings) {
         return { filter_mode: 'all', sort_mode: 'name' }
       }
