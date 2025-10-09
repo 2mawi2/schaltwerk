@@ -7,14 +7,14 @@ import { theme } from '../../common/theme'
 
 function SmartModalOverlay({ highlightElement, highlightRect }: { highlightElement: Element | null, highlightRect: DOMRect | null }) {
     if (!highlightElement || !highlightRect) {
-        return <div className="absolute inset-0 bg-black/60 -z-10" />
+        return <div className="absolute inset-0 bg-black/60 z-10" />
     }
 
     const rect = highlightRect
     const padding = 12
-    
+
     return (
-        <div className="absolute inset-0 -z-10">
+        <div className="absolute inset-0 z-10">
             <div 
                 className="absolute bg-black/60"
                 style={{
@@ -70,7 +70,7 @@ function HighlightCutout({ highlightRect }: { highlightRect: DOMRect | null }) {
                     top: rect.top - padding,
                     width: rect.width + (padding * 2),
                     height: rect.height + (padding * 2),
-                    zIndex: 51,
+                    zIndex: 31,
                     borderColor: theme.colors.accent.blue.DEFAULT,
                     boxShadow: `0 10px 15px -3px rgba(34, 211, 238, 0.1), 0 4px 6px -2px rgba(34, 211, 238, 0.05)`,
                 }}
@@ -82,7 +82,7 @@ function HighlightCutout({ highlightRect }: { highlightRect: DOMRect | null }) {
                     top: rect.top - padding * 1.5,
                     width: rect.width + (padding * 3),
                     height: rect.height + (padding * 3),
-                    zIndex: 50,
+                    zIndex: 30,
                     backgroundColor: theme.colors.accent.blue.bg,
                 }}
             />
