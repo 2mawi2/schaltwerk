@@ -65,6 +65,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
     const [agentEnvVars, setAgentEnvVars] = useState<AgentEnvVarState>(createEmptyEnvVarState)
     const [agentCliArgs, setAgentCliArgs] = useState<AgentCliArgsState>(createEmptyCliArgsState)
     const [agentConfigLoading, setAgentConfigLoading] = useState(false)
+    const [ignorePersistedAgentType, setIgnorePersistedAgentType] = useState(false)
     const nameInputRef = useRef<HTMLInputElement>(null)
     const markdownEditorRef = useRef<MarkdownEditorRef>(null)
     const hasFocusedDuringOpenRef = useRef(false)
@@ -72,6 +73,8 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
     const wasEditedRef = useRef(false)
     const createRef = useRef<() => void>(() => {})
     const initialGeneratedNameRef = useRef<string>('')
+    const lastAgentTypeRef = useRef<AgentType>('claude')
+    const hasAgentOverrideRef = useRef(false)
 
     const handleBranchChange = (branch: string) => {
         setBaseBranch(branch)
@@ -82,7 +85,18 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
     }
 
     const handleAgentTypeChange = useCallback((type: AgentType) => {
+        logger.info(`[NewSessionModal] Agent type change requested ${JSON.stringify({
+            nextType: type,
+            previousType: lastAgentTypeRef.current,
+            overrideBefore: hasAgentOverrideRef.current
+        })}`)
         setAgentType(type)
+        lastAgentTypeRef.current = type
+        hasAgentOverrideRef.current = true
+        logger.info(`[NewSessionModal] Agent type change applied ${JSON.stringify({
+            lastAgentType: lastAgentTypeRef.current,
+            overrideAfter: hasAgentOverrideRef.current
+        })}`)
     }, [])
 
     const handleSkipPermissionsChange = (enabled: boolean) => {
@@ -383,19 +397,42 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                 setShowVersionMenu(false)
                 setVersionCount(1)
                 setCompareAgents(false)
-                setSelectedAgents(new Set(['claude']))
+                const shouldIgnorePersisted = hasAgentOverrideRef.current
+                setIgnorePersistedAgentType(shouldIgnorePersisted)
+                logger.info(`[NewSessionModal] Applying last agent type before defaults ${JSON.stringify({
+                    lastAgentType: lastAgentTypeRef.current,
+                    hasOverride: hasAgentOverrideRef.current,
+                    ignorePersisted: shouldIgnorePersisted
+                })}`)
+                setSelectedAgents(new Set([lastAgentTypeRef.current]))
+                setAgentType(lastAgentTypeRef.current)
                 // Initialize configuration from persisted state to reflect real settings
                 getPersistedSessionDefaults()
                     .then(({ baseBranch, agentType, skipPermissions }) => {
                         if (baseBranch) setBaseBranch(baseBranch)
-                        setAgentType(agentType)
+                        if (!shouldIgnorePersisted) {
+                            logger.info(`[NewSessionModal] Using persisted agent type from defaults ${JSON.stringify({ persistedAgentType: agentType })}`)
+                            setAgentType(agentType)
+                            lastAgentTypeRef.current = agentType
+                            setSelectedAgents(new Set([agentType]))
+                        } else {
+                            logger.info(`[NewSessionModal] Ignoring persisted agent type in favour of override ${JSON.stringify({
+                                persistedAgentType: agentType,
+                                lastAgentType: lastAgentTypeRef.current
+                            })}`)
+                        }
                         setSkipPermissions(skipPermissions)
                         logger.info('[NewSessionModal] Initialized config from persisted state:', { baseBranch, agentType, skipPermissions })
                     })
                     .catch(e => {
                         logger.warn('[NewSessionModal] Failed loading persisted config, falling back to child init:', e)
                         setBaseBranch('')
-                        setAgentType('claude')
+                        if (!shouldIgnorePersisted) {
+                            logger.info(`[NewSessionModal] Falling back to claude defaults ${JSON.stringify({ hasOverride: hasAgentOverrideRef.current })}`)
+                            setAgentType('claude')
+                            lastAgentTypeRef.current = 'claude'
+                            setSelectedAgents(new Set(['claude']))
+                        }
                         setSkipPermissions(false)
                     })
             } else {
@@ -427,7 +464,11 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                 }, 100)
             }
         } else {
-            logger.info('[NewSessionModal] Modal closed - resetting all state except taskContent')
+            setIgnorePersistedAgentType(hasAgentOverrideRef.current)
+            logger.info(`[NewSessionModal] Modal closed - resetting all state except taskContent ${JSON.stringify({
+                lastAgentType: lastAgentTypeRef.current,
+                hasOverride: hasAgentOverrideRef.current
+            })}`)
             setIsPrefillPending(false)
             setHasPrefillData(false)
             setCreateAsDraft(false)
@@ -437,12 +478,16 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
             setValidationError('')
             setCreating(false)
             setBaseBranch('')
-            setAgentType('claude')
+            setAgentType(lastAgentTypeRef.current)
             setSkipPermissions(false)
             setVersionCount(1)
             setShowVersionMenu(false)
             setCompareAgents(false)
-            setSelectedAgents(new Set(['claude']))
+            logger.info(`[NewSessionModal] Reapplying last agent type on close path ${JSON.stringify({
+                lastAgentType: lastAgentTypeRef.current,
+                hasOverride: hasAgentOverrideRef.current
+            })}`)
+            setSelectedAgents(new Set([lastAgentTypeRef.current]))
             setAgentEnvVars(createEmptyEnvVarState())
             setAgentCliArgs(createEmptyCliArgsState())
             setAgentConfigLoading(false)
@@ -751,6 +796,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                         initialAgentType={agentType}
                                         initialSkipPermissions={skipPermissions}
                                         hideAgentType={true}
+                                        ignorePersistedAgentType={ignorePersistedAgentType}
                                     />
                                 </div>
                             ) : (
@@ -762,6 +808,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                     initialBaseBranch={baseBranch}
                                     initialAgentType={agentType}
                                     initialSkipPermissions={skipPermissions}
+                                    ignorePersistedAgentType={ignorePersistedAgentType}
                                 />
                             )}
                             <AgentDefaultsSection

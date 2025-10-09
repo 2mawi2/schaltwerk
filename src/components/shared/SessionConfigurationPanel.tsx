@@ -20,6 +20,7 @@ interface SessionConfigurationPanelProps {
     disabled?: boolean
     hideLabels?: boolean
     hideAgentType?: boolean
+    ignorePersistedAgentType?: boolean
 }
 
 export interface SessionConfiguration {
@@ -39,7 +40,8 @@ export function SessionConfigurationPanel({
     initialSkipPermissions = false,
     disabled = false,
     hideLabels = false,
-    hideAgentType = false
+    hideAgentType = false,
+    ignorePersistedAgentType = false
 }: SessionConfigurationPanelProps) {
     const [baseBranch, setBaseBranch] = useState(initialBaseBranch)
     const [branches, setBranches] = useState<string[]>([])
@@ -121,7 +123,7 @@ export function SessionConfigurationPanel({
                 }
             }
 
-            if (!agentTypeTouchedRef.current && initialAgentTypeRef.current === 'claude') {
+            if (!ignorePersistedAgentType && !agentTypeTouchedRef.current && initialAgentTypeRef.current === 'claude') {
                 setAgentType(normalizedType)
                 onAgentTypeChangeRef.current?.(normalizedType)
 
@@ -143,7 +145,7 @@ export function SessionConfigurationPanel({
         } finally {
             setLoadingBranches(false)
         }
-    }, [])
+    }, [ignorePersistedAgentType])
 
     useEffect(() => {
         loadConfiguration()

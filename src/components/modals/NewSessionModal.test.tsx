@@ -97,34 +97,36 @@ vi.mock('../../utils/dockerNames', () => ({
   generateDockerStyleName: () => 'eager_cosmos'
 }))
 
+const defaultInvokeImplementation = (cmd: string) => {
+  switch (cmd) {
+    case TauriCommands.ListProjectBranches:
+      return Promise.resolve(['main', 'develop', 'feature/test'])
+    case TauriCommands.GetProjectDefaultBaseBranch:
+      return Promise.resolve(null)
+    case TauriCommands.GetProjectDefaultBranch:
+      return Promise.resolve('main')
+    case TauriCommands.RepositoryIsEmpty:
+      return Promise.resolve(false)
+    case TauriCommands.GetAgentEnvVars:
+      return Promise.resolve({})
+    case TauriCommands.GetAgentCliArgs:
+      return Promise.resolve('')
+    case TauriCommands.SetAgentEnvVars:
+    case TauriCommands.SetAgentCliArgs:
+      return Promise.resolve()
+    case TauriCommands.SchaltwerkCoreListProjectFiles:
+      return Promise.resolve(['README.md', 'src/index.ts'])
+    case TauriCommands.SchaltwerkCoreGetSkipPermissions:
+      return Promise.resolve(false)
+    case TauriCommands.SchaltwerkCoreGetAgentType:
+      return Promise.resolve('claude')
+    default:
+      return Promise.resolve(null)
+  }
+}
+
 vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn().mockImplementation((cmd: string) => {
-    switch (cmd) {
-      case TauriCommands.ListProjectBranches:
-        return Promise.resolve(['main', 'develop', 'feature/test'])
-      case TauriCommands.GetProjectDefaultBaseBranch:
-        return Promise.resolve(null)
-      case TauriCommands.GetProjectDefaultBranch:
-        return Promise.resolve('main')
-      case TauriCommands.RepositoryIsEmpty:
-        return Promise.resolve(false)
-      case TauriCommands.GetAgentEnvVars:
-        return Promise.resolve({})
-      case TauriCommands.GetAgentCliArgs:
-        return Promise.resolve('')
-      case TauriCommands.SetAgentEnvVars:
-      case TauriCommands.SetAgentCliArgs:
-        return Promise.resolve()
-      case TauriCommands.SchaltwerkCoreListProjectFiles:
-        return Promise.resolve(['README.md', 'src/index.ts'])
-      case TauriCommands.SchaltwerkCoreGetSkipPermissions:
-        return Promise.resolve(false)
-      case TauriCommands.SchaltwerkCoreGetAgentType:
-        return Promise.resolve('claude')
-      default:
-        return Promise.resolve(null)
-    }
-  })
+  invoke: vi.fn().mockImplementation((cmd: string) => defaultInvokeImplementation(cmd))
 }))
 import { invoke } from '@tauri-apps/api/core'
 
@@ -157,8 +159,14 @@ describe('NewSessionModal', () => {
   beforeEach(() => {
     vi.useRealTimers()
     vi.mocked(invoke).mockClear()
+    vi.mocked(invoke).mockImplementation(defaultInvokeImplementation)
     markdownFocus.focus.mockClear()
     markdownFocus.focusEnd.mockClear()
+    mockGetSkipPermissions.mockClear()
+    mockSetSkipPermissions.mockClear()
+    mockGetAgentType.mockClear()
+    mockGetAgentType.mockResolvedValue('claude')
+    mockSetAgentType.mockClear()
   })
 
   afterEach(() => {
@@ -357,6 +365,148 @@ describe('NewSessionModal', () => {
     fireEvent.click(opencodeOption)
 
     expect(screen.queryByLabelText(/Skip permissions/i)).toBeNull()
+  })
+
+  it('restores the last selected agent type when reopening the modal', async () => {
+    mockGetAgentType.mockImplementationOnce(async () => 'claude')
+    mockGetAgentType.mockImplementationOnce(async () => 'codex')
+
+    const invokeAgentTypeResponses = ['claude', 'codex']
+    vi.mocked(invoke).mockImplementation((cmd: string) => {
+      if (cmd === TauriCommands.SchaltwerkCoreGetAgentType) {
+        const next = invokeAgentTypeResponses.shift() ?? 'codex'
+        return Promise.resolve(next)
+      }
+      return defaultInvokeImplementation(cmd)
+    })
+
+    function ControlledModal() {
+      const [open, setOpen] = useState(true)
+      const handleClose = () => setOpen(false)
+
+      return (
+        <ModalProvider>
+          <NewSessionModal
+            open={open}
+            onClose={handleClose}
+            onCreate={vi.fn()}
+          />
+          <button type="button" onClick={() => setOpen(false)} data-testid="force-close">force close</button>
+          <button type="button" onClick={() => setOpen(true)} data-testid="force-open">force open</button>
+        </ModalProvider>
+      )
+    }
+
+    render(<ControlledModal />)
+
+    const agentButton = await screen.findByRole('button', { name: 'Claude' })
+    fireEvent.click(agentButton)
+
+    const codexOption = await screen.findByText('Codex')
+    fireEvent.click(codexOption)
+
+    await waitFor(() => {
+      expect(mockSetAgentType).toHaveBeenCalledWith('codex')
+    })
+
+    fireEvent.click(screen.getByTestId('force-close'))
+    fireEvent.click(screen.getByTestId('force-open'))
+
+    expect(screen.getByRole('button', { name: 'Codex' })).toBeInTheDocument()
+  })
+
+  it('keeps the user-selected agent even if the persisted default disagrees', async () => {
+    mockGetAgentType.mockImplementation(async () => 'claude')
+
+    const invokeAgentTypeResponses = ['claude', 'claude']
+    vi.mocked(invoke).mockImplementation((cmd: string) => {
+      if (cmd === TauriCommands.SchaltwerkCoreGetAgentType) {
+        const next = invokeAgentTypeResponses.shift() ?? 'claude'
+        return Promise.resolve(next)
+      }
+      return defaultInvokeImplementation(cmd)
+    })
+
+    function ControlledModal() {
+      const [open, setOpen] = useState(true)
+      const handleClose = () => setOpen(false)
+
+      return (
+        <ModalProvider>
+          <NewSessionModal
+            open={open}
+            onClose={handleClose}
+            onCreate={vi.fn()}
+          />
+          <button type="button" onClick={() => setOpen(false)} data-testid="force-close">force close</button>
+          <button type="button" onClick={() => setOpen(true)} data-testid="force-open">force open</button>
+        </ModalProvider>
+      )
+    }
+
+    render(<ControlledModal />)
+
+    const agentButton = await screen.findByRole('button', { name: 'Claude' })
+    fireEvent.click(agentButton)
+
+    const codexOption = await screen.findByText('Codex')
+    fireEvent.click(codexOption)
+
+    await waitFor(() => {
+      expect(mockSetAgentType).toHaveBeenCalledWith('codex')
+    })
+
+    fireEvent.click(screen.getByTestId('force-close'))
+    fireEvent.click(screen.getByTestId('force-open'))
+
+    expect(screen.getByRole('button', { name: 'Codex' })).toBeInTheDocument()
+  })
+
+  it('keeps Claude selected when persisted default stays Codex', async () => {
+    mockGetAgentType.mockImplementation(async () => 'codex')
+
+    const invokeAgentTypeResponses = ['codex', 'codex']
+    vi.mocked(invoke).mockImplementation((cmd: string) => {
+      if (cmd === TauriCommands.SchaltwerkCoreGetAgentType) {
+        const next = invokeAgentTypeResponses.shift() ?? 'codex'
+        return Promise.resolve(next)
+      }
+      return defaultInvokeImplementation(cmd)
+    })
+
+    function ControlledModal() {
+      const [open, setOpen] = useState(true)
+      const handleClose = () => setOpen(false)
+
+      return (
+        <ModalProvider>
+          <NewSessionModal
+            open={open}
+            onClose={handleClose}
+            onCreate={vi.fn()}
+          />
+          <button type="button" onClick={() => setOpen(false)} data-testid="force-close">force close</button>
+          <button type="button" onClick={() => setOpen(true)} data-testid="force-open">force open</button>
+        </ModalProvider>
+      )
+    }
+
+    render(<ControlledModal />)
+
+    const agentButton = await screen.findByRole('button', { name: 'Codex' })
+    fireEvent.click(agentButton)
+
+    const claudeOption = await screen.findByText('Claude')
+    fireEvent.click(claudeOption)
+
+    await waitFor(() => {
+      expect(mockSetAgentType).toHaveBeenCalledWith('claude')
+    })
+
+    fireEvent.click(screen.getByTestId('force-close'))
+    fireEvent.click(screen.getByTestId('force-open'))
+
+    expect(screen.getByRole('button', { name: 'Claude' })).toBeInTheDocument()
   })
 
   it('handles keyboard shortcuts: Esc closes, Cmd+Enter creates', async () => {
