@@ -509,18 +509,18 @@ pub async fn get_project_action_buttons() -> Result<Vec<HeaderActionConfig>, Str
     let core = project.schaltwerk_core.read().await;
     let db = core.database();
 
-    let res = db
+    let actions = db
         .get_project_action_buttons(&project.path)
-        .map_err(|e| format!("Failed to get project action buttons: {e}"));
-    if let Ok(ref actions) = res {
-        log::info!(
-            "Loaded {} action buttons for project {}: {:?}",
-            actions.len(),
-            project.path.display(),
-            actions
-        );
-    }
-    res
+        .map_err(|e| format!("Failed to get project action buttons: {e}"))?;
+
+    log::info!(
+        "Loaded {} action buttons for project {}: {:?}",
+        actions.len(),
+        project.path.display(),
+        actions
+    );
+
+    Ok(actions)
 }
 
 #[tauri::command]
@@ -970,14 +970,18 @@ mod tests {
     async fn test_get_project_default_base_branch_uninitialized_core() {
         let result = get_project_default_base_branch().await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Failed to get para core"));
+        assert!(result
+            .unwrap_err()
+            .contains("Failed to get Schaltwerk core"));
     }
 
     #[tokio::test]
     async fn test_set_project_default_base_branch_uninitialized_core() {
         let result = set_project_default_base_branch(Some("main".to_string())).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Failed to get para core"));
+        assert!(result
+            .unwrap_err()
+            .contains("Failed to get Schaltwerk core"));
     }
 
     #[tokio::test]

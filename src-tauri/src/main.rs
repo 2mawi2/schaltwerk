@@ -18,19 +18,17 @@ mod file_utils;
 mod macos_prefs;
 mod mcp_api;
 mod permissions;
-mod project_manager;
 mod projects;
 mod updater;
 
 use crate::commands::sessions_refresh::{request_sessions_refresh, SessionsRefreshReason};
 use clap::Parser;
-use project_manager::ProjectManager;
 use schaltwerk::infrastructure::config::SettingsManager;
+use schaltwerk::project_manager::ProjectManager;
+use schaltwerk::services::ServiceHandles;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::sync::{
-    Mutex, OnceCell, OwnedRwLockReadGuard, OwnedRwLockWriteGuard, RwLock,
-};
+use tokio::sync::{Mutex, OnceCell, OwnedRwLockReadGuard, OwnedRwLockWriteGuard, RwLock};
 
 const UPDATER_PUBLIC_KEY: &str = include_str!("../updater-public.pem");
 
@@ -182,8 +180,8 @@ pub async fn get_schaltwerk_core(
 ) -> Result<Arc<RwLock<schaltwerk::schaltwerk_core::SchaltwerkCore>>, String> {
     let manager = get_project_manager().await;
     manager.current_schaltwerk_core().await.map_err(|e| {
-        log::error!("Failed to get para core: {e}");
-        format!("Failed to get para core: {e}")
+        log::error!("Failed to get Schaltwerk core: {e}");
+        format!("Failed to get Schaltwerk core: {e}")
     })
 }
 
@@ -681,7 +679,7 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new()
             .pubkey(UPDATER_PUBLIC_KEY.trim())
-            .build())
+        .build())
         .invoke_handler(tauri::generate_handler![
             // Development info
             get_development_info,
@@ -874,6 +872,10 @@ fn main() {
             ensure_mcp_gitignored
         ])
         .setup(move |app| {
+            let project_manager = tauri::async_runtime::block_on(get_project_manager());
+            let services = ServiceHandles::new(Arc::clone(&project_manager), app.handle().clone());
+            app.manage(services);
+
             // Get current git branch and update window title asynchronously
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {

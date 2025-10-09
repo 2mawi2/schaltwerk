@@ -257,7 +257,7 @@ mod tests {
 
             let manager = get_project_manager().await;
             manager
-                .switch_to_project_in_memory(repo_path.to_path_buf())
+                .switch_to_project(repo_path.to_path_buf())
                 .await
                 .unwrap();
 

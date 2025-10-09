@@ -6,8 +6,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use schaltwerk::domains::terminal::TerminalManager;
-use schaltwerk::schaltwerk_core::SchaltwerkCore;
+use crate::domains::terminal::TerminalManager;
+use crate::schaltwerk_core::SchaltwerkCore;
 
 /// Represents a single project with its own terminals and sessions
 pub struct Project {

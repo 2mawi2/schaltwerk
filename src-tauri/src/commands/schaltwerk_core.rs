@@ -18,7 +18,9 @@ use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
 use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
 use schaltwerk::schaltwerk_core::db_project_config::{ProjectConfigMethods, DEFAULT_BRANCH_PREFIX};
 use schaltwerk::schaltwerk_core::SessionManager;
+use schaltwerk::services::ServiceHandles;
 use std::path::PathBuf;
+use tauri::State;
 mod agent_ctx;
 pub mod agent_launcher;
 pub mod events;
@@ -109,21 +111,10 @@ async fn session_manager_read() -> Result<SessionManager, String> {
 // (no local wrappers needed)
 
 #[tauri::command]
-pub async fn schaltwerk_core_list_enriched_sessions() -> Result<Vec<EnrichedSession>, String> {
-    log::debug!("Listing enriched sessions from schaltwerk_core");
-
-    let manager = session_manager_read().await?;
-
-    match manager.list_enriched_sessions() {
-        Ok(sessions) => {
-            log::debug!("Found {} sessions", sessions.len());
-            Ok(sessions)
-        }
-        Err(e) => {
-            log::error!("Failed to list enriched sessions: {e}");
-            Err(format!("Failed to get sessions: {e}"))
-        }
-    }
+pub async fn schaltwerk_core_list_enriched_sessions(
+    services: State<'_, ServiceHandles>,
+) -> Result<Vec<EnrichedSession>, String> {
+    services.sessions.list_enriched_sessions().await
 }
 
 #[tauri::command]
@@ -490,14 +481,14 @@ pub async fn schaltwerk_core_create_session(
                 )
             };
 
-            let (
-                session_id,
-                worktree_path,
-                repo_path,
-                current_branch,
-                agent,
-                initial_prompt,
-            ): (String, PathBuf, PathBuf, String, String, Option<String>) = session_info;
+            let (session_id, worktree_path, repo_path, current_branch, agent, initial_prompt): (
+                String,
+                PathBuf,
+                PathBuf,
+                String,
+                String,
+                Option<String>,
+            ) = session_info;
 
             log::info!(
                 "Starting name generation for session '{}' with prompt: {:?}",
@@ -1880,14 +1871,14 @@ pub async fn schaltwerk_core_start_spec_session(
                 )
             };
 
-            let (
-                session_id,
-                worktree_path,
-                repo_path,
-                current_branch,
-                agent,
-                initial_prompt,
-            ): (String, PathBuf, PathBuf, String, String, Option<String>) = session_info;
+            let (session_id, worktree_path, repo_path, current_branch, agent, initial_prompt): (
+                String,
+                PathBuf,
+                PathBuf,
+                String,
+                String,
+                Option<String>,
+            ) = session_info;
 
             log::info!(
                 "Starting name generation for spec-started session '{}' with prompt: {:?}",
