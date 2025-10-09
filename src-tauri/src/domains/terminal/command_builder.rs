@@ -80,104 +80,160 @@ pub async fn build_command_spec(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domains::terminal::{put_terminal_shell_override, ApplicationSpec};
+    use crate::domains::terminal::{put_terminal_shell_override, testing, ApplicationSpec};
     use std::env;
+    use std::path::Path;
     use tempfile::TempDir;
+    use tokio::runtime::Runtime;
 
-    #[tokio::test]
-    async fn builds_shell_command_with_expected_environment() {
-        let original_shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
-        let original_home = std::env::var("HOME").ok();
-        let original_path = std::env::var("PATH").ok();
-        put_terminal_shell_override("/bin/zsh".to_string(), vec!["-l".to_string()]);
-        env::set_var("HOME", "/home/tester");
-        env::set_var("PATH", "/custom/bin:/usr/bin");
+    #[test]
+    fn builds_shell_command_with_expected_environment() {
+        let _lock = testing::override_lock();
+        let rt = Runtime::new().expect("runtime");
 
-        let params = CreateParams {
-            id: "spec-shell".to_string(),
-            cwd: "/tmp".to_string(),
-            app: None,
-        };
+        rt.block_on(async {
+            let original_home = std::env::var("HOME").ok();
+            let original_path = std::env::var("PATH").ok();
+            let original_override = testing::capture_shell_override();
+            put_terminal_shell_override("/bin/zsh".to_string(), vec!["-l".to_string()]);
+            env::set_var("HOME", "/home/tester");
+            env::set_var("PATH", "/custom/bin:/usr/bin");
 
-        let spec = build_command_spec(&params, 120, 40)
-            .await
-            .expect("expected shell command spec");
+            let params = CreateParams {
+                id: "spec-shell".to_string(),
+                cwd: "/tmp".to_string(),
+                app: None,
+            };
 
-        assert_eq!(spec.program, "/bin/zsh");
-        assert_eq!(spec.args, vec!["-l".to_string()]);
-        assert!(spec
-            .env
-            .iter()
-            .any(|(k, v)| k == "TERM" && v == "xterm-256color"));
-        assert!(spec.env.iter().any(|(k, v)| k == "LINES" && v == "40"));
-        assert!(spec.env.iter().any(|(k, v)| k == "COLUMNS" && v == "120"));
-        assert!(spec.env_remove.contains(&"PROMPT_COMMAND".to_string()));
-        assert!(spec.env_remove.contains(&"PS1".to_string()));
+            let spec = build_command_spec(&params, 120, 40)
+                .await
+                .expect("expected shell command spec");
 
-        put_terminal_shell_override(original_shell, Vec::new());
-        if let Some(home) = original_home {
-            env::set_var("HOME", home);
-        } else {
-            env::remove_var("HOME");
-        }
-        if let Some(path) = original_path {
-            env::set_var("PATH", path);
-        } else {
-            env::remove_var("PATH");
-        }
+            assert_eq!(spec.program, "/bin/zsh");
+            assert_eq!(spec.args, vec!["-l".to_string()]);
+            assert!(spec
+                .env
+                .iter()
+                .any(|(k, v)| k == "TERM" && v == "xterm-256color"));
+            assert!(spec.env.iter().any(|(k, v)| k == "LINES" && v == "40"));
+            assert!(spec.env.iter().any(|(k, v)| k == "COLUMNS" && v == "120"));
+            assert!(spec.env_remove.contains(&"PROMPT_COMMAND".to_string()));
+            assert!(spec.env_remove.contains(&"PS1".to_string()));
+
+            testing::restore_shell_override(original_override);
+            if let Some(home) = original_home {
+                env::set_var("HOME", home);
+            } else {
+                env::remove_var("HOME");
+            }
+            if let Some(path) = original_path {
+                env::set_var("PATH", path);
+            } else {
+                env::remove_var("PATH");
+            }
+        });
     }
 
-    #[tokio::test]
-    async fn resolves_application_command_and_merges_env() {
-        let original_shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
-        let original_home = std::env::var("HOME").ok();
-        let original_path = std::env::var("PATH").ok();
-        let temp_dir = TempDir::new().expect("temp dir");
-        let bin_path = temp_dir.path().join("run-agent");
-        std::fs::write(&bin_path, "#!/bin/sh\nexit 0\n").expect("write script");
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let mut perms = std::fs::metadata(&bin_path)
-                .expect("metadata")
-                .permissions();
-            perms.set_mode(0o755);
-            std::fs::set_permissions(&bin_path, perms).expect("set perms");
-        }
+    #[test]
+    fn resolves_application_command_and_merges_env() {
+        let _lock = testing::override_lock();
+        let rt = Runtime::new().expect("runtime");
 
-        env::set_var("PATH", format!("{}:/usr/bin", temp_dir.path().display()));
-        env::set_var("HOME", temp_dir.path());
+        rt.block_on(async {
+            let original_home = std::env::var("HOME").ok();
+            let original_path = std::env::var("PATH").ok();
+            let original_override = testing::capture_shell_override();
+            let temp_dir = TempDir::new().expect("temp dir");
+            let bin_path = temp_dir.path().join("run-agent");
+            std::fs::write(&bin_path, "#!/bin/sh\nexit 0\n").expect("write script");
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let mut perms = std::fs::metadata(&bin_path)
+                    .expect("metadata")
+                    .permissions();
+                perms.set_mode(0o755);
+                std::fs::set_permissions(&bin_path, perms).expect("set perms");
+            }
 
-        let params = CreateParams {
-            id: "spec-app".to_string(),
-            cwd: "/tmp".to_string(),
-            app: Some(ApplicationSpec {
-                command: "run-agent".to_string(),
-                args: vec!["--flag".to_string()],
-                env: vec![("FOO".to_string(), "bar".to_string())],
-                ready_timeout_ms: 1000,
-            }),
-        };
+            env::set_var("PATH", format!("{}:/usr/bin", temp_dir.path().display()));
+            env::set_var("HOME", temp_dir.path());
 
-        let spec = build_command_spec(&params, 80, 24)
-            .await
-            .expect("expected app command spec");
+            let params = CreateParams {
+                id: "spec-app".to_string(),
+                cwd: "/tmp".to_string(),
+                app: Some(ApplicationSpec {
+                    command: "run-agent".to_string(),
+                    args: vec!["--flag".to_string()],
+                    env: vec![("FOO".to_string(), "bar".to_string())],
+                    ready_timeout_ms: 1000,
+                }),
+            };
 
-        assert_eq!(spec.program, bin_path.to_string_lossy());
-        assert!(spec.args.contains(&"--flag".to_string()));
-        assert!(spec.env.iter().any(|(k, v)| k == "FOO" && v == "bar"));
+            let spec = build_command_spec(&params, 80, 24)
+                .await
+                .expect("expected app command spec");
 
-        put_terminal_shell_override(original_shell, Vec::new());
-        if let Some(home) = original_home {
-            env::set_var("HOME", home);
-        } else {
-            env::remove_var("HOME");
-        }
-        if let Some(path) = original_path {
-            env::set_var("PATH", path);
-        } else {
-            env::remove_var("PATH");
-        }
+            assert_eq!(spec.program, bin_path.to_string_lossy());
+            assert!(spec.args.contains(&"--flag".to_string()));
+            assert!(spec.env.iter().any(|(k, v)| k == "FOO" && v == "bar"));
+
+            testing::restore_shell_override(original_override);
+            if let Some(home) = original_home {
+                env::set_var("HOME", home);
+            } else {
+                env::remove_var("HOME");
+            }
+            if let Some(path) = original_path {
+                env::set_var("PATH", path);
+            } else {
+                env::remove_var("PATH");
+            }
+        });
+    }
+
+    #[test]
+    fn falls_back_when_env_shell_is_missing() {
+        let _lock = testing::override_lock();
+        let rt = Runtime::new().expect("runtime");
+
+        rt.block_on(async {
+            let original_env_shell = env::var("SHELL").ok();
+            let original_override = testing::capture_shell_override();
+
+            testing::reset_shell_override();
+
+            // Simulate an invalid shell configuration from the environment.
+            env::set_var("SHELL", "/definitely/not/a/shell");
+
+            let params = CreateParams {
+                id: "fallback-shell".to_string(),
+                cwd: "/tmp".to_string(),
+                app: None,
+            };
+
+            let spec = build_command_spec(&params, 80, 24)
+                .await
+                .expect("expected shell command spec");
+
+            let expected_shell = crate::domains::terminal::testing::fallback_shell_candidates()
+                .iter()
+                .find(|candidate| Path::new(candidate).exists())
+                .map(|candidate| candidate.to_string())
+                .expect("at least one fallback shell to exist on the system");
+
+            assert_eq!(spec.program, expected_shell);
+            assert!(
+                spec.args.is_empty(),
+                "fallback shell should not apply override args"
+            );
+
+            match original_env_shell {
+                Some(value) => env::set_var("SHELL", value),
+                None => env::remove_var("SHELL"),
+            }
+            testing::restore_shell_override(original_override);
+        });
     }
 }
 
