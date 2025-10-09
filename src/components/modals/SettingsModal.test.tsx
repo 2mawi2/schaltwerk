@@ -5,7 +5,7 @@ import { SettingsModal } from './SettingsModal'
 import { defaultShortcutConfig } from '../../keyboardShortcuts/config'
 import { TauriCommands } from '../../common/tauriCommands'
 
-const invokeMock = vi.fn(async (command: string, _args?: unknown) => {
+const baseInvokeImplementation = async (command: string, _args?: unknown) => {
   switch (command) {
     case TauriCommands.GetAllAgentBinaryConfigs:
       return []
@@ -42,7 +42,9 @@ const invokeMock = vi.fn(async (command: string, _args?: unknown) => {
     default:
       return null
   }
-})
+}
+
+const invokeMock = vi.fn<(command: string, args?: unknown) => Promise<unknown>>(baseInvokeImplementation)
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: (...args: unknown[]) => invokeMock(...(args as [string, unknown])),
@@ -58,6 +60,10 @@ vi.mock('../SpecContentModal', () => ({
 
 vi.mock('../settings/MCPConfigPanel', () => ({
   MCPConfigPanel: () => null,
+}))
+
+vi.mock('../settings/GithubProjectIntegrationCard', () => ({
+  GithubProjectIntegrationCard: () => null,
 }))
 
 vi.mock('../settings/SettingsArchivesSection', () => ({
@@ -160,6 +166,7 @@ describe('SettingsModal loading indicators', () => {
     useSettingsMock.mockReset()
     useSessionsMock.mockReset()
     invokeMock.mockClear()
+    invokeMock.mockImplementation(baseInvokeImplementation)
   })
 
   it('renders textual loader when settings are loading', async () => {
@@ -196,8 +203,9 @@ describe('SettingsModal loading indicators', () => {
 describe('SettingsModal version settings', () => {
   beforeEach(() => {
     useSettingsMock.mockReset()
-    useSessionsMock.mockReset()
+   useSessionsMock.mockReset()
     invokeMock.mockClear()
+    invokeMock.mockImplementation(baseInvokeImplementation)
   })
 
   it('loads auto update preference on mount', async () => {
@@ -241,5 +249,67 @@ describe('SettingsModal version settings', () => {
     await userEvent.click(checkButton)
 
     expect(invokeMock).toHaveBeenCalledWith(TauriCommands.CheckForUpdatesNow)
+  })
+})
+
+describe('SettingsModal project settings navigation', () => {
+  beforeEach(() => {
+    useSettingsMock.mockReset()
+    useSessionsMock.mockReset()
+    invokeMock.mockClear()
+    invokeMock.mockImplementation(baseInvokeImplementation)
+  })
+
+  it('nests run script and action buttons under Project Settings sub-navigation', async () => {
+    const settingsValue = createDefaultUseSettingsValue()
+    useSettingsMock.mockReturnValue(settingsValue)
+
+    invokeMock.mockImplementation((command: string, args?: unknown) => {
+      if (command === TauriCommands.GetActiveProjectPath) {
+        return Promise.resolve('/Users/example/project')
+      }
+      return baseInvokeImplementation(command, args)
+    })
+
+    render(
+      <SettingsModal
+        open={true}
+        onClose={() => {}}
+      />
+    )
+
+    const user = userEvent.setup()
+
+    const projectNavButton = await screen.findByRole('button', { name: 'Project Settings' })
+    await user.click(projectNavButton)
+    expect(await screen.findByText('Branch Prefix')).toBeInTheDocument()
+
+    const actionNavButton = await screen.findByRole('button', { name: 'Action Buttons' })
+    await user.click(actionNavButton)
+    expect(await screen.findByRole('button', { name: 'Reset to Defaults' })).toBeInTheDocument()
+
+    const runNavButton = await screen.findByRole('button', { name: 'Run & Environment' })
+    await user.click(runNavButton)
+
+    expect(await screen.findByText('Run Script')).toBeInTheDocument()
+
+    invokeMock.mockImplementation(baseInvokeImplementation)
+  })
+
+  it('hides project settings navigation when no project is active', async () => {
+    const settingsValue = createDefaultUseSettingsValue()
+    useSettingsMock.mockReturnValue(settingsValue)
+
+    render(
+      <SettingsModal
+        open={true}
+        onClose={() => {}}
+      />
+    )
+
+    await screen.findByRole('button', { name: 'Appearance' })
+    expect(screen.queryByRole('button', { name: 'Project Settings' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Project')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Archives' })).not.toBeInTheDocument()
   })
 })

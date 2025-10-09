@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, ReactElement } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef, ReactElement } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
@@ -55,7 +55,17 @@ interface NotificationState {
     visible: boolean
 }
 
-type SettingsCategory = 'appearance' | 'keyboard' | 'environment' | 'projects' | 'terminal' | 'sessions' | 'archives' | 'actions' | 'version'
+type SettingsCategory =
+    | 'projectGeneral'
+    | 'projectRun'
+    | 'projectActions'
+    | 'archives'
+    | 'appearance'
+    | 'keyboard'
+    | 'environment'
+    | 'terminal'
+    | 'sessions'
+    | 'version'
 
 interface DetectedBinary {
     path: string
@@ -77,12 +87,14 @@ interface CategoryConfig {
     id: SettingsCategory
     label: string
     icon: ReactElement
+    scope: 'application' | 'project'
 }
 
 const CATEGORIES: CategoryConfig[] = [
     {
         id: 'appearance',
         label: 'Appearance',
+        scope: 'application',
         icon: (
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
@@ -92,6 +104,7 @@ const CATEGORIES: CategoryConfig[] = [
     {
         id: 'archives',
         label: 'Archives',
+        scope: 'project',
         icon: (
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7H4a1 1 0 01-1-1V5a1 1 0 011-1h16a1 1 0 011 1v1a1 1 0 01-1 1zM6 10h12l-1 9a2 2 0 01-2 2H9a2 2 0 01-2-2l-1-9z" />
@@ -101,6 +114,7 @@ const CATEGORIES: CategoryConfig[] = [
     {
         id: 'keyboard',
         label: 'Keyboard Shortcuts',
+        scope: 'application',
         icon: (
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1h-3a1 1 0 01-1-1v-3a1 1 0 011-1h1a2 2 0 100-4H7a1 1 0 01-1-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
@@ -110,6 +124,7 @@ const CATEGORIES: CategoryConfig[] = [
     {
         id: 'environment',
         label: 'Agent Configuration',
+        scope: 'application',
         icon: (
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
@@ -117,8 +132,9 @@ const CATEGORIES: CategoryConfig[] = [
         )
     },
     {
-        id: 'projects',
+        id: 'projectGeneral',
         label: 'Project Settings',
+        scope: 'project',
         icon: (
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
@@ -126,8 +142,29 @@ const CATEGORIES: CategoryConfig[] = [
         )
     },
     {
+        id: 'projectRun',
+        label: 'Run & Environment',
+        scope: 'project',
+        icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 17l4-4-4-4m5 8h3a2 2 0 002-2V7a2 2 0 00-2-2h-3m-4 0H6a2 2 0 00-2 2v8a2 2 0 002 2h3" />
+            </svg>
+        )
+    },
+    {
+        id: 'projectActions',
+        label: 'Action Buttons',
+        scope: 'project',
+        icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
+            </svg>
+        )
+    },
+    {
         id: 'terminal',
         label: 'Terminal',
+        scope: 'application',
         icon: (
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -137,6 +174,7 @@ const CATEGORIES: CategoryConfig[] = [
     {
         id: 'sessions',
         label: 'Sessions',
+        scope: 'application',
         icon: (
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -144,17 +182,9 @@ const CATEGORIES: CategoryConfig[] = [
         )
     },
     {
-        id: 'actions',
-        label: 'Action Buttons',
-        icon: (
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
-            </svg>
-        )
-    },
-    {
         id: 'version',
         label: 'Version',
+        scope: 'application',
         icon: (
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
@@ -162,6 +192,8 @@ const CATEGORIES: CategoryConfig[] = [
         )
     },
 ]
+
+const PROJECT_CATEGORY_ORDER: SettingsCategory[] = ['projectGeneral', 'projectRun', 'projectActions', 'archives']
 
 interface ProjectSettings {
     setupScript: string
@@ -192,6 +224,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
     const [activeCategory, setActiveCategory] = useState<SettingsCategory>('appearance')
     const [activeAgentTab, setActiveAgentTab] = useState<AgentType>('claude')
     const [projectPath, setProjectPath] = useState<string>('')
+    const [projectAvailable, setProjectAvailable] = useState<boolean>(false)
     const [projectSettings, setProjectSettings] = useState<ProjectSettings>({
         setupScript: '',
         branchPrefix: 'schaltwerk',
@@ -278,6 +311,14 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
     const [checkingUpdate, setCheckingUpdate] = useState<boolean>(false)
 
     const [selectedSpec, setSelectedSpec] = useState<{ name: string; content: string } | null>(null)
+    const applicationCategories = useMemo(() => CATEGORIES.filter(category => category.scope === 'application'), [])
+    const projectCategories = useMemo(() => {
+        if (!projectAvailable) return []
+        return PROJECT_CATEGORY_ORDER.map(id => CATEGORIES.find(category => category.id === id)).filter(
+            (category): category is CategoryConfig => Boolean(category)
+        )
+    }, [projectAvailable])
+    const hasAutoSelectedProject = useRef(false)
 
     const {
         loading,
@@ -520,14 +561,52 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
     }, [loadEnvVars, loadCliArgs, loadSessionPreferences, loadKeyboardShortcuts, loadProjectSettings, loadTerminalSettings, loadRunScript, loadMergePreferences, loadBinaryConfigs, applyShortcutOverrides])
 
     useEffect(() => {
-        if (open) {
-            loadAllSettings()
-            // Also load the project path for MCP settings
-            invoke<string | null>(TauriCommands.GetActiveProjectPath).then(path => {
-                if (path) setProjectPath(path)
+        if (!open) return
+
+        let cancelled = false
+
+        loadAllSettings()
+
+        invoke<string | null>(TauriCommands.GetActiveProjectPath)
+            .then(path => {
+                if (cancelled) return
+                if (path) {
+                    setProjectPath(path)
+                    setProjectAvailable(true)
+                    if (!hasAutoSelectedProject.current) {
+                        setActiveCategory('projectGeneral')
+                        hasAutoSelectedProject.current = true
+                    }
+                } else {
+                    setProjectPath('')
+                    setProjectAvailable(false)
+                    hasAutoSelectedProject.current = false
+                }
             })
+            .catch(error => {
+                if (cancelled) return
+                logger.info('No active project when opening settings:', error)
+                setProjectPath('')
+                setProjectAvailable(false)
+                hasAutoSelectedProject.current = false
+            })
+
+        return () => {
+            cancelled = true
         }
     }, [open, loadAllSettings])
+
+    useEffect(() => {
+        if (!open) {
+            hasAutoSelectedProject.current = false
+        }
+    }, [open])
+
+    useEffect(() => {
+        if (!projectAvailable && (activeCategory === 'projectGeneral' || activeCategory === 'projectRun' || activeCategory === 'projectActions' || activeCategory === 'archives')) {
+            setActiveCategory('appearance')
+        }
+    }, [projectAvailable, activeCategory])
 
     useEffect(() => {
         if (!hasUnsavedChanges) {
@@ -747,6 +826,391 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
             onOpenSpec={(spec) => setSelectedSpec(spec)}
             onNotify={showNotification}
         />
+    )
+
+    const renderProjectGeneral = () => (
+        <div className="flex flex-col h-full">
+            <div className="flex-1 overflow-y-auto p-6">
+                <div className="space-y-6">
+                    <GithubProjectIntegrationCard projectPath={projectPath} onNotify={showNotification} />
+
+                    <div>
+                        <h3 className="text-body font-medium text-slate-200 mb-2">Branch Prefix</h3>
+                        <div className="text-body text-slate-400 mb-3">
+                            Configure the default Git branch prefix used when creating new Schaltwerk sessions. Use slashes to nest groups (for example <code className={theme.colors.accent.blue.DEFAULT}>team/frontend</code>). Spaces will be converted to hyphens automatically.
+                        </div>
+                        <input
+                            type="text"
+                            value={projectSettings.branchPrefix}
+                            onChange={(e) => {
+                                const sanitized = e.target.value.replace(/\s+/g, '-')
+                                setProjectSettings(prev => ({ ...prev, branchPrefix: sanitized }))
+                            }}
+                            placeholder="schaltwerk"
+                            className={`w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 text-body focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
+                            spellCheck={false}
+                        />
+                    </div>
+
+                    <div>
+                        <h3 className="text-body font-medium text-slate-200 mb-2">Merge Defaults</h3>
+                        <div className="text-body text-slate-400 mb-3">
+                            Control what happens after a successful merge from the sidebar. When enabled, Schaltwerk will immediately cancel the merged session for this project.
+                        </div>
+                        <label className="flex items-center gap-3 text-sm text-slate-200">
+                            <input
+                                type="checkbox"
+                                checked={mergePreferences.autoCancelAfterMerge}
+                                onChange={(event) => {
+                                    setMergePreferences({ autoCancelAfterMerge: event.target.checked })
+                                    setHasUnsavedChanges(true)
+                                }}
+                                className="rounded border-slate-600 bg-slate-800 text-cyan-400 focus:ring-cyan-400"
+                            />
+                            <span>Auto-cancel sessions after successful merge</span>
+                        </label>
+                        <p className="text-caption text-slate-500 mt-2">
+                            You can also toggle this from the merge dialog&apos;s toolbar. The preference is stored per project.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+
+    const renderProjectRun = () => (
+        <div className="flex flex-col h-full">
+            <div className="flex-1 overflow-y-auto p-6">
+                <div className="space-y-8">
+                    <div>
+                        <h3 className="text-body font-medium text-slate-200 mb-2">Worktree Setup Script</h3>
+                        <div className="text-body text-slate-400 mb-4">
+                            Configure a script that runs automatically when a new worktree is created for this project.
+                            The script will be executed in the new worktree directory.
+                        </div>
+
+                        <div className="mb-4 p-3 bg-slate-800/50 border border-slate-700 rounded">
+                            <div className="text-caption text-slate-400 mb-2">
+                                <strong>Available variables:</strong>
+                            </div>
+                            <ul className="text-caption text-slate-500 space-y-1 list-disc list-inside">
+                                <li><code className={theme.colors.accent.blue.DEFAULT}>$WORKTREE_PATH</code> - Path to the new worktree</li>
+                                <li><code className={theme.colors.accent.blue.DEFAULT}>$REPO_PATH</code> - Path to the main repository</li>
+                                <li><code className={theme.colors.accent.blue.DEFAULT}>$SESSION_NAME</code> - Name of the agent</li>
+                                <li><code className={theme.colors.accent.blue.DEFAULT}>$BRANCH_NAME</code> - Name of the new branch</li>
+                            </ul>
+                        </div>
+
+                        <div className="relative">
+                            <textarea
+                                value={projectSettings.setupScript}
+                                onChange={(e) => setProjectSettings({ ...projectSettings, setupScript: e.target.value })}
+                                placeholder={`#!/bin/bash
+# Example: Copy .env file from main repo
+if [ -f "$REPO_PATH/.env" ]; then
+    cp "$REPO_PATH/.env" "$WORKTREE_PATH/.env"
+    echo "✓ Copied .env file to worktree"
+fi`}
+                                className={`w-full h-48 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-body resize-none overflow-auto focus:outline-none focus:${theme.colors.border.focus} transition-colors scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800`}
+                                spellCheck={false}
+                                style={{
+                                    scrollbarWidth: 'thin',
+                                    scrollbarColor: `${theme.colors.border.strong} ${theme.colors.background.elevated}`
+                                }}
+                            />
+                        </div>
+
+                        <div className={`mt-4 p-3 ${theme.colors.accent.cyan.bg} border ${theme.colors.accent.cyan.border} rounded`}>
+                            <div className={`text-caption ${theme.colors.accent.cyan.light} mb-2`}>
+                                <strong>Example use cases:</strong>
+                            </div>
+                            <ul className="text-caption text-slate-400 space-y-1 list-disc list-inside">
+                                <li>Copy environment files (.env, .env.local)</li>
+                                <li>Install dependencies (npm install, pip install)</li>
+                                <li>Set up database connections</li>
+                                <li>Configure IDE settings</li>
+                                <li>Create required directories</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 className="text-body font-medium text-slate-200 mb-2">Run Script</h3>
+                        <div className="text-body text-slate-400 mb-4">
+                            Configure the command executed by Run Mode (⌘E). When it finishes or is killed, the run terminal becomes read-only and shows the exit status.
+                        </div>
+                        <div className="space-y-3">
+                            <div>
+                                <label className="block text-caption text-slate-400 mb-1">Command</label>
+                                <input
+                                    type="text"
+                                    value={runScript.command}
+                                    onChange={(e) => setRunScript(prev => ({ ...prev, command: e.target.value }))}
+                                    placeholder="e.g., npm run dev"
+                                    className={`w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-caption text-slate-400 mb-1">Working Directory (optional)</label>
+                                <input
+                                    type="text"
+                                    value={runScript.workingDirectory || ''}
+                                    onChange={(e) => setRunScript(prev => ({ ...prev, workingDirectory: e.target.value }))}
+                                    placeholder="Defaults to active project folder"
+                                    className={`w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-caption text-slate-400 mb-2">Environment Variables</label>
+                                <div className="space-y-2">
+                                    {Object.entries(runScript.environmentVariables || {}).map(([k, v], index) => (
+                                        <div key={index} className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                value={k}
+                                                onChange={(e) => handleRunEnvVarChange(index, 'key', e.target.value)}
+                                                placeholder="KEY"
+                                                className={`flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
+                                    />
+                                    <input
+                                        type="text"
+                                        value={v}
+                                        onChange={(e) => handleRunEnvVarChange(index, 'value', e.target.value)}
+                                        placeholder="value"
+                                        className={`flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
+                                    />
+                                    <button
+                                        onClick={() => handleRemoveRunEnvVar(index)}
+                                        className="px-3 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-700 rounded transition-colors text-red-400"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            ))}
+                            <button
+                                onClick={handleAddRunEnvVar}
+                                className="w-full mt-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded transition-colors text-slate-400 flex items-center justify-center gap-2"
+                            >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                                Add Environment Variable
+                            </button>
+                        </div>
+                            </div>
+                            <div className="p-3 bg-slate-800/50 border border-slate-700 rounded text-caption text-slate-500">
+                                Tip: Use an npm script (e.g., "dev") or any shell command. The command runs in a dedicated read-only terminal and ends when the process exits.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 className="text-body font-medium text-slate-200 mb-2">Project Environment Variables</h3>
+                        <div className="text-body text-slate-400 mb-4">
+                            Configure environment variables that will be set for all agents in this project.
+                            These variables are applied to all terminals and agent processes.
+                        </div>
+
+                        <div className="space-y-2">
+                            {projectSettings.environmentVariables.map((envVar, index) => (
+                                <div key={index} className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={envVar.key}
+                                        onChange={(e) => handleProjectEnvVarChange(index, 'key', e.target.value)}
+                                        placeholder="KEY"
+                                        className={`flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
+                                    />
+                                    <input
+                                        type="text"
+                                        value={envVar.value}
+                                        onChange={(e) => handleProjectEnvVarChange(index, 'value', e.target.value)}
+                                        placeholder="value"
+                                        className={`flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
+                                    />
+                                    <button
+                                        onClick={() => handleRemoveProjectEnvVar(index)}
+                                        className="px-3 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-700 rounded transition-colors text-red-400"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            ))}
+
+                            <button
+                                onClick={handleAddProjectEnvVar}
+                                className="w-full mt-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded transition-colors text-slate-400 flex items-center justify-center gap-2"
+                            >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                                Add Environment Variable
+                            </button>
+                        </div>
+
+                        <div className="mt-4 p-3 bg-slate-800/50 border border-slate-700 rounded">
+                            <div className="text-caption text-slate-400">
+                                <strong>Common project environment variables:</strong>
+                                <ul className="mt-2 space-y-1 list-disc list-inside">
+                                    <li>API keys and tokens specific to this project</li>
+                                    <li>Database connection strings</li>
+                                    <li>Project-specific configuration paths</li>
+                                    <li>Feature flags and debug settings</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+
+    const renderProjectActions = () => (
+        <div className="flex flex-col h-full">
+            <div className="flex-1 overflow-y-auto p-6">
+                <div className="space-y-6">
+                    <div>
+                        <h3 className="text-body font-medium text-slate-200 mb-2">Action Buttons</h3>
+                        <p className="text-body text-slate-400">
+                            Configure custom action buttons that appear in the terminal header for both orchestrator and agent views.
+                            These buttons provide quick access to common AI prompts that will be pasted directly into Claude.
+                        </p>
+                    </div>
+
+                    <div className={`${theme.colors.accent.cyan.bg} border ${theme.colors.accent.cyan.border} rounded p-3`}>
+                        <div className={`text-caption ${theme.colors.accent.cyan.light}`}>
+                            <strong>💡 How it works:</strong>
+                            <ul className={`mt-2 space-y-1 list-disc list-inside ${theme.colors.accent.cyan.DEFAULT}`}>
+                                <li>Click any action button to instantly paste its prompt into Claude</li>
+                                <li>Use keyboard shortcuts F1-F6 for even faster access</li>
+                                <li>Buttons appear next to "Agent" and "Reset" in the terminal header</li>
+                                <li>Maximum of 6 custom buttons allowed</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div className="space-y-4">
+                        {editableActionButtons.map((button, index) => (
+                            <div key={button.id} className="bg-slate-800/50 border border-slate-700 rounded p-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-body text-slate-300 mb-2">Label</label>
+                                        <input
+                                            type="text"
+                                            value={button.label}
+                                            onChange={(e) => {
+                                                const updated = [...editableActionButtons]
+                                                updated[index] = { ...button, label: e.target.value }
+                                                setEditableActionButtons(updated)
+                                                setHasUnsavedChanges(true)
+                                            }}
+                                            className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700"
+                                            placeholder="Button Label"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-body text-slate-300 mb-2">Color</label>
+                                        <select
+                                            value={button.color || 'slate'}
+                                            onChange={(e) => {
+                                                const updated = [...editableActionButtons]
+                                                updated[index] = { ...button, color: e.target.value }
+                                                setEditableActionButtons(updated)
+                                                setHasUnsavedChanges(true)
+                                            }}
+                                            className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700"
+                                        >
+                                            <option value="slate">Default (Slate)</option>
+                                            <option value="green">Green</option>
+                                            <option value="blue">Blue</option>
+                                            <option value="amber">Amber</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div className="mt-4">
+                                    <label className="block text-body text-slate-300 mb-2">AI Prompt</label>
+                                    <textarea
+                                        value={button.prompt}
+                                        onChange={(e) => {
+                                            const updated = [...editableActionButtons]
+                                            updated[index] = { ...button, prompt: e.target.value }
+                                            setEditableActionButtons(updated)
+                                            setHasUnsavedChanges(true)
+                                        }}
+                                        className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 font-mono text-body min-h-[80px] resize-y"
+                                        placeholder="Enter the AI prompt that will be pasted into Claude chat..."
+                                    />
+                                </div>
+                                <div className="mt-4 flex justify-end">
+                                    <button
+                                        onClick={() => {
+                                            setEditableActionButtons(editableActionButtons.filter((_, i) => i !== index))
+                                            setHasUnsavedChanges(true)
+                                        }}
+                                        className="text-red-400 hover:text-red-300 text-body flex items-center gap-1"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                        Remove
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+
+                        {editableActionButtons.length < 6 ? (
+                            <button
+                                onClick={() => {
+                                    const newButton: HeaderActionConfig = {
+                                        id: `custom-${Date.now()}`,
+                                        label: 'New Action',
+                                        prompt: '',
+                                        color: 'slate',
+                                    }
+                                    setEditableActionButtons([...editableActionButtons, newButton])
+                                    setHasUnsavedChanges(true)
+                                }}
+                                className="w-full border-2 border-dashed border-slate-600 rounded-lg p-4 text-slate-400 hover:text-slate-300 hover:border-slate-500 transition-colors flex items-center justify-center gap-2"
+                            >
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                                Add New Action Button
+                            </button>
+                        ) : (
+                            <div className="w-full border-2 border-dashed border-slate-700 rounded-lg p-4 text-slate-500 flex items-center justify-center gap-2">
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                                Maximum of 6 action buttons allowed
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            <div className="border-t border-slate-800 p-4 bg-slate-900/50 flex items-center justify-between">
+                <button
+                    onClick={async () => {
+                        const success = await resetToDefaults()
+                        if (success) {
+                            setHasUnsavedChanges(false)
+                            showNotification('Action buttons reset to defaults', 'success')
+                        }
+                    }}
+                    className="text-slate-400 hover:text-slate-300 text-body"
+                >
+                    Reset to Defaults
+                </button>
+                <span className={`text-caption ${hasUnsavedChanges ? 'text-amber-300' : 'text-slate-500'}`}>
+                    {hasUnsavedChanges ? 'Unsaved changes' : 'Saved'}
+                </span>
+            </div>
+        </div>
     )
 
     const handleAddEnvVar = (agent: AgentType) => {
@@ -1135,236 +1599,6 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
     )
 
 
-    const renderProjectSettings = () => (
-        <div className="flex flex-col h-full">
-            <div className="flex-1 overflow-y-auto p-6">
-                <div className="space-y-4">
-                    <GithubProjectIntegrationCard projectPath={projectPath} onNotify={showNotification} />
-
-                    <div>
-                        <h3 className="text-body font-medium text-slate-200 mb-2">Branch Prefix</h3>
-                        <div className="text-body text-slate-400 mb-3">
-                            Configure the default Git branch prefix used when creating new Schaltwerk sessions. Use slashes to nest groups (for example <code className={theme.colors.accent.blue.DEFAULT}>team/frontend</code>). Spaces will be converted to hyphens automatically.
-                        </div>
-                        <input
-                            type="text"
-                            value={projectSettings.branchPrefix}
-                            onChange={(e) => {
-                                const sanitized = e.target.value.replace(/\s+/g, '-');
-                                setProjectSettings(prev => ({ ...prev, branchPrefix: sanitized }));
-                            }}
-                            placeholder="schaltwerk"
-                            className={`w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 text-body focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
-                            spellCheck={false}
-                        />
-                    </div>
-                    <div>
-                        <h3 className="text-body font-medium text-slate-200 mb-2">Merge Defaults</h3>
-                        <div className="text-body text-slate-400 mb-3">
-                            Control what happens after a successful merge from the sidebar. When enabled, Schaltwerk will immediately cancel the merged session for this project.
-                        </div>
-                        <label className="flex items-center gap-3 text-sm text-slate-200">
-                            <input
-                                type="checkbox"
-                                checked={mergePreferences.autoCancelAfterMerge}
-                                onChange={(event) => {
-                                    setMergePreferences({ autoCancelAfterMerge: event.target.checked })
-                                    setHasUnsavedChanges(true)
-                                }}
-                                className="rounded border-slate-600 bg-slate-800 text-cyan-400 focus:ring-cyan-400"
-                            />
-                            <span>Auto-cancel sessions after successful merge</span>
-                        </label>
-                        <p className="text-caption text-slate-500 mt-2">
-                            You can also toggle this from the merge dialog&apos;s toolbar. The preference is stored per project.
-                        </p>
-                    </div>
-                    <div>
-                        <h3 className="text-body font-medium text-slate-200 mb-2">Worktree Setup Script</h3>
-                        <div className="text-body text-slate-400 mb-4">
-                            Configure a script that runs automatically when a new worktree is created for this project.
-                            The script will be executed in the new worktree directory.
-                        </div>
-                        
-                        <div className="mb-4 p-3 bg-slate-800/50 border border-slate-700 rounded">
-                            <div className="text-caption text-slate-400 mb-2">
-                                <strong>Available variables:</strong>
-                            </div>
-                            <ul className="text-caption text-slate-500 space-y-1 list-disc list-inside">
-                                 <li><code className={theme.colors.accent.blue.DEFAULT}>$WORKTREE_PATH</code> - Path to the new worktree</li>
-                                 <li><code className={theme.colors.accent.blue.DEFAULT}>$REPO_PATH</code> - Path to the main repository</li>
-                                 <li><code className={theme.colors.accent.blue.DEFAULT}>$SESSION_NAME</code> - Name of the agent</li>
-                                 <li><code className={theme.colors.accent.blue.DEFAULT}>$BRANCH_NAME</code> - Name of the new branch</li>
-                            </ul>
-                        </div>
-
-                        <div className="relative">
-                            <textarea
-                                value={projectSettings.setupScript}
-                                onChange={(e) => setProjectSettings({ ...projectSettings, setupScript: e.target.value })}
-                                placeholder={`#!/bin/bash
-# Example: Copy .env file from main repo
-if [ -f "$REPO_PATH/.env" ]; then
-    cp "$REPO_PATH/.env" "$WORKTREE_PATH/.env"
-    echo "✓ Copied .env file to worktree"
-fi`}
-                                 className={`w-full h-48 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-body resize-none overflow-auto focus:outline-none focus:${theme.colors.border.focus} transition-colors scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800`}
-                                spellCheck={false}
-                                style={{ 
-                                    scrollbarWidth: 'thin',
-                                    scrollbarColor: `${theme.colors.border.strong} ${theme.colors.background.elevated}`
-                                }}
-                            />
-                        </div>
-                        
-                         <div className={`mt-4 p-3 ${theme.colors.accent.cyan.bg} border ${theme.colors.accent.cyan.border} rounded`}>
-                             <div className={`text-caption ${theme.colors.accent.cyan.light} mb-2`}>
-                                <strong>Example use cases:</strong>
-                            </div>
-                            <ul className="text-caption text-slate-400 space-y-1 list-disc list-inside">
-                                <li>Copy environment files (.env, .env.local)</li>
-                                <li>Install dependencies (npm install, pip install)</li>
-                                <li>Set up database connections</li>
-                                <li>Configure IDE settings</li>
-                                <li>Create required directories</li>
-                            </ul>
-                        </div>
-                    </div>
-                    {/* Run Script (Cmd+E) configuration */}
-                    <div className="mt-8">
-                        <h3 className="text-body font-medium text-slate-200 mb-2">Run Script</h3>
-                        <div className="text-body text-slate-400 mb-4">
-                            Configure the command executed by Run Mode (⌘E). When it finishes or is killed, the run terminal becomes read-only and shows the exit status.
-                        </div>
-                        <div className="space-y-3">
-                            <div>
-                                <label className="block text-caption text-slate-400 mb-1">Command</label>
-                                 <input
-                                     type="text"
-                                     value={runScript.command}
-                                     onChange={(e) => setRunScript(prev => ({ ...prev, command: e.target.value }))}
-                                     placeholder="e.g., npm run dev"
-                                     className={`w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
-                                 />
-                            </div>
-                            <div>
-                                <label className="block text-caption text-slate-400 mb-1">Working Directory (optional)</label>
-                                 <input
-                                     type="text"
-                                     value={runScript.workingDirectory || ''}
-                                     onChange={(e) => setRunScript(prev => ({ ...prev, workingDirectory: e.target.value }))}
-                                     placeholder="Defaults to active project folder"
-                                     className={`w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
-                                 />
-                            </div>
-                            <div>
-                                <label className="block text-caption text-slate-400 mb-2">Environment Variables</label>
-                                <div className="space-y-2">
-                                    {Object.entries(runScript.environmentVariables || {}).map(([k, v], index) => (
-                                        <div key={index} className="flex gap-2">
-                                             <input
-                                                 type="text"
-                                                 value={k}
-                                                 onChange={(e) => handleRunEnvVarChange(index, 'key', e.target.value)}
-                                                 placeholder="KEY"
-                                                 className={`flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
-                                             />
-                                             <input
-                                                 type="text"
-                                                 value={v}
-                                                 onChange={(e) => handleRunEnvVarChange(index, 'value', e.target.value)}
-                                                 placeholder="value"
-                                                 className={`flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
-                                             />
-                                            <button
-                                                onClick={() => handleRemoveRunEnvVar(index)}
-                                                className="px-3 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-700 rounded transition-colors text-red-400"
-                                            >
-                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    ))}
-                                    <button
-                                        onClick={handleAddRunEnvVar}
-                                        className="w-full mt-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded transition-colors text-slate-400 flex items-center justify-center gap-2"
-                                    >
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                        </svg>
-                                        Add Environment Variable
-                                    </button>
-                                </div>
-                            </div>
-                            <div className="p-3 bg-slate-800/50 border border-slate-700 rounded text-caption text-slate-500">
-                                Tip: Use an npm script (e.g., "dev") or any shell command. The command runs in a dedicated read-only terminal and ends when the process exits.
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="mt-8">
-                        <h3 className="text-body font-medium text-slate-200 mb-2">Project Environment Variables</h3>
-                        <div className="text-body text-slate-400 mb-4">
-                            Configure environment variables that will be set for all agents in this project.
-                            These variables are applied to all terminals and agent processes.
-                        </div>
-                        
-                        <div className="space-y-2">
-                            {projectSettings.environmentVariables.map((envVar, index) => (
-                                <div key={index} className="flex gap-2">
-                                     <input
-                                         type="text"
-                                         value={envVar.key}
-                                         onChange={(e) => handleProjectEnvVarChange(index, 'key', e.target.value)}
-                                         placeholder="KEY"
-                                         className={`flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
-                                     />
-                                     <input
-                                         type="text"
-                                         value={envVar.value}
-                                         onChange={(e) => handleProjectEnvVarChange(index, 'value', e.target.value)}
-                                         placeholder="value"
-                                         className={`flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
-                                     />
-                                    <button
-                                        onClick={() => handleRemoveProjectEnvVar(index)}
-                                        className="px-3 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-700 rounded transition-colors text-red-400"
-                                    >
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                        </svg>
-                                    </button>
-                                </div>
-                            ))}
-                            
-                            <button
-                                onClick={handleAddProjectEnvVar}
-                                className="w-full mt-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded transition-colors text-slate-400 flex items-center justify-center gap-2"
-                            >
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                </svg>
-                                Add Environment Variable
-                            </button>
-                        </div>
-                        
-                        <div className="mt-4 p-3 bg-slate-800/50 border border-slate-700 rounded">
-                            <div className="text-caption text-slate-400">
-                                <strong>Common project environment variables:</strong>
-                                <ul className="mt-2 space-y-1 list-disc list-inside">
-                                    <li>API keys and tokens specific to this project</li>
-                                    <li>Database connection strings</li>
-                                    <li>Project-specific configuration paths</li>
-                                    <li>Feature flags and debug settings</li>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    )
 
     const renderAppearanceSettings = () => (
         <div className="flex flex-col h-full">
@@ -1648,151 +1882,6 @@ fi`}
         </div>
     )
 
-    const renderActionButtonsSettings = () => (
-        <div className="flex flex-col h-full">
-            <div className="flex-1 overflow-y-auto p-6">
-                <div className="space-y-6">
-                    <div>
-                        <h3 className="text-body font-medium text-slate-200 mb-4">Action Buttons</h3>
-                        <p className="text-body text-slate-400 mb-4">
-                            Configure custom action buttons that appear in the terminal header for both orchestrator and agent views.
-                            These buttons provide quick access to common AI prompts that will be pasted directly into Claude.
-                        </p>
-                        
-                         <div className={`${theme.colors.accent.cyan.bg} border ${theme.colors.accent.cyan.border} rounded p-3 mb-6`}>
-                             <div className={`text-caption ${theme.colors.accent.cyan.light}`}>
-                                 <strong>💡 How it works:</strong>
-                                 <ul className={`mt-2 space-y-1 list-disc list-inside ${theme.colors.accent.cyan.DEFAULT}`}>
-                                    <li>Click any action button to instantly paste its prompt into Claude</li>
-                                    <li>Use keyboard shortcuts F1-F6 for even faster access</li>
-                                    <li>Buttons appear next to "Agent" and "Reset" in the terminal header</li>
-                                    <li>Maximum of 6 custom buttons allowed</li>
-                                </ul>
-                            </div>
-                        </div>
-                        
-                        <div className="space-y-4">
-                            {editableActionButtons.map((button, index) => (
-                                <div key={button.id} className="bg-slate-800/50 border border-slate-700 rounded p-4">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-body text-slate-300 mb-2">Label</label>
-                                            <input
-                                                type="text"
-                                                value={button.label}
-                                                onChange={(e) => {
-                                                    const updated = [...editableActionButtons]
-                                                    updated[index] = { ...button, label: e.target.value }
-                                                    setEditableActionButtons(updated)
-                                                    setHasUnsavedChanges(true)
-                                                }}
-                                                className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700"
-                                                placeholder="Button Label"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-body text-slate-300 mb-2">Color</label>
-                                            <select
-                                                value={button.color || 'slate'}
-                                                onChange={(e) => {
-                                                    const updated = [...editableActionButtons]
-                                                    updated[index] = { ...button, color: e.target.value }
-                                                    setEditableActionButtons(updated)
-                                                    setHasUnsavedChanges(true)
-                                                }}
-                                                className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700"
-                                            >
-                                                <option value="slate">Default (Slate)</option>
-                                                <option value="green">Green</option>
-                                                <option value="blue">Blue</option>
-                                                <option value="amber">Amber</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <div className="mt-4">
-                                        <label className="block text-body text-slate-300 mb-2">AI Prompt</label>
-                                        <textarea
-                                            value={button.prompt}
-                                            onChange={(e) => {
-                                                const updated = [...editableActionButtons]
-                                                updated[index] = { ...button, prompt: e.target.value }
-                                                setEditableActionButtons(updated)
-                                                setHasUnsavedChanges(true)
-                                            }}
-                                            className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 font-mono text-body min-h-[80px] resize-y"
-                                            placeholder="Enter the AI prompt that will be pasted into Claude chat..."
-                                        />
-                                    </div>
-                                    <div className="mt-4 flex justify-end">
-                                        <button
-                                            onClick={() => {
-                                                setEditableActionButtons(editableActionButtons.filter((_, i) => i !== index))
-                                                setHasUnsavedChanges(true)
-                                            }}
-                                            className="text-red-400 hover:text-red-300 text-body flex items-center gap-1"
-                                        >
-                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                            </svg>
-                                            Remove
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
-                            
-                            {editableActionButtons.length < 6 ? (
-                                <button
-                                    onClick={() => {
-                                        const newButton: HeaderActionConfig = {
-                                            id: `custom-${Date.now()}`,
-                                            label: 'New Action',
-                                            prompt: '',
-                                            color: 'slate',
-                                        }
-                                        setEditableActionButtons([...editableActionButtons, newButton])
-                                        setHasUnsavedChanges(true)
-                                    }}
-                                    className="w-full border-2 border-dashed border-slate-600 rounded-lg p-4 text-slate-400 hover:text-slate-300 hover:border-slate-500 transition-colors flex items-center justify-center gap-2"
-                                >
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                </svg>
-                                    Add New Action Button
-                                </button>
-                            ) : (
-                                <div className="w-full border-2 border-dashed border-slate-700 rounded-lg p-4 text-slate-500 flex items-center justify-center gap-2">
-                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                    </svg>
-                                    Maximum of 6 action buttons allowed
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div className="border-t border-slate-800 p-4 bg-slate-900/50">
-                <div className="flex items-center justify-between">
-                    <button
-                        onClick={async () => {
-                            const success = await resetToDefaults()
-                            if (success) {
-                                // State is automatically updated by resetToDefaults
-                                setHasUnsavedChanges(false)
-                                showNotification('Action buttons reset to defaults', 'success')
-                            }
-                        }}
-                        className="text-slate-400 hover:text-slate-300 text-body"
-                    >
-                        Reset to Defaults
-                    </button>
-                </div>
-            </div>
-        </div>
-    )
-    
-
     const renderSessionSettings = () => (
         <div className="flex flex-col h-full">
             <div className="flex-1 overflow-y-auto p-6">
@@ -1937,22 +2026,24 @@ fi`}
     
     const renderSettingsContent = () => {
         switch (activeCategory) {
+            case 'projectGeneral':
+                return projectAvailable ? renderProjectGeneral() : renderAppearanceSettings()
+            case 'projectRun':
+                return projectAvailable ? renderProjectRun() : renderAppearanceSettings()
+            case 'projectActions':
+                return projectAvailable ? renderProjectActions() : renderAppearanceSettings()
+            case 'archives':
+                return projectAvailable ? renderArchivesSettings() : renderAppearanceSettings()
             case 'appearance':
                 return renderAppearanceSettings()
             case 'keyboard':
                 return renderKeyboardShortcuts()
             case 'environment':
                 return renderEnvironmentSettings()
-            case 'projects':
-                return renderProjectSettings()
             case 'terminal':
                 return renderTerminalSettings()
             case 'sessions':
                 return renderSessionSettings()
-            case 'archives':
-                return renderArchivesSettings()
-            case 'actions':
-                return renderActionButtonsSettings()
             case 'version':
                 return renderVersionSettings()
             default:
@@ -2000,11 +2091,39 @@ fi`}
                     <div className="flex-1 flex overflow-hidden">
                         {/* Sidebar */}
                         <div className="w-56 bg-slate-950/50 border-r border-slate-800 py-4">
-                            <div className="px-3 mb-2">
-                                <div className="text-caption font-medium text-slate-500 uppercase tracking-wider">Configuration</div>
-                            </div>
+                            {projectCategories.length > 0 && (
+                                <>
+                                    <div className="px-3 mb-2">
+                                        <div className="text-caption font-medium text-slate-500 uppercase tracking-wider">Project</div>
+                                    </div>
+                                    <nav className="space-y-1 px-2">
+                                        {projectCategories.map(category => (
+                                            <button
+                                                key={category.id}
+                                                onClick={() => setActiveCategory(category.id)}
+                                                className={`w-full flex items-center gap-3 px-3 py-2 text-body rounded-lg transition-colors ${
+                                                    activeCategory === category.id
+                                                        ? 'bg-slate-800 text-slate-200'
+                                                        : 'text-slate-400 hover:text-slate-300 hover:bg-slate-800/50'
+                                                }`}
+                                            >
+                                                {category.icon}
+                                                <span>{category.label}</span>
+                                            </button>
+                                        ))}
+                                    </nav>
+                                    <div className="px-3 mt-6 mb-2">
+                                        <div className="text-caption font-medium text-slate-500 uppercase tracking-wider">Application</div>
+                                    </div>
+                                </>
+                            )}
+                            {projectCategories.length === 0 && (
+                                <div className="px-3 mb-2">
+                                    <div className="text-caption font-medium text-slate-500 uppercase tracking-wider">Application</div>
+                                </div>
+                            )}
                             <nav className="space-y-1 px-2">
-                                {CATEGORIES.map(category => (
+                                {applicationCategories.map(category => (
                                     <button
                                         key={category.id}
                                         onClick={() => setActiveCategory(category.id)}
@@ -2019,7 +2138,6 @@ fi`}
                                     </button>
                                 ))}
                             </nav>
-                            
                         </div>
 
                         {/* Content Area */}
