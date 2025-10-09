@@ -143,6 +143,7 @@ pub fn get_effective_shell() -> (String, Vec<String>) {
 #[cfg(test)]
 pub mod testing {
     use super::TERMINAL_SHELL_STATE;
+    use std::env;
     use std::sync::{Mutex, MutexGuard, OnceLock};
 
     static OVERRIDE_MUTEX: OnceLock<Mutex<()>> = OnceLock::new();
@@ -171,6 +172,22 @@ pub mod testing {
     pub fn override_lock() -> MutexGuard<'static, ()> {
         let mutex = OVERRIDE_MUTEX.get_or_init(|| Mutex::new(()));
         mutex.lock().expect("override mutex poisoned")
+    }
+
+    pub fn resolve_available_shell() -> String {
+        if let Ok(shell) = env::var("SHELL") {
+            if let Some(resolved) = super::resolve_shell_candidate(&shell) {
+                return resolved;
+            }
+        }
+
+        for candidate in super::fallback_shell_candidates() {
+            if let Some(resolved) = super::resolve_shell_candidate(candidate) {
+                return resolved;
+            }
+        }
+
+        "sh".to_string()
     }
 }
 
@@ -255,9 +272,11 @@ mod tests {
         assert!(default_args.is_empty());
 
         // Override and verify
-        put_terminal_shell_override("/bin/zsh".to_string(), vec!["-l".to_string()]);
+        let override_shell = testing::resolve_available_shell();
+        put_terminal_shell_override(override_shell.clone(), vec!["-l".to_string()]);
         let (shell, args) = get_effective_shell();
-        assert_eq!(shell, "/bin/zsh");
+        assert_eq!(shell, override_shell);
         assert_eq!(args, vec!["-l".to_string()]);
+        testing::reset_shell_override();
     }
 }

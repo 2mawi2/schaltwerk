@@ -851,12 +851,16 @@ pub async fn schaltwerk_core_cancel_session(
             let mut ids: HashSet<String> = HashSet::new();
             ids.insert(terminals::terminal_id_for_session_top(&name_for_bg));
             ids.insert(terminals::terminal_id_for_session_bottom(&name_for_bg));
-            ids.insert(terminals::previous_hashed_terminal_id_for_session_top(&name_for_bg));
-            ids.insert(terminals::previous_hashed_terminal_id_for_session_bottom(&name_for_bg));
+            ids.insert(terminals::previous_hashed_terminal_id_for_session_top(
+                &name_for_bg,
+            ));
+            ids.insert(terminals::previous_hashed_terminal_id_for_session_bottom(
+                &name_for_bg,
+            ));
             ids.insert(terminals::legacy_terminal_id_for_session_top(&name_for_bg));
-            ids.insert(
-                terminals::legacy_terminal_id_for_session_bottom(&name_for_bg),
-            );
+            ids.insert(terminals::legacy_terminal_id_for_session_bottom(
+                &name_for_bg,
+            ));
 
             for id in ids {
                 if let Err(e) = terminal_manager.close_terminal(id.clone()).await {

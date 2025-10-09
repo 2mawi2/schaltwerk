@@ -3,9 +3,8 @@ use std::path::Path;
 
 pub use schaltwerk::shared::terminal_id::{
     legacy_terminal_id_for_session_bottom, legacy_terminal_id_for_session_top,
-    previous_hashed_terminal_id_for_session_bottom,
-    previous_hashed_terminal_id_for_session_top, terminal_id_for_session_bottom,
-    terminal_id_for_session_top,
+    previous_hashed_terminal_id_for_session_bottom, previous_hashed_terminal_id_for_session_top,
+    terminal_id_for_session_bottom, terminal_id_for_session_top,
 };
 
 pub fn ensure_cwd_access<P: AsRef<Path>>(cwd: P) -> Result<(), String> {

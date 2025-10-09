@@ -98,7 +98,10 @@ mod tests {
 
     #[test]
     fn distinct_inputs_produce_distinct_ids_even_when_sanitized_same() {
-        assert_eq!(sanitize_session_name("alpha beta"), sanitize_session_name("alpha?beta"));
+        assert_eq!(
+            sanitize_session_name("alpha beta"),
+            sanitize_session_name("alpha?beta")
+        );
         let top_a = terminal_id_for_session_top("alpha beta");
         let top_b = terminal_id_for_session_top("alpha?beta");
         assert_ne!(top_a, top_b);
@@ -107,6 +110,7 @@ mod tests {
     #[test]
     fn legacy_and_previous_hash_helpers_match_expected_patterns() {
         assert!(legacy_terminal_id_for_session_top("alpha beta").starts_with("session-alpha_beta-"));
-        assert!(previous_hashed_terminal_id_for_session_top("alpha beta").starts_with("session-alpha_beta-"));
+        assert!(previous_hashed_terminal_id_for_session_top("alpha beta")
+            .starts_with("session-alpha_beta-"));
     }
 }

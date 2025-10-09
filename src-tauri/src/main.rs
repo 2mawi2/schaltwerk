@@ -24,12 +24,12 @@ mod updater;
 use crate::commands::sessions_refresh::{request_sessions_refresh, SessionsRefreshReason};
 use clap::Parser;
 use schaltwerk::infrastructure::config::SettingsManager;
+use schaltwerk::project_manager::ProjectManager;
+use schaltwerk::services::ServiceHandles;
 use schaltwerk::shared::terminal_id::{
     legacy_terminal_id_for_session_top, previous_hashed_terminal_id_for_session_top,
     terminal_id_for_session_top,
 };
-use schaltwerk::project_manager::ProjectManager;
-use schaltwerk::services::ServiceHandles;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{Mutex, OnceCell, OwnedRwLockReadGuard, OwnedRwLockWriteGuard, RwLock};

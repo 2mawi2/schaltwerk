@@ -95,7 +95,8 @@ mod tests {
             let original_home = std::env::var("HOME").ok();
             let original_path = std::env::var("PATH").ok();
             let original_override = testing::capture_shell_override();
-            put_terminal_shell_override("/bin/zsh".to_string(), vec!["-l".to_string()]);
+            let override_shell = testing::resolve_available_shell();
+            put_terminal_shell_override(override_shell.clone(), vec!["-l".to_string()]);
             env::set_var("HOME", "/home/tester");
             env::set_var("PATH", "/custom/bin:/usr/bin");
 
@@ -109,7 +110,7 @@ mod tests {
                 .await
                 .expect("expected shell command spec");
 
-            assert_eq!(spec.program, "/bin/zsh");
+            assert_eq!(spec.program, override_shell);
             assert_eq!(spec.args, vec!["-l".to_string()]);
             assert!(spec
                 .env
