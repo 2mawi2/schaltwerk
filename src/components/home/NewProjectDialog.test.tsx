@@ -245,27 +245,37 @@ describe('NewProjectDialog', () => {
   })
 
   it('disables buttons while creating', async () => {
-    invoke.mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)))
-    setup()
-    
+    let resolvePromise: () => void
+    const createPromise = new Promise<string>(resolve => {
+      resolvePromise = () => resolve('/home/user/test-project')
+    })
+    invoke.mockReturnValue(createPromise)
+    const { onClose } = setup()
+
     const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
     await user.type(nameInput, 'test-project')
-    
+
     const createBtn = screen.getByRole('button', { name: /create project/i })
     const cancelBtn = screen.getByRole('button', { name: /cancel/i })
     const browseBtn = screen.getByRole('button', { name: /browse/i })
-    
+
     await user.click(createBtn)
-    
+
     expect(createBtn).toBeDisabled()
     expect(cancelBtn).toBeDisabled()
     expect(browseBtn).toBeDisabled()
     expect(nameInput).toBeDisabled()
-    
+
     await waitFor(() => {
       // The button now uses AnimatedText component for loading state
       const animatedTextElement = createBtn.querySelector('pre')
       expect(animatedTextElement).toBeInTheDocument()
+    })
+
+    // Resolve the promise and wait for the component to finish cleanup
+    resolvePromise!()
+    await waitFor(() => {
+      expect(onClose).toHaveBeenCalled()
     })
   })
 
