@@ -202,6 +202,25 @@ describe('SessionsContext', () => {
         expect(result.current.sessions).toEqual(expectedSessions)
     })
 
+    it('defaults auto-cancel preference to true when backend omits it', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+        vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
+            if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
+            if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+            if (cmd === TauriCommands.GetProjectMergePreferences) return {}
+            return undefined
+        })
+
+        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+
+        await waitFor(() => {
+            expect(result.current.loading).toBe(false)
+        })
+
+        expect(result.current.autoCancelAfterMerge).toBe(true)
+    })
+
     it('derives merge status from reviewed session metadata during initial load', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {

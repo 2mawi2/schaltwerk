@@ -437,7 +437,7 @@ impl ProjectConfigMethods for Database {
 
         let auto_cancel = match query_res {
             Ok(Some(value)) => value != 0,
-            Ok(None) | Err(rusqlite::Error::QueryReturnedNoRows) => false,
+            Ok(None) | Err(rusqlite::Error::QueryReturnedNoRows) => true,
             Err(e) => return Err(e.into()),
         };
 

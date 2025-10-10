@@ -273,11 +273,11 @@ export const useSettings = () => {
                 TauriCommands.GetProjectMergePreferences
             )
             return {
-                autoCancelAfterMerge: Boolean(preferences?.auto_cancel_after_merge)
+                autoCancelAfterMerge: preferences?.auto_cancel_after_merge !== false
             }
         } catch (error) {
             logger.error('Failed to load project merge preferences:', error)
-            return { autoCancelAfterMerge: false }
+            return { autoCancelAfterMerge: true }
         }
     }, [])
 

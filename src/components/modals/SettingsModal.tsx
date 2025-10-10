@@ -240,7 +240,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         skip_confirmation_modals: false
     })
     const [mergePreferences, setMergePreferences] = useState<ProjectMergePreferences>({
-        autoCancelAfterMerge: false
+        autoCancelAfterMerge: true
     })
     const platform = useMemo(() => detectPlatformSafe(), [])
 
@@ -517,7 +517,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         let loadedProjectSettings: ProjectSettings = { setupScript: '', branchPrefix: 'schaltwerk', environmentVariables: [] }
         let loadedTerminalSettings: TerminalSettings = { shell: null, shellArgs: [], fontFamily: null }
         let loadedRunScript: RunScript = { command: '', workingDirectory: '', environmentVariables: {} }
-        let loadedMergePreferences: ProjectMergePreferences = { autoCancelAfterMerge: false }
+        let loadedMergePreferences: ProjectMergePreferences = { autoCancelAfterMerge: true }
         
         try {
             const results = await Promise.allSettled([

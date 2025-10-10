@@ -426,6 +426,23 @@ describe('useSettings', () => {
 
       expect(prefs).toEqual({ autoCancelAfterMerge: true })
     })
+
+    it('defaults auto-cancel to true when backend omits preference', async () => {
+      mockInvoke.mockImplementation(async (command: string) => {
+        if (command === TauriCommands.GetProjectMergePreferences) {
+          return {}
+        }
+        return null
+      })
+
+      const { result } = renderHook(() => useSettings())
+
+      const prefs = await act(async () => {
+        return await result.current.loadMergePreferences()
+      })
+
+      expect(prefs).toEqual({ autoCancelAfterMerge: true })
+    })
   })
 
   describe('loadEnvVars', () => {

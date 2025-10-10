@@ -137,7 +137,7 @@ const createDefaultUseSettingsValue = () => ({
   loadProjectSettings: vi.fn().mockResolvedValue({ setupScript: '', branchPrefix: 'schaltwerk', environmentVariables: [] }),
   loadTerminalSettings: vi.fn().mockResolvedValue({ shell: null, shellArgs: [], fontFamily: null }),
   loadSessionPreferences: vi.fn().mockResolvedValue({ auto_commit_on_review: false, skip_confirmation_modals: false }),
-  loadMergePreferences: vi.fn().mockResolvedValue({ autoCancelAfterMerge: false }),
+  loadMergePreferences: vi.fn().mockResolvedValue({ autoCancelAfterMerge: true }),
   loadKeyboardShortcuts: vi.fn().mockResolvedValue(defaultShortcutConfig),
   saveKeyboardShortcuts: vi.fn().mockResolvedValue(undefined),
   loadInstalledFonts: vi.fn().mockResolvedValue([]),
@@ -146,7 +146,7 @@ const createDefaultUseSettingsValue = () => ({
 const useSettingsMock = vi.fn(createDefaultUseSettingsValue)
 
 const createDefaultUseSessionsValue = () => ({
-  autoCancelAfterMerge: false,
+  autoCancelAfterMerge: true,
   updateAutoCancelAfterMerge: vi.fn().mockResolvedValue(undefined),
 })
 

@@ -203,7 +203,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
     const mergePreviewCacheRef = useRef(new Map<string, MergePreviewResponse | null>())
     const pendingMergePreviewRef = useRef(new Set<string>())
     const pendingSessionsReloadRef = useRef(false)
-    const [autoCancelAfterMerge, setAutoCancelAfterMerge] = useState(false)
+    const [autoCancelAfterMerge, setAutoCancelAfterMerge] = useState(true)
     const autoCancelAfterMergeRef = useLatest(autoCancelAfterMerge)
     const applyAutoCancelPreference = useCallback((next: boolean) => {
         autoCancelAfterMergeRef.current = next
@@ -875,7 +875,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         let cancelled = false
 
         if (!projectPath) {
-            applyAutoCancelPreference(false)
+            applyAutoCancelPreference(true)
             return
         }
 
@@ -885,12 +885,12 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                     TauriCommands.GetProjectMergePreferences
                 )
                 if (!cancelled) {
-                    applyAutoCancelPreference(Boolean(preferences?.auto_cancel_after_merge))
+                    applyAutoCancelPreference(preferences?.auto_cancel_after_merge !== false)
                 }
             } catch (error) {
                 logger.error('[SessionsContext] Failed to load merge preferences:', error)
                 if (!cancelled) {
-                    applyAutoCancelPreference(false)
+                    applyAutoCancelPreference(true)
                 }
             }
         })()
