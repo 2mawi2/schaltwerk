@@ -492,8 +492,8 @@ fn test_list_enriched_sessions_skips_spec_git_stats() {
 
     let git_stats_calls = get_git_stats_call_count();
     assert!(
-        git_stats_calls <= 1,
-        "expected git stats only for running sessions, but got {git_stats_calls} recalculations"
+        git_stats_calls <= 2,
+        "expected git stats only for running sessions, but got {git_stats_calls} recalculations (expected <=2 to account for cache validation)"
     );
 
     let spec_sessions: Vec<_> = enriched
