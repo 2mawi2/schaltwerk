@@ -203,6 +203,46 @@ describe('App.tsx', () => {
     errSpy.mockRestore()
   })
 
+  it('prevents dropping files onto the window', async () => {
+    const addEventListenerSpy = vi.spyOn(window, 'addEventListener')
+    const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener')
+
+    const { unmount } = renderApp()
+    await screen.findByTestId('home-screen')
+
+    const dragOverHandler = addEventListenerSpy.mock.calls.find(([eventName]) => String(eventName) === 'dragover')?.[1] as EventListener | undefined
+    const dropHandler = addEventListenerSpy.mock.calls.find(([eventName]) => String(eventName) === 'drop')?.[1] as EventListener | undefined
+
+    expect(typeof dragOverHandler).toBe('function')
+    expect(typeof dropHandler).toBe('function')
+
+    const dragoverEvent = {
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+      dataTransfer: { types: ['Files'] },
+    }
+    dragOverHandler?.(dragoverEvent as unknown as DragEvent)
+    expect(dragoverEvent.preventDefault).toHaveBeenCalledTimes(1)
+    expect(dragoverEvent.stopPropagation).toHaveBeenCalledTimes(1)
+
+    const dropEvent = {
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+      dataTransfer: { types: ['Files'], files: [{ type: 'image/png' }] },
+    }
+    dropHandler?.(dropEvent as unknown as DragEvent)
+    expect(dropEvent.preventDefault).toHaveBeenCalledTimes(1)
+    expect(dropEvent.stopPropagation).toHaveBeenCalledTimes(1)
+
+    unmount()
+
+    expect(removeEventListenerSpy).toHaveBeenCalledWith('dragover', dragOverHandler)
+    expect(removeEventListenerSpy).toHaveBeenCalledWith('drop', dropHandler)
+
+    addEventListenerSpy.mockRestore()
+    removeEventListenerSpy.mockRestore()
+  })
+
   it('displays tab bar when a project is opened', async () => {
     renderApp()
 

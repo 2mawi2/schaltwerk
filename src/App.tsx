@@ -71,6 +71,48 @@ function AppContent() {
   const toast = useOptionalToast()
   const { beginSessionMutation, endSessionMutation } = useSessions()
 
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const shouldBlock = (event: DragEvent) => {
+      const transfer = event.dataTransfer
+      if (!transfer) {
+        return false
+      }
+
+      const types = Array.from(transfer.types ?? [])
+      if (types.includes('Files')) {
+        return true
+      }
+
+      const items = Array.from(transfer.items ?? [])
+      return items.some(item => item.kind === 'file' && item.type?.startsWith('image/'))
+    }
+
+    const blockDragAndDrop = (event: DragEvent) => {
+      if (!shouldBlock(event)) {
+        return
+      }
+
+      event.preventDefault()
+      event.stopPropagation()
+
+      if (event.type === 'dragover' && event.dataTransfer) {
+        event.dataTransfer.dropEffect = 'none'
+      }
+    }
+
+    window.addEventListener('dragover', blockDragAndDrop)
+    window.addEventListener('drop', blockDragAndDrop)
+
+    return () => {
+      window.removeEventListener('dragover', blockDragAndDrop)
+      window.removeEventListener('drop', blockDragAndDrop)
+    }
+  }, [])
+
   const refreshGithubStatus = github.refreshStatus
 
   useEffect(() => {
