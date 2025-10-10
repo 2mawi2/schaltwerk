@@ -1,18 +1,16 @@
-import { useEffect, useRef, useState, lazy, Suspense, useMemo, useCallback } from 'react'
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { VscCopy, VscPlay, VscEye, VscEdit } from 'react-icons/vsc'
 import { AnimatedText } from '../common/AnimatedText'
 import { logger } from '../../utils/logger'
-import type { MarkdownEditorRef } from './MarkdownEditor'
+import { MarkdownEditor, type MarkdownEditorRef } from './MarkdownEditor'
 import { useProjectFileIndex } from '../../hooks/useProjectFileIndex'
 import { useKeyboardShortcutsConfig } from '../../contexts/KeyboardShortcutsContext'
 import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
 import { detectPlatformSafe, isShortcutForAction } from '../../keyboardShortcuts/helpers'
 import { useSpecContent } from '../../hooks/useSpecContent'
 import { MarkdownRenderer } from './MarkdownRenderer'
-
-const MarkdownEditor = lazy(() => import('./MarkdownEditor').then(m => ({ default: m.MarkdownEditor })))
 
 interface Props {
   sessionName: string
@@ -308,20 +306,14 @@ export function SpecEditor({ sessionName, onStart }: Props) {
 
       <div className="flex-1 overflow-hidden">
         {viewMode === 'edit' ? (
-          <Suspense fallback={
-            <div className="h-full flex items-center justify-center">
-              <AnimatedText text="loading" size="md" />
-            </div>
-          }>
-            <MarkdownEditor
-              ref={markdownEditorRef}
-              value={content}
-              onChange={handleContentChange}
-              placeholder="Enter agent description in markdown…"
-              className="h-full"
-              fileReferenceProvider={projectFileIndex}
-            />
-          </Suspense>
+          <MarkdownEditor
+            ref={markdownEditorRef}
+            value={content}
+            onChange={handleContentChange}
+            placeholder="Enter agent description in markdown…"
+            className="h-full"
+            fileReferenceProvider={projectFileIndex}
+          />
         ) : (
           <MarkdownRenderer content={content} className="h-full" />
         )}
