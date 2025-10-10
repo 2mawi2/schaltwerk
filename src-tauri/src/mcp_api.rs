@@ -2,8 +2,13 @@ use http_body_util::BodyExt;
 use hyper::{body::Incoming, Method, Request, Response, StatusCode};
 use log::{error, info, warn};
 
+use crate::commands::github::{github_create_reviewed_pr, CreateReviewedPrArgs};
+use crate::commands::schaltwerk_core::{
+    merge_session_with_events, schaltwerk_core_cancel_session, MergeCommandError,
+};
 use crate::commands::sessions_refresh::{request_sessions_refresh, SessionsRefreshReason};
 use crate::{get_core_read, get_core_write};
+use schaltwerk::domains::merge::MergeMode;
 use schaltwerk::domains::sessions::entity::Session;
 use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
 use schaltwerk::schaltwerk_core::{SessionManager, SessionState};
@@ -35,6 +40,18 @@ pub async fn handle_mcp_request(
         (&Method::GET, path) if path.starts_with("/api/sessions/") => {
             let name = extract_session_name(path);
             get_session(&name).await
+        }
+        (&Method::POST, path)
+            if path.starts_with("/api/sessions/") && path.ends_with("/merge") =>
+        {
+            let name = extract_session_name_for_action(path, "/merge");
+            merge_session(req, &name, app).await
+        }
+        (&Method::POST, path)
+            if path.starts_with("/api/sessions/") && path.ends_with("/pull-request") =>
+        {
+            let name = extract_session_name_for_action(path, "/pull-request");
+            create_pull_request(req, &name, app).await
         }
         (&Method::DELETE, path) if path.starts_with("/api/sessions/") => {
             let name = extract_session_name(path);
@@ -639,6 +656,248 @@ async fn get_session(name: &str) -> Result<Response<String>, hyper::Error> {
             ))
         }
     }
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+struct MergeSessionRequest {
+    #[serde(default)]
+    mode: Option<MergeMode>,
+    #[serde(default)]
+    commit_message: Option<String>,
+    #[serde(default)]
+    cancel_after_merge: bool,
+}
+
+#[derive(Debug, serde::Serialize)]
+struct MergeSessionResponse {
+    session_name: String,
+    parent_branch: String,
+    session_branch: String,
+    mode: MergeMode,
+    commit: String,
+    cancel_requested: bool,
+    cancel_queued: bool,
+    cancel_error: Option<String>,
+}
+
+async fn merge_session(
+    req: Request<Incoming>,
+    name: &str,
+    app: tauri::AppHandle,
+) -> Result<Response<String>, hyper::Error> {
+    // Validate session state up front to produce actionable errors
+    match get_core_read().await {
+        Ok(core) => {
+            let manager = core.session_manager();
+            match manager.get_session(name) {
+                Ok(session) => {
+                    if session.session_state == SessionState::Spec {
+                        return Ok(error_response(
+                            StatusCode::BAD_REQUEST,
+                            format!(
+                                "Session '{name}' is a spec. Start the spec before attempting a merge."
+                            ),
+                        ));
+                    }
+                    // Allow merge to proceed
+                }
+                Err(e) => {
+                    return Ok(error_response(
+                        StatusCode::NOT_FOUND,
+                        format!("Session '{name}' not found: {e}"),
+                    ))
+                }
+            }
+        }
+        Err(e) => {
+            error!("Failed to acquire session manager for merge: {e}");
+            return Ok(error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Internal error: {e}"),
+            ));
+        }
+    };
+
+    // Consume request body
+    let body_bytes = req.into_body().collect().await?.to_bytes();
+    let payload: MergeSessionRequest = match serde_json::from_slice(&body_bytes) {
+        Ok(p) => p,
+        Err(e) => {
+            return Ok(error_response(
+                StatusCode::BAD_REQUEST,
+                format!("Invalid JSON payload: {e}"),
+            ))
+        }
+    };
+
+    let mode = payload.mode.unwrap_or(MergeMode::Squash);
+    let outcome = match merge_session_with_events(&app, name, mode, payload.commit_message.clone())
+        .await
+    {
+        Ok(outcome) => outcome,
+        Err(MergeCommandError { message, conflict }) => {
+            let status = if conflict {
+                StatusCode::CONFLICT
+            } else {
+                StatusCode::BAD_REQUEST
+            };
+            return Ok(error_response(status, message));
+        }
+    };
+
+    let mut cancel_error = None;
+    let mut cancel_queued = false;
+
+    if payload.cancel_after_merge {
+        match schaltwerk_core_cancel_session(app.clone(), name.to_string()).await {
+            Ok(()) => {
+                cancel_queued = true;
+            }
+            Err(e) => {
+                cancel_error = Some(e);
+            }
+        }
+    }
+
+    let response = MergeSessionResponse {
+        session_name: name.to_string(),
+        parent_branch: outcome.parent_branch,
+        session_branch: outcome.session_branch,
+        mode: outcome.mode,
+        commit: outcome.new_commit,
+        cancel_requested: payload.cancel_after_merge,
+        cancel_queued,
+        cancel_error,
+    };
+
+    let json = serde_json::to_string(&response).unwrap_or_else(|e| {
+        error!("Failed to serialize merge response for '{name}': {e}");
+        "{}".to_string()
+    });
+
+    // Use 200 status for successful merge, even if cancellation follow-up failed
+    Ok(json_response(StatusCode::OK, json))
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+struct PullRequestRequest {
+    #[serde(default)]
+    commit_message: Option<String>,
+    #[serde(default)]
+    default_branch: Option<String>,
+    #[serde(default)]
+    repository: Option<String>,
+    #[serde(default)]
+    cancel_after_pr: bool,
+}
+
+#[derive(Debug, serde::Serialize)]
+struct PullRequestResponse {
+    session_name: String,
+    branch: String,
+    url: String,
+    cancel_requested: bool,
+    cancel_queued: bool,
+    cancel_error: Option<String>,
+}
+
+async fn create_pull_request(
+    req: Request<Incoming>,
+    name: &str,
+    app: tauri::AppHandle,
+) -> Result<Response<String>, hyper::Error> {
+    let worktree_path = match get_core_read().await {
+        Ok(core) => {
+            let manager = core.session_manager();
+            match manager.get_session(name) {
+                Ok(session) => {
+                    if session.session_state == SessionState::Spec {
+                        return Ok(error_response(
+                            StatusCode::BAD_REQUEST,
+                            format!(
+                                "Session '{name}' is a spec. Start the spec before creating a PR."
+                            ),
+                        ));
+                    }
+                    session.worktree_path
+                }
+                Err(e) => {
+                    return Ok(error_response(
+                        StatusCode::NOT_FOUND,
+                        format!("Session '{name}' not found: {e}"),
+                    ))
+                }
+            }
+        }
+        Err(e) => {
+            error!("Failed to acquire session manager for PR: {e}");
+            return Ok(error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Internal error: {e}"),
+            ));
+        }
+    };
+
+    let body_bytes = req.into_body().collect().await?.to_bytes();
+    let payload: PullRequestRequest = match serde_json::from_slice(&body_bytes) {
+        Ok(p) => p,
+        Err(e) => {
+            return Ok(error_response(
+                StatusCode::BAD_REQUEST,
+                format!("Invalid JSON payload: {e}"),
+            ))
+        }
+    };
+
+    let pr_payload = CreateReviewedPrArgs {
+        session_slug: name.to_string(),
+        worktree_path: worktree_path.to_string_lossy().to_string(),
+        default_branch: payload.default_branch.clone(),
+        commit_message: payload.commit_message.clone(),
+        repository: payload.repository.clone(),
+    };
+
+    let pr_result = match github_create_reviewed_pr(app.clone(), pr_payload).await {
+        Ok(result) => result,
+        Err(e) => {
+            return Ok(error_response(
+                StatusCode::BAD_REQUEST,
+                format!("Failed to create pull request: {e}"),
+            ))
+        }
+    };
+
+    let mut cancel_error = None;
+    let mut cancel_queued = false;
+
+    if payload.cancel_after_pr {
+        match schaltwerk_core_cancel_session(app.clone(), name.to_string()).await {
+            Ok(()) => {
+                cancel_queued = true;
+            }
+            Err(e) => {
+                cancel_error = Some(e);
+            }
+        }
+    }
+
+    let response = PullRequestResponse {
+        session_name: name.to_string(),
+        branch: pr_result.branch,
+        url: pr_result.url,
+        cancel_requested: payload.cancel_after_pr,
+        cancel_queued,
+        cancel_error,
+    };
+
+    let json = serde_json::to_string(&response).unwrap_or_else(|e| {
+        error!("Failed to serialize PR response for '{name}': {e}");
+        "{}".to_string()
+    });
+
+    Ok(json_response(StatusCode::OK, json))
 }
 
 async fn delete_session(

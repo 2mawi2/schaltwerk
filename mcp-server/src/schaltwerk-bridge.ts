@@ -46,6 +46,48 @@ interface GitStatusResult {
   changedFiles: string[]
 }
 
+export type MergeModeOption = 'squash' | 'reapply'
+
+interface MergeSessionApiResponse {
+  session_name: string
+  parent_branch: string
+  session_branch: string
+  mode: MergeModeOption
+  commit: string
+  cancel_requested: boolean
+  cancel_queued: boolean
+  cancel_error?: string | null
+}
+
+export interface MergeSessionResult {
+  sessionName: string
+  parentBranch: string
+  sessionBranch: string
+  mode: MergeModeOption
+  commit: string
+  cancelRequested: boolean
+  cancelQueued: boolean
+  cancelError?: string
+}
+
+interface PullRequestApiResponse {
+  session_name: string
+  branch: string
+  url: string
+  cancel_requested: boolean
+  cancel_queued: boolean
+  cancel_error?: string | null
+}
+
+export interface PullRequestResult {
+  sessionName: string
+  branch: string
+  url: string
+  cancelRequested: boolean
+  cancelQueued: boolean
+  cancelError?: string
+}
+
 interface ProjectContext {
   path: string
   canonicalPath: string
@@ -794,6 +836,88 @@ export class SchaltwerkBridge {
     } catch (error) {
       console.error('Failed to mark session as reviewed via API:', error)
       throw error
+    }
+  }
+
+  async mergeSession(
+    sessionName: string,
+    options: { commitMessage: string; mode?: MergeModeOption; cancelAfterMerge?: boolean }
+  ): Promise<MergeSessionResult> {
+    const commitMessage = options.commitMessage?.trim()
+    if (!commitMessage) {
+      throw new Error('commitMessage is required and must be a non-empty string when merging a session.')
+    }
+
+    const mode: MergeModeOption = options.mode === 'reapply' ? 'reapply' : 'squash'
+
+    const response = await fetch(`${this.apiUrl}/api/sessions/${encodeURIComponent(sessionName)}/merge`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...this.getProjectHeaders()
+      },
+      body: JSON.stringify({
+        mode,
+        commit_message: commitMessage,
+        cancel_after_merge: Boolean(options.cancelAfterMerge)
+      })
+    })
+
+    const responseBody = await response.text()
+    if (!response.ok) {
+      const reason = responseBody ? ` - ${responseBody}` : ''
+      throw new Error(`Failed to merge session '${sessionName}': ${response.status} ${response.statusText}${reason}`)
+    }
+
+    const payload = JSON.parse(responseBody) as MergeSessionApiResponse
+
+    return {
+      sessionName: payload.session_name,
+      parentBranch: payload.parent_branch,
+      sessionBranch: payload.session_branch,
+      mode: payload.mode,
+      commit: payload.commit,
+      cancelRequested: payload.cancel_requested,
+      cancelQueued: payload.cancel_queued,
+      cancelError: payload.cancel_error ?? undefined
+    }
+  }
+
+  async createPullRequest(
+    sessionName: string,
+    options: { commitMessage?: string; defaultBranch?: string; repository?: string; cancelAfterPr?: boolean }
+  ): Promise<PullRequestResult> {
+    const commitMessage = options.commitMessage?.trim()
+
+    const response = await fetch(`${this.apiUrl}/api/sessions/${encodeURIComponent(sessionName)}/pull-request`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...this.getProjectHeaders()
+      },
+      body: JSON.stringify({
+        commit_message: commitMessage && commitMessage.length > 0 ? commitMessage : undefined,
+        default_branch: options.defaultBranch,
+        repository: options.repository,
+        cancel_after_pr: Boolean(options.cancelAfterPr)
+      })
+    })
+
+    const responseBody = await response.text()
+    if (!response.ok) {
+      const reason = responseBody ? ` - ${responseBody}` : ''
+      throw new Error(`Failed to create pull request for session '${sessionName}': ${response.status} ${response.statusText}${reason}`)
+    }
+
+    const payload = JSON.parse(responseBody) as PullRequestApiResponse
+
+    return {
+      sessionName: payload.session_name,
+      branch: payload.branch,
+      url: payload.url,
+      cancelRequested: payload.cancel_requested,
+      cancelQueued: payload.cancel_queued,
+      cancelError: payload.cancel_error ?? undefined
     }
   }
 

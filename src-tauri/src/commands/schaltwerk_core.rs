@@ -4,7 +4,7 @@ use crate::{
 };
 use schaltwerk::domains::agents::{manifest::AgentManifest, naming, parse_agent_command};
 use schaltwerk::domains::merge::types::MergeStateSnapshot;
-use schaltwerk::domains::merge::{MergeMode, MergePreview, MergeService};
+use schaltwerk::domains::merge::{MergeMode, MergeOutcome, MergePreview, MergeService};
 use schaltwerk::domains::sessions::cache::{cache_worktree_size, get_cached_worktree_size};
 use schaltwerk::domains::sessions::db_sessions::SessionMethods;
 use schaltwerk::domains::sessions::entity::{
@@ -132,41 +132,56 @@ pub async fn schaltwerk_core_get_merge_preview(name: String) -> Result<MergePrev
     service.preview(&name).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-pub async fn schaltwerk_core_merge_session_to_main(
-    app: tauri::AppHandle,
-    name: String,
+#[derive(Debug, Clone)]
+pub struct MergeCommandError {
+    pub message: String,
+    pub conflict: bool,
+}
+
+pub async fn merge_session_with_events(
+    app: &tauri::AppHandle,
+    name: &str,
     mode: MergeMode,
     commit_message: Option<String>,
-) -> Result<(), String> {
-    let (db, repo_path) = {
-        let core = get_core_write().await?;
-        (core.db.clone(), core.repo_path.clone())
+) -> Result<MergeOutcome, MergeCommandError> {
+    let (db, repo_path) = match get_core_write().await {
+        Ok(core) => (core.db.clone(), core.repo_path.clone()),
+        Err(e) => {
+            return Err(MergeCommandError {
+                message: e,
+                conflict: false,
+            })
+        }
     };
 
     let service = MergeService::new(db, repo_path);
-    let preview = service.preview(&name).map_err(|e| e.to_string())?;
+    let preview = service
+        .preview(name)
+        .map_err(|e| MergeCommandError {
+            message: e.to_string(),
+            conflict: false,
+        })?;
 
     events::emit_git_operation_started(
-        &app,
-        &name,
+        app,
+        name,
         &preview.session_branch,
         &preview.parent_branch,
         mode.as_str(),
     );
 
-    match service.merge(&name, mode, commit_message).await {
+    match service.merge(name, mode, commit_message).await {
         Ok(outcome) => {
             events::emit_git_operation_completed(
-                &app,
-                &name,
+                app,
+                name,
                 &outcome.session_branch,
                 &outcome.parent_branch,
                 outcome.mode.as_str(),
                 &outcome.new_commit,
             );
-            events::request_sessions_refreshed(&app, events::SessionsRefreshReason::MergeWorkflow);
-            Ok(())
+            events::request_sessions_refreshed(app, events::SessionsRefreshReason::MergeWorkflow);
+            Ok(outcome)
         }
         Err(err) => {
             let raw_message = err.to_string();
@@ -182,17 +197,30 @@ pub async fn schaltwerk_core_merge_session_to_main(
                 summary.clone()
             };
             events::emit_git_operation_failed(
-                &app,
-                &name,
+                app,
+                name,
                 &preview.session_branch,
                 &preview.parent_branch,
                 mode.as_str(),
                 if conflict { "conflict" } else { "error" },
                 &message,
             );
-            Err(message)
+            Err(MergeCommandError { message, conflict })
         }
     }
+}
+
+#[tauri::command]
+pub async fn schaltwerk_core_merge_session_to_main(
+    app: tauri::AppHandle,
+    name: String,
+    mode: MergeMode,
+    commit_message: Option<String>,
+) -> Result<(), String> {
+    merge_session_with_events(&app, &name, mode, commit_message)
+        .await
+        .map(|_| ())
+        .map_err(|err| err.message)
 }
 
 #[tauri::command]

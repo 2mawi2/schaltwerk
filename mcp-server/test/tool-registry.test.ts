@@ -7,5 +7,7 @@ describe('MCP tool registry', () => {
     const content = fs.readFileSync(serverPath, 'utf8')
 
     expect(content).toContain('name: "schaltwerk_spec_create"')
+    expect(content).toContain('name: "schaltwerk_merge_session"')
+    expect(content).toContain('name: "schaltwerk_create_pr"')
   })
 })

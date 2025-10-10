@@ -83,6 +83,23 @@ interface SchaltwerkConvertToSpecArgs {
   session_name: string
 }
 
+interface SchaltwerkMergeArgs {
+  session_name: string
+  commit_message: string
+  mode?: 'squash' | 'reapply'
+  cancel_after_merge?: boolean
+}
+
+interface SchaltwerkCreatePrArgs {
+  session_name: string
+  options?: {
+    commit_message?: string
+    default_branch?: string
+    repository?: string
+    cancel_after_pr?: boolean
+  }
+}
+
 const bridge = new SchaltwerkBridge()
 
  const server = new Server({
@@ -653,11 +670,11 @@ REQUIREMENTS: Target session must exist and be active.`,
              }
            },
            required: ["session_name"]
-         }
-       },
-        {
-          name: "schaltwerk_convert_to_spec",
-          description: `Convert a running or reviewed session back to spec state for rework.
+       }
+      },
+       {
+         name: "schaltwerk_convert_to_spec",
+         description: `Convert a running or reviewed session back to spec state for rework.
 
  🎯 PURPOSE: Convert active or reviewed sessions back to spec state when changes are needed.
 
@@ -689,14 +706,118 @@ REQUIREMENTS: Target session must exist and be active.`,
              session_name: {
                type: "string",
                description: "Name of the running or reviewed session to convert back to spec"
-             }
-           },
-           required: ["session_name"]
-         }
-       },
-        {
-          name: "schaltwerk_get_current_tasks",
-         description: `Get current agents with flexible field selection to manage response size.
+           }
+          },
+          required: ["session_name"]
+        }
+      },
+      {
+        name: "schaltwerk_merge_session",
+        description: `Merge a reviewed Schaltwerk session branch back into its parent branch using the built-in merge pipeline.
+
+🎯 PURPOSE: Finalise a session by applying its commits onto the parent branch (normally 'main') exactly as the Schaltwerk desktop app does.
+
+✅ PRE-MERGE CHECKLIST FOR THE CALLER (MANDATORY):
+- Ensure the session is marked reviewed and clean (no uncommitted files). Run \`just test\` before you merge.
+- Fetch a merge preview first (invoke schaltwerk_core_get_merge_preview in the desktop app or read prior diagnostics) and confirm there are no conflicts or empty merges.
+- Decide on a precise commit message beforehand; for squash merges this becomes the commit that lands on the parent branch.
+- Confirm whether the session should be cancelled afterward. Cancelling removes the worktree and is irreversible for uncommitted changes.
+
+⚙️ OPTIONS:
+- \`mode\`: 'squash' (default, creates a single commit) or 'reapply' (fast-forward style, preserves individual commits).
+- \`commit_message\`: REQUIRED. Summarise the change and reference the session (e.g. "review: session-name – short summary").
+- \`cancel_after_merge\`: Set true to queue session cancellation once the merge succeeds. Leave false to keep the worktree for additional verification.
+
+📤 RESPONSE DETAILS:
+- Returns the parent branch, session branch, merge commit hash, and whether cancellation was queued. Cancellation happens asynchronously; failures are reported.
+
+🚫 SAFETY:
+- The tool rejects spec sessions, unresolved conflicts, or empty merges.
+- It never runs tests automatically—callers must ensure the suite passed before invoking this tool.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            session_name: {
+              type: "string",
+              description: "Reviewed session to merge back into its parent branch."
+            },
+            commit_message: {
+              type: "string",
+              description: "Required commit message for the squash merge commit; include the session slug and a concise summary."
+            },
+            mode: {
+              type: "string",
+              enum: ["squash", "reapply"],
+              description: "Merge strategy. Defaults to 'squash' for a single review commit."
+            },
+            cancel_after_merge: {
+              type: "boolean",
+              description: "Queue session cancellation after a successful merge (default false)."
+            }
+          },
+          required: ["session_name", "commit_message"]
+        }
+      },
+      {
+        name: "schaltwerk_create_pr",
+        description: `Create or update a GitHub pull request for a Schaltwerk session using the GitHub CLI integration.
+
+🎯 PURPOSE: Push the session branch and open a PR without leaving the MCP workflow.
+
+✅ PRE-PR CHECKLIST FOR THE CALLER:
+- Ensure GitHub CLI is installed, authenticated, and the project is connected (use the existing \`github_connect_project\` flow first).
+- Verify the branch is ready (tests green, no leftover work). This command will auto-commit staged/untracked files if needed.
+- Decide whether the session should be cancelled after the PR is ready. Only set cancellation when you are certain the worktree can be removed.
+
+⚙️ OPTIONS:
+- Provide an \`options\` object with any of:
+  - \`commit_message\`: Optional override for the auto-generated "review: <session>" commit when uncommitted changes exist.
+  - \`default_branch\`: Override the parent branch if it differs from the stored project configuration.
+  - \`repository\`: Explicit \`owner/name\` target if different from the connected repository.
+  - \`cancel_after_pr\`: Set true to queue session cancellation after the PR command succeeds (default false).
+
+📤 RESPONSE DETAILS:
+- Provides the pushed branch name and PR URL (empty string when GitHub CLI opened the browser instead). Cancellation status mirrors the merge tool.
+
+🚫 SAFETY:
+- Spec sessions cannot create PRs.
+- Cancellation is optional and happens asynchronously—inspect the returned status before assuming the worktree is gone.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            session_name: {
+              type: "string",
+              description: "Reviewed session to push and open a pull request for."
+            },
+            options: {
+              type: "object",
+              description: "Optional overrides for PR creation (all keys optional).",
+              properties: {
+                commit_message: {
+                  type: "string",
+                  description: "Commit message used if uncommitted changes must be committed before pushing."
+                },
+                default_branch: {
+                  type: "string",
+                  description: "Override the repository default branch (e.g. 'main', 'develop')."
+                },
+                repository: {
+                  type: "string",
+                  description: "Target GitHub repository in owner/name form if it differs from the connected repo."
+                },
+                cancel_after_pr: {
+                  type: "boolean",
+                  description: "Queue session cancellation after the PR is created (default false)."
+                }
+              }
+            }
+          },
+          required: ["session_name"]
+        }
+      },
+       {
+         name: "schaltwerk_get_current_tasks",
+        description: `Get current agents with flexible field selection to manage response size.
 
  🎯 PURPOSE: Retrieve agent information with control over which fields to include, preventing large responses.
 
@@ -1137,21 +1258,85 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
 
          await bridge.markSessionReviewed(markReviewedArgs.session_name)
 
-         result = `Session '${markReviewedArgs.session_name}' has been marked as reviewed and is ready for merge`
-         break
-       }
+       result = `Session '${markReviewedArgs.session_name}' has been marked as reviewed and is ready for merge`
+        break
+      }
 
        case "schaltwerk_convert_to_spec": {
-         const convertToSpecArgs = args as unknown as SchaltwerkConvertToSpecArgs
+        const convertToSpecArgs = args as unknown as SchaltwerkConvertToSpecArgs
 
-         await bridge.convertToSpec(convertToSpecArgs.session_name)
+        await bridge.convertToSpec(convertToSpecArgs.session_name)
 
-         result = `Session '${convertToSpecArgs.session_name}' has been converted back to spec state for rework`
-         break
-       }
+        result = `Session '${convertToSpecArgs.session_name}' has been converted back to spec state for rework`
+        break
+      }
 
-       default:
-         throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`)
+      case "schaltwerk_merge_session": {
+        const mergeArgs = args as unknown as SchaltwerkMergeArgs
+
+        if (!mergeArgs.session_name || typeof mergeArgs.session_name !== 'string') {
+          throw new Error('session_name is required when invoking schaltwerk_merge_session.')
+        }
+        if (!mergeArgs.commit_message || mergeArgs.commit_message.trim().length === 0) {
+          throw new Error('commit_message is required and cannot be empty for schaltwerk_merge_session.')
+        }
+
+        const mergeResult = await bridge.mergeSession(mergeArgs.session_name, {
+          commitMessage: mergeArgs.commit_message,
+          mode: mergeArgs.mode,
+          cancelAfterMerge: mergeArgs.cancel_after_merge
+        })
+
+        const cancelLine = mergeResult.cancelRequested
+          ? (mergeResult.cancelQueued
+              ? '- Session cancellation queued (cleanup runs asynchronously).'
+              : `- Cancellation requested but failed: ${mergeResult.cancelError ?? 'unknown error'}`)
+          : '- Session retained (cancel_after_merge=false).'
+
+        result = `Merge completed for '${mergeArgs.session_name}':
+- Merge mode: ${mergeResult.mode}
+- Parent branch: ${mergeResult.parentBranch}
+- Session branch: ${mergeResult.sessionBranch}
+- Merge commit: ${mergeResult.commit}
+${cancelLine}`
+        break
+      }
+
+      case "schaltwerk_create_pr": {
+        const prArgs = args as unknown as SchaltwerkCreatePrArgs
+
+        if (!prArgs.session_name || typeof prArgs.session_name !== 'string') {
+          throw new Error('session_name is required when invoking schaltwerk_create_pr.')
+        }
+
+        const prOptions = prArgs.options ?? {}
+
+        const prResult = await bridge.createPullRequest(prArgs.session_name, {
+          commitMessage: prOptions.commit_message,
+          defaultBranch: prOptions.default_branch,
+          repository: prOptions.repository,
+          cancelAfterPr: prOptions.cancel_after_pr
+        })
+
+        const urlLine = prResult.url && prResult.url.length > 0
+          ? `- Pull request URL: ${prResult.url}`
+          : '- GitHub CLI opened the PR form in a browser (no URL returned).'
+
+        const cancelLine = prResult.cancelRequested
+          ? (prResult.cancelQueued
+              ? '- Session cancellation queued (cleanup runs asynchronously).'
+              : `- Cancellation requested but failed: ${prResult.cancelError ?? 'unknown error'}`)
+          : '- Session retained (cancel_after_pr=false).'
+
+        result = `Pull request workflow completed for '${prArgs.session_name}':
+- Branch pushed: ${prResult.branch}
+${urlLine}
+${cancelLine}`
+        break
+      }
+
+      default:
+        throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`)
     }
 
     return {
