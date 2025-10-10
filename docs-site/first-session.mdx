@@ -101,7 +101,7 @@ The agent appears in the sidebar and starts working immediately.
   </Accordion>
 
   <Accordion title="Run Mode">
-    If you've configured a run script in Settings, press **`⌘E`** to execute it in the bottom terminal.
+    Configure a run script in **Settings → Run & Environment → Run Script**, then press **`⌘E`** to execute it in the bottom terminal.
 
     Perfect for starting dev servers, running test suites, or building the project.
 
@@ -203,7 +203,7 @@ After merging, clean up the session:
 </Steps>
 
 <Tip>
-  Want to keep the plan but scrap the current run? Press **`⌘S`** to convert the session back to a spec—this deletes the worktree and leaves the instructions ready to try again later.
+  Want to keep the plan but scrap the current run? Press **`⌘S`** to convert the session back to a spec—this deletes the session worktree and branch (uncommitted changes are lost) while preserving the markdown so you can relaunch later.
 </Tip>
 
 ## Next Steps
@@ -218,7 +218,7 @@ After merging, clean up the session:
   <Card title="Agent Setup" icon="robot" href="/guides/agent-setup">
     Configure agents, environment variables, and run mode
   </Card>
-  <Card title="Core Concepts" icon="book" href="/core-concepts">
+  <Card title="Core Concepts" icon="book" href="/core-concepts/sessions-and-specs">
     Understand sessions, specs, and the orchestrator
   </Card>
 </CardGroup>

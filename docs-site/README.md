@@ -34,7 +34,10 @@ docs-site/
 ├── package.json           # Dependencies
 ├── introduction.mdx       # Homepage
 ├── installation.mdx       # Installation guide
-├── core-concepts.mdx      # Core concepts
+├── core-concepts/         # Core concepts
+│   ├── index.mdx          # Overview hub
+│   ├── sessions-and-specs.mdx
+│   └── worktrees-and-terminals.mdx
 ├── guides/                # User guides
 │   ├── using-schaltwerk.mdx
 │   ├── agent-setup.mdx

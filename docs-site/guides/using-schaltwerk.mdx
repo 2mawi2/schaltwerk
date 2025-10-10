@@ -35,7 +35,7 @@ This guide walks through the daily workflow of creating specs, running agents, r
   <Card title="Top Bar" icon="bars">
     - Tabs for each open project
     - Gear icon for Settings
-    - **Open** button to launch active worktree in Finder/editor
+    - **Open** button (`⌘⇧O`) to launch the active worktree or orchestrator branch in your editor/terminal
   </Card>
 
   <Card title="Sidebar" icon="sidebar">
@@ -135,7 +135,7 @@ This guide walks through the daily workflow of creating specs, running agents, r
 
 ### Run Mode
 
-Configure Run Mode in Settings to map `⌘E` to a common command:
+Configure Run Mode via **Settings → Run & Environment → Run Script** to map `⌘E` to a common command:
 
 <CodeGroup>
 ```bash Example: Tests
@@ -175,9 +175,9 @@ The bottom terminal shows a status header while the command runs.
   </Card>
 
   <Card title="External Editor" icon="code">
-    - Click **Open** in top bar
-    - Opens worktree in Finder or editor
-    - Make manual edits if needed
+    - Click **Open** (`⌘⇧O`) in top bar
+    - Launches the session worktree (or orchestrator branch) in your chosen app
+    - Make manual edits or finish tricky changes alongside the agent
   </Card>
 </CardGroup>
 
@@ -220,7 +220,8 @@ Need to scrap a run but keep the notes?
 </CodeGroup>
 
 **What happens:**
-- Worktree is removed
+- Worktree is removed (all uncommitted changes are lost)
+- Session branch is deleted from `.schaltwerk/worktrees`
 - Markdown spec is preserved
 - Session returns to **Specs** filter
 - Can be restarted later as a fresh session

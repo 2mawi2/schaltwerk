@@ -1,0 +1,67 @@
+---
+title: Multi-Project Workflows
+description: 'Manage multiple repositories and agent teams side by side'
+---
+
+Schaltwerk makes it easy to orchestrate several repos at once—perfect for teams that split backend, frontend, and infrastructure into separate projects. Each repository opens in its own top-level tab, complete with orchestrator and session columns. Use the shortcuts below to keep everything in sync.
+
+## Open Multiple Projects
+
+<Steps>
+  <Step title="Open first project">
+    Launch Schaltwerk and open your primary repository (e.g., backend). The orchestrator runs on its base branch and manages specs/sessions for that repo.
+  </Step>
+
+  <Step title="Add another repo">
+    Click **Home** in the top-left corner, choose the next repository (e.g., frontend), and open it. Schaltwerk adds a new project tab with its own orchestrator and session list.
+  </Step>
+
+  <Step title="Repeat for additional services">
+    Keep adding tabs for QA environments, infrastructure scripts, or partner services. Each project stays isolated with its own worktree root.
+  </Step>
+</Steps>
+
+## Navigate Projects Quickly
+
+<CardGroup cols={2}>
+  <Card title="Keyboard shortcuts" icon="keyboard">
+    - `⌘⇧←/→` – Switch between project tabs instantly
+    - `⌘1` – Jump to orchestrator in current project
+    - `⌘2–9` – Jump to sessions inside the active project
+  </Card>
+
+  <Card title="Mouse + touchpad" icon="cursor">
+    - Click the project tab along the top bar
+    - Use two-finger swipe (macOS) to switch tabs
+  </Card>
+</CardGroup>
+
+## Keep Worktrees Lean
+
+<Tip>
+  Each project tab maintains its own `.schaltwerk/worktrees/` folder. Cancel or merge sessions when you finish to reclaim disk space—especially when juggling multiple repos.
+</Tip>
+
+## Coordinate Cross-Repo Features
+
+<Steps>
+  <Step title="Draft specs per repo">
+    Use the orchestrator in each project to capture backend/frontend/API specs that depend on each other. Keep links or shared acceptance criteria in the spec content.
+  </Step>
+
+  <Step title="Launch parallel sessions">
+    Start agents in each repo (for example, backend schema update, frontend UI, infra automation). Monitor progress by switching tabs with `⌘⇧←/→`.
+  </Step>
+
+  <Step title="Integrate repo by repo">
+    Merge each project once tests pass. If a change upstream requires adjustments downstream, convert that project’s session back into a spec (`⌘S`)—the session worktree/branch is deleted, but the markdown prompt stays ready for another run.
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+- **Project tab missing?** Reopen the repository with `⌘⇧O`—Schaltwerk restores the orchestrator and session list automatically.
+- **Worktrees piling up?** Cancel reviewed sessions (`⌘D`) or convert them to specs to clean up disk usage.
+- **Need shared context?** Store shared prompts or instructions in a workspace-wide `AGENTS.md` and link to it from each repo’s specs.
+
+With multi-project tabs and quick switching, you can coordinate agents across a whole product suite while keeping each codebase tidy and isolated.

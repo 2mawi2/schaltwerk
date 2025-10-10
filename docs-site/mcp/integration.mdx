@@ -3,7 +3,11 @@ title: MCP Integration
 description: 'Automate session management with the Model Context Protocol REST API'
 ---
 
-Schaltwerk ships with a Model Context Protocol (MCP) server so AI assistants (Claude, Codex, Factory Droid, etc.) can automate session management.
+Schaltwerk ships with a Model Context Protocol (MCP) server so AI assistants (Claude, Codex, OpenCode, Factory Droid, etc.) can automate session management.
+
+<Info>
+  The MCP server binary is bundled with the app—most users simply enable it in Settings. Node.js is only required if you intend to rebuild the server source.
+</Info>
 
 ## Setup
 
@@ -15,7 +19,7 @@ Schaltwerk ships with a Model Context Protocol (MCP) server so AI assistants (Cl
   </Step>
 
   <Step title="Configure MCP">
-    Navigate to the MCP configuration section and enable the Schaltwerk MCP server for your agent
+    Go to **Agent Configuration**, select your agent (Claude Code, Codex, OpenCode, or Gemini), and toggle **Enable MCP**. Schaltwerk writes the necessary config pointing to the embedded server.
   </Step>
 
   <Step title="Restart Agent">
@@ -30,46 +34,29 @@ If you prefer manual setup or your agent doesn't appear in settings:
 <Tabs>
   <Tab title="Codex">
     ```bash
-    # Build the MCP server
-    cd mcp-server
-    npm install
-    npm run build
-
-    # Register with Codex
+    # Register Codex with the bundled MCP server (rebuild optional)
     codex mcp add schaltwerk node /absolute/path/to/schaltwerk/mcp-server/build/schaltwerk-mcp-server.js
     ```
 
-    Then restart Codex to load the MCP server.
+    Restart Codex to load the MCP server. If you changed the MCP source, rebuild it first (see the development appendix).
   </Tab>
 
   <Tab title="Claude Code">
     ```bash
-    # Build the MCP server
-    cd mcp-server
-    npm install
-    npm run build
-
-    # Register with Claude Code
     claude mcp add --transport stdio --scope project schaltwerk \
       node /absolute/path/to/schaltwerk/mcp-server/build/schaltwerk-mcp-server.js
     ```
 
-    Then restart Claude Code to load the MCP server.
+    Restart Claude Code to load the MCP server. Rebuild only if you modified the source.
   </Tab>
 
   <Tab title="Factory Droid">
     ```bash
-    # Build the MCP server
-    cd mcp-server
-    npm install
-    npm run build
-
-    # Register with Factory Droid
     droid mcp add --transport stdio --scope project schaltwerk \
       node /absolute/path/to/schaltwerk/mcp-server/build/schaltwerk-mcp-server.js
     ```
 
-    Then restart Factory Droid to load the MCP server.
+    Restart Factory Droid to load the MCP server. Rebuild is optional unless you changed the code.
   </Tab>
 
   <Tab title="Manual Config">

@@ -3,13 +3,15 @@ title: The Orchestrator
 description: 'Your command center for managing multiple AI agents and complex workflows'
 ---
 
-The orchestrator is a special terminal that runs in your main repository (not in a worktree). Think of it as your project manager that coordinates AI agents and manages complex workflows.
+The orchestrator is a special terminal that runs directly in your primary repository branch (often `main`, but it can be a dedicated feature hub). It doesn’t create a worktree; instead it gives you a control room for coordinating agents and managing complex workflows.
+
+> Any commands you run in the orchestrator’s terminals modify that branch immediately. Use isolated sessions when you want a disposable sandbox.
 
 ## What Makes the Orchestrator Special?
 
 <CardGroup cols={2}>
-  <Card title="Main Branch Access" icon="code-branch">
-    Works directly on your main branch
+  <Card title="Primary Branch Access" icon="code-branch">
+    Works directly on your primary branch (main or a feature hub)
 
     No isolated worktree - full repo access
   </Card>

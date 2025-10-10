@@ -41,13 +41,17 @@
     {
       "group": "Core Concepts",
       "pages": [
-        "core-concepts"
+        "core-concepts",
+        "core-concepts/sessions-and-specs",
+        "core-concepts/worktrees-and-terminals"
       ]
     },
     {
       "group": "Guides",
       "pages": [
         "guides/using-schaltwerk",
+        "guides/advanced-workflows",
+        "guides/multi-project",
         "guides/orchestrator",
         "guides/agent-setup",
         "guides/keyboard-shortcuts",

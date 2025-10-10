@@ -41,7 +41,7 @@ Configure each agent from **Settings → Agent Configuration** before you launch
 
 <Steps>
   <Step title="Select agent tab">
-    Choose from: Claude, Codex, OpenCode, Gemini, or Factory Droid
+    Choose from: Claude Code, Codex, OpenCode, Gemini, or Factory Droid
   </Step>
 
   <Step title="Pick binary">
@@ -129,7 +129,7 @@ Add key/value pairs for the agent terminal (API keys, profile names, feature fla
 ![Agent Configuration settings showing detected binaries section with Claude Code path, CLI Arguments field with --permission-mode plan example, and Environment Variables section with ANTHROPIC_MODEL set to claude-sonnet-4](/images/agent-configuration-env-vars-custom-arguments.png)
 
 **Key points:**
-- Variables are scoped per agent type (Claude doesn't see Codex vars, Factory Droid stays isolated)
+- Variables are scoped per agent type (Claude Code doesn't see Codex vars, Factory Droid stays isolated)
 - Merged with project-level variables at agent start
 - Stored unencrypted - rotate keys on shared machines
 - Use **Edit variables** button for bulk editing
@@ -155,7 +155,7 @@ MODEL_OVERRIDE=gpt-4
 
 ## Project Defaults
 
-Open **Settings → Projects** to configure shared defaults for every session.
+Open **Settings → Run & Environment** to configure shared defaults for every session.
 
 ### Worktree Setup Script
 
@@ -258,7 +258,7 @@ Define a command to execute with `⌘E` in the bottom terminal.
 
 <Steps>
   <Step title="Configure project settings">
-    1. Open **Settings → Projects**
+    1. Open **Settings → Run & Environment**
     2. Add project environment variables
     3. Write worktree setup script
     4. Define run script for `⌘E`
@@ -347,7 +347,7 @@ Define a command to execute with `⌘E` in the bottom terminal.
     **Solution:**
     1. Find current installation path: `which <agent-name>`
     2. Open **Settings → Agent Configuration**
-    3. Select the agent tab (Claude, Codex, etc.)
+    3. Select the agent tab (Claude Code, Codex, etc.)
     4. Click **Refresh Binary** to auto-detect new version
     5. Or manually select the correct binary path
     6. Return to active sessions and restart the agent

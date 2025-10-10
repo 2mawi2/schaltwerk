@@ -156,7 +156,7 @@ This guide covers common issues you might encounter and how to resolve them.
     - Add required keys (e.g., `ANTHROPIC_API_KEY`)
 
     **4. Setup script failed:**
-    - Check Settings → Projects → Worktree Setup Script
+    - Check Settings → Run & Environment → Worktree Setup Script
     - Look for errors in top terminal output
     - Try running script manually in worktree
   </Accordion>
@@ -241,14 +241,13 @@ This guide covers common issues you might encounter and how to resolve them.
     **Symptom:** Session cancelled but branch still exists
 
     **Solution:**
-    This is normal - Schaltwerk preserves branches for recovery.
+    Cancelled sessions delete their local worktree and branch automatically. If a branch remains, it likely wasn't canceled cleanly. Remove it manually:
 
-    To delete manually:
     ```bash
     git branch -D schaltwerk/session-name
     ```
 
-    To delete from remote:
+    To delete from remote (if pushed):
     ```bash
     git push origin --delete schaltwerk/session-name
     ```
@@ -302,8 +301,8 @@ This guide covers common issues you might encounter and how to resolve them.
 ## MCP Server Issues
 
 <AccordionGroup>
-  <Accordion title="Claude can't find MCP server">
-    **Symptom:** MCP tools not available in Claude
+  <Accordion title="Claude Code can't find MCP server">
+    **Symptom:** MCP tools not available in Claude Code
 
     **Solution:**
     1. Verify MCP server is built:

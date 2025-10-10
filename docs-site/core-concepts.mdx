@@ -1,239 +1,41 @@
 ---
-title: Core Concepts
-description: 'Understand sessions, specs, the orchestrator, and terminal management'
+title: Core Concepts Overview
+description: 'Map of key Schaltwerk concepts and links to deeper dives'
 ---
 
-Schaltwerk revolves around isolated git worktrees and the lifecycle of each AI-driven session. These concepts are the backbone of the app.
+Schaltwerk’s workflow revolves around sessions (isolated git worktrees), reusable specs, and the orchestrator that coordinates everything. Use this overview to jump into the detailed guides.
 
-## Sessions
-
-<Card title="What is a Session?" icon="laptop-code">
-  Every running session is a dedicated git worktree branching from your repository. Two terminals come with each session so agents and humans can work side-by-side.
-</Card>
+## Start Here
 
 <CardGroup cols={2}>
-  <Card title="Isolated Worktrees" icon="git-alt">
-    Each session gets its own git worktree and branch
+  <Card title="Sessions & Specs" icon="diagram-project" href="/core-concepts/sessions-and-specs">
+    Understand how specs become sessions, how state transitions work, and how to recycle or archive work.
   </Card>
-  <Card title="Dual Terminals" icon="terminal">
-    Top terminal for the agent, bottom terminal for manual commands
-  </Card>
-  <Card title="Instant Switching" icon="arrows-rotate">
-    Switch between sessions instantly—terminals stay alive in the background
-  </Card>
-  <Card title="Sidebar Organization" icon="list">
-    Sessions appear in the left sidebar under **Agents**
+  <Card title="Worktrees & Terminals" icon="terminal" href="/core-concepts/worktrees-and-terminals">
+    Learn how PTY terminals behave, how to run commands, and how to keep worktrees tidy.
   </Card>
 </CardGroup>
 
 <Tip>
-  Every worktree is its own copy of the repository on disk. Keep sessions short-lived and clean up finished work so the `.schaltwerk/worktrees/` folder doesn’t grow without bound.
+  After reviewing the basics, check the [Advanced Workflows](/guides/advanced-workflows) guide to see how to orchestrate many agents in parallel.
 </Tip>
 
-### Session Filters
-
-Use the tabs at the top of the session list to filter what you see:
-
-<Tabs>
-  <Tab title="All">
-    Shows all sessions regardless of state
-  </Tab>
-  <Tab title="Specs">
-    Shows only draft specs (amber badge)
-  </Tab>
-  <Tab title="Running">
-    Shows active sessions with worktrees
-  </Tab>
-  <Tab title="Reviewed">
-    Shows sessions marked as ready for merge
-  </Tab>
-</Tabs>
-
-## Specs
-
-<img src="/logo/specs-workflow.svg" alt="Specs workflow" className="w-full max-w-4xl mx-auto my-8" />
+## Glossary
 
 <CardGroup cols={2}>
-  <Card title="Markdown Planning" icon="file-lines">
-    Specs are markdown documents that live in the orchestrator
+  <Card title="Claude Code" icon="robot">
+    CLI interface from Anthropic that runs in Schaltwerk’s orchestrator terminal. When you start a Claude Code session, the top terminal launches the `claude` CLI.
   </Card>
-  <Card title="Capture Intent" icon="lightbulb">
-    Capture the desired outcome before any code is written
+  <Card title="Codex" icon="robot">
+    Git-based AI agent from Stately used for repository automation. Configurable via Settings → Agent Configuration.
   </Card>
-<Card title="Agent Prompts" icon="message">
-  When started, the spec becomes the agent's first prompt
-</Card>
-<Card title="Amber Badge" icon="bookmark">
-  Specs carry an amber badge until you start them
-</Card>
-</CardGroup>
-
-<Info>
-  Think of specs as reusable backlog cards. Start them when you're ready, and if a session isn't working out, press `⌘S` to discard the worktree, keep the spec intact, and retry later with new instructions.
-</Info>
-
-### Spec Lifecycle
-
-<Steps>
-  <Step title="Draft the spec">
-    Write a markdown document describing the desired outcome
-  </Step>
-  <Step title="Start the session">
-    Convert the spec into a running session with worktree and terminals
-  </Step>
-  <Step title="Agent receives prompt">
-    The spec content becomes the agent's initial instructions
-  </Step>
-</Steps>
-
-## Orchestrator
-
-<Card title="The Control Panel" icon="tower-control" color="#22d3ee">
-  The orchestrator runs directly on your main branch and never creates a worktree. Use it to draft specs, launch multiple sessions, and coordinate reviews.
-</Card>
-
-### Orchestrator Features
-
-<AccordionGroup>
-  <Accordion title="Main Branch Access">
-    The orchestrator stays on your main branch, giving you a stable workspace for planning and coordination.
-  </Accordion>
-
-  <Accordion title="Spec Creation">
-    Draft multiple specs before launching sessions. Perfect for planning parallel work streams.
-  </Accordion>
-
-  <Accordion title="MCP REST API">
-    The orchestrator powers automation through the MCP REST API, enabling external tools to create and manage sessions.
-  </Accordion>
-
-  <Accordion title="Dual Terminals">
-    Like regular sessions, the orchestrator has an agent terminal on top and your shell below.
-  </Accordion>
-</AccordionGroup>
-
-### Accessing the Orchestrator
-
-<CodeGroup>
-```bash Keyboard Shortcut
-⌘1
-```
-
-```plaintext Sidebar
-Click "Repository (Orchestrator)" at the top of the sidebar
-```
-</CodeGroup>
-
-## Session States
-
-Sessions transition through three explicit states:
-
-<Steps>
-  <Step title="Spec" icon="file-pen">
-    **Drafting the work.** No worktree yet.
-
-    - Markdown document in the orchestrator
-    - Amber badge in sidebar
-    - Can be edited or deleted without affecting git
-  </Step>
-
-  <Step title="Running" icon="play">
-    **Active session.** The session owns a worktree and active terminals.
-
-    - Git worktree created under `.schaltwerk/worktrees/`
-    - Two PTY terminals spawned
-    - Agent process can run in top terminal
-    - Magenta badge in sidebar
-  </Step>
-
-  <Step title="Reviewed" icon="check">
-    **Ready for merge.** The worktree is ready for integration.
-
-    - Code has been tested locally
-    - Green badge in sidebar
-    - Can still make manual edits in worktree
-    - Integration options:
-      - `⌘⇧M` - Direct merge to main
-      - `⌘⇧P` - Create GitHub pull request
-  </Step>
-</Steps>
-
-### State Transitions
-
-<Info>
-  Transitions are explicit and user-controlled. The app never automatically changes session states.
-</Info>
-
-<Tabs>
-  <Tab title="Spec → Running">
-    **Keyboard:** `⌘N`
-
-    **Action:** Start Agent
-
-    **Result:** Creates worktree, branch, and terminals
-  </Tab>
-
-  <Tab title="Running → Reviewed">
-    **Keyboard:** `⌘R`
-
-    **Action:** Mark as Reviewed
-
-    **Result:** Flags session as ready for merge
-  </Tab>
-
-  <Tab title="Running → Spec">
-    **Action:** Convert to Spec
-
-    **Result:** Removes worktree but keeps spec content for later
-  </Tab>
-</Tabs>
-
-## Terminals
-
-<Card title="PTY Terminal Management" icon="window" color="#22d3ee">
-  Schaltwerk spawns PTY (pseudo-terminal) terminals using the session's worktree as the working directory.
-</Card>
-
-### Terminal Layout
-
-<CardGroup cols={2}>
-  <Card title="Top Terminal" icon="robot" color="#ec4899">
-    **Agent Process**
-
-    Reserved for the configured agent. Automatically launches after setup script finishes.
+  <Card title="OpenCode" icon="robot">
+    Open-source terminal agent. Behaves similarly to Claude Code but uses the `opencode` CLI.
   </Card>
-
-  <Card title="Bottom Terminal" icon="user" color="#22c55e">
-    **Your Shell**
-
-    Manual command execution. Includes a **Run** button (`⌘E`) when a project run script is configured.
+  <Card title="Gemini" icon="robot">
+    Google’s Gemini CLI integration for code generation and refactors. Launches in the session terminal via the `gcloud` toolchain.
+  </Card>
+  <Card title="Factory Droid" icon="robot">
+    Automation-focused agent that executes scripts and CI tasks. Managed via the same session workflow.
   </Card>
 </CardGroup>
-
-### Terminal Persistence
-
-<Check>Terminals persist until you close the session</Check>
-<Check>Context switches between sessions are instant</Check>
-<Check>Background terminals continue running</Check>
-<Check>Working directory is always the session's worktree</Check>
-
-### Run Button
-
-When a project run script is configured in Settings:
-
-1. Click the **Run** button in the bottom terminal
-2. Or press `⌘E`
-3. The configured script executes in the session's worktree
-4. Perfect for launching dev servers or tests without leaving the app
-
-### Open in External Editor
-
-Click the "Open" dropdown in the top bar to open the session's worktree in your preferred editor:
-
-![Open dropdown menu showing options for Finder, Cursor, VS Code (checked), IntelliJ IDEA, Ghostty, Warp, and Terminal](/images/open-in-editor.png)
-
-Schaltwerk detects installed editors and lets you work in your preferred environment while managing sessions.
-
-<Tip>
-  Ready to start using Schaltwerk? See the complete workflow in [Using Schaltwerk](/guides/using-schaltwerk).
-</Tip>

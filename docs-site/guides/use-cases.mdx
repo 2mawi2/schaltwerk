@@ -37,7 +37,7 @@ Discover how Schaltwerk solves real development challenges with isolated AI agen
     </Step>
 
     <Step title="Launch agents">
-      - Claude works on registration
+      - Claude Code works on registration
       - OpenCode handles login
       - Codex implements password reset
       - All in isolated worktrees
@@ -86,7 +86,7 @@ Discover how Schaltwerk solves real development challenges with isolated AI agen
 
     <Step title="Assign agents">
       Start sessions for each bug:
-      - `fix-auth-login` → Claude
+      - `fix-auth-login` → Claude Code
       - `fix-api-users` → Codex
       - `fix-ui-profile` → OpenCode
       - Continue for remaining bugs
@@ -218,14 +218,14 @@ Discover how Schaltwerk solves real development challenges with isolated AI agen
     </Step>
 
     <Step title="Launch multiple agents">
-      - Session 1: Claude → Redis-based cache
+      - Session 1: Claude Code → Redis-based cache
       - Session 2: Codex → In-memory LRU cache
       - Session 3: OpenCode → Memcached-based cache
     </Step>
 
     <Step title="Compare implementations">
       ```markdown
-      ## Redis Approach (Claude)
+      ## Redis Approach (Claude Code)
       Pros:
       - Distributed caching
       - Persistence
@@ -347,7 +347,7 @@ Discover how Schaltwerk solves real development challenges with isolated AI agen
     </Step>
 
     <Step title="Agent reviews code">
-      - Claude analyzes diff
+      - Claude Code analyzes diff
       - Identifies potential bugs
       - Suggests improvements
       - Checks test coverage
@@ -508,7 +508,7 @@ Discover how Schaltwerk solves real development challenges with isolated AI agen
     </Step>
 
     <Step title="Parallel optimization">
-      - Claude optimizes API (caching, query optimization)
+      - Claude Code optimizes API (caching, query optimization)
       - Codex optimizes frontend (code splitting, lazy loading)
       - OpenCode optimizes images (compression, lazy loading, CDN)
     </Step>
