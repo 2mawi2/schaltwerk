@@ -2,6 +2,8 @@
 
 ![Schaltwerk Logo](./ascii_logo.gif)
 
+**Run multiple AI coding agents in parallel, each in their own git worktree. Test locally, merge what works.**
+
 <img width="1702" height="964" alt="screenshot" src="https://github.com/user-attachments/assets/95e8f5cb-f13e-427c-9257-fc9f13402e5c" />
 
 </div>
@@ -10,17 +12,19 @@
 
 [![Test](https://github.com/2mawi2/schaltwerk/actions/workflows/test.yml/badge.svg)](https://github.com/2mawi2/schaltwerk/actions/workflows/test.yml)
 
-Manage multiple AI coding agents in isolated git worktrees. Each agent works in its own branch with dedicated terminals. Everything runs locally—you review, test, and merge when ready.
+## Quick Start (60 seconds)
 
-## Documentation
+```bash
+# Install and open Schaltwerk
+brew install --cask 2mawi2/tap/schaltwerk && open -a Schaltwerk
 
-**[Complete documentation at schaltwerk.mintlify.app](https://schaltwerk.mintlify.app)**
+# In your git repo, create a session for your AI agent (e.g., Claude Code)
+# Click "New Session" → Name it "fix-auth-bug" → Select agent → Start working
+```
 
-Installation, workflows, agent setup, keyboard shortcuts, MCP integration, troubleshooting, and more.
+That's it! Your AI agent is now coding in an isolated branch. Switch between sessions with `⌘1-9`, review changes in real-time, merge when ready.
 
-## What is Schaltwerk?
-
-An orchestration tool for agentic coding. Delegate work to terminal-based AI agents (Claude Code, Codex, Gemini, OpenCode, Factory Droid) that write code in isolated git worktrees. Review their work locally, run tests, and merge what works.
+**[📚 Full documentation](https://schaltwerk.mintlify.app)** | **[⭐ Star this repo](https://github.com/2mawi2/schaltwerk)** if it helped you!
 
 ## How It Works
 
@@ -30,16 +34,16 @@ An orchestration tool for agentic coding. Delegate work to terminal-based AI age
 │  (Planning) │     │  (Working)  │     │   (Ready)   │
 └─────────────┘     └─────────────┘     └─────────────┘
      ↓                    ↓                    ↓
-  Markdown          Git Worktree          Ready to Merge
+  Markdown          Git Worktree          Ready to Merge/PR
   Document          + Agent + Terminal     to Main Branch
 ```
 
 1. **Write Spec** - Plan your feature/fix in markdown
 2. **Start Session** - Creates isolated git worktree + branch
 3. **Agent Works** - AI writes code in isolation
-4. **You Review** - Real-time diffs, local testing
+4. **You Review** - Real-time diffs, local testing, write review comments like on GitHub on the changes
 5. **Mark Ready** - Move to reviewed column
-6. **Merge** - Integrate validated changes
+6. **Merge/PR** - Integrate validated changes
 
 ## Key Features
 
@@ -77,27 +81,19 @@ Built with Tauri (Rust backend + React/TypeScript frontend), git worktrees for i
 
 ## Contributing
 
-We actively welcome contributions—whether that’s reporting issues, improving docs, or shipping code. Start with [CONTRIBUTING.md](./CONTRIBUTING.md) for ways to get involved and the project’s quality checklist.
+We actively welcome contributions—whether that's reporting issues, improving docs, or shipping code. Start with [CONTRIBUTING.md](./CONTRIBUTING.md) for ways to get involved and the project's quality checklist.
+
+**⭐ If Schaltwerk helped you ship faster, [please star the repo](https://github.com/2mawi2/schaltwerk)!**
 
 ### Development
 
+Requires [just](https://github.com/casey/just#installation) (`brew install just`).
+
 ```bash
 npm install
-npm run tauri:dev
-```
-
-### Testing
-
-```bash
-npm run test  # Runs TypeScript linting, Rust clippy, tests, and build
-```
-
-### Releasing
-
-```bash
-just release        # Patch release (0.1.0 -> 0.1.1)
-just release minor  # Minor release (0.1.0 -> 0.2.0)
-just release major  # Major release (0.1.0 -> 1.0.0)
+just test            # Run full validation suite before commits
+just run             # Start dev app with hot reload
+just release         # Create new release (patch/minor/major)
 ```
 
 GitHub Actions builds and updates the Homebrew tap automatically.
