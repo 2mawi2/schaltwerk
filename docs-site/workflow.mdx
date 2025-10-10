@@ -199,11 +199,31 @@ After successful merge:
   </Step>
 </Steps>
 
-<Warning>
-  **NEVER** cancel a session before merging unless you want to lose the work. Use `⌘S` to convert to a Spec if you want to pause instead.
-</Warning>
-
 ## Advanced Workflows
+
+### Scaffold → Swarm → Stabilize
+
+<Steps>
+  <Step title="Scaffold in the orchestrator">
+    Draft specs that document how to interact with the codebase via CLI—test commands, lint scripts, build steps—and verify them from the orchestrator terminals. Capture those instructions in an `AGENTS.md` so every session starts with the same context.
+  </Step>
+
+  <Step title="Bootstrap the skeleton">
+    Start an agent session to wire up baseline infrastructure: project layout, shared tooling, CI scripts, and initial data models.
+  </Step>
+
+  <Step title="Swarm on features">
+    Break work into focused specs (for example, "Email delivery flow", "PDF generator service", "IVI parser") and launch agents in parallel. Each session operates inside its own worktree, so experiments stay isolated.
+  </Step>
+
+  <Step title="Stabilize and integrate">
+    Use the second terminal pane for tests and linting, review diffs, and mark each session reviewed when green. Merge with `⌘⇧M` or open a PR straight from the session card.
+  </Step>
+
+  <Step title="Recycle unfinished ideas">
+    If a feature needs to wait, convert the session back into a spec (`⌘S`). The worktree is discarded, but the spec (and any notes) stays in the backlog so you can restart clean.
+  </Step>
+</Steps>
 
 ### Parallel Development
 
@@ -249,19 +269,39 @@ Specs are markdown planning documents that can become sessions:
 
 ### Session to Spec
 
-Pause work on a session without losing progress:
+Reset a run while keeping the plan:
 
 <Steps>
   <Step title="Press ⌘S">
-    Converts the running session to a Spec
+    Converts the running session back into a spec.
   </Step>
 
   <Step title="Worktree is removed">
-    Git worktree deleted but all commits preserved
+    The isolated worktree (and any unmerged changes) is discarded, leaving the spec content untouched.
   </Step>
 
   <Step title="Restart later">
-    Select the spec and press `⌘N` to restart as a session
+    When you're ready to try again, select the spec and press `⌘N` to relaunch the session with a clean worktree.
+  </Step>
+</Steps>
+
+### Continuous Maintenance Loop
+
+<Steps>
+  <Step title="Log fixes as specs">
+    Capture production bugs, refactors, and TODOs as lightweight specs so they live in the backlog until you're ready to start them.
+  </Step>
+
+  <Step title="Start focused sessions">
+    Launch one agent per fix (e.g., "Resolve UTF-8 parsing bug", "Tighten PDF export pipeline", "Upgrade database schema").
+  </Step>
+
+  <Step title="Validate in isolation">
+    Reproduce issues, run targeted tests in the second terminal, and annotate findings directly in the spec or session notes.
+  </Step>
+
+  <Step title="Integrate and recycle">
+    Mark the branch reviewed, merge or PR it, then convert any unfinished exploration back into a spec (discarding the worktree) so the idea stays in the queue.
   </Step>
 </Steps>
 
@@ -340,7 +380,7 @@ Pause work on a session without losing progress:
 <Warning>
   **Don't:**
   - Merge without reviewing (`⌘G` first!)
-  - Cancel sessions before merging (use `⌘S` to pause)
+  - Cancel sessions before merging (use `⌘S` to discard the worktree but preserve the spec)
   - Create vague prompts like "fix it"
   - Forget to run tests before marking reviewed
   - Let sessions pile up—clean up after merging

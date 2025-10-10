@@ -26,6 +26,10 @@ Schaltwerk revolves around isolated git worktrees and the lifecycle of each AI-d
   </Card>
 </CardGroup>
 
+<Tip>
+  Every worktree is its own copy of the repository on disk. Keep sessions short-lived and clean up finished work so the `.schaltwerk/worktrees/` folder doesn’t grow without bound.
+</Tip>
+
 ### Session Filters
 
 Use the tabs at the top of the session list to filter what you see:
@@ -56,13 +60,17 @@ Use the tabs at the top of the session list to filter what you see:
   <Card title="Capture Intent" icon="lightbulb">
     Capture the desired outcome before any code is written
   </Card>
-  <Card title="Agent Prompts" icon="message">
-    When started, the spec becomes the agent's first prompt
-  </Card>
-  <Card title="Amber Badge" icon="bookmark">
-    Specs carry an amber badge until you start them
-  </Card>
+<Card title="Agent Prompts" icon="message">
+  When started, the spec becomes the agent's first prompt
+</Card>
+<Card title="Amber Badge" icon="bookmark">
+  Specs carry an amber badge until you start them
+</Card>
 </CardGroup>
+
+<Info>
+  Think of specs as reusable backlog cards. Start them when you're ready, and if a session isn't working out, press `⌘S` to discard the worktree, keep the spec intact, and retry later with new instructions.
+</Info>
 
 ### Spec Lifecycle
 

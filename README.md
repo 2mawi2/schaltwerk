@@ -25,6 +25,8 @@
 
 Your agents now deliver isolated branches on autopilot—keep switching with `⌘1-9`, rinse, and repeat.
 
+> Treat specs like a reusable backlog. Spin them up as sessions when you're ready, and if an experiment misses the mark, use `⌘S` to discard the worktree, keep the spec, and relaunch later with fresh prompts.
+
 **[📚 Full documentation](https://schaltwerk.mintlify.app)** | **[⭐ Star this repo](https://github.com/2mawi2/schaltwerk)** if it helped you!
 
 ## How It Works
@@ -45,6 +47,21 @@ Your agents now deliver isolated branches on autopilot—keep switching with `�
 4. **You Review** - Real-time diffs, local testing, write review comments like on GitHub on the changes
 5. **Mark Ready** - Move to reviewed column
 6. **Merge/PR** - Integrate validated changes
+
+## Orchestrated Workflows
+
+### Scaffold → Swarm → Stabilize
+1. **Scaffold in the orchestrator** — Start with specs that describe your project's CLI contract (how to run tests, builds, linting). Use the orchestrator terminal to make sure everything runs headless, and capture those commands in `AGENTS.md` so agents know the ground rules.
+2. **Spin up the skeleton** — Launch an initial agent session to wire up the project scaffolding: repo layout, shared config, build scripts, and automation hooks.
+3. **Swarm on features** — Draft focused specs for independent slices (e.g., "Billing webhook handler", "Settings sidebar UI", "Analytics ingestion job") and start agents in parallel. Each session lives in its own worktree, so they can advance simultaneously.
+4. **Stabilize and integrate** — Run tests from the second terminal, review diffs, and mark sessions reviewed. Use `⌘⇧M` or the Merge/PR action to squash-merge each worktree back once it passes checks.
+5. **Recycle unfinished ideas** — If a concept needs more thought, convert the session back into a spec (`⌘S`): Schaltwerk removes the worktree, but the spec stays in your backlog for another attempt.
+
+### Continuous Maintenance Loop
+1. **Collect fixes as specs** — Log production bugs, refactors, and TODOs as lightweight specs so they stay ready-to-run cards in the backlog.
+2. **Launch focused agents** — Start one session per fix (e.g., "Resolve UTF-8 parsing bug", "Tighten PDF export error handling", "Rename legacy API module").
+3. **Validate locally** — Use the session's second terminal to reproduce issues, run targeted test suites, and document findings in the spec.
+4. **Review, merge, repeat** — Approve the diff, mark reviewed, then merge or PR. Convert anything unresolved back into specs to revisit later.
 
 ## Key Features
 
