@@ -367,6 +367,39 @@ describe('NewSessionModal', () => {
     expect(screen.queryByLabelText(/Skip permissions/i)).toBeNull()
   })
 
+  it('restores skip permissions preference after selecting unsupported agents', async () => {
+    openModal()
+
+    const agentDropdown = await screen.findByRole('button', { name: /Claude/i })
+    const skipButton = await screen.findByRole('button', { name: /Skip permissions/i })
+
+    // Enable skip permissions for the default agent
+    fireEvent.click(skipButton)
+    await waitFor(() => {
+      expect(skipButton).toHaveAttribute('aria-pressed', 'true')
+    })
+
+    // Switch to an agent without skip-permissions support
+    fireEvent.click(agentDropdown)
+    const opencodeOptions = await screen.findAllByRole('button', { name: /^OpenCode$/i })
+    const opencodeOption = opencodeOptions[opencodeOptions.length - 1]
+    fireEvent.click(opencodeOption)
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: /Skip permissions/i })).toBeNull()
+    })
+
+    // Return to an agent that supports skip permissions
+    const openCodeDropdown = await screen.findByRole('button', { name: /OpenCode/i })
+    fireEvent.click(openCodeDropdown)
+    const claudeOptions = await screen.findAllByRole('button', { name: /^Claude$/i })
+    const claudeOption = claudeOptions[claudeOptions.length - 1]
+    fireEvent.click(claudeOption)
+
+    const restoredSkipButton = await screen.findByRole('button', { name: /Skip permissions/i })
+    expect(restoredSkipButton).toHaveAttribute('aria-pressed', 'true')
+  })
+
   it('restores the last selected agent type when reopening the modal', async () => {
     mockGetAgentType.mockImplementationOnce(async () => 'claude')
     mockGetAgentType.mockImplementationOnce(async () => 'codex')

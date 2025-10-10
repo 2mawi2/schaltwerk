@@ -8,7 +8,7 @@ import { getPersistedSessionDefaults } from '../../utils/sessionConfig'
 import { Dropdown } from '../inputs/Dropdown'
 import { logger } from '../../utils/logger'
 import { useModal } from '../../contexts/ModalContext'
-import { AgentType, AGENT_TYPES } from '../../types/session'
+import { AgentType, AGENT_TYPES, AGENT_SUPPORTS_SKIP_PERMISSIONS } from '../../types/session'
 import { UiEvent, listenUiEvent, NewSessionPrefillDetail } from '../../common/uiEvents'
 import {
     AgentCliArgsState,
@@ -75,6 +75,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
     const initialGeneratedNameRef = useRef<string>('')
     const lastAgentTypeRef = useRef<AgentType>('claude')
     const hasAgentOverrideRef = useRef(false)
+    const lastSupportedSkipPermissionsRef = useRef(false)
 
     const handleBranchChange = (branch: string) => {
         setBaseBranch(branch)
@@ -85,23 +86,54 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
     }
 
     const handleAgentTypeChange = useCallback((type: AgentType) => {
+        const previousAgent = lastAgentTypeRef.current
+        if (AGENT_SUPPORTS_SKIP_PERMISSIONS[previousAgent]) {
+            lastSupportedSkipPermissionsRef.current = skipPermissions
+        }
+
         logger.info(`[NewSessionModal] Agent type change requested ${JSON.stringify({
             nextType: type,
-            previousType: lastAgentTypeRef.current,
+            previousType: previousAgent,
             overrideBefore: hasAgentOverrideRef.current
         })}`)
+
         setAgentType(type)
         lastAgentTypeRef.current = type
         hasAgentOverrideRef.current = true
+        let nextSkipState = skipPermissions
+        if (AGENT_SUPPORTS_SKIP_PERMISSIONS[type]) {
+            const restoredPreference = lastSupportedSkipPermissionsRef.current
+            setSkipPermissions(restoredPreference)
+            nextSkipState = restoredPreference
+            logger.info('[NewSessionModal] Restored skip permissions preference for supported agent', {
+                agentType: type,
+                restoredPreference
+            })
+        } else if (skipPermissions) {
+            setSkipPermissions(false)
+            nextSkipState = false
+            logger.info('[NewSessionModal] Cleared skip permissions for unsupported agent', { agentType: type })
+        }
+
         logger.info(`[NewSessionModal] Agent type change applied ${JSON.stringify({
             lastAgentType: lastAgentTypeRef.current,
-            overrideAfter: hasAgentOverrideRef.current
+            overrideAfter: hasAgentOverrideRef.current,
+            skipPermissions: nextSkipState
         })}`)
-    }, [])
+    }, [skipPermissions])
 
     const handleSkipPermissionsChange = (enabled: boolean) => {
         setSkipPermissions(enabled)
+        if (AGENT_SUPPORTS_SKIP_PERMISSIONS[lastAgentTypeRef.current]) {
+            lastSupportedSkipPermissionsRef.current = enabled
+        }
     }
+
+    useEffect(() => {
+        if (AGENT_SUPPORTS_SKIP_PERMISSIONS[agentType]) {
+            lastSupportedSkipPermissionsRef.current = skipPermissions
+        }
+    }, [agentType, skipPermissions])
 
     const persistAgentCliArgs = useCallback(async (agent: AgentType, value: string) => {
         try {
