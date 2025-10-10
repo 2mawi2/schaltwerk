@@ -14,15 +14,16 @@
 
 ## Quick Start (60 seconds)
 
-```bash
-# Install and open Schaltwerk
-brew install --cask 2mawi2/tap/schaltwerk && open -a Schaltwerk
+1. Install and launch Schaltwerk:
+   ```bash
+   brew install --cask 2mawi2/tap/schaltwerk && open -a Schaltwerk
+   ```
+2. Open your project: drag the repo in or use `File → Open Project…`.
+3. Start an agent with `⌘N` (or **Start Agent**), pick the base branch + terminal AI (e.g., Claude Code), and optionally seed it with the Dark Mode prompt.
+4. Let the agent work—Schaltwerk spins up its own branch/worktree; use the second terminal to run tests or manual checks while it codes.
+5. Review diffs, leave comments, mark reviewed with `⌘R`, then in Reviewed hit **Merge/PR** or `⌘⇧M` to squash-merge back to your branch.
 
-# In your git repo, create a session for your AI agent (e.g., Claude Code)
-# Click "New Session" → Name it "fix-auth-bug" → Select agent → Start working
-```
-
-That's it! Your AI agent is now coding in an isolated branch. Switch between sessions with `⌘1-9`, review changes in real-time, merge when ready.
+Your agents now deliver isolated branches on autopilot—keep switching with `⌘1-9`, rinse, and repeat.
 
 **[📚 Full documentation](https://schaltwerk.mintlify.app)** | **[⭐ Star this repo](https://github.com/2mawi2/schaltwerk)** if it helped you!
 
@@ -83,17 +84,23 @@ Built with Tauri (Rust backend + React/TypeScript frontend), git worktrees for i
 
 We actively welcome contributions—whether that's reporting issues, improving docs, or shipping code. Start with [CONTRIBUTING.md](./CONTRIBUTING.md) for ways to get involved and the project's quality checklist.
 
-**⭐ If Schaltwerk helped you ship faster, [please star the repo](https://github.com/2mawi2/schaltwerk)!**
-
 ### Development
 
-Requires [just](https://github.com/casey/just#installation) (`brew install just`).
+Install dependencies with `npm install`, then choose the workflow that suits you best. The [`Justfile`](./Justfile) lists optional recipes if you prefer using `just`; each recipe maps to standard npm/cargo commands you can run directly.
 
 ```bash
+# Optional helpers via just (install with brew install just)
 npm install
 just test            # Run full validation suite before commits
 just run             # Start dev app with hot reload
 just release         # Create new release (patch/minor/major)
+```
+
+```bash
+# Or stick with plain npm/cargo commands
+npm run test         # Lint, clippy, tests, build
+npm run tauri:dev    # Start dev app with hot reload
+npm run tauri:build  # Production build
 ```
 
 GitHub Actions builds and updates the Homebrew tap automatically.
