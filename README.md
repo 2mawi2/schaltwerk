@@ -8,6 +8,8 @@
 
 # Schaltwerk
 
+[![Test](https://github.com/2mawi2/schaltwerk/actions/workflows/test.yml/badge.svg)](https://github.com/2mawi2/schaltwerk/actions/workflows/test.yml)
+
 Manage multiple AI coding agents in isolated git worktrees. Each agent works in its own branch with dedicated terminals. Everything runs locally—you review, test, and merge when ready.
 
 ## Documentation
