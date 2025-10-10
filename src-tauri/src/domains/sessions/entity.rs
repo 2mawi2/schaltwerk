@@ -248,6 +248,8 @@ pub struct SessionInfo {
     pub ready_to_merge: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub spec_content: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub worktree_size_bytes: Option<u64>,
     pub session_state: SessionState,
 }
 

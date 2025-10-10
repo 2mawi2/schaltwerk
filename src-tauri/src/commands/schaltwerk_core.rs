@@ -5,10 +5,12 @@ use crate::{
 use schaltwerk::domains::agents::{manifest::AgentManifest, naming, parse_agent_command};
 use schaltwerk::domains::merge::types::MergeStateSnapshot;
 use schaltwerk::domains::merge::{MergeMode, MergePreview, MergeService};
+use schaltwerk::domains::sessions::cache::{cache_worktree_size, get_cached_worktree_size};
 use schaltwerk::domains::sessions::db_sessions::SessionMethods;
 use schaltwerk::domains::sessions::entity::{
     EnrichedSession, FilterMode, Session, SessionState, SortMode,
 };
+use schaltwerk::domains::sessions::storage::compute_worktree_size_bytes;
 use schaltwerk::domains::terminal::{
     build_login_shell_invocation_with_shell, get_effective_shell, sh_quote_string,
     shell_invocation_to_posix,
@@ -21,6 +23,7 @@ use schaltwerk::schaltwerk_core::SessionManager;
 use schaltwerk::services::ServiceHandles;
 use std::collections::HashSet;
 use std::path::PathBuf;
+use std::time::Duration as StdDuration;
 use tauri::State;
 mod agent_ctx;
 pub mod agent_launcher;
@@ -1477,6 +1480,16 @@ pub async fn schaltwerk_core_mark_session_ready(
                 &session.worktree_path,
                 &session.parent_branch,
             ) {
+                let worktree_size_bytes =
+                    get_cached_worktree_size(&session.worktree_path, StdDuration::from_secs(0))
+                        .map(|snapshot| snapshot.size_bytes)
+                        .or_else(|| {
+                            let computed = compute_worktree_size_bytes(&session.worktree_path);
+                            if let Some(bytes) = computed {
+                                cache_worktree_size(&session.worktree_path, bytes);
+                            }
+                            computed
+                        });
                 let has_conflicts =
                     schaltwerk::domains::git::operations::has_conflicts(&session.worktree_path)
                         .unwrap_or(false);
@@ -1498,6 +1511,7 @@ pub async fn schaltwerk_core_mark_session_ready(
                     merge_has_conflicts: merge_snapshot.merge_has_conflicts,
                     merge_conflicting_paths: merge_snapshot.merge_conflicting_paths,
                     merge_is_up_to_date: merge_snapshot.merge_is_up_to_date,
+                    worktree_size_bytes,
                 };
 
                 if let Err(err) = emit_event(&app, SchaltEvent::SessionGitStats, &payload) {

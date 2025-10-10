@@ -1,11 +1,21 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex as StdMutex, OnceLock};
+use std::time::{Duration, Instant};
 
 static PROMPTED_SESSIONS: OnceLock<StdMutex<HashSet<PathBuf>>> = OnceLock::new();
 static RESERVED_NAMES: OnceLock<StdMutex<HashMap<PathBuf, HashSet<String>>>> = OnceLock::new();
 
 static REPO_LOCKS: OnceLock<StdMutex<HashMap<PathBuf, Arc<StdMutex<()>>>>> = OnceLock::new();
+
+#[derive(Clone, Copy)]
+pub struct WorktreeSizeSnapshot {
+    pub size_bytes: u64,
+    pub calculated_at: Instant,
+}
+
+static WORKTREE_SIZE_CACHE: OnceLock<StdMutex<HashMap<PathBuf, WorktreeSizeSnapshot>>> =
+    OnceLock::new();
 
 type SpecContentMap = HashMap<String, (Option<String>, Option<String>)>;
 static SPEC_CONTENT_CACHE: OnceLock<StdMutex<SpecContentMap>> = OnceLock::new();
@@ -126,4 +136,36 @@ pub fn clear_session_prompted_non_test(worktree_path: &Path) {
     let set = PROMPTED_SESSIONS.get_or_init(|| StdMutex::new(HashSet::new()));
     let mut prompted = set.lock().unwrap();
     prompted.remove(worktree_path);
+}
+
+pub fn get_cached_worktree_size(path: &Path, max_age: Duration) -> Option<WorktreeSizeSnapshot> {
+    let cache = WORKTREE_SIZE_CACHE.get_or_init(|| StdMutex::new(HashMap::new()));
+    let cache = cache.lock().ok()?;
+    let snapshot = cache.get(path)?;
+
+    if snapshot.calculated_at.elapsed() > max_age {
+        return None;
+    }
+
+    Some(*snapshot)
+}
+
+pub fn cache_worktree_size(path: &Path, size_bytes: u64) {
+    let cache = WORKTREE_SIZE_CACHE.get_or_init(|| StdMutex::new(HashMap::new()));
+    if let Ok(mut cache) = cache.lock() {
+        cache.insert(
+            path.to_path_buf(),
+            WorktreeSizeSnapshot {
+                size_bytes,
+                calculated_at: Instant::now(),
+            },
+        );
+    }
+}
+
+pub fn invalidate_worktree_size(path: &Path) {
+    let cache = WORKTREE_SIZE_CACHE.get_or_init(|| StdMutex::new(HashMap::new()));
+    if let Ok(mut cache) = cache.lock() {
+        cache.remove(path);
+    }
 }

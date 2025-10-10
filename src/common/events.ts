@@ -52,6 +52,7 @@ export interface SessionGitStatsUpdated {
   merge_has_conflicts?: boolean
   merge_conflicting_paths?: string[]
   merge_is_up_to_date?: boolean
+  worktree_size_bytes?: number
 }
 
 export interface FollowUpMessagePayload {

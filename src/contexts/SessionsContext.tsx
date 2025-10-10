@@ -1161,6 +1161,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                     merge_has_conflicts,
                     merge_is_up_to_date,
                     merge_conflicting_paths,
+                    worktree_size_bytes,
                 } = event
                 setAllSessions(prev => prev.map(s => {
                     if (s.info.session_id !== session_name) return s
@@ -1182,6 +1183,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                             merge_has_conflicts: merge_has_conflicts ?? s.info.merge_has_conflicts,
                             merge_conflicting_paths: merge_conflicting_paths && merge_conflicting_paths.length ? merge_conflicting_paths : s.info.merge_conflicting_paths,
                             merge_is_up_to_date: typeof merge_is_up_to_date === 'boolean' ? merge_is_up_to_date : s.info.merge_is_up_to_date,
+                            worktree_size_bytes: typeof worktree_size_bytes === 'number' ? worktree_size_bytes : s.info.worktree_size_bytes,
                         }
                     }
                 }))

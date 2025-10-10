@@ -130,6 +130,7 @@ mod tests {
                 diff_stats: None,
                 ready_to_merge: false,
                 spec_content: None,
+                worktree_size_bytes: None,
                 session_state: SessionState::Running,
             },
             status: None,

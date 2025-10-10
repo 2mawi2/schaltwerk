@@ -2,8 +2,12 @@ use crate::domains::merge::service::{compute_merge_state, resolve_branch_oid};
 use crate::domains::merge::types::MergeStateSnapshot;
 use crate::infrastructure::events::{emit_event, SchaltEvent};
 use crate::{
-    domains::git::db_git_stats::GitStatsMethods, domains::git::service as git,
-    domains::sessions::db_sessions::SessionMethods, schaltwerk_core::database::Database,
+    domains::git::db_git_stats::GitStatsMethods,
+    domains::git::service as git,
+    domains::sessions::cache::{cache_worktree_size, get_cached_worktree_size},
+    domains::sessions::db_sessions::SessionMethods,
+    domains::sessions::storage::compute_worktree_size_bytes,
+    schaltwerk_core::database::Database,
 };
 use anyhow::Result;
 #[cfg(test)]
@@ -14,6 +18,7 @@ use serde::Serialize;
 #[cfg(test)]
 use std::path::Path;
 use std::sync::Arc;
+use std::time::Duration as StdDuration;
 #[cfg(test)]
 use std::time::UNIX_EPOCH;
 use tauri::AppHandle;
@@ -125,6 +130,18 @@ impl<E: EventEmitter> ActivityTracker<E> {
                         if let Err(e) = self.db.save_git_stats(&stats) {
                             log::warn!("Failed to save git stats for {}: {}", session.name, e);
                         } else {
+                            let worktree_size_bytes = get_cached_worktree_size(
+                                &session.worktree_path,
+                                StdDuration::from_secs(0),
+                            )
+                            .map(|snapshot| snapshot.size_bytes)
+                            .or_else(|| {
+                                let computed = compute_worktree_size_bytes(&session.worktree_path);
+                                if let Some(bytes) = computed {
+                                    cache_worktree_size(&session.worktree_path, bytes);
+                                }
+                                computed
+                            });
                             // Emit git stats update event
                             let payload = SessionGitStatsUpdated {
                                 session_id: session.id.clone(),
@@ -138,6 +155,7 @@ impl<E: EventEmitter> ActivityTracker<E> {
                                 merge_has_conflicts: merge_snapshot.merge_has_conflicts,
                                 merge_conflicting_paths: merge_snapshot.merge_conflicting_paths,
                                 merge_is_up_to_date: merge_snapshot.merge_is_up_to_date,
+                                worktree_size_bytes,
                             };
                             let _ = self.emitter.emit_session_git_stats(payload);
                         }
@@ -247,6 +265,8 @@ pub struct SessionGitStatsUpdated {
     pub merge_conflicting_paths: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub merge_is_up_to_date: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub worktree_size_bytes: Option<u64>,
 }
 
 pub fn start_activity_tracking_with_app(db: Arc<Database>, app: AppHandle) {
@@ -347,6 +367,7 @@ mod tests {
             merge_has_conflicts: None,
             merge_conflicting_paths: None,
             merge_is_up_to_date: None,
+            worktree_size_bytes: None,
         };
 
         mock_emitter
@@ -380,6 +401,7 @@ mod tests {
             merge_has_conflicts: Some(false),
             merge_conflicting_paths: None,
             merge_is_up_to_date: Some(true),
+            worktree_size_bytes: Some(1234),
         };
 
         assert_eq!(payload.session_id, "session-456");

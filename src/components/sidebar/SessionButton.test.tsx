@@ -31,6 +31,48 @@ const baseSession: EnrichedSession = {
   terminals: [] as string[],
 }
 
+describe('SessionButton storage indicator', () => {
+  it('shows formatted worktree size before last activity', () => {
+    const session: EnrichedSession = {
+      ...baseSession,
+      info: {
+        ...baseSession.info,
+        worktree_size_bytes: 1_572_864, // 1.5 MiB
+      },
+    }
+
+    renderWithProviders(
+      <SessionButton
+        session={session}
+        index={0}
+        isSelected={false}
+
+        hasFollowUpMessage={false}
+        onSelect={() => {}}
+        onMarkReady={() => {}}
+        onUnmarkReady={() => {}}
+        onCancel={() => {}}
+        isRunning={false}
+      />
+    )
+
+    const storageIndicator = screen.getByText('1.5 MB') as HTMLElement
+    expect(storageIndicator).toBeInTheDocument()
+
+    const container = storageIndicator.parentElement as HTMLElement | null
+    expect(container).not.toBeNull()
+
+    const lastActivity = screen.getByText(/^Last: /)
+    const children = Array.from(container!.children)
+    const storageIndex = children.indexOf(storageIndicator)
+    const lastIndex = children.indexOf(lastActivity as HTMLElement)
+
+    expect(storageIndex).toBeGreaterThan(-1)
+    expect(lastIndex).toBeGreaterThan(-1)
+    expect(storageIndex).toBeLessThan(lastIndex)
+  })
+})
+
 describe('SessionButton dirty indicator', () => {
   it('shows dirty indicator for reviewed sessions with uncommitted changes', () => {
     const session: EnrichedSession = { 

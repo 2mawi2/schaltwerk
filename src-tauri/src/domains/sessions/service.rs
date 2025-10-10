@@ -6,8 +6,10 @@ use log::{info, warn};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 const GIT_STATS_STALE_THRESHOLD_SECS: i64 = 60;
+const WORKTREE_SIZE_CACHE_TTL: Duration = Duration::from_secs(120);
 
 fn get_or_compute_git_stats(
     session_id: &str,
@@ -56,7 +58,10 @@ pub struct SessionCreationParams<'a> {
 const SESSION_READY_COMMIT_MESSAGE: &str = "Complete development work for {}";
 use crate::{
     domains::git::service as git,
-    domains::sessions::cache::{clear_session_prompted_non_test, SessionCacheManager},
+    domains::sessions::cache::{
+        cache_worktree_size, clear_session_prompted_non_test, get_cached_worktree_size,
+        SessionCacheManager,
+    },
     domains::sessions::entity::ArchivedSpec,
     domains::sessions::entity::{
         DiffStats, EnrichedSession, FilterMode, GitStats, Session, SessionInfo, SessionState,
@@ -64,6 +69,7 @@ use crate::{
     },
     domains::sessions::process_cleanup::terminate_processes_with_cwd,
     domains::sessions::repository::SessionDbManager,
+    domains::sessions::storage::compute_worktree_size_bytes,
     domains::sessions::utils::SessionUtils,
     infrastructure::database::db_archived_specs::ArchivedSpecMethods as _,
     schaltwerk_core::database::Database,
@@ -121,6 +127,23 @@ mod service_unified_tests {
             session_state: SessionState::Running,
             resume_allowed: true,
         }
+    }
+
+    #[test]
+    fn list_enriched_sessions_includes_worktree_size() {
+        let (manager, temp_dir) = create_test_session_manager();
+        let session = create_test_session(&temp_dir, "claude", "size");
+
+        let size_dir = session.worktree_path.join("src");
+        std::fs::create_dir_all(&size_dir).unwrap();
+        let size_file = size_dir.join("main.rs");
+        std::fs::write(&size_file, vec![0u8; 2048]).unwrap();
+
+        manager.db_manager.create_session(&session).unwrap();
+
+        let enriched = manager.list_enriched_sessions().unwrap();
+        assert_eq!(enriched.len(), 1);
+        assert_eq!(enriched[0].info.worktree_size_bytes, Some(2048));
     }
 
     #[test]
@@ -1647,6 +1670,7 @@ impl SessionManager {
         let mut enriched = Vec::new();
         let mut git_stats_total_time = std::time::Duration::ZERO;
         let mut worktree_check_time = std::time::Duration::ZERO;
+        let mut storage_calc_time = std::time::Duration::ZERO;
         let mut session_count = 0;
 
         for session in sessions {
@@ -1684,6 +1708,7 @@ impl SessionManager {
                     diff_stats: None,
                     ready_to_merge: session.ready_to_merge,
                     spec_content: session.spec_content.clone(),
+                    worktree_size_bytes: None,
                     session_state: session.session_state.clone(),
                 };
 
@@ -1759,6 +1784,42 @@ impl SessionManager {
                 insertions: stats.lines_added as usize,
             });
 
+            let worktree_size_bytes = if !worktree_exists {
+                None
+            } else {
+                let cached_snapshot = if has_uncommitted {
+                    None
+                } else {
+                    get_cached_worktree_size(&session.worktree_path, WORKTREE_SIZE_CACHE_TTL)
+                };
+
+                match cached_snapshot {
+                    Some(snapshot) => Some(snapshot.size_bytes),
+                    None => {
+                        let size_start = std::time::Instant::now();
+                        let computed = compute_worktree_size_bytes(&session.worktree_path);
+                        let elapsed = size_start.elapsed();
+                        storage_calc_time += elapsed;
+
+                        match computed {
+                            Some(bytes) => {
+                                cache_worktree_size(&session.worktree_path, bytes);
+                                if elapsed.as_millis() > 150 {
+                                    log::debug!(
+                                        "Worktree size calculation for '{}' took {}ms ({} bytes)",
+                                        session.name,
+                                        elapsed.as_millis(),
+                                        bytes
+                                    );
+                                }
+                                Some(bytes)
+                            }
+                            None => None,
+                        }
+                    }
+                }
+            };
+
             let status_type = if has_uncommitted {
                 SessionStatusType::Dirty
             } else {
@@ -1795,6 +1856,7 @@ impl SessionManager {
                 diff_stats: diff_stats.clone(),
                 ready_to_merge: session.ready_to_merge,
                 spec_content: session.spec_content.clone(),
+                worktree_size_bytes,
                 session_state: session.session_state.clone(),
             };
 
@@ -1820,12 +1882,13 @@ impl SessionManager {
         }
 
         let total_elapsed = start_time.elapsed();
-        log::info!("list_enriched_sessions: Returning {} enriched sessions (total: {}ms, db: {}ms, git_stats: {}ms, worktree_checks: {}ms, avg per session: {}ms)",
+        log::info!("list_enriched_sessions: Returning {} enriched sessions (total: {}ms, db: {}ms, git_stats: {}ms, worktree_checks: {}ms, storage: {}ms, avg per session: {}ms)",
             enriched.len(),
             total_elapsed.as_millis(),
             db_time.as_millis(),
             git_stats_total_time.as_millis(),
             worktree_check_time.as_millis(),
+            storage_calc_time.as_millis(),
             if session_count > 0 { total_elapsed.as_millis() / session_count as u128 } else { 0 }
         );
 
