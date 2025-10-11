@@ -419,7 +419,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 if (enrichedSnapshot.sessionState === 'spec') {
                     return { state: 'spec', snapshot: enrichedSnapshot }
                 }
-                if (!desiredState && enrichedSnapshot.sessionState) {
+                if (!desiredState && !snapshot?.sessionState && enrichedSnapshot.sessionState) {
                     return { state: enrichedSnapshot.sessionState, snapshot: enrichedSnapshot }
                 }
             }
@@ -427,6 +427,10 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
 
         if (desiredState) {
             return { state: desiredState, snapshot: finalSnapshot }
+        }
+
+        if (finalSnapshot?.sessionState === 'spec') {
+            return { state: 'spec', snapshot: finalSnapshot }
         }
 
         if (finalSnapshot?.sessionState) {
@@ -1001,16 +1005,13 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                                 sessionState: 'spec' as const,
                                 worktreePath: undefined
                             }
+                            const updatedTerminals = getTerminalIds(updatedSelection)
                             setSelectionState(updatedSelection)
+                            setTerminals(updatedTerminals)
+                            setCurrentSelection(updatedSelection.payload ?? null)
                             // Clear created flags for this session's terminals and close if present
-                            const ids = getTerminalIds(updatedSelection)
                             try {
-                                terminalsCreated.current.delete(ids.top)
-                                creationLock.current.delete(ids.top)
-                                const exists = await invoke<boolean>(TauriCommands.TerminalExists, { id: ids.top })
-                                if (exists) {
-                                    await closeTerminalBackend(ids.top)
-                                }
+                                await clearTerminalTracking([updatedTerminals.top])
                             } catch (_e) {
                                 logger.warn('[SelectionContext] Failed to cleanup terminals after running→spec transition:', _e)
                             }
@@ -1027,7 +1028,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         return () => { try { if (unlisten) unlisten() } catch {
             // Cleanup failed, ignore
         } }
-    }, [selection, ensureTerminals, getTerminalIds, isSpec, ensureSessionSnapshot])
+    }, [selection, ensureTerminals, getTerminalIds, isSpec, ensureSessionSnapshot, setTerminals, setCurrentSelection, clearTerminalTracking])
     
     // Initialize on mount and when project path changes
     useEffect(() => {

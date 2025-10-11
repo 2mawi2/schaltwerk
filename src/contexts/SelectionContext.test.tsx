@@ -7,6 +7,7 @@ import { EnrichedSession, RawSession, SessionState } from '../types/session'
 
 // Mock Tauri APIs BEFORE importing provider modules
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
+
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(async () => () => {}) }))
 
 import { useSelection } from './SelectionContext'
@@ -201,6 +202,55 @@ describe('SelectionContext', () => {
 
       expect(createTerminalCallsAfter).toBeGreaterThan(createTerminalCallsBefore)
       expect(result.current.isSpec).toBe(false)
+    })
+  })
+
+  describe('session state transitions', () => {
+    it('prefers fresh snapshot state when sessions list is stale', async () => {
+      const sessionName = 'transition-session'
+      const runningPath = '/sessions/transition'
+      enrichedSessionsMock = [
+        createEnrichedSession(sessionName, runningPath, SessionState.Running)
+      ]
+      rawSessionsMock[sessionName] = createRawSession(sessionName, runningPath, SessionState.Running)
+
+      const { result } = renderHook(() => useSelection(), { wrapper })
+
+      await waitFor(() => {
+        expect(result.current.isReady).toBe(true)
+      })
+
+      await act(async () => {
+        await result.current.setSelection({
+          kind: 'session',
+          payload: sessionName,
+          sessionState: 'running',
+          worktreePath: runningPath
+        })
+      })
+
+      expect(result.current.terminals.workingDirectory).toBe(runningPath)
+      expect(result.current.isSpec).toBe(false)
+
+      // Backend updates raw session to spec while the enriched snapshot remains stale (running)
+      rawSessionsMock[sessionName] = createRawSession(sessionName, '', SessionState.Spec)
+
+      await act(async () => {
+        await result.current.setSelection({
+          kind: 'session',
+          payload: sessionName,
+        })
+      })
+
+      await waitFor(() => {
+        expect(result.current.selection).toMatchObject({
+          kind: 'session',
+          payload: sessionName,
+          sessionState: 'spec',
+        })
+        expect(result.current.isSpec).toBe(true)
+        expect(result.current.terminals.workingDirectory).toBe('')
+      })
     })
   })
 
