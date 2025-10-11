@@ -243,41 +243,59 @@ describe('DiffFileList', () => {
 
   it('uses Promise.all for parallel orchestrator calls', async () => {
     const { invoke } = await import('@tauri-apps/api/core')
-    const invokeCallOrder: string[] = []
+
+    const workingDeferred = (() => {
+      let resolve!: (value: MockChangedFile[]) => void
+      const promise = new Promise<MockChangedFile[]>((res) => {
+        resolve = res
+      })
+      return { promise, resolve }
+    })()
+
+    const branchDeferred = (() => {
+      let resolve!: (value: string) => void
+      const promise = new Promise<string>((res) => {
+        resolve = res
+      })
+      return { promise, resolve }
+    })()
+
+    let workingResolved = false
+    let branchCalledWhileWorkingPending = false
 
     const mockInvoke = invoke as ReturnType<typeof vi.fn>
     mockInvoke.mockImplementation(async (cmd: string, _args?: Record<string, unknown>) => {
-      // Add small delay to test parallel execution
-      await new Promise(resolve => setTimeout(resolve, 10))
-      invokeCallOrder.push(cmd)
-
       if (cmd === TauriCommands.GetOrchestratorWorkingChanges) {
-        return [{ path: 'test.ts', change_type: 'modified' }]
+        return workingDeferred.promise.finally(() => {
+          workingResolved = true
+        })
       }
-      if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
+      if (cmd === TauriCommands.GetCurrentBranchName) {
+        if (!workingResolved) {
+          branchCalledWhileWorkingPending = true
+        }
+        return branchDeferred.promise
+      }
       return undefined
     })
 
-    const startTime = Date.now()
-    
     render(
       <Wrapper>
         <DiffFileList onFileSelect={() => {}} isCommander={true} />
       </Wrapper>
     )
 
-    await screen.findByText('test.ts')
-    
-    const endTime = Date.now()
-    const duration = endTime - startTime
+    // Allow initial effects to run
+    await act(async () => {
+      await Promise.resolve()
+    })
 
-    // Should complete in less time than sequential calls would take (2 * 10ms = 20ms)
-    // Allow some buffer for test environment, especially CI
-    expect(duration).toBeLessThan(100)
-    
-    // Both commands should be called
-    expect(invokeCallOrder).toContain(TauriCommands.GetOrchestratorWorkingChanges)
-    expect(invokeCallOrder).toContain(TauriCommands.GetCurrentBranchName)
+    expect(branchCalledWhileWorkingPending).toBe(true)
+
+    workingDeferred.resolve([{ path: 'test.ts', change_type: 'modified' }])
+    branchDeferred.resolve('main')
+
+    await screen.findByText('test.ts')
   })
 
   it('prevents concurrent loads with isLoading state', async () => {

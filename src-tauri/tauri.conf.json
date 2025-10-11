@@ -15,8 +15,8 @@
       {
         "title": "Schaltwerk",
         "maximized": true,
-        "width": 1920,
-        "height": 1080,
+        "width": 1280,
+        "height": 700,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
         "dragDropEnabled": false
@@ -38,15 +38,20 @@
   },
   "bundle": {
     "active": true,
-    "targets": [
-      "app",
-      "dmg"
-    ],
+    "targets": "all",
     "publisher": "Marius Wichtner",
     "copyright": "© 2024 Marius Wichtner",
     "category": "DeveloperTools",
     "shortDescription": "Visual interface for managing Para sessions",
     "longDescription": "Schaltwerk provides a powerful terminal-based interface for managing and monitoring Para development sessions with real-time status updates.",
+    "linux": {
+      "deb": {
+        "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0"]
+      },
+      "appimage": {
+        "bundleMediaFramework": true
+      }
+    },
     "macOS": {
       "frameworks": [],
       "minimumSystemVersion": "11.0",

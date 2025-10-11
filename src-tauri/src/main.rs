@@ -91,7 +91,64 @@ fn extend_process_path() {
     }
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "linux")]
+fn extend_process_path() {
+    use std::collections::HashSet;
+    use std::env;
+    use std::path::PathBuf;
+    use std::process::Command;
+
+    const EXTRA_PATHS: &[&str] = &[
+        "/usr/local/bin",
+        "/usr/local/sbin",
+        "/usr/bin",
+        "/usr/sbin",
+        "/bin",
+        "/sbin",
+    ];
+
+    let mut current_paths: Vec<PathBuf> = env::var_os("PATH")
+        .map(|value| env::split_paths(&value).collect())
+        .unwrap_or_default();
+
+    let mut seen: HashSet<PathBuf> = current_paths.iter().cloned().collect();
+
+    for candidate in EXTRA_PATHS {
+        let path = PathBuf::from(candidate);
+        if seen.insert(path.clone()) {
+            current_paths.push(path);
+        }
+    }
+
+    let shell = env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
+    let shell_arg = if shell.contains("fish") { "-c" } else { "-lc" };
+
+    if let Ok(output) = Command::new(&shell)
+        .arg(shell_arg)
+        .arg("echo -n $PATH")
+        .output()
+    {
+        if output.status.success() {
+            if let Ok(login_path) = String::from_utf8(output.stdout) {
+                for segment in login_path.split(':').filter(|s| !s.is_empty()) {
+                    let path = PathBuf::from(segment);
+                    if seen.insert(path.clone()) {
+                        current_paths.push(path);
+                    }
+                }
+            }
+        }
+    }
+
+    if let Ok(joined) = env::join_paths(&current_paths) {
+        env::set_var("PATH", &joined);
+        if let Some(path_str) = joined.to_str() {
+            log::info!("[startup] PATH after extend_process_path: {path_str}");
+        }
+    }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
 fn extend_process_path() {}
 
 // Import all commands
@@ -136,20 +193,39 @@ fn open_global_app_config_db() -> Result<schaltwerk::schaltwerk_core::Database, 
     }
 }
 
+fn get_fallback_app() -> &'static str {
+    #[cfg(target_os = "macos")]
+    {
+        "finder"
+    }
+    #[cfg(target_os = "linux")]
+    {
+        "nautilus"
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        "explorer"
+    }
+}
+
 #[tauri::command]
 async fn get_default_open_app() -> Result<String, String> {
     match open_global_app_config_db() {
         Ok(db) => schaltwerk::open_apps::get_default_open_app_from_db(&db)
             .map_err(|e| format!("Failed to load default open app: {e}"))
             .or_else(|e| {
+                let fallback_app = get_fallback_app();
                 log::warn!(
-                    "Failed to load default open app from database: {e}. Falling back to Finder"
+                    "Failed to load default open app from database: {e}. Falling back to {fallback_app}"
                 );
-                Ok("finder".into())
+                Ok(fallback_app.into())
             }),
         Err(e) => {
-            log::warn!("Failed to access app config database: {e}. Falling back to Finder");
-            Ok("finder".into())
+            let fallback_app = get_fallback_app();
+            log::warn!(
+                "Failed to access app config database: {e}. Falling back to {fallback_app}"
+            );
+            Ok(fallback_app.into())
         }
     }
 }
@@ -779,7 +855,8 @@ fn main() {
             check_for_updates_now,
             schaltwerk_core_log_frontend_message,
             // Clipboard
-            #[cfg(target_os = "macos")] commands::clipboard::clipboard_write_text,
+            commands::clipboard::clipboard_write_text,
+            commands::clipboard::clipboard_read_text,
             // MCP commands
             start_mcp_server,
             // Para core commands

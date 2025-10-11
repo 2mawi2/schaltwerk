@@ -237,6 +237,12 @@ describe('NewSessionModal', () => {
     const requireToggle = screen.getByRole('button', { name: /Require permissions/i })
     expect(requireToggle).toHaveAttribute('aria-pressed', 'true')
 
+    // Wait for base branch to be initialized
+    await waitFor(() => {
+      const branchInput = screen.getByPlaceholderText('Type to search branches... (Tab to autocomplete)')
+      expect(branchInput).toHaveValue('main')
+    })
+
     // Create should submit with current name value
     fireEvent.click(screen.getByTitle('Start agent (Cmd+Enter)'))
 

@@ -73,6 +73,7 @@ describe('NewProjectDialog', () => {
     const { onProjectCreated } = setup()
     
     const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
+    await user.clear(nameInput)
     await user.type(nameInput, 'project<>name')
     
     const createBtn = screen.getByRole('button', { name: /create project/i })
@@ -82,60 +83,50 @@ describe('NewProjectDialog', () => {
     expect(onProjectCreated).not.toHaveBeenCalled()
   })
 
-  it('validates all invalid filename characters', async () => {
+  describe('project name validation', () => {
     const invalidChars = ['<', '>', ':', '"', '|', '?', '*', '/', '\\']
-    
-    for (const char of invalidChars) {
-      const { onProjectCreated, unmount } = setup()
-      
-      const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
-      await user.type(nameInput, `project${char}name`)
-      
-      const createBtn = screen.getByRole('button', { name: /create project/i })
-      await user.click(createBtn)
-      
-      expect(await screen.findByText('Project name contains invalid characters')).toBeInTheDocument()
-      expect(onProjectCreated).not.toHaveBeenCalled()
-      
-      unmount()
-    }
-  })
+    invalidChars.forEach(char => {
+      it(`rejects project name containing "${char}"`, async () => {
+        const { onProjectCreated } = setup()
 
-  it('allows valid project names', async () => {
-    const validNames = [
-      'my-project',
-      'my_project',
-      'MyProject',
-      'project-123',
-      'project.name',
-      'project name with spaces'
-    ]
-    
-    for (const name of validNames) {
-      invoke.mockResolvedValue(`/home/user/${name}`)
-      const { unmount, onClose } = setup()
-      
-      const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
-      await user.type(nameInput, name)
-      
-      const createBtn = screen.getByRole('button', { name: /create project/i })
-      await user.click(createBtn)
-      
-      await waitFor(() => {
-        expect(invoke).toHaveBeenCalledWith(TauriCommands.CreateNewProject, {
-          name: name,
-          parentPath: '/home/user'
+        const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
+        await user.clear(nameInput)
+        await user.type(nameInput, `project${char}name`)
+
+        const createBtn = screen.getByRole('button', { name: /create project/i })
+        await user.click(createBtn)
+
+        expect(await screen.findByText('Project name contains invalid characters')).toBeInTheDocument()
+        expect(onProjectCreated).not.toHaveBeenCalled()
+      })
+    })
+
+    ;['my-project', 'my_project', 'MyProject', 'project-123', 'project.name', 'project name with spaces'].forEach(name => {
+      it(`accepts valid project name "${name}"`, async () => {
+        invoke.mockResolvedValue(`/home/user/${name}`)
+        const { onClose } = setup()
+
+        const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
+        await user.clear(nameInput)
+        await user.type(nameInput, name)
+
+        const createBtn = screen.getByRole('button', { name: /create project/i })
+        await user.click(createBtn)
+
+        await waitFor(() => {
+          expect(invoke).toHaveBeenCalledWith(TauriCommands.CreateNewProject, {
+            name,
+            parentPath: '/home/user'
+          })
         })
+
+        await waitFor(() => {
+          expect(onClose).toHaveBeenCalled()
+        })
+
+        invoke.mockReset()
       })
-      
-      // Wait for the dialog to close (which happens after setIsCreating(false))
-      await waitFor(() => {
-        expect(onClose).toHaveBeenCalled()
-      })
-      
-      unmount()
-      invoke.mockReset()
-    }
+    })
   })
 
   it('handles directory selection', async () => {

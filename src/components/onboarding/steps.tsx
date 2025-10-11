@@ -1,5 +1,16 @@
 import React from 'react'
+import { useShortcutDisplay } from '../../keyboardShortcuts/useShortcutDisplay'
+import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
 import { BranchingDiagram, LifecycleDiagram } from './Diagrams'
+
+const Shortcut = ({ action }: { action: KeyboardShortcutAction }) => {
+    const label = useShortcutDisplay(action)
+    if (!label) {
+        return null
+    }
+
+    return <kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">{label}</kbd>
+}
 
 export interface OnboardingStep {
     title: string
@@ -50,7 +61,9 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                                 <strong>Keyboard-First:</strong> Schaltwerk is fully controllable via keyboard shortcuts for rapid context switching.
                             </p>
                             <p className="text-cyan-300/80 text-body mt-1">
-                                Use <kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">⌘↑/↓</kbd> to switch agents, <kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">⌘T</kbd> for AI agent, <kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">⌘/</kbd> for terminals.
+                                Use <Shortcut action={KeyboardShortcutAction.SelectPrevSession} />/<Shortcut action={KeyboardShortcutAction.SelectNextSession} />{' '}
+                                to switch agents, <Shortcut action={KeyboardShortcutAction.FocusClaude} /> for AI agent,{' '}
+                                <Shortcut action={KeyboardShortcutAction.FocusTerminal} /> for terminals.
                             </p>
                         </div>
                     </div>
