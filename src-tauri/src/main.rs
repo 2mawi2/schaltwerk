@@ -847,6 +847,7 @@ fn main() {
             diff_commands::get_current_branch_name,
             diff_commands::get_base_branch_name,
             diff_commands::get_commit_comparison_info,
+            diff_commands::compute_commit_unified_diff,
             diff_commands::compute_unified_diff_backend,
             diff_commands::compute_split_diff_backend,
             diff_commands::get_git_history,

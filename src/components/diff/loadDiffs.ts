@@ -1,12 +1,14 @@
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
 import { DiffResponse, SplitDiffResponse, LineInfo, SplitDiffResult, FileInfo } from '../../types/diff'
+import type { CommitFileChange } from '../git-graph/types'
 
 export type ChangeType = 'modified' | 'added' | 'deleted' | 'renamed' | 'copied' | 'unknown'
 
 export interface ChangedFile {
   path: string
   change_type: ChangeType
+  previous_path?: string
 }
 
 export type ViewMode = 'unified' | 'split'
@@ -30,6 +32,52 @@ export interface FileDiffDataSplit {
 }
 
 export type FileDiffData = FileDiffDataUnified | FileDiffDataSplit
+
+export function normalizeCommitChangeType(changeType: string): ChangeType {
+  switch (changeType) {
+    case 'A':
+      return 'added'
+    case 'D':
+      return 'deleted'
+    case 'M':
+      return 'modified'
+    case 'R':
+      return 'renamed'
+    case 'C':
+      return 'copied'
+    default:
+      return 'unknown'
+  }
+}
+
+export interface CommitDiffRequest {
+  repoPath: string
+  commitHash: string
+  file: CommitFileChange
+}
+
+export async function loadCommitFileDiff(request: CommitDiffRequest): Promise<FileDiffDataUnified> {
+  const { repoPath, commitHash, file } = request
+  const diffResponse = await invoke<DiffResponse>(TauriCommands.ComputeCommitUnifiedDiff, {
+    repoPath,
+    commitHash,
+    filePath: file.path,
+    oldFilePath: file.oldPath ?? null,
+  })
+  const changedLinesCount = diffResponse.stats.additions + diffResponse.stats.deletions
+  return {
+    file: {
+      path: file.path,
+      change_type: normalizeCommitChangeType(file.changeType),
+      previous_path: file.oldPath,
+    },
+    diffResult: diffResponse.lines,
+    changedLinesCount,
+    fileInfo: diffResponse.fileInfo,
+    isBinary: diffResponse.isBinary,
+    unsupportedReason: diffResponse.unsupportedReason,
+  }
+}
 
 
 export async function loadFileDiff(

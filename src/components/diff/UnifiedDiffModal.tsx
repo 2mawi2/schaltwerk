@@ -4,10 +4,11 @@ import { invoke } from '@tauri-apps/api/core'
 import { useSelection } from '../../contexts/SelectionContext'
 import { useReview } from '../../contexts/ReviewContext'
 import { useFocus } from '../../contexts/FocusContext'
-import { useLineSelection } from '../../hooks/useLineSelection'
+import { useLineSelection, type LineSelection } from '../../hooks/useLineSelection'
 import { useDiffHover } from '../../hooks/useDiffHover'
 // getFileLanguage now comes from Rust backend via fileInfo in diff responses
-import { loadFileDiff, type FileDiffData } from './loadDiffs'
+import { loadFileDiff, loadCommitFileDiff, normalizeCommitChangeType, type FileDiffData } from './loadDiffs'
+import type { CommitFileChange } from '../git-graph/types'
 import { getFileLanguage } from '../../utils/diff'
 import { useReviewComments } from '../../hooks/useReviewComments'
 import { DiffFileExplorer, ChangedFile } from './DiffFileExplorer'
@@ -32,10 +33,21 @@ import { stableSessionTerminalId } from '../../common/terminalIdentity'
 
 // ChangedFile type now imported from DiffFileExplorer
 
+export interface HistoryDiffContext {
+  repoPath: string
+  commitHash: string
+  subject: string
+  author: string
+  committedAt?: string
+  files: CommitFileChange[]
+}
+
 interface UnifiedDiffModalProps {
   filePath: string | null
   isOpen: boolean
   onClose: () => void
+  mode?: 'session' | 'history'
+  historyContext?: HistoryDiffContext
 }
 
 interface DiffViewPreferences {
@@ -45,7 +57,8 @@ interface DiffViewPreferences {
 
 // FileDiffData type moved to loadDiffs
 
-export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModalProps) {
+export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode, historyContext }: UnifiedDiffModalProps) {
+  const mode: 'session' | 'history' = incomingMode ?? 'session'
   const { selection, setSelection, terminals } = useSelection()
   const selectedKind = selection.kind
   const terminalTop = terminals.top
@@ -69,6 +82,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     baseCommit: string
     headCommit: string 
   } | null>(null)
+  const [historyHeader, setHistoryHeader] = useState<{ subject: string; author: string; hash: string; committedAt?: string } | null>(null)
   const [selectedFileIndex, setSelectedFileIndex] = useState<number>(0)
   const [allFileDiffs, setAllFileDiffs] = useState<Map<string, FileDiffData>>(new Map())
   // Removed bulk loading states - now using lazy loading for better performance
@@ -99,15 +113,53 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   const pendingVisibilityUpdatesRef = useRef<Map<string, boolean>>(new Map())
   const visibilityFrameRef = useRef<number | NodeJS.Timeout | null>(null)
   const recentlyVisibleRef = useRef<string[]>([])
+  const historyPrefetchQueueRef = useRef<string[]>([])
+  const historyPrefetchActiveRef = useRef<Set<string>>(new Set())
+  const historyLoadedRef = useRef<Set<string>>(new Set())
+  const [historyPrefetchVersion, setHistoryPrefetchVersion] = useState(0)
+  const historyFiles = useMemo<ChangedFile[]>(() => {
+    if (mode !== 'history' || !historyContext) {
+      return []
+    }
+    return historyContext.files.map(file => ({
+      path: file.path,
+      change_type: normalizeCommitChangeType(file.changeType),
+      previous_path: file.oldPath,
+    }))
+  }, [mode, historyContext])
+  const historyInitialFile = useMemo(() => {
+    if (mode !== 'history') {
+      return null
+    }
+    if (filePath && historyFiles.some(file => file.path === filePath)) {
+      return filePath
+    }
+    return historyFiles[0]?.path ?? null
+  }, [mode, filePath, historyFiles])
+  useEffect(() => {
+    if (!isOpen || mode !== 'history') {
+      return
+    }
+    setSelectedFile(historyInitialFile)
+    if (historyInitialFile) {
+      const idx = historyFiles.findIndex(file => file.path === historyInitialFile)
+      setSelectedFileIndex(idx >= 0 ? idx : 0)
+    } else {
+      setSelectedFileIndex(0)
+    }
+  }, [isOpen, mode, historyInitialFile, historyFiles])
+  const emptyCommentsForFile = useCallback(() => [], [])
+  const emptyCommentForLine = useCallback(() => undefined, [])
+  const historyLineSelection = useMemo(() => ({
+    isLineSelected: () => false,
+    selection: null as LineSelection | null,
+  }), [])
 
   // Use single file view mode when continuousScroll is disabled
+  const effectiveContinuousScroll = mode === 'history' ? true : continuousScroll
   const isLargeDiffMode = useMemo(() => {
-    // When continuousScroll is false, always use single file view
-    if (!continuousScroll) return true
-    
-    // When continuousScroll is true, never use single file view - show all files
-    return false
-  }, [continuousScroll])
+    return !effectiveContinuousScroll
+  }, [effectiveContinuousScroll])
 
   // Removed virtualization to prevent jumping when diffs load
 
@@ -146,19 +198,25 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   
   // Show comment form whenever there's a selection (but not while dragging)
   useEffect(() => {
+    if (mode === 'history') {
+      return
+    }
     if (lineSelection.selection && !isDraggingSelection) {
       setShowCommentForm(true)
     } else if (!lineSelection.selection) {
       setShowCommentForm(false)
       setCommentFormPosition(null)
     }
-  }, [lineSelection.selection, isDraggingSelection])
+  }, [mode, lineSelection.selection, isDraggingSelection])
 
   useEffect(() => {
     setSelectedFile(filePath)
   }, [filePath])
 
   useEffect(() => {
+    if (mode === 'history') {
+      return
+    }
     if (!isOpen) return
     if (selection.kind === 'orchestrator') {
       if (!currentReview || currentReview.sessionName !== 'orchestrator') {
@@ -169,10 +227,13 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     if (sessionName && (!currentReview || currentReview.sessionName !== sessionName)) {
       startReview(sessionName)
     }
-  }, [isOpen, selection.kind, sessionName, currentReview, startReview])
+  }, [mode, isOpen, selection.kind, sessionName, currentReview, startReview])
 
   
   const toggleContinuousScroll = useCallback(async () => {
+    if (mode === 'history') {
+      return
+    }
     const newValue = !continuousScroll
     
     // Reset state when switching modes
@@ -206,7 +267,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     } catch (err) {
       logger.error('Failed to save diff view preference:', err)
     }
-  }, [continuousScroll, selectedFile, files, sessionName, compactDiffs])
+  }, [mode, continuousScroll, selectedFile, files, sessionName, compactDiffs])
 
 
   const toggleCompactDiffs = useCallback(async () => {
@@ -223,56 +284,188 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   }, [compactDiffs, continuousScroll])
 
 
-   const getChangedFilesForContext = useCallback(async () => {
-     if (isCommanderView()) {
-       return await invoke<ChangedFile[]>(TauriCommands.GetOrchestratorWorkingChanges)
-     }
-      return await invoke<ChangedFile[]>(TauriCommands.GetChangedFilesFromMain, { sessionName })
-    }, [sessionName, isCommanderView])
+  const fetchSessionChangedFiles = useCallback(async () => {
+    return await invoke<ChangedFile[]>(TauriCommands.GetChangedFilesFromMain, { sessionName })
+  }, [sessionName])
+
+  const fetchOrchestratorChangedFiles = useCallback(async () => {
+    return await invoke<ChangedFile[]>(TauriCommands.GetOrchestratorWorkingChanges)
+  }, [])
 
   const loadChangedFiles = useCallback(async () => {
-     try {
-       const changedFiles = await getChangedFilesForContext()
-       setFiles(changedFiles)
+    if (mode === 'history') {
+      if (!historyContext) {
+        logger.warn('[UnifiedDiffModal] History mode invoked without context')
+        return
+      }
 
-       // Prime initial selection
-       let initialIndex = 0
-       let initialPath: string | null = filePath || null
-       if (changedFiles.length > 0) {
-         if (!initialPath) initialPath = changedFiles[0].path
-         const found = changedFiles.findIndex(f => f.path === initialPath)
-         initialIndex = found >= 0 ? found : 0
-       }
+      setBranchInfo(null)
+      setHistoryHeader({
+        subject: historyContext.subject,
+        author: historyContext.author,
+        hash: historyContext.commitHash,
+        committedAt: historyContext.committedAt,
+      })
 
-       if (initialPath) {
-         setSelectedFile(initialPath)
-         setSelectedFileIndex(initialIndex)
-         // Load only the initially selected file first for fast TTI
-         try {
-           const primary = await loadFileDiff(sessionName, changedFiles[initialIndex], 'unified')
-           setAllFileDiffs(prev => {
-             const merged = new Map(prev)
-             merged.set(initialPath, primary)
-             return merged
-           })
-         } catch (e) {
-           const msg = e instanceof Error ? e.message : String(e)
-           setFileError(msg)
-         }
-       }
+      setFiles(historyFiles)
 
-       // Note: We now use lazy loading - diffs are loaded on-demand when user navigates to them
-       // This provides instant modal opening and smooth performance
+      const initialPath = historyInitialFile
+      const initialIndex = initialPath ? Math.max(historyFiles.findIndex(f => f.path === initialPath), 0) : 0
 
-       const currentBranch = await invoke<string>(TauriCommands.GetCurrentBranchName, { sessionName })
-       const baseBranch = await invoke<string>(TauriCommands.GetBaseBranchName, { sessionName })
-       const [baseCommit, headCommit] = await invoke<[string, string]>(TauriCommands.GetCommitComparisonInfo, { sessionName })
+      setSelectedFile(initialPath)
+      setSelectedFileIndex(initialIndex)
+      setFileError(null)
 
-       setBranchInfo({ currentBranch, baseBranch, baseCommit, headCommit })
-     } catch (error) {
-       logger.error('Failed to load changed files:', error)
-     }
-  }, [sessionName, filePath, getChangedFilesForContext, setFiles, setSelectedFile, setSelectedFileIndex, setAllFileDiffs, setFileError, setBranchInfo])
+      const seedSet = computeHistorySeedWindow(historyFiles, initialIndex)
+      const seedArray = Array.from(seedSet)
+      recentlyVisibleRef.current = seedArray
+      setRenderedFileSet(new Set(seedArray))
+      setVisibleFileSet(new Set(seedArray))
+      setLoadingFiles(new Set())
+      setAllFileDiffs(new Map())
+
+      historyLoadedRef.current.clear()
+      historyPrefetchActiveRef.current.clear()
+      historyPrefetchQueueRef.current = buildHistoryPrefetchQueue(historyFiles, initialIndex, seedSet)
+      setHistoryPrefetchVersion(prev => prev + 1)
+
+      if (initialPath) {
+        const commitFile = historyContext.files.find(file => file.path === initialPath)
+        if (commitFile) {
+          try {
+            const diff = await loadCommitFileDiff({
+              repoPath: historyContext.repoPath,
+              commitHash: historyContext.commitHash,
+              file: commitFile,
+            })
+            historyLoadedRef.current.add(initialPath)
+            setAllFileDiffs(new Map([[initialPath, diff]]))
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error)
+            setFileError(message)
+          }
+        }
+      }
+      return
+    }
+
+    try {
+      const changedFiles = isCommanderView()
+        ? await fetchOrchestratorChangedFiles()
+        : await fetchSessionChangedFiles()
+      setFiles(changedFiles)
+
+      let initialIndex = 0
+      let initialPath: string | null = filePath || null
+      if (changedFiles.length > 0) {
+        if (!initialPath) initialPath = changedFiles[0].path
+        const found = changedFiles.findIndex(f => f.path === initialPath)
+        initialIndex = found >= 0 ? found : 0
+      }
+
+      if (initialPath) {
+        setSelectedFile(initialPath)
+        setSelectedFileIndex(initialIndex)
+        try {
+          const primary = await loadFileDiff(sessionName, changedFiles[initialIndex], 'unified')
+          setAllFileDiffs(prev => {
+            const merged = new Map(prev)
+            merged.set(initialPath, primary)
+            return merged
+          })
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e)
+          setFileError(msg)
+        }
+      }
+
+      const currentBranch = await invoke<string>(TauriCommands.GetCurrentBranchName, { sessionName })
+      const baseBranch = await invoke<string>(TauriCommands.GetBaseBranchName, { sessionName })
+      const [baseCommit, headCommit] = await invoke<[string, string]>(TauriCommands.GetCommitComparisonInfo, { sessionName })
+
+      setBranchInfo({ currentBranch, baseBranch, baseCommit, headCommit })
+      setHistoryHeader(null)
+    } catch (error) {
+      logger.error('Failed to load changed files:', error)
+    }
+  }, [mode, historyContext, historyFiles, historyInitialFile, isCommanderView, fetchOrchestratorChangedFiles, fetchSessionChangedFiles, filePath, sessionName])
+
+  useEffect(() => {
+    if (mode !== 'history' || !isOpen || !historyContext) {
+      return
+    }
+
+    let cancelled = false
+    const MAX_CONCURRENCY = 3
+
+    const activeSet = historyPrefetchActiveRef.current
+
+    const pumpQueue = () => {
+      if (cancelled) {
+        return
+      }
+      const queue = historyPrefetchQueueRef.current
+      while (activeSet.size < MAX_CONCURRENCY && queue.length > 0) {
+        const nextPath = queue.shift()!
+        if (historyLoadedRef.current.has(nextPath) || activeSet.has(nextPath)) {
+          continue
+        }
+
+        const commitFile = historyContext.files.find(file => file.path === nextPath)
+        if (!commitFile) {
+          continue
+        }
+
+        activeSet.add(nextPath)
+        setLoadingFiles(prev => {
+          const next = new Set(prev)
+          next.add(nextPath)
+          return next
+        })
+
+        void loadCommitFileDiff({
+          repoPath: historyContext.repoPath,
+          commitHash: historyContext.commitHash,
+          file: commitFile,
+        })
+          .then(diff => {
+            if (cancelled) {
+              return
+            }
+            historyLoadedRef.current.add(nextPath)
+            setAllFileDiffs(prev => {
+              const next = new Map(prev)
+              next.set(nextPath, diff)
+              return next
+            })
+          })
+          .catch(error => {
+            if (!cancelled) {
+              logger.warn('[UnifiedDiffModal] Failed to prefetch history diff', error)
+            }
+          })
+          .finally(() => {
+            if (cancelled) {
+              return
+            }
+            activeSet.delete(nextPath)
+            setLoadingFiles(prev => {
+              const next = new Set(prev)
+              next.delete(nextPath)
+              return next
+            })
+            pumpQueue()
+          })
+      }
+    }
+
+    pumpQueue()
+
+    return () => {
+      cancelled = true
+      activeSet.clear()
+    }
+  }, [mode, isOpen, historyContext, historyPrefetchVersion])
 
   const scrollToFile = useCallback(async (path: string, index?: number) => {
     // Temporarily suppress auto-selection while we programmatically scroll
@@ -283,18 +476,42 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     if (index !== undefined) {
       setSelectedFileIndex(index)
     }
+
+    if (mode === 'history') {
+      historyPrefetchQueueRef.current = [
+        path,
+        ...historyPrefetchQueueRef.current.filter(candidate => candidate !== path)
+      ]
+      setHistoryPrefetchVersion(prev => prev + 1)
+    }
     
     // Lazy load the diff if not already loaded
     if (!allFileDiffs.has(path)) {
       const file = files.find(f => f.path === path)
       if (file) {
         try {
-          const diff = await loadFileDiff(sessionName, file, 'unified')
-          setAllFileDiffs(prev => {
-            const merged = new Map(prev)
-            merged.set(path, diff)
-            return merged
-          })
+          let diff: FileDiffData | null = null
+          if (mode === 'history' && historyContext) {
+            const commitFile = historyContext.files.find(entry => entry.path === path)
+            if (commitFile) {
+              diff = await loadCommitFileDiff({
+                repoPath: historyContext.repoPath,
+                commitHash: historyContext.commitHash,
+                file: commitFile,
+              })
+              historyLoadedRef.current.add(path)
+            }
+          } else {
+            diff = await loadFileDiff(sessionName, file, 'unified')
+          }
+
+          if (diff) {
+            setAllFileDiffs(prev => {
+              const merged = new Map(prev)
+              merged.set(path, diff as FileDiffData)
+              return merged
+            })
+          }
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e)
           setFileError(msg)
@@ -328,7 +545,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     window.setTimeout(() => {
       suppressAutoSelectRef.current = false
     }, 250)
-  }, [isLargeDiffMode, files, sessionName, allFileDiffs])
+  }, [mode, historyContext, setHistoryPrefetchVersion, isLargeDiffMode, files, sessionName, allFileDiffs])
 
   // Set up Intersection Observer for virtual scrolling in continuous mode
   useEffect(() => {
@@ -455,6 +672,11 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     
     // Add visible files to load queue
     visibleFileSet.forEach(path => {
+      if (mode === 'history') {
+        if (historyLoadedRef.current.has(path) || historyPrefetchActiveRef.current.has(path)) {
+          return
+        }
+      }
       if (!allFileDiffs.has(path) && !loadingFiles.has(path)) {
         loadQueue.add(path)
       }
@@ -468,14 +690,26 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
       // Load previous file
       if (index > 0) {
         const prevPath = files[index - 1].path
-        if (!allFileDiffs.has(prevPath) && !loadingFiles.has(prevPath)) {
+        if (mode === 'history') {
+          if (historyLoadedRef.current.has(prevPath) || historyPrefetchActiveRef.current.has(prevPath)) {
+            // Skip if already loaded or loading via history prefetch
+          } else if (!allFileDiffs.has(prevPath) && !loadingFiles.has(prevPath)) {
+            loadQueue.add(prevPath)
+          }
+        } else if (!allFileDiffs.has(prevPath) && !loadingFiles.has(prevPath)) {
           loadQueue.add(prevPath)
         }
       }
       // Load next file
       if (index < files.length - 1) {
         const nextPath = files[index + 1].path
-        if (!allFileDiffs.has(nextPath) && !loadingFiles.has(nextPath)) {
+        if (mode === 'history') {
+          if (historyLoadedRef.current.has(nextPath) || historyPrefetchActiveRef.current.has(nextPath)) {
+            // skip
+          } else if (!allFileDiffs.has(nextPath) && !loadingFiles.has(nextPath)) {
+            loadQueue.add(nextPath)
+          }
+        } else if (!allFileDiffs.has(nextPath) && !loadingFiles.has(nextPath)) {
           loadQueue.add(nextPath)
         }
       }
@@ -489,12 +723,30 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
       const loadPromises = batch.map(async path => {
         const file = filesByPath.get(path)
         if (!file) return null
-        
         try {
+          if (mode === 'history' && historyContext) {
+            const commitFile = historyContext.files.find(entry => entry.path === path)
+            if (!commitFile) {
+              return null
+            }
+            historyPrefetchActiveRef.current.add(path)
+            const diff = await loadCommitFileDiff({
+              repoPath: historyContext.repoPath,
+              commitHash: historyContext.commitHash,
+              file: commitFile,
+            })
+            historyPrefetchActiveRef.current.delete(path)
+            historyLoadedRef.current.add(path)
+            return { path, diff }
+          }
+
           const diff = await loadFileDiff(sessionName, file, 'unified')
           return { path, diff }
         } catch (e) {
           logger.error(`Failed to load diff for ${path}:`, e)
+          if (mode === 'history') {
+            historyPrefetchActiveRef.current.delete(path)
+          }
           return null
         }
       })
@@ -529,7 +781,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     
     void loadNextBatch()
 
-  }, [visibleFileSet, files, allFileDiffs, loadingFiles, isLargeDiffMode, isOpen, sessionName])
+  }, [visibleFileSet, files, allFileDiffs, loadingFiles, isLargeDiffMode, isOpen, sessionName, mode, historyContext])
 
   // Separate memory management into its own effect with less frequent runs
   useEffect(() => {
@@ -821,7 +1073,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   }, [lineSelection])
   
   // Enable keyboard shortcuts for hovered lines
-  useHoverKeyboardShortcuts(startCommentOnLine, isOpen)
+  useHoverKeyboardShortcuts(startCommentOnLine, isOpen && mode !== 'history')
 
   const handleLineMouseUp = useCallback((event: React.MouseEvent) => {
     if (isDraggingSelection) {
@@ -1078,7 +1330,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
         }
       }
 
-      if (isShortcutForAction(e, KeyboardShortcutAction.FinishReview, keyboardShortcutConfig, { platform })) {
+      if (mode !== 'history' && isShortcutForAction(e, KeyboardShortcutAction.FinishReview, keyboardShortcutConfig, { platform })) {
         const target = e.target as HTMLElement | null
         const tag = target?.tagName?.toLowerCase()
         const isEditable = (target as HTMLElement)?.isContentEditable
@@ -1129,9 +1381,122 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
 
     window.addEventListener('keydown', handleKeyDown, true) // capture phase
     return () => window.removeEventListener('keydown', handleKeyDown, true)
-  }, [isOpen, showCommentForm, isSearchVisible, onClose, lineSelection, selectedFileIndex, files, scrollToFile, handleFinishReview, setIsSearchVisible, setShowCommentForm, setCommentFormPosition, keyboardShortcutConfig, platform])
+  }, [mode, isOpen, showCommentForm, isSearchVisible, onClose, lineSelection, selectedFileIndex, files, scrollToFile, handleFinishReview, setIsSearchVisible, setShowCommentForm, setCommentFormPosition, keyboardShortcutConfig, platform])
 
   if (!isOpen) return null
+
+  if (mode === 'history') {
+    return (
+      <>
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
+          onClick={onClose}
+        />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-950 rounded-xl shadow-2xl w-[95vw] h-[90vh] flex flex-col overflow-hidden border border-slate-800">
+            <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-3">
+                  <h2 className="text-lg font-semibold">Commit Diff Viewer</h2>
+                  {historyHeader && (
+                    <span className="text-xs text-slate-400 font-mono">
+                      {historyHeader.hash.slice(0, 12)}
+                    </span>
+                  )}
+              </div>
+              {historyHeader && (
+                <div className="text-xs text-slate-500 flex flex-wrap items-center gap-2">
+                  <span className="font-medium text-slate-300 truncate">{historyHeader.subject}</span>
+                  <span>•</span>
+                  <span>{historyHeader.author}</span>
+                  {historyHeader.committedAt && (
+                    <>
+                      <span>•</span>
+                      <span>{historyHeader.committedAt}</span>
+                    </>
+                  )}
+                </div>
+              )}
+              {selectedFile && (
+                <div className="text-xs text-slate-500 truncate max-w-md">{selectedFile}</div>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+                <button
+                  onClick={toggleCompactDiffs}
+                  className="p-1.5 hover:bg-slate-800 rounded-lg"
+                  title={compactDiffs ? 'Show full context' : 'Collapse unchanged lines'}
+                  aria-label={compactDiffs ? 'Show full context' : 'Collapse unchanged lines'}
+                >
+                  {compactDiffs ? <VscExpandAll className="text-xl" /> : <VscCollapseAll className="text-xl" />}
+                </button>
+                <button
+                  className="p-1.5 rounded-lg opacity-60 cursor-not-allowed"
+                  title="Continuous scroll is always enabled in history mode"
+                  disabled
+                >
+                  <VscListFlat className="text-xl" />
+                </button>
+                <button
+                  onClick={onClose}
+                  className="p-1.5 hover:bg-slate-800 rounded-lg"
+                >
+                  <VscClose className="text-xl" />
+                </button>
+              </div>
+            </div>
+            <div className="flex flex-1 overflow-hidden">
+              <DiffFileExplorer
+                files={files}
+                selectedFile={selectedFile}
+                visibleFilePath={visibleFilePath}
+                onFileSelect={scrollToFile}
+                getCommentsForFile={emptyCommentsForFile}
+                currentReview={null}
+                onFinishReview={() => {}}
+                onCancelReview={() => {}}
+                removeComment={() => {}}
+                getConfirmationMessage={() => ''}
+              />
+              <div className="flex-1 flex flex-col overflow-hidden relative">
+                <DiffViewer
+                  files={files}
+                  selectedFile={selectedFile}
+                  allFileDiffs={allFileDiffs}
+                  fileError={fileError}
+                  branchInfo={null}
+                  expandedSectionsByFile={expandedSections}
+                  isLargeDiffMode={isLargeDiffMode}
+                  visibleFileSet={visibleFileSet}
+                  renderedFileSet={renderedFileSet}
+                  loadingFiles={loadingFiles}
+                  observerRef={observerRef}
+                  scrollContainerRef={scrollContainerRef as React.RefObject<HTMLDivElement>}
+                  fileRefs={fileRefs}
+                  fileBodyHeights={fileBodyHeightsRef.current}
+                  onFileBodyHeightChange={registerFileBodyHeight}
+                  getCommentsForFile={emptyCommentsForFile}
+                  getCommentForLine={emptyCommentForLine}
+                  highlightCode={highlightCode}
+                  toggleCollapsed={toggleCollapsed}
+                  handleLineMouseDown={() => {}}
+                  handleLineMouseEnter={() => {}}
+                  handleLineMouseLeave={() => {}}
+                  handleLineMouseUp={() => {}}
+                  lineSelection={historyLineSelection}
+                />
+                <SearchBox
+                  targetRef={scrollContainerRef}
+                  isVisible={isSearchVisible}
+                  onClose={() => setIsSearchVisible(false)}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </>
+    )
+  }
 
   return (
     <DiffSessionActions
@@ -1414,4 +1779,76 @@ function CommentForm({ onSubmit, onCancel, keyboardShortcutConfig, platform }: {
       </div>
     </>
   )
+}
+
+export function computeHistorySeedWindow(files: ChangedFile[], centerIndex: number, radius = 2): Set<string> {
+  if (files.length === 0) {
+    return new Set()
+  }
+  const clampedCenter = Math.min(Math.max(centerIndex, 0), files.length - 1)
+  const start = Math.max(0, clampedCenter - Math.max(radius, 0))
+  const end = Math.min(files.length - 1, clampedCenter + Math.max(radius, 0))
+  const seeded = new Set<string>()
+  for (let index = start; index <= end; index += 1) {
+    seeded.add(files[index].path)
+  }
+  return seeded
+}
+
+export function computeLargeDiffVisibleSet(files: ChangedFile[], selectedFile: string | null, includeNeighbors = false): Set<string> {
+  const result = new Set<string>()
+  if (!selectedFile) {
+    return result
+  }
+  result.add(selectedFile)
+  if (!includeNeighbors) {
+    return result
+  }
+  const index = files.findIndex(file => file.path === selectedFile)
+  if (index > 0) {
+    result.add(files[index - 1].path)
+  }
+  if (index >= 0 && index < files.length - 1) {
+    result.add(files[index + 1].path)
+  }
+  return result
+}
+
+function buildHistoryPrefetchQueue(files: ChangedFile[], centerIndex: number, seeded: Set<string>): string[] {
+  if (files.length === 0) {
+    return []
+  }
+  const queue: string[] = []
+  const visited = new Set<number>()
+  const enqueue = (index: number) => {
+    if (index < 0 || index >= files.length) return
+    if (visited.has(index)) return
+    visited.add(index)
+    const path = files[index].path
+    if (!seeded.has(path)) {
+      queue.push(path)
+    }
+  }
+
+  enqueue(centerIndex)
+
+  let offset = 1
+  while (visited.size < files.length) {
+    const left = centerIndex - offset
+    const right = centerIndex + offset
+    enqueue(left)
+    enqueue(right)
+    if (left < 0 && right >= files.length) {
+      break
+    }
+    offset += 1
+  }
+
+  for (let index = 0; index < files.length; index += 1) {
+    if (!visited.has(index)) {
+      enqueue(index)
+    }
+  }
+
+  return queue
 }

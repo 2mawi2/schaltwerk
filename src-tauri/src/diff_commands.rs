@@ -7,7 +7,7 @@ use crate::diff_engine::{
 };
 use crate::file_utils;
 use crate::get_core_read;
-use git2::{Delta, DiffFindOptions, DiffOptions, ObjectType, Oid, Repository, Sort, Status};
+use git2::{Delta, DiffFindOptions, DiffOptions, ObjectType, Oid, Repository, Sort, Status, Tree};
 use schaltwerk::binary_detection::{get_unsupported_reason, is_binary_file_by_extension};
 use schaltwerk::domains::git;
 use schaltwerk::domains::sessions::entity::ChangedFile;
@@ -542,6 +542,37 @@ fn short_id_str(repo: &Repository, oid: Oid) -> String {
     s.chars().take(7).collect()
 }
 
+fn read_blob_bytes_from_tree(
+    repo: &Repository,
+    tree: Option<&Tree>,
+    file_path: &str,
+) -> Result<Option<Vec<u8>>, String> {
+    let tree = match tree {
+        Some(tree) => tree,
+        None => return Ok(None),
+    };
+
+    let entry = match tree.get_path(Path::new(file_path)) {
+        Ok(entry) => entry,
+        Err(_) => return Ok(None),
+    };
+
+    if entry.kind() != Some(ObjectType::Blob) {
+        return Ok(None);
+    }
+
+    let blob = repo
+        .find_blob(entry.id())
+        .or_else(|_| {
+            repo.find_object(entry.id(), Some(ObjectType::Blob))
+                .or_else(|_| repo.find_object(entry.id(), None))
+                .and_then(|object| object.peel_to_blob())
+        })
+        .map_err(|e| format!("Failed to read blob for {file_path}: {e}"))?;
+
+    Ok(Some(blob.content().to_vec()))
+}
+
 fn read_blob_from_commit_path(
     repo: &Repository,
     commit_oid: Option<Oid>,
@@ -561,26 +592,17 @@ fn read_blob_from_commit_path(
     let tree = commit
         .tree()
         .map_err(|e| format!("Failed to get tree: {e}"))?;
-    let path = std::path::Path::new(file_path);
-    let entry = match tree.get_path(path) {
-        Ok(e) => e,
-        Err(_) => return Ok(String::new()),
+    let data = match read_blob_bytes_from_tree(repo, Some(&tree), file_path)? {
+        Some(bytes) => bytes,
+        None => return Ok(String::new()),
     };
-    let obj = repo
-        .find_object(entry.id(), Some(ObjectType::Blob))
-        .or_else(|_| repo.find_object(entry.id(), None))
-        .map_err(|e| format!("Failed to find object: {e}"))?;
-    let blob = obj
-        .peel_to_blob()
-        .map_err(|e| format!("Failed to peel to blob: {e}"))?;
-    let data = blob.content();
     if data.len() > 10 * 1024 * 1024 {
         return Err("Base file is too large to diff (>10MB)".to_string());
     }
-    if data.contains(&0) || is_likely_binary(data) {
+    if data.contains(&0) || is_likely_binary(&data) {
         return Err("Base file appears to be binary".to_string());
     }
-    Ok(String::from_utf8_lossy(data).to_string())
+    Ok(String::from_utf8_lossy(&data).to_string())
 }
 
 fn read_blob_from_merge_base(
@@ -867,6 +889,148 @@ async fn resolve_session_info(session_name: &str) -> Result<(String, String), St
         .await;
 
     Ok((worktree_path, base_branch))
+}
+
+#[tauri::command]
+pub async fn compute_commit_unified_diff(
+    repo_path: Option<String>,
+    commit_hash: String,
+    file_path: String,
+    old_file_path: Option<String>,
+) -> Result<DiffResponse, String> {
+    use std::time::Instant;
+    let start_total = Instant::now();
+
+    let resolved_repo_path = if let Some(path) = repo_path {
+        path
+    } else {
+        get_repo_path(None).await?
+    };
+
+    let repo =
+        Repository::open(&resolved_repo_path).map_err(|e| format!("Failed to open repository: {e}"))?;
+
+    let oid = Oid::from_str(&commit_hash)
+        .or_else(|_| repo.revparse_single(&commit_hash).map(|obj| obj.id()))
+        .map_err(|e| format!("Failed to resolve commit {commit_hash}: {e}"))?;
+    let commit = repo
+        .find_commit(oid)
+        .map_err(|e| format!("Failed to find commit {commit_hash}: {e}"))?;
+
+    let new_tree = commit
+        .tree()
+        .map_err(|e| format!("Failed to read commit tree: {e}"))?;
+    let old_tree = if commit.parent_count() > 0 {
+        commit
+            .parent(0)
+            .ok()
+            .and_then(|parent| parent.tree().ok())
+    } else {
+        None
+    };
+
+    let old_lookup_path = old_file_path
+        .as_deref()
+        .unwrap_or(file_path.as_str());
+
+    let start_load = Instant::now();
+    let old_bytes = read_blob_bytes_from_tree(&repo, old_tree.as_ref(), old_lookup_path)?;
+    let new_bytes = read_blob_bytes_from_tree(&repo, Some(&new_tree), &file_path)?;
+    let load_duration = start_load.elapsed();
+
+    let new_bytes_ref = new_bytes.as_deref();
+    let old_bytes_ref = old_bytes.as_deref();
+
+    let unsupported_reason = [
+        new_bytes_ref.and_then(|bytes| get_unsupported_reason(&file_path, Some(bytes))),
+        old_bytes_ref.and_then(|bytes| get_unsupported_reason(old_lookup_path, Some(bytes))),
+        get_unsupported_reason(&file_path, None),
+        if old_file_path.is_some() {
+            get_unsupported_reason(old_lookup_path, None)
+        } else {
+            None
+        },
+    ]
+    .into_iter()
+    .flatten()
+    .next();
+
+    let size_bytes = new_bytes_ref
+        .map(|bytes| bytes.len())
+        .or_else(|| old_bytes_ref.map(|bytes| bytes.len()))
+        .unwrap_or(0);
+    let is_large_file = size_bytes > 5 * 1024 * 1024;
+
+    let language_target = if new_bytes_ref.is_some() {
+        file_path.as_str()
+    } else {
+        old_lookup_path
+    };
+
+    if let Some(reason) = unsupported_reason {
+        let is_binary_flag = reason.to_ascii_lowercase().contains("binary");
+        let file_info = FileInfo {
+            language: get_file_language(language_target),
+            size_bytes,
+        };
+        return Ok(DiffResponse {
+            lines: vec![],
+            stats: calculate_diff_stats(&[]),
+            file_info,
+            is_large_file,
+            is_binary: Some(is_binary_flag),
+            unsupported_reason: Some(reason),
+        });
+    }
+
+    let old_content = old_bytes_ref
+        .map(|bytes| String::from_utf8_lossy(bytes).into_owned())
+        .unwrap_or_default();
+    let new_content = new_bytes_ref
+        .map(|bytes| String::from_utf8_lossy(bytes).into_owned())
+        .unwrap_or_default();
+
+    let start_diff = Instant::now();
+    let diff_lines = compute_unified_diff(&old_content, &new_content);
+    let diff_duration = start_diff.elapsed();
+
+    let start_collapse = Instant::now();
+    let lines_with_collapsible = add_collapsible_sections(diff_lines);
+    let collapse_duration = start_collapse.elapsed();
+
+    let start_stats = Instant::now();
+    let stats = calculate_diff_stats(&lines_with_collapsible);
+    let stats_duration = start_stats.elapsed();
+
+    let total_duration = start_total.elapsed();
+
+    if total_duration.as_millis() > 100 || is_large_file {
+        let commit_short = short_id_str(&repo, commit.id());
+        log::info!(
+            "Commit diff performance for {file_path}@{commit_short}: total={}ms (load={}ms, diff={}ms, collapse={}ms, stats={}ms), size={}KB, lines={}",
+            total_duration.as_millis(),
+            load_duration.as_millis(),
+            diff_duration.as_millis(),
+            collapse_duration.as_millis(),
+            stats_duration.as_millis(),
+            size_bytes / 1024,
+            lines_with_collapsible.len()
+        );
+    }
+
+    let file_info = FileInfo {
+        language: get_file_language(language_target),
+        size_bytes,
+    };
+
+    Ok(DiffResponse {
+        lines: lines_with_collapsible,
+        stats,
+        file_info,
+        is_large_file,
+        is_binary: Some(false),
+        unsupported_reason: None,
+    })
 }
 
 #[tauri::command]

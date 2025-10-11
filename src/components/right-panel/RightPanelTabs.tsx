@@ -10,6 +10,7 @@ import { SpecContentView as SpecContentView } from '../plans/SpecContentView'
 import { SpecInfoPanel as SpecInfoPanel } from '../plans/SpecInfoPanel'
 import { SpecMetadataPanel as SpecMetadataPanel } from '../plans/SpecMetadataPanel'
 import { GitGraphPanel } from '../git-graph/GitGraphPanel'
+import type { HistoryItem, CommitFileChange } from '../git-graph/types'
 import Split from 'react-split'
 import { CopyBundleBar } from './CopyBundleBar'
 import { logger } from '../../utils/logger'
@@ -18,12 +19,13 @@ import { beginSplitDrag, endSplitDrag } from '../../utils/splitDragCoordinator'
 
 interface RightPanelTabsProps {
   onFileSelect: (filePath: string) => void
+  onOpenHistoryDiff?: (payload: { repoPath: string; commit: HistoryItem; files: CommitFileChange[]; initialFilePath?: string | null }) => void
   selectionOverride?: { kind: 'session' | 'orchestrator'; payload?: string | null }
   isSpecOverride?: boolean
   isDragging?: boolean
 }
 
-const RightPanelTabsComponent = ({ onFileSelect, selectionOverride, isSpecOverride, isDragging = false }: RightPanelTabsProps) => {
+const RightPanelTabsComponent = ({ onFileSelect, onOpenHistoryDiff, selectionOverride, isSpecOverride, isDragging = false }: RightPanelTabsProps) => {
   const { selection, isSpec } = useSelection()
   const { projectPath } = useProject()
   const { setFocusForSession, currentFocus } = useFocus()
@@ -269,7 +271,7 @@ const RightPanelTabsComponent = ({ onFileSelect, selectionOverride, isSpecOverri
                 <SpecMetadataPanel sessionName={effectiveSelection.payload!} />
               ) : null
             ) : activeTab === 'history' ? (
-              <GitGraphPanel />
+              <GitGraphPanel onOpenCommitDiff={onOpenHistoryDiff} />
             ) : (
               effectiveSelection.kind === 'session' ? (
                 effectiveIsSpec ? (

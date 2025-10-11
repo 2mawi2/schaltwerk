@@ -18,6 +18,7 @@ interface HistoryItemRowProps {
   detailBottomPadding: number
   detailItemHeight: number
   detailMessageHeight: number
+  onOpenCommitDiff?: (viewModel: HistoryItemViewModel, filePath?: string) => void
 }
 
 function getReferenceIcon(iconType: string | undefined) {
@@ -124,7 +125,7 @@ function GitGraphExtension({ viewModel, height }: GitGraphExtensionProps) {
   )
 }
 
-export const HistoryItemRow = memo(({ viewModel, isSelected, onSelect, onContextMenu, detailState, onToggleDetails, detailTopPadding, detailBottomPadding, detailItemHeight, detailMessageHeight }: HistoryItemRowProps) => {
+export const HistoryItemRow = memo(({ viewModel, isSelected, onSelect, onContextMenu, detailState, onToggleDetails, detailTopPadding, detailBottomPadding, detailItemHeight, detailMessageHeight, onOpenCommitDiff }: HistoryItemRowProps) => {
   const { historyItem, isCurrent } = viewModel
 
   const groupedRefs = useMemo(() => {
@@ -260,8 +261,26 @@ export const HistoryItemRow = memo(({ viewModel, isSelected, onSelect, onContext
           return (
             <div
               key={`${historyItem.id}-${file.path}`}
-              className="flex items-center gap-2"
-              style={{ minHeight: detailItemHeight, height: detailItemHeight }}
+              className="flex items-center gap-2 px-1 rounded cursor-pointer transition-colors hover:bg-[color:var(--hover-bg)]"
+              style={{
+                minHeight: detailItemHeight,
+                height: detailItemHeight,
+                '--hover-bg': theme.colors.background.secondary,
+              } as CSSProperties}
+              role="button"
+              tabIndex={0}
+              aria-label={`Open diff for ${file.path} (${normalizedType})`}
+              onClick={event => {
+                event.stopPropagation()
+                onOpenCommitDiff?.(viewModel, file.path)
+              }}
+              onKeyDown={event => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  onOpenCommitDiff?.(viewModel, file.path)
+                }
+              }}
             >
               <span className="flex items-center justify-center w-4 h-4 text-slate-300 flex-shrink-0">
                 {getFileIcon(normalizedType, file.path)}

@@ -20,6 +20,7 @@ export interface HistoryItem {
 export interface CommitFileChange {
   path: string
   changeType: string
+  oldPath?: string
 }
 
 export interface CommitDetailState {

@@ -6,6 +6,7 @@ export const TauriCommands = {
   CloseTerminal: 'close_terminal',
   ComputeSplitDiffBackend: 'compute_split_diff_backend',
   ComputeUnifiedDiffBackend: 'compute_unified_diff_backend',
+  ComputeCommitUnifiedDiff: 'compute_commit_unified_diff',
   ConfigureMcpForProject: 'configure_mcp_for_project',
   GitHubGetStatus: 'github_get_status',
   GitHubAuthenticate: 'github_authenticate',

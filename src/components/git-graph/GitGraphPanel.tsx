@@ -12,9 +12,18 @@ import { writeClipboard } from '../../utils/clipboard'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import type { EventPayloadMap } from '../../common/events'
 
+interface GitGraphPanelProps {
+  onOpenCommitDiff?: (payload: {
+    repoPath: string
+    commit: HistoryItem
+    files: CommitFileChange[]
+    initialFilePath?: string
+  }) => void
+}
+
 const HISTORY_PAGE_SIZE = 400
 
-export const GitGraphPanel = memo(() => {
+export const GitGraphPanel = memo(({ onOpenCommitDiff }: GitGraphPanelProps = {}) => {
   const { projectPath } = useProject()
   const { pushToast } = useToast()
   const [snapshot, setSnapshot] = useState<HistoryProviderSnapshot | null>(null)
@@ -221,6 +230,35 @@ export const GitGraphPanel = memo(() => {
     }
     setContextMenu(null)
   }, [contextMenu, pushToast])
+
+  const handleOpenCommitDiffInternal = useCallback(async (commit: HistoryItem, filePath?: string) => {
+    if (!onOpenCommitDiff || !projectPath) {
+      return
+    }
+
+    const commitHash = commit.fullHash ?? commit.id
+    let files = commitDetailsRef.current[commit.id]?.files ?? null
+
+    if (!files || files.length === 0) {
+      try {
+        files = await invoke<CommitFileChange[]>(TauriCommands.GetGitGraphCommitFiles, {
+          repoPath: projectPath,
+          commitHash,
+        })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        pushToast({ tone: 'error', title: 'Failed to open diff', description: message })
+        return
+      }
+    }
+
+    if (!files || files.length === 0) {
+      pushToast({ tone: 'info', title: 'No file changes', description: 'This commit has no files to diff.' })
+      return
+    }
+
+    onOpenCommitDiff({ repoPath: projectPath, commit, files, initialFilePath: filePath })
+  }, [onOpenCommitDiff, projectPath, pushToast])
 
   useEffect(() => {
     commitDetailsRef.current = commitDetails
@@ -458,6 +496,7 @@ export const GitGraphPanel = memo(() => {
         onContextMenu={handleContextMenu}
         commitDetails={commitDetails}
         onToggleCommitDetails={handleToggleCommitDetails}
+        onOpenCommitDiff={(viewModel, filePath) => handleOpenCommitDiffInternal(viewModel.historyItem, filePath)}
       />
       {hasMore && (
         <div className="border-t border-slate-800 px-3 py-2 text-xs text-slate-400 flex items-center justify-between">
@@ -497,6 +536,19 @@ export const GitGraphPanel = memo(() => {
               minWidth: '160px'
             }}
           >
+            {contextMenu && onOpenCommitDiff && (
+              <button
+                type="button"
+                className="w-full px-3 py-1 text-left text-xs hover:bg-[color:var(--hover-bg)] transition-colors"
+                style={{ '--hover-bg': theme.colors.background.secondary } as React.CSSProperties}
+                onClick={() => {
+                  void handleOpenCommitDiffInternal(contextMenu.commit)
+                  setContextMenu(null)
+                }}
+              >
+                Open diff
+              </button>
+            )}
             <button
               type="button"
               className="w-full px-3 py-1 text-left text-xs hover:bg-[color:var(--hover-bg)] transition-colors"

@@ -115,6 +115,61 @@ describe('GitGraphPanel commit details', () => {
     })
   })
 
+  it('invokes onOpenCommitDiff when a file row is activated', async () => {
+    const historyResponse = {
+      items: [
+        {
+          id: 'abc1234',
+          parentIds: ['fffffff'],
+          subject: 'Initial commit',
+          author: 'Alice',
+          timestamp: 1720000000000,
+          references: [],
+          fullHash: 'abc1234fffffffabc1234fffffffabc1234fffffff',
+        },
+      ],
+      hasMore: false,
+      nextCursor: null,
+    }
+
+    const filesResponse = [
+      { path: 'src/main.rs', changeType: 'M' },
+      { path: 'README.md', changeType: 'A' },
+    ]
+
+    mockedInvoke.mockImplementation(async (command: string, payload: unknown) => {
+      if (command === TauriCommands.GetGitGraphHistory) {
+        expect(payload).toMatchObject({ repoPath: '/repo/path' })
+        return historyResponse as unknown
+      }
+
+      if (command === TauriCommands.GetGitGraphCommitFiles) {
+        return filesResponse as unknown
+      }
+
+      throw new Error(`Unexpected command ${String(command)}`)
+    })
+
+    const handleOpenCommitDiff = vi.fn()
+    render(<GitGraphPanel onOpenCommitDiff={handleOpenCommitDiff} />)
+
+    const commitRow = await screen.findByText('Initial commit')
+    await userEvent.click(commitRow)
+
+    const fileRow = await screen.findByText('main.rs')
+    await userEvent.click(fileRow)
+
+    await waitFor(() => {
+      expect(handleOpenCommitDiff).toHaveBeenCalled()
+    })
+
+    const payload = handleOpenCommitDiff.mock.calls[0][0]
+    expect(payload.repoPath).toBe('/repo/path')
+    expect(payload.commit.subject).toBe('Initial commit')
+    expect(payload.files).toEqual(filesResponse)
+    expect(payload.initialFilePath).toBe('src/main.rs')
+  })
+
   it('reloads history when head commit changes and ignores duplicate events', async () => {
     const historyResponse = {
       items: [

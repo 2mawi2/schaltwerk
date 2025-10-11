@@ -21,6 +21,9 @@ pub struct CommitFileChange {
     pub path: String,
     #[serde(rename = "changeType")]
     pub change_type: String,
+    /// Previous path when the file was renamed, used by the diff viewer to fetch the old blob
+    #[serde(skip_serializing_if = "Option::is_none", rename = "oldPath")]
+    pub old_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -112,9 +115,17 @@ pub fn get_commit_file_changes(
             .and_then(|path| path.to_str())
         {
             if !path.is_empty() {
+                let old_path = delta
+                    .old_file()
+                    .path()
+                    .and_then(|old| old.to_str())
+                    .filter(|old| *old != path)
+                    .map(|old| old.to_string());
+
                 files.push(CommitFileChange {
                     path: path.to_string(),
                     change_type: status.to_string(),
+                    old_path,
                 });
             }
         }

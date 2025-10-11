@@ -9,6 +9,7 @@ interface HistoryListProps {
   onContextMenu: (event: React.MouseEvent, commit: HistoryItem) => void
   commitDetails: Record<string, CommitDetailState>
   onToggleCommitDetails: (viewModel: HistoryItemViewModel) => void
+  onOpenCommitDiff?: (viewModel: HistoryItemViewModel, filePath?: string) => void
 }
 
 const DETAIL_METRICS = {
@@ -18,7 +19,7 @@ const DETAIL_METRICS = {
   messageHeight: 20,
 }
 
-export const HistoryList = memo(({ items, selectedCommitId, onSelectCommit, onContextMenu, commitDetails, onToggleCommitDetails }: HistoryListProps) => {
+export const HistoryList = memo(({ items, selectedCommitId, onSelectCommit, onContextMenu, commitDetails, onToggleCommitDetails, onOpenCommitDiff }: HistoryListProps) => {
   return (
     <div className="flex-1 flex min-h-0 relative overflow-y-auto">
       <div className="flex flex-col w-full">
@@ -35,6 +36,7 @@ export const HistoryList = memo(({ items, selectedCommitId, onSelectCommit, onCo
             detailBottomPadding={DETAIL_METRICS.bottomPadding}
             detailItemHeight={DETAIL_METRICS.itemHeight}
             detailMessageHeight={DETAIL_METRICS.messageHeight}
+            onOpenCommitDiff={onOpenCommitDiff}
           />
         ))}
       </div>

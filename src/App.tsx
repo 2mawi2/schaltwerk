@@ -7,7 +7,8 @@ import { TerminalGrid } from './components/terminal/TerminalGrid'
 import { RightPanelTabs } from './components/right-panel/RightPanelTabs'
 import ErrorBoundary from './components/ErrorBoundary'
 import SessionErrorBoundary from './components/SessionErrorBoundary'
-import { UnifiedDiffModal } from './components/diff/UnifiedDiffModal'
+import { UnifiedDiffModal, type HistoryDiffContext } from './components/diff/UnifiedDiffModal'
+import type { HistoryItem, CommitFileChange } from './components/git-graph/types'
 import Split from 'react-split'
 import { NewSessionModal } from './components/modals/NewSessionModal'
 import { CancelConfirmation } from './components/modals/CancelConfirmation'
@@ -258,7 +259,7 @@ function AppContent() {
   const [deleteSpecModalOpen, setDeleteSpecModalOpen] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const [currentSession, setCurrentSession] = useState<{ id: string; name: string; displayName: string; branch: string; hasUncommittedChanges: boolean } | null>(null)
-  const [selectedDiffFile, setSelectedDiffFile] = useState<string | null>(null)
+  const [diffViewerState, setDiffViewerState] = useState<{ mode: 'session' | 'history'; filePath: string | null; historyContext?: HistoryDiffContext } | null>(null)
   const [isDiffViewerOpen, setIsDiffViewerOpen] = useState(false)
   const [showHome, setShowHome] = useState(true)
   const [openTabs, setOpenTabs] = useState<ProjectTab[]>([])
@@ -575,7 +576,7 @@ function AppContent() {
     }
 
     const handleOpenDiffView = () => {
-      setSelectedDiffFile(null)
+      setDiffViewerState({ mode: 'session', filePath: null })
       setIsDiffViewerOpen(true)
     }
 
@@ -588,7 +589,7 @@ function AppContent() {
     const cleanupOpenDiffView = listenUiEvent(UiEvent.OpenDiffView, () => handleOpenDiffView())
     const cleanupOpenDiffFile = listenUiEvent(UiEvent.OpenDiffFile, detail => {
       const filePath = detail?.filePath || null
-      setSelectedDiffFile(filePath)
+      setDiffViewerState({ mode: 'session', filePath })
       setIsDiffViewerOpen(true)
     })
 
@@ -683,12 +684,32 @@ function AppContent() {
   }
 
   const handleFileSelect = (filePath: string) => {
-    setSelectedDiffFile(filePath)
+    setDiffViewerState({ mode: 'session', filePath })
     setIsDiffViewerOpen(true)
   }
 
+  const handleOpenHistoryDiff = useCallback((payload: { repoPath: string; commit: HistoryItem; files: CommitFileChange[]; initialFilePath?: string | null }) => {
+    const { repoPath, commit, files, initialFilePath } = payload
+    const committedAt = Number.isFinite(commit.timestamp)
+      ? new Date(commit.timestamp).toLocaleString()
+      : undefined
+
+    const historyContext: HistoryDiffContext = {
+      repoPath,
+      commitHash: commit.fullHash ?? commit.id,
+      subject: commit.subject,
+      author: commit.author,
+      committedAt,
+      files,
+    }
+
+    setDiffViewerState({ mode: 'history', filePath: initialFilePath ?? null, historyContext })
+    setIsDiffViewerOpen(true)
+  }, [])
+
   const handleCloseDiffViewer = () => {
     setIsDiffViewerOpen(false)
+    setDiffViewerState(null)
   }
 
   // Helper function to create terminals for a session (avoids code duplication)
@@ -1304,6 +1325,7 @@ function AppContent() {
                         <ErrorBoundary name="RightPanel">
                           <RightPanelTabs 
                             onFileSelect={handleFileSelect}
+                            onOpenHistoryDiff={handleOpenHistoryDiff}
                             isDragging={isDraggingRightSplit}
                           />
                         </ErrorBoundary>
@@ -1361,11 +1383,13 @@ function AppContent() {
           )}
 
           {/* Diff Viewer Modal with Review - render only when open */}
-          {isDiffViewerOpen && (
+          {isDiffViewerOpen && diffViewerState && (
             <UnifiedDiffModal
-              filePath={selectedDiffFile}
+              filePath={diffViewerState.filePath}
               isOpen={true}
               onClose={handleCloseDiffViewer}
+              mode={diffViewerState.mode}
+              historyContext={diffViewerState.mode === 'history' ? diffViewerState.historyContext : undefined}
             />
           )}
           
