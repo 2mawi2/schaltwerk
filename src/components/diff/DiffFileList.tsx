@@ -273,6 +273,9 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
               clearInterval(pollInterval)
               pollInterval = null
             }
+            invoke(TauriCommands.StopFileWatcher, { sessionName: event.session_name }).catch(err => {
+              logger.warn('[DiffFileList] Failed to stop file watcher during cancellation', err)
+            })
           }
         })
       }

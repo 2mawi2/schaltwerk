@@ -72,12 +72,42 @@ describe('SchaltwerkBridge merge/pr helpers', () => {
     })
   })
 
-  it('rejects merge without a commit message', async () => {
+  it('rejects squash merge without a commit message', async () => {
     const bridge = new SchaltwerkBridge()
     await expect(
       bridge.mergeSession('feature-login', { commitMessage: '   ' })
-    ).rejects.toThrow('commitMessage is required and must be a non-empty string')
+    ).rejects.toThrow('commitMessage is required and must be a non-empty string when performing a squash merge.')
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('allows reapply merge without a commit message', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      text: async () =>
+        JSON.stringify({
+          session_name: 'feature-login',
+          parent_branch: 'main',
+          session_branch: 'schaltwerk/feature-login',
+          mode: 'reapply',
+          commit: 'cafebabe',
+          cancel_requested: false,
+          cancel_queued: false,
+          cancel_error: null
+        })
+    })
+
+    const bridge = new SchaltwerkBridge()
+    const result = await bridge.mergeSession('feature-login', { mode: 'reapply' })
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [, init] = fetchMock.mock.calls[0] as [string, Record<string, unknown>]
+    expect(JSON.parse(String(init?.body))).toEqual({
+      mode: 'reapply',
+      cancel_after_merge: false
+    })
+    expect(result.mode).toBe('reapply')
   })
 
   it('creates pull request with optional overrides', async () => {

@@ -223,16 +223,16 @@ export function CopyBundleBar({ sessionName }: CopyBundleBarProps) {
   }, [sessionName])
 
   useEffect(() => {
-    let cancelled = false
+    let disposed = false
     void loadInitialData()
 
     let unlistenFileChanges: (() => void) | null = null
     let unlistenSessionsRefreshed: (() => void) | null = null
 
-    ;(async () => {
+    const registerFileChanges = async () => {
       try {
-        unlistenFileChanges = await listenEvent(SchaltEvent.FileChanges, (payload) => {
-          if (cancelled || payload.session_name !== sessionName) return
+        const unlisten = await listenEvent(SchaltEvent.FileChanges, (payload) => {
+          if (disposed || payload.session_name !== sessionName) return
           setChangedFiles(payload.changed_files ?? [])
           setFileCount((payload.changed_files ?? []).length)
           const hasDiff = (payload.changed_files ?? []).length > 0
@@ -240,13 +240,20 @@ export function CopyBundleBar({ sessionName }: CopyBundleBarProps) {
           diffCacheRef.current.clear()
           fileCacheRef.current.clear()
         })
+        if (disposed) {
+          unlisten()
+        } else {
+          unlistenFileChanges = unlisten
+        }
       } catch (err) {
         logger.warn('[CopyBundleBar] Failed to listen for file changes', err)
       }
+    }
 
+    const registerSessionsRefreshed = async () => {
       try {
-        unlistenSessionsRefreshed = await listenEvent(SchaltEvent.SessionsRefreshed, async (sessions) => {
-          if (cancelled) return
+        const unlisten = await listenEvent(SchaltEvent.SessionsRefreshed, async (sessions) => {
+          if (disposed) return
           const match = sessions?.find?.((session) => session.info.session_id === sessionName)
           if (!match) return
           try {
@@ -258,15 +265,35 @@ export function CopyBundleBar({ sessionName }: CopyBundleBarProps) {
             logger.error('[CopyBundleBar] Failed to refresh spec availability', err)
           }
         })
+        if (disposed) {
+          unlisten()
+        } else {
+          unlistenSessionsRefreshed = unlisten
+        }
       } catch (err) {
         logger.warn('[CopyBundleBar] Failed to listen for session refresh events', err)
       }
-    })()
+    }
+
+    void registerFileChanges()
+    void registerSessionsRefreshed()
 
     return () => {
-      cancelled = true
-      if (unlistenFileChanges) unlistenFileChanges()
-      if (unlistenSessionsRefreshed) unlistenSessionsRefreshed()
+      disposed = true
+      if (unlistenFileChanges) {
+        try {
+          unlistenFileChanges()
+        } catch (err) {
+          logger.debug('[CopyBundleBar] Failed to cleanup file changes listener', err)
+        }
+      }
+      if (unlistenSessionsRefreshed) {
+        try {
+          unlistenSessionsRefreshed()
+        } catch (err) {
+          logger.debug('[CopyBundleBar] Failed to cleanup sessions refreshed listener', err)
+        }
+      }
     }
   }, [loadInitialData, sessionName])
 

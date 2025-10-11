@@ -146,7 +146,7 @@ function AppContent() {
   useEffect(() => {
     if (!toast) return
 
-    let cancelled = false
+    let disposed = false
     let unlisten: (() => void) | null = null
 
     const subscribe = async () => {
@@ -226,7 +226,7 @@ function AppContent() {
           }
         })
 
-        if (cancelled) {
+        if (disposed) {
           stop()
         } else {
           unlisten = stop
@@ -239,7 +239,7 @@ function AppContent() {
     subscribe()
 
     return () => {
-      cancelled = true
+      disposed = true
       if (unlisten) {
         unlisten()
       }

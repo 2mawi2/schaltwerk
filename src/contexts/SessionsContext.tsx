@@ -4,7 +4,6 @@ import { invoke } from '@tauri-apps/api/core'
 import { UnlistenFn } from '@tauri-apps/api/event'
 import { listenEvent, SchaltEvent } from '../common/eventSystem'
 import { useProject } from './ProjectContext'
-import { useCleanupRegistry } from '../hooks/useCleanupRegistry'
 import { SortMode, FilterMode, getDefaultSortMode, getDefaultFilterMode, isValidSortMode, isValidFilterMode } from '../types/sessionFilters'
 import { mapSessionUiState, searchSessions as searchSessionsUtil } from '../utils/sessionFilters'
 import { EnrichedSession, SessionInfo, SessionState, RawSession } from '../types/session'
@@ -175,7 +174,6 @@ const noopToast = () => {}
 
 export function SessionsProvider({ children }: { children: ReactNode }) {
     const { projectPath } = useProject()
-    const { addCleanup } = useCleanupRegistry()
     const toast = useOptionalToast()
     const pushToast = toast?.pushToast ?? noopToast
     const [allSessions, setAllSessions] = useState<EnrichedSession[]>([])
@@ -943,18 +941,6 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         }
     }, [reloadSessions])
 
-    const addListener = useCallback((unlistenPromise: Promise<UnlistenFn>) => {
-        if (!unlistenPromise || typeof unlistenPromise.then !== 'function') {
-            logger.warn('[SessionsContext] Invalid listener promise received:', unlistenPromise)
-            return
-        }
-        unlistenPromise.then(cleanup => {
-            addCleanup(cleanup)
-        }).catch(error => {
-            logger.error('[SessionsContext] Failed to add listener:', error)
-        })
-    }, [addCleanup])
-
     // Load sort/filter settings when project changes
     useEffect(() => {
         if (!projectPath) {
@@ -1023,305 +1009,315 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
     }, [projectPath, lastProjectPath, reloadSessions])
 
     useEffect(() => {
-        // Previous listeners will be cleaned up automatically by useCleanupRegistry
+        let disposed = false
+        const unlisteners: UnlistenFn[] = []
 
-        const setupListeners = async () => {
-            // Full refresh (authoritative list) + specs merge
-            addListener(listenEvent(SchaltEvent.SessionsRefreshed, async (event) => {
-                try {
-                    if (event && event.length > 0) {
-                        let updatedSessionIds: string[] | null = null
-                        // Do a smart merge instead of replacing the entire array to reduce flashing
-                        // This preserves session order and references to avoid selection jumping
-                        setAllSessions(prev => {
-                            // Create a map of new sessions for quick lookup
-                            const newSessionsMap = new Map<string, EnrichedSession>()
-                            for (const session of event) {
-                                newSessionsMap.set(session.info.session_id, session)
-                            }
+        const register = <E extends SchaltEvent>(
+            event: E,
+            handler: (payload: EventPayloadMap[E]) => void | Promise<void>
+        ) => {
+            const promise = listenEvent(event, async (payload) => {
+                if (disposed) return
+                await handler(payload)
+            })
 
-                            // Keep existing sessions if they haven't changed, preserving order
-                            const updated: EnrichedSession[] = []
-                            const seenIds = new Set<string>()
+            promise
+                .then(unlisten => {
+                    if (disposed) {
+                        unlisten()
+                        return
+                    }
+                    unlisteners.push(unlisten)
+                })
+                .catch(error => {
+                    logger.error(`[SessionsContext] Failed to register listener for ${event}:`, error)
+                })
+        }
 
-                            // First, update existing sessions in their current positions
-                            for (const existing of prev) {
-                                const newSession = newSessionsMap.get(existing.info.session_id)
-                                if (newSession) {
-                                    // Check if the session has actually changed using efficient shallow comparison
-                                    if (!areSessionInfosEqual(existing.info, newSession.info)) {
-                                        updated.push(newSession)
-                                    } else {
-                                        updated.push(existing) // Keep existing reference to avoid re-render
-                                    }
-                                    seenIds.add(existing.info.session_id)
-                                }
-                                // Note: If the session doesn't exist in newSession, it's removed (don't add to updated)
-                            }
-
-                            // Add new sessions at the end
-                            for (const newSession of event) {
-                                const sessionId = newSession.info.session_id
-                                if (seenIds.has(sessionId)) {
-                                    continue
-                                }
-                                seenIds.add(sessionId)
-                                updated.push(newSession)
-                            }
-
-                            // Only update if something actually changed
-                            if (updated.length === prev.length &&
-                                updated.every((s, i) => s === prev[i])) {
-                                return prev // No change, keep same reference
-                            }
-
-                            updatedSessionIds = updated.map(session => session.info.session_id)
-                            return updated
-                        })
-
-                        const previousStatesSnapshot = new Map(prevStatesRef.current)
-                        autoStartRunningSessions(event, { reason: 'sessions-refreshed', previousStates: previousStatesSnapshot })
-
-                        const mergedStates = new Map(previousStatesSnapshot)
-                        const payloadIds = new Set<string>()
+        register(SchaltEvent.SessionsRefreshed, async (event) => {
+            try {
+                if (event && event.length > 0) {
+                    let updatedSessionIds: string[] | null = null
+                    setAllSessions(prev => {
+                        const newSessionsMap = new Map<string, EnrichedSession>()
                         for (const session of event) {
-                            const sessionId = session.info.session_id
-                            const nextState = mapSessionUiState(session.info)
-                            mergedStates.set(sessionId, nextState)
-                            payloadIds.add(sessionId)
+                            newSessionsMap.set(session.info.session_id, session)
                         }
 
-                        if (Array.isArray(updatedSessionIds)) {
-                            const updatedIds = updatedSessionIds as string[]
-                            const isFullSnapshot = payloadIds.size === event.length
-                                && updatedIds.length === event.length
-                                && updatedIds.every(id => payloadIds.has(id))
+                        const updated: EnrichedSession[] = []
+                        const seenIds = new Set<string>()
 
-                            if (isFullSnapshot) {
-                                for (const knownId of Array.from(mergedStates.keys())) {
-                                    if (!payloadIds.has(knownId)) {
-                                        mergedStates.delete(knownId)
-                                    }
+                        for (const existing of prev) {
+                            const newSession = newSessionsMap.get(existing.info.session_id)
+                            if (newSession) {
+                                if (!areSessionInfosEqual(existing.info, newSession.info)) {
+                                    updated.push(newSession)
+                                } else {
+                                    updated.push(existing)
                                 }
+                                seenIds.add(existing.info.session_id)
                             }
                         }
 
-                        prevStatesRef.current = mergedStates
+                        for (const newSession of event) {
+                            const sessionId = newSession.info.session_id
+                            if (seenIds.has(sessionId)) {
+                                continue
+                            }
+                            seenIds.add(sessionId)
+                            updated.push(newSession)
+                        }
 
-                        syncMergeStatuses(event)
-                    } else {
-                        if (!pendingSessionsReloadRef.current) {
-                            pendingSessionsReloadRef.current = true
-                            void reloadSessions()
-                                .catch(error => {
-                                    logger.warn('[SessionsContext] Failed to reload after empty SessionsRefreshed payload:', error)
-                                })
-                                .finally(() => {
-                                    pendingSessionsReloadRef.current = false
-                                })
-                        } else {
-                            logger.debug('[SessionsContext] Skipping duplicate reload for empty SessionsRefreshed payload')
+                        if (updated.length === prev.length &&
+                            updated.every((s, i) => s === prev[i])) {
+                            return prev
+                        }
+
+                        updatedSessionIds = updated.map(session => session.info.session_id)
+                        return updated
+                    })
+
+                    const previousStatesSnapshot = new Map(prevStatesRef.current)
+                    autoStartRunningSessions(event, { reason: 'sessions-refreshed', previousStates: previousStatesSnapshot })
+
+                    const mergedStates = new Map(previousStatesSnapshot)
+                    const payloadIds = new Set<string>()
+                    for (const session of event) {
+                        const sessionId = session.info.session_id
+                        const nextState = mapSessionUiState(session.info)
+                        mergedStates.set(sessionId, nextState)
+                        payloadIds.add(sessionId)
+                    }
+
+                    if (Array.isArray(updatedSessionIds)) {
+                        const updatedIds = updatedSessionIds as string[]
+                        const isFullSnapshot = payloadIds.size === event.length
+                            && updatedIds.length === event.length
+                            && updatedIds.every(id => payloadIds.has(id))
+
+                        if (isFullSnapshot) {
+                            for (const knownId of Array.from(mergedStates.keys())) {
+                                if (!payloadIds.has(knownId)) {
+                                    mergedStates.delete(knownId)
+                                }
+                            }
                         }
                     }
-                } catch (e) {
-                    logger.error('[SessionsContext] Failed to process SessionsRefreshed event:', e)
+
+                    prevStatesRef.current = mergedStates
+
+                    syncMergeStatuses(event)
+                } else {
+                    if (!pendingSessionsReloadRef.current) {
+                        pendingSessionsReloadRef.current = true
+                        void reloadSessions()
+                            .catch(error => {
+                                logger.warn('[SessionsContext] Failed to reload after empty SessionsRefreshed payload:', error)
+                            })
+                            .finally(() => {
+                                pendingSessionsReloadRef.current = false
+                            })
+                    } else {
+                        logger.debug('[SessionsContext] Skipping duplicate reload for empty SessionsRefreshed payload')
+                    }
+                }
+            } catch (e) {
+                logger.error('[SessionsContext] Failed to process SessionsRefreshed event:', e)
+            }
+        })
+
+        register(SchaltEvent.SessionActivity, (event) => {
+            const { session_name, last_activity_ts, current_task, todo_percentage, is_blocked } = event
+            setAllSessions(prev => prev.map(s => {
+                if (s.info.session_id !== session_name) return s
+                return {
+                    ...s,
+                    info: {
+                        ...s.info,
+                        last_modified: new Date(last_activity_ts * 1000).toISOString(),
+                        last_modified_ts: last_activity_ts * 1000,
+                        current_task: current_task || s.info.current_task,
+                        todo_percentage: todo_percentage || s.info.todo_percentage,
+                        is_blocked: is_blocked || s.info.is_blocked,
+                    }
+                }
+            }))
+        })
+
+        register(SchaltEvent.SessionGitStats, (event) => {
+            logger.debug('[SessionsContext] SessionGitStats event', event)
+            const {
+                session_name,
+                files_changed,
+                lines_added,
+                lines_removed,
+                has_uncommitted,
+                has_conflicts = false,
+                top_uncommitted_paths,
+                merge_has_conflicts,
+                merge_is_up_to_date,
+                merge_conflicting_paths,
+                worktree_size_bytes,
+            } = event
+            setAllSessions(prev => prev.map(s => {
+                if (s.info.session_id !== session_name) return s
+                const diff = {
+                    files_changed: files_changed || 0,
+                    additions: lines_added || 0,
+                    deletions: lines_removed || 0,
+                    insertions: lines_added || 0,
+                }
+                logger.debug('[SessionsContext] Applying git stats', { session: session_name, diff, has_uncommitted, has_conflicts })
+                return {
+                    ...s,
+                    info: {
+                        ...s.info,
+                        diff_stats: diff,
+                        has_uncommitted_changes: has_uncommitted,
+                        has_conflicts,
+                        top_uncommitted_paths: top_uncommitted_paths && top_uncommitted_paths.length ? top_uncommitted_paths : undefined,
+                        merge_has_conflicts: merge_has_conflicts ?? s.info.merge_has_conflicts,
+                        merge_conflicting_paths: merge_conflicting_paths && merge_conflicting_paths.length ? merge_conflicting_paths : s.info.merge_conflicting_paths,
+                        merge_is_up_to_date: typeof merge_is_up_to_date === 'boolean' ? merge_is_up_to_date : s.info.merge_is_up_to_date,
+                        worktree_size_bytes: typeof worktree_size_bytes === 'number' ? worktree_size_bytes : s.info.worktree_size_bytes,
+                    }
                 }
             }))
 
-            // Activity updates
-            addListener(listenEvent(SchaltEvent.SessionActivity, (event) => {
-                const { session_name, last_activity_ts, current_task, todo_percentage, is_blocked } = event
-                setAllSessions(prev => prev.map(s => {
-                    if (s.info.session_id !== session_name) return s
-                    return {
-                        ...s,
-                        info: {
-                            ...s.info,
-                            last_modified: new Date(last_activity_ts * 1000).toISOString(),
-                            last_modified_ts: last_activity_ts * 1000,
-                            current_task: current_task || s.info.current_task,
-                            todo_percentage: todo_percentage || s.info.todo_percentage,
-                            is_blocked: is_blocked || s.info.is_blocked,
-                        }
+            const mergeConflictFlag = typeof merge_has_conflicts === 'boolean' ? merge_has_conflicts : undefined
+            const mergeUpToDateFlag = typeof merge_is_up_to_date === 'boolean' ? merge_is_up_to_date : undefined
+
+            setMergeStatuses(prev => {
+                const next = new Map(prev)
+                if (mergeConflictFlag === true || (mergeConflictFlag === undefined && has_conflicts)) {
+                    next.set(session_name, 'conflict')
+                } else if (mergeConflictFlag === false || (!has_conflicts && mergeConflictFlag === undefined)) {
+                    if (next.get(session_name) === 'conflict') {
+                        next.delete(session_name)
                     }
-                }))
+                }
+
+                if (mergeUpToDateFlag === true) {
+                    const current = next.get(session_name)
+                    if (current !== 'merged') {
+                        next.set(session_name, 'merged')
+                    }
+                } else if (mergeUpToDateFlag === false) {
+                    if (next.get(session_name) === 'merged') {
+                        next.delete(session_name)
+                    }
+                } else if (mergeConflictFlag === undefined) {
+                    const noDiff = (files_changed || 0) === 0 && !has_uncommitted && !has_conflicts
+                    if (noDiff) {
+                        next.set(session_name, 'merged')
+                    } else if (next.get(session_name) === 'merged' && !noDiff) {
+                        next.delete(session_name)
+                    }
+                }
+
+                return next
+            })
+        })
+
+        register(SchaltEvent.SessionAdded, (event) => {
+            const { session_name, branch, worktree_path, parent_branch } = event
+            const nowIso = new Date().toISOString()
+            const createdAt = event.created_at ?? nowIso
+            const lastModified = event.last_modified ?? createdAt
+            setAllSessions(prev => {
+                if (prev.some(s => s.info.session_id === session_name)) return prev
+
+                const info: SessionInfo = {
+                    session_id: session_name,
+                    branch,
+                    worktree_path,
+                    base_branch: parent_branch,
+                    parent_branch,
+                    status: 'active',
+                    created_at: createdAt,
+                    last_modified: lastModified,
+                    has_uncommitted_changes: false,
+                    has_conflicts: false,
+                    is_current: false,
+                    session_type: 'worktree',
+                    container_status: undefined,
+                    session_state: 'running',
+                    current_task: undefined,
+                    todo_percentage: undefined,
+                    is_blocked: undefined,
+                    diff_stats: undefined,
+                    ready_to_merge: false,
+                }
+                const terminals = [
+                    stableSessionTerminalId(session_name, 'top'),
+                    stableSessionTerminalId(session_name, 'bottom')
+                ]
+                const enriched: EnrichedSession = { info, status: undefined, terminals }
+                return [enriched, ...prev]
+            })
+
+            ;(async () => {
+                const topId = stableSessionTerminalId(session_name, 'top')
+
+                if (hasBackgroundStart(topId) || hasInflight(topId)) {
+                    logger.debug(`[SessionsContext] Skip auto-start; mark or inflight present for ${topId}`)
+                    return
+                }
+
+                try {
+                    const projectOrchestratorId = computeProjectOrchestratorId(projectPath)
+                    await startSessionTop({ sessionName: session_name, topId, projectOrchestratorId })
+                    logger.info(`[SessionsContext] Started agent for ${session_name} (auto-start).`)
+                } catch (error) {
+                    const message = String(error)
+                    if (message.includes('Permission required for folder:')) {
+                        emitUiEvent(UiEvent.PermissionError, { error: message })
+                    } else {
+                        logger.warn('[SessionsContext] Auto-start for new session failed:', error)
+                    }
+                }
+            })()
+        })
+
+        register(SchaltEvent.SessionCancelling, (event) => {
+            setAllSessions(prev => prev.map(s => {
+                if (s.info.session_id !== event.session_name) return s
+                return {
+                    ...s,
+                    info: {
+                        ...s.info,
+                        status: 'spec'
+                    }
+                }
             }))
+        })
 
-            // Git stats updates
-            addListener(listenEvent(SchaltEvent.SessionGitStats, (event) => {
-                logger.debug('[SessionsContext] SessionGitStats event', event)
-                const {
-                    session_name,
-                    files_changed,
-                    lines_added,
-                    lines_removed,
-                    has_uncommitted,
-                    has_conflicts = false,
-                    top_uncommitted_paths,
-                    merge_has_conflicts,
-                    merge_is_up_to_date,
-                    merge_conflicting_paths,
-                    worktree_size_bytes,
-                } = event
-                setAllSessions(prev => prev.map(s => {
-                    if (s.info.session_id !== session_name) return s
-                    const diff = {
-                        files_changed: files_changed || 0,
-                        additions: lines_added || 0,
-                        deletions: lines_removed || 0,
-                        insertions: lines_added || 0,
-                    }
-                    logger.debug('[SessionsContext] Applying git stats', { session: session_name, diff, has_uncommitted, has_conflicts })
-                    return {
-                        ...s,
-                        info: {
-                            ...s.info,
-                            diff_stats: diff,
-                            has_uncommitted_changes: has_uncommitted,
-                            has_conflicts,
-                            top_uncommitted_paths: top_uncommitted_paths && top_uncommitted_paths.length ? top_uncommitted_paths : undefined,
-                            merge_has_conflicts: merge_has_conflicts ?? s.info.merge_has_conflicts,
-                            merge_conflicting_paths: merge_conflicting_paths && merge_conflicting_paths.length ? merge_conflicting_paths : s.info.merge_conflicting_paths,
-                            merge_is_up_to_date: typeof merge_is_up_to_date === 'boolean' ? merge_is_up_to_date : s.info.merge_is_up_to_date,
-                            worktree_size_bytes: typeof worktree_size_bytes === 'number' ? worktree_size_bytes : s.info.worktree_size_bytes,
-                        }
-                    }
-                }))
+        register(SchaltEvent.SessionRemoved, (event) => {
+            setAllSessions(prev => prev.filter(s => s.info.session_id !== event.session_name))
+            prevStatesRef.current.delete(event.session_name)
+            setSessionMutations(prev => {
+                if (!prev.has(event.session_name)) {
+                    return prev
+                }
+                const next = new Map(prev)
+                next.delete(event.session_name)
+                return next
+            })
+        })
 
-                const mergeConflictFlag = typeof merge_has_conflicts === 'boolean' ? merge_has_conflicts : undefined
-                const mergeUpToDateFlag = typeof merge_is_up_to_date === 'boolean' ? merge_is_up_to_date : undefined
-
-                setMergeStatuses(prev => {
-                    const next = new Map(prev)
-                    if (mergeConflictFlag === true || (mergeConflictFlag === undefined && has_conflicts)) {
-                        next.set(session_name, 'conflict')
-                    } else if (mergeConflictFlag === false || (!has_conflicts && mergeConflictFlag === undefined)) {
-                        if (next.get(session_name) === 'conflict') {
-                            next.delete(session_name)
-                        }
-                    }
-
-                    if (mergeUpToDateFlag === true) {
-                        const current = next.get(session_name)
-                        if (current !== 'merged') {
-                            next.set(session_name, 'merged')
-                        }
-                    } else if (mergeUpToDateFlag === false) {
-                        if (next.get(session_name) === 'merged') {
-                            next.delete(session_name)
-                        }
-                    } else if (mergeConflictFlag === undefined) {
-                        // Fallback to diff-based heuristic when backend flag is absent
-                        const noDiff = (files_changed || 0) === 0 && !has_uncommitted && !has_conflicts
-                        if (noDiff) {
-                            next.set(session_name, 'merged')
-                        } else if (next.get(session_name) === 'merged' && !noDiff) {
-                            next.delete(session_name)
-                        }
-                    }
-
-                    return next
-                })
-            }))
-
-            // Session added
-            addListener(listenEvent(SchaltEvent.SessionAdded, (event) => {
-                const { session_name, branch, worktree_path, parent_branch } = event
-                const nowIso = new Date().toISOString()
-                const createdAt = event.created_at ?? nowIso
-                const lastModified = event.last_modified ?? createdAt
-                setAllSessions(prev => {
-                    if (prev.some(s => s.info.session_id === session_name)) return prev
-                    const info: SessionInfo = {
-                        session_id: session_name,
-                        branch,
-                        worktree_path,
-                        base_branch: parent_branch,
-                        parent_branch,
-                        status: 'active',
-                        created_at: createdAt,
-                        last_modified: lastModified,
-                        has_uncommitted_changes: false,
-                        has_conflicts: false,
-                        is_current: false,
-                        session_type: 'worktree',
-                        container_status: undefined,
-                        session_state: 'running',
-                        current_task: undefined,
-                        todo_percentage: undefined,
-                        is_blocked: undefined,
-                        diff_stats: undefined,
-                        ready_to_merge: false,
-                    }
-                    const terminals = [
-                        stableSessionTerminalId(session_name, 'top'),
-                        stableSessionTerminalId(session_name, 'bottom')
-                    ]
-                    const enriched: EnrichedSession = { info, status: undefined, terminals }
-                    return [enriched, ...prev]
-                })
-
-                // Deterministic background auto-start for newly created sessions
-                // Do not depend on Terminal mount (focus). Backend will emit ClaudeStarted to prevent double-starts.
-                // Only auto-start if this session wasn't already started by the App.tsx modal path
-                ;(async () => {
-                    // Compute terminal id once
-                    const topId = stableSessionTerminalId(session_name, 'top')
-
-                    // If a start is already intended or in-flight, skip.
-                    if (hasBackgroundStart(topId) || hasInflight(topId)) {
-                        logger.debug(`[SessionsContext] Skip auto-start; mark or inflight present for ${topId}`)
-                        return
-                    }
-
-                    try {
-                        // Become the start authority by marking BEFORE invoking.
-                        const projectOrchestratorId = computeProjectOrchestratorId(projectPath)
-                        await startSessionTop({ sessionName: session_name, topId, projectOrchestratorId })
-                        logger.info(`[SessionsContext] Started agent for ${session_name} (auto-start).`)
-                    } catch (error) {
-                        // Surface permission issues via the existing UI prompt path
-                        const message = String(error)
-                        if (message.includes('Permission required for folder:')) {
-                            emitUiEvent(UiEvent.PermissionError, { error: message })
-                        } else {
-                            logger.warn('[SessionsContext] Auto-start for new session failed:', error)
-                        }
-                    }
-                })()
-            }))
-
-            // Session cancelling (marks as cancelling but doesn't remove)
-            addListener(listenEvent(SchaltEvent.SessionCancelling, (event) => {
-                setAllSessions(prev => prev.map(s => {
-                    if (s.info.session_id !== event.session_name) return s
-                    return {
-                        ...s,
-                        info: {
-                            ...s.info,
-                            status: 'spec'
-                        }
-                    }
-                }))
-            }))
-
-            // Session removed (actual removal after cancellation completes)
-            addListener(listenEvent(SchaltEvent.SessionRemoved, (event) => {
-                setAllSessions(prev => prev.filter(s => s.info.session_id !== event.session_name))
-                prevStatesRef.current.delete(event.session_name)
-                setSessionMutations(prev => {
-                    if (!prev.has(event.session_name)) {
-                        return prev
-                    }
-                    const next = new Map(prev)
-                    next.delete(event.session_name)
-                    return next
-                })
-            }))
+        return () => {
+            disposed = true
+            unlisteners.forEach(unlisten => {
+                try {
+                    unlisten()
+                } catch (error) {
+                    logger.debug('[SessionsContext] Failed to cleanup listener:', error)
+                }
+            })
+            unlisteners.length = 0
         }
+    }, [projectPath, reloadSessions, syncMergeStatuses, autoStartRunningSessions])
 
-        setupListeners()
-    }, [projectPath, addListener, reloadSessions, syncMergeStatuses, autoStartRunningSessions])
 
     useEffect(() => {
         let disposed = false

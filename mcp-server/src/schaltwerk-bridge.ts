@@ -841,14 +841,23 @@ export class SchaltwerkBridge {
 
   async mergeSession(
     sessionName: string,
-    options: { commitMessage: string; mode?: MergeModeOption; cancelAfterMerge?: boolean }
+    options: { commitMessage?: string | null; mode?: MergeModeOption; cancelAfterMerge?: boolean }
   ): Promise<MergeSessionResult> {
+    const mode: MergeModeOption = options.mode === 'reapply' ? 'reapply' : 'squash'
     const commitMessage = options.commitMessage?.trim()
-    if (!commitMessage) {
-      throw new Error('commitMessage is required and must be a non-empty string when merging a session.')
+
+    if (mode === 'squash' && !commitMessage) {
+      throw new Error('commitMessage is required and must be a non-empty string when performing a squash merge.')
     }
 
-    const mode: MergeModeOption = options.mode === 'reapply' ? 'reapply' : 'squash'
+    const requestBody: Record<string, unknown> = {
+      mode,
+      cancel_after_merge: Boolean(options.cancelAfterMerge)
+    }
+
+    if (commitMessage && commitMessage.length > 0) {
+      requestBody.commit_message = commitMessage
+    }
 
     const response = await fetch(`${this.apiUrl}/api/sessions/${encodeURIComponent(sessionName)}/merge`, {
       method: 'POST',
@@ -856,11 +865,7 @@ export class SchaltwerkBridge {
         'Content-Type': 'application/json',
         ...this.getProjectHeaders()
       },
-      body: JSON.stringify({
-        mode,
-        commit_message: commitMessage,
-        cancel_after_merge: Boolean(options.cancelAfterMerge)
-      })
+      body: JSON.stringify(requestBody)
     })
 
     const responseBody = await response.text()

@@ -12,7 +12,7 @@ import {
   CallToolRequest,
   ListResourcesRequest,
 } from "@modelcontextprotocol/sdk/types.js"
-import { SchaltwerkBridge, Session } from "./schaltwerk-bridge.js"
+import { SchaltwerkBridge, Session, MergeModeOption } from "./schaltwerk-bridge.js"
 
 interface SchaltwerkStartArgs {
   name?: string
@@ -85,7 +85,7 @@ interface SchaltwerkConvertToSpecArgs {
 
 interface SchaltwerkMergeArgs {
   session_name: string
-  commit_message: string
+  commit_message?: string | null
   mode?: 'squash' | 'reapply'
   cancel_after_merge?: boolean
 }
@@ -725,7 +725,7 @@ REQUIREMENTS: Target session must exist and be active.`,
 
 ⚙️ OPTIONS:
 - \`mode\`: 'squash' (default, creates a single commit) or 'reapply' (fast-forward style, preserves individual commits).
-- \`commit_message\`: REQUIRED. Summarise the change and reference the session (e.g. "review: session-name – short summary").
+- \`commit_message\`: Required for squash merges; optional for reapply mode. Summarise the change and reference the session (e.g. "review: session-name – short summary").
 - \`cancel_after_merge\`: Set true to queue session cancellation once the merge succeeds. Leave false to keep the worktree for additional verification.
 
 📤 RESPONSE DETAILS:
@@ -743,7 +743,7 @@ REQUIREMENTS: Target session must exist and be active.`,
             },
             commit_message: {
               type: "string",
-              description: "Required commit message for the squash merge commit; include the session slug and a concise summary."
+              description: "Commit message for the squash merge commit; include the session slug and a concise summary. Required when mode is 'squash'."
             },
             mode: {
               type: "string",
@@ -755,7 +755,7 @@ REQUIREMENTS: Target session must exist and be active.`,
               description: "Queue session cancellation after a successful merge (default false)."
             }
           },
-          required: ["session_name", "commit_message"]
+          required: ["session_name"]
         }
       },
       {
@@ -1277,13 +1277,17 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
         if (!mergeArgs.session_name || typeof mergeArgs.session_name !== 'string') {
           throw new Error('session_name is required when invoking schaltwerk_merge_session.')
         }
-        if (!mergeArgs.commit_message || mergeArgs.commit_message.trim().length === 0) {
-          throw new Error('commit_message is required and cannot be empty for schaltwerk_merge_session.')
+
+        const requestedMode: MergeModeOption = mergeArgs.mode === 'reapply' ? 'reapply' : 'squash'
+        const trimmedCommit = mergeArgs.commit_message?.trim() ?? ''
+
+        if (requestedMode === 'squash' && trimmedCommit.length === 0) {
+          throw new Error('commit_message is required and cannot be empty when performing a squash merge via schaltwerk_merge_session.')
         }
 
         const mergeResult = await bridge.mergeSession(mergeArgs.session_name, {
-          commitMessage: mergeArgs.commit_message,
-          mode: mergeArgs.mode,
+          commitMessage: trimmedCommit.length > 0 ? trimmedCommit : undefined,
+          mode: requestedMode,
           cancelAfterMerge: mergeArgs.cancel_after_merge
         })
 

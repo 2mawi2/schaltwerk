@@ -954,10 +954,12 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
 
     // React to backend session refreshes (e.g., spec -> running)
     useEffect(() => {
-        let unlisten: (() => void) | null = null
+        let disposed = false
+        let cleanup: (() => void) | null = null
+
         const attach = async () => {
             try {
-                unlisten = await listenEvent(SchaltEvent.SessionsRefreshed, async (updatedSessions) => {
+                const unlisten = await listenEvent(SchaltEvent.SessionsRefreshed, async (updatedSessions) => {
                     if (selection.kind !== 'session' || !selection.payload) return
                     try {
                         let snapshot: SessionSnapshot | null = null
@@ -976,21 +978,17 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                         const nowSpec = state === 'spec'
                         const wasSpec = isSpec
 
-                        // Update isSpec state
                         setIsSpecState(!!nowSpec)
 
-                        // If state changed from spec to running, update selection and ensure terminals
                         if (wasSpec && !nowSpec) {
-                            // Session became running - update the selection's sessionState
                             const updatedSelection = {
                                 ...selection,
                                 sessionState: state,
                                 worktreePath: worktreePath || selection.worktreePath
                             }
                             setSelectionState(updatedSelection)
-                            
-                            // Ensure terminals exist now that it's running
-                            try { 
+
+                            try {
                                 const ids = await ensureTerminals(updatedSelection)
                                 setTerminals(ids)
                             } catch (_e) {
@@ -998,7 +996,6 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                             }
                         }
 
-                        // If state changed from running to spec, ensure terminal UI is not shown and clear tracking
                         if (!wasSpec && nowSpec) {
                             const updatedSelection = {
                                 ...selection,
@@ -1020,14 +1017,29 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                         logger.warn('[SelectionContext] Failed to refresh current session state after event', _e)
                     }
                 })
+
+                if (disposed) {
+                    unlisten()
+                } else {
+                    cleanup = unlisten
+                }
             } catch (_e) {
                 logger.warn('[SelectionContext] Failed to attach sessions-refreshed listener', _e)
             }
         }
+
         attach()
-        return () => { try { if (unlisten) unlisten() } catch {
-            // Cleanup failed, ignore
-        } }
+
+        return () => {
+            disposed = true
+            if (cleanup) {
+                try {
+                    cleanup()
+                } catch (e) {
+                    logger.debug('[SelectionContext] Failed to cleanup sessions-refreshed listener', e)
+                }
+            }
+        }
     }, [selection, ensureTerminals, getTerminalIds, isSpec, ensureSessionSnapshot, setTerminals, setCurrentSelection, clearTerminalTracking])
     
     // Initialize on mount and when project path changes
@@ -1122,11 +1134,12 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     
     // Listen for selection events from backend (e.g., when MCP creates/updates specs)
     useEffect(() => {
+        let disposed = false
         let unlisten: (() => void) | undefined
         
         const setupSelectionListener = async () => {
             try {
-                unlisten = await listenEvent(SchaltEvent.Selection, async (target) => {
+                const stop = await listenEvent(SchaltEvent.Selection, async (target) => {
                     logger.info('Received selection event from backend:', target)
 
                     // Guard: Don't auto-switch to a spec when user is focused on a running session
@@ -1188,6 +1201,11 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                     // Set the selection to the requested session/spec - this is intentional (backend requested)
                     await setSelection(target, false, true)
                 })
+                if (disposed) {
+                    stop()
+                } else {
+                    unlisten = stop
+                }
             } catch (_e) {
                 logger.error('[SelectionContext] Failed to attach selection listener', _e)
             }
@@ -1196,6 +1214,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         setupSelectionListener()
         
         return () => {
+            disposed = true
             if (unlisten) {
                 unlisten()
             }

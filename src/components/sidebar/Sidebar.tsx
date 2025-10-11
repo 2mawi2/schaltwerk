@@ -6,7 +6,7 @@ import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
 import { useFocus } from '../../contexts/FocusContext'
 import { UnlistenFn } from '@tauri-apps/api/event'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
-import { GitOperationPayload } from '../../common/events'
+import { EventPayloadMap, GitOperationPayload } from '../../common/events'
 import { useSelection } from '../../contexts/SelectionContext'
 import { useSessions } from '../../contexts/SessionsContext'
 import { captureSelectionSnapshot, SelectionMemoryEntry } from '../../utils/selectionMemory'
@@ -872,76 +872,77 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
 
     // Subscribe to backend push updates and merge into sessions list incrementally
     useEffect(() => {
-        let unlisteners: UnlistenFn[] = []
+        let disposed = false
+        const unlisteners: UnlistenFn[] = []
 
-        const attach = async () => {
-            // Activity and git stats updates are handled by SessionsContext
-
-            // Session added
-            // We don't listen to session-added here anymore - selection should only change
-            // when explicitly requested by the user through App.tsx, not through event listeners.
-            // This prevents unwanted selection changes when creating sessions that don't match
-            // the current filter.
-
-            // Session removed
-            const u4 = await listenEvent(SchaltEvent.SessionRemoved, (event) => {
-                lastRemovedSessionRef.current = event.session_name
-            })
-            unlisteners.push(u4)
-
-            const uMergeCompleted = await listenEvent(SchaltEvent.GitOperationCompleted, (event: GitOperationPayload) => {
-                if (event?.operation === 'merge') {
-                    lastMergedReviewedSessionRef.current = event.session_name
-                }
-            })
-            unlisteners.push(uMergeCompleted)
-            
-            // Listen for follow-up message notifications
-            const u5 = await listenEvent(SchaltEvent.FollowUpMessage, (event) => {
-                const { session_name, message, message_type } = event
-                
-                // Add visual notification badge for the session
-                setSessionsWithNotifications(prev => new Set([...prev, session_name]))
-                
-                // Find the session to get its worktree path
-                const session = latestSessionsRef.current.find(s => s.info.session_id === session_name)
-                if (session) {
-                    // Focus the session when review content is pasted, including worktree path
-                    setSelection({
-                        kind: 'session',
-                        payload: session_name,
-                        worktreePath: session.info.worktree_path,
-                        sessionState: mapSessionUiState(session.info)
-                    }, false, true) // Backend requested - intentional
-                    // Set Claude focus for the session
-                    setFocusForSession(session_name, 'claude')
-                    setCurrentFocus('claude')
-                }
-                
-                // Show a toast notification
-                logger.info(`📬 Follow-up message for ${session_name}: ${message}`)
-                
-                // For now, just log the message - in the future we could show toast notifications
-                if (message_type === 'system') {
-                    logger.info(`📢 System message for session ${session_name}: ${message}`)
+        const register = async <E extends SchaltEvent>(
+            event: E,
+            handler: (payload: EventPayloadMap[E]) => void | Promise<void>
+        ) => {
+            try {
+                const unlisten = await listenEvent(event, async (payload) => {
+                    if (!disposed) {
+                        await handler(payload)
+                    }
+                })
+                if (disposed) {
+                    unlisten()
                 } else {
-                    logger.info(`💬 User message for session ${session_name}: ${message}`)
+                    unlisteners.push(unlisten)
                 }
-            })
-            unlisteners.push(u5)
+            } catch (e) {
+                logger.warn('Failed to attach sidebar event listener', e)
+            }
         }
-        attach()
-        
+
+        // Activity and git stats updates are handled by SessionsContext
+
+        void register(SchaltEvent.SessionRemoved, (event) => {
+            lastRemovedSessionRef.current = event.session_name
+        })
+
+        void register(SchaltEvent.GitOperationCompleted, (event: GitOperationPayload) => {
+            if (event?.operation === 'merge') {
+                lastMergedReviewedSessionRef.current = event.session_name
+            }
+        })
+
+        void register(SchaltEvent.FollowUpMessage, (event) => {
+            const { session_name, message, message_type } = event
+
+            setSessionsWithNotifications(prev => new Set([...prev, session_name]))
+
+            const session = latestSessionsRef.current.find(s => s.info.session_id === session_name)
+            if (session) {
+                setSelection({
+                    kind: 'session',
+                    payload: session_name,
+                    worktreePath: session.info.worktree_path,
+                    sessionState: mapSessionUiState(session.info)
+                }, false, true)
+                setFocusForSession(session_name, 'claude')
+                setCurrentFocus('claude')
+            }
+
+            logger.info(`📬 Follow-up message for ${session_name}: ${message}`)
+
+            if (message_type === 'system') {
+                logger.info(`📢 System message for session ${session_name}: ${message}`)
+            } else {
+                logger.info(`💬 User message for session ${session_name}: ${message}`)
+            }
+        })
+
         return () => {
+            disposed = true
             unlisteners.forEach(unlisten => {
                 try {
-                    if (typeof unlisten === 'function') unlisten()
+                    unlisten()
                 } catch (e) {
                     logger.warn('Failed to unlisten sidebar event', e)
                 }
             })
         }
-    // Attach once on mount; use refs above for latest values inside handlers
     }, [setCurrentFocus, setFocusForSession, setSelection])
 
     useEffect(() => () => cancelMarkReadyCooldown(), [cancelMarkReadyCooldown])
