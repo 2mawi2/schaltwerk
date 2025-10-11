@@ -4,23 +4,19 @@ import { VscCheck, VscDiscard } from 'react-icons/vsc'
 import type { EnrichedSession } from '../../types/session'
 import { TauriCommands } from '../../common/tauriCommands'
 import { ConfirmResetDialog } from '../common/ConfirmResetDialog'
-import { ConfirmDiscardDialog } from '../common/ConfirmDiscardDialog'
 import { MarkReadyConfirmation } from '../modals/MarkReadyConfirmation'
 import { logger } from '../../utils/logger'
 import { UiEvent, emitUiEvent } from '../../common/uiEvents'
 
 type DiffSessionActionsRenderProps = {
   headerActions: ReactNode
-  fileAction: ReactNode
   dialogs: ReactNode
 }
 
 interface DiffSessionActionsProps {
   isSessionSelection: boolean
-  isCommanderView: boolean
   sessionName: string | null
   targetSession: EnrichedSession | null
-  selectedFile: string | null
   canMarkReviewed: boolean
   onClose: () => void
   onReloadSessions: () => Promise<void>
@@ -42,10 +38,8 @@ const initialMarkReadyState: MarkReadyModalState = {
 
 export function DiffSessionActions({
   isSessionSelection,
-  isCommanderView,
   sessionName,
   targetSession,
-  selectedFile,
   canMarkReviewed,
   onClose,
   onReloadSessions,
@@ -54,8 +48,6 @@ export function DiffSessionActions({
 }: DiffSessionActionsProps) {
   const [isResetting, setIsResetting] = useState(false)
   const [confirmResetOpen, setConfirmResetOpen] = useState(false)
-  const [isDiscarding, setIsDiscarding] = useState(false)
-  const [discardOpen, setDiscardOpen] = useState(false)
   const [isMarkingReviewed, setIsMarkingReviewed] = useState(false)
   const [markReadyModal, setMarkReadyModal] = useState<MarkReadyModalState>(initialMarkReadyState)
 
@@ -83,25 +75,6 @@ export function DiffSessionActions({
       setConfirmResetOpen(false)
     }
   }, [sessionName, onLoadChangedFiles, onClose])
-
-  const discardCurrentFile = useCallback(async () => {
-    if (!selectedFile) return
-    try {
-      setIsDiscarding(true)
-
-      if (isCommanderView && !sessionName) {
-        await invoke(TauriCommands.SchaltwerkCoreDiscardFileInOrchestrator, { filePath: selectedFile })
-      } else if (sessionName) {
-        await invoke(TauriCommands.SchaltwerkCoreDiscardFileInSession, { sessionName, filePath: selectedFile })
-      }
-
-      await onLoadChangedFiles()
-    } catch (error) {
-      logger.error('Failed to discard file:', error)
-    } finally {
-      setIsDiscarding(false)
-    }
-  }, [selectedFile, isCommanderView, sessionName, onLoadChangedFiles])
 
   const handleMarkReviewedClick = useCallback(async () => {
     if (!targetSession || !sessionName || isMarkingReviewed) return
@@ -167,43 +140,8 @@ export function DiffSessionActions({
     )
   }, [isSessionSelection, isResetting, canMarkReviewed, handleMarkReviewedClick, isMarkingReviewed])
 
-  const fileAction = useMemo(() => {
-    if (!selectedFile) return null
-
-    return (
-      <div className="absolute right-3 top-2 z-20">
-        <button
-          onClick={() => setDiscardOpen(true)}
-          className="px-2 py-1 rounded bg-slate-800/70 hover:bg-slate-800 text-slate-200 text-xs flex items-center gap-1"
-          title="Discard changes for this file"
-          disabled={isDiscarding}
-        >
-          {isDiscarding ? (
-            <span className="opacity-80">Discarding…</span>
-          ) : (
-            <>
-              <VscDiscard />
-              <span>Discard File</span>
-            </>
-          )}
-        </button>
-      </div>
-    )
-  }, [selectedFile, isDiscarding])
-
   const dialogs = useMemo(() => (
     <>
-      <ConfirmDiscardDialog
-        open={discardOpen}
-        isBusy={isDiscarding}
-        filePath={selectedFile}
-        onCancel={() => setDiscardOpen(false)}
-        onConfirm={async () => {
-          setDiscardOpen(false)
-          await discardCurrentFile()
-        }}
-      />
-
       <MarkReadyConfirmation
         open={markReadyModal.open}
         sessionName={markReadyModal.sessionName}
@@ -223,10 +161,6 @@ export function DiffSessionActions({
       />
     </>
   ), [
-    discardOpen,
-    isDiscarding,
-    selectedFile,
-    discardCurrentFile,
     markReadyModal,
     onReloadSessions,
     onClose,
@@ -236,5 +170,5 @@ export function DiffSessionActions({
     isResetting
   ])
 
-  return <>{children({ headerActions, fileAction, dialogs })}</>
+  return <>{children({ headerActions, dialogs })}</>
 }

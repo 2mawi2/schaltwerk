@@ -1131,24 +1131,19 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     return () => window.removeEventListener('keydown', handleKeyDown, true)
   }, [isOpen, showCommentForm, isSearchVisible, onClose, lineSelection, selectedFileIndex, files, scrollToFile, handleFinishReview, setIsSearchVisible, setShowCommentForm, setCommentFormPosition, keyboardShortcutConfig, platform])
 
-
-  const commanderView = isCommanderView()
-
   if (!isOpen) return null
 
   return (
     <DiffSessionActions
       isSessionSelection={selection.kind === 'session'}
-      isCommanderView={commanderView}
       sessionName={sessionName}
       targetSession={targetSession}
-      selectedFile={selectedFile}
       canMarkReviewed={canMarkReviewed}
       onClose={onClose}
       onReloadSessions={reloadSessions}
       onLoadChangedFiles={loadChangedFiles}
     >
-      {({ headerActions, fileAction, dialogs }) => (
+      {({ headerActions, dialogs }) => (
         <>
           {/* Backdrop */}
           <div
@@ -1222,7 +1217,6 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
 
                 {/* Diff viewer */}
                 <div className="flex-1 flex flex-col overflow-hidden relative">
-                  {fileAction}
                   <DiffViewer
                     files={files}
                     selectedFile={selectedFile}

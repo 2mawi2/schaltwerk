@@ -12,10 +12,6 @@ const invokeMock = vi.fn(async (command: string, _args?: Record<string, unknown>
       return true
     case TauriCommands.SchaltwerkCoreResetSessionWorktree:
       return undefined
-    case TauriCommands.SchaltwerkCoreDiscardFileInSession:
-      return undefined
-    case TauriCommands.SchaltwerkCoreDiscardFileInOrchestrator:
-      return undefined
     default:
       return null
   }
@@ -63,19 +59,17 @@ describe('DiffSessionActions', () => {
     render(
       <DiffSessionActions
         isSessionSelection={true}
-        isCommanderView={false}
         sessionName="demo"
         targetSession={createSession()}
-        selectedFile="README.md"
         canMarkReviewed={true}
         onClose={onClose}
         onReloadSessions={onReloadSessions}
         onLoadChangedFiles={onLoadChangedFiles}
       >
-        {({ headerActions, fileAction, dialogs }) => (
+        {({ headerActions, dialogs }) => (
           <>
             <div data-testid="header">{headerActions}</div>
-            <div data-testid="content">{fileAction}{dialogs}</div>
+            <div data-testid="content">{dialogs}</div>
           </>
         )}
       </DiffSessionActions>
@@ -103,10 +97,8 @@ describe('DiffSessionActions', () => {
     render(
       <DiffSessionActions
         isSessionSelection={true}
-        isCommanderView={false}
         sessionName="demo"
         targetSession={createSession({ ready_to_merge: true })}
-        selectedFile={null}
         canMarkReviewed={false}
         onClose={() => {}}
         onReloadSessions={async () => {}}
@@ -119,47 +111,6 @@ describe('DiffSessionActions', () => {
     expect(screen.queryByRole('button', { name: /mark as reviewed/i })).toBeNull()
   })
 
-  it('confirms discard and calls underlying command', async () => {
-    const onLoadChangedFiles = vi.fn(async () => {})
-
-    render(
-      <DiffSessionActions
-        isSessionSelection={true}
-        isCommanderView={false}
-        sessionName="demo"
-        targetSession={createSession()}
-        selectedFile="src/index.ts"
-        canMarkReviewed={false}
-        onClose={() => {}}
-        onReloadSessions={async () => {}}
-        onLoadChangedFiles={onLoadChangedFiles}
-      >
-        {({ headerActions, fileAction, dialogs }) => (
-          <>
-            <div data-testid="header">{headerActions}</div>
-            <div data-testid="content">{fileAction}{dialogs}</div>
-          </>
-        )}
-      </DiffSessionActions>
-    )
-
-    const discardButton = await screen.findByRole('button', { name: /discard file/i })
-    fireEvent.click(discardButton)
-
-    await screen.findByText(/Discard File Changes/i)
-    const confirm = await screen.findByRole('button', { name: /^Discard$/i })
-    fireEvent.click(confirm)
-
-    await waitFor(() => {
-      expect(invokeMock).toHaveBeenCalledWith(
-        TauriCommands.SchaltwerkCoreDiscardFileInSession,
-        expect.objectContaining({ filePath: 'src/index.ts', sessionName: 'demo' })
-      )
-    })
-
-    await waitFor(() => expect(onLoadChangedFiles).toHaveBeenCalled())
-  })
-
   it('resets the session worktree after confirmation', async () => {
     const onClose = vi.fn()
     const onLoadChangedFiles = vi.fn(async () => {})
@@ -167,10 +118,8 @@ describe('DiffSessionActions', () => {
     render(
       <DiffSessionActions
         isSessionSelection={true}
-        isCommanderView={false}
         sessionName="demo"
         targetSession={createSession()}
-        selectedFile={null}
         canMarkReviewed={false}
         onClose={onClose}
         onReloadSessions={async () => {}}
