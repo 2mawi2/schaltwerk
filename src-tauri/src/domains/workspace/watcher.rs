@@ -496,6 +496,9 @@ impl FileWatcher {
     }
 }
 
+const ORCHESTRATOR_WATCHER_KEY: &str = "__orchestrator__";
+const ORCHESTRATOR_SESSION_NAME: &str = "orchestrator";
+
 pub struct FileWatcherManager {
     watchers: Arc<Mutex<HashMap<String, FileWatcher>>>,
     app_handle: AppHandle,
@@ -555,12 +558,52 @@ impl FileWatcherManager {
 
     pub async fn is_watching(&self, session_name: &str) -> bool {
         let watchers = self.watchers.lock().await;
-        watchers.contains_key(session_name)
+        if session_name == ORCHESTRATOR_SESSION_NAME {
+            watchers.contains_key(ORCHESTRATOR_WATCHER_KEY)
+        } else {
+            watchers.contains_key(session_name)
+        }
     }
 
     pub async fn get_active_watchers(&self) -> Vec<String> {
         let watchers = self.watchers.lock().await;
         watchers.keys().cloned().collect()
+    }
+
+    pub async fn start_watching_orchestrator(
+        &self,
+        repo_path: PathBuf,
+        base_branch: String,
+    ) -> Result<(), String> {
+        let mut watchers = self.watchers.lock().await;
+
+        if watchers.contains_key(ORCHESTRATOR_WATCHER_KEY) {
+            debug!("Already watching orchestrator repository");
+            return Ok(());
+        }
+
+        let watcher = FileWatcher::new(
+            ORCHESTRATOR_SESSION_NAME.to_string(),
+            repo_path,
+            base_branch,
+            self.app_handle.clone(),
+        )?;
+
+        watchers.insert(ORCHESTRATOR_WATCHER_KEY.to_string(), watcher);
+        info!("Started orchestrator file watcher");
+        Ok(())
+    }
+
+    pub async fn stop_watching_orchestrator(&self) -> Result<(), String> {
+        let mut watchers = self.watchers.lock().await;
+
+        if watchers.remove(ORCHESTRATOR_WATCHER_KEY).is_some() {
+            info!("Stopped orchestrator file watcher");
+        } else {
+            debug!("No orchestrator file watcher to stop");
+        }
+
+        Ok(())
     }
 }
 

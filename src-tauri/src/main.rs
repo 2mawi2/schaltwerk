@@ -23,8 +23,10 @@ mod updater;
 
 use crate::commands::sessions_refresh::{request_sessions_refresh, SessionsRefreshReason};
 use clap::Parser;
+use schaltwerk::domains::git::repository;
 use schaltwerk::infrastructure::config::SettingsManager;
 use schaltwerk::project_manager::ProjectManager;
+use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
 use schaltwerk::services::ServiceHandles;
 use schaltwerk::shared::terminal_id::{
     legacy_terminal_id_for_session_top, previous_hashed_terminal_id_for_session_top,
@@ -211,6 +213,28 @@ pub async fn get_file_watcher_manager(
 
 #[tauri::command]
 async fn start_file_watcher(session_name: String) -> Result<(), String> {
+    if session_name == "orchestrator" {
+        let (repo_path, configured_branch) = {
+            let core = get_core_read().await?;
+            let repo_path = core.repo_path.clone();
+            let configured_branch = core
+                .db
+                .get_default_base_branch()
+                .map_err(|e| format!("Failed to get default base branch: {e}"))?
+                .filter(|value| !value.trim().is_empty());
+            (repo_path, configured_branch)
+        };
+
+        let base_branch = configured_branch.unwrap_or_else(|| {
+            repository::get_default_branch(repo_path.as_path()).unwrap_or_else(|_| "main".to_string())
+        });
+
+        let watcher_manager = get_file_watcher_manager().await?;
+        return watcher_manager
+            .start_watching_orchestrator(repo_path, base_branch)
+            .await;
+    }
+
     let session_manager = {
         let core = get_core_read().await?;
         core.session_manager()
@@ -238,6 +262,10 @@ async fn start_file_watcher(session_name: String) -> Result<(), String> {
 
 #[tauri::command]
 async fn stop_file_watcher(session_name: String) -> Result<(), String> {
+    if session_name == "orchestrator" {
+        let watcher_manager = get_file_watcher_manager().await?;
+        return watcher_manager.stop_watching_orchestrator().await;
+    }
     let watcher_manager = get_file_watcher_manager().await?;
     watcher_manager.stop_watching_session(&session_name).await
 }

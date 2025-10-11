@@ -9,6 +9,8 @@ import { logger } from '../../utils/logger'
 import { theme } from '../../common/theme'
 import { useToast } from '../../common/toast/ToastProvider'
 import { writeClipboard } from '../../utils/clipboard'
+import { listenEvent, SchaltEvent } from '../../common/eventSystem'
+import type { EventPayloadMap } from '../../common/events'
 
 const HISTORY_PAGE_SIZE = 400
 
@@ -25,6 +27,11 @@ export const GitGraphPanel = memo(() => {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; commit: HistoryItem } | null>(null)
   const [commitDetails, setCommitDetails] = useState<Record<string, CommitDetailState>>({})
   const commitDetailsRef = useRef<Record<string, CommitDetailState>>({})
+  const latestHeadRef = useRef<string | null>(null)
+  const hasLoadedRef = useRef(false)
+  const refreshProcessingRef = useRef(false)
+  const pendingRefreshHeadsRef = useRef<string[]>([])
+  const activeRefreshHeadRef = useRef<string | null>(null)
 
   useEffect(() => {
     activeProjectRef.current = projectPath ?? null
@@ -64,19 +71,24 @@ export const GitGraphPanel = memo(() => {
   )
 
   const loadHistory = useCallback(
-    async (options?: { cursor?: string }) => {
+    async (options?: { cursor?: string; mode?: 'initial' | 'append' | 'refresh' }) => {
       if (!projectPath) {
         return
       }
 
       const cursor = options?.cursor
-      const append = Boolean(cursor)
+      const mode = options?.mode ?? (cursor ? 'append' : 'initial')
+      const append = mode === 'append'
+      const refresh = mode === 'refresh'
       if (append) {
         setIsLoadingMore(true)
+        setLoadMoreError(null)
+      } else if (refresh) {
         setLoadMoreError(null)
       } else {
         setIsLoading(true)
         setError(null)
+        setLoadMoreError(null)
       }
 
       try {
@@ -90,6 +102,7 @@ export const GitGraphPanel = memo(() => {
           itemCount: result.items.length,
           append,
           hasMore: result.hasMore,
+          mode,
           nextCursor: result.nextCursor,
         })
 
@@ -98,22 +111,34 @@ export const GitGraphPanel = memo(() => {
         }
 
         mergeSnapshot(result, append)
+
+        if (!append) {
+          const topItem = result.items[0]
+          const fullHash = topItem?.fullHash ?? null
+          const shortFromFull = fullHash ? fullHash.slice(0, 7) : null
+          const topHead = shortFromFull ?? topItem?.id ?? null
+          latestHeadRef.current = topHead ?? null
+          hasLoadedRef.current = true
+        }
       } catch (err) {
         if (activeProjectRef.current !== projectPath) {
           return
         }
         const errorMsg = err instanceof Error ? err.message : String(err)
-        logger.error('[GitGraphPanel] Failed to fetch git history', err)
         if (append) {
+          logger.error('[GitGraphPanel] Failed to fetch additional git history', err)
           setLoadMoreError(errorMsg)
+        } else if (refresh) {
+          logger.warn('[GitGraphPanel] Failed to refresh git history', err)
         } else {
+          logger.error('[GitGraphPanel] Failed to fetch git history', err)
           setError(errorMsg)
         }
       } finally {
         if (activeProjectRef.current === projectPath) {
           if (append) {
             setIsLoadingMore(false)
-          } else {
+          } else if (!refresh) {
             setIsLoading(false)
           }
         }
@@ -123,6 +148,12 @@ export const GitGraphPanel = memo(() => {
   )
 
   useEffect(() => {
+    refreshProcessingRef.current = false
+    pendingRefreshHeadsRef.current = []
+    activeRefreshHeadRef.current = null
+    hasLoadedRef.current = false
+    latestHeadRef.current = null
+
     if (!projectPath) {
       setSnapshot(null)
       setIsLoading(false)
@@ -140,7 +171,7 @@ export const GitGraphPanel = memo(() => {
     setContextMenu(null)
     setCommitDetails({})
     commitDetailsRef.current = {}
-    loadHistory()
+    void loadHistory({ mode: 'initial' })
   }, [projectPath, loadHistory])
 
   const historyItems = useMemo(() => {
@@ -154,7 +185,7 @@ export const GitGraphPanel = memo(() => {
     if (!nextCursor || isLoadingMore) {
       return
     }
-    loadHistory({ cursor: nextCursor })
+    loadHistory({ cursor: nextCursor, mode: 'append' })
   }, [nextCursor, isLoadingMore, loadHistory])
 
   const handleContextMenu = useCallback((event: React.MouseEvent, commit: HistoryItem) => {
@@ -194,6 +225,103 @@ export const GitGraphPanel = memo(() => {
   useEffect(() => {
     commitDetailsRef.current = commitDetails
   }, [commitDetails])
+
+  const processRefreshQueue = useCallback(
+    async () => {
+      if (refreshProcessingRef.current || !projectPath) {
+        return
+      }
+
+      refreshProcessingRef.current = true
+
+      try {
+        while (pendingRefreshHeadsRef.current.length > 0) {
+          const head = pendingRefreshHeadsRef.current.shift()
+          if (!head) {
+            continue
+          }
+
+          activeRefreshHeadRef.current = head
+          await loadHistory({ mode: 'refresh' })
+          activeRefreshHeadRef.current = null
+        }
+      } finally {
+        activeRefreshHeadRef.current = null
+        refreshProcessingRef.current = false
+        if (pendingRefreshHeadsRef.current.length > 0) {
+          void processRefreshQueue()
+        }
+      }
+    },
+    [projectPath, loadHistory]
+  )
+
+  const enqueueRefreshHead = useCallback(
+    (head: string) => {
+      if (!projectPath) {
+        return
+      }
+
+      if (activeRefreshHeadRef.current === head) {
+        return
+      }
+
+      const queue = pendingRefreshHeadsRef.current
+      if (!queue.includes(head)) {
+        queue.push(head)
+      }
+      void processRefreshQueue()
+    },
+    [projectPath, processRefreshQueue]
+  )
+
+  const handleFileChanges = useCallback(
+    (payload: EventPayloadMap[SchaltEvent.FileChanges]) => {
+      if (!projectPath || !hasLoadedRef.current) {
+        return
+      }
+
+      const nextHead = payload?.branch_info?.head_commit?.trim()
+      if (!nextHead) {
+        return
+      }
+
+      if (latestHeadRef.current && latestHeadRef.current === nextHead) {
+        return
+      }
+
+      enqueueRefreshHead(nextHead)
+    },
+    [projectPath, enqueueRefreshHead]
+  )
+
+  useEffect(() => {
+    let isMounted = true
+    let unlisten: (() => void) | null = null
+
+    const attach = async () => {
+      try {
+        const unlistenFileChanges = await listenEvent(SchaltEvent.FileChanges, handleFileChanges)
+        if (!isMounted) {
+          unlistenFileChanges()
+          return
+        }
+        unlisten = unlistenFileChanges
+      } catch (err) {
+        logger.warn('[GitGraphPanel] Failed to subscribe to file change events', err)
+      }
+    }
+
+    attach()
+
+    return () => {
+      isMounted = false
+      if (unlisten) {
+        unlisten()
+        unlisten = null
+      }
+    }
+  }, [handleFileChanges])
 
   const handleToggleCommitDetails = useCallback((viewModel: HistoryItemViewModel) => {
     if (!projectPath) {

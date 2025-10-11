@@ -143,8 +143,10 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     // Tracks user-intent selections to avoid auto-restore overriding explicit user actions
     const lastIntentionalRef = useRef(0)
     const suppressAutoRestoreRef = useRef(false)
+    const ORCHESTRATOR_SESSION_ID = 'orchestrator'
     // Track active file watcher session to switch watchers on selection change
     const lastWatchedSessionRef = useRef<string | null>(null)
+    const orchestratorWatcherActiveRef = useRef(false)
     useEffect(() => {
         const cache = sessionSnapshotsRef.current
         const seen = new Set<string>()
@@ -876,8 +878,13 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         const startOrSwitchWatcher = async () => {
             try {
                 if (selection.kind === 'session' && selection.payload && !isSpec) {
+                    if (orchestratorWatcherActiveRef.current) {
+                        try { await invoke(TauriCommands.StopFileWatcher, { sessionName: ORCHESTRATOR_SESSION_ID }) }
+                        catch (e) { logger.warn('[SelectionContext] Failed to stop project watcher before switching to session', e) }
+                        orchestratorWatcherActiveRef.current = false
+                    }
+
                     const current = selection.payload
-                    // Stop previous watcher if switched sessions
                     const prev = lastWatchedSessionRef.current
                     if (prev && prev !== current) {
                         try { await invoke(TauriCommands.StopFileWatcher, { sessionName: prev }) }
@@ -886,13 +893,27 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                     await invoke(TauriCommands.StartFileWatcher, { sessionName: current })
                     lastWatchedSessionRef.current = current
                 } else {
-                    // Not a running session → stop previous watcher if any
                     const prev = lastWatchedSessionRef.current
                     if (prev) {
                         try { await invoke(TauriCommands.StopFileWatcher, { sessionName: prev }) }
                         catch (e) { logger.warn('[SelectionContext] Failed to stop file watcher on deselect', e) }
                     }
                     lastWatchedSessionRef.current = null
+
+                    if (selection.kind === 'orchestrator') {
+                        if (!orchestratorWatcherActiveRef.current) {
+                            try {
+                                await invoke(TauriCommands.StartFileWatcher, { sessionName: ORCHESTRATOR_SESSION_ID })
+                                orchestratorWatcherActiveRef.current = true
+                            } catch (e) {
+                                logger.warn('[SelectionContext] Failed to start project watcher', e)
+                            }
+                        }
+                    } else if (orchestratorWatcherActiveRef.current) {
+                        try { await invoke(TauriCommands.StopFileWatcher, { sessionName: ORCHESTRATOR_SESSION_ID }) }
+                        catch (e) { logger.warn('[SelectionContext] Failed to stop project watcher', e) }
+                        orchestratorWatcherActiveRef.current = false
+                    }
                 }
             } catch (e) {
                 logger.warn('[SelectionContext] File watcher setup failed; session indicators may update slower:', e)
@@ -912,6 +933,17 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                     logger.warn('[SelectionContext] Failed to stop watcher on unmount', e)
                 }
             }
+            if (orchestratorWatcherActiveRef.current) {
+                try {
+                    const stopResult = invoke(TauriCommands.StopFileWatcher, { sessionName: ORCHESTRATOR_SESSION_ID })
+                    Promise.resolve(stopResult).catch((e) => {
+                        logger.warn('[SelectionContext] Failed to stop project watcher on unmount', e)
+                    })
+                } catch (e) {
+                    logger.warn('[SelectionContext] Failed to stop project watcher on unmount', e)
+                }
+            }
+            orchestratorWatcherActiveRef.current = false
             lastWatchedSessionRef.current = null
         }
     }, [selection, isSpec])

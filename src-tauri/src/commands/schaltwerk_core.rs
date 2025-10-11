@@ -1,8 +1,9 @@
 use crate::{
     commands::session_lookup_cache::global_session_lookup_cache, get_core_read, get_core_write,
-    get_terminal_manager, SETTINGS_MANAGER,
+    get_file_watcher_manager, get_terminal_manager, SETTINGS_MANAGER,
 };
 use schaltwerk::domains::agents::{manifest::AgentManifest, naming, parse_agent_command};
+use schaltwerk::domains::git::repository;
 use schaltwerk::domains::merge::types::MergeStateSnapshot;
 use schaltwerk::domains::merge::{MergeMode, MergeOutcome, MergePreview, MergeService};
 use schaltwerk::domains::sessions::cache::{cache_worktree_size, get_cached_worktree_size};
@@ -1305,6 +1306,18 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
         }
     };
     let manager = core.session_manager();
+    let repo_path = core.repo_path.clone();
+    let configured_default_branch = core
+        .db
+        .get_default_base_branch()
+        .map_err(|err| {
+            log::warn!(
+                "Failed to read default base branch while starting orchestrator watcher: {err}"
+            );
+            err
+        })
+        .ok()
+        .flatten();
 
     // Resolve binary paths at command level (with caching)
     let binary_paths = if let Some(settings_manager) = SETTINGS_MANAGER.get() {
@@ -1346,6 +1359,32 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
         rows,
     )
     .await?;
+
+    drop(core);
+
+    // Ensure orchestrator watcher is running so git graph reacts to commits in main repo
+    let base_branch = configured_default_branch.unwrap_or_else(|| {
+        repository::get_default_branch(repo_path.as_path()).unwrap_or_else(|_| "main".to_string())
+    });
+
+    match get_file_watcher_manager().await {
+        Ok(manager) => {
+            if let Err(err) = manager
+                .start_watching_orchestrator(repo_path.clone(), base_branch.clone())
+                .await
+            {
+                log::warn!(
+                    "Failed to start orchestrator file watcher for {} on branch {}: {err}",
+                    repo_path.display(),
+                    base_branch
+                );
+            }
+        }
+        Err(err) => {
+            log::warn!("File watcher manager unavailable while starting orchestrator: {err}");
+        }
+    }
+
     Ok(result)
 }
 
@@ -2139,6 +2178,18 @@ pub async fn schaltwerk_core_start_fresh_orchestrator(
         }
     };
     let manager = core.session_manager();
+    let repo_path = core.repo_path.clone();
+    let configured_default_branch = core
+        .db
+        .get_default_base_branch()
+        .map_err(|err| {
+            log::warn!(
+                "Failed to read default base branch while starting fresh orchestrator watcher: {err}"
+            );
+            err
+        })
+        .ok()
+        .flatten();
 
     // Resolve binary paths at command level (with caching)
     let binary_paths = if let Some(settings_manager) = SETTINGS_MANAGER.get() {
@@ -2183,6 +2234,31 @@ pub async fn schaltwerk_core_start_fresh_orchestrator(
         None,
     )
     .await?;
+
+    drop(core);
+
+    let base_branch = configured_default_branch.unwrap_or_else(|| {
+        repository::get_default_branch(repo_path.as_path()).unwrap_or_else(|_| "main".to_string())
+    });
+
+    match get_file_watcher_manager().await {
+        Ok(manager) => {
+            if let Err(err) = manager
+                .start_watching_orchestrator(repo_path.clone(), base_branch.clone())
+                .await
+            {
+                log::warn!(
+                    "Failed to start orchestrator file watcher after fresh start for {} on branch {}: {err}",
+                    repo_path.display(),
+                    base_branch
+                );
+            }
+        }
+        Err(err) => {
+            log::warn!("File watcher manager unavailable while starting fresh orchestrator: {err}");
+        }
+    }
+
     Ok(result)
 }
 
