@@ -159,6 +159,9 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const [resolvedFontFamily, setResolvedFontFamily] = useState<string | null>(null);
     const [customFontFamily, setCustomFontFamily] = useState<string | null>(null);
     const [webglEnabled, setWebglEnabled] = useState<boolean>(true);
+    const gpuEnabledForTerminal = useMemo(() => (
+        !isBackground && webglEnabled && agentType !== 'run'
+    ), [agentType, isBackground, webglEnabled]);
     // Drag-selection suppression for run terminals
     const suppressNextClickRef = useRef<boolean>(false);
     const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null);
@@ -580,6 +583,13 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     }, [onTerminalClick]);
 
     useEffect(() => {
+        if (!gpuEnabledForTerminal && gpuRenderer.current) {
+            gpuRenderer.current.dispose();
+            gpuRenderer.current = null;
+        }
+    }, [gpuEnabledForTerminal]);
+
+    useEffect(() => {
         let mounted = true
         const load = async () => {
             try {
@@ -635,22 +645,23 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             const newWebglEnabled = detail.webglEnabled
             setWebglEnabled(newWebglEnabled)
 
-            if (!terminal.current || isBackground) return
+            if (!terminal.current) return
 
-            if (newWebglEnabled && !gpuRenderer.current) {
+            const allowWebgl = !isBackground && newWebglEnabled && agentType !== 'run'
+            if (allowWebgl && !gpuRenderer.current) {
                 gpuRenderer.current = new WebGLTerminalRenderer(terminal.current, terminalId)
                 await gpuRenderer.current.initialize()
                 refreshGpuFontRendering()
                 gpuRenderer.current.onContextLost(() => {
                     logger.info(`[Terminal ${terminalId}] WebGL context lost, using Canvas renderer`)
                 })
-            } else if (!newWebglEnabled && gpuRenderer.current) {
+            } else if (!allowWebgl && gpuRenderer.current) {
                 gpuRenderer.current.dispose()
                 gpuRenderer.current = null
             }
         })
         return cleanup
-    }, [terminalId, isBackground, refreshGpuFontRendering])
+    }, [agentType, terminalId, isBackground, refreshGpuFontRendering])
 
      // Listen for unified agent-start events to prevent double-starting
      useEffect(() => {
@@ -1056,7 +1067,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                         }
                     }
 
-                    if (!isBackground && webglEnabled) {
+                    if (gpuEnabledForTerminal) {
                         gpuRenderer.current = new WebGLTerminalRenderer(terminal.current, terminalId);
                         await gpuRenderer.current.initialize();
                         refreshGpuFontRendering();
@@ -1934,7 +1945,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             // All terminals are cleaned up when the app exits via the backend cleanup handler
             // useCleanupRegistry handles other cleanup automatically
         };
-    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, shouldAutoScroll, isUserSelectingInTerminal, applySizeUpdate, flushQueuePending, getQueueStats, resetQueue, inputFilter, isAgentTopTerminal, scrollToBottomInstant, pluginTransportActive, acknowledgeChunk, applyPostHydrationScroll, beginClaudeShiftEnter, finalizeClaudeShiftEnter, refreshGpuFontRendering, webglEnabled]);
+    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, shouldAutoScroll, isUserSelectingInTerminal, applySizeUpdate, flushQueuePending, getQueueStats, resetQueue, inputFilter, isAgentTopTerminal, scrollToBottomInstant, pluginTransportActive, acknowledgeChunk, applyPostHydrationScroll, beginClaudeShiftEnter, finalizeClaudeShiftEnter, refreshGpuFontRendering, gpuEnabledForTerminal]);
 
     useEffect(() => {
         if (overflowEpoch === 0) return;
