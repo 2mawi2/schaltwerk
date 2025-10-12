@@ -65,6 +65,20 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
   const textDecoderRef = useRef<TextDecoder | null>(null)
   const textEncoderRef = useRef<TextEncoder | null>(null)
 
+  const syncPluginTransportState = useCallback(() => {
+    const active = isPluginTerminal(runTerminalId)
+    setPluginTransportActive(prev => {
+      if (prev === active) {
+        return prev
+      }
+      return active
+    })
+    if (!active) {
+      pluginSeqRef.current = 0
+    }
+    return active
+  }, [runTerminalId])
+
   const processChunk = useCallback((chunk: string) => {
     if (chunk.length > 0) {
       outputBufferRef.current = (outputBufferRef.current + chunk).slice(-2048)
@@ -112,28 +126,8 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
   }, [isRunning, runStateKey])
 
   useEffect(() => {
-    let cancelled = false
-    const refresh = () => {
-      const active = isPluginTerminal(runTerminalId)
-      if (!cancelled) {
-        setPluginTransportActive(active)
-        if (!active) {
-          pluginSeqRef.current = 0
-        }
-      }
-    }
-    refresh()
-    let timer: number | undefined
-    if (typeof window !== 'undefined') {
-      timer = window.setTimeout(refresh, 0)
-    }
-    return () => {
-      cancelled = true
-      if (typeof window !== 'undefined' && timer !== undefined) {
-        window.clearTimeout(timer)
-      }
-    }
-  }, [runTerminalId])
+    syncPluginTransportState()
+  }, [runTerminalId, syncPluginTransportState])
 
   useEffect(() => {
     const loadRunScript = async () => {
@@ -163,6 +157,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
         const exists = await terminalExistsBackend(runTerminalId)
         if (exists) {
           setTerminalCreated(true)
+          syncPluginTransportState()
           const storedRunning = sessionStorage.getItem(runStateKey) === 'true'
           if (storedRunning !== isRunning) {
             runningRef.current = storedRunning
@@ -175,7 +170,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
       }
     }
     checkExistingTerminal()
-  }, [runTerminalId, runStateKey, onRunningStateChange, isRunning])
+  }, [runTerminalId, runStateKey, onRunningStateChange, isRunning, syncPluginTransportState])
 
   useEffect(() => {
     let unlisten: (() => void) | null = null
@@ -359,6 +354,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
               cols: sizeHint.cols,
               rows: sizeHint.rows,
             })
+            syncPluginTransportState()
           } else {
             setTerminalCreated(true)
             if (terminalRef.current) {
@@ -367,6 +363,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
               pendingScrollToBottomRef.current = true
               setScrollRequestId(id => id + 1)
             }
+            syncPluginTransportState()
           }
 
           await executeRunCommand(script.command)
@@ -376,7 +373,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
       }
     },
     isRunning: () => isRunning,
-  }), [runScript, workingDirectory, isRunning, runTerminalId, onRunningStateChange, executeRunCommand])
+  }), [runScript, workingDirectory, isRunning, runTerminalId, onRunningStateChange, executeRunCommand, syncPluginTransportState])
 
   useEffect(() => {
     if (!pendingScrollToBottomRef.current) return

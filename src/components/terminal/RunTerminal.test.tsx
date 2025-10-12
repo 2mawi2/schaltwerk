@@ -6,6 +6,52 @@ import { RunTerminal, type RunTerminalHandle } from './RunTerminal'
 
 const RUN_EXIT_PRINTF_PATTERN = '__SCHALTWERK_RUN_EXIT__='
 
+const pluginTransportHarness = vi.hoisted(() => {
+  let enabled = false
+  const subscribers = new Map<string, (message: { seq: number; bytes: Uint8Array }) => void>()
+  const mockTransport = {
+    spawn: vi.fn(async () => ({ termId: 'run-terminal-test' })),
+    write: vi.fn(async () => {}),
+    resize: vi.fn(async () => {}),
+    kill: vi.fn(async () => {}),
+    subscribe: vi.fn(async (id: string, _seq: number, onData: (message: { seq: number; bytes: Uint8Array }) => void) => {
+      subscribers.set(id, onData)
+      return async () => {
+        subscribers.delete(id)
+      }
+    }),
+    ack: vi.fn(async () => {}),
+  }
+  return {
+    mockTransport,
+    subscribers,
+    setEnabled(value: boolean) {
+      enabled = value
+    },
+    isEnabled() {
+      return enabled
+    },
+    reset() {
+      enabled = false
+      subscribers.clear()
+      mockTransport.spawn.mockClear()
+      mockTransport.write.mockClear()
+      mockTransport.resize.mockClear()
+      mockTransport.kill.mockClear()
+      mockTransport.subscribe.mockClear()
+      mockTransport.ack.mockClear()
+    },
+  }
+})
+
+vi.mock('../../terminal/transport/transportFlags', () => ({
+  shouldUsePluginTransport: vi.fn(async () => pluginTransportHarness.isEnabled()),
+  getPluginTransport: vi.fn(async () => (pluginTransportHarness.isEnabled() ? pluginTransportHarness.mockTransport : null)),
+  __setPluginEnabled: (value: boolean) => {
+    pluginTransportHarness.setEnabled(value)
+  },
+}))
+
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(async (cmd: string) => {
     if (cmd === TauriCommands.GetProjectRunScript) {
@@ -45,9 +91,7 @@ beforeEach(() => {
   for (const key of Object.keys(eventHandlers)) {
     eventHandlers[key] = null
   }
-  focusMock?.mockClear()
-  showSearchMock?.mockClear()
-  scrollToBottomMock?.mockClear()
+  pluginTransportHarness.reset()
 })
 
 // Stub internal Terminal component to avoid xterm heavy setup while exposing scroll spy
@@ -77,6 +121,12 @@ vi.mock('./Terminal', () => ({
 }))
 
 const { focusMock, showSearchMock, scrollToBottomMock } = terminalMocks
+
+beforeEach(() => {
+  focusMock.mockClear()
+  showSearchMock.mockClear()
+  scrollToBottomMock.mockClear()
+})
 
 function Wrapper({ onRunningStateChange = () => {} }: { onRunningStateChange?: (isRunning: boolean) => void }) {
   const ref = useRef<RunTerminalHandle>(null)
@@ -225,5 +275,62 @@ describe('RunTerminal', () => {
     await screen.findByText('Ready to run:')
     expect(onRunningStateChange).toHaveBeenLastCalledWith(false)
     expect(lastWriteData).toContain(RUN_EXIT_PRINTF_PATTERN)
+  })
+
+  it('resets running state when plugin transport delivers exit sentinel', async () => {
+    pluginTransportHarness.setEnabled(true)
+
+    const { invoke } = await import('@tauri-apps/api/core')
+    const mockInvoke = vi.mocked(invoke)
+
+    let terminalCreated = false
+
+    mockInvoke.mockImplementation(async (cmd: string, _args?: unknown) => {
+      if (cmd === TauriCommands.GetProjectRunScript) {
+        return { command: 'npm run dev', environmentVariables: {} }
+      }
+      if (cmd === TauriCommands.TerminalExists) return terminalCreated
+      if (cmd === TauriCommands.CreateRunTerminal) {
+        terminalCreated = true
+        return 'run-terminal-test'
+      }
+      if (cmd === TauriCommands.GetCurrentDirectory) return '/tmp'
+      if (cmd === TauriCommands.WriteTerminal) {
+        return undefined
+      }
+      return undefined
+    })
+
+    const onRunningStateChange = vi.fn()
+    render(<Wrapper onRunningStateChange={onRunningStateChange} />)
+
+    await screen.findByText('Ready to run:')
+
+    await act(async () => {
+      screen.getByText('toggle').click()
+    })
+
+    await screen.findByText('Running:')
+
+    await waitFor(() => {
+      expect(pluginTransportHarness.mockTransport.subscribe).toHaveBeenCalledWith(
+        'run-terminal-test',
+        0,
+        expect.any(Function),
+      )
+    })
+
+    const subscriber = pluginTransportHarness.subscribers.get('run-terminal-test')
+    expect(subscriber).toBeTruthy()
+
+    await act(async () => {
+      subscriber?.({
+        seq: 1,
+        bytes: new TextEncoder().encode('__SCHALTWERK_RUN_EXIT__=0\r'),
+      })
+    })
+
+    await screen.findByText('Ready to run:')
+    expect(onRunningStateChange).toHaveBeenLastCalledWith(false)
   })
 })
