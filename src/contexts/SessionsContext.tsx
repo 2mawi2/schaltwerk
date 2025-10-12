@@ -1144,6 +1144,29 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             }))
         })
 
+        register(SchaltEvent.TerminalAttention, (event) => {
+            const { session_id, needs_attention } = event
+            setAllSessions(prev => {
+                const targetIndex = prev.findIndex(s => s.info.session_id === session_id)
+                if (targetIndex === -1) return prev
+
+                const target = prev[targetIndex]
+                const newValue = needs_attention ? true : undefined
+
+                if (target.info.attention_required === newValue) return prev
+
+                const updated = [...prev]
+                updated[targetIndex] = {
+                    ...target,
+                    info: {
+                        ...target.info,
+                        attention_required: newValue
+                    }
+                }
+                return updated
+            })
+        })
+
         register(SchaltEvent.SessionGitStats, (event) => {
             logger.debug('[SessionsContext] SessionGitStats event', event)
             const {

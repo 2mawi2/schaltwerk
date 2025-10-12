@@ -52,6 +52,7 @@ export interface SessionInfo {
     original_agent_type?: AgentType
     diff_stats?: DiffStats
     top_uncommitted_paths?: string[]
+    attention_required?: boolean
     worktree_size_bytes?: number
 }
 

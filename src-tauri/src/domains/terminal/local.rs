@@ -1,6 +1,7 @@
 use super::coalescing::{handle_coalesced_output, CoalescingParams, CoalescingState};
 use super::command_builder::build_command_spec;
 use super::control_sequences::{sanitize_control_sequences, SanitizedOutput, SequenceResponse};
+use super::idle_detection::{IdleDetector, IdleTransition};
 use super::lifecycle::{self, LifecycleDeps};
 use super::visible::VisibleScreen;
 use super::{CreateParams, TerminalBackend, TerminalSnapshot};
@@ -16,12 +17,15 @@ use tokio::sync::{broadcast, Mutex, RwLock};
 
 const DEFAULT_MAX_BUFFER_SIZE: usize = 2 * 1024 * 1024;
 const AGENT_MAX_BUFFER_SIZE: usize = 64 * 1024 * 1024;
+const IDLE_THRESHOLD_MS: u64 = 5000;
 pub(super) struct TerminalState {
     pub(super) buffer: Vec<u8>,
     pub(super) seq: u64,
     pub(super) start_seq: u64,
     pub(super) last_output: SystemTime,
     pub(super) screen: VisibleScreen,
+    pub(super) idle_detector: IdleDetector,
+    pub(super) session_id: Option<String>,
 }
 
 impl TerminalState {
@@ -284,7 +288,62 @@ impl LocalPtyAdapter {
     }
 
     pub async fn set_app_handle(&self, handle: AppHandle) {
-        *self.coalescing_state.app_handle.lock().await = Some(handle);
+        *self.coalescing_state.app_handle.lock().await = Some(handle.clone());
+        self.spawn_idle_ticker(handle).await;
+    }
+
+    async fn spawn_idle_ticker(&self, handle: AppHandle) {
+        let terminals = Arc::clone(&self.terminals);
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_millis(250));
+            loop {
+                interval.tick().await;
+                let now = Instant::now();
+
+                let transitions = {
+                    let mut terminals = terminals.write().await;
+                    let mut transitions = Vec::new();
+                    for (id, state) in terminals.iter_mut() {
+                        if state.session_id.is_none() {
+                            continue;
+                        }
+
+                        if !state.idle_detector.needs_tick() {
+                            continue;
+                        }
+
+                        if let Some(transition) = state.idle_detector.tick(now, &mut state.screen) {
+                            let needs_attention = match transition {
+                                IdleTransition::BecameIdle => true,
+                                IdleTransition::BecameActive => false,
+                            };
+                            transitions.push((
+                                state.session_id.clone().unwrap(),
+                                id.clone(),
+                                needs_attention,
+                            ));
+                        }
+                    }
+                    transitions
+                };
+
+                if !transitions.is_empty() {
+                    for (session_id, terminal_id, needs_attention) in transitions {
+                        info!(
+                            "Emitting TerminalAttention event: session={session_id}, terminal={terminal_id}, attention={needs_attention}"
+                        );
+                        let payload = serde_json::json!({
+                            "session_id": session_id,
+                            "terminal_id": terminal_id,
+                            "needs_attention": needs_attention
+                        });
+                        if let Err(e) = emit_event(&handle, SchaltEvent::TerminalAttention, &payload) {
+                            error!("Failed to emit TerminalAttention event: {e}");
+                        }
+                    }
+                }
+            }
+        });
     }
 
     fn start_reader(
@@ -401,6 +460,9 @@ impl LocalPtyAdapter {
 
                                     state.seq = state.seq.saturating_add(sanitized_len as u64);
                                     state.last_output = SystemTime::now();
+
+                                    let now = Instant::now();
+                                    state.idle_detector.observe_bytes(now, &sanitized_data);
 
                                     if state.buffer.len() > max_size {
                                         let excess = state.buffer.len() - max_size;
@@ -640,12 +702,19 @@ impl TerminalBackend for LocalPtyAdapter {
 
         lifecycle::start_process_monitor(id.clone(), self.lifecycle_deps()).await;
 
+        let session_id = session_id_from_terminal_id(&id);
+        if session_id.is_some() {
+            debug!("Terminal {id} mapped to session {session_id:?}");
+        }
+
         let state = TerminalState {
             buffer: Vec::new(),
             seq: 0,
             start_seq: 0,
             last_output: SystemTime::now(),
-            screen: VisibleScreen::new(rows, cols),
+            screen: VisibleScreen::new(rows, cols, id.clone()),
+            idle_detector: IdleDetector::new(IDLE_THRESHOLD_MS, id.clone()),
+            session_id,
         };
 
         self.terminals.write().await.insert(id.clone(), state);
@@ -922,6 +991,38 @@ impl TerminalBackend for LocalPtyAdapter {
     }
 }
 
+fn session_id_from_terminal_id(id: &str) -> Option<String> {
+    let mut rest = if let Some(suffix) = id.strip_prefix("session-") {
+        suffix
+    } else if let Some(suffix) = id.strip_prefix("orchestrator-") {
+        suffix
+    } else {
+        return None;
+    };
+
+    // Remove numeric index at end like -0, -1 FIRST
+    if let Some((prefix, maybe_index)) = rest.rsplit_once('-') {
+        if maybe_index.chars().all(|c| c.is_ascii_digit()) {
+            rest = prefix;
+        }
+    }
+
+    // Remove terminal position suffix (-top or -bottom)
+    for suffix in ["-top", "-bottom"] {
+        if let Some(stripped) = rest.strip_suffix(suffix) {
+            rest = stripped;
+            break;
+        }
+    }
+
+    // Remove hash suffix like ~d7ecb8
+    if let Some(tilde_idx) = rest.find('~') {
+        rest = &rest[..tilde_idx];
+    }
+
+    Some(rest.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::ApplicationSpec;
@@ -932,6 +1033,34 @@ mod tests {
     use tokio::time::sleep;
 
     static COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+    #[test]
+    fn test_session_id_extraction() {
+        assert_eq!(
+            session_id_from_terminal_id("session-dreamy_kirch~d7ecb8-top"),
+            Some("dreamy_kirch".to_string())
+        );
+        assert_eq!(
+            session_id_from_terminal_id("session-quirky_black~3fbece-top"),
+            Some("quirky_black".to_string())
+        );
+        assert_eq!(
+            session_id_from_terminal_id("session-my-feature-bottom-0"),
+            Some("my-feature".to_string())
+        );
+        assert_eq!(
+            session_id_from_terminal_id("orchestrator-pharia-3250d1-top"),
+            Some("pharia-3250d1".to_string())
+        );
+        assert_eq!(
+            session_id_from_terminal_id("orchestrator-main-bottom"),
+            Some("main".to_string())
+        );
+        assert_eq!(
+            session_id_from_terminal_id("random-terminal-id"),
+            None
+        );
+    }
 
     fn unique_id(prefix: &str) -> String {
         format!(
