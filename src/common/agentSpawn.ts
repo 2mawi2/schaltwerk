@@ -1,15 +1,45 @@
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../common/tauriCommands'
 import { bestBootstrapSize } from './terminalSizeCache'
-import { markBackgroundStart, clearBackgroundStarts } from './uiEvents'
+import { markBackgroundStart, clearBackgroundStarts, emitUiEvent, UiEvent } from './uiEvents'
 import { singleflight, hasInflight } from '../utils/singleflight'
 import { logger } from '../utils/logger'
+import {
+  recordAgentLifecycle,
+  shouldUseExtendedAgentTimeout,
+  EXTENDED_AGENT_START_TIMEOUT_MS,
+  DEFAULT_AGENT_START_TIMEOUT_MS,
+} from './agentLifecycleTracker'
+
+export { EXTENDED_AGENT_START_TIMEOUT_MS, DEFAULT_AGENT_START_TIMEOUT_MS } from './agentLifecycleTracker'
 
 export const RIGHT_EDGE_GUARD_COLUMNS = 2
-export const AGENT_START_TIMEOUT_MS = 5000
-export const AGENT_START_TIMEOUT_MESSAGE = 'Agent start timed out after 5 seconds'
+export const AGENT_START_TIMEOUT_MESSAGE = 'Agent start timed out before the agent was ready.'
 
-function withAgentStartTimeout<T>(promise: Promise<T>, context: { id: string; command: string }) {
+let agentStartTimeoutMetric = 0
+
+export function getAgentStartTimeoutMetricForTests(): number {
+  return agentStartTimeoutMetric
+}
+
+export function resetAgentStartTimeoutMetricForTests(): void {
+  agentStartTimeoutMetric = 0
+}
+
+function determineStartTimeoutMs(agentType?: string | null): number {
+  return shouldUseExtendedAgentTimeout(agentType) ? EXTENDED_AGENT_START_TIMEOUT_MS : DEFAULT_AGENT_START_TIMEOUT_MS
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message
+  return String(error)
+}
+
+function withAgentStartTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  context: { id: string; command: string }
+) {
   let settled = false
   let timeoutHandle: ReturnType<typeof setTimeout> | null = null
 
@@ -25,8 +55,12 @@ function withAgentStartTimeout<T>(promise: Promise<T>, context: { id: string; co
       if (settled) return
       settled = true
       clearTimer()
+      agentStartTimeoutMetric += 1
+      logger.warn(
+        `[agentSpawn] start timed out for ${context.id} (${context.command}) after ${timeoutMs}ms; total_timeouts=${agentStartTimeoutMetric}`
+      )
       reject(new Error(AGENT_START_TIMEOUT_MESSAGE))
-    }, AGENT_START_TIMEOUT_MS)
+    }, timeoutMs)
 
     promise.then(value => {
       if (settled) {
@@ -94,15 +128,43 @@ export async function startSessionTop(params: {
   markBackgroundStart(topId)
   try {
     const { cols, rows } = computeSpawnSize({ topId, measured, projectOrchestratorId })
-
+    const agentType = params.agentType ?? 'claude'
+    const timeoutMs = determineStartTimeoutMs(agentType)
     const command = TauriCommands.SchaltwerkCoreStartSessionAgent
 
-    await singleflight(topId, () =>
-      withAgentStartTimeout(
-        invoke(command, { sessionName, cols, rows }),
-        { id: topId, command }
-      )
-    )
+    await singleflight(topId, async () => {
+      const lifecycleBase = {
+        terminalId: topId,
+        sessionName,
+        agentType,
+      }
+      const startPromise = invoke(command, { sessionName, cols, rows })
+      const spawnedAt = Date.now()
+      recordAgentLifecycle({ ...lifecycleBase, state: 'spawned', whenMs: spawnedAt })
+      emitUiEvent(UiEvent.AgentLifecycle, { ...lifecycleBase, state: 'spawned', occurredAtMs: spawnedAt })
+
+      try {
+        await withAgentStartTimeout(
+          startPromise,
+          timeoutMs,
+          { id: topId, command }
+        )
+        const readyAt = Date.now()
+        recordAgentLifecycle({ ...lifecycleBase, state: 'ready', whenMs: readyAt })
+        emitUiEvent(UiEvent.AgentLifecycle, { ...lifecycleBase, state: 'ready', occurredAtMs: readyAt })
+      } catch (error) {
+        const failedAt = Date.now()
+        const message = getErrorMessage(error)
+        recordAgentLifecycle({ ...lifecycleBase, state: 'failed', whenMs: failedAt, reason: message })
+        emitUiEvent(UiEvent.AgentLifecycle, {
+          ...lifecycleBase,
+          state: 'failed',
+          occurredAtMs: failedAt,
+          reason: message,
+        })
+        throw error
+      }
+    })
   } catch (e) {
     try {
       clearBackgroundStarts([topId])
@@ -122,12 +184,37 @@ export async function startOrchestratorTop(params: {
   markBackgroundStart(terminalId)
   try {
     const { cols, rows } = computeSpawnSize({ topId: terminalId, measured })
-    await singleflight(terminalId, () =>
-      withAgentStartTimeout(
-        invoke(TauriCommands.SchaltwerkCoreStartClaudeOrchestrator, { terminalId, cols, rows }),
-        { id: terminalId, command: TauriCommands.SchaltwerkCoreStartClaudeOrchestrator }
-      )
-    )
+    const agentType = 'claude'
+    const timeoutMs = determineStartTimeoutMs(agentType)
+    await singleflight(terminalId, async () => {
+      const lifecycleBase = { terminalId, agentType }
+      const startPromise = invoke(TauriCommands.SchaltwerkCoreStartClaudeOrchestrator, { terminalId, cols, rows })
+      const spawnedAt = Date.now()
+      recordAgentLifecycle({ ...lifecycleBase, state: 'spawned', whenMs: spawnedAt })
+      emitUiEvent(UiEvent.AgentLifecycle, { ...lifecycleBase, state: 'spawned', occurredAtMs: spawnedAt })
+
+      try {
+        await withAgentStartTimeout(
+          startPromise,
+          timeoutMs,
+          { id: terminalId, command: TauriCommands.SchaltwerkCoreStartClaudeOrchestrator }
+        )
+        const readyAt = Date.now()
+        recordAgentLifecycle({ ...lifecycleBase, state: 'ready', whenMs: readyAt })
+        emitUiEvent(UiEvent.AgentLifecycle, { ...lifecycleBase, state: 'ready', occurredAtMs: readyAt })
+      } catch (error) {
+        const failedAt = Date.now()
+        const message = getErrorMessage(error)
+        recordAgentLifecycle({ ...lifecycleBase, state: 'failed', whenMs: failedAt, reason: message })
+        emitUiEvent(UiEvent.AgentLifecycle, {
+          ...lifecycleBase,
+          state: 'failed',
+          occurredAtMs: failedAt,
+          reason: message,
+        })
+        throw error
+      }
+    })
   } catch (e) {
     try {
       clearBackgroundStarts([terminalId])

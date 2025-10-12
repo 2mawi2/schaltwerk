@@ -32,6 +32,7 @@ export enum UiEvent {
   ModalsChanged = 'schaltwerk:modals-changed',
   EnterSpecMode = 'schaltwerk:enter-spec-mode',
   CreatePullRequest = 'schaltwerk:create-pull-request',
+  AgentLifecycle = 'schaltwerk:agent-lifecycle',
 }
 
 export interface TerminalResizeRequestDetail {
@@ -120,6 +121,15 @@ export interface CreatePullRequestDetail {
   sessionId: string
 }
 
+export interface AgentLifecycleDetail {
+  terminalId: string
+  sessionName?: string
+  agentType?: string
+  state: 'spawned' | 'ready' | 'failed'
+  occurredAtMs?: number
+  reason?: string
+}
+
 export type UiEventPayloads = {
   [UiEvent.PermissionError]: { error: string }
   [UiEvent.BackgroundStartMarked]: { terminalId: string }
@@ -154,6 +164,7 @@ export type UiEventPayloads = {
   [UiEvent.ModalsChanged]: ModalsChangedDetail
   [UiEvent.EnterSpecMode]: EnterSpecModeDetail
   [UiEvent.CreatePullRequest]: CreatePullRequestDetail
+  [UiEvent.AgentLifecycle]: AgentLifecycleDetail
 }
 
 type UiEventArgs<T extends UiEvent> = undefined extends UiEventPayloads[T]

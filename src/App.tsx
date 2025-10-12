@@ -41,13 +41,14 @@ import {
   clearBackgroundStartsByPrefix,
   SessionActionDetail,
   StartAgentFromSpecDetail,
+  AgentLifecycleDetail,
 } from './common/uiEvents'
 import { logger } from './utils/logger'
 import { installSmartDashGuards } from './utils/normalizeCliText'
 import { useKeyboardShortcutsConfig } from './contexts/KeyboardShortcutsContext'
 import { detectPlatformSafe, isShortcutForAction } from './keyboardShortcuts/helpers'
 import { useSelectionPreserver } from './hooks/useSelectionPreserver'
-import { startSessionTop, computeProjectOrchestratorId } from './common/agentSpawn'
+import { startSessionTop, computeProjectOrchestratorId, AGENT_START_TIMEOUT_MESSAGE } from './common/agentSpawn'
 import { createTerminalBackend } from './terminal/transport/backend'
 import { beginSplitDrag, endSplitDrag } from './utils/splitDragCoordinator'
 import { useOptionalToast } from './common/toast/ToastProvider'
@@ -71,6 +72,7 @@ function AppContent() {
   const github = useGithubIntegrationContext()
   const toast = useOptionalToast()
   const { beginSessionMutation, endSessionMutation } = useSessions()
+  const agentLifecycleStateRef = useRef(new Map<string, { state: 'spawned' | 'ready'; timestamp: number }>())
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -118,8 +120,18 @@ function AppContent() {
 
   useEffect(() => {
     if (!toast) return
-    const spawnCleanup = listenUiEvent(UiEvent.SpawnError, (detail: { error?: string }) => {
+    const spawnCleanup = listenUiEvent(UiEvent.SpawnError, (detail: { error?: string, terminalId?: string }) => {
       const description = detail?.error?.trim() || 'Agent failed to start.'
+      const terminalId = detail?.terminalId
+      if (terminalId) {
+        const lifecycleState = agentLifecycleStateRef.current.get(terminalId)
+        const isTimeout = description.includes(AGENT_START_TIMEOUT_MESSAGE)
+        if (lifecycleState?.state === 'spawned' && isTimeout) {
+          logger.info(`[App] Suppressing timeout toast for ${terminalId}; lifecycle indicates spawn succeeded`)
+          agentLifecycleStateRef.current.delete(terminalId)
+          return
+        }
+      }
       toast.pushToast({ tone: 'error', title: 'Failed to start agent', description })
     })
     const noProjectCleanup = listenUiEvent(UiEvent.NoProjectError, (detail: { error?: string }) => {
@@ -136,6 +148,19 @@ function AppContent() {
       notGitCleanup()
     }
   }, [toast])
+
+  useEffect(() => {
+    const cleanup = listenUiEvent(UiEvent.AgentLifecycle, (detail: AgentLifecycleDetail) => {
+      if (!detail?.terminalId) return
+      const timestamp = detail.occurredAtMs ?? Date.now()
+      if (detail.state === 'ready' || detail.state === 'failed') {
+        agentLifecycleStateRef.current.delete(detail.terminalId)
+        return
+      }
+      agentLifecycleStateRef.current.set(detail.terminalId, { state: detail.state, timestamp })
+    })
+    return cleanup
+  }, [])
 
   useEffect(() => {
     if (!projectPath) return

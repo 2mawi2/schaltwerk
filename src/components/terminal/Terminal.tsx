@@ -485,7 +485,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
              if (isCommander || (terminalId.includes('orchestrator') && terminalId.endsWith('-top'))) {
                  await startOrchestratorTop({ terminalId, measured });
              } else if (sessionName) {
-                 await startSessionTop({ sessionName, topId: terminalId, measured });
+                 await startSessionTop({ sessionName, topId: terminalId, measured, agentType });
              }
              setAgentStopped(false);
          } catch (e) {
@@ -495,7 +495,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
          } finally {
              setAgentLoading(false);
          }
-     }, [isAgentTopTerminal, isCommander, sessionName, terminalId]);
+     }, [agentType, isAgentTopTerminal, isCommander, sessionName, terminalId]);
 
     useImperativeHandle(ref, () => ({
         focus: () => {
@@ -2140,7 +2140,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                                logger.warn(`[Terminal ${terminalId}] Failed to measure size before session start:`, e);
                            }
                             logger.info(`[Terminal ${terminalId}] Auto-starting Claude (session=${sessionName}) at ${new Date().toISOString()}`);
-                            await startSessionTop({ sessionName, topId: terminalId, measured });
+                            await startSessionTop({ sessionName, topId: terminalId, measured, agentType });
                             // Mark that this terminal has been started at least once
                             terminalEverStartedRef.current = true;
                             // Focus the terminal after Claude starts successfully (modal-safe)
@@ -2191,7 +2191,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
          return () => {
              cancelled = true;
          };
-     }, [hydrated, terminalId, isCommander, sessionName, isAnyModalOpen, agentStopped]);
+     }, [agentType, hydrated, terminalId, isCommander, sessionName, isAnyModalOpen, agentStopped]);
 
     useEffect(() => {
         if (!terminal.current || !resolvedFontFamily) return

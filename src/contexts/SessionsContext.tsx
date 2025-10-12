@@ -587,7 +587,8 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             const launch = async () => {
                 try {
                     const projectOrchestratorId = computeProjectOrchestratorId(projectPath)
-                    await startSessionTop({ sessionName: sessionId, topId, projectOrchestratorId })
+                    const agentType = (session.info.original_agent_type as string | undefined) ?? undefined
+                    await startSessionTop({ sessionName: sessionId, topId, projectOrchestratorId, agentType })
                     logger.info(`[SessionsContext] Started agent for ${sessionId} (${reason}).`)
                 } catch (error) {
                     const message = getErrorMessage(error)

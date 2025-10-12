@@ -5,8 +5,10 @@ import {
   RIGHT_EDGE_GUARD_COLUMNS,
   startSessionTop,
   startOrchestratorTop,
-  AGENT_START_TIMEOUT_MS,
+  EXTENDED_AGENT_START_TIMEOUT_MS,
   AGENT_START_TIMEOUT_MESSAGE,
+  getAgentStartTimeoutMetricForTests,
+  resetAgentStartTimeoutMetricForTests,
 } from './agentSpawn'
 import { TauriCommands } from './tauriCommands'
 
@@ -19,10 +21,15 @@ vi.mock('./terminalSizeCache', () => ({
   bestBootstrapSize: vi.fn()
 }))
 
-vi.mock('./uiEvents', () => ({
-  markBackgroundStart: vi.fn(),
-  clearBackgroundStarts: vi.fn()
-}))
+vi.mock('./uiEvents', async () => {
+  const actual = await vi.importActual<typeof import('./uiEvents')>('./uiEvents')
+  return {
+    ...actual,
+    markBackgroundStart: vi.fn(),
+    clearBackgroundStarts: vi.fn(),
+    emitUiEvent: vi.fn(),
+  }
+})
 
 vi.mock('../utils/singleflight', () => ({
   singleflight: vi.fn(),
@@ -31,12 +38,15 @@ vi.mock('../utils/singleflight', () => ({
 
 import { invoke } from '@tauri-apps/api/core'
 import { bestBootstrapSize } from './terminalSizeCache'
-import { markBackgroundStart, clearBackgroundStarts } from './uiEvents'
+import { markBackgroundStart, clearBackgroundStarts, emitUiEvent, UiEvent } from './uiEvents'
 import { singleflight, hasInflight } from '../utils/singleflight'
+import { resetAgentLifecycleStateForTests } from './agentLifecycleTracker'
 
 describe('agentSpawn', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetAgentStartTimeoutMetricForTests()
+    resetAgentLifecycleStateForTests()
   })
 
   describe('computeProjectOrchestratorId', () => {
@@ -254,7 +264,7 @@ describe('agentSpawn', () => {
       expect(clearBackgroundStarts).toHaveBeenCalledWith(['session-test-top'])
     })
 
-    it('rejects when start exceeds timeout and cleans up marks', async () => {
+    it('rejects when start exceeds timeout and cleans up marks while tracking metric', async () => {
       vi.useFakeTimers()
       const pending = new Promise<never>(() => {})
       vi.mocked(invoke).mockImplementation((cmd: string) => {
@@ -275,10 +285,11 @@ describe('agentSpawn', () => {
 
         const expectation = expect(startPromise).rejects.toThrow(AGENT_START_TIMEOUT_MESSAGE)
 
-        await vi.advanceTimersByTimeAsync(AGENT_START_TIMEOUT_MS)
+        await vi.advanceTimersByTimeAsync(EXTENDED_AGENT_START_TIMEOUT_MS)
 
         await expectation
         expect(clearBackgroundStarts).toHaveBeenCalledWith(['session-test-top'])
+        expect(getAgentStartTimeoutMetricForTests()).toBe(1)
       } finally {
         vi.useRealTimers()
       }
@@ -307,6 +318,40 @@ describe('agentSpawn', () => {
         sessionName: 'test-session',
         topId: 'session-test-top'
       })).rejects.toThrow('Start failed')
+    })
+
+    it('emits spawned followed by ready lifecycle events on success', async () => {
+      vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+        if (cmd === TauriCommands.SchaltwerkCoreGetSession) {
+          return { original_agent_type: 'claude' }
+        }
+        if (cmd === TauriCommands.SchaltwerkCoreStartSessionAgent) {
+          return 'ok'
+        }
+        return null
+      })
+
+      await startSessionTop({
+        sessionName: 'test-session',
+        topId: 'session-test-top'
+      })
+
+      const lifecycleCalls = vi.mocked(emitUiEvent).mock.calls.filter(
+        ([event]) => event === UiEvent.AgentLifecycle
+      )
+      expect(lifecycleCalls).toHaveLength(2)
+      expect(lifecycleCalls[0][1]).toMatchObject({
+        terminalId: 'session-test-top',
+        sessionName: 'test-session',
+        agentType: 'claude',
+        state: 'spawned'
+      })
+      expect(lifecycleCalls[1][1]).toMatchObject({
+        terminalId: 'session-test-top',
+        sessionName: 'test-session',
+        agentType: 'claude',
+        state: 'ready'
+      })
     })
   })
 
@@ -381,10 +426,11 @@ describe('agentSpawn', () => {
 
         const expectation = expect(startPromise).rejects.toThrow(AGENT_START_TIMEOUT_MESSAGE)
 
-        await vi.advanceTimersByTimeAsync(AGENT_START_TIMEOUT_MS)
+        await vi.advanceTimersByTimeAsync(EXTENDED_AGENT_START_TIMEOUT_MS)
 
         await expectation
         expect(clearBackgroundStarts).toHaveBeenCalledWith(['orchestrator-timeout-top'])
+        expect(getAgentStartTimeoutMetricForTests()).toBe(1)
       } finally {
         vi.useRealTimers()
       }
