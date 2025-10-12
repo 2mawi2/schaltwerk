@@ -129,6 +129,11 @@ Sessions are stored in SQLite at `~/Library/Application Support/schaltwerk/{proj
 - **PTY Backend**: `LocalPtyAdapter` spawns shell with session's worktree as working directory
 - Each session gets 2 terminals (top/bottom) with the worktree as working directory
 
+#### Terminal Roles
+- **Top terminal** (`TerminalGrid` mounts `terminals.top` from `SelectionContext`) runs the active agent process for the selected session. Switching sessions swaps this agent terminal so Claude, Codex, etc. always stay in the upper pane tied to that session.
+- **Bottom terminals** (`TerminalTabs` manage `terminals.bottomBase`) are dedicated for user-driven shells. Tabs let the user open additional shells; selecting a different tab only swaps the bottom pane and leaves the top agent terminal untouched.
+- Combined session switches update both panes together, ensuring the agent shell and the user shells follow the session, while per-tab switches affect only the bottom user terminals.
+
 ### Agent Integration
 Agents start via terminal commands built in `App.tsx`:
 - Each agent runs in session's isolated worktree
