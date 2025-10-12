@@ -157,6 +157,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const listenerAgentRef = useRef<string | undefined>(agentType);
     const rendererReadyRef = useRef<boolean>(false); // Canvas renderer readiness flag
     const [resolvedFontFamily, setResolvedFontFamily] = useState<string | null>(null);
+    const [customFontFamily, setCustomFontFamily] = useState<string | null>(null);
     const [webglEnabled, setWebglEnabled] = useState<boolean>(true);
     // Drag-selection suppression for run terminals
     const suppressNextClickRef = useRef<boolean>(false);
@@ -188,6 +189,39 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             }
         })();
         return true;
+    }, [terminalId]);
+
+    const refreshGpuFontRendering = useCallback(() => {
+        const renderer = gpuRenderer.current;
+        const term = terminal.current;
+        if (!renderer || !term) {
+            return;
+        }
+
+        const state = renderer.getState();
+        if (state.type !== 'webgl') {
+            return;
+        }
+
+        try {
+            renderer.clearTextureAtlas();
+        } catch (error) {
+            logger.debug(`[Terminal ${terminalId}] Failed to clear WebGL texture atlas:`, error);
+        }
+
+        requestAnimationFrame(() => {
+            const current = terminal.current;
+            if (!current) {
+                return;
+            }
+
+            try {
+                const rows = Math.max(0, current.rows - 1);
+                (current as unknown as { refresh?: (start: number, end: number) => void })?.refresh?.(0, rows);
+            } catch (error) {
+                logger.debug(`[Terminal ${terminalId}] Failed to refresh terminal after atlas clear:`, error);
+            }
+        });
     }, [terminalId]);
 
     useEffect(() => {
@@ -550,12 +584,19 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         const load = async () => {
             try {
                 const settings = await invoke<{ fontFamily?: string | null }>(TauriCommands.GetTerminalSettings)
-                const chain = buildTerminalFontFamily(settings?.fontFamily ?? null)
-                if (mounted) setResolvedFontFamily(chain)
+                const custom = settings?.fontFamily ?? null
+                const chain = buildTerminalFontFamily(custom)
+                if (mounted) {
+                    setCustomFontFamily(custom)
+                    setResolvedFontFamily(chain)
+                }
             } catch (err) {
                 logger.warn('[Terminal] Failed to load terminal settings for font family', err)
                 const chain = buildTerminalFontFamily(null)
-                if (mounted) setResolvedFontFamily(chain)
+                if (mounted) {
+                    setCustomFontFamily(null)
+                    setResolvedFontFamily(chain)
+                }
             }
         }
         load()
@@ -566,6 +607,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         const cleanup = listenUiEvent(UiEvent.TerminalFontUpdated, detail => {
             const custom = detail.fontFamily ?? null
             const chain = buildTerminalFontFamily(custom)
+            setCustomFontFamily(custom)
             setResolvedFontFamily(chain)
         })
         return cleanup
@@ -598,6 +640,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             if (newWebglEnabled && !gpuRenderer.current) {
                 gpuRenderer.current = new WebGLTerminalRenderer(terminal.current, terminalId)
                 await gpuRenderer.current.initialize()
+                refreshGpuFontRendering()
                 gpuRenderer.current.onContextLost(() => {
                     logger.info(`[Terminal ${terminalId}] WebGL context lost, using Canvas renderer`)
                 })
@@ -607,7 +650,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             }
         })
         return cleanup
-    }, [terminalId, isBackground])
+    }, [terminalId, isBackground, refreshGpuFontRendering])
 
      // Listen for unified agent-start events to prevent double-starting
      useEffect(() => {
@@ -1016,6 +1059,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                     if (!isBackground && webglEnabled) {
                         gpuRenderer.current = new WebGLTerminalRenderer(terminal.current, terminalId);
                         await gpuRenderer.current.initialize();
+                        refreshGpuFontRendering();
 
                         gpuRenderer.current.onContextLost(() => {
                             logger.info(`[Terminal ${terminalId}] WebGL context lost, using Canvas renderer`);
@@ -1890,7 +1934,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             // All terminals are cleaned up when the app exits via the backend cleanup handler
             // useCleanupRegistry handles other cleanup automatically
         };
-    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, shouldAutoScroll, isUserSelectingInTerminal, applySizeUpdate, flushQueuePending, getQueueStats, resetQueue, inputFilter, isAgentTopTerminal, scrollToBottomInstant, pluginTransportActive, acknowledgeChunk, applyPostHydrationScroll, beginClaudeShiftEnter, finalizeClaudeShiftEnter, webglEnabled]);
+    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, shouldAutoScroll, isUserSelectingInTerminal, applySizeUpdate, flushQueuePending, getQueueStats, resetQueue, inputFilter, isAgentTopTerminal, scrollToBottomInstant, pluginTransportActive, acknowledgeChunk, applyPostHydrationScroll, beginClaudeShiftEnter, finalizeClaudeShiftEnter, refreshGpuFontRendering, webglEnabled]);
 
     useEffect(() => {
         if (overflowEpoch === 0) return;
@@ -2201,11 +2245,61 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                     const { cols, rows } = terminal.current
                     applySizeUpdate(cols, rows, 'font-family');
                 }
+                refreshGpuFontRendering()
             }
         } catch (e) {
             logger.warn(`[Terminal ${terminalId}] Failed to apply font family`, e)
         }
-    }, [resolvedFontFamily, terminalId, applySizeUpdate])
+    }, [resolvedFontFamily, terminalId, applySizeUpdate, refreshGpuFontRendering])
+
+    useEffect(() => {
+        if (!resolvedFontFamily) {
+            return
+        }
+
+        if (typeof document === 'undefined' || typeof (document as { fonts?: FontFaceSet }).fonts === 'undefined') {
+            refreshGpuFontRendering()
+            return
+        }
+
+        let cancelled = false
+        const fontsApi = (document as { fonts: FontFaceSet }).fonts
+        const loadFonts = async () => {
+            const targets: string[] = []
+            if (customFontFamily && customFontFamily.trim().length > 0) {
+                targets.push(customFontFamily)
+            }
+
+            if (targets.length === 0) {
+                refreshGpuFontRendering()
+                return
+            }
+
+            const sampleSize = Math.max(terminalFontSize, 12)
+
+            try {
+                await Promise.allSettled(
+                    targets.map(fontName => {
+                        const trimmed = fontName.trim().replace(/"/g, '')
+                        const descriptor = `${sampleSize}px "${trimmed}"`
+                        return fontsApi.load(descriptor)
+                    })
+                )
+                await fontsApi.ready
+            } catch (error) {
+                logger.debug(`[Terminal ${terminalId}] Font preload failed for WebGL renderer:`, error)
+            } finally {
+                if (!cancelled) {
+                    refreshGpuFontRendering()
+                }
+            }
+        }
+
+        void loadFonts()
+        return () => {
+            cancelled = true
+        }
+    }, [resolvedFontFamily, customFontFamily, terminalFontSize, refreshGpuFontRendering, terminalId])
 
     useLayoutEffect(() => {
         if (previousTerminalId.current === terminalId) {

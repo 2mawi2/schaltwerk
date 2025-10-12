@@ -62,6 +62,16 @@ interface MockXTerm {
 
 vi.mock('@xterm/xterm/css/xterm.css', () => ({}))
 
+vi.mock('@xterm/addon-webgl', () => {
+  return {
+    WebglAddon: class {
+      clearTextureAtlas = vi.fn()
+      dispose = vi.fn()
+      onContextLoss = vi.fn()
+    }
+  }
+})
+
 // ---- Mock: xterm (defined entirely inside factory to avoid hoist issues) ----
 vi.mock('@xterm/xterm', () => {
   const instances: unknown[] = []
@@ -270,9 +280,20 @@ class MockResizeObserver {
 ;(globalThis as Record<string, unknown>).ResizeObserver = MockResizeObserver as unknown
 
 
+type MockFontSet = {
+  load: ReturnType<typeof vi.fn>
+  ready: Promise<unknown>
+}
+
+let originalFontSet: FontFaceSet | undefined
+let mockFontSet: MockFontSet | null = null
+
+
 
 // Now import the component under test
 import { Terminal, clearTerminalStartedTracking, type TerminalHandle } from './Terminal'
+import { WebGLTerminalRenderer } from '../../terminal/gpu/webglRenderer'
+import * as WebGLCapability from '../../terminal/gpu/webglCapability'
 import { getTerminalSize } from '../../common/terminalSizeCache'
 import { TestProviders } from '../../tests/test-utils'
 // Also import mocked helpers for control
@@ -334,6 +355,17 @@ beforeEach(() => {
   const mockFontSizes = [14, 14] as [number, number];
   ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.SchaltwerkCoreGetFontSizes, () => mockFontSizes)
   ;(FitAddonModule as unknown as MockFitAddonModule).__setNextFitSize(null)
+
+  mockFontSet = {
+    load: vi.fn(() => Promise.resolve([])),
+    ready: Promise.resolve(undefined)
+  }
+  originalFontSet = (document as { fonts?: FontFaceSet }).fonts
+  Object.defineProperty(document, 'fonts', {
+    configurable: true,
+    writable: true,
+    value: mockFontSet as unknown as FontFaceSet
+  })
   
   
   // Reset navigator for clean tests
@@ -347,6 +379,17 @@ afterEach(() => {
   resetSplitDragForTests()
   vi.runOnlyPendingTimers()
   vi.useRealTimers()
+  if (originalFontSet !== undefined) {
+    Object.defineProperty(document, 'fonts', {
+      configurable: true,
+      writable: true,
+      value: originalFontSet
+    })
+  } else {
+    delete (document as { fonts?: FontFaceSet }).fonts
+  }
+  originalFontSet = undefined
+  mockFontSet = null
 })
 
 function toStableTerminalId(legacyId: string | undefined): string | undefined {
@@ -1703,6 +1746,46 @@ describe('Terminal component', () => {
     await flushAll()
     expect(fontSpy).toHaveBeenCalledWith('Cousine')
     fontSpy.mockRestore()
+  })
+
+  it('clears WebGL texture atlas when font family changes', async () => {
+    const core = TauriCore as unknown as MockTauriCore
+    core.__setInvokeHandler(TauriCommands.GetTerminalSettings, () => ({ fontFamily: 'Victor Mono', webglEnabled: true }))
+
+    const supportSpy = vi.spyOn(WebGLCapability, 'isWebGLSupported').mockReturnValue(true)
+    const clearSpy = vi.spyOn(WebGLTerminalRenderer.prototype, 'clearTextureAtlas')
+
+    const { container } = renderTerminal({ terminalId: 'session-font-webgl', sessionName: 'font-webgl' })
+    await flushAll()
+
+    const outer = container.querySelector('[data-smartdash-exempt="true"]') as HTMLDivElement | null
+    const termEl = outer?.querySelector('div') as HTMLDivElement | null
+    setElementDimensions(outer, 800, 480)
+    setElementDimensions(termEl, 800, 480)
+
+    const ro = (globalThis as Record<string, unknown>).__lastRO as MockResizeObserver | undefined
+    ro?.trigger()
+    await advanceAndFlush(50)
+
+    const fontLoadMock = mockFontSet?.load
+    if (fontLoadMock) {
+      expect(fontLoadMock).toHaveBeenCalledWith('14px "Victor Mono"')
+      fontLoadMock.mockClear()
+    }
+
+    clearSpy.mockClear()
+
+    emitUiEvent(UiEvent.TerminalFontUpdated, { fontFamily: 'Cousine' })
+    await flushAll()
+    await advanceAndFlush(50)
+
+    expect(clearSpy).toHaveBeenCalled()
+    if (fontLoadMock) {
+      expect(fontLoadMock).toHaveBeenCalledWith('14px "Cousine"')
+    }
+
+    clearSpy.mockRestore()
+    supportSpy.mockRestore()
   })
 
   it('allows Claude restart after clearing started tracking for session terminals', async () => {
