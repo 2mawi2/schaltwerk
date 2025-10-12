@@ -77,13 +77,26 @@ impl Default for UpdaterPreferences {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TerminalSettings {
     pub shell: Option<String>,
     pub shell_args: Vec<String>,
     #[serde(default)]
     pub font_family: Option<String>,
+    #[serde(default = "default_true")]
+    pub webgl_enabled: bool,
+}
+
+impl Default for TerminalSettings {
+    fn default() -> Self {
+        Self {
+            shell: None,
+            shell_args: Vec::new(),
+            font_family: None,
+            webgl_enabled: true,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]

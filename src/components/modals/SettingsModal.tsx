@@ -211,6 +211,7 @@ interface TerminalSettings {
     shell: string | null
     shellArgs: string[]
     fontFamily?: string | null
+    webglEnabled?: boolean
 }
 
 interface SessionPreferences {
@@ -234,6 +235,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         shell: null,
         shellArgs: [],
         fontFamily: null,
+        webglEnabled: true,
     })
     const [sessionPreferences, setSessionPreferences] = useState<SessionPreferences>({
         auto_commit_on_review: false,
@@ -515,7 +517,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         
         // Load project-specific settings (may fail if no project is open)
         let loadedProjectSettings: ProjectSettings = { setupScript: '', branchPrefix: 'schaltwerk', environmentVariables: [] }
-        let loadedTerminalSettings: TerminalSettings = { shell: null, shellArgs: [], fontFamily: null }
+        let loadedTerminalSettings: TerminalSettings = { shell: null, shellArgs: [], fontFamily: null, webglEnabled: true }
         let loadedRunScript: RunScript = { command: '', workingDirectory: '', environmentVariables: {} }
         let loadedMergePreferences: ProjectMergePreferences = { autoCancelAfterMerge: true }
         
@@ -1687,6 +1689,21 @@ fi`}
                             )}
                             <div className="mt-2 text-caption text-slate-500">
                                 Uses your system-installed fonts. Powerline/ glyphs need a Nerd Font. A safe fallback chain is applied automatically.
+                            </div>
+                        </div>
+
+                        <div className="mt-6">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={terminalSettings.webglEnabled ?? true}
+                                    onChange={(e) => setTerminalSettings({ ...terminalSettings, webglEnabled: e.target.checked })}
+                                    className="w-4 h-4 bg-slate-800 border border-slate-700 rounded cursor-pointer"
+                                />
+                                <span className="text-body text-slate-300">Enable GPU-accelerated rendering (WebGL)</span>
+                            </label>
+                            <div className="mt-2 text-caption text-slate-500">
+                                Uses hardware acceleration for better performance with multiple terminals. Automatically falls back to Canvas if WebGL is unavailable.
                             </div>
                         </div>
 

@@ -22,6 +22,7 @@ export enum UiEvent {
   OpenDiffView = 'schaltwerk:open-diff-view',
   OpenDiffFile = 'schaltwerk:open-diff-file',
   TerminalFontUpdated = 'schaltwerk:terminal-font-updated',
+  TerminalRendererUpdated = 'schaltwerk:terminal-renderer-updated',
   FontSizeChanged = 'font-size-changed',
   GlobalNewSessionShortcut = 'global-new-session-shortcut',
   GlobalMarkReadyShortcut = 'global-mark-ready-shortcut',
@@ -89,6 +90,10 @@ export interface TerminalFontUpdatedDetail {
   fontFamily: string | null
 }
 
+export interface TerminalRendererUpdatedDetail {
+  webglEnabled: boolean
+}
+
 export interface FontSizeChangedDetail {
   terminalFontSize: number
   uiFontSize: number
@@ -139,6 +144,7 @@ export type UiEventPayloads = {
   [UiEvent.OpenDiffView]: undefined
   [UiEvent.OpenDiffFile]: OpenDiffFileDetail | undefined
   [UiEvent.TerminalFontUpdated]: TerminalFontUpdatedDetail
+  [UiEvent.TerminalRendererUpdated]: TerminalRendererUpdatedDetail
   [UiEvent.FontSizeChanged]: FontSizeChangedDetail
   [UiEvent.GlobalNewSessionShortcut]: undefined
   [UiEvent.GlobalMarkReadyShortcut]: undefined

@@ -32,6 +32,8 @@ import {
     ackTerminalBackend,
     isPluginTerminal,
 } from '../../terminal/transport/backend'
+import { WebGLTerminalRenderer } from '../../terminal/gpu/webglRenderer'
+import { TerminalSuspensionManager } from '../../terminal/suspension/terminalSuspension'
 
 const DEFAULT_SCROLLBACK_LINES = 10000
 const BACKGROUND_SCROLLBACK_LINES = 5000
@@ -94,8 +96,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const termRef = useRef<HTMLDivElement>(null);
     const terminal = useRef<XTerm | null>(null);
     const fitAddon = useRef<FitAddon | null>(null);
-    // Removed initial-fit retry machinery after consolidating fit guards
     const searchAddon = useRef<SearchAddon | null>(null);
+    const gpuRenderer = useRef<WebGLTerminalRenderer | null>(null);
     const lastSize = useRef<{ cols: number; rows: number }>({ cols: 80, rows: 24 });
     const lastEffectiveRef = useRef<{ cols: number; rows: number }>(lastEffectiveRefInit);
     const [hydrated, setHydrated] = useState(false);
@@ -155,6 +157,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const listenerAgentRef = useRef<string | undefined>(agentType);
     const rendererReadyRef = useRef<boolean>(false); // Canvas renderer readiness flag
     const [resolvedFontFamily, setResolvedFontFamily] = useState<string | null>(null);
+    const [webglEnabled, setWebglEnabled] = useState<boolean>(true);
     // Drag-selection suppression for run terminals
     const suppressNextClickRef = useRef<boolean>(false);
     const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null);
@@ -568,6 +571,44 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         return cleanup
     }, [])
 
+    useEffect(() => {
+        let mounted = true
+        const load = async () => {
+            try {
+                const settings = await invoke<{ webglEnabled?: boolean }>(TauriCommands.GetTerminalSettings)
+                if (mounted) {
+                    setWebglEnabled(settings?.webglEnabled ?? true)
+                }
+            } catch (err) {
+                logger.warn('[Terminal] Failed to load terminal settings for WebGL', err)
+                if (mounted) setWebglEnabled(true)
+            }
+        }
+        load()
+        return () => { mounted = false }
+    }, [])
+
+    useEffect(() => {
+        const cleanup = listenUiEvent(UiEvent.TerminalRendererUpdated, async detail => {
+            const newWebglEnabled = detail.webglEnabled
+            setWebglEnabled(newWebglEnabled)
+
+            if (!terminal.current || isBackground) return
+
+            if (newWebglEnabled && !gpuRenderer.current) {
+                gpuRenderer.current = new WebGLTerminalRenderer(terminal.current, terminalId)
+                await gpuRenderer.current.initialize()
+                gpuRenderer.current.onContextLost(() => {
+                    logger.info(`[Terminal ${terminalId}] WebGL context lost, using Canvas renderer`)
+                })
+            } else if (!newWebglEnabled && gpuRenderer.current) {
+                gpuRenderer.current.dispose()
+                gpuRenderer.current = null
+            }
+        })
+        return cleanup
+    }, [terminalId, isBackground])
+
      // Listen for Claude auto-start events to prevent double-starting
      useEffect(() => {
          let unlistenClaudeStarted: UnlistenFn | null = null;
@@ -909,6 +950,15 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         // Allow streaming immediately; proper fits will still run later
         rendererReadyRef.current = true;
 
+        if (!isBackground && termRef.current && terminal.current) {
+            const suspensionManager = TerminalSuspensionManager.getInstance({
+                suspendAfterMs: 1800000,
+                maxSuspendedTerminals: 100,
+                keepAliveTerminalIds: new Set()
+            });
+            suspensionManager.registerTerminal(terminalId, terminal.current, termRef.current);
+        }
+
         // Ensure proper initial fit after terminal is opened
         // CRITICAL: Wait for container dimensions before fitting - essential for xterm.js 5.x cursor positioning
         const performInitialFit = () => {
@@ -946,33 +996,36 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         terminal.current.parser.registerOscHandler(17, () => true); // highlight background color
         terminal.current.parser.registerOscHandler(19, () => true); // highlight foreground color
         
-        // Initialize terminal with Canvas renderer (default xterm.js renderer)
         let rendererInitialized = false;
-        const initializeRenderer = () => {
+        const initializeRenderer = async () => {
             if (rendererInitialized || cancelled || !terminal.current || !termRef.current) {
                 return;
             }
-            
-            // Only initialize when container has proper dimensions
+
             if (termRef.current.clientWidth > 0 && termRef.current.clientHeight > 0) {
                 rendererInitialized = true;
                 try {
-                    // Ensure terminal is properly fitted
-                        if (fitAddon.current && terminal.current) {
-                            fitAddon.current.fit();
-                            // Immediately propagate initial size once measurable
-                            try {
-                                const { cols, rows } = terminal.current;
-                                applySizeUpdate(cols, rows, 'renderer-init');
-                            } catch (e) {
-                                logger.warn(`[Terminal ${terminalId}] Early initial resize failed:`, e);
-                            }
+                    if (fitAddon.current && terminal.current) {
+                        fitAddon.current.fit();
+                        try {
+                            const { cols, rows } = terminal.current;
+                            applySizeUpdate(cols, rows, 'renderer-init');
+                        } catch (e) {
+                            logger.warn(`[Terminal ${terminalId}] Early initial resize failed:`, e);
                         }
-                    
-                    // Mark renderer as ready immediately (Canvas renderer is always ready)
+                    }
+
+                    if (!isBackground && webglEnabled) {
+                        gpuRenderer.current = new WebGLTerminalRenderer(terminal.current, terminalId);
+                        await gpuRenderer.current.initialize();
+
+                        gpuRenderer.current.onContextLost(() => {
+                            logger.info(`[Terminal ${terminalId}] WebGL context lost, using Canvas renderer`);
+                        });
+                    }
+
                     rendererReadyRef.current = true;
-                    
-                    // After initialization, trigger a proper resize to ensure correct dimensions
+
                     requestAnimationFrame(() => {
                         if (fitAddon.current && terminal.current) {
                             try {
@@ -1822,6 +1875,13 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 logger.debug(`[Terminal ${terminalId}] Renderer observer already disconnected:`, e);
             }
             try { visibilityObserver?.disconnect(); } catch { /* ignore */ }
+
+            gpuRenderer.current?.dispose();
+            gpuRenderer.current = null;
+
+            const suspensionManager = TerminalSuspensionManager.getInstance();
+            suspensionManager.unregisterTerminal(terminalId);
+
             terminal.current?.dispose();
             terminal.current = null;
             setHydrated(false);
@@ -1832,7 +1892,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             // All terminals are cleaned up when the app exits via the backend cleanup handler
             // useCleanupRegistry handles other cleanup automatically
         };
-    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, shouldAutoScroll, isUserSelectingInTerminal, applySizeUpdate, flushQueuePending, getQueueStats, resetQueue, inputFilter, isAgentTopTerminal, scrollToBottomInstant, pluginTransportActive, acknowledgeChunk, applyPostHydrationScroll, beginClaudeShiftEnter, finalizeClaudeShiftEnter]);
+    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, shouldAutoScroll, isUserSelectingInTerminal, applySizeUpdate, flushQueuePending, getQueueStats, resetQueue, inputFilter, isAgentTopTerminal, scrollToBottomInstant, pluginTransportActive, acknowledgeChunk, applyPostHydrationScroll, beginClaudeShiftEnter, finalizeClaudeShiftEnter, webglEnabled]);
 
     useEffect(() => {
         if (overflowEpoch === 0) return;

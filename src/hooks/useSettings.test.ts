@@ -633,6 +633,7 @@ describe('useSettings', () => {
         shell: '/bin/bash',
         shellArgs: ['-l'],
         fontFamily: null,
+        webglEnabled: true,
       })
     })
 
@@ -649,6 +650,7 @@ describe('useSettings', () => {
         shell: null,
         shellArgs: [],
         fontFamily: null,
+        webglEnabled: true,
       })
     })
 
@@ -665,6 +667,7 @@ describe('useSettings', () => {
         shell: null,
         shellArgs: [],
         fontFamily: null,
+        webglEnabled: true,
       })
     })
   })

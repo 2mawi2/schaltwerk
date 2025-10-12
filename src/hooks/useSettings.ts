@@ -53,6 +53,7 @@ interface TerminalSettings {
     shell: string | null
     shellArgs: string[]
     fontFamily?: string | null
+    webglEnabled?: boolean
 }
 
 interface SessionPreferences {
@@ -114,9 +115,12 @@ export const useSettings = () => {
             if (typeof window !== 'undefined') {
                 const font = terminalSettings.fontFamily || null
                 emitUiEvent(UiEvent.TerminalFontUpdated, { fontFamily: font })
+
+                const webglEnabled = terminalSettings.webglEnabled ?? true
+                emitUiEvent(UiEvent.TerminalRendererUpdated, { webglEnabled })
             }
         } catch (e) {
-            logger.warn('Failed to dispatch terminal font update event', e)
+            logger.warn('Failed to dispatch terminal update events', e)
         }
     }, [])
     
@@ -249,11 +253,12 @@ export const useSettings = () => {
             return {
                 shell: settings?.shell || null,
                 shellArgs: settings?.shellArgs || [],
-                fontFamily: settings?.fontFamily ?? null
+                fontFamily: settings?.fontFamily ?? null,
+                webglEnabled: settings?.webglEnabled ?? true
             }
         } catch (error) {
             logger.error('Failed to load terminal settings:', error)
-            return { shell: null, shellArgs: [], fontFamily: null }
+            return { shell: null, shellArgs: [], fontFamily: null, webglEnabled: true }
         }
     }, [])
     
