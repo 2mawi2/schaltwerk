@@ -654,11 +654,14 @@ describe('Terminal component', () => {
 
     expect(result).toBe(true)
     await flushAll()
+    xterm.__triggerData?.('\r')
+    await flushAll()
     const callData = invokeSpy.mock.calls
       .filter((call) => call[0] === TauriCommands.WriteTerminal)
       .map((call) => call[1] as { data?: string; id?: string })
 
     expect(callData).toContainEqual({ id: topIdFor('claude-shift'), data: CLAUDE_SHIFT_ENTER_SEQUENCE })
+    expect(callData).toContainEqual({ id: topIdFor('claude-shift'), data: '\r' })
   })
 
   it('does not intercept Shift+Enter for non-Claude terminals', async () => {

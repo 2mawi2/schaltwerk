@@ -161,6 +161,31 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const dragSelectingRef = useRef<boolean>(false);
     const selectionActiveRef = useRef<boolean>(false);
     const skipNextFocusCallbackRef = useRef<boolean>(false);
+    const shiftEnterPrefixRef = useRef<Promise<void> | null>(null);
+
+    const beginClaudeShiftEnter = useCallback(() => {
+        const prefixWrite = writeTerminalBackend(terminalId, CLAUDE_SHIFT_ENTER_SEQUENCE)
+            .catch(err => {
+                logger.debug('[Terminal] quick-escape prefix ignored (backend not ready yet)', err);
+                throw err;
+            });
+        shiftEnterPrefixRef.current = prefixWrite;
+    }, [terminalId]);
+
+    const finalizeClaudeShiftEnter = useCallback((char: string): boolean => {
+        if (char !== '\r' && char !== '\n') return false;
+        const prefixPromise = shiftEnterPrefixRef.current;
+        if (!prefixPromise) return false;
+        shiftEnterPrefixRef.current = null;
+        void (async () => {
+            try {
+                await prefixPromise.catch(() => undefined);
+            } finally {
+                await writeTerminalBackend(terminalId, char).catch(err => logger.debug('[Terminal] newline ignored (backend not ready yet)', err));
+            }
+        })();
+        return true;
+    }, [terminalId]);
 
     useEffect(() => {
         let cancelled = false;
@@ -1053,8 +1078,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             )
 
             if (shouldHandleClaudeShiftEnter) {
-                void writeTerminalBackend(terminalId, CLAUDE_SHIFT_ENTER_SEQUENCE)
-                    .catch(err => logger.debug('[Terminal] quick-escape prefix ignored (backend not ready yet)', err));
+                beginClaudeShiftEnter();
                 return true
             }
             
@@ -1646,6 +1670,9 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
      // Send input to backend (disabled for readOnly terminals)
      if (!readOnly) {
          terminal.current.onData((data) => {
+             if (finalizeClaudeShiftEnter(data)) {
+                 return;
+             }
              if (inputFilter && !inputFilter(data)) {
                  if (termDebug()) {
                      logger.debug(`[Terminal ${terminalId}] blocked input: ${JSON.stringify(data)}`);
@@ -1805,7 +1832,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             // All terminals are cleaned up when the app exits via the backend cleanup handler
             // useCleanupRegistry handles other cleanup automatically
         };
-    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, shouldAutoScroll, isUserSelectingInTerminal, applySizeUpdate, flushQueuePending, getQueueStats, resetQueue, inputFilter, isAgentTopTerminal, scrollToBottomInstant, pluginTransportActive, acknowledgeChunk, applyPostHydrationScroll]);
+    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, shouldAutoScroll, isUserSelectingInTerminal, applySizeUpdate, flushQueuePending, getQueueStats, resetQueue, inputFilter, isAgentTopTerminal, scrollToBottomInstant, pluginTransportActive, acknowledgeChunk, applyPostHydrationScroll, beginClaudeShiftEnter, finalizeClaudeShiftEnter]);
 
     useEffect(() => {
         if (overflowEpoch === 0) return;
