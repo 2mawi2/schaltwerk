@@ -62,6 +62,7 @@ use crate::{
         cache_worktree_size, clear_session_prompted_non_test, get_cached_worktree_size,
         SessionCacheManager,
     },
+    domains::sessions::db_sessions::SessionMethods as _,
     domains::sessions::entity::ArchivedSpec,
     domains::sessions::entity::{
         DiffStats, EnrichedSession, FilterMode, GitStats, Session, SessionInfo, SessionState,
@@ -653,6 +654,192 @@ mod service_unified_tests {
         let running = manager.db_manager.get_session_by_name(spec_name).unwrap();
         assert_eq!(running.version_group_id.as_deref(), Some(group_id));
         assert_eq!(running.version_number, Some(1));
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn start_spec_session_updates_parent_branch_when_override_provided() {
+        use std::process::Command;
+
+        let (manager, temp_dir) = create_test_session_manager();
+        let repo = temp_dir.path().join("repo");
+
+        Command::new("git")
+            .args(["init"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.email", "test@example.com"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.name", "Test User"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        std::fs::write(repo.join("README.md"), "Initial").unwrap();
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "-m", "init"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["branch", "-M", "main"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        manager
+            .create_spec_session("feature_spec", "Spec content")
+            .unwrap();
+
+        Command::new("git")
+            .args(["checkout", "-b", "feature/login"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        std::fs::write(repo.join("feature.txt"), "feature work").unwrap();
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "-m", "feature work"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+
+        Command::new("git")
+            .args(["checkout", "main"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+
+        manager
+            .start_spec_session("feature_spec", Some("feature/login"), None, None)
+            .unwrap();
+
+        let session = manager
+            .db_manager
+            .get_session_by_name("feature_spec")
+            .unwrap();
+        assert_eq!(session.parent_branch, "feature/login");
+
+        let session_commit = Command::new("git")
+            .args(["rev-parse", &session.branch])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        let feature_commit = Command::new("git")
+            .args(["rev-parse", "feature/login"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+
+        assert_eq!(
+            String::from_utf8_lossy(&session_commit.stdout).trim(),
+            String::from_utf8_lossy(&feature_commit.stdout).trim()
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn start_spec_session_without_override_uses_stored_parent_branch() {
+        use std::process::Command;
+
+        let (manager, temp_dir) = create_test_session_manager();
+        let repo = temp_dir.path().join("repo");
+
+        Command::new("git")
+            .args(["init"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.email", "test@example.com"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.name", "Test User"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        std::fs::write(repo.join("README.md"), "Initial").unwrap();
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "-m", "init"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["branch", "-M", "main"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["checkout", "-b", "feature/login"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        std::fs::write(repo.join("feature.txt"), "feature work").unwrap();
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "-m", "feature work"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+
+        manager
+            .create_spec_session("stored_spec", "Spec content")
+            .unwrap();
+
+        Command::new("git")
+            .args(["checkout", "main"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+
+        manager
+            .start_spec_session("stored_spec", None, None, None)
+            .unwrap();
+
+        let session = manager
+            .db_manager
+            .get_session_by_name("stored_spec")
+            .unwrap();
+        assert_eq!(session.parent_branch, "feature/login");
+
+        let session_commit = Command::new("git")
+            .args(["rev-parse", &session.branch])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        let feature_commit = Command::new("git")
+            .args(["rev-parse", "feature/login"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+
+        assert_eq!(
+            String::from_utf8_lossy(&session_commit.stdout).trim(),
+            String::from_utf8_lossy(&feature_commit.stdout).trim()
+        );
     }
 
     #[test]
@@ -2900,21 +3087,55 @@ impl SessionManager {
             return Err(anyhow!("Session '{session_name}' is not in spec state"));
         }
 
-        let parent_branch = if let Some(base) = base_branch {
-            base.to_string()
-        } else {
-            log::info!("No base branch specified, detecting default branch for session startup");
-            match git::get_default_branch(&self.repo_path) {
-                Ok(default) => {
-                    log::info!("Using detected default branch: {default}");
-                    default
+        let override_parent_branch = base_branch
+            .and_then(|raw| {
+                let trimmed = raw.trim();
+                if trimmed.is_empty() {
+                    log::warn!(
+                        "Start spec session '{session_name}' received empty base branch override; ignoring"
+                    );
+                    None
+                } else {
+                    Some(trimmed.to_string())
                 }
-                Err(e) => {
-                    log::error!("Failed to detect default branch: {e}");
-                    return Err(anyhow!("Failed to detect default branch: {e}. Please ensure the repository has at least one branch (e.g., 'main' or 'master')"));
+            });
+
+        let parent_branch = if let Some(branch) = override_parent_branch {
+            log::info!("Using explicit base branch '{branch}' for spec session '{session_name}'");
+            branch
+        } else {
+            let stored = session.parent_branch.trim();
+            if !stored.is_empty() {
+                log::info!(
+                    "Using stored parent branch '{stored}' for spec session '{session_name}'"
+                );
+                stored.to_string()
+            } else {
+                log::info!(
+                    "Spec session '{session_name}' has no stored parent branch; resolving from repository state"
+                );
+                match self.resolve_parent_branch(None) {
+                    Ok(resolved) => resolved,
+                    Err(e) => {
+                        log::error!(
+                            "Failed to resolve parent branch for spec '{session_name}': {e}"
+                        );
+                        return Err(anyhow!("Failed to detect base branch: {e}. Please ensure the repository has at least one branch (e.g., 'main' or 'master')"));
+                    }
                 }
             }
         };
+
+        if session.parent_branch.trim() != parent_branch {
+            log::info!(
+                "Updating parent branch for session '{session_name}' from '{}' to '{}'",
+                session.parent_branch,
+                parent_branch
+            );
+            self.db_manager
+                .db
+                .update_session_parent_branch(&session.id, &parent_branch)?;
+        }
 
         self.utils
             .cleanup_existing_worktree(&session.worktree_path)?;
