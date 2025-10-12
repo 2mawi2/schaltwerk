@@ -997,6 +997,14 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                         }
 
                         if (!wasSpec && nowSpec) {
+                            // Only close terminals when worktree is actually removed
+                            // Reviewed sessions still have active worktrees
+                            if (worktreePath) {
+                                logger.info(`[SelectionContext] Session ${selection.payload} marked reviewed, preserving terminals`)
+                                return
+                            }
+                            
+                            logger.info(`[SelectionContext] Session ${selection.payload} converting to spec, closing terminals`)
                             const updatedSelection = {
                                 ...selection,
                                 sessionState: 'spec' as const,
@@ -1006,7 +1014,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                             setSelectionState(updatedSelection)
                             setTerminals(updatedTerminals)
                             setCurrentSelection(updatedSelection.payload ?? null)
-                            // Clear created flags for this session's terminals and close if present
+                            
                             try {
                                 await clearTerminalTracking([updatedTerminals.top])
                             } catch (_e) {
