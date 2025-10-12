@@ -48,6 +48,24 @@ pub fn terminal_id_for_session_bottom(name: &str) -> String {
     format!("{}-bottom", session_terminal_base(name))
 }
 
+fn strip_numeric_suffix(id: &str) -> &str {
+    if let Some((prefix, suffix)) = id.rsplit_once('-') {
+        if suffix.chars().all(|c| c.is_ascii_digit()) {
+            return prefix;
+        }
+    }
+    id
+}
+
+pub fn is_session_top_terminal_id(id: &str) -> bool {
+    if id.starts_with("run-terminal-") {
+        return false;
+    }
+
+    let trimmed = strip_numeric_suffix(id);
+    trimmed.ends_with("-top")
+}
+
 pub fn legacy_terminal_id_for_session_top(name: &str) -> String {
     format!("session-{}-top", sanitize_session_name(name))
 }
@@ -112,5 +130,21 @@ mod tests {
         assert!(legacy_terminal_id_for_session_top("alpha beta").starts_with("session-alpha_beta-"));
         assert!(previous_hashed_terminal_id_for_session_top("alpha beta")
             .starts_with("session-alpha_beta-"));
+    }
+
+    #[test]
+    fn top_terminal_detection_handles_variants() {
+        let hashed_top = terminal_id_for_session_top("dreamy_kirch");
+        assert!(is_session_top_terminal_id(&hashed_top));
+
+        let hashed_bottom = terminal_id_for_session_bottom("dreamy_kirch");
+        assert!(!is_session_top_terminal_id(&hashed_bottom));
+
+        let indexed_top = format!("{hashed_top}-0");
+        assert!(is_session_top_terminal_id(&indexed_top));
+
+        assert!(is_session_top_terminal_id("orchestrator-main-top"));
+        assert!(!is_session_top_terminal_id("orchestrator-main-bottom"));
+        assert!(!is_session_top_terminal_id("run-terminal-main"));
     }
 }

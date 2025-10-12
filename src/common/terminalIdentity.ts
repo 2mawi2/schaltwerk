@@ -48,3 +48,20 @@ export function sessionTerminalGroup(name: string | null | undefined): {
     bottomBase: `${base}-bottom`
   }
 }
+
+function stripTerminalNumericSuffix(id: string): string {
+  const lastDash = id.lastIndexOf('-')
+  if (lastDash === -1) return id
+  const suffix = id.slice(lastDash + 1)
+  if (/^\d+$/.test(suffix)) {
+    return id.slice(0, lastDash)
+  }
+  return id
+}
+
+export function isTopTerminalId(id: string): boolean {
+  if (!id) return false
+  if (id.startsWith('run-terminal-')) return false
+  const trimmed = stripTerminalNumericSuffix(id)
+  return trimmed.endsWith('-top')
+}

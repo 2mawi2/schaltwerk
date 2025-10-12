@@ -4,7 +4,8 @@ import {
   sessionTerminalHash,
   sessionTerminalBase,
   stableSessionTerminalId,
-  sessionTerminalGroup
+  sessionTerminalGroup,
+  isTopTerminalId
 } from './terminalIdentity'
 
 describe('terminalIdentity helpers', () => {
@@ -42,5 +43,15 @@ describe('terminalIdentity helpers', () => {
     const group = sessionTerminalGroup('alpha beta')
     expect(group.top).toBe(`${group.base}-top`)
     expect(group.bottomBase).toBe(`${group.base}-bottom`)
+  })
+
+  it('identifies top terminals across naming schemes', () => {
+    const base = sessionTerminalBase('dreamy_kirch')
+    expect(isTopTerminalId(`${base}-top`)).toBe(true)
+    expect(isTopTerminalId(`${base}-bottom`)).toBe(false)
+    expect(isTopTerminalId(`${base}-top-0`)).toBe(true)
+    expect(isTopTerminalId('orchestrator-main-top')).toBe(true)
+    expect(isTopTerminalId('orchestrator-main-bottom')).toBe(false)
+    expect(isTopTerminalId('run-terminal-main')).toBe(false)
   })
 })

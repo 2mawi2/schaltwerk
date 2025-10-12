@@ -14,7 +14,7 @@ import { hasInflight } from '../utils/singleflight'
 import { startSessionTop, computeProjectOrchestratorId } from '../common/agentSpawn'
 import { EventPayloadMap, GitOperationFailedPayload, GitOperationPayload } from '../common/events'
 import { areSessionInfosEqual } from '../utils/sessionComparison'
-import { stableSessionTerminalId } from '../common/terminalIdentity'
+import { stableSessionTerminalId, isTopTerminalId } from '../common/terminalIdentity'
 
 type MergeModeOption = 'squash' | 'reapply'
 
@@ -1146,7 +1146,11 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         })
 
         register(SchaltEvent.TerminalAttention, (event) => {
-            const { session_id, needs_attention } = event
+            const { session_id, terminal_id, needs_attention } = event
+            if (!isTopTerminalId(terminal_id)) {
+                logger.debug('[SessionsContext] Ignoring idle event from non-top terminal', event)
+                return
+            }
             setAllSessions(prev => {
                 const targetIndex = prev.findIndex(s => s.info.session_id === session_id)
                 if (targetIndex === -1) return prev
