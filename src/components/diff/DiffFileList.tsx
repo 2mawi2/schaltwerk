@@ -414,11 +414,13 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
             <span className="text-sm font-medium">
               {isCommander && !sessionName 
                 ? 'Uncommitted Changes' 
-                : `Changes from ${branchInfo?.baseBranch || 'base'}`}
+                : branchInfo?.baseCommit 
+                  ? `Changes from ${branchInfo.baseBranch || 'base'} (${branchInfo.baseCommit})`
+                  : `Changes from ${branchInfo?.baseBranch || 'base'}`}
             </span>
             {branchInfo && !isCommander && (
               <span className="text-xs text-slate-500">
-                ({branchInfo.currentBranch} → {branchInfo.baseBranch})
+                ({branchInfo.headCommit} → {branchInfo.baseCommit})
               </span>
             )}
             {branchInfo && isCommander && (
@@ -515,14 +517,16 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
             <div className="mb-1">
               {isCommander && !sessionName 
                 ? 'No uncommitted changes' 
-                : `No changes from ${branchInfo?.baseBranch || 'base'}`}
+                : branchInfo?.baseCommit
+                  ? `No changes from ${branchInfo.baseBranch || 'base'} (${branchInfo.baseCommit})`
+                  : `No changes from ${branchInfo?.baseBranch || 'base'}`}
             </div>
             <div className="text-xs">
               {isCommander && !sessionName 
                 ? 'Your working directory is clean'
-                : branchInfo?.currentBranch === branchInfo?.baseBranch 
-                  ? `You are on the ${branchInfo?.baseBranch} branch` 
-                  : `Your branch is up to date with ${branchInfo?.baseBranch || 'base'}`
+                : branchInfo?.baseCommit === branchInfo?.headCommit
+                  ? `You are at the base commit (${branchInfo?.baseCommit})` 
+                  : `Your session is up to date with ${branchInfo?.baseBranch || 'base'}`
               }
             </div>
           </div>

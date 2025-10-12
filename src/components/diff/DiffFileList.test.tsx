@@ -145,7 +145,7 @@ describe('DiffFileList', () => {
       </Wrapper>
     )
 
-    expect(await screen.findByText('No changes from main')).toBeInTheDocument()
+    expect(await screen.findByText('No changes from main (abc)')).toBeInTheDocument()
   })
 
   it('shows orchestrator empty state when no session selected', async () => {

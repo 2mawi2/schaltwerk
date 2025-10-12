@@ -1070,26 +1070,39 @@ pub struct SessionManager {
 impl SessionManager {
     fn resolve_parent_branch(&self, requested: Option<&str>) -> Result<String> {
         if let Some(branch) = requested {
-            log::info!("Using explicit base branch '{branch}' for session setup");
-            return Ok(branch.to_string());
+            let trimmed = branch.trim();
+            if trimmed.is_empty() {
+                log::warn!("Explicit base branch was empty, falling back to branch detection");
+            } else {
+                log::info!("Using explicit base branch '{trimmed}' for session setup");
+                return Ok(trimmed.to_string());
+            }
         }
 
         match crate::domains::git::repository::get_current_branch(&self.repo_path) {
             Ok(current) => {
-                log::info!("Detected current HEAD branch '{current}' for session setup");
-                Ok(current)
+                let trimmed = current.trim();
+                if !trimmed.is_empty() {
+                    log::info!("Detected current HEAD branch '{trimmed}' for session setup");
+                    return Ok(trimmed.to_string());
+                }
+                log::warn!("Current HEAD branch is empty, falling back to default branch");
             }
             Err(head_err) => {
                 log::warn!(
                     "Failed to detect current HEAD branch for session setup: {head_err}. Falling back to default branch detection."
                 );
-                crate::domains::git::get_default_branch(&self.repo_path).map_err(|default_err| {
-                    anyhow!(
-                        "Failed to determine base branch: could not detect HEAD ({head_err}) or default branch ({default_err})"
-                    )
-                })
             }
         }
+
+        // Fallback to default branch
+        let default_branch = crate::domains::git::get_default_branch(&self.repo_path)?;
+        let trimmed = default_branch.trim();
+        if trimmed.is_empty() {
+            return Err(anyhow!("Could not determine base branch: all methods returned empty branch name"));
+        }
+        log::info!("Using default branch '{trimmed}' as base branch");
+        Ok(trimmed.to_string())
     }
 
     pub fn new(db: Database, repo_path: PathBuf) -> Self {
