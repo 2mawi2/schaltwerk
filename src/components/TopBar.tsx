@@ -105,9 +105,11 @@ export function TopBar({
         {/* Home button */}
         <button
           onClick={onGoHome}
-          className="h-full px-2 inline-flex items-center justify-center text-text-tertiary hover:text-text-secondary hover:bg-bg-tertiary/50 transition-colors"
+          className="h-6 w-6 inline-flex items-center justify-center rounded text-text-tertiary hover:text-text-secondary hover:bg-bg-elevated/50 transition-colors ml-2 cursor-pointer relative z-10"
           title="Home"
           aria-label="Home"
+          data-no-drag
+          style={{ pointerEvents: 'auto' } as React.CSSProperties}
         >
           <VscHome className="text-[14px]" />
         </button>
