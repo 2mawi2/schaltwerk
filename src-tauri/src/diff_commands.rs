@@ -907,8 +907,8 @@ pub async fn compute_commit_unified_diff(
         get_repo_path(None).await?
     };
 
-    let repo =
-        Repository::open(&resolved_repo_path).map_err(|e| format!("Failed to open repository: {e}"))?;
+    let repo = Repository::open(&resolved_repo_path)
+        .map_err(|e| format!("Failed to open repository: {e}"))?;
 
     let oid = Oid::from_str(&commit_hash)
         .or_else(|_| repo.revparse_single(&commit_hash).map(|obj| obj.id()))
@@ -921,17 +921,12 @@ pub async fn compute_commit_unified_diff(
         .tree()
         .map_err(|e| format!("Failed to read commit tree: {e}"))?;
     let old_tree = if commit.parent_count() > 0 {
-        commit
-            .parent(0)
-            .ok()
-            .and_then(|parent| parent.tree().ok())
+        commit.parent(0).ok().and_then(|parent| parent.tree().ok())
     } else {
         None
     };
 
-    let old_lookup_path = old_file_path
-        .as_deref()
-        .unwrap_or(file_path.as_str());
+    let old_lookup_path = old_file_path.as_deref().unwrap_or(file_path.as_str());
 
     let start_load = Instant::now();
     let old_bytes = read_blob_bytes_from_tree(&repo, old_tree.as_ref(), old_lookup_path)?;

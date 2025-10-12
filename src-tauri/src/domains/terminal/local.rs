@@ -341,7 +341,9 @@ impl LocalPtyAdapter {
                             "terminal_id": terminal_id,
                             "needs_attention": needs_attention
                         });
-                        if let Err(e) = emit_event(&handle, SchaltEvent::TerminalAttention, &payload) {
+                        if let Err(e) =
+                            emit_event(&handle, SchaltEvent::TerminalAttention, &payload)
+                        {
                             error!("Failed to emit TerminalAttention event: {e}");
                         }
                     }
@@ -1060,10 +1062,7 @@ mod tests {
             session_id_from_terminal_id("orchestrator-main-bottom"),
             Some("main".to_string())
         );
-        assert_eq!(
-            session_id_from_terminal_id("random-terminal-id"),
-            None
-        );
+        assert_eq!(session_id_from_terminal_id("random-terminal-id"), None);
     }
 
     fn unique_id(prefix: &str) -> String {

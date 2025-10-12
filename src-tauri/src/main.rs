@@ -226,7 +226,8 @@ async fn start_file_watcher(session_name: String) -> Result<(), String> {
         };
 
         let base_branch = configured_branch.unwrap_or_else(|| {
-            repository::get_default_branch(repo_path.as_path()).unwrap_or_else(|_| "main".to_string())
+            repository::get_default_branch(repo_path.as_path())
+                .unwrap_or_else(|_| "main".to_string())
         });
 
         let watcher_manager = get_file_watcher_manager().await?;

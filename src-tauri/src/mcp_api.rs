@@ -41,9 +41,7 @@ pub async fn handle_mcp_request(
             let name = extract_session_name(path);
             get_session(&name).await
         }
-        (&Method::POST, path)
-            if path.starts_with("/api/sessions/") && path.ends_with("/merge") =>
-        {
+        (&Method::POST, path) if path.starts_with("/api/sessions/") && path.ends_with("/merge") => {
             let name = extract_session_name_for_action(path, "/merge");
             merge_session(req, &name, app).await
         }
@@ -732,19 +730,18 @@ async fn merge_session(
     };
 
     let mode = payload.mode.unwrap_or(MergeMode::Squash);
-    let outcome = match merge_session_with_events(&app, name, mode, payload.commit_message.clone())
-        .await
-    {
-        Ok(outcome) => outcome,
-        Err(MergeCommandError { message, conflict }) => {
-            let status = if conflict {
-                StatusCode::CONFLICT
-            } else {
-                StatusCode::BAD_REQUEST
-            };
-            return Ok(error_response(status, message));
-        }
-    };
+    let outcome =
+        match merge_session_with_events(&app, name, mode, payload.commit_message.clone()).await {
+            Ok(outcome) => outcome,
+            Err(MergeCommandError { message, conflict }) => {
+                let status = if conflict {
+                    StatusCode::CONFLICT
+                } else {
+                    StatusCode::BAD_REQUEST
+                };
+                return Ok(error_response(status, message));
+            }
+        };
 
     let mut cancel_error = None;
     let mut cancel_queued = false;

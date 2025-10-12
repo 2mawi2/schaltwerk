@@ -1099,7 +1099,9 @@ impl SessionManager {
         let default_branch = crate::domains::git::get_default_branch(&self.repo_path)?;
         let trimmed = default_branch.trim();
         if trimmed.is_empty() {
-            return Err(anyhow!("Could not determine base branch: all methods returned empty branch name"));
+            return Err(anyhow!(
+                "Could not determine base branch: all methods returned empty branch name"
+            ));
         }
         log::info!("Using default branch '{trimmed}' as base branch");
         Ok(trimmed.to_string())

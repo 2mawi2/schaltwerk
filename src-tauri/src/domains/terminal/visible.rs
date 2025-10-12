@@ -62,8 +62,6 @@ impl VisibleScreen {
         hasher.finish()
     }
 
-
-
     pub fn resize(&mut self, rows: u16, cols: u16) {
         self.parser.screen_mut().set_size(rows, cols);
     }

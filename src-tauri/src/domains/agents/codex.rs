@@ -1,23 +1,101 @@
 use super::format_binary_invocation;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fs;
+use std::io::{BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, RwLock};
 use std::time::{Duration, Instant};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 struct DirSignature {
-    modified_millis: Option<u128>,
+    root_millis: Option<u128>,
+    latest_dir_millis: Option<u128>,
+    latest_file_millis: Option<u128>,
+    file_count: u64,
 }
 
 impl DirSignature {
-    fn from_path(path: &Path) -> Self {
-        let modified_millis = fs::metadata(path)
+    fn compute(sessions_dir: &Path) -> std::io::Result<Self> {
+        if !sessions_dir.exists() {
+            return Ok(Self::default());
+        }
+
+        let root_millis = fs::metadata(sessions_dir)
             .ok()
             .and_then(|meta| meta.modified().ok())
             .and_then(|ts| ts.duration_since(std::time::SystemTime::UNIX_EPOCH).ok())
             .map(|dur| dur.as_millis());
-        Self { modified_millis }
+
+        let mut latest_dir_millis: Option<u128> = None;
+        let mut latest_file_millis: Option<u128> = None;
+        let mut file_count: u64 = 0;
+
+        let mut stack: Vec<(PathBuf, usize)> = vec![(sessions_dir.to_path_buf(), 0)];
+
+        while let Some((dir, depth)) = stack.pop() {
+            if depth > 3 {
+                continue;
+            }
+
+            let read_dir = match fs::read_dir(&dir) {
+                Ok(rd) => rd,
+                Err(_) => continue,
+            };
+
+            for entry in read_dir.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    if let Ok(meta) = entry.metadata() {
+                        if let Ok(modified) = meta.modified() {
+                            if let Ok(millis) = modified
+                                .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                                .map(|dur| dur.as_millis())
+                            {
+                                if latest_dir_millis
+                                    .map(|current| millis > current)
+                                    .unwrap_or(true)
+                                {
+                                    latest_dir_millis = Some(millis);
+                                }
+                            }
+                        }
+                    }
+                    if depth < 3 {
+                        stack.push((path, depth + 1));
+                    }
+                    continue;
+                }
+
+                if path.extension().is_none_or(|ext| ext != "jsonl") {
+                    continue;
+                }
+
+                file_count += 1;
+                if let Ok(meta) = entry.metadata() {
+                    if let Ok(modified) = meta.modified() {
+                        if let Ok(millis) = modified
+                            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                            .map(|dur| dur.as_millis())
+                        {
+                            if latest_file_millis
+                                .map(|current| millis > current)
+                                .unwrap_or(true)
+                            {
+                                latest_file_millis = Some(millis);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(Self {
+            root_millis,
+            latest_dir_millis,
+            latest_file_millis,
+            file_count,
+        })
     }
 }
 
@@ -34,10 +112,38 @@ struct Snapshot {
     scanned_files: usize,
 }
 
+#[derive(Clone, Default)]
+struct CachedFileEntry {
+    modified_millis: Option<u128>,
+    cwds: Vec<String>,
+}
+
+#[derive(Default)]
+struct CacheStats {
+    cached_hits: usize,
+    cache_misses: usize,
+    skipped_files: usize,
+}
+
+#[derive(Serialize, Deserialize)]
+struct DiskCacheRecord {
+    path: String,
+    modified_millis: Option<u128>,
+    cwds: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct DiskCacheFile {
+    version: u8,
+    entries: Vec<DiskCacheRecord>,
+}
+
 #[derive(Default)]
 struct IndexState {
     snapshot: Option<Snapshot>,
     signature: Option<DirSignature>,
+    cache: HashMap<PathBuf, CachedFileEntry>,
+    disk_cache_loaded: bool,
 }
 
 struct CodexSessionIndex {
@@ -61,13 +167,31 @@ impl CodexSessionIndex {
         sessions_dir: &Path,
         target_cwd: &str,
     ) -> Result<Option<MatchResult>, std::io::Error> {
+        if *DISABLE_INDEXING {
+            log::info!(
+                "Codex session indexing disabled via SCHALTWERK_DISABLE_CODEX_INDEX, skipping lookup"
+            );
+            self.clear();
+            return Ok(None);
+        }
+
         if !sessions_dir.exists() {
             self.clear();
             return Ok(None);
         }
 
-        let signature = DirSignature::from_path(sessions_dir);
-        let mut needs_refresh = false;
+        let (signature, signature_valid) = match DirSignature::compute(sessions_dir) {
+            Ok(sig) => (sig, true),
+            Err(err) => {
+                log::warn!(
+                    "Codex session index: Failed to compute directory signature for {}: {err}",
+                    sessions_dir.display()
+                );
+                (DirSignature::default(), false)
+            }
+        };
+
+        let mut needs_refresh = !signature_valid;
 
         if let Ok(state) = self.state.read() {
             if state.signature.as_ref() != Some(&signature) {
@@ -99,9 +223,13 @@ impl CodexSessionIndex {
         }
 
         let mut state = self.state.write().unwrap();
-        if state.signature.as_ref() != Some(&signature) {
+        if state.signature.as_ref() != Some(&signature) || !signature_valid {
+            if !state.disk_cache_loaded {
+                state.cache = load_disk_cache(sessions_dir);
+                state.disk_cache_loaded = true;
+            }
             let start = Instant::now();
-            let snapshot = build_snapshot(sessions_dir)?;
+            let (snapshot, new_cache, reuse_stats) = build_snapshot(sessions_dir, &state.cache)?;
             let elapsed = start.elapsed();
             if snapshot.scanned_files > 0 {
                 let level = if elapsed > Duration::from_millis(100) {
@@ -111,13 +239,33 @@ impl CodexSessionIndex {
                 };
                 log::log!(
                     level,
-                    "Codex session index refresh scanned {} files in {}ms",
+                    "Codex session index refresh scanned {} files in {}ms (cache hits: {}, misses: {}, skipped: {})",
                     snapshot.scanned_files,
-                    elapsed.as_millis()
+                    elapsed.as_millis(),
+                    reuse_stats.cached_hits,
+                    reuse_stats.cache_misses,
+                    reuse_stats.skipped_files
                 );
+                if snapshot.scanned_files > 5000 {
+                    log::warn!(
+                        "Codex session index touched {} files; consider pruning old sessions or disabling indexing if startup remains slow",
+                        snapshot.scanned_files
+                    );
+                }
             }
             state.snapshot = Some(snapshot);
-            state.signature = Some(signature);
+            if signature_valid {
+                state.signature = Some(signature);
+            } else {
+                state.signature = None;
+            }
+            let should_persist = reuse_stats.cache_misses > 0
+                || reuse_stats.skipped_files > 0
+                || new_cache.len() != state.cache.len();
+            if should_persist {
+                persist_disk_cache(sessions_dir, &new_cache);
+            }
+            state.cache = new_cache;
         }
 
         if let Some(snapshot) = &state.snapshot {
@@ -145,6 +293,8 @@ impl CodexSessionIndex {
         if let Ok(mut state) = self.state.write() {
             state.snapshot = None;
             state.signature = None;
+            state.cache.clear();
+            state.disk_cache_loaded = false;
         }
     }
 
@@ -155,6 +305,149 @@ impl CodexSessionIndex {
 }
 
 static CODEX_SESSION_INDEX: LazyLock<CodexSessionIndex> = LazyLock::new(CodexSessionIndex::new);
+
+static DISABLE_INDEXING: LazyLock<bool> =
+    LazyLock::new(|| match std::env::var("SCHALTWERK_DISABLE_CODEX_INDEX") {
+        Ok(value) => {
+            let normalized = value.trim().to_ascii_lowercase();
+            if normalized.is_empty() {
+                false
+            } else {
+                !matches!(normalized.as_str(), "0" | "false" | "no")
+            }
+        }
+        Err(_) => false,
+    });
+
+fn cache_file_path(sessions_dir: &Path) -> PathBuf {
+    sessions_dir.join("_schaltwerk_session_index_cache.json")
+}
+
+fn load_disk_cache(sessions_dir: &Path) -> HashMap<PathBuf, CachedFileEntry> {
+    let path = cache_file_path(sessions_dir);
+    let file = match fs::File::open(&path) {
+        Ok(file) => file,
+        Err(err) => {
+            if err.kind() != std::io::ErrorKind::NotFound {
+                log::debug!(
+                    "Codex session index: Failed to open cache file {}: {err}",
+                    path.display()
+                );
+            }
+            return HashMap::new();
+        }
+    };
+
+    let reader = BufReader::new(file);
+    match serde_json::from_reader::<_, DiskCacheFile>(reader) {
+        Ok(file) if file.version == 1 => {
+            let mut map = HashMap::with_capacity(file.entries.len());
+            for entry in file.entries {
+                let path_buf = PathBuf::from(entry.path);
+                if !path_buf.starts_with(sessions_dir) {
+                    continue;
+                }
+                map.insert(
+                    path_buf,
+                    CachedFileEntry {
+                        modified_millis: entry.modified_millis,
+                        cwds: entry.cwds,
+                    },
+                );
+            }
+            log::debug!(
+                "Codex session index: Loaded {} cached entries from {}",
+                map.len(),
+                path.display()
+            );
+            map
+        }
+        Ok(file) => {
+            log::info!(
+                "Codex session index: Ignoring cache {} with unsupported version {}",
+                path.display(),
+                file.version
+            );
+            HashMap::new()
+        }
+        Err(err) => {
+            log::warn!(
+                "Codex session index: Failed to deserialize cache {}: {err}",
+                path.display()
+            );
+            HashMap::new()
+        }
+    }
+}
+
+fn persist_disk_cache(sessions_dir: &Path, cache: &HashMap<PathBuf, CachedFileEntry>) {
+    let path = cache_file_path(sessions_dir);
+    let tmp_path = path.with_extension("tmp");
+
+    if let Some(parent) = path.parent() {
+        if let Err(err) = fs::create_dir_all(parent) {
+            log::warn!(
+                "Codex session index: Failed to create cache directory {}: {err}",
+                parent.display()
+            );
+            return;
+        }
+    }
+
+    let entries: Vec<DiskCacheRecord> = cache
+        .iter()
+        .map(|(path_buf, entry)| DiskCacheRecord {
+            path: path_buf.to_string_lossy().into_owned(),
+            modified_millis: entry.modified_millis,
+            cwds: entry.cwds.clone(),
+        })
+        .collect();
+
+    let payload = DiskCacheFile {
+        version: 1,
+        entries,
+    };
+
+    match fs::File::create(&tmp_path) {
+        Ok(mut file) => {
+            if let Err(err) = serde_json::to_writer(&mut file, &payload) {
+                log::warn!(
+                    "Codex session index: Failed to serialize cache {}: {err}",
+                    tmp_path.display()
+                );
+                let _ = fs::remove_file(&tmp_path);
+                return;
+            }
+            if let Err(err) = file.flush() {
+                log::warn!(
+                    "Codex session index: Failed to flush cache {}: {err}",
+                    tmp_path.display()
+                );
+                let _ = fs::remove_file(&tmp_path);
+                return;
+            }
+            if let Err(err) = fs::rename(&tmp_path, &path) {
+                log::warn!(
+                    "Codex session index: Failed to persist cache {}: {err}",
+                    path.display()
+                );
+                let _ = fs::remove_file(&tmp_path);
+                return;
+            }
+            log::debug!(
+                "Codex session index: Persisted cache with {} entries to {}",
+                payload.entries.len(),
+                path.display()
+            );
+        }
+        Err(err) => {
+            log::warn!(
+                "Codex session index: Failed to create cache file {}: {err}",
+                tmp_path.display()
+            );
+        }
+    }
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct CodexConfig {
@@ -439,15 +732,20 @@ fn extract_cwds_from_text(text: &str, seen: &mut HashSet<String>, output: &mut V
     }
 }
 
-fn build_snapshot(sessions_dir: &Path) -> Result<Snapshot, std::io::Error> {
+fn build_snapshot(
+    sessions_dir: &Path,
+    previous_cache: &HashMap<PathBuf, CachedFileEntry>,
+) -> Result<(Snapshot, HashMap<PathBuf, CachedFileEntry>, CacheStats), std::io::Error> {
     if !sessions_dir.exists() {
-        return Ok(Snapshot::default());
+        return Ok((Snapshot::default(), HashMap::new(), CacheStats::default()));
     }
 
     let mut per_cwd: HashMap<String, Vec<SessionFileInfo>> = HashMap::new();
     let mut global_newest: Option<(u128, PathBuf)> = None;
     let mut stack = vec![sessions_dir.to_path_buf()];
     let mut scanned_files = 0usize;
+    let mut next_cache: HashMap<PathBuf, CachedFileEntry> = HashMap::new();
+    let mut stats = CacheStats::default();
 
     while let Some(dir) = stack.pop() {
         for entry in fs::read_dir(&dir)? {
@@ -480,7 +778,32 @@ fn build_snapshot(sessions_dir: &Path) -> Result<Snapshot, std::io::Error> {
                 global_newest = Some((0, path.clone()));
             }
 
-            for cwd in extract_session_cwds(&path) {
+            let cwds = if let Some(cached) = previous_cache.get(&path) {
+                if cached.modified_millis == modified_millis {
+                    stats.cached_hits += 1;
+                    cached.cwds.clone()
+                } else {
+                    stats.cache_misses += 1;
+                    extract_session_cwds(&path)
+                }
+            } else {
+                stats.cache_misses += 1;
+                extract_session_cwds(&path)
+            };
+
+            if cwds.is_empty() {
+                stats.skipped_files += 1;
+            }
+
+            next_cache.insert(
+                path.clone(),
+                CachedFileEntry {
+                    modified_millis,
+                    cwds: cwds.clone(),
+                },
+            );
+
+            for cwd in cwds {
                 per_cwd.entry(cwd).or_default().push(SessionFileInfo {
                     path: path.clone(),
                     modified_millis,
@@ -498,11 +821,15 @@ fn build_snapshot(sessions_dir: &Path) -> Result<Snapshot, std::io::Error> {
         });
     }
 
-    Ok(Snapshot {
-        per_cwd,
-        global_newest: global_newest.map(|(_, path)| path),
-        scanned_files,
-    })
+    Ok((
+        Snapshot {
+            per_cwd,
+            global_newest: global_newest.map(|(_, path)| path),
+            scanned_files,
+        },
+        next_cache,
+        stats,
+    ))
 }
 
 pub fn extract_session_id_from_path(session_file: &Path) -> Option<String> {

@@ -93,9 +93,7 @@ fn emit_terminal_agent_started(
             session_name,
         },
     ) {
-        log::warn!(
-            "Failed to emit terminal-agent-started event for {terminal_id}: {err}"
-        );
+        log::warn!("Failed to emit terminal-agent-started event for {terminal_id}: {err}");
     }
 }
 
@@ -182,12 +180,10 @@ pub async fn merge_session_with_events(
     };
 
     let service = MergeService::new(db, repo_path);
-    let preview = service
-        .preview(name)
-        .map_err(|e| MergeCommandError {
-            message: e.to_string(),
-            conflict: false,
-        })?;
+    let preview = service.preview(name).map_err(|e| MergeCommandError {
+        message: e.to_string(),
+        conflict: false,
+    })?;
 
     events::emit_git_operation_started(
         app,

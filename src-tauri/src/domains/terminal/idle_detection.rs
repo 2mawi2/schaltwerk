@@ -46,7 +46,7 @@ impl IdleDetector {
 
     pub fn tick(&mut self, now: Instant, screen: &mut VisibleScreen) -> Option<IdleTransition> {
         let had_pending = self.dirty;
-        
+
         if self.dirty {
             if !self.pending_bytes.is_empty() {
                 screen.feed_bytes(&self.pending_bytes);
@@ -198,11 +198,17 @@ mod tests {
 
         let baseline = Instant::now();
 
-        detector.observe_bytes(baseline, b"\x1b[?25lGallivanting\xe2\x80\xa6 (esc to interrupt)");
+        detector.observe_bytes(
+            baseline,
+            b"\x1b[?25lGallivanting\xe2\x80\xa6 (esc to interrupt)",
+        );
         assert_eq!(detector.tick(baseline, &mut screen), None);
 
         let t1 = baseline + Duration::from_millis(100);
-        detector.observe_bytes(t1, b"\x1b[1G\x1b[KCollecting\xe2\x80\xa6 (esc to interrupt)");
+        detector.observe_bytes(
+            t1,
+            b"\x1b[1G\x1b[KCollecting\xe2\x80\xa6 (esc to interrupt)",
+        );
         assert_eq!(detector.tick(t1, &mut screen), None);
 
         let t2 = t1 + Duration::from_millis(100);
@@ -229,15 +235,24 @@ mod tests {
         assert_eq!(detector.tick(baseline, &mut screen), None);
 
         let t1 = baseline + Duration::from_millis(200);
-        detector.observe_bytes(t1, b"\x1b[1G\x1b[K\xe2\x97\xa6 Working (3s \xe2\x80\xa2 esc to interrupt)");
+        detector.observe_bytes(
+            t1,
+            b"\x1b[1G\x1b[K\xe2\x97\xa6 Working (3s \xe2\x80\xa2 esc to interrupt)",
+        );
         assert_eq!(detector.tick(t1, &mut screen), None);
 
         let t2 = t1 + Duration::from_millis(200);
-        detector.observe_bytes(t2, b"\x1b[1G\x1b[K\xe2\x97\x86 Working (4s \xe2\x80\xa2 esc to interrupt)");
+        detector.observe_bytes(
+            t2,
+            b"\x1b[1G\x1b[K\xe2\x97\x86 Working (4s \xe2\x80\xa2 esc to interrupt)",
+        );
         assert_eq!(detector.tick(t2, &mut screen), None);
 
         let t3 = t2 + Duration::from_millis(200);
-        detector.observe_bytes(t3, b"\x1b[1G\x1b[K\xe2\x97\x8b Working (4s \xe2\x80\xa2 esc to interrupt)");
+        detector.observe_bytes(
+            t3,
+            b"\x1b[1G\x1b[K\xe2\x97\x8b Working (4s \xe2\x80\xa2 esc to interrupt)",
+        );
         assert_eq!(detector.tick(t3, &mut screen), None);
 
         let idle_time = t3 + Duration::from_millis(threshold + 100);
@@ -256,7 +271,10 @@ mod tests {
 
         let baseline = Instant::now();
 
-        detector.observe_bytes(baseline, b"> Implement {feature}\n\n  85% context left \xc2\xb7 ? for shortcuts");
+        detector.observe_bytes(
+            baseline,
+            b"> Implement {feature}\n\n  85% context left \xc2\xb7 ? for shortcuts",
+        );
         assert_eq!(detector.tick(baseline, &mut screen), None);
 
         let t1 = baseline + Duration::from_millis(500);
