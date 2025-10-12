@@ -73,6 +73,32 @@ fn summarize_error(message: &str) -> String {
         .to_string()
 }
 
+fn emit_terminal_agent_started(
+    app: &tauri::AppHandle,
+    terminal_id: &str,
+    session_name: Option<&str>,
+) {
+    #[derive(serde::Serialize, Clone)]
+    struct TerminalAgentStartedPayload<'a> {
+        terminal_id: &'a str,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        session_name: Option<&'a str>,
+    }
+
+    if let Err(err) = emit_event(
+        app,
+        SchaltEvent::TerminalAgentStarted,
+        &TerminalAgentStartedPayload {
+            terminal_id,
+            session_name,
+        },
+    ) {
+        log::warn!(
+            "Failed to emit terminal-agent-started event for {terminal_id}: {err}"
+        );
+    }
+}
+
 fn get_agent_env_and_cli_args(agent_type: &str) -> (Vec<(String, String)>, String, Option<String>) {
     if let Some(settings_manager) = SETTINGS_MANAGER.get() {
         let manager = futures::executor::block_on(settings_manager.lock());
@@ -1253,23 +1279,8 @@ pub async fn schaltwerk_core_start_claude_with_restart(
     // For Gemini, we rely on the CLI's own interactive prompt flag.
     // Do not implement non-deterministic paste-based workarounds.
 
-    log::info!("Successfully started Claude in terminal: {terminal_id}");
-
-    // Emit event to mark terminal as started globally
-    #[derive(serde::Serialize, Clone)]
-    struct ClaudeStartedPayload {
-        terminal_id: String,
-        session_name: String,
-    }
-
-    let payload = ClaudeStartedPayload {
-        terminal_id: terminal_id.clone(),
-        session_name: session_name.clone(),
-    };
-
-    if let Err(e) = emit_event(&app, SchaltEvent::ClaudeStarted, &payload) {
-        log::warn!("Failed to emit claude-started event: {e}");
-    }
+    log::info!("Successfully started agent in terminal: {terminal_id}");
+    emit_terminal_agent_started(&app, &terminal_id, Some(&session_name));
 
     Ok(command)
 }
@@ -1287,6 +1298,7 @@ pub async fn schaltwerk_core_start_session_agent_with_restart(
 
 #[tauri::command]
 pub async fn schaltwerk_core_start_claude_orchestrator(
+    app: tauri::AppHandle,
     terminal_id: String,
     cols: Option<u16>,
     rows: Option<u16>,
@@ -1361,6 +1373,8 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
     .await?;
 
     drop(core);
+
+    emit_terminal_agent_started(&app, &terminal_id, None);
 
     // Ensure orchestrator watcher is running so git graph reacts to commits in main repo
     let base_branch = configured_default_branch.unwrap_or_else(|| {

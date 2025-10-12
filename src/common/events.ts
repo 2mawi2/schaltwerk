@@ -5,7 +5,6 @@ export enum SchaltEvent {
   ArchiveUpdated = 'schaltwerk:archive-updated',
   SessionCancelling = 'schaltwerk:session-cancelling',
   CancelError = 'schaltwerk:cancel-error',
-  ClaudeStarted = 'schaltwerk:claude-started',
   TerminalCreated = 'schaltwerk:terminal-created',
 
   SessionActivity = 'schaltwerk:session-activity',
@@ -150,7 +149,6 @@ export type EventPayloadMap = {
   [SchaltEvent.ArchiveUpdated]: { repo: string, count: number }
   [SchaltEvent.SessionCancelling]: { session_name: string }
   [SchaltEvent.CancelError]: { session_name: string, error: string }
-  [SchaltEvent.ClaudeStarted]: { terminal_id: string, session_name: string }
   [SchaltEvent.TerminalCreated]: { terminal_id: string, cwd: string }
 
   [SchaltEvent.SessionActivity]: SessionActivityUpdated

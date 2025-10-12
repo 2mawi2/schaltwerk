@@ -609,35 +609,33 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         return cleanup
     }, [terminalId, isBackground])
 
-     // Listen for Claude auto-start events to prevent double-starting
+     // Listen for unified agent-start events to prevent double-starting
      useEffect(() => {
-         let unlistenClaudeStarted: UnlistenFn | null = null;
+         let unlistenAgentStarted: UnlistenFn | null = null;
 
          const setupListener = async () => {
              try {
-                 unlistenClaudeStarted = await listenEvent(SchaltEvent.ClaudeStarted, (payload) => {
-                     logger.info(`[Terminal] Received claude-started event for ${payload.terminal_id}`);
+                 unlistenAgentStarted = await listenEvent(SchaltEvent.TerminalAgentStarted, (payload) => {
+                     logger.info(`[Terminal] Received terminal-agent-started event for ${payload.terminal_id}`);
 
-                     // Mark the terminal as started globally to prevent auto-start
                      startedGlobal.add(payload.terminal_id);
 
-                      // Clear stopped flag if agent started by any means
-                      if (payload?.terminal_id === terminalId) {
-                          sessionStorage.removeItem(`schaltwerk:agent-stopped:${terminalId}`);
-                          setAgentStopped(false);
-                          terminalEverStartedRef.current = true;
-                      }
+                     if (payload?.terminal_id === terminalId) {
+                         sessionStorage.removeItem(`schaltwerk:agent-stopped:${terminalId}`);
+                         setAgentStopped(false);
+                         terminalEverStartedRef.current = true;
+                     }
                  });
              } catch (e) {
-                 logger.error('[Terminal] Failed to set up claude-started listener:', e);
+                 logger.error('[Terminal] Failed to set up terminal-agent-started listener:', e);
              }
          };
 
          setupListener();
 
          return () => {
-             if (unlistenClaudeStarted) {
-                 unlistenClaudeStarted();
+             if (unlistenAgentStarted) {
+                 unlistenAgentStarted();
              }
          };
       }, [terminalId]);

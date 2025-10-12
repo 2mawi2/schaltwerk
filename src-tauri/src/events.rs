@@ -8,8 +8,6 @@ pub enum SchaltEvent {
     SessionRemoved,
     SessionCancelling,
     CancelError,
-    ClaudeStarted,
-
     SessionActivity,
     SessionGitStats,
     TerminalAttention,
@@ -40,8 +38,6 @@ impl SchaltEvent {
             SchaltEvent::SessionRemoved => "schaltwerk:session-removed",
             SchaltEvent::SessionCancelling => "schaltwerk:session-cancelling",
             SchaltEvent::CancelError => "schaltwerk:cancel-error",
-            SchaltEvent::ClaudeStarted => "schaltwerk:claude-started",
-
             SchaltEvent::SessionActivity => "schaltwerk:session-activity",
             SchaltEvent::SessionGitStats => "schaltwerk:session-git-stats",
             SchaltEvent::TerminalAttention => "schaltwerk:terminal-attention",

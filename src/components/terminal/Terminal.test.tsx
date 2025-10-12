@@ -462,6 +462,33 @@ describe('Terminal component', () => {
     expect(occurrences).toBe(1)
   })
 
+  it('clears stopped flags when terminal-agent-started fires', async () => {
+    const infoSpy = vi.spyOn(logger, 'info')
+    const events = TauriEvent as unknown as MockTauriEvent
+    const terminalId = stableId('session-agent-top')
+    sessionStorage.setItem(`schaltwerk:agent-stopped:${terminalId}`, 'true')
+
+    renderTerminal({ terminalId: 'session-agent-top', sessionName: 'agent' })
+
+    await flushAll()
+
+    events.__emit('schaltwerk:terminal-agent-started', {
+      terminal_id: terminalId,
+    })
+
+    await flushAll()
+
+    expect(sessionStorage.getItem(`schaltwerk:agent-stopped:${terminalId}`)).toBeNull()
+    expect(
+      infoSpy.mock.calls.some(
+        ([message]) =>
+          typeof message === 'string' && message.includes('terminal-agent-started event')
+      )
+    ).toBe(true)
+
+    infoSpy.mockRestore()
+  })
+
   it('flushes output even when container has zero size (renderer ready after open)', async () => {
     ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => ({
       seq: 0,

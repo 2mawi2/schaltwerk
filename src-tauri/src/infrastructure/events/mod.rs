@@ -9,7 +9,6 @@ pub enum SchaltEvent {
     ArchiveUpdated,
     SessionCancelling,
     CancelError,
-    ClaudeStarted,
     TerminalCreated,
 
     SessionActivity,
@@ -43,7 +42,6 @@ impl SchaltEvent {
             SchaltEvent::ArchiveUpdated => "schaltwerk:archive-updated",
             SchaltEvent::SessionCancelling => "schaltwerk:session-cancelling",
             SchaltEvent::CancelError => "schaltwerk:cancel-error",
-            SchaltEvent::ClaudeStarted => "schaltwerk:claude-started",
             SchaltEvent::TerminalCreated => "schaltwerk:terminal-created",
 
             SchaltEvent::SessionActivity => "schaltwerk:session-activity",
