@@ -34,6 +34,7 @@ import {
 } from '../../terminal/transport/backend'
 import { WebGLTerminalRenderer } from '../../terminal/gpu/webglRenderer'
 import { TerminalSuspensionManager } from '../../terminal/suspension/terminalSuspension'
+import { applyTerminalLetterSpacing } from '../../utils/terminalLetterSpacing'
 
 const DEFAULT_SCROLLBACK_LINES = 10000
 const BACKGROUND_SCROLLBACK_LINES = 5000
@@ -226,6 +227,16 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             }
         });
     }, [terminalId]);
+
+    const applyLetterSpacing = useCallback((useRelaxedSpacing: boolean) => {
+        applyTerminalLetterSpacing({
+            terminal: terminal.current,
+            renderer: gpuRenderer.current,
+            relaxed: useRelaxedSpacing,
+            terminalId,
+            onWebglRefresh: refreshGpuFontRendering,
+        });
+    }, [refreshGpuFontRendering, terminalId]);
 
     useEffect(() => {
         let cancelled = false;
@@ -590,6 +601,10 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     }, [gpuEnabledForTerminal]);
 
     useEffect(() => {
+        applyLetterSpacing(gpuEnabledForTerminal);
+    }, [applyLetterSpacing, gpuEnabledForTerminal]);
+
+    useEffect(() => {
         let mounted = true
         const load = async () => {
             try {
@@ -652,16 +667,18 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 gpuRenderer.current = new WebGLTerminalRenderer(terminal.current, terminalId)
                 await gpuRenderer.current.initialize()
                 refreshGpuFontRendering()
+                applyLetterSpacing(true)
                 gpuRenderer.current.onContextLost(() => {
                     logger.info(`[Terminal ${terminalId}] WebGL context lost, using Canvas renderer`)
                 })
             } else if (!allowWebgl && gpuRenderer.current) {
                 gpuRenderer.current.dispose()
                 gpuRenderer.current = null
+                applyLetterSpacing(false)
             }
         })
         return cleanup
-    }, [agentType, terminalId, isBackground, refreshGpuFontRendering])
+    }, [agentType, terminalId, isBackground, refreshGpuFontRendering, applyLetterSpacing])
 
      // Listen for unified agent-start events to prevent double-starting
      useEffect(() => {
@@ -999,6 +1016,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         
         // Open terminal to DOM first
         terminal.current.open(termRef.current);
+        applyLetterSpacing(gpuEnabledForTerminal);
         // Allow streaming immediately; proper fits will still run later
         rendererReadyRef.current = true;
 
@@ -1945,7 +1963,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             // All terminals are cleaned up when the app exits via the backend cleanup handler
             // useCleanupRegistry handles other cleanup automatically
         };
-    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, shouldAutoScroll, isUserSelectingInTerminal, applySizeUpdate, flushQueuePending, getQueueStats, resetQueue, inputFilter, isAgentTopTerminal, scrollToBottomInstant, pluginTransportActive, acknowledgeChunk, applyPostHydrationScroll, beginClaudeShiftEnter, finalizeClaudeShiftEnter, refreshGpuFontRendering, gpuEnabledForTerminal]);
+    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, shouldAutoScroll, isUserSelectingInTerminal, applySizeUpdate, flushQueuePending, getQueueStats, resetQueue, inputFilter, isAgentTopTerminal, scrollToBottomInstant, pluginTransportActive, acknowledgeChunk, applyPostHydrationScroll, beginClaudeShiftEnter, finalizeClaudeShiftEnter, refreshGpuFontRendering, gpuEnabledForTerminal, applyLetterSpacing]);
 
     useEffect(() => {
         if (overflowEpoch === 0) return;
