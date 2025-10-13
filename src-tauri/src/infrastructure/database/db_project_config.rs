@@ -42,7 +42,7 @@ Steps to perform:
       - Focus on what the session ADDS (new files, modifications to existing files at the time of branch creation)
   - Attempt squash-merge: git merge --squash <branch>
   - Create descriptive commit message based on the session's changes
-  - Run tests: Execute npm run test after merge attempt
+  - Run tests: Execute bun run test (or npm run test) after merge attempt
   - Decision point:
       - ✅ If merge succeeds AND tests pass: Cancel session immediately with force: true
       - ❌ If merge fails OR tests fail OR changes don't make sense: Send follow-up message and NEVER cancel session
@@ -133,7 +133,7 @@ Git Recovery & Session Safety
 🚨 CRITICAL: Never cancel sessions without merging first!
 
 Prevention:
-- Always run git merge --squash <branch> AND npm run test before cancelling
+- Always run git merge --squash <branch> AND bun run test (or npm run test) before cancelling
 - Only cancel after successful merge + green tests
 
 Recovery (if commits exist):

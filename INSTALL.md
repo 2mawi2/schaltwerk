@@ -138,7 +138,8 @@ rm -rf ~/Library/Logs/schaltwerk
 If you need to build Schaltwerk from source:
 
 ### Prerequisites
-- Node.js 20 or later
+- Bun 1.2 or later (JS tooling)
+- Node.js 20 or later (for compatibility and native tooling)
 - Rust 1.75 or later
 - Xcode Command Line Tools
 
@@ -149,10 +150,10 @@ git clone https://github.com/2mawi2/schaltwerk.git
 cd schaltwerk
 
 # 2. Install dependencies
-npm install
+bun install        # or: npm install
 
 # 3. Build the application
-npm run tauri build
+bun run tauri build    # or: npm run tauri build
 
 # 4. The built app will be in:
 # src-tauri/target/release/bundle/macos/Schaltwerk.app

@@ -5,7 +5,7 @@ import path from 'path';
 
 const summaryPath = path.resolve('coverage', 'coverage-summary.json');
 if (!fs.existsSync(summaryPath)) {
-  console.error('coverage-summary.json not found. Run `npm run test:frontend:coverage` first.');
+  console.error('coverage-summary.json not found. Run `bun run test:frontend:coverage` (or `npm run test:frontend:coverage`) first.');
   process.exit(1);
 }
 

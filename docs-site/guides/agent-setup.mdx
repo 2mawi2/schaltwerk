@@ -5,6 +5,8 @@ description: 'Configure agent binaries, environment variables, setup scripts, an
 
 Configure each agent from **Settings → Agent Configuration** before you launch sessions. Open Settings by clicking the gear icon in the top bar.
 
+> Commands in this guide use `bun`. Swap to npm equivalents (`npm run …`, `npm install`, etc.) if that's your default toolchain.
+
 <Info>
   Settings are saved locally in `~/Library/Application Support/schaltwerk/settings.json` (plain JSON). Keep this file protected if you store API keys.
 </Info>
@@ -189,7 +191,7 @@ $BRANCH_NAME     # schaltwerk/session-name
     ```bash
     #!/bin/bash
     cd "$WORKTREE_PATH"
-    npm install
+    bun install      # or: npm install
     ```
   </Tab>
 
@@ -197,7 +199,7 @@ $BRANCH_NAME     # schaltwerk/session-name
     ```bash
     #!/bin/bash
     cd "$WORKTREE_PATH"
-    npm run db:seed
+    bun run db:seed
     ```
   </Tab>
 
@@ -248,11 +250,11 @@ USE_LOCAL_API=true
 
 Define a command to execute with `⌘E` in the bottom terminal.
 
-**Configuration:** Set command (e.g., `npm run dev`), optional working directory, optional environment variables.
+**Configuration:** Set command (e.g., `bun run dev` / `npm run dev`), optional working directory, optional environment variables.
 
 **Features:** Real-time output, exit status display, press `⌘E` again to stop.
 
-**Common examples:** `npm run dev`, `npm run test`, `npm run build`, `npm run lint`
+**Common examples:** `bun run dev` / `npm run dev`, `bun run test` / `npm run test`, `bun run build` / `npm run build`, `bun run lint` / `npm run lint`
 
 ## Recommended Setup Flow
 

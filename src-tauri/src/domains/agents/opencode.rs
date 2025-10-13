@@ -1084,7 +1084,7 @@ Run Mode is a terminal interface feature that provides a dedicated "Run" tab.
 
 ### Requirements
 - **Script Structure**: Run scripts contain:
-  - `command`: The shell command to execute (e.g., "npm run dev")
+  - `command`: The shell command to execute (e.g., "bun run dev" or "npm run dev")
   - `workingDirectory`: Optional relative path"#;
 
         let cmd = build_opencode_command_with_config(

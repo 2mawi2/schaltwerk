@@ -5,7 +5,7 @@ import path from 'path';
 
 const lcovPath = path.resolve('coverage', 'rust-lcov.info');
 if (!fs.existsSync(lcovPath)) {
-  console.error('rust-lcov.info not found. Run `npm run coverage:rust:run` first.');
+  console.error('rust-lcov.info not found. Run `bun run coverage:rust:run` (or `npm run coverage:rust:run`) first.');
   process.exit(1);
 }
 

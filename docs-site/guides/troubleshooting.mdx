@@ -5,6 +5,8 @@ description: 'Common issues and solutions for Schaltwerk'
 
 This guide covers common issues you might encounter and how to resolve them.
 
+> **Tip:** Examples use `bun` commands. Replace them with the npm equivalents (`npm run …`, `npm install`, etc.) if needed.
+
 ## Installation Issues
 
 <AccordionGroup>
@@ -332,7 +334,7 @@ This guide covers common issues you might encounter and how to resolve them.
     4. Look for errors in MCP server logs
     5. Try rebuilding MCP server:
        ```bash
-       cd mcp-server && npm run build
+       cd mcp-server && bun run build
        ```
   </Accordion>
 </AccordionGroup>
@@ -431,13 +433,13 @@ grep "session-name" ~/Library/Application\ Support/schaltwerk/logs/*.log
 Run Schaltwerk with debug logging:
 
 ```bash
-RUST_LOG=schaltwerk=debug npm run tauri:dev
+RUST_LOG=schaltwerk=debug bun run tauri:dev
 ```
 
 Or for maximum verbosity:
 
 ```bash
-RUST_LOG=trace npm run tauri:dev
+RUST_LOG=trace bun run tauri:dev
 ```
 
 ## Getting Help

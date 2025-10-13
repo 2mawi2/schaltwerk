@@ -138,11 +138,13 @@ If you plan to build or extend Schaltwerk from source:
 ```bash
 git clone https://github.com/2mawi2/schaltwerk.git
 cd schaltwerk
-npm install
-npm run tauri:dev
+bun install
+# or: npm install
+bun run tauri:dev
+# or: npm run tauri:dev
 ```
 
-Use `npm run test` to run the full validation suite (TypeScript linting, `cargo clippy`, `cargo test`, and a release build check).
+Use `bun run test` (or `npm run test`) to run the full validation suite (TypeScript linting, `cargo clippy`, `cargo test`, and a release build check).
 
 ## Troubleshooting
 

@@ -4,9 +4,9 @@
   "version": "0.2.23",
   "identifier": "com.mariuswichtner.schaltwerk",
   "build": {
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": "node scripts/package-manager.mjs run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "node scripts/package-manager.mjs run build",
     "frontendDist": "../dist"
   },
   "app": {

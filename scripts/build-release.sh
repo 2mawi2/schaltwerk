@@ -17,13 +17,13 @@ echo "📦 Version: $VERSION"
 echo "🎯 Target: $TARGET"
 
 echo "📦 Installing dependencies..."
-npm ci
+node scripts/package-manager.mjs install --frozen-lockfile
 
 echo "🏗️ Building frontend..."
-npm run build
+node scripts/package-manager.mjs run build
 
 echo "🦀 Building Tauri app for $TARGET..."
-npx tauri build --target $TARGET
+node scripts/package-manager.mjs run tauri -- build --target "$TARGET"
 
 APP_PATH="src-tauri/target/$TARGET/release/bundle/macos/Schaltwerk.app"
 

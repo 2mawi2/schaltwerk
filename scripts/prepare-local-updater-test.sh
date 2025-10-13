@@ -124,7 +124,7 @@ PY
 
 echo "Building macOS bundle for version $TARGET_VERSION (this may take a few minutes)..."
 
-npm run tauri build -- --target aarch64-apple-darwin >/dev/null
+node scripts/package-manager.mjs run tauri -- build --target aarch64-apple-darwin >/dev/null
 
 ARM_PATH="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Schaltwerk.app"
 if [[ ! -d "$ARM_PATH" ]]; then
@@ -146,7 +146,7 @@ if [[ -n "$KEY_PASSWORD" ]]; then
   SIGN_ARGS+=(--password "$KEY_PASSWORD")
 fi
 
-SIGNATURE=$(npm run tauri -- "${SIGN_ARGS[@]}" | awk '/Public signature:/{getline; gsub(/\r/, ""); print}' | tr -d '\n')
+SIGNATURE=$(node scripts/package-manager.mjs run tauri -- "${SIGN_ARGS[@]}" | awk '/Public signature:/{getline; gsub(/\r/, ""); print}' | tr -d '\n')
 rm -f "$ARCHIVE_PATH.sig"
 
 PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -196,7 +196,7 @@ python3 -m http.server $PORT
 
 ## 2. Run Schaltwerk against the test manifest
 ```
-TAURI_CONFIG_PATH="$WORK_DIR_ABS/tauri.local-updater.json" npm run tauri dev
+TAURI_CONFIG_PATH="$WORK_DIR_ABS/tauri.local-updater.json" node scripts/package-manager.mjs run tauri -- dev
 ```
 
 Automatic updates will run on startup; you can also open **Settings → Version** and press “Check for updates”.
@@ -215,5 +215,5 @@ cat <<EOF
 Local updater test artifacts written to: $WORK_DIR_ABS
 - Launch server:   (cd $WORK_DIR_ABS && python3 -m http.server $PORT)
 - Dev config path: $WORK_DIR_ABS/tauri.local-updater.json
-Run dev app with:  TAURI_CONFIG_PATH=$WORK_DIR_ABS/tauri.local-updater.json npm run tauri dev
+Run dev app with:  TAURI_CONFIG_PATH=$WORK_DIR_ABS/tauri.local-updater.json node scripts/package-manager.mjs run tauri -- dev
 EOF

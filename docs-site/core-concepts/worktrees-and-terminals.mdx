@@ -7,7 +7,7 @@ Every session owns a dedicated git worktree under `.schaltwerk/worktrees/`. Thin
 
 ## Why Worktree Isolation Matters
 
-- **Autonomous execution** – Agents run npm installs, migrations, or custom binaries per session without conflicting with each other.
+- **Autonomous execution** – Agents run dependency installs (bun install, pip install, cargo, etc.), migrations, or custom binaries per session without conflicting with each other.
 - **Safe experimentation** – If an idea fails, convert the session back to a spec (`⌘S`) or cancel it (`⌘D`) and the entire worktree disappears—no cherry-picks required.
 - **Safe experimentation** – If an idea fails, convert the session back to a spec (`⌘S`) or cancel it (`⌘D`). Both actions delete the session’s worktree and branch, so make sure anything you need is committed or copied first.
 - **Parallel feature teams** – Multiple agents (or humans) work in isolation, then merge back on your schedule (see [Advanced Workflows](/guides/advanced-workflows) for orchestration patterns).
@@ -46,7 +46,7 @@ Agents and humans can edit the same worktree together—just remember to review 
 
 ## Run Mode (⌘E)
 
-Configure Run Mode per project via **Settings → Run & Environment → Run Script** with a command like `npm test` or `npm start`. Once set:
+Configure Run Mode per project via **Settings → Run & Environment → Run Script** with a command like `bun run test` / `npm run test` or `bun run dev` / `npm run dev`. Once set:
 
 - Press `⌘E` or click **Run** in the bottom terminal to execute the script inside the session worktree.
 - Schaltwerk shows the running state, so you can see which sessions are testing or serving right now.

@@ -21,7 +21,7 @@ fi
 
 # Build frontend
 echo "📦 Building frontend..."
-npm run build
+node scripts/package-manager.mjs run build
 
 # Build rust with release profile
 echo "🦀 Building Tauri app with release profile..."

@@ -114,7 +114,7 @@ describe('useSettings', () => {
       const { result } = renderHook(() => useSettings())
       
       const projectSettings = {
-        setupScript: 'npm install && npm run build',
+        setupScript: 'bun install && bun run build',
         branchPrefix: 'feature',
         environmentVariables: [
           { key: 'NODE_ENV', value: 'production' },
@@ -127,7 +127,7 @@ describe('useSettings', () => {
       })
 
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetProjectSettings, {
-        settings: { setupScript: 'npm install && npm run build', branchPrefix: 'feature' }
+        settings: { setupScript: 'bun install && bun run build', branchPrefix: 'feature' }
       })
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetProjectEnvironmentVariables, {
         envVars: {
@@ -550,7 +550,7 @@ describe('useSettings', () => {
     it('loads project settings and environment variables', async () => {
       mockInvoke.mockImplementation((command: string) => {
         if (command === TauriCommands.GetProjectSettings) {
-          return Promise.resolve({ setupScript: 'npm install', branchPrefix: 'team' })
+          return Promise.resolve({ setupScript: 'bun install', branchPrefix: 'team' })
         }
         if (command === 'get_project_environment_variables') {
           return Promise.resolve({ NODE_ENV: 'test', DEBUG: 'true' })
@@ -565,7 +565,7 @@ describe('useSettings', () => {
       })
 
       expect(settings).toEqual({
-        setupScript: 'npm install',
+        setupScript: 'bun install',
         branchPrefix: 'team',
         environmentVariables: [
           { key: 'NODE_ENV', value: 'test' },
