@@ -1029,6 +1029,16 @@ fn main() {
                     } else {
                         log::info!("Window title set to: {title}");
                     }
+
+                    // Override decorations: false for Linux and Windows (from config), true for macOS
+                    #[cfg(target_os = "macos")]
+                    {
+                        if let Err(e) = window.set_decorations(true) {
+                            log::warn!("Failed to set window decorations: {e}");
+                        } else {
+                            log::info!("Window decorations enabled for macOS");
+                        }
+                    }
                 }
             });
 
