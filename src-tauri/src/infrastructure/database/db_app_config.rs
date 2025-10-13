@@ -212,7 +212,15 @@ impl AppConfigMethods for Database {
         );
         match result {
             Ok(value) => Ok(value),
-            Err(_) => Ok("finder".to_string()),
+            Err(_) => {
+                #[cfg(target_os = "macos")]
+                let default = "finder";
+                #[cfg(target_os = "linux")]
+                let default = "nautilus";
+                #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+                let default = "explorer";
+                Ok(default.to_string())
+            }
         }
     }
 

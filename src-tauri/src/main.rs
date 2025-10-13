@@ -203,18 +203,27 @@ fn open_global_app_config_db() -> Result<schaltwerk::schaltwerk_core::Database, 
 
 #[tauri::command]
 async fn get_default_open_app() -> Result<String, String> {
+    #[cfg(target_os = "macos")]
+    let default_app = "finder";
+
+    #[cfg(target_os = "linux")]
+    let default_app = "nautilus";
+
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    let default_app = "explorer";
+
     match open_global_app_config_db() {
         Ok(db) => schaltwerk::open_apps::get_default_open_app_from_db(&db)
             .map_err(|e| format!("Failed to load default open app: {e}"))
             .or_else(|e| {
                 log::warn!(
-                    "Failed to load default open app from database: {e}. Falling back to Finder"
+                    "Failed to load default open app from database: {e}. Falling back to {default_app}"
                 );
-                Ok("finder".into())
+                Ok(default_app.into())
             }),
         Err(e) => {
-            log::warn!("Failed to access app config database: {e}. Falling back to Finder");
-            Ok("finder".into())
+            log::warn!("Failed to access app config database: {e}. Falling back to {default_app}");
+            Ok(default_app.into())
         }
     }
 }
