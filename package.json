@@ -73,7 +73,7 @@
     "react-icons": "^5.5.0",
     "react-markdown": "^10.1.0",
     "react-split": "^2.0.14",
-    "react-window": "^2.2.0",
+    "react-window": "^2.2.1",
     "remark-gfm": "^4.0.1",
     "tailwindcss": "^4.1.13"
   },
