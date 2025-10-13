@@ -646,7 +646,7 @@ build-linux:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "🔨 Building all Linux packages..."
-    npm run tauri build -- --bundles appimage, deb, rpm
+    npm run tauri build -- --bundles appimage,deb,rpm
     echo "✅ Build complete!"
     echo "📦 Packages created:"
     ls -lh src-tauri/target/release/bundle/ 2>/dev/null || echo "No bundle directory found"
@@ -679,7 +679,6 @@ run-x11:
     set -euo pipefail
     echo "🚀 Starting Schaltwerk with X11 backend..."
     GDK_BACKEND=x11 npm run tauri:dev
-
 
 
 
