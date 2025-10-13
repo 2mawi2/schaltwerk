@@ -1,23 +1,14 @@
-import { useState, useEffect, useCallback } from 'react'
-import { TauriCommands } from '../../common/tauriCommands'
+import { useState, useEffect } from 'react'
 import { VscFolderOpened, VscHistory, VscWarning, VscTrash, VscNewFolder } from 'react-icons/vsc'
-import { invoke } from '@tauri-apps/api/core'
-import { open } from '@tauri-apps/plugin-dialog'
 import { AsciiBuilderLogo } from './AsciiBuilderLogo'
 import { NewProjectDialog } from './NewProjectDialog'
 import { getHomeLogoPositionStyles, getContentAreaStyles } from '../../constants/layout'
-import { logger } from '../../utils/logger'
 import { theme } from '../../common/theme'
 import { formatDateTime } from '../../utils/dateTime'
+import { useRecentProjects } from '../../hooks/useRecentProjects'
 
 const RECENT_PROJECT_DATE_OPTIONS: Intl.DateTimeFormatOptions = {
   dateStyle: 'medium'
-}
-
-interface RecentProject {
-  path: string
-  name: string
-  lastOpened: number
 }
 
 interface HomeScreenProps {
@@ -25,56 +16,20 @@ interface HomeScreenProps {
 }
 
 export function HomeScreen({ onOpenProject }: HomeScreenProps) {
-  const [recentProjects, setRecentProjects] = useState<RecentProject[]>([])
-  const [error, setError] = useState<string | null>(null)
   const [showNewProjectDialog, setShowNewProjectDialog] = useState(false)
-
-  const loadRecentProjects = async () => {
-    try {
-      const projects = await invoke<RecentProject[]>(TauriCommands.GetRecentProjects)
-      setRecentProjects(projects.sort((a, b) => b.lastOpened - a.lastOpened))
-    } catch (err) {
-      logger.error('Failed to load recent projects:', err)
-    }
-  }
-
-  const handleOpenRecent = useCallback(async (project: RecentProject) => {
-    setError(null)
-
-    try {
-      const exists = await invoke<boolean>(TauriCommands.DirectoryExists, {
-        path: project.path
-      })
-
-      if (!exists) {
-        setError(`Project directory no longer exists: ${project.path}`)
-        await invoke(TauriCommands.RemoveRecentProject, { path: project.path })
-        await loadRecentProjects()
-        return
-      }
-
-      const isGitRepo = await invoke<boolean>(TauriCommands.IsGitRepository, {
-        path: project.path
-      })
-
-      if (!isGitRepo) {
-        setError('Selected directory is no longer a Git repository.')
-        await invoke(TauriCommands.RemoveRecentProject, { path: project.path })
-        await loadRecentProjects()
-        return
-      }
-
-      await invoke(TauriCommands.UpdateRecentProjectTimestamp, { path: project.path })
-      onOpenProject(project.path)
-    } catch (err) {
-      logger.error('Failed to open recent project:', err)
-      setError(`Failed to open project: ${err}`)
-    }
-  }, [onOpenProject])
+  const {
+    recentProjects,
+    error,
+    setError,
+    loadRecentProjects,
+    handleOpenRecent,
+    handleSelectDirectory,
+    handleRemoveProject
+  } = useRecentProjects({ onOpenProject })
 
   useEffect(() => {
     loadRecentProjects()
-  }, [])
+  }, [loadRecentProjects])
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -95,48 +50,6 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [recentProjects, handleOpenRecent])
-
-  const handleSelectDirectory = async () => {
-    setError(null)
-
-    try {
-      const selected = await open({
-        directory: true,
-        multiple: false,
-        title: 'Select Git Repository'
-      })
-
-      if (!selected) return
-
-      const isGitRepo = await invoke<boolean>(TauriCommands.IsGitRepository, {
-        path: selected
-      })
-
-      if (!isGitRepo) {
-        setError('Selected directory is not a Git repository. Please select a valid Git repository.')
-        return
-      }
-
-      await invoke(TauriCommands.AddRecentProject, { path: selected })
-      onOpenProject(selected as string)
-    } catch (err) {
-      logger.error('Failed to select directory:', err)
-      setError(`Failed to open directory: ${err}`)
-    }
-  }
-
-  const handleRemoveProject = async (project: RecentProject, event: React.MouseEvent) => {
-    event.stopPropagation() // Prevent opening the project when clicking remove
-    setError(null)
-    
-    try {
-      await invoke(TauriCommands.RemoveRecentProject, { path: project.path })
-      await loadRecentProjects()
-    } catch (err) {
-      logger.error('Failed to remove project:', err)
-      setError(`Failed to remove project: ${err}`)
-    }
-  }
 
   const handleProjectCreated = async (projectPath: string) => {
     setError(null)

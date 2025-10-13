@@ -1,4 +1,5 @@
 import { useRef, forwardRef, useImperativeHandle, memo } from 'react'
+import { VscAdd } from 'react-icons/vsc'
 import { Terminal, TerminalHandle } from './Terminal'
 import { useTerminalTabs } from '../../hooks/useTerminalTabs'
 import { UnifiedTab } from '../UnifiedTab'
@@ -132,7 +133,7 @@ const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(
   return (
     <div className={`h-full flex flex-col ${className}`}>
       <div
-        className="h-10 flex-shrink-0 flex items-stretch overflow-x-auto scrollbar-hide"
+        className="h-8 flex-shrink-0 flex items-center overflow-x-auto scrollbar-hide"
         style={{
           backgroundColor: theme.colors.background.primary,
           borderBottom: `1px solid ${theme.colors.border.subtle}`,
@@ -168,34 +169,23 @@ const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(
         {canAddTab && (
           <button
             onClick={addTab}
-            className="flex items-center justify-center w-14 h-full"
+            className="h-6 w-6 inline-flex items-center justify-center rounded ml-1 transition-colors"
             style={{
               color: theme.colors.text.tertiary,
-              borderRight: `1px solid ${theme.colors.border.subtle}`,
-              borderTop: `3px solid transparent`,
-              fontSize: theme.fontSize.bodyLarge,
-              backgroundColor: 'transparent',
-              fontWeight: '600',
-              borderTopLeftRadius: theme.borderRadius.md,
-              borderTopRightRadius: theme.borderRadius.md,
-              paddingLeft: theme.spacing.md,
-              paddingRight: theme.spacing.md,
+              backgroundColor: 'transparent'
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.color = theme.colors.accent.blue.light
-              e.currentTarget.style.backgroundColor = theme.colors.accent.blue.bg
-              e.currentTarget.style.borderTopColor = theme.colors.accent.blue.DEFAULT
-              e.currentTarget.style.boxShadow = `0 4px 12px ${theme.colors.accent.blue.bg}`
+              e.currentTarget.style.color = theme.colors.text.secondary
+              e.currentTarget.style.backgroundColor = `${theme.colors.background.elevated}80`
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.color = theme.colors.text.tertiary
               e.currentTarget.style.backgroundColor = 'transparent'
-              e.currentTarget.style.borderTopColor = 'transparent'
-              e.currentTarget.style.boxShadow = 'none'
             }}
             title="Add new terminal"
+            aria-label="Add new terminal"
           >
-            <span className="text-lg font-bold leading-none">+</span>
+            <VscAdd className="text-[14px]" />
           </button>
         )}
       </div>

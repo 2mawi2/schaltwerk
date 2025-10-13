@@ -14,6 +14,7 @@ import { NewSessionModal } from './components/modals/NewSessionModal'
 import { CancelConfirmation } from './components/modals/CancelConfirmation'
 import { DeleteSpecConfirmation } from './components/modals/DeleteSpecConfirmation'
 import { SettingsModal } from './components/modals/SettingsModal'
+import { ProjectSelectorModal } from './components/modals/ProjectSelectorModal'
 import { invoke } from '@tauri-apps/api/core'
 import { useSelection } from './contexts/SelectionContext'
 import { clearTerminalStartedTracking } from './components/terminal/Terminal'
@@ -280,6 +281,7 @@ function AppContent() {
 
   const [newSessionOpen, setNewSessionOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [projectSelectorOpen, setProjectSelectorOpen] = useState(false)
   const [cancelModalOpen, setCancelModalOpen] = useState(false)
   const [deleteSpecModalOpen, setDeleteSpecModalOpen] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
@@ -1234,6 +1236,7 @@ function AppContent() {
         onSelectTab={handleSelectTab}
         onCloseTab={handleCloseTab}
         onOpenSettings={() => setSettingsOpen(true)}
+        onOpenProjectSelector={() => setProjectSelectorOpen(true)}
         resolveOpenPath={async () => resolveOpenPathForOpenButton({
           selection,
           activeTabPath,
@@ -1424,6 +1427,14 @@ function AppContent() {
             open={settingsOpen}
             onClose={() => setSettingsOpen(false)}
             onOpenTutorial={openOnboarding}
+          />
+
+          {/* Project Selector Modal */}
+          <ProjectSelectorModal
+            open={projectSelectorOpen}
+            onClose={() => setProjectSelectorOpen(false)}
+            onOpenProject={handleOpenProject}
+            openProjectPaths={openTabs.map(tab => tab.projectPath)}
           />
 
           <OnboardingModal
