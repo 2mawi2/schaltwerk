@@ -19,6 +19,7 @@ interface TopBarProps {
   onSelectTab: (path: string) => void | Promise<void | boolean>
   onCloseTab: (path: string) => void | Promise<void>
   onOpenSettings: () => void
+  onOpenProjectSelector?: () => void
   isRightPanelCollapsed?: boolean
   onToggleRightPanel?: () => void
   // Optional custom resolver for Open button path (e.g., active session worktree)
@@ -34,6 +35,7 @@ export function TopBar({
   onSelectTab,
   onCloseTab,
   onOpenSettings,
+  onOpenProjectSelector,
   isRightPanelCollapsed = false,
   onToggleRightPanel,
   resolveOpenPath,
@@ -132,6 +134,7 @@ export function TopBar({
             activeTabPath={activeTabPath}
             onSelectTab={onSelectTab}
             onCloseTab={onCloseTab}
+            onOpenProjectSelector={onOpenProjectSelector}
           />
         </div>
         

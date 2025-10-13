@@ -342,31 +342,3 @@ jobs:
             artifacts/*.app.tar.gz
             artifacts/checksums.txt
             artifacts/latest.json
-          body: |
-            ## Installation
-
-            ### Using Homebrew (Recommended)
-            ```bash
-            # Add the private tap (one-time setup)
-            brew tap 2mawi2/tap https://github.com/2mawi2/homebrew-tap
-
-            # Install Schaltwerk
-            brew install --cask schaltwerk
-
-            # Launch the application
-            open -a Schaltwerk
-            ```
-
-            ### Manual Installation
-            1. Download `Schaltwerk-*.dmg`
-            2. Open the DMG and drag Schaltwerk to Applications
-            3. On first launch, right-click and select "Open" to bypass Gatekeeper
-
-            ## First Launch Setup
-            Since the app is ad-hoc signed, macOS will require approval:
-            1. Right-click Schaltwerk.app and select "Open"
-            2. Click "Open" in the security dialog
-            3. Or go to System Settings > Privacy & Security and click "Open Anyway"
-
-            ## What's Changed
-            Release notes will be added before publishing.

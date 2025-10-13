@@ -35,6 +35,7 @@ import {
 } from '../../terminal/transport/backend'
 import { WebGLTerminalRenderer } from '../../terminal/gpu/webglRenderer'
 import { TerminalSuspensionManager } from '../../terminal/suspension/terminalSuspension'
+import { applyTerminalLetterSpacing } from '../../utils/terminalLetterSpacing'
 
 const DEFAULT_SCROLLBACK_LINES = 10000
 const BACKGROUND_SCROLLBACK_LINES = 5000
@@ -44,6 +45,18 @@ const RIGHT_EDGE_GUARD_COLUMNS = 2
 const CLAUDE_SHIFT_ENTER_SEQUENCE = '\\'
 // Track last effective size we told the PTY (after guard), for SIGWINCH nudging
 const lastEffectiveRefInit = { cols: 80, rows: 24 }
+
+const ATLAS_CONTRAST_BASE = 1;
+const ATLAS_CONTRAST_BUCKETS = 30;
+
+function computeAtlasContrastOffset(terminalId: string): number {
+    let hash = 0;
+    for (let i = 0; i < terminalId.length; i++) {
+        hash = (hash * 31 + terminalId.charCodeAt(i)) >>> 0;
+    }
+    const bucket = (hash % ATLAS_CONTRAST_BUCKETS) + 1; // 1..30
+    return bucket / 100;
+}
 
 // Global guard to avoid starting Claude multiple times for the same terminal id across remounts
 const startedGlobal = new Set<string>();
@@ -227,6 +240,16 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             }
         });
     }, [terminalId]);
+
+    const applyLetterSpacing = useCallback((useRelaxedSpacing: boolean) => {
+        applyTerminalLetterSpacing({
+            terminal: terminal.current,
+            renderer: gpuRenderer.current,
+            relaxed: useRelaxedSpacing,
+            terminalId,
+            onWebglRefresh: refreshGpuFontRendering,
+        });
+    }, [refreshGpuFontRendering, terminalId]);
 
     useEffect(() => {
         let cancelled = false;
@@ -591,6 +614,10 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     }, [gpuEnabledForTerminal]);
 
     useEffect(() => {
+        applyLetterSpacing(gpuEnabledForTerminal);
+    }, [applyLetterSpacing, gpuEnabledForTerminal]);
+
+    useEffect(() => {
         let mounted = true
         const load = async () => {
             try {
@@ -653,16 +680,18 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 gpuRenderer.current = new WebGLTerminalRenderer(terminal.current, terminalId)
                 await gpuRenderer.current.initialize()
                 refreshGpuFontRendering()
+                applyLetterSpacing(true)
                 gpuRenderer.current.onContextLost(() => {
                     logger.info(`[Terminal ${terminalId}] WebGL context lost, using Canvas renderer`)
                 })
             } else if (!allowWebgl && gpuRenderer.current) {
                 gpuRenderer.current.dispose()
                 gpuRenderer.current = null
+                applyLetterSpacing(false)
             }
         })
         return cleanup
-    }, [agentType, terminalId, isBackground, refreshGpuFontRendering])
+    }, [agentType, terminalId, isBackground, refreshGpuFontRendering, applyLetterSpacing])
 
      // Listen for unified agent-start events to prevent double-starting
      useEffect(() => {
@@ -954,6 +983,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             scrollbackLines = AGENT_SCROLLBACK_LINES; // Deep history for agent conversation terminals
         }
 
+        const atlasContrast = ATLAS_CONTRAST_BASE + computeAtlasContrastOffset(terminalId);
         terminal.current = new XTerm({
             theme: {
                 background: theme.colors.background.secondary,
@@ -988,6 +1018,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             // Converting EOLs breaks carriage-return based updates and causes visual jumping
             convertEol: false,
             disableStdin: readOnly,
+            minimumContrastRatio: atlasContrast,
         });
 
         // Add fit addon for proper sizing
@@ -1000,6 +1031,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         
         // Open terminal to DOM first
         terminal.current.open(termRef.current);
+        applyLetterSpacing(gpuEnabledForTerminal);
         // Allow streaming immediately; proper fits will still run later
         rendererReadyRef.current = true;
 
@@ -1948,7 +1980,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             // All terminals are cleaned up when the app exits via the backend cleanup handler
             // useCleanupRegistry handles other cleanup automatically
         };
-    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, shouldAutoScroll, isUserSelectingInTerminal, applySizeUpdate, flushQueuePending, getQueueStats, resetQueue, inputFilter, isAgentTopTerminal, scrollToBottomInstant, pluginTransportActive, acknowledgeChunk, applyPostHydrationScroll, beginClaudeShiftEnter, finalizeClaudeShiftEnter, refreshGpuFontRendering, gpuEnabledForTerminal]);
+    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, shouldAutoScroll, isUserSelectingInTerminal, applySizeUpdate, flushQueuePending, getQueueStats, resetQueue, inputFilter, isAgentTopTerminal, scrollToBottomInstant, pluginTransportActive, acknowledgeChunk, applyPostHydrationScroll, beginClaudeShiftEnter, finalizeClaudeShiftEnter, refreshGpuFontRendering, gpuEnabledForTerminal, applyLetterSpacing]);
 
     useEffect(() => {
         if (overflowEpoch === 0) return;
