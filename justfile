@@ -84,6 +84,7 @@ release version="patch":
     echo ""
     echo "🔄 GitHub Actions will now:"
     echo "  • Build universal macOS binary"
+    echo "  • Build Linux DEB, RPM, and AppImage packages"
     echo "  • Create GitHub release"
     echo "  • Update Homebrew tap"
     echo ""
@@ -431,8 +432,25 @@ run-build:
 
 # Run all tests and lints (uses dev-fast profile for FASTEST compilation)
 test:
-    npm run test
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    	echo "🐧 Running full test suite on Linux..."
+    	just _ensure-linux-rust-deps
+    	npm run test
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+    	echo "🍎 Running full test suite on macOS..."
+    	npm run test
+    else
+    	echo "❌ Unsupported platform for testing: $OSTYPE"
+    	echo "   Supported: Linux, macOS"
+    	exit 1
+    fi
 
+
+# Run only frontend tests (TypeScript, linting, unit tests)
+test-frontend:
+    npm run lint && npm run lint:ts && npm run test:frontend
 
 # Run the application using the compiled release binary (no autoreload)
 run-release:
@@ -502,3 +520,167 @@ run-port-release port:
     fi
     
     cd "$HOME" && VITE_PORT={{port}} PORT={{port}} PARA_REPO_PATH="$PROJECT_ROOT" "$BINARY_PATH"
+
+# Cross-platform setup commands
+
+# Cross-platform setup (auto-detect OS)
+setup-cross-platform:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        echo "🐧 Detected Linux - running Linux-specific setup"
+        just setup-linux
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "🍎 Detected macOS - running standard setup"
+        just setup
+    else
+        echo "❌ Unsupported platform: $OSTYPE"
+        exit 1
+    fi
+
+# Cross-platform install (auto-detect OS)
+install-cross-platform:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        echo "🐧 Detected Linux - running Linux installation"
+        just install-linux
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "🍎 Detected macOS - running macOS installation"
+        just install
+    else
+        echo "❌ Unsupported platform: $OSTYPE"
+        exit 1
+    fi
+
+# Linux-specific commands
+
+# Check Linux build dependencies
+check-linux-deps:
+    #!/usr/bin/env bash
+    echo "🔍 Checking Linux build dependencies..."
+    echo ""
+    which pkg-config > /dev/null 2>&1 && echo "✅ pkg-config" || echo "❌ Missing: pkg-config"
+    pkg-config --exists webkit2gtk-4.1 2>/dev/null && echo "✅ libwebkit2gtk-4.1-dev" || echo "❌ Missing: libwebkit2gtk-4.1-dev"
+    pkg-config --exists gtk+-3.0 2>/dev/null && echo "✅ libgtk-3-dev" || echo "❌ Missing: libgtk-3-dev"
+    echo ""
+    echo "To install missing dependencies:"
+    echo "  Ubuntu/Debian: sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf"
+    echo "  Fedora:        sudo dnf install webkit2gtk4.1-devel gtk3-devel libappindicator-gtk3-devel librsvg2-devel"
+    echo "  Arch:          sudo pacman -S webkit2gtk-4.1 gtk3 libappindicator-gtk3 librsvg"
+
+# Ensure Linux has the GTK stack required for Rust builds/tests
+_ensure-linux-rust-deps:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! command -v pkg-config >/dev/null 2>&1; then
+        echo "❌ pkg-config not found. Install GTK build dependencies first."
+        echo "   Run 'just check-linux-deps' for guidance."
+        exit 1
+    fi
+    missing=()
+    for pkg in gtk+-3.0 gdk-3.0 pango cairo atk; do
+        if ! pkg-config --exists "$pkg"; then
+            missing+=("$pkg")
+        fi
+    done
+    if [ ${#missing[@]} -ne 0 ]; then
+        echo "❌ Missing Linux GTK dependencies: ${missing[*]}"
+        echo "   Run 'just check-linux-deps' for installation hints."
+        exit 1
+    fi
+
+# Setup Linux-specific dependencies (from spec milestone 1)
+setup-linux:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    echo "🐧 Setting up Linux development dependencies..."
+
+    # Detect distribution and install GTK/WebKit stack
+    if [ -f /etc/debian_version ]; then
+        echo "📦 Detected Debian/Ubuntu-based system"
+        sudo apt-get update
+        sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+    elif [ -f /etc/redhat-release ]; then
+        echo "📦 Detected Red Hat-based system"
+        sudo dnf install -y webkit2gtk4.1-devel gtk3-devel libappindicator-gtk3-devel librsvg2-devel patchelf
+    elif [ -f /etc/arch-release ]; then
+        echo "📦 Detected Arch-based system"
+        sudo pacman -S --needed webkit2gtk gtk3 libappindicator-gtk3 librsvg patchelf
+    else
+        echo "⚠️  Unknown distribution. Please install GTK and WebKit dependencies manually."
+        echo "   Required: libwebkit2gtk-4.1-dev, libgtk-3-dev, libayatana-appindicator3-dev, librsvg2-dev, patchelf"
+        exit 1
+    fi
+
+    echo "✅ Linux dependencies installed"
+
+# Install built binary to ~/.local/bin (Linux XDG standard)
+install-linux:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "🔨 Building Schaltwerk for Linux..."
+    cargo build --release --manifest-path src-tauri/Cargo.toml
+    echo "📦 Installing to ~/.local/bin..."
+    mkdir -p ~/.local/bin
+    mkdir -p ~/.local/share/applications
+    mkdir -p ~/.local/share/icons/hicolor/128x128/apps
+    cp src-tauri/target/release/schaltwerk ~/.local/bin/
+    cp src-tauri/icons/128x128.png ~/.local/share/icons/hicolor/128x128/apps/schaltwerk.png
+    echo "#!/usr/bin/env xdg-open" > ~/.local/share/applications/schaltwerk.desktop
+    echo "[Desktop Entry]" >> ~/.local/share/applications/schaltwerk.desktop
+    echo "Type=Application" >> ~/.local/share/applications/schaltwerk.desktop
+    echo "Name=Schaltwerk" >> ~/.local/share/applications/schaltwerk.desktop
+    echo "Exec=schaltwerk" >> ~/.local/share/applications/schaltwerk.desktop
+    echo "Icon=schaltwerk" >> ~/.local/share/applications/schaltwerk.desktop
+    echo "Categories=Development;" >> ~/.local/share/applications/schaltwerk.desktop
+    chmod +x ~/.local/share/applications/schaltwerk.desktop
+    echo "✅ Installed to ~/.local/bin/schaltwerk"
+    echo "✅ Desktop entry: ~/.local/share/applications/schaltwerk.desktop"
+
+# Build all Linux packages (AppImage, deb, rpm)
+build-linux:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "🔨 Building all Linux packages..."
+    npm run tauri build -- --bundles appimage, deb, rpm
+    echo "✅ Build complete!"
+    echo "📦 Packages created:"
+    ls -lh src-tauri/target/release/bundle/ 2>/dev/null || echo "No bundle directory found"
+    
+# Build Linux AppImage
+build-linux-appimage:
+    npm run tauri build -- --bundles appimage
+    @echo "✅ AppImage created in src-tauri/target/release/bundle/appimage/"
+
+# Build Linux .deb package
+build-linux-deb:
+    npm run tauri build -- --bundles deb
+    @echo "✅ .deb package created in src-tauri/target/release/bundle/deb/"
+
+# Build Linux .rpm package
+build-linux-rpm:
+    npm run tauri build -- --bundles rpm
+    @echo "✅ .rpm package created in src-tauri/target/release/bundle/rpm/"
+    
+# Run with Wayland debugging enabled
+run-wayland:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "🚀 Starting Schaltwerk with Wayland debugging..."
+    WAYLAND_DEBUG=1 WAYLAND_DISPLAY=wayland-0 RUST_LOG=schaltwerk=debug npm run tauri:dev
+
+# Force X11 backend (fallback mode)
+run-x11:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "🚀 Starting Schaltwerk with X11 backend..."
+    GDK_BACKEND=x11 npm run tauri:dev
+
+
+
+
+
