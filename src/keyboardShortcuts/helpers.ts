@@ -49,3 +49,17 @@ export const splitShortcutBinding = (binding: string): string[] => {
   if (!binding) return []
   return binding.split('+')
 }
+
+export const formatShortcutForDisplay = (segments: string[], platform: Platform): string => {
+  if (platform === 'mac') {
+    // macOS: display symbols directly without separators (⌘T, ⇧⌘<, etc.)
+    return segments.map(seg => getDisplayLabelForSegment(seg, platform)).join('')
+  } else {
+    // non-macOS: display with spaces and + symbols (Ctrl + Shift + T)
+    return segments.map((seg, index) => {
+      const label = getDisplayLabelForSegment(seg, platform)
+      const isLast = index === segments.length - 1
+      return label + (!isLast ? ' + ' : '')
+    }).join('')
+  }
+}

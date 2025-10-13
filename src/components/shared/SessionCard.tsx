@@ -6,6 +6,9 @@ import { SessionInfo, SessionMonitorStatus } from '../../types/session'
 import { UncommittedIndicator } from '../common/UncommittedIndicator'
 import { theme } from '../../common/theme'
 import { getSessionDisplayName } from '../../utils/sessionDisplayName'
+import { useMultipleShortcutDisplays } from '../../keyboardShortcuts/useShortcutDisplay'
+import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
+import { detectPlatformSafe } from '../../keyboardShortcuts/helpers'
 
 export interface SessionCardProps {
     session: {
@@ -54,6 +57,17 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
     isMarkReadyDisabled = false,
     isBusy = false
 }, ref) => {
+    const shortcuts = useMultipleShortcutDisplays([
+        KeyboardShortcutAction.SwitchToSession1,
+        KeyboardShortcutAction.SwitchToSession2,
+        KeyboardShortcutAction.SwitchToSession3,
+        KeyboardShortcutAction.SwitchToSession4,
+        KeyboardShortcutAction.SwitchToSession5,
+        KeyboardShortcutAction.SwitchToSession6,
+        KeyboardShortcutAction.SwitchToSession7
+    ])
+    const platform = detectPlatformSafe()
+    const modKey = platform === 'mac' ? '⌘' : 'Ctrl'
     const s = session.info
     const sessionName = getSessionDisplayName(s)
     const currentAgent = s.current_task || `Working on ${sessionName}`
@@ -137,7 +151,19 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
                 {!hideKeyboardShortcut && index !== undefined && index < 8 && (
                     <div className="flex items-center gap-2 flex-shrink-0">
                         <span className="text-xs px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400">
-                            ⌘{index + 2}
+                            {(() => {
+                                const sessionActions = [
+                                    KeyboardShortcutAction.SwitchToSession1,
+                                    KeyboardShortcutAction.SwitchToSession2,
+                                    KeyboardShortcutAction.SwitchToSession3,
+                                    KeyboardShortcutAction.SwitchToSession4,
+                                    KeyboardShortcutAction.SwitchToSession5,
+                                    KeyboardShortcutAction.SwitchToSession6,
+                                    KeyboardShortcutAction.SwitchToSession7
+                                ]
+                                const sessionAction = sessionActions[index]
+                                return shortcuts[sessionAction] || `${modKey}${index + 2}`
+                            })()}
                         </span>
                     </div>
                 )}
