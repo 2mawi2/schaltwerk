@@ -587,7 +587,7 @@ fn open_path_in_ghostty(working_dir: &str) -> Result<(), String> {
         return Err("Ghostty CLI is installed but refused the launch command. Ensure the Ghostty CLI supports --working-directory or use the app bundle launch setting.".into());
     }
 
-    "Ghostty is not installed. Please install Ghostty or choose a different terminal.".into()
+    Err("Ghostty is not installed. Please install Ghostty or choose a different terminal.".into())
 }
 
 #[cfg(target_os = "macos")]
@@ -647,7 +647,7 @@ fn open_path_in_intellij(path: &str) -> Result<(), String> {
         }
     }
 
-    "IntelliJ IDEA is not installed. Please install it from JetBrains Toolbox or jetbrains.com and try again.".into()
+    Err("IntelliJ IDEA is not installed. Please install it from JetBrains Toolbox or jetbrains.com and try again.".into())
 }
 
 #[cfg(target_os = "macos")]
