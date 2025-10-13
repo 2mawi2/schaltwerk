@@ -78,7 +78,7 @@ pub fn initialize_schema(db: &Database) -> anyhow::Result<()> {
             agent_type TEXT DEFAULT 'claude',
             orchestrator_skip_permissions BOOLEAN DEFAULT FALSE,
             orchestrator_agent_type TEXT DEFAULT 'claude',
-            default_open_app TEXT DEFAULT 'finder',
+            default_open_app TEXT DEFAULT NULL,
             default_base_branch TEXT,
             terminal_font_size INTEGER DEFAULT 13,
             ui_font_size INTEGER DEFAULT 12
@@ -100,7 +100,7 @@ pub fn initialize_schema(db: &Database) -> anyhow::Result<()> {
             terminal_font_size,
             ui_font_size,
             tutorial_completed
-        ) VALUES (1, FALSE, 'claude', FALSE, 'claude', 'finder', 13, 12, FALSE)",
+        ) VALUES (1, FALSE, 'claude', FALSE, 'claude', NULL, 13, 12, FALSE)",
         [],
     )?;
 

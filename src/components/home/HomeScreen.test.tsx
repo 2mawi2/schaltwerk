@@ -81,9 +81,7 @@ describe('HomeScreen', () => {
     expect(screen.getByText('/repo/a')).toBeInTheDocument()
 
     // Click the remove button should not trigger open
-    const removeButtons = screen.getAllByRole('button', {
-      name: /remove .* from recent projects/i
-    })
+    const removeButtons = screen.getAllByTitle(/remove .* from recent projects/i)
     await user.click(removeButtons[0])
 
     expect(onOpenProject).not.toHaveBeenCalled()

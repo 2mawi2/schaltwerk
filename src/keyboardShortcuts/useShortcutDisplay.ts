@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useKeyboardShortcutsConfig } from '../contexts/KeyboardShortcutsContext'
 import { KeyboardShortcutAction } from './config'
-import { detectPlatformSafe, getDisplayLabelForSegment, splitShortcutBinding } from './helpers'
+import { detectPlatformSafe, splitShortcutBinding, formatShortcutForDisplay } from './helpers'
 
 /**
  * Hook to get the display string for a keyboard shortcut action.
@@ -21,7 +21,7 @@ export function useShortcutDisplay(action: KeyboardShortcutAction): string {
     // Use the first binding if multiple exist
     const binding = bindings[0]
     const segments = splitShortcutBinding(binding)
-    return segments.map(seg => getDisplayLabelForSegment(seg, platform)).join('')
+    return formatShortcutForDisplay(segments, platform)
   }, [keyboardShortcuts.config, action, platform])
 }
 
@@ -45,7 +45,7 @@ export function useMultipleShortcutDisplays(actions: KeyboardShortcutAction[]): 
 
       const binding = bindings[0]
       const segments = splitShortcutBinding(binding)
-      result[action] = segments.map(seg => getDisplayLabelForSegment(seg, platform)).join('')
+      result[action] = formatShortcutForDisplay(segments, platform)
     }
 
     return result
