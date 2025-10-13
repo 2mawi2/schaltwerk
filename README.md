@@ -2,15 +2,36 @@
 
 ![Schaltwerk Logo](./ascii_logo.gif)
 
-**Run multiple AI coding agents in parallel, each in their own git worktree. Test locally, merge what works.**
+**Native terminal AI agents with git worktree isolation. Spec-driven development for parallel workflows.**
+
+Run Claude Code, OpenCode, Gemini, Codex, and Factory Droid natively—no wrappers, no limitations. Each gets its own worktree.
+
+[![Test](https://github.com/2mawi2/schaltwerk/actions/workflows/test.yml/badge.svg)](https://github.com/2mawi2/schaltwerk/actions/workflows/test.yml)
+
+**[📚 Docs](https://schaltwerk.mintlify.app)** | **[⭐ Star this repo](https://github.com/2mawi2/schaltwerk)**
 
 <img width="1702" height="964" alt="screenshot" src="https://github.com/user-attachments/assets/95e8f5cb-f13e-427c-9257-fc9f13402e5c" />
 
 </div>
 
-# Schaltwerk
+## Why Schaltwerk?
 
-[![Test](https://github.com/2mawi2/schaltwerk/actions/workflows/test.yml/badge.svg)](https://github.com/2mawi2/schaltwerk/actions/workflows/test.yml)
+**Native Terminal Integration** - Schaltwerk runs agentic coding CLIs directly—no wrappers, no abstractions. You get the latest versions with all their features, exactly as you'd use them in your terminal. The difference is you can run multiple sessions simultaneously.
+
+**Efficient Multi-Agent Coordination** - When running multiple agents, switching between them efficiently matters. Schaltwerk provides instant session switching (⌘1-9), always-visible specs, and clear activity overviews so you know what each agent is doing.
+
+**Advanced Agent Orchestration** - Schaltwerk includes an MCP server, allowing one terminal agent to orchestrate multiple others. An orchestrator agent can control everything you can—creating sessions, managing workflows, and coordinating parallel agents.
+
+**Spec-Driven Development** - Write specs in markdown, start sessions from them, and re-implement when needed. Specs become your reusable backlog. If an agent goes off-track, dismiss the worktree and restart with a refined spec—no cleanup needed.
+
+**Full Control & Privacy** - GitHub-style diff reviews with inline comments you can paste back to the agent. Simultaneous spec view, diff view, and terminal output. Manual testing in the bottom terminal anytime. Schaltwerk doesn't track or trace your data—use public APIs or configure agents to run against your private endpoints (Azure, self-hosted, etc.).
+
+## Requirements
+
+- **macOS 11+** (Big Sur or later) - currently supported
+- **Linux** - alpha version coming soon (work in progress)
+- **Git 2.30+**
+- At least one agentic coding CLI: Claude Code, OpenCode, Gemini, Codex, or Factory Droid
 
 ## Quick Start (60 seconds)
 
@@ -19,15 +40,13 @@
    brew install --cask 2mawi2/tap/schaltwerk && open -a Schaltwerk
    ```
 2. Open your project: drag the repo in or use `File → Open Project…`.
-3. Start an agent with `⌘N` (or **Start Agent**), pick the base branch + terminal AI (e.g., Claude Code), and optionally seed it with the Dark Mode prompt.
+3. Start an agent (`⌘N`): choose Claude Code, OpenCode, or another AI and give it a task prompt.
 4. Let the agent work—Schaltwerk spins up its own branch/worktree; use the second terminal to run tests or manual checks while it codes.
 5. Review diffs, leave comments, mark reviewed with `⌘R`, then in Reviewed hit **Merge/PR** or `⌘⇧M` to squash-merge back to your branch.
 
 Your agents now deliver isolated branches on autopilot—keep switching with `⌘1-9`, rinse, and repeat.
 
 > Treat specs like a reusable backlog. Spin them up as sessions when you're ready, and if an experiment misses the mark, use `⌘S` to discard the worktree, keep the spec, and relaunch later with fresh prompts.
-
-**[📚 Full documentation](https://schaltwerk.mintlify.app)** | **[⭐ Star this repo](https://github.com/2mawi2/schaltwerk)** if it helped you!
 
 Looking for multi-agent orchestration patterns? Check out the **Scaffold → Swarm → Stabilize** and **Continuous Maintenance** playbooks in the [advanced workflows guide](https://schaltwerk.mintlify.app/guides/advanced-workflows).
 
@@ -52,19 +71,41 @@ Looking for multi-agent orchestration patterns? Check out the **Scaffold → Swa
 
 ## Key Features
 
-- Multiple agents in parallel, each in isolated git worktrees
-- Dual terminals per session (agent + your shell)
-- Instant session switching with keyboard shortcuts
-- Works with any terminal-based AI tool
+**Session Management**
+- Create sessions from specs or start directly with `⌘N`
+- Switch between sessions instantly with `⌘1-9`
+- Mark sessions reviewed with `⌘R` when ready
+- Merge or create PRs with `⌘⇧M`
+- Dismiss worktrees with `⌘S` while keeping specs
+
+**UI Components**
+- Spec panel - View and edit session specs
+- Diff panel - GitHub-style code review with inline comments
+- Dual terminals - Agent terminal + your testing shell per session
+- Session overview - See all agents (running, idle, reviewed)
+- Activity indicators - Real-time status for each session
+
+**Git Integration**
+- Automatic worktree creation per session
+- Isolated branches (no conflicts between agents)
+- Squash-merge to main with one command
+- Direct PR creation via GitHub CLI integration
+- Session resumption support (Claude Code, Codex)
+
+**Agent Configuration**
+- Custom environment variables per agent
+- Configure arguments for each CLI
+- Run against private APIs (Azure, self-hosted)
+- No data tracking from Schaltwerk
+- MCP server for orchestrator agents
 
 ## Installation
 
-```bash
-brew install --cask 2mawi2/tap/schaltwerk
-open -a Schaltwerk
-```
+See [Quick Start](#quick-start-60-seconds) for the basic Homebrew installation.
 
-First launch requires security approval (System Settings → Privacy & Security → Open Anyway).
+### First Launch
+
+Security approval required: System Settings → Privacy & Security → Open Anyway
 
 ### Updating from 0.2.2 or earlier
 
@@ -90,7 +131,7 @@ We actively welcome contributions—whether that's reporting issues, improving d
 
 ### Development
 
-Install dependencies with `npm install`, then choose the workflow that suits you best. The [`Justfile`](./Justfile) lists optional recipes if you prefer using `just`; each recipe maps to standard npm/cargo commands you can run directly.
+Install dependencies with `npm install`, then choose the workflow that suits you best. The [`Justfile`](./Justfile) lists optional recipes if you prefer using [`just`](https://github.com/casey/just); each recipe maps to standard npm/cargo commands you can run directly.
 
 ```bash
 # Optional helpers via just (install with brew install just)
