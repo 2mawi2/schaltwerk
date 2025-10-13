@@ -808,6 +808,7 @@ fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_updater::Builder::new()
             .pubkey(UPDATER_PUBLIC_KEY.trim())
         .build())
@@ -1195,7 +1196,13 @@ mod tests {
         let fallback = super::get_default_open_app()
             .await
             .expect("expected fallback default app");
+        
+        #[cfg(target_os = "macos")]
         assert_eq!(fallback, "finder");
+        #[cfg(target_os = "linux")]
+        assert_eq!(fallback, "nautilus");
+        #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+        assert_eq!(fallback, "explorer");
 
         super::set_default_open_app("vscode".into())
             .await
