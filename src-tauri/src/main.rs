@@ -823,6 +823,9 @@ fn main() {
             permissions::check_folder_access,
             permissions::trigger_folder_permission_request,
             permissions::ensure_folder_permission,
+            permissions::get_permission_diagnostics,
+            permissions::open_documents_privacy_settings,
+            permissions::reset_folder_permissions,
             // Terminal commands
             create_terminal,
             create_terminal_with_size,
