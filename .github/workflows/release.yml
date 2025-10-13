@@ -20,6 +20,8 @@ jobs:
     runs-on: ubuntu-latest
     # Only run for tag pushes, not manual workflow dispatch
     if: startsWith(github.ref, 'refs/tags/')
+    env:
+      SCHALTWERK_PM: bun
     
     steps:
       - name: Checkout code
@@ -75,6 +77,8 @@ jobs:
     # Depend on test job for tag pushes, run directly for manual dispatch
     needs: [test]
     if: always() && (needs.test.result == 'success' || needs.test.result == 'skipped')
+    env:
+      SCHALTWERK_PM: bun
     
     steps:
       - name: Checkout code
