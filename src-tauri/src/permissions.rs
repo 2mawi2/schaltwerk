@@ -1,8 +1,12 @@
 use serde::Serialize;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+#[cfg(target_os = "macos")]
+use std::path::PathBuf;
 
+#[cfg(target_os = "macos")]
 const APP_IDENTIFIER: &str = "com.mariuswichtner.schaltwerk";
+#[cfg(target_os = "macos")]
 const APP_DISPLAY_NAME: &str = "Schaltwerk";
 
 #[derive(Serialize)]
@@ -99,7 +103,7 @@ fn detect_install_kind(executable: &Path) -> &'static str {
 pub async fn get_permission_diagnostics() -> Result<PermissionDiagnostics, String> {
     #[cfg(not(target_os = "macos"))]
     {
-        return Err("Permission diagnostics are only required on macOS.".to_string());
+        Err("Permission diagnostics are only required on macOS.".to_string())
     }
 
     #[cfg(target_os = "macos")]
@@ -125,7 +129,7 @@ pub async fn get_permission_diagnostics() -> Result<PermissionDiagnostics, Strin
 pub async fn open_documents_privacy_settings() -> Result<(), String> {
     #[cfg(not(target_os = "macos"))]
     {
-        return Err("Opening System Settings is only supported on macOS.".to_string());
+        Err("Opening System Settings is only supported on macOS.".to_string())
     }
 
     #[cfg(target_os = "macos")]
@@ -170,7 +174,7 @@ pub async fn open_documents_privacy_settings() -> Result<(), String> {
 pub async fn reset_folder_permissions() -> Result<(), String> {
     #[cfg(not(target_os = "macos"))]
     {
-        return Err("Permission reset is only supported on macOS.".to_string());
+        Err("Permission reset is only supported on macOS.".to_string())
     }
 
     #[cfg(target_os = "macos")]
