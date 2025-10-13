@@ -10,7 +10,19 @@ import { theme } from '../common/theme'
 import { withOpacity } from '../common/colorUtils'
 import { GithubMenuButton } from './github/GithubMenuButton'
 import { WindowControls } from './WindowControls'
-import { isMacOS } from '../utils/platform'
+import { getPlatform } from '../utils/platform'
+import { detectPlatformSafe } from '../keyboardShortcuts/helpers'
+
+type UiPlatform = 'mac' | 'linux' | 'windows'
+
+const normalizePlatform = (value?: string | null): UiPlatform => {
+  if (!value) return 'mac'
+  const lowered = value.toLowerCase()
+  if (lowered.startsWith('mac')) return 'mac'
+  if (lowered.startsWith('win')) return 'windows'
+  if (lowered.startsWith('linux')) return 'linux'
+  return 'mac'
+}
 
 interface TopBarProps {
   tabs: ProjectTab[]
@@ -44,10 +56,23 @@ export function TopBar({
   const dragAreaRef = useRef<HTMLDivElement>(null)
   const topBarRef = useRef<HTMLDivElement>(null)
   const openButtonRef = useRef<{ triggerOpen: () => Promise<void> } | null>(null)
-  const [isMac, setIsMac] = useState(false)
+  const [platform, setPlatform] = useState<UiPlatform>(() => normalizePlatform(detectPlatformSafe()))
+  const isMac = platform === 'mac'
 
   useEffect(() => {
-    isMacOS().then(setIsMac).catch(() => setIsMac(false))
+    let cancelled = false
+    getPlatform()
+      .then(value => {
+        if (!cancelled) {
+          setPlatform(normalizePlatform(value))
+        }
+      })
+      .catch(error => {
+        logger.debug('Failed to determine precise platform via plugin_os', error)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const handleOpenReady = useCallback((handler: () => Promise<void>) => {
