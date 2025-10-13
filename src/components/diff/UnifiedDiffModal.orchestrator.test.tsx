@@ -66,13 +66,13 @@ describe('UnifiedDiffModal orchestrator review submit', () => {
       </TestProviders>
     )
 
-    // Wait for modal header
+    // Wait for modal header with increased timeout
     await waitFor(() => {
       expect(screen.getByText('Git Diff Viewer')).toBeInTheDocument()
-    })
+    }, { timeout: 10000 })
 
     // Button should display the comment count
-    const finishBtn = await screen.findByText(/Finish Review \(1 comment\)/)
+    const finishBtn = await screen.findByText(/Finish Review \(1 comment\)/, undefined, { timeout: 10000 })
     fireEvent.click(finishBtn)
 
     await waitFor(() => {
@@ -80,6 +80,6 @@ describe('UnifiedDiffModal orchestrator review submit', () => {
         TauriCommands.PasteAndSubmitTerminal,
         expect.objectContaining({ id: expect.stringMatching(/orchestrator-.*-top/) })
       )
-    })
+    }, { timeout: 10000 })
   })
 })

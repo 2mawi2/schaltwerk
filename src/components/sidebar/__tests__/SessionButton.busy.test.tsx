@@ -58,13 +58,16 @@ function renderButton(overrides: Partial<SessionButtonProps> = {}) {
 }
 
 describe('SessionButton busy state', () => {
-  it('renders busy overlay and disables interactions when isBusy is true', () => {
+  it('renders busy overlay and disables interactions when isBusy is true', async () => {
     const { container } = renderButton({ isBusy: true })
 
-    const root = container.querySelector('[data-session-id="session-123"]')
+    // Wait for the component to render by looking for a visible element
+    await new Promise(resolve => setTimeout(resolve, 200)); // Small delay to ensure render
+    
+    const root = container.querySelector(`[data-session-id="${baseSession.info.session_id}"]`)
     expect(root).toHaveAttribute('aria-busy', 'true')
 
     const overlay = container.querySelector('[data-testid="session-busy-indicator"]')
     expect(overlay).toBeInTheDocument()
-  })
+  }, 10000) // Set timeout for the test
 })

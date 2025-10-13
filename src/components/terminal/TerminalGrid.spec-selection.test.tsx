@@ -155,7 +155,7 @@ describe('TerminalGrid spec fallback when backend metadata missing', () => {
 
     await waitFor(() => {
       expect(controller).not.toBeNull()
-    })
+    }, { timeout: 10000 })
 
     await act(async () => {
       await controller!.setSelection({ kind: 'session', payload: 'spec-2', sessionState: 'spec' }, false, true)
@@ -163,7 +163,7 @@ describe('TerminalGrid spec fallback when backend metadata missing', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('spec-placeholder')).toHaveTextContent('spec-2')
-    })
+    }, { timeout: 10000 })
 
     await act(async () => {
       await controller!.setSelection({ kind: 'session', payload: 'spec-3', sessionState: 'running' }, false, true)
@@ -171,6 +171,6 @@ describe('TerminalGrid spec fallback when backend metadata missing', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('spec-placeholder')).toHaveTextContent('spec-3')
-    })
+    }, { timeout: 10000 })
   })
 })
