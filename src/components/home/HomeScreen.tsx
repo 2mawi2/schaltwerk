@@ -5,6 +5,7 @@ import { NewProjectDialog } from './NewProjectDialog'
 import { getHomeLogoPositionStyles, getContentAreaStyles } from '../../constants/layout'
 import { theme } from '../../common/theme'
 import { formatDateTime } from '../../utils/dateTime'
+import { detectPlatformSafe } from '../../keyboardShortcuts/helpers'
 import { useRecentProjects } from '../../hooks/useRecentProjects'
 
 const RECENT_PROJECT_DATE_OPTIONS: Intl.DateTimeFormatOptions = {
@@ -17,6 +18,9 @@ interface HomeScreenProps {
 
 export function HomeScreen({ onOpenProject }: HomeScreenProps) {
   const [showNewProjectDialog, setShowNewProjectDialog] = useState(false)
+  
+  const platform = detectPlatformSafe()
+
   const {
     recentProjects,
     error,
@@ -117,7 +121,7 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
                   {index < 9 && (
                     <div className="absolute top-2 right-2 transition-opacity group-hover:opacity-0">
                       <span className="text-xs px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400">
-                        ⌘{index + 1}
+                        {platform === 'mac' ? `⌘${index + 1}` : `Ctrl + ${index + 1}`}
                       </span>
                     </div>
                   )}

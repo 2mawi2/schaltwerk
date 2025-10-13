@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef, ReactElement } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef, ReactElement } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
@@ -33,6 +33,20 @@ import { AppUpdateResultPayload } from '../../common/events'
 const shortcutArraysEqual = (a: string[] = [], b: string[] = []) => {
     if (a.length !== b.length) return false
     return a.every((value, index) => value === b[index])
+}
+
+// Helper component for platform-aware modifier key display
+const ModifierKeyDisplay = ({ children }: { children: React.ReactNode }) => {
+    const platform = detectPlatformSafe()
+    const isMac = platform === 'mac'
+    
+    if (typeof children === 'string') {
+        if (children === 'Cmd/Ctrl') {
+            return <>{isMac ? 'Cmd' : 'Ctrl'}</>
+        }
+    }
+    
+    return <>{children}</>
 }
 
 const shortcutConfigsEqual = (a: KeyboardShortcutConfig, b: KeyboardShortcutConfig) => {
@@ -265,21 +279,49 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         }
 
         const segments = splitShortcutBinding(binding)
-        return (
-            <span className="flex flex-wrap items-center gap-1">
-                {segments.map((segment, index) => {
-                    const label = getDisplayLabelForSegment(segment, platform)
-                    return (
-                        <kbd
-                            key={`${segment}-${index}`}
-                            className="px-2 py-1 bg-slate-800/70 border border-slate-700/60 rounded text-caption text-slate-200"
-                        >
-                            {label}
-                        </kbd>
-                    )
-                })}
-            </span>
-        )
+        const isMac = platform === 'mac'
+        
+        if (isMac) {
+            // macOS: display symbols directly without separators (⌘T, ⇧⌘<, etc.)
+            return (
+                <span className="flex flex-wrap items-center gap-1">
+                    {segments.map((segment, index) => {
+                        const label = getDisplayLabelForSegment(segment, platform)
+                        return (
+                            <kbd
+                                key={`${segment}-${index}`}
+                                className="px-2 py-1 bg-slate-800/70 border border-slate-700/60 rounded text-caption text-slate-200"
+                            >
+                                {label}
+                            </kbd>
+                        )
+                    })}
+                </span>
+            )
+        } else {
+            // non-macOS: display with spaces and + symbols (Ctrl + Shift + T)
+            return (
+                <span className="flex items-center gap-1">
+                    {segments.map((segment, index) => {
+                        const label = getDisplayLabelForSegment(segment, platform)
+                        const isLast = index === segments.length - 1
+                        
+                        return (
+                            <React.Fragment key={`${segment}-${index}`}>
+                                <kbd
+                                    className="px-2 py-1 bg-slate-800/70 border border-slate-700/60 rounded text-caption text-slate-200"
+                                >
+                                    {label}
+                                </kbd>
+                                {!isLast && (
+                                    <span className="text-caption text-slate-400">+</span>
+                                )}
+                            </React.Fragment>
+                        )
+                    })}
+                </span>
+            )
+        }
     }
     const [showFontPicker, setShowFontPicker] = useState(false)
     const [runScript, setRunScript] = useState<RunScript>({
@@ -1711,9 +1753,9 @@ fi`}
                             <div className="text-caption text-slate-400">
                                 <strong>Keyboard shortcuts:</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
-                                    <li><kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">Cmd/Ctrl</kbd> + <kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">+</kbd> Increase both font sizes</li>
-                                    <li><kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">Cmd/Ctrl</kbd> + <kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">-</kbd> Decrease both font sizes</li>
-                                    <li><kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">Cmd/Ctrl</kbd> + <kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">0</kbd> Reset both font sizes</li>
+                                    <li><kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption"><ModifierKeyDisplay>Cmd/Ctrl</ModifierKeyDisplay></kbd> + <kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">+</kbd> Increase both font sizes</li>
+                                    <li><kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption"><ModifierKeyDisplay>Cmd/Ctrl</ModifierKeyDisplay></kbd> + <kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">-</kbd> Decrease both font sizes</li>
+                                    <li><kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption"><ModifierKeyDisplay>Cmd/Ctrl</ModifierKeyDisplay></kbd> + <kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">0</kbd> Reset both font sizes</li>
                                 </ul>
                             </div>
                         </div>
@@ -1792,7 +1834,11 @@ fi`}
                     </div>
                 ))}
                 <div className="p-4 bg-slate-800/30 border border-slate-700 rounded text-caption text-slate-400">
-                    Use <kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">Ctrl</kbd> instead of <kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">Cmd</kbd> on Windows/Linux systems. Keyboard shortcuts apply globally throughout the application.
+                    {detectPlatformSafe() === 'mac' ? (
+                        <>Use <kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">Cmd</kbd> modifier key for keyboard shortcuts. Keyboard shortcuts apply globally throughout the application.</>
+                    ) : (
+                        <>Use <kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">Ctrl</kbd> modifier key for keyboard shortcuts. Keyboard shortcuts apply globally throughout the application.</>
+                    )}
                 </div>
             </div>
             <div className="border-t border-slate-800 p-4 bg-slate-900/50 flex items-center justify-between">

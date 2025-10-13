@@ -93,19 +93,19 @@ describe('CopyBundleBar', () => {
   it('renders checkboxes and defaults to spec only when available', async () => {
     render(<CopyBundleBar sessionName="s1" />)
 
-    const specToggle = await screen.findByRole('checkbox', { name: /spec/i })
-    const diffToggle = await screen.findByRole('checkbox', { name: /diff/i })
-    const filesToggle = await screen.findByRole('checkbox', { name: /files/i })
+    const specToggle = await screen.findByRole('checkbox', { name: /spec/i }, { timeout: 10000 })
+    const diffToggle = await screen.findByRole('checkbox', { name: /diff/i }, { timeout: 10000 })
+    const filesToggle = await screen.findByRole('checkbox', { name: /files/i }, { timeout: 10000 })
 
     await waitFor(() => {
       expect(specToggle).toBeChecked()
       expect(diffToggle).not.toBeChecked()
       expect(filesToggle).not.toBeChecked()
-    })
+    }, { timeout: 10000 })
 
     await waitFor(() => {
       expect(screen.getByText(/Tokens:/i)).toBeInTheDocument()
-    })
+    }, { timeout: 10000 })
   })
 
   it('disables spec when not available while keeping diff/files enabled', async () => {

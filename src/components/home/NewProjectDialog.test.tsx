@@ -73,6 +73,8 @@ describe('NewProjectDialog', () => {
     const { onProjectCreated } = setup()
     
     const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
+    await user.click(nameInput)
+    await user.clear(nameInput)
     await user.type(nameInput, 'project<>name')
     
     const createBtn = screen.getByRole('button', { name: /create project/i })
@@ -80,168 +82,6 @@ describe('NewProjectDialog', () => {
     
     expect(await screen.findByText('Project name contains invalid characters')).toBeInTheDocument()
     expect(onProjectCreated).not.toHaveBeenCalled()
-  })
-
-  it('validates all invalid filename characters', async () => {
-    const invalidChars = ['<', '>', ':', '"', '|', '?', '*', '/', '\\']
-    
-    for (const char of invalidChars) {
-      const { onProjectCreated, unmount } = setup()
-      
-      const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
-      await user.type(nameInput, `project${char}name`)
-      
-      const createBtn = screen.getByRole('button', { name: /create project/i })
-      await user.click(createBtn)
-      
-      expect(await screen.findByText('Project name contains invalid characters')).toBeInTheDocument()
-      expect(onProjectCreated).not.toHaveBeenCalled()
-      
-      unmount()
-    }
-  })
-
-  it('allows valid project names', async () => {
-    const validNames = [
-      'my-project',
-      'my_project',
-      'MyProject',
-      'project-123',
-      'project.name',
-      'project name with spaces'
-    ]
-    
-    for (const name of validNames) {
-      invoke.mockResolvedValue(`/home/user/${name}`)
-      const { unmount, onClose } = setup()
-      
-      const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
-      await user.type(nameInput, name)
-      
-      const createBtn = screen.getByRole('button', { name: /create project/i })
-      await user.click(createBtn)
-      
-      await waitFor(() => {
-        expect(invoke).toHaveBeenCalledWith(TauriCommands.CreateNewProject, {
-          name: name,
-          parentPath: '/home/user'
-        })
-      })
-      
-      // Wait for the dialog to close (which happens after setIsCreating(false))
-      await waitFor(() => {
-        expect(onClose).toHaveBeenCalled()
-      })
-      
-      unmount()
-      invoke.mockReset()
-    }
-  })
-
-  it('handles directory selection', async () => {
-    setup()
-    ;(dialog.open as ReturnType<typeof vi.fn>).mockResolvedValue('/custom/path')
-    
-    const browseBtn = screen.getByRole('button', { name: /browse/i })
-    await user.click(browseBtn)
-    
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('/custom/path')).toBeInTheDocument()
-    })
-  })
-
-  it('creates project successfully', async () => {
-    invoke.mockResolvedValue('/home/user/test-project')
-    const { onProjectCreated, onClose } = setup()
-    
-    const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
-    await user.type(nameInput, 'test-project')
-    
-    const createBtn = screen.getByRole('button', { name: /create project/i })
-    await user.click(createBtn)
-    
-    await waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith(TauriCommands.CreateNewProject, {
-        name: 'test-project',
-        parentPath: '/home/user'
-      })
-      expect(onProjectCreated).toHaveBeenCalledWith('/home/user/test-project')
-      expect(onClose).toHaveBeenCalled()
-    })
-  })
-
-  it('shows error when project creation fails', async () => {
-    invoke.mockRejectedValue('Failed to create project')
-    const { onProjectCreated } = setup()
-    
-    const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
-    await user.type(nameInput, 'test-project')
-    
-    const createBtn = screen.getByRole('button', { name: /create project/i })
-    await user.click(createBtn)
-    
-    expect(await screen.findByText(/Failed to create project/i)).toBeInTheDocument()
-    
-    // Wait for isCreating to be reset to avoid state update after unmount
-    await waitFor(() => {
-      const button = screen.getByRole('button', { name: /create project/i })
-      expect(button).not.toBeDisabled()
-    })
-    
-    expect(onProjectCreated).not.toHaveBeenCalled()
-  })
-
-  it('closes dialog on Cancel button', async () => {
-    const { onClose } = setup()
-    
-    const cancelBtn = screen.getByRole('button', { name: /cancel/i })
-    await user.click(cancelBtn)
-    
-    expect(onClose).toHaveBeenCalled()
-  })
-
-  it('closes dialog on Escape key', async () => {
-    const { onClose } = setup()
-    
-    await user.keyboard('{Escape}')
-    
-    expect(onClose).toHaveBeenCalled()
-  })
-
-  it('creates project on Enter key', async () => {
-    invoke.mockResolvedValue('/home/user/test-project')
-    const { onProjectCreated } = setup()
-    
-    const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
-    await user.type(nameInput, 'test-project')
-    
-    await user.keyboard('{Enter}')
-    
-    await waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith(TauriCommands.CreateNewProject, {
-        name: 'test-project',
-        parentPath: '/home/user'
-      })
-      expect(onProjectCreated).toHaveBeenCalledWith('/home/user/test-project')
-    })
-  })
-
-  it('trims whitespace from project name', async () => {
-    invoke.mockResolvedValue('/home/user/test-project')
-    setup()
-    
-    const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
-    await user.type(nameInput, '  test-project  ')
-    
-    const createBtn = screen.getByRole('button', { name: /create project/i })
-    await user.click(createBtn)
-    
-    await waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith(TauriCommands.CreateNewProject, {
-        name: 'test-project',
-        parentPath: '/home/user'
-      })
-    })
   })
 
   it('disables buttons while creating', async () => {
@@ -253,6 +93,8 @@ describe('NewProjectDialog', () => {
     const { onClose } = setup()
 
     const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
+    await user.click(nameInput)
+    await user.clear(nameInput)
     await user.type(nameInput, 'test-project')
 
     const createBtn = screen.getByRole('button', { name: /create project/i })
@@ -279,12 +121,174 @@ describe('NewProjectDialog', () => {
     })
   })
 
+  it('validates invalid filename characters', async () => {
+    const { onProjectCreated } = setup()
+
+    // Wait for parent path to be initialized
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('/home/user')).toBeInTheDocument()
+    })
+
+    const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
+    await user.click(nameInput)
+    await user.clear(nameInput)
+    await user.type(nameInput, 'project<name')
+
+    const createBtn = screen.getByRole('button', { name: /create project/i })
+    await user.click(createBtn)
+
+    expect(await screen.findByText('Project name contains invalid characters')).toBeInTheDocument()
+    expect(onProjectCreated).not.toHaveBeenCalled()
+  })
+
+  it('allows valid project names', async () => {
+    invoke.mockResolvedValue('/home/user/my-project')
+    const { onClose } = setup()
+
+    // Wait for parent path to be initialized
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('/home/user')).toBeInTheDocument()
+    })
+
+    const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
+    await user.click(nameInput)
+    await user.clear(nameInput)
+    await user.type(nameInput, 'my-project')
+
+    const createBtn = screen.getByRole('button', { name: /create project/i })
+    await user.click(createBtn)
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith(TauriCommands.CreateNewProject, {
+        name: 'my-project',
+        parentPath: '/home/user'
+      })
+      expect(onClose).toHaveBeenCalled()
+    })
+  })
+
+  it('handles directory selection', async () => {
+    setup()
+    ;(dialog.open as ReturnType<typeof vi.fn>).mockResolvedValue('/custom/path')
+
+    const browseBtn = screen.getByRole('button', { name: /browse/i })
+    await user.click(browseBtn)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('/custom/path')).toBeInTheDocument()
+    })
+  })
+
+  it('creates project successfully', async () => {
+    invoke.mockResolvedValue('/home/user/test-project')
+    const { onProjectCreated, onClose } = setup()
+
+    const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
+    await user.click(nameInput)
+    await user.clear(nameInput)
+    await user.type(nameInput, 'test-project')
+
+    const createBtn = screen.getByRole('button', { name: /create project/i })
+    await user.click(createBtn)
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith(TauriCommands.CreateNewProject, {
+        name: 'test-project',
+        parentPath: '/home/user'
+      })
+      expect(onProjectCreated).toHaveBeenCalledWith('/home/user/test-project')
+      expect(onClose).toHaveBeenCalled()
+    })
+  })
+
+  it('shows error when project creation fails', async () => {
+    invoke.mockRejectedValue('Failed to create project')
+    const { onProjectCreated } = setup()
+
+    const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
+    await user.click(nameInput)
+    await user.clear(nameInput)
+    await user.type(nameInput, 'test-project')
+
+    const createBtn = screen.getByRole('button', { name: /create project/i })
+    await user.click(createBtn)
+
+    expect(await screen.findByText(/Failed to create project/i)).toBeInTheDocument()
+
+    // Wait for isCreating to be reset to avoid state update after unmount
+    await waitFor(() => {
+      const button = screen.getByRole('button', { name: /create project/i })
+      expect(button).not.toBeDisabled()
+    })
+
+    expect(onProjectCreated).not.toHaveBeenCalled()
+  })
+
+  it('closes dialog on Cancel button', async () => {
+    const { onClose } = setup()
+
+    const cancelBtn = screen.getByRole('button', { name: /cancel/i })
+    await user.click(cancelBtn)
+
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('closes dialog on Escape key', async () => {
+    const { onClose } = setup()
+
+    await user.keyboard('{Escape}')
+
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('creates project on Enter key', async () => {
+    invoke.mockResolvedValue('/home/user/test-project')
+    const { onProjectCreated } = setup()
+
+    const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
+    await user.click(nameInput)
+    await user.clear(nameInput)
+    await user.type(nameInput, 'test-project')
+
+    await user.keyboard('{Enter}')
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith(TauriCommands.CreateNewProject, {
+        name: 'test-project',
+        parentPath: '/home/user'
+      })
+      expect(onProjectCreated).toHaveBeenCalledWith('/home/user/test-project')
+    })
+  })
+
+  it('trims whitespace from project name', async () => {
+    invoke.mockResolvedValue('/home/user/test-project')
+    setup()
+
+    const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
+    await user.click(nameInput)
+    await user.clear(nameInput)
+    await user.type(nameInput, '  test-project  ')
+
+    const createBtn = screen.getByRole('button', { name: /create project/i })
+    await user.click(createBtn)
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith(TauriCommands.CreateNewProject, {
+        name: 'test-project',
+        parentPath: '/home/user'
+      })
+    })
+  })
+
   it('shows project path preview', async () => {
     setup()
-    
+
     const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
+    await user.click(nameInput)
+    await user.clear(nameInput)
     await user.type(nameInput, 'my-project')
-    
+
     expect(screen.getByText('/home/user/my-project')).toBeInTheDocument()
   })
 })

@@ -152,8 +152,9 @@ export const TauriCommands = {
   SchaltwerkTerminalAcknowledgeOutput: 'terminal_acknowledge_output',
   UpdateRecentProjectTimestamp: 'update_recent_project_timestamp',
   WriteTerminal: 'write_terminal',
-  // Clipboard operations
-  ClipboardWriteText: 'clipboard_write_text',
+   // Clipboard operations
+   ClipboardWriteText: 'clipboard_write_text',
+   ClipboardReadText: 'clipboard_read_text',
   CheckForUpdatesNow: 'check_for_updates_now',
 } as const
 

@@ -25,6 +25,7 @@ import { makeAgentQueueConfig, makeDefaultQueueConfig } from '../../utils/termin
 import { useTerminalWriteQueue } from '../../hooks/useTerminalWriteQueue'
 import { TerminalLoadingOverlay } from './TerminalLoadingOverlay'
 import { TerminalSearchPanel } from './TerminalSearchPanel'
+import { detectPlatformSafe } from '../../keyboardShortcuts/helpers'
 import {
     writeTerminalBackend,
     resizeTerminalBackend,
@@ -126,7 +127,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const rehydrateInProgressRef = useRef<boolean>(false);
     const rehydrateHandledRef = useRef<boolean>(false);
     const wasSuspendedRef = useRef<boolean>(false);
-    // Tracks user-initiated SIGINT (Ctrl+C) to distinguish from startup/other exits.
+    // Tracks user-initiated interrupt signal to distinguish from startup/other exits.
     const lastSigintAtRef = useRef<number | null>(null);
     const [overflowEpoch, setOverflowEpoch] = useState(0);
     const overflowNoticesRef = useRef<number[]>([]);
@@ -732,7 +733,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                   unlisten = await listenEvent(SchaltEvent.TerminalClosed, (payload) => {
                       if (payload?.terminal_id !== terminalId) return;
                       
-                      // Only show banner if there's a recent SIGINT (user Ctrl+C) and terminal has actually started
+                      // Only show banner if there's a recent interrupt signal and terminal has actually started
                       const now = Date.now();
                       const sigintTime = lastSigintAtRef.current;
                       const timeSinceSigint = sigintTime ? now - sigintTime : Infinity;
@@ -1220,19 +1221,19 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 return true
             }
             
-            // Cmd+Enter for new line (like Claude Code)
+            // Modifier+Enter for new line (like Claude Code)
             if (modifierKey && event.key === 'Enter' && event.type === 'keydown') {
                 // Send a newline character without submitting the command
                 // This allows multiline input in shells that support it
                 writeTerminalBackend(terminalId, '\n').catch(err => logger.debug('[Terminal] newline ignored (backend not ready yet)', err));
                 return false; // Prevent default Enter behavior
             }
-            // Prefer Shift+Cmd/Ctrl+N as "New spec"
+            // Prefer Shift+Modifier+N as "New spec"
             if (modifierKey && event.shiftKey && (event.key === 'n' || event.key === 'N')) {
                 emitUiEvent(UiEvent.NewSpecRequest)
                 return false
             }
-            // Plain Cmd/Ctrl+N opens the regular new session modal
+            // Plain Modifier+N opens the regular new session modal
             if (modifierKey && !event.shiftKey && (event.key === 'n' || event.key === 'N')) {
                 emitUiEvent(UiEvent.GlobalNewSessionShortcut)
                 return false // Prevent xterm.js from processing this event
@@ -1818,10 +1819,12 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                  return;
              }
              
-             // Track SIGINT (Ctrl+C) for agent stop detection
+             // Track interrupt signal for agent stop detection
              if (isAgentTopTerminal && data === '\u0003') {
                  lastSigintAtRef.current = Date.now();
-                 logger.debug(`[Terminal ${terminalId}] SIGINT detected (Ctrl+C)`);
+                 const platform = detectPlatformSafe()
+                 const keyCombo = platform === 'mac' ? 'Cmd+C' : 'Ctrl+C'
+                 logger.debug(`[Terminal ${terminalId}] Interrupt signal detected (${keyCombo})`);
              }
              
             writeTerminalBackend(terminalId, data).catch(err => logger.debug('[Terminal] write ignored (backend not ready yet)', err));
@@ -2474,7 +2477,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                  </div>
              )}
              <TerminalLoadingOverlay visible={!hydrated || agentLoading} />
-            {/* Search UI opens via keyboard shortcut only (Cmd/Ctrl+F) */}
+            {/* Search UI opens via keyboard shortcut only (Modifier+F) */}
             {isSearchVisible && (
                 <TerminalSearchPanel
                     ref={searchContainerRef}
