@@ -136,6 +136,13 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(defaultInvokeImpl),
 }))
 
+vi.mock('./utils/platform', () => ({
+  isMacOS: vi.fn().mockResolvedValue(true),
+  isLinux: vi.fn().mockResolvedValue(false),
+  isWindows: vi.fn().mockResolvedValue(false),
+  getPlatform: vi.fn().mockResolvedValue('macos'),
+}))
+
 function renderApp() {
   return render(
     <TestProviders>
