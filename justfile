@@ -12,6 +12,8 @@
 #   dev-opt (opt-level=3 for deps) - Production-like performance for testing
 #   release (opt-level=3) - Used for production builds with maximum optimization
 
+pm := "node scripts/package-manager.mjs"
+
 # Clear all caches (build and application)
 clear:
     rm -rf node_modules/.vite dist dist-ssr src-tauri/target/debug/incremental src-tauri/target/debug/deps src-tauri/target/debug/build
@@ -97,13 +99,13 @@ setup:
     set -euo pipefail
     
     echo "📦 Installing dependencies..."
-    npm install
+    {{pm}} install
     
     # Setup MCP server if it exists
     if [ -d "mcp-server" ]; then
         echo "📦 Setting up MCP server..."
         cd mcp-server
-        npm ci --production=false
+        node ../scripts/package-manager.mjs install
         cd ..
         echo "✅ MCP server dependencies installed"
     fi
@@ -125,26 +127,26 @@ install:
     
     # Build frontend
     echo "📦 Building frontend..."
-    npm run build
+    {{pm}} run build
     
     # Build MCP server if it exists
     if [ -d "mcp-server" ]; then
         echo "📦 Building MCP server..."
         cd mcp-server
         # Ensure clean, reproducible deps before building (dev deps required for tsc)
-        echo "📦 Installing MCP server dependencies (ci)..."
-        npm ci
+        echo "📦 Installing MCP server dependencies (lockfile)..."
+        node ../scripts/package-manager.mjs install --frozen-lockfile
         # Build TypeScript sources
-        npm run build
+        node ../scripts/package-manager.mjs run build
         # Re-install with production-only deps for embedding inside the app bundle
-        npm ci --omit=dev
+        node ../scripts/package-manager.mjs install --production --frozen-lockfile
         cd ..
         echo "✅ MCP server built"
     fi
     
     # Build Tauri application for release
     echo "🦀 Building Tauri app..."
-    npm run tauri build
+    {{pm}} run tauri -- build
     
     # Find the built app bundle (handle different architectures)
     APP_PATH=""
@@ -257,8 +259,8 @@ run:
     {
       "build": {
         "devUrl": "http://localhost:$port",
-        "beforeDevCommand": "npm run dev",
-        "beforeBuildCommand": "npm run build",
+        "beforeDevCommand": "node scripts/package-manager.mjs run dev",
+        "beforeBuildCommand": "node scripts/package-manager.mjs run build",
         "frontendDist": "../dist"
       }
     }
@@ -278,7 +280,7 @@ run:
     
     # Start with dev profile (Tauri doesn't support custom profiles in dev mode)
     # The dev profile already has reasonable optimization settings
-    TAURI_SKIP_DEVSERVER_CHECK=true npm run tauri dev -- --config "$temp_config"
+    TAURI_SKIP_DEVSERVER_CHECK=true {{pm}} run tauri -- dev --config "$temp_config"
 
 # Run only the frontend (Vite dev server) on auto-detected port
 run-frontend:
@@ -289,7 +291,7 @@ run-frontend:
     echo "🌐 Starting frontend on port $port"
     
     export VITE_PORT=$port
-    npm run dev
+    {{pm}} run dev
 
 # Run only the backend (Tauri/Rust)
 run-backend:
@@ -306,7 +308,7 @@ run-split:
     echo "🔧 Starting split mode - Frontend: $port, Backend: separate process"
     
     # Start frontend in background
-    VITE_PORT=$port npm run dev &
+    VITE_PORT=$port {{pm}} run dev &
     frontend_pid=$!
     
     # Wait a moment for frontend to start
@@ -351,8 +353,8 @@ run-port port:
     if [ ! -f "$BINARY_PATH" ]; then
         echo "📦 No release binary found. Building one first..."
         echo "   This will take a few minutes but only needs to be done once."
-        npm run build
-        npm run tauri build
+        {{pm}} run build
+        {{pm}} run tauri -- build
         
         # Re-check for binary after build
         if [ -f "/tmp/schaltwerk-shared-target/release/schaltwerk" ]; then
@@ -395,8 +397,8 @@ run-port-dev port:
     {
       "build": {
         "devUrl": "http://localhost:{{port}}",
-        "beforeDevCommand": "npm run dev",
-        "beforeBuildCommand": "npm run build",
+        "beforeDevCommand": "node scripts/package-manager.mjs run dev",
+        "beforeBuildCommand": "node scripts/package-manager.mjs run build",
         "frontendDist": "../dist"
       }
     }
@@ -419,33 +421,32 @@ run-port-dev port:
     trap cleanup EXIT
     
     # Start Tauri with config override (standard dev profile for production-like performance)
-    npm run tauri dev -- --config "$temp_config"
+    {{pm}} run tauri -- dev --config "$temp_config"
 
 # Build the application for production
 build:
-    npm run build && npm run tauri build
+    {{pm}} run build && {{pm}} run tauri -- build
 
 
 # Build and run the application in production mode
 run-build:
-    npm run build && npm run tauri build && ./src-tauri/target/release/schaltwerk
+    {{pm}} run build && {{pm}} run tauri -- build && ./src-tauri/target/release/schaltwerk
 
 # Run all tests and lints (uses dev-fast profile for FASTEST compilation)
 test:
     #!/usr/bin/env bash
     set -euo pipefail
     if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    	echo "🐧 Running full test suite on Linux..."
-    	just _ensure-linux-rust-deps
-    	npm run test
+        echo "🐧 Running full test suite on Linux..."
+        just _ensure-linux-rust-deps
     elif [[ "$OSTYPE" == "darwin"* ]]; then
-    	echo "🍎 Running full test suite on macOS..."
-    	npm run test
+        echo "🍎 Running full test suite on macOS..."
     else
-    	echo "❌ Unsupported platform for testing: $OSTYPE"
-    	echo "   Supported: Linux, macOS"
-    	exit 1
+        echo "❌ Unsupported platform for testing: $OSTYPE"
+        echo "   Supported: Linux, macOS"
+        exit 1
     fi
+    {{pm}} run test
 
 
 # Run only frontend tests (TypeScript, linting, unit tests)
@@ -457,8 +458,8 @@ run-release:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "🚀 Building Schaltwerk (release bundle, no auto-reload)…"
-    npm run build
-    npm run tauri build
+    {{pm}} run build
+    {{pm}} run tauri -- build
     echo "✅ Build complete. Launching binary from HOME directory…"
     # Always start from HOME directory when using 'just run' commands
     # Pass repository path explicitly so backend can discover it even from packaged runs
@@ -496,11 +497,11 @@ run-port-release port:
     
     # Build frontend
     echo "📦 Building frontend..."
-    npm run build
+    {{pm}} run build
     
     # Build Tauri app properly (this embeds the frontend assets)
     echo "🦀 Building Tauri app (with frontend embedded)..."
-    npm run tauri build
+    {{pm}} run tauri -- build
     
     echo "✅ Build complete. Launching release binary from HOME directory..."
     # Always start from HOME directory when using 'just run' commands
@@ -679,7 +680,6 @@ run-x11:
     set -euo pipefail
     echo "🚀 Starting Schaltwerk with X11 backend..."
     GDK_BACKEND=x11 npm run tauri:dev
-
 
 
 

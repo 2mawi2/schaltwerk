@@ -55,7 +55,7 @@ vi.mock('../../terminal/transport/transportFlags', () => ({
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(async (cmd: string) => {
     if (cmd === TauriCommands.GetProjectRunScript) {
-      return { command: 'npm run dev', environmentVariables: {} }
+      return { command: 'bun run dev', environmentVariables: {} }
     }
     if (cmd === TauriCommands.TerminalExists) return false
     if (cmd === TauriCommands.CreateRunTerminal) return 'run-terminal-test'
@@ -148,7 +148,7 @@ describe('RunTerminal', () => {
     // Update mock to track terminal creation
     mockInvoke.mockImplementation(async (cmd: string) => {
       if (cmd === TauriCommands.GetProjectRunScript) {
-        return { command: 'npm run dev', environmentVariables: {} }
+        return { command: 'bun run dev', environmentVariables: {} }
       }
       if (cmd === TauriCommands.TerminalExists) return terminalCreated
       if (cmd === TauriCommands.CreateRunTerminal) {
@@ -163,7 +163,7 @@ describe('RunTerminal', () => {
 
     // Wait for component to load
     await screen.findByText('Ready to run:')
-    expect(screen.getByText('npm run dev')).toBeInTheDocument()
+    expect(screen.getByText('bun run dev')).toBeInTheDocument()
 
     // Start run
     await act(async () => {
@@ -202,7 +202,7 @@ describe('RunTerminal', () => {
 
     mockInvoke.mockImplementation(async (cmd: string) => {
       if (cmd === TauriCommands.GetProjectRunScript) {
-        return { command: 'npm run dev', environmentVariables: {} }
+        return { command: 'bun run dev', environmentVariables: {} }
       }
       if (cmd === TauriCommands.TerminalExists) return terminalCreated
       if (cmd === TauriCommands.CreateRunTerminal) {
@@ -236,7 +236,7 @@ describe('RunTerminal', () => {
 
     mockInvoke.mockImplementation(async (cmd: string, args?: unknown) => {
       if (cmd === TauriCommands.GetProjectRunScript) {
-        return { command: 'npm run dev', environmentVariables: {} }
+        return { command: 'bun run dev', environmentVariables: {} }
       }
       if (cmd === TauriCommands.TerminalExists) return terminalCreated
       if (cmd === TauriCommands.CreateRunTerminal) {
@@ -287,7 +287,7 @@ describe('RunTerminal', () => {
 
     mockInvoke.mockImplementation(async (cmd: string, _args?: unknown) => {
       if (cmd === TauriCommands.GetProjectRunScript) {
-        return { command: 'npm run dev', environmentVariables: {} }
+        return { command: 'bun run dev', environmentVariables: {} }
       }
       if (cmd === TauriCommands.TerminalExists) return terminalCreated
       if (cmd === TauriCommands.CreateRunTerminal) {

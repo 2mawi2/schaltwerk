@@ -131,21 +131,21 @@ We actively welcome contributions—whether that's reporting issues, improving d
 
 ### Development
 
-Install dependencies with `npm install`, then choose the workflow that suits you best. The [`Justfile`](./Justfile) lists optional recipes if you prefer using [`just`](https://github.com/casey/just); each recipe maps to standard npm/cargo commands you can run directly.
+Install dependencies with `bun install` (or `npm install` if you prefer), then choose the workflow that suits you best. The [`Justfile`](./Justfile) lists optional recipes if you prefer using [`just`](https://github.com/casey/just); each recipe maps to standard package-manager/cargo commands you can run directly.
 
 ```bash
 # Optional helpers via just (install with brew install just)
-npm install
+bun install          # or: npm install
 just test            # Run full validation suite before commits
 just run             # Start dev app with hot reload
 just release         # Create new release (patch/minor/major)
 ```
 
 ```bash
-# Or stick with plain npm/cargo commands
-npm run test         # Lint, clippy, tests, build
-npm run tauri:dev    # Start dev app with hot reload
-npm run tauri:build  # Production build
+# Or stick with plain package-manager/cargo commands
+bun run test         # or: npm run test
+bun run tauri:dev    # or: npm run tauri:dev
+bun run tauri:build  # or: npm run tauri:build
 ```
 
 GitHub Actions builds and updates the Homebrew tap automatically.

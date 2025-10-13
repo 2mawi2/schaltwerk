@@ -5,6 +5,8 @@ description: 'Real-world examples of how to use Schaltwerk effectively'
 
 Discover how Schaltwerk solves real development challenges with isolated AI agents and parallel workflows.
 
+> **Note:** Command examples use `bun`. Replace `bun run …` with `npm run …` (and `bun install` with `npm install`) if you prefer npm.
+
 ## Parallel Feature Development
 
 <Accordion title="Build multiple features simultaneously">
@@ -71,7 +73,7 @@ Discover how Schaltwerk solves real development challenges with isolated AI agen
   <Steps>
     <Step title="Identify bugs">
       ```bash
-      npm test 2>&1 | grep "FAIL"
+      bun run test 2>&1 | grep "FAIL"
       # Output:
       # FAIL auth/login.test.ts
       # FAIL api/users.test.ts
@@ -95,7 +97,7 @@ Discover how Schaltwerk solves real development challenges with isolated AI agen
     <Step title="Verify fixes">
       ```bash
       # In each session's bottom terminal
-      npm test -- auth/login.test.ts
+      bun run test -- auth/login.test.ts
       # Verify specific test passes
       ```
     </Step>
@@ -164,16 +166,16 @@ Discover how Schaltwerk solves real development challenges with isolated AI agen
     <Step title="Validate thoroughly">
       ```bash
       # Run full test suite
-      npm test
+      bun run test
 
       # Run integration tests
-      npm run test:integration
+      bun run test:integration
 
       # Check code coverage
-      npm run coverage
+      bun run coverage
 
       # Performance benchmarks
-      npm run benchmark
+      bun run benchmark
       ```
     </Step>
 
@@ -263,7 +265,7 @@ Discover how Schaltwerk solves real development challenges with isolated AI agen
     <Step title="Benchmark all three">
       ```bash
       # Run benchmarks in each session
-      npm run benchmark -- cache
+      bun run benchmark -- cache
 
       # Compare results
       Redis: 5ms avg, 98% hit rate, 50MB memory
@@ -492,7 +494,7 @@ Discover how Schaltwerk solves real development challenges with isolated AI agen
   <Steps>
     <Step title="Identify bottlenecks">
       ```bash
-      npm run benchmark
+      bun run benchmark
       # Output:
       # API response time: 500ms (slow)
       # Database queries: 200ms (acceptable)
@@ -547,7 +549,7 @@ Discover how Schaltwerk solves real development challenges with isolated AI agen
   <Steps>
     <Step title="Identify untested code">
       ```bash
-      npm run coverage
+      bun run coverage
       # Identifies files with low coverage
       # auth/login.ts: 30%
       # api/users.ts: 40%
@@ -582,7 +584,7 @@ Discover how Schaltwerk solves real development challenges with isolated AI agen
     <Step title="Verify coverage">
       ```bash
       # After merging all test sessions
-      npm run coverage
+      bun run coverage
       # Total coverage: 87% ✓
       ```
     </Step>
@@ -635,9 +637,9 @@ Discover how Schaltwerk solves real development challenges with isolated AI agen
     <Step title="Verify at each step">
       ```bash
       # After each phase
-      npm run typecheck
-      npm test
-      npm run build
+      bun run typecheck
+      bun run test
+      bun run build
       ```
     </Step>
   </Steps>

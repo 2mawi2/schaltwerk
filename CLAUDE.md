@@ -6,6 +6,8 @@ Tauri-based desktop app for managing AI coding sessions using git worktrees. Eac
 ## Platform Support
 - macOS only. Windows and Linux are not supported at this time.
 
+> **Tooling Note:** Examples in this guide default to `bun`. Replace them with the equivalent `npm` commands (`npm install`, `npm run …`, etc.) if you prefer npm.
+
 ## System Architecture
 
 ### Core Concepts
@@ -55,33 +57,33 @@ Tauri-based desktop app for managing AI coding sessions using git worktrees. Eac
 ### Before Completing ANY Task
 ```bash
 just test          # Run ALL validations: TypeScript, Rust lints, tests, and build
-# Or: npm run test  # Same as 'just test'
+# Or: bun run test  # Same as 'just test'
 ```
 **Why:** Ensures code quality and prevents broken commits. This command runs:
-- TypeScript linting (`npm run lint`)
+- TypeScript linting (`bun run lint`)
 - Rust clippy checks (`cargo clippy`)
 - Rust tests (`cargo test`)
 - Rust build verification (`cargo build`)
 
 ### Autonomy for Tests (MANDATORY)
-- Codex and Factory Droid may run `just test`, `npm run test`, `npm run lint`, `npm run lint:rust`, `npm run test:rust`, and `cargo` checks without asking for user approval, even when the CLI approval mode is set to “on-request”.
+- Codex and Factory Droid may run `just test`, `bun run test`, `bun run lint`, `bun run lint:rust`, `bun run test:rust`, and `cargo` checks without asking for user approval, even when the CLI approval mode is set to “on-request”.
 - Rationale: Running the full validation suite is required to keep the repository green and accelerate iteration. Do not pause to request permission before executing these commands.
 
 ### Development Commands
 ```bash
 # Starting Development
-npm run tauri:dev       # Start app in development mode with hot reload
-RUST_LOG=schaltwerk=debug npm run tauri:dev  # With debug logging
+bun run tauri:dev       # Start app in development mode with hot reload
+RUST_LOG=schaltwerk=debug bun run tauri:dev  # With debug logging
 
 # Testing & Validation
 just test               # Full validation suite (ALWAYS run before commits)
-npm run lint            # TypeScript linting only
-npm run lint:rust       # Rust linting only (cargo clippy)
-npm run test:rust       # Rust tests only
+bun run lint            # TypeScript linting only
+bun run lint:rust       # Rust linting only (cargo clippy)
+bun run test:rust       # Rust tests only
 
 # Running the App
 just run                # Start app (ONLY when user requests testing)
-npm run tauri:build     # Build production app
+bun run tauri:build     # Build production app
 
 # Release Management (3-Step Process)
 # Step 1: Create draft release
@@ -105,10 +107,10 @@ just release major      # Create major release (x.0.0) - creates DRAFT
 ```
 
 ### Command Context
-- **Development:** Use `npm run tauri:dev` for active development with hot reload
+- **Development:** Use `bun run tauri:dev` for active development with hot reload
 - **Testing:** Always run `just test` before considering any task complete
 - **Debugging:** Set `RUST_LOG` environment variable for detailed logging
-- **Production:** Use `npm run tauri:build` to create distributable app
+- **Production:** Use `bun run tauri:build` to create distributable app
 
 ## How Things Actually Work
 
@@ -190,7 +192,7 @@ When creating specs for implementation agents:
 - **Include**: Platform-specific APIs, code snippets, data flows, dependencies
 
 ### Before ANY Commit
-Run `npm run test` - ALL must pass:
+Run `bun run test` - ALL must pass:
 - TypeScript linting
 - Rust clippy
 - Rust tests
@@ -283,8 +285,8 @@ Example: Instead of `setTimeout(() => checkIfReady(), 100)`, use proper event li
 
 ### Configuration
 ```bash
-RUST_LOG=schaltwerk=debug npm run tauri:dev  # Debug our code
-RUST_LOG=trace npm run tauri:dev             # Maximum verbosity
+RUST_LOG=schaltwerk=debug bun run tauri:dev  # Debug our code
+RUST_LOG=trace bun run tauri:dev             # Maximum verbosity
 ```
 
 ### Location
@@ -300,7 +302,7 @@ macOS: `~/Library/Application Support/schaltwerk/logs/schaltwerk-{timestamp}.log
 - Use REST API only (never direct database access)
 - Stateless design
 - All operations through `src-tauri/src/mcp_api.rs`
-- Rebuild after changes: `cd mcp-server && npm run build`
+- Rebuild after changes: `cd mcp-server && bun run build`
 
 ## Release Process
 
@@ -322,10 +324,10 @@ Automatically updates versions, commits, tags, and triggers GitHub Actions.
 ## Development Workflow
 
 1. Make changes
-2. Run `npm run lint` (TypeScript)
-3. Run `npm run lint:rust` (Rust)
-4. Run `npm run test` (full validation)
-5. Test: `npm run tauri:dev`
+2. Run `bun run lint` (TypeScript)
+3. Run `bun run lint:rust` (Rust)
+4. Run `bun run test` (full validation)
+5. Test: `bun run tauri:dev`
 6. Only commit when all checks pass
 
 ## Important Notes

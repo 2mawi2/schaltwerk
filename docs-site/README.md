@@ -6,8 +6,8 @@ Documentation website built with [Mintlify](https://mintlify.com).
 
 ```bash
 cd docs-site
-npm install
-npm run dev
+bun install      # or: npm install
+bun run dev      # or: npm run dev
 ```
 
 Opens at `http://localhost:3000` with hot reload.

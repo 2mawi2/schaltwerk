@@ -19,6 +19,8 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    env:
+      SCHALTWERK_PM: npm
     # For GitHub Actions, use their runner image
     # For act local testing, use our custom image via actrc config
     
@@ -46,6 +48,12 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
+      - name: Setup Bun
+        if: ${{ !env.ACT }}
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.16'
+
       - name: Setup Rust (GitHub Actions)
         # Skip in act since Rust is pre-installed in custom image
         if: ${{ !env.ACT }}
@@ -67,10 +75,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      - name: Install Node dependencies
+      - name: Install dependencies
         run: |
-          rm -rf node_modules package-lock.json
-          npm install
+          if [ "${SCHALTWERK_PM:-bun}" = "bun" ]; then
+            rm -rf node_modules bun.lock bun.lockb
+          else
+            rm -rf node_modules
+          fi
+          node scripts/package-manager.mjs install --frozen-lockfile
 
       - name: Run full test suite (lint, TS, clippy, frontend, Rust, build)
-        run: npm run test
+        run: node scripts/package-manager.mjs run test

@@ -20,6 +20,8 @@ jobs:
     runs-on: ubuntu-latest
     # Only run for tag pushes, not manual workflow dispatch
     if: startsWith(github.ref, 'refs/tags/')
+    env:
+      SCHALTWERK_PM: npm
     
     steps:
       - name: Checkout code
@@ -39,7 +41,11 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: '20'
-          cache: 'npm'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.16'
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -59,11 +65,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      - name: Install Node dependencies
-        run: npm ci
+      - name: Install dependencies
+        run: node scripts/package-manager.mjs install --frozen-lockfile
 
       - name: Run full test suite
-        run: npm run test
+        run: node scripts/package-manager.mjs run test
 
   build-macos:
     name: Build macOS Universal Binary
@@ -71,6 +77,8 @@ jobs:
     # Depend on test job for tag pushes, run directly for manual dispatch
     needs: [test]
     if: always() && (needs.test.result == 'success' || needs.test.result == 'skipped')
+    env:
+      SCHALTWERK_PM: npm
     
     steps:
       - name: Checkout code
@@ -80,6 +88,11 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: '20'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.16'
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -102,24 +115,24 @@ jobs:
 
       - name: Install dependencies
         run: |
-          npm cache clean --force
+          node scripts/package-manager.mjs cache-clean || true
           rm -rf node_modules
-          npm install
+          node scripts/package-manager.mjs install --frozen-lockfile
 
       # Tests run in separate workflow - releases depend on successful test runs
       # This saves ~3-4 minutes in release workflow
 
       - name: Build frontend
-        run: npm run build
+        run: node scripts/package-manager.mjs run build
 
       - name: Build MCP Server with Dependencies  
         run: |
           echo "🔨 Building MCP server..."
           cd mcp-server
-          npm ci --production=false
-          npm run build
+          node ../scripts/package-manager.mjs install --frozen-lockfile
+          node ../scripts/package-manager.mjs run build
           # Install production dependencies for embedding
-          npm ci --production --prefix .
+          node ../scripts/package-manager.mjs install --production --frozen-lockfile
           cd ..
           echo "✅ MCP server built with dependencies"
 
@@ -133,9 +146,9 @@ jobs:
           CARGO_TARGET_AARCH64_APPLE_DARWIN_RUSTFLAGS: '-C target-feature=+aes,+sha2,+crc,+neon'
         run: |
           # Build both targets in parallel with optimized settings (saves 2-3 minutes)
-          npm run tauri build -- --target x86_64-apple-darwin &
+          node scripts/package-manager.mjs run tauri -- build --target x86_64-apple-darwin &
           PID_INTEL=$!
-          npm run tauri build -- --target aarch64-apple-darwin &
+          node scripts/package-manager.mjs run tauri -- build --target aarch64-apple-darwin &
           PID_ARM=$!
           
           # Wait for both builds to complete
@@ -237,7 +250,7 @@ jobs:
             SIGN_ARGS+=(--password "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD")
           fi
 
-          SIGNATURE=$(npm run tauri -- "${SIGN_ARGS[@]}" | awk '/Public signature:/{getline; gsub(/\r/, ""); print}' | tr -d '\n')
+          SIGNATURE=$(node scripts/package-manager.mjs run tauri -- "${SIGN_ARGS[@]}" | awk '/Public signature:/{getline; gsub(/\r/, ""); print}' | tr -d '\n')
           rm -f updater-private.key "$ARCHIVE_NAME.sig"
 
           if [ -z "$SIGNATURE" ]; then

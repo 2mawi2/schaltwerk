@@ -5,6 +5,7 @@
   "license": "MIT",
   "author": "Schaltwerk Contributors",
   "description": "AI-powered git worktree session manager for isolated development environments",
+  "packageManager": "bun@1.2.16",
   "repository": {
     "type": "git",
     "url": "https://github.com/schaltwerk/schaltwerk.git"
@@ -26,16 +27,16 @@
     "test:frontend:coverage": "ROLLUP_SKIP_NODEJS_NATIVE_ADDON=1 vitest run --coverage",
     "test:frontend:watch": "ROLLUP_SKIP_NODEJS_NATIVE_ADDON=1 vitest",
     "test:rust": "cd src-tauri && CARGO_TERM_COLOR=never RUST_LOG=warn cargo test -q",
-    "test": "npm run lint && npm run lint:ts && npm run lint:rust && npm run test:frontend && npm run test:rust && npm run build:rust",
-    "test:fast": "npm run lint & npm run lint:ts & npm run test:frontend & wait && npm run lint:rust && npm run test:rust && npm run build:rust",
+    "test": "run-s lint lint:ts lint:rust test:frontend test:rust build:rust",
+    "test:fast": "run-p lint lint:ts test:frontend && run-s lint:rust test:rust build:rust",
     "coverage:report": "node scripts/coverage-report.js",
     "coverage:rust:run": "mkdir -p coverage && (cd src-tauri && rustup component add llvm-tools-preview && cargo install cargo-llvm-cov --locked -q) && (cd src-tauri && cargo llvm-cov --lcov --output-path ../coverage/rust-lcov.info)",
     "coverage:rust:report": "node scripts/coverage-report-rust.js",
-    "coverage:rust": "npm run coverage:rust:run && npm run coverage:rust:report",
-    "coverage:all": "npm run test:frontend:coverage && npm run coverage:report && npm run coverage:rust",
-    "coverage": "npm run test:frontend:coverage && npm run coverage:report",
+    "coverage:rust": "run-s coverage:rust:run coverage:rust:report",
+    "coverage:all": "run-s test:frontend:coverage coverage:report coverage:rust",
+    "coverage": "run-s test:frontend:coverage coverage:report",
     "build:rust": "cd src-tauri && cargo build --message-format=short",
-    "check": "npm run test",
+    "check": "run-s test",
     "migrate-events": "node scripts/migrate-events.cjs",
     "validate-migration": "node scripts/validate-migration.cjs"
   },
@@ -94,6 +95,7 @@
     "terser": "^5.44.0",
     "typescript": "~5.9.3",
     "vite": "^7.1.9",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "npm-run-all2": "^8.0.0"
   }
 }

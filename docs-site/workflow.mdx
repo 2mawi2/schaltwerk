@@ -125,12 +125,13 @@ Before marking as reviewed:
     - Verify no secrets were added
   </Step>
 
-  <Step title="Run tests">
+<Step title="Run tests">
     In the bottom terminal or with `⌘E`:
+    > Swap `bun` for `npm` if you're using npm scripts.
     ```bash
-    npm test        # or your test command
-    npm run lint    # check for style issues
-    npm run build   # verify it builds
+    bun run test    # or: npm run test
+    bun run lint    # or: npm run lint
+    bun run build   # or: npm run build
     ```
   </Step>
 

@@ -82,8 +82,8 @@ If you prefer to set up manually:
 
 ```bash
 cd mcp-server
-npm install
-npm run build
+bun install
+bun run build    # or: npm run build
 ```
 
 #### 2. Configure Claude Code (CLI)
@@ -168,14 +168,14 @@ The MCP server also exposes resources you can read:
 
 ```bash
 cd mcp-server
-npm run dev  # Watch mode for TypeScript
+bun run dev  # Watch mode for TypeScript (or: npm run dev)
 node build/schaltwerk-mcp-server.js  # Run the server
 ```
 
 ### Testing
 
 ```bash
-npm test
+bun run test     # or: npm run test
 ```
 
   ## Session Protection & Recovery

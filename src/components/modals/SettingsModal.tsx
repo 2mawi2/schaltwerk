@@ -970,7 +970,7 @@ fi`}
                             </div>
                             <ul className="text-caption text-slate-400 space-y-1 list-disc list-inside">
                                 <li>Copy environment files (.env, .env.local)</li>
-                                <li>Install dependencies (npm install, pip install)</li>
+                                <li>Install dependencies (bun install, pip install)</li>
                                 <li>Set up database connections</li>
                                 <li>Configure IDE settings</li>
                                 <li>Create required directories</li>
@@ -990,7 +990,7 @@ fi`}
                                     type="text"
                                     value={runScript.command}
                                     onChange={(e) => setRunScript(prev => ({ ...prev, command: e.target.value }))}
-                                    placeholder="e.g., npm run dev"
+                                    placeholder="e.g., bun run dev or npm run dev"
                                     className={`w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
                                 />
                             </div>
@@ -1045,7 +1045,7 @@ fi`}
                         </div>
                             </div>
                             <div className="p-3 bg-slate-800/50 border border-slate-700 rounded text-caption text-slate-500">
-                                Tip: Use an npm script (e.g., "dev") or any shell command. The command runs in a dedicated read-only terminal and ends when the process exits.
+                                Tip: Use a package manager script (for example, "bun run dev" or "npm run dev") or any shell command. The command runs in a dedicated read-only terminal and ends when the process exits.
                             </div>
                         </div>
                     </div>

@@ -1,8 +1,10 @@
 import { platform } from '@tauri-apps/plugin-os'
 
-let cachedPlatform: string | null = null
+type SupportedPlatform = 'macos' | 'linux' | 'windows'
 
-export async function getPlatform(): Promise<string> {
+let cachedPlatform: SupportedPlatform | null = null
+
+export async function getPlatform(): Promise<SupportedPlatform> {
   if (cachedPlatform === null) {
     cachedPlatform = await platform()
   }

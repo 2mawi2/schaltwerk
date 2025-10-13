@@ -9,8 +9,8 @@ Thanks for your interest in helping build Schaltwerk! We appreciate contribution
 
 ## Getting Started
 1. Fork and clone the repository (macOS only).
-2. Install dependencies with `npm install`.
-3. Launch the desktop app locally with `npm run tauri:dev`.
+2. Install dependencies with `bun install` (or `npm install` if you prefer).
+3. Launch the desktop app locally with `bun run tauri:dev` (or `npm run tauri:dev`).
 4. Use the [docs](https://schaltwerk.mintlify.app) for architecture, session flow, and agent management details.
 
 ## Project Practices
