@@ -20,7 +20,7 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     env:
-      SCHALTWERK_PM: bun
+      SCHALTWERK_PM: npm
     # For GitHub Actions, use their runner image
     # For act local testing, use our custom image via actrc config
     
