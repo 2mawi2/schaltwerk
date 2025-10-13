@@ -21,49 +21,6 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
   
   const platform = detectPlatformSafe()
 
-
-  const loadRecentProjects = async () => {
-    try {
-      const projects = await invoke<RecentProject[]>(TauriCommands.GetRecentProjects)
-      setRecentProjects(projects.sort((a, b) => b.lastOpened - a.lastOpened))
-    } catch (err) {
-      logger.error('Failed to load recent projects:', err)
-    }
-  }
-
-  const handleOpenRecent = useCallback(async (project: RecentProject) => {
-    setError(null)
-
-    try {
-      const exists = await invoke<boolean>(TauriCommands.DirectoryExists, {
-        path: project.path
-      })
-
-      if (!exists) {
-        setError(`Project directory no longer exists: ${project.path}`)
-        await invoke(TauriCommands.RemoveRecentProject, { path: project.path })
-        await loadRecentProjects()
-        return
-      }
-
-      const isGitRepo = await invoke<boolean>(TauriCommands.IsGitRepository, {
-        path: project.path
-      })
-
-      if (!isGitRepo) {
-        setError('Selected directory is no longer a Git repository.')
-        await invoke(TauriCommands.RemoveRecentProject, { path: project.path })
-        await loadRecentProjects()
-        return
-      }
-
-      await invoke(TauriCommands.UpdateRecentProjectTimestamp, { path: project.path })
-      onOpenProject(project.path)
-    } catch (err) {
-      logger.error('Failed to open recent project:', err)
-      setError(`Failed to open project: ${err}`)
-    }
-  }, [onOpenProject])
   const {
     recentProjects,
     error,
