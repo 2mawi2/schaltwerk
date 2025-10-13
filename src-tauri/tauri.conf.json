@@ -15,8 +15,8 @@
       {
         "title": "Schaltwerk",
         "maximized": true,
-        "width": 1920,
-        "height": 1080,
+        "width": 1280,
+        "height": 720,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
         "dragDropEnabled": false
@@ -40,7 +40,10 @@
     "active": true,
     "targets": [
       "app",
-      "dmg"
+      "dmg",
+      "deb",
+      "rpm",
+      "appimage"
     ],
     "publisher": "Marius Wichtner",
     "copyright": "© 2024 Marius Wichtner",
@@ -54,6 +57,14 @@
       "signingIdentity": null,
       "providerShortName": null,
       "entitlements": null
+    },
+    "linux": {
+      "deb": {
+        "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0"]
+      },
+      "appimage": {
+        "bundleMediaFramework": false
+      }
     },
     "icon": [
       "icons/32x32.png",

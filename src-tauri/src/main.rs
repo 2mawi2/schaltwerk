@@ -779,8 +779,9 @@ fn main() {
             get_app_version,
             check_for_updates_now,
             schaltwerk_core_log_frontend_message,
-            // Clipboard
-            #[cfg(target_os = "macos")] commands::clipboard::clipboard_write_text,
+            // Clipboard (cross-platform)
+            commands::clipboard::clipboard_write_text,
+            commands::clipboard::clipboard_read_text,
             // MCP commands
             start_mcp_server,
             // Para core commands

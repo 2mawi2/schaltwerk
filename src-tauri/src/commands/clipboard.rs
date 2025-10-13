@@ -30,3 +30,51 @@ pub fn clipboard_write_text(text: String) -> Result<(), String> {
         Err(format!("pbcopy exited with status: {status}"))
     }
 }
+
+/// Read plain text from the system clipboard using `pbpaste` (macOS)
+#[cfg(target_os = "macos")]
+#[tauri::command]
+pub fn clipboard_read_text() -> Result<String, String> {
+    use std::process::Command;
+
+    let output = Command::new("pbpaste")
+        .output()
+        .map_err(|e| format!("Failed to spawn pbpaste: {e}"))?;
+
+    if output.status.success() {
+        String::from_utf8(output.stdout)
+            .map_err(|e| format!("Clipboard content is not valid UTF-8: {e}"))
+    } else {
+        Err(format!("pbpaste exited with status: {}", output.status))
+    }
+}
+
+/// Write plain text to the system clipboard using arboard (Linux)
+#[cfg(target_os = "linux")]
+#[tauri::command]
+pub fn clipboard_write_text(text: String) -> Result<(), String> {
+    use arboard::Clipboard;
+
+    let mut clipboard = Clipboard::new()
+        .map_err(|e| format!("Failed to initialize clipboard: {e}"))?;
+
+    clipboard
+        .set_text(text)
+        .map_err(|e| format!("Failed to write to clipboard: {e}"))
+}
+
+/// Read plain text from the system clipboard using arboard (Linux)
+#[cfg(target_os = "linux")]
+#[tauri::command]
+pub fn clipboard_read_text() -> Result<String, String> {
+    use arboard::Clipboard;
+
+    let mut clipboard = Clipboard::new()
+        .map_err(|e| format!("Failed to initialize clipboard: {e}"))?;
+
+    clipboard
+        .get_text()
+        .map_err(|e| format!("Failed to read from clipboard: {e}"))
+}
+
+
