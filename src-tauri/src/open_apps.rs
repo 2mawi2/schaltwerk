@@ -452,8 +452,9 @@ fn open_path_in(app_id: &str, path: &str) -> Result<(), String> {
                         .status()
                 }
             }
-            "intellij" => return open_path_in_intellij(working_dir.as_str()),
-            "vscode" => {
+            // Support both legacy "intellij"/"vscode" ids and new "idea"/"code" ids
+            "intellij" | "idea" => return open_path_in_intellij(working_dir.as_str()),
+            "vscode" | "code" => {
                 // Try CLI first, fall back to open -a
                 if which::which("code").is_ok() {
                     std::process::Command::new("code").arg(working_dir.as_str()).status()
@@ -488,10 +489,11 @@ fn open_path_in(app_id: &str, path: &str) -> Result<(), String> {
                 // Non-zero exit code likely means app not found
                 let app_name = match app_id {
                     "cursor" => "Cursor",
-                    "vscode" => "VS Code",
+                    "vscode" | "code" => "VS Code",
                     "warp" => "Warp",
                     "terminal" => "Terminal",
                     "ghostty" => "Ghostty",
+                    "intellij" | "idea" => "IntelliJ IDEA",
                     _ => app_id,
                 };
                 Err(format!("{app_name} is not installed. Please install it from the official website or choose a different application."))
@@ -500,11 +502,12 @@ fn open_path_in(app_id: &str, path: &str) -> Result<(), String> {
                 // Command execution failed
                 let app_name = match app_id {
                     "cursor" => "Cursor",
-                    "vscode" => "VS Code",
+                    "vscode" | "code" => "VS Code",
                     "warp" => "Warp",
                     "terminal" => "Terminal",
                     "finder" => "Finder",
                     "ghostty" => "Ghostty",
+                    "intellij" | "idea" => "IntelliJ IDEA",
                     _ => app_id,
                 };
                 Err(format!("Failed to open in {app_name}: {e}"))
