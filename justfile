@@ -27,13 +27,13 @@ clear:
 release version="patch":
     #!/usr/bin/env bash
     set -euo pipefail
-    
-    echo "🚀 Starting release process..."
-    
+
+    echo "Starting release process..."
+
     # Get current version from tauri.conf.json
     CURRENT_VERSION=$(grep '"version"' src-tauri/tauri.conf.json | head -1 | sed 's/.*"version": "\(.*\)".*/\1/')
-    echo "📌 Current version: $CURRENT_VERSION"
-    
+    echo "Current version: $CURRENT_VERSION"
+
     # Calculate new version based on argument (patch, minor, major, or specific version)
     if [[ "{{version}}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
         NEW_VERSION="{{version}}"
@@ -51,101 +51,98 @@ release version="patch":
                 ;;
         esac
     fi
-    
-    echo "📦 New version: $NEW_VERSION"
-    
+
+    echo "New version: $NEW_VERSION"
+
     # Update version in tauri.conf.json
     if [[ "$OSTYPE" == "darwin"* ]]; then
         sed -i '' "s/\"version\": \"$CURRENT_VERSION\"/\"version\": \"$NEW_VERSION\"/" src-tauri/tauri.conf.json
     else
         sed -i "s/\"version\": \"$CURRENT_VERSION\"/\"version\": \"$NEW_VERSION\"/" src-tauri/tauri.conf.json
     fi
-    
+
     # Update version in Cargo.toml
     if [[ "$OSTYPE" == "darwin"* ]]; then
         sed -i '' "s/^version = \"$CURRENT_VERSION\"/version = \"$NEW_VERSION\"/" src-tauri/Cargo.toml
     else
         sed -i "s/^version = \"$CURRENT_VERSION\"/version = \"$NEW_VERSION\"/" src-tauri/Cargo.toml
     fi
-    
+
     # Update Cargo.lock
     cd src-tauri && cargo update -p schaltwerk && cd ..
-    
+
     # Commit version bump
     git add src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock
     git commit -m "chore: bump version to $NEW_VERSION"
-    
+
     # Create and push tag
     git tag "v$NEW_VERSION"
-    
-    echo "📤 Pushing to remote..."
+
+    echo "Pushing to remote..."
     git push origin HEAD
     git push origin "v$NEW_VERSION"
-    
-    echo "✅ Release v$NEW_VERSION created successfully!"
+
+    echo "Release v$NEW_VERSION created successfully!"
     echo ""
-    echo "🔄 GitHub Actions will now:"
-    echo "  • Build universal macOS binary"
-    echo "  • Build Linux DEB, RPM, and AppImage packages"
-    echo "  • Create GitHub release"
-    echo "  • Update Homebrew tap"
+    echo "GitHub Actions will now:"
+    echo "  - Build universal macOS binary"
+    echo "  - Build Linux DEB, RPM, and AppImage packages"
+    echo "  - Create GitHub release"
+    echo "  - Update Homebrew tap"
     echo ""
-    echo "📊 Monitor progress at:"
+    echo "Monitor progress at:"
     echo "  https://github.com/2mawi2/schaltwerk/actions"
 
 # Setup dependencies for development
 setup:
     #!/usr/bin/env bash
     set -euo pipefail
-    
-    echo "📦 Installing dependencies..."
+    echo "Installing dependencies..."
     {{pm}} install
-    
     # Setup MCP server if it exists
     if [ -d "mcp-server" ]; then
-        echo "📦 Setting up MCP server..."
+        echo "Setting up MCP server..."
         cd mcp-server
         node ../scripts/package-manager.mjs install
         cd ..
-        echo "✅ MCP server dependencies installed"
+        echo "MCP server dependencies installed"
     fi
-    
-    echo "✅ Setup complete! You can now run 'just install' to build and install the app"
+
+    echo "Setup complete! You can now run 'just install' to build and install the app"
 
 # Install the application on macOS (builds and installs to /Applications)
 install:
     #!/usr/bin/env bash
     set -euo pipefail
-    
-    echo "🔨 Building Schaltwerk for macOS..."
-    
+
+    echo "Building Schaltwerk for macOS..."
+
     # Check if node_modules exists, if not run setup first
     if [ ! -d "node_modules" ]; then
-        echo "📦 Dependencies not found. Running setup first..."
+        echo "Dependencies not found. Running setup first..."
         just setup
     fi
-    
+
     # Build frontend
-    echo "📦 Building frontend..."
+    echo "Building frontend..."
     {{pm}} run build
-    
     # Build MCP server if it exists
     if [ -d "mcp-server" ]; then
-        echo "📦 Building MCP server..."
+        echo "Building MCP server..."
         cd mcp-server
         # Ensure clean, reproducible deps before building (dev deps required for tsc)
-        echo "📦 Installing MCP server dependencies (lockfile)..."
+        echo "Installing MCP server dependencies (lockfile)..."
         node ../scripts/package-manager.mjs install --frozen-lockfile
         # Build TypeScript sources
         node ../scripts/package-manager.mjs run build
         # Re-install with production-only deps for embedding inside the app bundle
         node ../scripts/package-manager.mjs install --production --frozen-lockfile
         cd ..
-        echo "✅ MCP server built"
+        echo "MCP server built"
     fi
-    
+
     # Build Tauri application for release
-    echo "🦀 Building Tauri app..."
+    echo "Building Tauri app..."
     {{pm}} run tauri -- build
     
     # Find the built app bundle (handle different architectures)
@@ -161,7 +158,7 @@ install:
     fi
     
     if [ -z "$APP_PATH" ] || [ ! -d "$APP_PATH" ]; then
-        echo "❌ Build failed - Schaltwerk.app not found"
+        echo "Build failed - Schaltwerk.app not found"
         echo "Searched in:"
         echo "  - src-tauri/target/release/bundle/macos/"
         echo "  - src-tauri/target/aarch64-apple-darwin/release/bundle/macos/"
@@ -169,9 +166,9 @@ install:
         echo "  - src-tauri/target/universal-apple-darwin/release/bundle/macos/"
         exit 1
     fi
-    
-    echo "📦 Found app bundle at: $APP_PATH"
-    
+
+    echo "Found app bundle at: $APP_PATH"
+
     # Embed MCP server if it was built
     if [ -d "mcp-server/build" ]; then
         MCP_DIR="$APP_PATH/Contents/Resources/mcp-server"
@@ -179,35 +176,35 @@ install:
         cp -R mcp-server/build "$MCP_DIR/"
         cp mcp-server/package.json "$MCP_DIR/"
         cp -R mcp-server/node_modules "$MCP_DIR/"
-        echo "✅ MCP server embedded in app bundle"
+        echo "MCP server embedded in app bundle"
     fi
-    
+
     # Always install to /Applications for simplicity
     INSTALL_DIR="/Applications"
-    
+
     # Remove old installation if it exists
     if [ -d "$INSTALL_DIR/Schaltwerk.app" ]; then
-        echo "🗑️  Removing existing Schaltwerk installation..."
-        echo "⚠️  Admin password required to remove old installation"
+        echo "Removing existing Schaltwerk installation..."
+        echo "Admin password required to remove old installation"
         sudo rm -rf "$INSTALL_DIR/Schaltwerk.app"
     fi
-    
+
     # Copy the app to Applications
-    echo "📦 Installing Schaltwerk to $INSTALL_DIR..."
-    echo "⚠️  Admin password required for installation"
+    echo "Installing Schaltwerk to $INSTALL_DIR..."
+    echo "Admin password required for installation"
     sudo cp -R "$APP_PATH" "$INSTALL_DIR/"
-    
+
     # Set proper permissions
     sudo chmod -R 755 "$INSTALL_DIR/Schaltwerk.app"
-    
+
     # Clear quarantine attributes to avoid Gatekeeper issues
     sudo xattr -cr "$INSTALL_DIR/Schaltwerk.app" 2>/dev/null || true
-    
-    echo "✅ Schaltwerk installed successfully!"
+
+    echo "Schaltwerk installed successfully!"
     echo ""
-    echo "🚀 Launch Schaltwerk:"
-    echo "  • From Spotlight: Press ⌘+Space and type 'Schaltwerk'"
-    echo "  • From Terminal: open /Applications/Schaltwerk.app"
+    echo "Launch Schaltwerk:"
+    echo "  - From Spotlight: Press Cmd+Space and type 'Schaltwerk'"
+    echo "  - From Terminal: open /Applications/Schaltwerk.app"
 
 # Find an available port starting from a base port
 _find_available_port base_port:
@@ -222,30 +219,30 @@ _find_available_port base_port:
 run:
     #!/usr/bin/env bash
     set -euo pipefail
-    
-    # Get the directory containing this justfile  
+
+    # Get the directory containing this justfile
     cd "{{justfile_directory()}}"
-    
+
     # Verify we're in the correct directory
     if [[ ! -f "package.json" ]]; then
-        echo "❌ Error: Not in project root directory (no package.json found)"
+        echo "Error: Not in project root directory (no package.json found)"
         echo "Current directory: $(pwd)"
         exit 1
     fi
-    
-    echo "📂 Working from project root: $(pwd)"
-    
+
+    echo "Working from project root: $(pwd)"
+
     # Get current git branch for display
     branch=$(git branch --show-current 2>/dev/null || echo "no-branch")
-    
+
     # Find available port starting from 1420
     port=$(just _find_available_port 1420)
-    echo "🚀 Starting Schaltwerk on port $port (branch: $branch)"
-    echo "⚡ Using dev profile (opt-level=0) for fastest compilation"
-    
+    echo "Starting Schaltwerk on port $port (branch: $branch)"
+    echo "Using dev profile (opt-level=0) for fastest compilation"
+
     # Enable all available speed optimizations
     if command -v sccache &> /dev/null; then
-        echo "✨ Using sccache for Rust compilation caching"
+        echo "Using sccache for Rust compilation caching"
         export RUSTC_WRAPPER=sccache
         export SCCACHE_DIR=$HOME/.cache/sccache
     fi
@@ -286,10 +283,10 @@ run:
 run-frontend:
     #!/usr/bin/env bash
     set -euo pipefail
-    
+
     port=$(just _find_available_port 1420)
-    echo "🌐 Starting frontend on port $port"
-    
+    echo "Starting frontend on port $port"
+
     export VITE_PORT=$port
     {{pm}} run dev
 
@@ -303,29 +300,29 @@ run-backend:
 run-split:
     #!/usr/bin/env bash
     set -euo pipefail
-    
+
     port=$(just _find_available_port 1420)
-    echo "🔧 Starting split mode - Frontend: $port, Backend: separate process"
-    
+    echo "Starting split mode - Frontend: $port, Backend: separate process"
+
     # Start frontend in background
     VITE_PORT=$port {{pm}} run dev &
     frontend_pid=$!
-    
+
     # Wait a moment for frontend to start
     sleep 2
-    
+
     # Start backend
-    echo "🦀 Starting Rust backend..."
+    echo "Starting Rust backend..."
     cd src-tauri
     FRONTEND_URL="http://localhost:$port" cargo run &
     backend_pid=$!
-    
+
     # Handle cleanup on exit
     trap "echo 'Stopping services...'; kill $frontend_pid $backend_pid 2>/dev/null || true" EXIT
-    
-    echo "✅ Services running - Frontend: http://localhost:$port"
-    echo "📝 Press Ctrl+C to stop both services"
-    
+
+    echo "Services running - Frontend: http://localhost:$port"
+    echo "Press Ctrl+C to stop both services"
+
     # Wait for either process to exit
     wait
 
@@ -333,38 +330,37 @@ run-split:
 run-port port:
     #!/usr/bin/env bash
     set -euo pipefail
-    
+
     if lsof -i :{{port}} >/dev/null 2>&1; then
-        echo "❌ Port {{port}} is already in use"
+        echo "Port {{port}} is already in use"
         exit 1
     fi
-    
-    echo "🚀 Starting Schaltwerk on port {{port}} (no hot-reload mode)"
-    
+
+    echo "Starting Schaltwerk on port {{port}} (no hot-reload mode)"
+
     # Check if release binary exists
     PROJECT_ROOT="$(pwd)"
     BINARY_PATH="$PROJECT_ROOT/src-tauri/target/release/schaltwerk"
-    
+
     # Check shared target first
     if [ -f "/tmp/schaltwerk-shared-target/release/schaltwerk" ]; then
         BINARY_PATH="/tmp/schaltwerk-shared-target/release/schaltwerk"
     fi
-    
+
     if [ ! -f "$BINARY_PATH" ]; then
-        echo "📦 No release binary found. Building one first..."
+        echo "No release binary found. Building one first..."
         echo "   This will take a few minutes but only needs to be done once."
         {{pm}} run build
         {{pm}} run tauri -- build
-        
         # Re-check for binary after build
         if [ -f "/tmp/schaltwerk-shared-target/release/schaltwerk" ]; then
             BINARY_PATH="/tmp/schaltwerk-shared-target/release/schaltwerk"
         elif [ ! -f "$BINARY_PATH" ]; then
-            echo "❌ Error: Binary not found after build"
+            echo "Error: Binary not found after build"
             exit 1
         fi
     else
-        echo "✅ Using existing release binary (no hot-reload)"
+        echo "Using existing release binary (no hot-reload)"
         echo "   To force rebuild, run: just run-port-release {{port}}"
     fi
     
@@ -382,15 +378,15 @@ run-port port:
 run-port-dev port:
     #!/usr/bin/env bash
     set -euo pipefail
-    
+
     if lsof -i :{{port}} >/dev/null 2>&1; then
-        echo "❌ Port {{port}} is already in use"
+        echo "Port {{port}} is already in use"
         exit 1
     fi
-    
-    echo "🚀 Starting Schaltwerk on port {{port}} (WITH hot-reload - dev mode)"
-    echo "🎯 Using standard dev profile (opt-level=0) for fast compilation"
-    
+
+    echo "Starting Schaltwerk on port {{port}} (WITH hot-reload - dev mode)"
+    echo "Using standard dev profile (opt-level=0) for fast compilation"
+
     # Create temporary config override
     temp_config=$(mktemp)
     cat > "$temp_config" <<EOF
@@ -403,23 +399,23 @@ run-port-dev port:
       }
     }
     EOF
-    
+
     # Export the port for Vite
     export VITE_PORT={{port}}
     export PORT={{port}}
-    
+
     # Set the application's starting directory to HOME
     export SCHALTWERK_START_DIR="$HOME"
-    
+
     # Cleanup function to remove temp config
     cleanup() {
-        echo "🧹 Cleaning up temporary config..."
+        echo "Cleaning up temporary config..."
         rm -f "$temp_config"
     }
-    
+
     # Set trap to cleanup on exit
     trap cleanup EXIT
-    
+
     # Start Tauri with config override (standard dev profile for production-like performance)
     {{pm}} run tauri -- dev --config "$temp_config"
 
@@ -437,12 +433,12 @@ test:
     #!/usr/bin/env bash
     set -euo pipefail
     if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-        echo "🐧 Running full test suite on Linux..."
+        echo "Running full test suite on Linux..."
         just _ensure-linux-rust-deps
     elif [[ "$OSTYPE" == "darwin"* ]]; then
-        echo "🍎 Running full test suite on macOS..."
+        echo "Running full test suite on macOS..."
     else
-        echo "❌ Unsupported platform for testing: $OSTYPE"
+        echo "Unsupported platform for testing: $OSTYPE"
         echo "   Supported: Linux, macOS"
         exit 1
     fi
@@ -457,25 +453,25 @@ test-frontend:
 run-release:
     #!/usr/bin/env bash
     set -euo pipefail
-    echo "🚀 Building Schaltwerk (release bundle, no auto-reload)…"
+    echo "Building Schaltwerk (release bundle, no auto-reload)..."
     {{pm}} run build
     {{pm}} run tauri -- build
-    echo "✅ Build complete. Launching binary from HOME directory…"
+    echo "Build complete. Launching binary from HOME directory..."
     # Always start from HOME directory when using 'just run' commands
     # Pass repository path explicitly so backend can discover it even from packaged runs
     PROJECT_ROOT="$(pwd)"
-    
+
     # Check for binary in shared target directory first, then fallback to local
     BINARY_PATH="/tmp/schaltwerk-shared-target/release/schaltwerk"
     if [ ! -f "$BINARY_PATH" ]; then
         BINARY_PATH="$PROJECT_ROOT/src-tauri/target/release/schaltwerk"
     fi
-    
+
     if [ ! -f "$BINARY_PATH" ]; then
-        echo "❌ Error: Binary not found at $BINARY_PATH"
+        echo "Error: Binary not found at $BINARY_PATH"
         exit 1
     fi
-    
+
     cd "$HOME" && PARA_REPO_PATH="$PROJECT_ROOT" "$BINARY_PATH"
 
 # Build and run the application in release mode with a specific port
@@ -483,43 +479,43 @@ run-release:
 run-port-release port:
     #!/usr/bin/env bash
     set -euo pipefail
-    echo "🚀 Building Schaltwerk release on port {{port}}..."
-    
+    echo "Building Schaltwerk release on port {{port}}..."
+
     # Export port for any runtime components that need it
     export VITE_PORT={{port}}
     export PORT={{port}}
-    
+
     # Clean old binaries to force rebuild (check both shared and local target dirs)
-    echo "🧹 Cleaning old release binaries..."
+    echo "Cleaning old release binaries..."
     rm -f ./src-tauri/target/release/schaltwerk
     rm -f ./src-tauri/target/release/ui
     rm -f /tmp/schaltwerk-shared-target/release/schaltwerk
-    
+
     # Build frontend
-    echo "📦 Building frontend..."
+    echo "Building frontend..."
     {{pm}} run build
-    
+
     # Build Tauri app properly (this embeds the frontend assets)
-    echo "🦀 Building Tauri app (with frontend embedded)..."
+    echo "Building Tauri app (with frontend embedded)..."
     {{pm}} run tauri -- build
-    
-    echo "✅ Build complete. Launching release binary from HOME directory..."
+
+    echo "Build complete. Launching release binary from HOME directory..."
     # Always start from HOME directory when using 'just run' commands
     # The tauri build creates the binary with the productName from tauri.conf.json
     # Pass repository path explicitly so backend can discover it
     PROJECT_ROOT="$(pwd)"
-    
+
     # Check for binary in shared target directory first, then fallback to local
     BINARY_PATH="/tmp/schaltwerk-shared-target/release/schaltwerk"
     if [ ! -f "$BINARY_PATH" ]; then
         BINARY_PATH="$PROJECT_ROOT/src-tauri/target/release/schaltwerk"
     fi
-    
+
     if [ ! -f "$BINARY_PATH" ]; then
-        echo "❌ Error: Binary not found at $BINARY_PATH"
+        echo "Error: Binary not found at $BINARY_PATH"
         exit 1
     fi
-    
+
     cd "$HOME" && VITE_PORT={{port}} PORT={{port}} PARA_REPO_PATH="$PROJECT_ROOT" "$BINARY_PATH"
 
 # Cross-platform setup commands
@@ -530,13 +526,13 @@ setup-cross-platform:
     set -euo pipefail
 
     if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-        echo "🐧 Detected Linux - running Linux-specific setup"
+        echo "Detected Linux - running Linux-specific setup"
         just setup-linux
     elif [[ "$OSTYPE" == "darwin"* ]]; then
-        echo "🍎 Detected macOS - running standard setup"
+        echo "Detected macOS - running standard setup"
         just setup
     else
-        echo "❌ Unsupported platform: $OSTYPE"
+        echo "Unsupported platform: $OSTYPE"
         exit 1
     fi
 
@@ -546,13 +542,13 @@ install-cross-platform:
     set -euo pipefail
 
     if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-        echo "🐧 Detected Linux - running Linux installation"
+        echo "Detected Linux - running Linux installation"
         just install-linux
     elif [[ "$OSTYPE" == "darwin"* ]]; then
-        echo "🍎 Detected macOS - running macOS installation"
+        echo "Detected macOS - running macOS installation"
         just install
     else
-        echo "❌ Unsupported platform: $OSTYPE"
+        echo "Unsupported platform: $OSTYPE"
         exit 1
     fi
 
@@ -561,11 +557,11 @@ install-cross-platform:
 # Check Linux build dependencies
 check-linux-deps:
     #!/usr/bin/env bash
-    echo "🔍 Checking Linux build dependencies..."
+    echo "Checking Linux build dependencies..."
     echo ""
-    which pkg-config > /dev/null 2>&1 && echo "✅ pkg-config" || echo "❌ Missing: pkg-config"
-    pkg-config --exists webkit2gtk-4.1 2>/dev/null && echo "✅ libwebkit2gtk-4.1-dev" || echo "❌ Missing: libwebkit2gtk-4.1-dev"
-    pkg-config --exists gtk+-3.0 2>/dev/null && echo "✅ libgtk-3-dev" || echo "❌ Missing: libgtk-3-dev"
+    which pkg-config > /dev/null 2>&1 && echo "[OK] pkg-config" || echo "[MISSING] pkg-config"
+    pkg-config --exists webkit2gtk-4.1 2>/dev/null && echo "[OK] libwebkit2gtk-4.1-dev" || echo "[MISSING] libwebkit2gtk-4.1-dev"
+    pkg-config --exists gtk+-3.0 2>/dev/null && echo "[OK] libgtk-3-dev" || echo "[MISSING] libgtk-3-dev"
     echo ""
     echo "To install missing dependencies:"
     echo "  Ubuntu/Debian: sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf"
@@ -577,7 +573,7 @@ _ensure-linux-rust-deps:
     #!/usr/bin/env bash
     set -euo pipefail
     if ! command -v pkg-config >/dev/null 2>&1; then
-        echo "❌ pkg-config not found. Install GTK build dependencies first."
+        echo "ERROR: pkg-config not found. Install GTK build dependencies first."
         echo "   Run 'just check-linux-deps' for guidance."
         exit 1
     fi
@@ -588,7 +584,7 @@ _ensure-linux-rust-deps:
         fi
     done
     if [ ${#missing[@]} -ne 0 ]; then
-        echo "❌ Missing Linux GTK dependencies: ${missing[*]}"
+        echo "ERROR: Missing Linux GTK dependencies: ${missing[*]}"
         echo "   Run 'just check-linux-deps' for installation hints."
         exit 1
     fi
@@ -598,34 +594,34 @@ setup-linux:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    echo "🐧 Setting up Linux development dependencies..."
+    echo "Setting up Linux development dependencies..."
 
     # Detect distribution and install GTK/WebKit stack
     if [ -f /etc/debian_version ]; then
-        echo "📦 Detected Debian/Ubuntu-based system"
+        echo "Detected Debian/Ubuntu-based system"
         sudo apt-get update
         sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf
     elif [ -f /etc/redhat-release ]; then
-        echo "📦 Detected Red Hat-based system"
+        echo "Detected Red Hat-based system"
         sudo dnf install -y webkit2gtk4.1-devel gtk3-devel libappindicator-gtk3-devel librsvg2-devel patchelf
     elif [ -f /etc/arch-release ]; then
-        echo "📦 Detected Arch-based system"
+        echo "Detected Arch-based system"
         sudo pacman -S --needed webkit2gtk gtk3 libappindicator-gtk3 librsvg patchelf
     else
-        echo "⚠️  Unknown distribution. Please install GTK and WebKit dependencies manually."
+        echo "WARNING: Unknown distribution. Please install GTK and WebKit dependencies manually."
         echo "   Required: libwebkit2gtk-4.1-dev, libgtk-3-dev, libayatana-appindicator3-dev, librsvg2-dev, patchelf"
         exit 1
     fi
 
-    echo "✅ Linux dependencies installed"
+    echo "Linux dependencies installed"
 
 # Install built binary to ~/.local/bin (Linux XDG standard)
 install-linux:
     #!/usr/bin/env bash
     set -euo pipefail
-    echo "🔨 Building Schaltwerk for Linux..."
+    echo "Building Schaltwerk for Linux..."
     cargo build --release --manifest-path src-tauri/Cargo.toml
-    echo "📦 Installing to ~/.local/bin..."
+    echo "Installing to ~/.local/bin..."
     mkdir -p ~/.local/bin
     mkdir -p ~/.local/share/applications
     mkdir -p ~/.local/share/icons/hicolor/128x128/apps
@@ -639,47 +635,44 @@ install-linux:
     echo "Icon=schaltwerk" >> ~/.local/share/applications/schaltwerk.desktop
     echo "Categories=Development;" >> ~/.local/share/applications/schaltwerk.desktop
     chmod +x ~/.local/share/applications/schaltwerk.desktop
-    echo "✅ Installed to ~/.local/bin/schaltwerk"
-    echo "✅ Desktop entry: ~/.local/share/applications/schaltwerk.desktop"
+    echo "Installed to ~/.local/bin/schaltwerk"
+    echo "Desktop entry: ~/.local/share/applications/schaltwerk.desktop"
 
 # Build all Linux packages (AppImage, deb, rpm)
 build-linux:
     #!/usr/bin/env bash
     set -euo pipefail
-    echo "🔨 Building all Linux packages..."
+    echo "Building all Linux packages..."
     npm run tauri build -- --bundles appimage,deb,rpm
-    echo "✅ Build complete!"
-    echo "📦 Packages created:"
+    echo "Build complete!"
+    echo "Packages created:"
     ls -lh src-tauri/target/release/bundle/ 2>/dev/null || echo "No bundle directory found"
-    
+
 # Build Linux AppImage
 build-linux-appimage:
     npm run tauri build -- --bundles appimage
-    @echo "✅ AppImage created in src-tauri/target/release/bundle/appimage/"
+    @echo "AppImage created in src-tauri/target/release/bundle/appimage/"
 
 # Build Linux .deb package
 build-linux-deb:
     npm run tauri build -- --bundles deb
-    @echo "✅ .deb package created in src-tauri/target/release/bundle/deb/"
+    @echo ".deb package created in src-tauri/target/release/bundle/deb/"
 
 # Build Linux .rpm package
 build-linux-rpm:
     npm run tauri build -- --bundles rpm
-    @echo "✅ .rpm package created in src-tauri/target/release/bundle/rpm/"
-    
+    @echo ".rpm package created in src-tauri/target/release/bundle/rpm/"
+
 # Run with Wayland debugging enabled
 run-wayland:
     #!/usr/bin/env bash
     set -euo pipefail
-    echo "🚀 Starting Schaltwerk with Wayland debugging..."
+    echo "Starting Schaltwerk with Wayland debugging..."
     WAYLAND_DEBUG=1 WAYLAND_DISPLAY=wayland-0 RUST_LOG=schaltwerk=debug npm run tauri:dev
 
 # Force X11 backend (fallback mode)
 run-x11:
     #!/usr/bin/env bash
     set -euo pipefail
-    echo "🚀 Starting Schaltwerk with X11 backend..."
+    echo "Starting Schaltwerk with X11 backend..."
     GDK_BACKEND=x11 npm run tauri:dev
-
-
-
