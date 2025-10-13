@@ -1,4 +1,4 @@
-import fetch from 'node-fetch'
+import fetch, { type RequestInit, type Response } from 'node-fetch'
 import * as path from 'path'
 import * as os from 'os'
 import * as fs from 'fs'
@@ -157,14 +157,17 @@ function createProjectContext(projectPath: string): ProjectContext {
 }
 
 export class SchaltwerkBridge {
-  private apiUrl: string = 'http://127.0.0.1:8547'
-  private webhookUrl: string = 'http://127.0.0.1:8547'
-  private projectContext: ProjectContext
+  private readonly projectContext: ProjectContext
+  private readonly portCandidates: number[]
+  private activePort: number | null = null
+  private readonly host = '127.0.0.1'
+  private hasLoggedPort = false
 
   constructor() {
     // Detect and establish project context
     const projectPath = detectProjectPath()
     this.projectContext = createProjectContext(projectPath)
+    this.portCandidates = this.resolveCandidatePorts()
     
     console.error(`MCP Bridge initialized for project: ${this.projectContext.name}`)
     console.error(`Project path: ${this.projectContext.canonicalPath}`)
@@ -180,9 +183,104 @@ export class SchaltwerkBridge {
     }
   }
 
+  private calculateBasePort(): number {
+    try {
+      const digest = createHash('sha256')
+        .update(this.projectContext.canonicalPath)
+        .digest()
+      const offset = ((digest[0] << 8) | digest[1]) % 100
+      return 8547 + offset
+    } catch (error) {
+      console.warn('Failed to calculate project-specific MCP port, falling back to default:', error)
+      return 8547
+    }
+  }
+
+  private resolveCandidatePorts(): number[] {
+    const seen = new Set<number>()
+    const ports: number[] = []
+    const addPort = (port?: number | null) => {
+      if (typeof port === 'number' && Number.isInteger(port) && port > 0 && port < 65536 && !seen.has(port)) {
+        seen.add(port)
+        ports.push(port)
+      }
+    }
+
+    const envPort = process.env.SCHALTWERK_MCP_PORT ? Number.parseInt(process.env.SCHALTWERK_MCP_PORT, 10) : undefined
+    addPort(envPort)
+
+    const basePort = this.calculateBasePort()
+    addPort(basePort)
+
+    const preferredFallbacks = [8548, 8549, 8550]
+    preferredFallbacks.forEach(addPort)
+
+    for (let offset = 1; offset <= 5; offset += 1) {
+      addPort(basePort + offset)
+    }
+
+    // Always include the global default port so we can reach the backend
+    // before a project context has been established.
+    addPort(8547)
+
+    return ports
+  }
+
+  private getPortAttemptOrder(): number[] {
+    if (this.activePort === null) {
+      return [...this.portCandidates]
+    }
+
+    return [this.activePort, ...this.portCandidates.filter(port => port !== this.activePort)]
+  }
+
+  private cloneInit(init: RequestInit): RequestInit {
+    const headers = init.headers ? { ...(init.headers as Record<string, string>) } : undefined
+    return { ...init, headers }
+  }
+
+  private isRetryableNetworkError(error: unknown): boolean {
+    if (!error || typeof error !== 'object') {
+      return false
+    }
+
+    const err = error as { code?: string }
+    const retryable = new Set(['ECONNREFUSED', 'ECONNRESET', 'EHOSTUNREACH', 'ENETUNREACH'])
+    return !!err.code && retryable.has(err.code)
+  }
+
+  private async fetchWithAutoPort(path: string, init: RequestInit): Promise<Response> {
+    const attempts = this.getPortAttemptOrder()
+    let lastError: unknown = null
+
+    for (const port of attempts) {
+      try {
+        const response = await fetch(`http://${this.host}:${port}${path}`, this.cloneInit(init))
+        this.activePort = port
+        if (!this.hasLoggedPort) {
+          console.error(`Schaltwerk MCP bridge connected to port ${port}`)
+          this.hasLoggedPort = true
+        }
+        return response
+      } catch (error) {
+        if (this.isRetryableNetworkError(error)) {
+          lastError = error
+          continue
+        }
+        throw error
+      }
+    }
+
+    const errorMessage =
+      lastError instanceof Error ? lastError.message : lastError ? String(lastError) : 'unknown error'
+    throw new Error(
+      `Failed to reach Schaltwerk MCP service on ports ${attempts.join(', ')}: ${errorMessage}`
+    )
+  }
+
   async listSessions(): Promise<Session[]> {
     try {
-      const response = await fetch(`${this.apiUrl}/api/sessions`, {
+      const response = await this.fetchWithAutoPort('/api/sessions', {
         method: 'GET',
         headers: { 
           'Accept': 'application/json',
@@ -251,7 +349,7 @@ export class SchaltwerkBridge {
 
   async getSession(name: string): Promise<Session | undefined> {
     try {
-      const response = await fetch(`${this.apiUrl}/api/sessions/${encodeURIComponent(name)}`, {
+      const response = await this.fetchWithAutoPort(`/api/sessions/${encodeURIComponent(name)}`, {
         method: 'GET',
         headers: { 
           'Accept': 'application/json',
@@ -276,7 +374,7 @@ export class SchaltwerkBridge {
 
   async createSession(name: string, prompt?: string, baseBranch?: string, agentType?: string, skipPermissions?: boolean): Promise<Session> {
     try {
-      const response = await fetch(`${this.apiUrl}/api/sessions`, {
+      const response = await this.fetchWithAutoPort('/api/sessions', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -381,7 +479,7 @@ export class SchaltwerkBridge {
     
     // Cancel session via API
     try {
-      const response = await fetch(`${this.apiUrl}/api/sessions/${encodeURIComponent(name)}`, {
+      const response = await this.fetchWithAutoPort(`/api/sessions/${encodeURIComponent(name)}`, {
         method: 'DELETE',
         headers: this.getProjectHeaders()
       })
@@ -545,12 +643,12 @@ export class SchaltwerkBridge {
         parent_branch: session.parent_branch
       }
       
-      await fetch(`${this.webhookUrl}/webhook/session-added`, {
+      await this.fetchWithAutoPort('/webhook/session-added', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payload)
       })
     } catch (error) {
       console.warn('Failed to notify session added:', error)
@@ -566,12 +664,12 @@ export class SchaltwerkBridge {
         status: 'spec'
       }
       
-      await fetch(`${this.webhookUrl}/webhook/spec-created`, {
+      await this.fetchWithAutoPort('/webhook/spec-created', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payload)
       })
     } catch (error) {
       console.warn('Failed to notify spec created:', error)
@@ -584,12 +682,12 @@ export class SchaltwerkBridge {
         session_name: sessionName
       }
       
-      await fetch(`${this.webhookUrl}/webhook/session-removed`, {
+      await this.fetchWithAutoPort('/webhook/session-removed', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payload)
       })
     } catch (error) {
       console.warn('Failed to notify session removed:', error)
@@ -604,12 +702,12 @@ export class SchaltwerkBridge {
         timestamp: Date.now()
       }
       
-      await fetch(`${this.webhookUrl}/webhook/follow-up-message`, {
+      await this.fetchWithAutoPort('/webhook/follow-up-message', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payload)
       })
     } catch (error) {
       console.warn('Failed to notify follow-up message:', error)
@@ -618,7 +716,7 @@ export class SchaltwerkBridge {
 
   async createSpecSession(name: string, content?: string, baseBranch?: string): Promise<Session> {
     try {
-      const response = await fetch(`${this.apiUrl}/api/specs`, {
+      const response = await this.fetchWithAutoPort('/api/specs', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -646,7 +744,7 @@ export class SchaltwerkBridge {
 
   async updateDraftContent(sessionName: string, content: string, append: boolean = false): Promise<void> {
     try {
-      const response = await fetch(`${this.apiUrl}/api/specs/${encodeURIComponent(sessionName)}`, {
+      const response = await this.fetchWithAutoPort(`/api/specs/${encodeURIComponent(sessionName)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -666,7 +764,7 @@ export class SchaltwerkBridge {
 
   async startDraftSession(sessionName: string, agentType?: string, skipPermissions?: boolean, baseBranch?: string): Promise<void> {
     try {
-      const response = await fetch(`${this.apiUrl}/api/specs/${encodeURIComponent(sessionName)}/start`, {
+      const response = await this.fetchWithAutoPort(`/api/specs/${encodeURIComponent(sessionName)}/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -692,7 +790,7 @@ export class SchaltwerkBridge {
 
   async deleteDraftSession(sessionName: string): Promise<void> {
     try {
-      const response = await fetch(`${this.apiUrl}/api/specs/${encodeURIComponent(sessionName)}`, {
+      const response = await this.fetchWithAutoPort(`/api/specs/${encodeURIComponent(sessionName)}`, {
         method: 'DELETE',
         headers: this.getProjectHeaders()
       })
@@ -710,9 +808,12 @@ export class SchaltwerkBridge {
 
   async listDraftSessions(): Promise<Session[]> {
     try {
-      const response = await fetch(`${this.apiUrl}/api/specs`, {
+      const response = await this.fetchWithAutoPort('/api/specs', {
         method: 'GET',
-        headers: { 'Accept': 'application/json' }
+        headers: { 
+          'Accept': 'application/json',
+          ...this.getProjectHeaders()
+        }
       })
       
       if (!response.ok) {
@@ -733,16 +834,19 @@ export class SchaltwerkBridge {
       }
       
       // Use query parameter for server-side filtering when possible
-      let url = `${this.apiUrl}/api/sessions`
+      let pathSegment = '/api/sessions'
       if (filter === 'reviewed') {
-        url += '?state=reviewed'
+        pathSegment += '?state=reviewed'
       } else if (filter === 'active') {
-        url += '?state=running'
+        pathSegment += '?state=running'
       }
       
-      const response = await fetch(url, {
+      const response = await this.fetchWithAutoPort(pathSegment, {
         method: 'GET',
-        headers: { 'Accept': 'application/json' }
+        headers: { 
+          'Accept': 'application/json',
+          ...this.getProjectHeaders()
+        }
       })
       
       if (!response.ok) {
@@ -825,9 +929,12 @@ export class SchaltwerkBridge {
 
   async markSessionReviewed(sessionName: string): Promise<void> {
     try {
-      const response = await fetch(`${this.apiUrl}/api/sessions/${encodeURIComponent(sessionName)}/mark-reviewed`, {
+      const response = await this.fetchWithAutoPort(`/api/sessions/${encodeURIComponent(sessionName)}/mark-reviewed`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 
+          'Content-Type': 'application/json',
+          ...this.getProjectHeaders()
+        }
       })
 
       if (!response.ok) {
@@ -859,7 +966,7 @@ export class SchaltwerkBridge {
       requestBody.commit_message = commitMessage
     }
 
-    const response = await fetch(`${this.apiUrl}/api/sessions/${encodeURIComponent(sessionName)}/merge`, {
+    const response = await this.fetchWithAutoPort(`/api/sessions/${encodeURIComponent(sessionName)}/merge`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -894,7 +1001,7 @@ export class SchaltwerkBridge {
   ): Promise<PullRequestResult> {
     const commitMessage = options.commitMessage?.trim()
 
-    const response = await fetch(`${this.apiUrl}/api/sessions/${encodeURIComponent(sessionName)}/pull-request`, {
+    const response = await this.fetchWithAutoPort(`/api/sessions/${encodeURIComponent(sessionName)}/pull-request`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -928,9 +1035,12 @@ export class SchaltwerkBridge {
 
   async convertToSpec(sessionName: string): Promise<void> {
     try {
-      const response = await fetch(`${this.apiUrl}/api/sessions/${encodeURIComponent(sessionName)}/convert-to-spec`, {
+      const response = await this.fetchWithAutoPort(`/api/sessions/${encodeURIComponent(sessionName)}/convert-to-spec`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 
+          'Content-Type': 'application/json',
+          ...this.getProjectHeaders()
+        }
       })
 
       if (!response.ok) {
@@ -944,9 +1054,12 @@ export class SchaltwerkBridge {
 
   async getCurrentSpecModeSession(): Promise<string | null> {
     try {
-      const response = await fetch(`${this.apiUrl}/api/current-spec-mode-session`, {
+      const response = await this.fetchWithAutoPort('/api/current-spec-mode-session', {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 
+          'Content-Type': 'application/json',
+          ...this.getProjectHeaders()
+        }
       })
 
       if (!response.ok) {
