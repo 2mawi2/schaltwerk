@@ -2,13 +2,15 @@ import { VscHome, VscSettingsGear, VscLayoutSidebarRight, VscLayoutSidebarRightO
 import { TabBar } from './TabBar'
 import { ProjectTab } from '../common/projectTabs'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { useRef, useEffect, useCallback } from 'react'
+import { useRef, useEffect, useCallback, useState } from 'react'
 import { OpenInSplitButton } from './OpenInSplitButton'
 import { BranchIndicator } from './BranchIndicator'
 import { logger } from '../utils/logger'
 import { theme } from '../common/theme'
 import { withOpacity } from '../common/colorUtils'
 import { GithubMenuButton } from './github/GithubMenuButton'
+import { WindowControls } from './WindowControls'
+import { isMacOS } from '../utils/platform'
 
 interface TopBarProps {
   tabs: ProjectTab[]
@@ -40,6 +42,11 @@ export function TopBar({
   const dragAreaRef = useRef<HTMLDivElement>(null)
   const topBarRef = useRef<HTMLDivElement>(null)
   const openButtonRef = useRef<{ triggerOpen: () => Promise<void> } | null>(null)
+  const [isMac, setIsMac] = useState(false)
+
+  useEffect(() => {
+    isMacOS().then(setIsMac).catch(() => setIsMac(false))
+  }, [])
 
   const handleOpenReady = useCallback((handler: () => Promise<void>) => {
     openButtonRef.current = { triggerOpen: handler }
@@ -100,7 +107,7 @@ export function TopBar({
     >
       <div className="flex items-center h-full">
         {/* macOS traffic lights space - properly sized */}
-        <div className="w-[70px] shrink-0" data-tauri-drag-region />
+        {isMac && <div className="w-[70px] shrink-0" data-tauri-drag-region />}
         
         {/* Home button */}
         <button
@@ -175,12 +182,15 @@ export function TopBar({
         {/* Settings button */}
         <button
           onClick={onOpenSettings}
-          className="h-6 w-6 inline-flex items-center justify-center rounded text-text-tertiary hover:text-text-secondary hover:bg-bg-elevated/50 transition-colors mr-3"
+          className="h-6 w-6 inline-flex items-center justify-center rounded text-text-tertiary hover:text-text-secondary hover:bg-bg-elevated/50 transition-colors mr-2"
           title="Settings"
           aria-label="Settings"
         >
           <VscSettingsGear className="text-[14px]" />
         </button>
+
+        {/* Window controls for non-macOS */}
+        {!isMac && <WindowControls />}
       </div>
     </div>
   )
