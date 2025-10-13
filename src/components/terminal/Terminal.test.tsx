@@ -474,6 +474,16 @@ describe('Terminal component', () => {
     }
   })
 
+  it('sets a deterministic minimumContrastRatio offset for atlas isolation', async () => {
+    const terminalId = bottomIdFor('contrast', '-0')
+    renderTerminal({ terminalId, sessionName: 'contrast' })
+    await flushAll()
+    const xterm = getLastXtermInstance()
+    expect(typeof xterm.options.minimumContrastRatio).toBe('number')
+    expect(xterm.options.minimumContrastRatio).toBeGreaterThan(1)
+    expect(xterm.options.minimumContrastRatio).toBeLessThanOrEqual(1.3)
+  })
+
   it('avoids duplicating snapshot output when events arrive during hydration', async () => {
     let snapshotCalls = 0
     ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => {

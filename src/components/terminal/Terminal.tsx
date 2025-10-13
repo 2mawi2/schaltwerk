@@ -45,6 +45,18 @@ const CLAUDE_SHIFT_ENTER_SEQUENCE = '\\'
 // Track last effective size we told the PTY (after guard), for SIGWINCH nudging
 const lastEffectiveRefInit = { cols: 80, rows: 24 }
 
+const ATLAS_CONTRAST_BASE = 1;
+const ATLAS_CONTRAST_BUCKETS = 30;
+
+function computeAtlasContrastOffset(terminalId: string): number {
+    let hash = 0;
+    for (let i = 0; i < terminalId.length; i++) {
+        hash = (hash * 31 + terminalId.charCodeAt(i)) >>> 0;
+    }
+    const bucket = (hash % ATLAS_CONTRAST_BUCKETS) + 1; // 1..30
+    return bucket / 100;
+}
+
 // Global guard to avoid starting Claude multiple times for the same terminal id across remounts
 const startedGlobal = new Set<string>();
 
@@ -970,6 +982,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             scrollbackLines = AGENT_SCROLLBACK_LINES; // Deep history for agent conversation terminals
         }
 
+        const atlasContrast = ATLAS_CONTRAST_BASE + computeAtlasContrastOffset(terminalId);
         terminal.current = new XTerm({
             theme: {
                 background: theme.colors.background.secondary,
@@ -1004,6 +1017,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             // Converting EOLs breaks carriage-return based updates and causes visual jumping
             convertEol: false,
             disableStdin: readOnly,
+            minimumContrastRatio: atlasContrast,
         });
 
         // Add fit addon for proper sizing
