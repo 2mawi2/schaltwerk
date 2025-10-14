@@ -55,6 +55,7 @@ impl SettingsService {
             "gemini" => self.settings.agent_env_vars.gemini.clone(),
             "codex" => self.settings.agent_env_vars.codex.clone(),
             "droid" => self.settings.agent_env_vars.droid.clone(),
+            "qwen" => self.settings.agent_env_vars.qwen.clone(),
             _ => HashMap::new(),
         }
     }
@@ -70,6 +71,7 @@ impl SettingsService {
             "gemini" => self.settings.agent_env_vars.gemini = env_vars,
             "codex" => self.settings.agent_env_vars.codex = env_vars,
             "droid" => self.settings.agent_env_vars.droid = env_vars,
+            "qwen" => self.settings.agent_env_vars.qwen = env_vars,
             _ => {
                 return Err(SettingsServiceError::UnknownAgentType(
                     agent_type.to_string(),
@@ -107,6 +109,7 @@ impl SettingsService {
             "gemini" => self.settings.agent_cli_args.gemini.clone(),
             "codex" => self.settings.agent_cli_args.codex.clone(),
             "droid" => self.settings.agent_cli_args.droid.clone(),
+            "qwen" => self.settings.agent_cli_args.qwen.clone(),
             _ => String::new(),
         }
     }
@@ -126,6 +129,7 @@ impl SettingsService {
             "gemini" => self.settings.agent_cli_args.gemini = cli_args.clone(),
             "codex" => self.settings.agent_cli_args.codex = cli_args.clone(),
             "droid" => self.settings.agent_cli_args.droid = cli_args.clone(),
+            "qwen" => self.settings.agent_cli_args.qwen = cli_args.clone(),
             _ => {
                 let error = format!("Unknown agent type: {agent_type}");
                 log::error!("Invalid agent type in set_agent_cli_args: {error}");
@@ -156,6 +160,7 @@ impl SettingsService {
             "gemini" => self.settings.agent_initial_commands.gemini.clone(),
             "codex" => self.settings.agent_initial_commands.codex.clone(),
             "droid" => self.settings.agent_initial_commands.droid.clone(),
+            "qwen" => self.settings.agent_initial_commands.qwen.clone(),
             _ => String::new(),
         }
     }
@@ -176,6 +181,7 @@ impl SettingsService {
             "gemini" => self.settings.agent_initial_commands.gemini = initial_command.clone(),
             "codex" => self.settings.agent_initial_commands.codex = initial_command.clone(),
             "droid" => self.settings.agent_initial_commands.droid = initial_command.clone(),
+            "qwen" => self.settings.agent_initial_commands.qwen = initial_command.clone(),
             _ => {
                 let error = format!("Unknown agent type: {agent_type}");
                 log::error!("Invalid agent type in set_agent_initial_command: {error}");
@@ -284,6 +290,7 @@ impl SettingsService {
             "gemini" => self.settings.agent_binaries.gemini.clone(),
             "codex" => self.settings.agent_binaries.codex.clone(),
             "droid" => self.settings.agent_binaries.droid.clone(),
+            "qwen" => self.settings.agent_binaries.qwen.clone(),
             _ => None,
         }
     }
@@ -298,6 +305,7 @@ impl SettingsService {
             "gemini" => self.settings.agent_binaries.gemini = Some(config),
             "codex" => self.settings.agent_binaries.codex = Some(config),
             "droid" => self.settings.agent_binaries.droid = Some(config),
+            "qwen" => self.settings.agent_binaries.qwen = Some(config),
             _ => return Err(SettingsServiceError::UnknownAgentType(config.agent_name)),
         }
         self.save()
@@ -318,6 +326,9 @@ impl SettingsService {
             configs.push(config.clone());
         }
         if let Some(config) = &self.settings.agent_binaries.droid {
+            configs.push(config.clone());
+        }
+        if let Some(config) = &self.settings.agent_binaries.qwen {
             configs.push(config.clone());
         }
         configs
@@ -412,6 +423,22 @@ mod tests {
     }
 
     #[test]
+    fn set_agent_cli_args_supports_qwen() {
+        let repo = InMemoryRepository::default();
+        let repo_handle = repo.clone();
+        let mut service = SettingsService::new(Box::new(repo));
+
+        service
+            .set_agent_cli_args("qwen", "--project alpha".to_string())
+            .expect("should accept qwen CLI args");
+
+        assert_eq!(
+            repo_handle.snapshot().agent_cli_args.qwen,
+            "--project alpha"
+        );
+    }
+
+    #[test]
     fn set_agent_initial_command_supports_droid() {
         let repo = InMemoryRepository::default();
         let repo_handle = repo.clone();
@@ -424,6 +451,22 @@ mod tests {
         assert_eq!(
             repo_handle.snapshot().agent_initial_commands.droid,
             "build project"
+        );
+    }
+
+    #[test]
+    fn set_agent_initial_command_supports_qwen() {
+        let repo = InMemoryRepository::default();
+        let repo_handle = repo.clone();
+        let mut service = SettingsService::new(Box::new(repo));
+
+        service
+            .set_agent_initial_command("qwen", "plan feature".to_string())
+            .expect("should accept qwen initial command");
+
+        assert_eq!(
+            repo_handle.snapshot().agent_initial_commands.qwen,
+            "plan feature"
         );
     }
 
@@ -444,6 +487,22 @@ mod tests {
     }
 
     #[test]
+    fn set_agent_env_vars_supports_qwen() {
+        let repo = InMemoryRepository::default();
+        let repo_handle = repo.clone();
+        let mut service = SettingsService::new(Box::new(repo));
+
+        let mut vars = HashMap::new();
+        vars.insert("QWEN_TOKEN".to_string(), "secret".to_string());
+
+        service
+            .set_agent_env_vars("qwen", vars.clone())
+            .expect("should accept qwen env vars");
+
+        assert_eq!(repo_handle.snapshot().agent_env_vars.qwen, vars);
+    }
+
+    #[test]
     fn set_agent_binary_config_supports_droid() {
         let repo = InMemoryRepository::default();
         let repo_handle = repo.clone();
@@ -461,5 +520,25 @@ mod tests {
             .expect("should accept droid binary config");
 
         assert_eq!(repo_handle.snapshot().agent_binaries.droid, Some(config));
+    }
+
+    #[test]
+    fn set_agent_binary_config_supports_qwen() {
+        let repo = InMemoryRepository::default();
+        let repo_handle = repo.clone();
+        let mut service = SettingsService::new(Box::new(repo));
+
+        let config = AgentBinaryConfig {
+            agent_name: "qwen".to_string(),
+            custom_path: Some("/custom/qwen".to_string()),
+            auto_detect: false,
+            detected_binaries: vec![],
+        };
+
+        service
+            .set_agent_binary_config(config.clone())
+            .expect("should accept qwen binary config");
+
+        assert_eq!(repo_handle.snapshot().agent_binaries.qwen, Some(config));
     }
 }
