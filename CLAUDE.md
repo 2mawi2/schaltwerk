@@ -351,3 +351,4 @@ Automatically updates versions, commits, tags, and triggers GitHub Actions.
 
 - Project documentation is maintained in `docs-site/` using Mintlify
 - MDX files in `docs-site/` cover core concepts, guides, MCP integration, and installation
+- if you are in a worktree, don't do your changes on main if possible follow the instructions and apply changes on your own branch, only if the user asks you or it requries it then switch to the main branch
