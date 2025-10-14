@@ -325,10 +325,10 @@ export class SchaltwerkBridge {
         draft_content: es.info.draft_content || undefined,
         spec_content: es.info.spec_content || undefined,
         ready_to_merge: es.info.ready_to_merge || false,
-        original_agent_type: undefined,
-        original_skip_permissions: undefined,
-        pending_name_generation: false,
-        was_auto_generated: false
+        original_agent_type: es.info.original_agent_type ?? undefined,
+        original_skip_permissions: es.info.original_skip_permissions ?? undefined,
+        pending_name_generation: es.info.pending_name_generation ?? false,
+        was_auto_generated: es.info.was_auto_generated ?? false
       }))
       
       return sessions
@@ -859,10 +859,10 @@ export class SchaltwerkBridge {
         draft_content: es.info.draft_content || undefined,
         spec_content: es.info.spec_content || undefined,
         ready_to_merge: es.info.ready_to_merge || false,
-        original_agent_type: undefined,
-        original_skip_permissions: undefined,
-        pending_name_generation: false,
-        was_auto_generated: false
+        original_agent_type: es.info.original_agent_type ?? undefined,
+        original_skip_permissions: es.info.original_skip_permissions ?? undefined,
+        pending_name_generation: es.info.pending_name_generation ?? false,
+        was_auto_generated: es.info.was_auto_generated ?? false
       }))
       
       // Don't duplicate specs - they're already included in enrichedSessions from API

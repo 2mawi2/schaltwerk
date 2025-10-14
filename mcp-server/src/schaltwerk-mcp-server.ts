@@ -1171,6 +1171,12 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
           if (includeAll || requestedFields.includes('ready_to_merge')) {
             agent.ready_to_merge = t.ready_to_merge || false
           }
+          if (includeAll || requestedFields.includes('agent_type')) {
+            agent.agent_type = t.original_agent_type || 'claude'
+          }
+          if (includeAll || requestedFields.includes('skip_permissions')) {
+            agent.skip_permissions = t.original_skip_permissions ?? null
+          }
           
           // Handle content fields with optional preview
           if (includeAll || requestedFields.includes('initial_prompt')) {
