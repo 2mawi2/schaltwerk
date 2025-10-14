@@ -55,8 +55,8 @@ pub fn clipboard_read_text() -> Result<String, String> {
 pub fn clipboard_write_text(text: String) -> Result<(), String> {
     use arboard::Clipboard;
 
-    let mut clipboard = Clipboard::new()
-        .map_err(|e| format!("Failed to initialize clipboard: {e}"))?;
+    let mut clipboard =
+        Clipboard::new().map_err(|e| format!("Failed to initialize clipboard: {e}"))?;
 
     clipboard
         .set_text(text)
@@ -69,12 +69,10 @@ pub fn clipboard_write_text(text: String) -> Result<(), String> {
 pub fn clipboard_read_text() -> Result<String, String> {
     use arboard::Clipboard;
 
-    let mut clipboard = Clipboard::new()
-        .map_err(|e| format!("Failed to initialize clipboard: {e}"))?;
+    let mut clipboard =
+        Clipboard::new().map_err(|e| format!("Failed to initialize clipboard: {e}"))?;
 
     clipboard
         .get_text()
         .map_err(|e| format!("Failed to read from clipboard: {e}"))
 }
-
-

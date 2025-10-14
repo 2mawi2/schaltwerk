@@ -125,11 +125,7 @@ fn extend_process_path() {
     }
 
     let shell = env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
-    let shell_arg = if shell.contains("fish") {
-        "-c"
-    } else {
-        "-lc"
-    };
+    let shell_arg = if shell.contains("fish") { "-c" } else { "-lc" };
 
     if let Ok(output) = Command::new(&shell)
         .arg(shell_arg)
@@ -1209,7 +1205,7 @@ mod tests {
         let fallback = super::get_default_open_app()
             .await
             .expect("expected fallback default app");
-        
+
         #[cfg(target_os = "macos")]
         assert_eq!(fallback, "finder");
         #[cfg(target_os = "linux")]

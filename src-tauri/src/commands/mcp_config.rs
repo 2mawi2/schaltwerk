@@ -556,7 +556,10 @@ fn get_development_mcp_path() -> Result<(PathBuf, bool), String> {
         Ok((mcp_dev_path, false))
     } else {
         log::warn!("MCP server not built in development mode");
-        Err("MCP server not built. Run 'cd mcp-server && bun run build' (or 'npm run build')".to_string())
+        Err(
+            "MCP server not built. Run 'cd mcp-server && bun run build' (or 'npm run build')"
+                .to_string(),
+        )
     }
 }
 

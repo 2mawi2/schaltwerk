@@ -110,9 +110,7 @@ pub async fn get_permission_diagnostics() -> Result<PermissionDiagnostics, Strin
     {
         let exe = std::env::current_exe()
             .map_err(|e| format!("Failed to determine executable path: {e}"))?;
-        let canonical = exe
-            .canonicalize()
-            .unwrap_or_else(|_| PathBuf::from(&exe));
+        let canonical = exe.canonicalize().unwrap_or_else(|_| PathBuf::from(&exe));
 
         let install_kind = detect_install_kind(&canonical).to_string();
 
@@ -191,9 +189,7 @@ pub async fn reset_folder_permissions() -> Result<(), String> {
             ];
 
             for service in services {
-                log::info!(
-                    "Resetting TCC permission for {service} with bundle {identifier}"
-                );
+                log::info!("Resetting TCC permission for {service} with bundle {identifier}");
                 let output = Command::new("tccutil")
                     .arg("reset")
                     .arg(service)
@@ -226,8 +222,7 @@ mod tests {
 
     #[test]
     fn detects_app_bundle_install_kind() {
-        let path =
-            PathBuf::from("/Applications/Schaltwerk.app/Contents/MacOS/schaltwerk");
+        let path = PathBuf::from("/Applications/Schaltwerk.app/Contents/MacOS/schaltwerk");
         assert_eq!(detect_install_kind(&path), "app-bundle");
     }
 

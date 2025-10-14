@@ -5,7 +5,13 @@ use std::path::Path;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Mutex, OnceLock};
     use tempfile;
+
+    fn env_lock() -> &'static Mutex<()> {
+        static ENV_MUTEX: OnceLock<Mutex<()>> = OnceLock::new();
+        ENV_MUTEX.get_or_init(|| Mutex::new(()))
+    }
 
     // Helper to create mock executables
     fn create_mock_bin(dir: &std::path::Path, name: &str) -> std::io::Result<std::path::PathBuf> {
@@ -26,34 +32,48 @@ mod tests {
 
     #[test]
     fn test_detect_apps_with_mocks() {
+        let _guard = env_lock().lock().unwrap();
         let temp_dir = tempfile::tempdir().unwrap();
 
         // Create mock executables for each category
         create_mock_bin(temp_dir.path(), "nautilus").unwrap(); // File manager
-        create_mock_bin(temp_dir.path(), "kgx").unwrap();      // Terminal
-        create_mock_bin(temp_dir.path(), "code").unwrap();     // Editor
+        create_mock_bin(temp_dir.path(), "kgx").unwrap(); // Terminal
+        create_mock_bin(temp_dir.path(), "code").unwrap(); // Editor
+        create_mock_bin(temp_dir.path(), "zed").unwrap(); // Editor
 
         // Temporarily modify PATH
-        let original_path = env::var("PATH").unwrap_or_default();
-        let new_path = format!("{}:{}", temp_dir.path().display(), original_path);
-        env::set_var("PATH", &new_path);
+        let original_path = env::var_os("PATH");
+        let mut paths = vec![temp_dir.path().to_path_buf()];
+        if let Some(ref orig) = original_path {
+            paths.extend(env::split_paths(orig));
+        }
+        let joined = env::join_paths(paths).expect("failed to join PATH entries");
+        env::set_var("PATH", &joined);
 
         // Detect apps
         let apps = detect_available_apps();
 
         // Restore PATH
-        env::set_var("PATH", &original_path);
+        if let Some(orig) = original_path {
+            env::set_var("PATH", orig);
+        } else {
+            env::remove_var("PATH");
+        }
 
         // Verify detection
         #[cfg(target_os = "linux")]
         {
-            let has_nautilus = apps.iter().any(|a| a.id == "nautilus" && a.kind == "system");
+            let has_nautilus = apps
+                .iter()
+                .any(|a| a.id == "nautilus" && a.kind == "system");
             let has_kgx = apps.iter().any(|a| a.id == "kgx" && a.kind == "terminal");
             let has_vscode = apps.iter().any(|a| a.id == "code" && a.kind == "editor");
+            let has_zed = apps.iter().any(|a| a.id == "zed" && a.kind == "editor");
 
             assert!(has_nautilus, "Should detect mock nautilus file manager");
             assert!(has_kgx, "Should detect mock kgx terminal");
             assert!(has_vscode, "Should detect mock VS Code editor");
+            assert!(has_zed, "Should detect mock Zed editor");
         }
 
         #[cfg(target_os = "macos")]
@@ -64,7 +84,9 @@ mod tests {
 
             // Mock editor should be detected
             let has_vscode = apps.iter().any(|a| a.id == "code" && a.kind == "editor");
+            let has_zed = apps.iter().any(|a| a.id == "zed" && a.kind == "editor");
             assert!(has_vscode, "Should detect mock VS Code editor");
+            assert!(has_zed, "Should detect mock Zed editor");
         }
     }
 
@@ -98,8 +120,7 @@ mod tests {
         let db = crate::schaltwerk_core::Database::new_in_memory()
             .expect("failed to create in-memory db");
 
-        let default = get_default_open_app_from_db(&db)
-            .expect("failed to read default open app");
+        let default = get_default_open_app_from_db(&db).expect("failed to read default open app");
 
         #[cfg(target_os = "macos")]
         assert_eq!(default, "finder");
@@ -107,12 +128,209 @@ mod tests {
         #[cfg(target_os = "linux")]
         assert_eq!(default, "nautilus");
 
-        set_default_open_app_in_db(&db, "vscode")
-            .expect("failed to persist default open app");
+        set_default_open_app_in_db(&db, "vscode").expect("failed to persist default open app");
 
-        let updated = get_default_open_app_from_db(&db)
-            .expect("failed to read updated default open app");
+        let updated =
+            get_default_open_app_from_db(&db).expect("failed to read updated default open app");
         assert_eq!(updated, "vscode");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn test_open_path_in_zed_prefers_cli() {
+        use std::fs;
+
+        let _guard = env_lock().lock().unwrap();
+
+        let cli_dir = tempfile::tempdir().expect("cannot create temp cli dir");
+        let log_file = cli_dir.path().join("zed-cli-log");
+        let script_path = cli_dir.path().join("zed");
+        fs::write(
+            &script_path,
+            "#!/bin/sh\nprintf '%s' \"$@\" > \"$SCHALTWERK_ZED_LOG\"\n",
+        )
+        .expect("failed to write mock zed cli");
+
+        // Ensure the log file exists so the redirect target is valid on first write.
+        fs::File::create(&log_file).expect("failed to create zed cli log file");
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = fs::metadata(&script_path).unwrap().permissions();
+            perms.set_mode(0o755);
+            fs::set_permissions(&script_path, perms).unwrap();
+        }
+
+        let original_path = env::var_os("PATH");
+        let mut path_entries = vec![cli_dir.path().to_path_buf()];
+        if let Some(ref orig) = original_path {
+            path_entries.extend(env::split_paths(orig));
+        }
+        let joined = env::join_paths(path_entries).expect("failed to join PATH entries");
+        env::set_var("PATH", joined);
+        env::set_var("SCHALTWERK_ZED_LOG", log_file.to_str().unwrap());
+
+        let workdir = tempfile::tempdir().expect("cannot create workdir");
+        super::open_path_in("zed", workdir.path().to_str().unwrap())
+            .expect("zed CLI launch should succeed");
+
+        let recorded = fs::read_to_string(&log_file).expect("log file must exist");
+        assert!(recorded.contains(workdir.path().to_str().unwrap()));
+
+        env::remove_var("SCHALTWERK_ZED_LOG");
+        if let Some(orig) = original_path {
+            env::set_var("PATH", orig);
+        } else {
+            env::remove_var("PATH");
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn test_open_path_in_zed_falls_back_to_open() {
+        use std::fs;
+
+        let _guard = env_lock().lock().unwrap();
+
+        let home_dir = tempfile::tempdir().expect("cannot create temp home");
+        let cli_dir = tempfile::tempdir().expect("cannot create temp cli dir");
+        let open_log = cli_dir.path().join("open-log");
+        let open_script = cli_dir.path().join("fake-open");
+
+        fs::write(
+            &open_script,
+            "#!/bin/sh\nprintf '%s' \"$@\" > \"$SCHALTWERK_ZED_OPEN_LOG\"\n",
+        )
+        .expect("failed to write mock open script");
+
+        // Create the file upfront so the redirection target exists immediately.
+        fs::File::create(&open_log).expect("failed to create open log file");
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = fs::metadata(&open_script).unwrap().permissions();
+            perms.set_mode(0o755);
+            fs::set_permissions(&open_script, perms).unwrap();
+        }
+
+        // Ensure bundle detection finds ~/Applications/Zed.app
+        let applications_dir = home_dir.path().join("Applications");
+        fs::create_dir_all(applications_dir.join("Zed.app"))
+            .expect("failed to create fake Zed.app bundle");
+
+        let working_dir = tempfile::tempdir().expect("cannot create workdir");
+
+        let original_home = env::var("HOME").unwrap_or_default();
+        let original_path = env::var_os("PATH");
+        let original_open = env::var("SCHALTWERK_TEST_OPEN_BIN").ok();
+        let original_open_log = env::var("SCHALTWERK_ZED_OPEN_LOG").ok();
+
+        env::set_var("HOME", home_dir.path());
+        env::set_var("PATH", cli_dir.path());
+        env::set_var("SCHALTWERK_TEST_OPEN_BIN", open_script.to_str().unwrap());
+        env::set_var("SCHALTWERK_ZED_OPEN_LOG", open_log.to_str().unwrap());
+
+        super::open_path_in("zed", working_dir.path().to_str().unwrap())
+            .expect("open fallback should succeed");
+
+        let recorded = fs::read_to_string(&open_log).expect("open log should exist");
+        assert!(
+            recorded.contains(working_dir.path().to_str().unwrap()),
+            "open command args: {recorded}"
+        );
+        assert!(recorded.contains("Zed"));
+
+        // Restore environment
+        if original_home.is_empty() {
+            env::remove_var("HOME");
+        } else {
+            env::set_var("HOME", original_home);
+        }
+        if let Some(orig) = original_path {
+            env::set_var("PATH", orig);
+        } else {
+            env::remove_var("PATH");
+        }
+        if let Some(open_bin) = original_open {
+            env::set_var("SCHALTWERK_TEST_OPEN_BIN", open_bin);
+        } else {
+            env::remove_var("SCHALTWERK_TEST_OPEN_BIN");
+        }
+        if let Some(open_log_env) = original_open_log {
+            env::set_var("SCHALTWERK_ZED_OPEN_LOG", open_log_env);
+        } else {
+            env::remove_var("SCHALTWERK_ZED_OPEN_LOG");
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn test_open_with_linux_zed_cli_available() {
+        use std::fs;
+
+        let _guard = env_lock().lock().unwrap();
+
+        let cli_dir = tempfile::tempdir().expect("cannot create temp cli dir");
+        let log_file = cli_dir.path().join("zed-cli-log");
+        let script_path = cli_dir.path().join("zed");
+        fs::write(
+            &script_path,
+            "#!/bin/sh\nprintf '%s' \"$@\" > \"$SCHALTWERK_ZED_LOG\"\n",
+        )
+        .expect("failed to write mock zed cli");
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = fs::metadata(&script_path).unwrap().permissions();
+            perms.set_mode(0o755);
+            fs::set_permissions(&script_path, perms).unwrap();
+        }
+
+        let original_path = env::var_os("PATH");
+        let mut path_entries = vec![cli_dir.path().to_path_buf()];
+        if let Some(ref orig) = original_path {
+            path_entries.extend(env::split_paths(orig));
+        }
+        let joined = env::join_paths(path_entries).expect("failed to join PATH entries");
+        env::set_var("PATH", joined);
+        env::set_var("SCHALTWERK_ZED_LOG", log_file.to_str().unwrap());
+
+        let result = super::open_with_linux("zed", "/tmp");
+        assert!(result.is_ok());
+
+        let recorded = fs::read_to_string(&log_file).expect("log file must exist");
+        assert!(recorded.contains("/tmp"));
+
+        env::remove_var("SCHALTWERK_ZED_LOG");
+        if let Some(orig) = original_path {
+            env::set_var("PATH", orig);
+        } else {
+            env::remove_var("PATH");
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn test_open_with_linux_zed_missing() {
+        let _guard = env_lock().lock().unwrap();
+
+        let original_path = env::var_os("PATH");
+        env::set_var("PATH", ".");
+
+        let result = super::open_with_linux("zed", "/tmp");
+        assert!(result
+            .err()
+            .expect("Expected error when zed is missing")
+            .contains("Zed is not installed"));
+
+        if let Some(orig) = original_path {
+            env::set_var("PATH", orig);
+        } else {
+            env::remove_var("PATH");
+        }
     }
 }
 
@@ -224,6 +442,7 @@ fn detect_editors() -> Vec<OpenApp> {
         ("cursor", "Cursor"),
         ("code", "VS Code"),
         ("idea", "IntelliJ IDEA"),
+        ("zed", "Zed"),
     ];
 
     candidates
@@ -235,8 +454,11 @@ fn detect_editors() -> Vec<OpenApp> {
                     // Check for .app bundles on macOS
                     match *id {
                         "cursor" => std::path::Path::new("/Applications/Cursor.app").exists(),
-                        "code" => std::path::Path::new("/Applications/Visual Studio Code.app").exists(),
+                        "code" => {
+                            std::path::Path::new("/Applications/Visual Studio Code.app").exists()
+                        }
                         "idea" => find_existing_intellij_bundle().is_some(),
+                        "zed" => find_existing_macos_zed_bundle().is_some(),
                         _ => false,
                     }
                 }
@@ -285,20 +507,12 @@ fn open_with_linux(app_id: &str, path: &str) -> Result<(), String> {
             Ok(s) => Err(format!("gnome-terminal exited with status: {s}")),
             Err(e) => Err(format!("Failed to open in gnome-terminal: {e}")),
         },
-        "konsole" => match Command::new("konsole")
-            .arg("--workdir")
-            .arg(path)
-            .status()
-        {
+        "konsole" => match Command::new("konsole").arg("--workdir").arg(path).status() {
             Ok(s) if s.success() => Ok(()),
             Ok(s) => Err(format!("konsole exited with status: {s}")),
             Err(e) => Err(format!("Failed to open in konsole: {e}")),
         },
-        "kitty" => match Command::new("kitty")
-            .arg("--directory")
-            .arg(path)
-            .status()
-        {
+        "kitty" => match Command::new("kitty").arg("--directory").arg(path).status() {
             Ok(s) if s.success() => Ok(()),
             Ok(s) => Err(format!("kitty exited with status: {s}")),
             Err(e) => Err(format!("Failed to open in kitty: {e}")),
@@ -357,11 +571,7 @@ fn open_with_linux(app_id: &str, path: &str) -> Result<(), String> {
             Ok(s) => Err(format!("ghostty exited with status: {s}")),
             Err(e) => Err(format!("Failed to open in ghostty: {e}")),
         },
-        "warp" => match Command::new("warp")
-            .arg("--cwd")
-            .arg(path)
-            .status()
-        {
+        "warp" => match Command::new("warp").arg("--cwd").arg(path).status() {
             Ok(s) if s.success() => Ok(()),
             Ok(s) => Err(format!("warp exited with status: {s}")),
             Err(e) => Err(format!("Failed to open in warp: {e}")),
@@ -387,6 +597,23 @@ fn open_with_linux(app_id: &str, path: &str) -> Result<(), String> {
             Ok(s) => Err(format!("zellij exited with status: {s}")),
             Err(e) => Err(format!("Failed to open in zellij: {e}")),
         },
+        "zed" => {
+            if which::which("zed").is_ok() {
+                match Command::new("zed").arg(path).status() {
+                    Ok(status) if status.success() => Ok(()),
+                    Ok(status) => {
+                        log::warn!("zed CLI exited with status code {status}");
+                        Err(format!("Zed exited with status: {status}"))
+                    }
+                    Err(err) => {
+                        log::warn!("failed to launch zed CLI: {err}");
+                        Err(format!("Failed to open in Zed: {err}"))
+                    }
+                }
+            } else {
+                Err("Zed is not installed or not in PATH".to_string())
+            }
+        }
 
         // Editors - try CLI first
         "cursor" => {
@@ -441,11 +668,15 @@ fn open_path_in(app_id: &str, path: &str) -> Result<(), String> {
         }
 
         let result = match app_id {
-            "finder" => std::process::Command::new("/usr/bin/open").arg(working_dir.as_str()).status(),
+            "finder" => std::process::Command::new("/usr/bin/open")
+                .arg(working_dir.as_str())
+                .status(),
             "cursor" => {
                 // Try CLI first, fall back to open -a
                 if which::which("cursor").is_ok() {
-                    std::process::Command::new("cursor").arg(working_dir.as_str()).status()
+                    std::process::Command::new("cursor")
+                        .arg(working_dir.as_str())
+                        .status()
                 } else {
                     std::process::Command::new("/usr/bin/open")
                         .args(["-a", "Cursor", working_dir.as_str()])
@@ -457,13 +688,16 @@ fn open_path_in(app_id: &str, path: &str) -> Result<(), String> {
             "vscode" | "code" => {
                 // Try CLI first, fall back to open -a
                 if which::which("code").is_ok() {
-                    std::process::Command::new("code").arg(working_dir.as_str()).status()
+                    std::process::Command::new("code")
+                        .arg(working_dir.as_str())
+                        .status()
                 } else {
                     std::process::Command::new("/usr/bin/open")
                         .args(["-a", "Visual Studio Code", working_dir.as_str()])
                         .status()
                 }
             }
+            "zed" => return open_path_in_zed(working_dir.as_str()),
             "warp" => {
                 // Try CLI first, fall back to open -a
                 if which::which("warp").is_ok() {
@@ -494,6 +728,7 @@ fn open_path_in(app_id: &str, path: &str) -> Result<(), String> {
                     "terminal" => "Terminal",
                     "ghostty" => "Ghostty",
                     "intellij" | "idea" => "IntelliJ IDEA",
+                    "zed" => "Zed",
                     _ => app_id,
                 };
                 Err(format!("{app_name} is not installed. Please install it from the official website or choose a different application."))
@@ -508,6 +743,7 @@ fn open_path_in(app_id: &str, path: &str) -> Result<(), String> {
                     "finder" => "Finder",
                     "ghostty" => "Ghostty",
                     "intellij" | "idea" => "IntelliJ IDEA",
+                    "zed" => "Zed",
                     _ => app_id,
                 };
                 Err(format!("Failed to open in {app_name}: {e}"))
@@ -654,6 +890,89 @@ fn open_path_in_intellij(path: &str) -> Result<(), String> {
 }
 
 #[cfg(target_os = "macos")]
+fn open_path_in_zed(path: &str) -> Result<(), String> {
+    use std::process::Command;
+
+    if which::which("zed").is_ok() {
+        match Command::new("zed").arg(path).status() {
+            Ok(status) if status.success() => return Ok(()),
+            Ok(status) => {
+                log::warn!("zed CLI exited with status code {status}");
+            }
+            Err(err) => {
+                log::warn!("failed to launch zed CLI: {err}");
+            }
+        }
+    }
+
+    let open_bin = macos_open_binary();
+
+    if let Some(bundle) = find_existing_macos_zed_bundle() {
+        match std::process::Command::new(&open_bin)
+            .arg("-a")
+            .arg(bundle.as_os_str())
+            .arg(path)
+            .status()
+        {
+            Ok(status) if status.success() => return Ok(()),
+            Ok(status) => {
+                log::warn!("open -a {bundle:?} exited with status code {status}");
+            }
+            Err(err) => {
+                log::warn!("failed to invoke open for {bundle:?}: {err}");
+            }
+        }
+    }
+
+    // Fallback to using application name if the bundle path did not resolve.
+    match std::process::Command::new(&open_bin)
+        .args(["-a", "Zed", path])
+        .status()
+    {
+        Ok(status) if status.success() => return Ok(()),
+        Ok(status) => {
+            log::warn!("open -a Zed exited with status code {status}");
+        }
+        Err(err) => {
+            log::warn!("failed to invoke open -a Zed: {err}");
+        }
+    }
+
+    Err("Zed is not installed or not in PATH. Install Zed and try again.".into())
+}
+
+#[cfg(target_os = "macos")]
+fn find_existing_macos_zed_bundle() -> Option<std::path::PathBuf> {
+    macos_zed_bundle_candidates()
+        .into_iter()
+        .find(|candidate| candidate.exists())
+}
+
+#[cfg(target_os = "macos")]
+fn macos_zed_bundle_candidates() -> Vec<std::path::PathBuf> {
+    let mut candidates = vec![std::path::PathBuf::from("/Applications/Zed.app")];
+
+    if let Some(home) = dirs::home_dir() {
+        candidates.push(home.join("Applications/Zed.app"));
+    }
+
+    candidates
+        .into_iter()
+        .filter(|candidate| !candidate.as_os_str().is_empty())
+        .collect()
+}
+
+#[cfg(target_os = "macos")]
+fn macos_open_binary() -> std::path::PathBuf {
+    #[cfg(test)]
+    if let Ok(custom) = std::env::var("SCHALTWERK_TEST_OPEN_BIN") {
+        return std::path::PathBuf::from(custom);
+    }
+
+    std::path::PathBuf::from("/usr/bin/open")
+}
+
+#[cfg(target_os = "macos")]
 fn find_existing_intellij_bundle() -> Option<std::path::PathBuf> {
     intellij_app_candidates()
         .into_iter()
@@ -701,7 +1020,11 @@ fn push_bundle_variants(candidates: &mut Vec<std::path::PathBuf>, base_dir: std:
 }
 
 #[cfg(target_os = "macos")]
-fn collect_intellij_apps_in_dir(dir: &Path, candidates: &mut Vec<std::path::PathBuf>, depth: usize) {
+fn collect_intellij_apps_in_dir(
+    dir: &Path,
+    candidates: &mut Vec<std::path::PathBuf>,
+    depth: usize,
+) {
     if depth > 4 {
         return;
     }
