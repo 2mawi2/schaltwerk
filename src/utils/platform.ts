@@ -6,7 +6,9 @@ let cachedPlatform: SupportedPlatform | null = null
 
 export async function getPlatform(): Promise<SupportedPlatform> {
   if (cachedPlatform === null) {
-    cachedPlatform = await platform()
+    const result = await platform()
+    cachedPlatform = result
+    return result
   }
   return cachedPlatform
 }

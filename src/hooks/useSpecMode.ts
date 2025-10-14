@@ -16,6 +16,9 @@ export interface SpecModeState {
   currentSpec: string | null
   sidebarFilter: 'specs-only' | 'all' | string
   previousSelection?: Selection
+  workspaceOpen: boolean
+  openTabs: string[]
+  activeTab: string | null
 }
 
 interface UseSpecModeProps {
@@ -46,38 +49,50 @@ export function getSpecToSelect(specSessions: EnrichedSession[], lastSelectedSpe
 export function useSpecMode({ projectPath, selection, sessions, setFilterMode, setSelection, currentFilterMode }: UseSpecModeProps) {
   // Initialize spec mode state from sessionStorage
   const [commanderSpecModeSession, setCommanderSpecModeSessionInternal] = useState<string | null>(() => {
-    const key = 'default' // Will be updated when projectPath is available
+    const key = 'default'
     return sessionStorage.getItem(`schaltwerk:spec-mode:${key}`)
   })
-  
+
   // Track the last selected spec (persists even when spec mode is off)
   const [lastSelectedSpec, setLastSelectedSpec] = useState<string | null>(() => {
     const key = projectPath ? getBasename(projectPath) : 'default'
     return sessionStorage.getItem(`schaltwerk:last-spec:${key}`)
   })
-  
+
   // Wrap setter with debugging
   const setCommanderSpecModeSession = useCallback((newValue: string | null) => {
     logger.info('[useSpecMode] Setting spec mode session:', commanderSpecModeSession, '→', newValue)
     logger.debug('[useSpecMode] Stack trace for spec mode change')
     setCommanderSpecModeSessionInternal(newValue)
   }, [commanderSpecModeSession])
-  
+
   // Track sidebar filter preference when in spec mode
   const [specModeSidebarFilter, setSpecModeSidebarFilter] = useState<'specs-only' | 'all'>('specs-only')
-  
+
   // Track previous selection for restoration when exiting spec mode
   const [previousSelection, setPreviousSelection] = useState<Selection | undefined>(() => {
     const key = projectPath ? getBasename(projectPath) : 'default'
     const saved = sessionStorage.getItem(`schaltwerk:prev-selection:${key}`)
     return saved ? JSON.parse(saved) : undefined
   })
-  
+
   // Track previous filter mode for restoration when exiting spec mode
   const [previousFilterMode, setPreviousFilterMode] = useState<FilterMode | undefined>(() => {
     const key = projectPath ? getBasename(projectPath) : 'default'
     const saved = sessionStorage.getItem(`schaltwerk:prev-filter:${key}`)
     return saved as FilterMode | undefined
+  })
+
+  // Workspace state for the new right panel tabs experience
+  const [workspaceOpen, setWorkspaceOpen] = useState(false)
+  const [openTabs, setOpenTabs] = useState<string[]>(() => {
+    const key = projectPath ? getBasename(projectPath) : 'default'
+    const saved = sessionStorage.getItem(`schaltwerk:spec-tabs:${key}`)
+    return saved ? JSON.parse(saved) : []
+  })
+  const [activeTab, setActiveTab] = useState<string | null>(() => {
+    const key = projectPath ? getBasename(projectPath) : 'default'
+    return sessionStorage.getItem(`schaltwerk:active-spec-tab:${key}`)
   })
   
   // Helper function to enter spec mode and automatically show specs
@@ -155,6 +170,23 @@ export function useSpecMode({ projectPath, selection, sessions, setFilterMode, s
       sessionStorage.setItem(`schaltwerk:last-spec:${projectId}`, lastSelectedSpec)
     }
   }, [lastSelectedSpec, projectPath])
+
+  // Persist workspace state to sessionStorage
+  useEffect(() => {
+    if (!projectPath) return
+    const projectId = getBasename(projectPath)
+    sessionStorage.setItem(`schaltwerk:spec-tabs:${projectId}`, JSON.stringify(openTabs))
+  }, [openTabs, projectPath])
+
+  useEffect(() => {
+    if (!projectPath) return
+    const projectId = getBasename(projectPath)
+    if (activeTab) {
+      sessionStorage.setItem(`schaltwerk:active-spec-tab:${projectId}`, activeTab)
+    } else {
+      sessionStorage.removeItem(`schaltwerk:active-spec-tab:${projectId}`)
+    }
+  }, [activeTab, projectPath])
 
   // Listen for spec creation events (for potential future use)
   useEffect(() => {
@@ -281,12 +313,67 @@ export function useSpecMode({ projectPath, selection, sessions, setFilterMode, s
     }
   }, [commanderSpecModeSession, sessions, enterSpecMode, selection.kind, setSelection, handleExitSpecMode, lastSelectedSpec, currentFilterMode])
 
+  // Helper to open a spec in workspace
+  const openSpecInWorkspace = useCallback((specId: string) => {
+    setOpenTabs(prev => {
+      if (prev.includes(specId)) {
+        return prev
+      }
+      return [...prev, specId]
+    })
+    setActiveTab(specId)
+    setWorkspaceOpen(true)
+  }, [])
+
+  // Helper to close a spec tab
+  const closeSpecTab = useCallback((specId: string) => {
+    setOpenTabs(prev => {
+      if (!prev.includes(specId)) {
+        return prev
+      }
+
+      const filtered = prev.filter(id => id !== specId)
+
+      if (activeTab === specId) {
+        setActiveTab(filtered.length > 0 ? filtered[filtered.length - 1] : null)
+      }
+
+      return filtered
+    })
+  }, [activeTab])
+
+  // Prune tabs when sessions are removed
+  useEffect(() => {
+    const specSessionIds = sessions
+      .filter(session => isSpec(session.info))
+      .map(session => session.info.session_id)
+
+    setOpenTabs(prev => {
+      const filtered = prev.filter(id => specSessionIds.includes(id))
+
+      if (filtered.length === prev.length) {
+        return prev
+      }
+
+      logger.info('[useSpecMode] Pruned removed spec tabs')
+
+      if (activeTab && !filtered.includes(activeTab)) {
+        setActiveTab(filtered.length > 0 ? filtered[0] : null)
+      }
+
+      return filtered
+    })
+  }, [sessions, activeTab])
+
   // Build spec mode state object
   const specModeState: SpecModeState = {
     isActive: !!commanderSpecModeSession,
     currentSpec: commanderSpecModeSession,
     sidebarFilter: specModeSidebarFilter,
-    previousSelection
+    previousSelection,
+    workspaceOpen,
+    openTabs,
+    activeTab
   }
 
   return {
@@ -303,6 +390,14 @@ export function useSpecMode({ projectPath, selection, sessions, setFilterMode, s
     toggleSpecMode,
     specModeState,
     setSpecModeSidebarFilter,
-    setPreviousSelection
+    setPreviousSelection,
+    workspaceOpen,
+    setWorkspaceOpen,
+    openTabs,
+    setOpenTabs,
+    activeTab,
+    setActiveTab,
+    openSpecInWorkspace,
+    closeSpecTab
   }
 }

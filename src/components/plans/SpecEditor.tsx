@@ -15,9 +15,10 @@ import { MarkdownRenderer } from './MarkdownRenderer'
 interface Props {
   sessionName: string
   onStart?: () => void
+  disableFocusShortcut?: boolean
 }
 
-export function SpecEditor({ sessionName, onStart }: Props) {
+export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false }: Props) {
   const [content, setContent] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -226,7 +227,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
       if (!starting && isShortcutForAction(e, KeyboardShortcutAction.RunSpecAgent, keyboardShortcutConfig, { platform })) {
         e.preventDefault()
         handleRun()
-      } else if (isShortcutForAction(e, KeyboardShortcutAction.FocusClaude, keyboardShortcutConfig, { platform })) {
+      } else if (!disableFocusShortcut && isShortcutForAction(e, KeyboardShortcutAction.FocusClaude, keyboardShortcutConfig, { platform })) {
         e.preventDefault()
         if (markdownEditorRef.current) {
           markdownEditorRef.current.focusEnd()
@@ -235,9 +236,9 @@ export function SpecEditor({ sessionName, onStart }: Props) {
       }
     }
 
-    window.addEventListener('keydown', handleKeyDown) // Use bubble phase to not interfere with cmd+e
+    window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleRun, starting, keyboardShortcutConfig, platform])
+  }, [handleRun, starting, keyboardShortcutConfig, platform, disableFocusShortcut])
 
   if (loading) {
     return (
@@ -252,7 +253,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
       <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <h2 className="text-sm font-semibold text-slate-200 truncate">{displayName || sessionName}</h2>
-          {viewMode === 'edit' && (
+          {viewMode === 'edit' && !disableFocusShortcut && (
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400" title="Focus spec content (⌘T)">⌘T</span>
           )}
         </div>

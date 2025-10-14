@@ -701,4 +701,214 @@ describe('useSpecMode', () => {
       expect(() => unmount()).not.toThrow()
     })
   })
+
+  describe('workspace state management', () => {
+    it('should initialize with empty workspace state', () => {
+      const { result } = renderHook(() => useSpecMode({
+        projectPath: '/test/project',
+        selection: mockOrchestratorSelection,
+        sessions: [],
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection
+      }))
+
+      expect(result.current.workspaceOpen).toBe(false)
+      expect(result.current.openTabs).toEqual([])
+      expect(result.current.activeTab).toBeNull()
+    })
+
+    it('should open spec in workspace', () => {
+      const spec = createMockSpec('test-spec')
+      const { result } = renderHook(() => useSpecMode({
+        projectPath: '/test/project',
+        selection: mockOrchestratorSelection,
+        sessions: [spec],
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection
+      }))
+
+      act(() => {
+        result.current.openSpecInWorkspace('test-spec')
+      })
+
+      expect(result.current.workspaceOpen).toBe(true)
+      expect(result.current.openTabs).toContain('test-spec')
+      expect(result.current.activeTab).toBe('test-spec')
+    })
+
+    it('should not duplicate tabs when opening same spec', () => {
+      const spec = createMockSpec('test-spec')
+      const { result } = renderHook(() => useSpecMode({
+        projectPath: '/test/project',
+        selection: mockOrchestratorSelection,
+        sessions: [spec],
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection
+      }))
+
+      act(() => {
+        result.current.openSpecInWorkspace('test-spec')
+        result.current.openSpecInWorkspace('test-spec')
+      })
+
+      expect(result.current.openTabs).toHaveLength(1)
+      expect(result.current.openTabs).toContain('test-spec')
+    })
+
+    it('should manage multiple tabs', () => {
+      const spec1 = createMockSpec('spec-1')
+      const spec2 = createMockSpec('spec-2')
+      const { result } = renderHook(() => useSpecMode({
+        projectPath: '/test/project',
+        selection: mockOrchestratorSelection,
+        sessions: [spec1, spec2],
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection
+      }))
+
+      act(() => {
+        result.current.openSpecInWorkspace('spec-1')
+        result.current.openSpecInWorkspace('spec-2')
+      })
+
+      expect(result.current.openTabs).toHaveLength(2)
+      expect(result.current.openTabs).toContain('spec-1')
+      expect(result.current.openTabs).toContain('spec-2')
+      expect(result.current.activeTab).toBe('spec-2')
+    })
+
+    it('should close spec tab', () => {
+      const spec1 = createMockSpec('spec-1')
+      const spec2 = createMockSpec('spec-2')
+      const { result } = renderHook(() => useSpecMode({
+        projectPath: '/test/project',
+        selection: mockOrchestratorSelection,
+        sessions: [spec1, spec2],
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection
+      }))
+
+      act(() => {
+        result.current.openSpecInWorkspace('spec-1')
+        result.current.openSpecInWorkspace('spec-2')
+      })
+
+      act(() => {
+        result.current.closeSpecTab('spec-1')
+      })
+
+      expect(result.current.openTabs).toHaveLength(1)
+      expect(result.current.openTabs).toContain('spec-2')
+      expect(result.current.activeTab).toBe('spec-2')
+    })
+
+    it('should update active tab when closing current active tab', () => {
+      const spec1 = createMockSpec('spec-1')
+      const spec2 = createMockSpec('spec-2')
+      const { result } = renderHook(() => useSpecMode({
+        projectPath: '/test/project',
+        selection: mockOrchestratorSelection,
+        sessions: [spec1, spec2],
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection
+      }))
+
+      act(() => {
+        result.current.openSpecInWorkspace('spec-1')
+        result.current.openSpecInWorkspace('spec-2')
+      })
+
+      expect(result.current.activeTab).toBe('spec-2')
+
+      act(() => {
+        result.current.closeSpecTab('spec-2')
+      })
+
+      expect(result.current.activeTab).toBe('spec-1')
+    })
+
+    it('should prune tabs when specs are removed from sessions', () => {
+      const spec1 = createMockSpec('spec-1')
+      const spec2 = createMockSpec('spec-2')
+
+      const { result, rerender } = renderHook(
+        ({ sessions }) => useSpecMode({
+          projectPath: '/test/project',
+          selection: mockOrchestratorSelection,
+          sessions,
+          setFilterMode: mockSetFilterMode,
+          setSelection: mockSetSelection
+        }),
+        {
+          initialProps: { sessions: [spec1, spec2] }
+        }
+      )
+
+      act(() => {
+        result.current.openSpecInWorkspace('spec-1')
+        result.current.openSpecInWorkspace('spec-2')
+      })
+
+      expect(result.current.openTabs).toHaveLength(2)
+
+      // Remove spec-2 from sessions
+      rerender({ sessions: [spec1] })
+
+      expect(result.current.openTabs).toHaveLength(1)
+      expect(result.current.openTabs).toContain('spec-1')
+      expect(result.current.openTabs).not.toContain('spec-2')
+    })
+
+    it('should update active tab when active spec is removed', () => {
+      const spec1 = createMockSpec('spec-1')
+      const spec2 = createMockSpec('spec-2')
+
+      const { result, rerender } = renderHook(
+        ({ sessions }) => useSpecMode({
+          projectPath: '/test/project',
+          selection: mockOrchestratorSelection,
+          sessions,
+          setFilterMode: mockSetFilterMode,
+          setSelection: mockSetSelection
+        }),
+        {
+          initialProps: { sessions: [spec1, spec2] }
+        }
+      )
+
+      act(() => {
+        result.current.openSpecInWorkspace('spec-1')
+        result.current.openSpecInWorkspace('spec-2')
+      })
+
+      expect(result.current.activeTab).toBe('spec-2')
+
+      // Remove spec-2 from sessions
+      rerender({ sessions: [spec1] })
+
+      expect(result.current.activeTab).toBe('spec-1')
+    })
+
+    it('should persist workspace state to sessionStorage', () => {
+      const spec = createMockSpec('test-spec')
+      const { result } = renderHook(() => useSpecMode({
+        projectPath: '/test/project',
+        selection: mockOrchestratorSelection,
+        sessions: [spec],
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection
+      }))
+
+      act(() => {
+        result.current.openSpecInWorkspace('test-spec')
+      })
+
+      const savedTabs = sessionStorage.getItem('schaltwerk:spec-tabs:project')
+      const savedActiveTab = sessionStorage.getItem('schaltwerk:active-spec-tab:project')
+
+      expect(savedTabs).toBeTruthy()
+      expect(JSON.parse(savedTabs!)).toContain('test-spec')
+      expect(savedActiveTab).toBe('test-spec')
+    })
+  })
 })

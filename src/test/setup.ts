@@ -1,10 +1,16 @@
 import '@testing-library/jest-dom/vitest'
-import { beforeEach, vi } from 'vitest'
+import { randomUUID as nodeRandomUUID } from 'node:crypto'
+import { afterEach, beforeEach, vi } from 'vitest'
+import { cleanup } from '@testing-library/react'
 
 // Setup global test environment
 beforeEach(() => {
   localStorage.clear()
   sessionStorage.clear()
+})
+
+afterEach(() => {
+  cleanup()
 })
 
 // Mock window object for tests that need it
@@ -25,6 +31,68 @@ Object.defineProperty(window, 'matchMedia', {
 // Ensure window is properly defined for React
 if (!global.window) {
   global.window = window
+}
+
+// Ensure document is available globally for suites that reference global.document directly
+if (typeof global.document === 'undefined' || global.document === null) {
+  // happy-dom attaches document to window; reuse the same reference
+  global.document = window.document
+}
+
+if (typeof window.dispatchEvent !== 'function') {
+  const dispatch = EventTarget.prototype.dispatchEvent
+  Object.defineProperty(window, 'dispatchEvent', {
+    configurable: true,
+    value: dispatch.bind(window),
+  })
+}
+
+// Ensure timer APIs exist on window (happy-dom may only expose them on globalThis)
+if (typeof window.setTimeout !== 'function') {
+  window.setTimeout = global.setTimeout.bind(global)
+}
+if (typeof window.clearTimeout !== 'function') {
+  window.clearTimeout = global.clearTimeout.bind(global)
+}
+if (typeof window.setInterval !== 'function') {
+  window.setInterval = global.setInterval.bind(global)
+}
+if (typeof window.clearInterval !== 'function') {
+  window.clearInterval = global.clearInterval.bind(global)
+}
+
+// Provide a default navigator.clipboard implementation so tests relying on clipboard APIs do not crash
+try {
+  if (!('clipboard' in navigator) || typeof navigator.clipboard === 'undefined') {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: vi.fn(async () => {}),
+        readText: vi.fn(async () => ''),
+      },
+    })
+  }
+} catch {
+  // Some navigator implementations have non-configurable clipboard; ignore in that case
+}
+
+// Polyfill crypto.randomUUID when unavailable (happy-dom < 12)
+try {
+  if (typeof crypto === 'undefined') {
+    Object.defineProperty(globalThis, 'crypto', {
+      configurable: true,
+      value: {
+        randomUUID: nodeRandomUUID,
+      },
+    })
+  } else if (typeof crypto.randomUUID !== 'function') {
+    Object.defineProperty(crypto, 'randomUUID', {
+      configurable: true,
+      value: nodeRandomUUID,
+    })
+  }
+} catch {
+  // Ignore environments that do not allow redefining crypto
 }
 
 // Global mocks for Tauri APIs used across components during tests

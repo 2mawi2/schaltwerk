@@ -11,8 +11,8 @@ export default defineConfig({
       threads: {
         singleThread: false,
         minThreads: 1,
-        maxThreads: 4
-      }
+        maxThreads: 4,
+      },
     },
     include: [
       'src/**/*.test.ts',
