@@ -65,12 +65,13 @@ jobs:
         uses: actions/cache@v4
         if: ${{ !env.ACT }}
         with:
+          # Skip caching src-tauri/target because the debug artifacts exceed 2 GB and
+          # the post-job tar archive started timing out after the objc2 upgrade.
           path: |
             ~/.cargo/bin/
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            src-tauri/target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
