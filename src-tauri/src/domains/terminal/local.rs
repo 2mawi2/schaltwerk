@@ -685,7 +685,44 @@ impl TerminalBackend for LocalPtyAdapter {
 
         let child = pair.slave.spawn_command(cmd).map_err(|e| {
             error!("Failed to spawn command for terminal {id}: {e}");
-            format!("Failed to spawn command: {e}")
+
+            let error_message = format!("Failed to spawn command: {e}");
+            let display_error = format!(
+                "\r\n\x1b[1;31mError: Failed to start agent\x1b[0m\r\n\r\n{error_message}\r\n\r\nPlease check:\r\n\
+                - The agent binary path is correct in Settings\r\n\
+                - The binary exists and has execute permissions\r\n\
+                - The binary is compatible with your system\r\n"
+            );
+
+            let session_id = session_id_from_terminal_id(&id);
+            let error_bytes = display_error.as_bytes().to_vec();
+            let error_len = error_bytes.len() as u64;
+            let state = TerminalState {
+                buffer: error_bytes.clone(),
+                seq: error_len,
+                start_seq: 0,
+                last_output: SystemTime::now(),
+                screen: VisibleScreen::new(rows, cols, id.clone()),
+                idle_detector: IdleDetector::new(IDLE_THRESHOLD_MS, id.clone()),
+                session_id,
+            };
+
+            let creating_clone = Arc::clone(&self.creating);
+            let terminals_clone = Arc::clone(&self.terminals);
+            let id_clone = id.clone();
+            let cwd_clone = params.cwd.clone();
+            let coalescing_state_clone = self.coalescing_state.clone();
+            tokio::spawn(async move {
+                terminals_clone.write().await.insert(id_clone.clone(), state);
+                creating_clone.lock().await.remove(&id_clone);
+
+                if let Some(handle) = coalescing_state_clone.app_handle.lock().await.as_ref() {
+                    let payload = serde_json::json!({ "terminal_id": id_clone, "cwd": cwd_clone });
+                    let _ = emit_event(handle, SchaltEvent::TerminalCreated, &payload);
+                }
+            });
+
+            error_message
         })?;
 
         info!(
