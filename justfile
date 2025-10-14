@@ -447,7 +447,7 @@ test:
 
 # Run only frontend tests (TypeScript, linting, unit tests)
 test-frontend:
-    npm run lint && npm run lint:ts && npm run test:frontend
+    {{pm}} run lint && {{pm}} run lint:ts && {{pm}} run test:frontend
 
 # Run the application using the compiled release binary (no autoreload)
 run-release:
@@ -615,18 +615,74 @@ setup-linux:
 
     echo "Linux dependencies installed"
 
-# Install built binary to ~/.local/bin (Linux XDG standard)
+# Install the application on Linux (builds and installs to ~/.local/bin with XDG compliance)
 install-linux:
     #!/usr/bin/env bash
     set -euo pipefail
+
     echo "Building Schaltwerk for Linux..."
-    cargo build --release --manifest-path src-tauri/Cargo.toml
+
+    # Check if node_modules exists, if not run setup first
+    if [ ! -d "node_modules" ]; then
+        echo "Dependencies not found. Running setup first..."
+        just setup
+    fi
+    
+    # Build MCP server if it exists (like macOS version does)
+    if [ -d "mcp-server" ]; then
+        echo "Building MCP server..."
+        cd mcp-server
+        # Ensure clean, reproducible deps before building
+        echo "Installing MCP server dependencies..."
+        node ../scripts/package-manager.mjs install --production --frozen-lockfile
+        node ../scripts/package-manager.mjs run build
+        cd ..
+        echo "MCP server built"
+    fi
+
+    # Build Tauri application binary only (skip additional bundle creation)
+    echo "Building Tauri app binary..."
+    {{pm}} run tauri -- build --no-bundle
+
+    # Find the built binary (handle different architectures)
+    BINARY_PATH=""
+    if [ -f "src-tauri/target/release/schaltwerk" ]; then
+        BINARY_PATH="src-tauri/target/release/schaltwerk"
+    elif [ -f "src-tauri/target/x86_64-unknown-linux-gnu/release/schaltwerk" ]; then
+        BINARY_PATH="src-tauri/target/x86_64-unknown-linux-gnu/release/schaltwerk"
+    elif [ -f "src-tauri/target/aarch64-unknown-linux-gnu/release/schaltwerk" ]; then
+        BINARY_PATH="src-tauri/target/aarch64-unknown-linux-gnu/release/schaltwerk"
+    fi
+    
+    if [ -z "$BINARY_PATH" ] || [ ! -f "$BINARY_PATH" ]; then
+        echo "Build failed - schaltwerk binary not found"
+        echo "Searched in:"
+        echo "  - src-tauri/target/release/"
+        echo "  - src-tauri/target/x86_64-unknown-linux-gnu/release/"
+        echo "  - src-tauri/target/aarch64-unknown-linux-gnu/release/"
+        exit 1
+    fi
+
+    echo "Found binary at: $BINARY_PATH"
+
+    # Create installation directories
     echo "Installing to ~/.local/bin..."
     mkdir -p ~/.local/bin
     mkdir -p ~/.local/share/applications
     mkdir -p ~/.local/share/icons/hicolor/128x128/apps
-    cp src-tauri/target/release/schaltwerk ~/.local/bin/
-    cp src-tauri/icons/128x128.png ~/.local/share/icons/hicolor/128x128/apps/schaltwerk.png
+
+    # Copy the binary
+    cp "$BINARY_PATH" ~/.local/bin/schaltwerk
+    chmod +x ~/.local/bin/schaltwerk
+
+    # Copy icon (if it exists)
+    if [ -f "src-tauri/icons/128x128.png" ]; then
+        cp src-tauri/icons/128x128.png ~/.local/share/icons/hicolor/128x128/apps/schaltwerk.png
+    elif [ -f "src-tauri/icons/icon.png" ]; then
+        cp src-tauri/icons/icon.png ~/.local/share/icons/hicolor/128x128/apps/schaltwerk.png
+    fi
+
+    # Create desktop entry
     echo "#!/usr/bin/env xdg-open" > ~/.local/share/applications/schaltwerk.desktop
     echo "[Desktop Entry]" >> ~/.local/share/applications/schaltwerk.desktop
     echo "Type=Application" >> ~/.local/share/applications/schaltwerk.desktop
@@ -634,33 +690,85 @@ install-linux:
     echo "Exec=schaltwerk" >> ~/.local/share/applications/schaltwerk.desktop
     echo "Icon=schaltwerk" >> ~/.local/share/applications/schaltwerk.desktop
     echo "Categories=Development;" >> ~/.local/share/applications/schaltwerk.desktop
+    echo "Terminal=false" >> ~/.local/share/applications/schaltwerk.desktop
     chmod +x ~/.local/share/applications/schaltwerk.desktop
-    echo "Installed to ~/.local/bin/schaltwerk"
-    echo "Desktop entry: ~/.local/share/applications/schaltwerk.desktop"
+
+    echo "Schaltwerk installed successfully!"
+    echo ""
+    echo "Launch Schaltwerk:"
+    echo "  - From application menu"
+    echo "  - From Terminal: schaltwerk"
+    echo ""
+    echo "If you encounter issues, ensure you have the required system libraries:"
+    echo "  - libwebkit2gtk-4.1-dev"
+    echo "  - libgtk-3-dev" 
+    echo "  - libayatana-appindicator3-dev"
+    echo "  - librsvg2-dev"
+    echo "  - patchelf"
+
+# Uninstall the application from ~/.local/bin (Linux XDG standard)
+uninstall-linux:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    echo "Uninstalling Schaltwerk..."
+
+    # Remove the binary
+    if [ -f ~/.local/bin/schaltwerk ]; then
+        rm ~/.local/bin/schaltwerk
+        echo "Removed binary from ~/.local/bin/schaltwerk"
+    else
+        echo "Binary not found at ~/.local/bin/schaltwerk"
+    fi
+
+    # Remove desktop entry
+    if [ -f ~/.local/share/applications/schaltwerk.desktop ]; then
+        rm ~/.local/share/applications/schaltwerk.desktop
+        echo "Removed desktop entry from ~/.local/share/applications/schaltwerk.desktop"
+    else
+        echo "Desktop entry not found at ~/.local/share/applications/schaltwerk.desktop"
+    fi
+
+    # Remove icon
+    if [ -f ~/.local/share/icons/hicolor/128x128/apps/schaltwerk.png ]; then
+        rm ~/.local/share/icons/hicolor/128x128/apps/schaltwerk.png
+        echo "Removed icon from ~/.local/share/icons/hicolor/128x128/apps/schaltwerk.png"
+    else
+        echo "Icon not found at ~/.local/share/icons/hicolor/128x128/apps/schaltwerk.png"
+    fi
+
+    # Remove MCP server data if it exists
+    if [ -d ~/.local/share/schaltwerk ]; then
+        rm -rf ~/.local/share/schaltwerk
+        echo "Removed MCP server data from ~/.local/share/schaltwerk"
+    fi
+
+    echo "Schaltwerk uninstalled successfully!"
+    echo "You may need to run 'update-desktop-database' if you use a desktop environment."
 
 # Build all Linux packages (AppImage, deb, rpm)
 build-linux:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "Building all Linux packages..."
-    npm run tauri build -- --bundles appimage,deb,rpm
+    {{pm}} run tauri -- build --bundles appimage,deb,rpm
     echo "Build complete!"
     echo "Packages created:"
     ls -lh src-tauri/target/release/bundle/ 2>/dev/null || echo "No bundle directory found"
 
 # Build Linux AppImage
 build-linux-appimage:
-    npm run tauri build -- --bundles appimage
+    {{pm}} run tauri -- build --bundles appimage
     @echo "AppImage created in src-tauri/target/release/bundle/appimage/"
 
 # Build Linux .deb package
 build-linux-deb:
-    npm run tauri build -- --bundles deb
+    {{pm}} run tauri -- build --bundles deb
     @echo ".deb package created in src-tauri/target/release/bundle/deb/"
 
 # Build Linux .rpm package
 build-linux-rpm:
-    npm run tauri build -- --bundles rpm
+    {{pm}} run tauri -- build --bundles rpm
     @echo ".rpm package created in src-tauri/target/release/bundle/rpm/"
 
 # Run with Wayland debugging enabled
@@ -668,11 +776,11 @@ run-wayland:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "Starting Schaltwerk with Wayland debugging..."
-    WAYLAND_DEBUG=1 WAYLAND_DISPLAY=wayland-0 RUST_LOG=schaltwerk=debug npm run tauri:dev
+    WAYLAND_DEBUG=1 WAYLAND_DISPLAY=wayland-0 RUST_LOG=schaltwerk=debug {{pm}} run tauri:dev
 
 # Force X11 backend (fallback mode)
 run-x11:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "Starting Schaltwerk with X11 backend..."
-    GDK_BACKEND=x11 npm run tauri:dev
+    GDK_BACKEND=x11 {{pm}} run tauri:dev
