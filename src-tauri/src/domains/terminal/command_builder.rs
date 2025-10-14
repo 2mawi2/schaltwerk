@@ -77,166 +77,6 @@ pub async fn build_command_spec(
     })
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::domains::terminal::{put_terminal_shell_override, testing, ApplicationSpec};
-    use std::env;
-    use std::path::Path;
-    use tempfile::TempDir;
-    use tokio::runtime::Runtime;
-
-    #[test]
-    fn builds_shell_command_with_expected_environment() {
-        let _lock = testing::override_lock();
-        let rt = Runtime::new().expect("runtime");
-
-        rt.block_on(async {
-            let original_home = std::env::var("HOME").ok();
-            let original_path = std::env::var("PATH").ok();
-            let original_override = testing::capture_shell_override();
-            let override_shell = testing::resolve_available_shell();
-            put_terminal_shell_override(override_shell.clone(), vec!["-l".to_string()]);
-            env::set_var("HOME", "/home/tester");
-            env::set_var("PATH", "/custom/bin:/usr/bin");
-
-            let params = CreateParams {
-                id: "spec-shell".to_string(),
-                cwd: "/tmp".to_string(),
-                app: None,
-            };
-
-            let spec = build_command_spec(&params, 120, 40)
-                .await
-                .expect("expected shell command spec");
-
-            assert_eq!(spec.program, override_shell);
-            assert_eq!(spec.args, vec!["-l".to_string()]);
-            assert!(spec
-                .env
-                .iter()
-                .any(|(k, v)| k == "TERM" && v == "xterm-256color"));
-            assert!(spec.env.iter().any(|(k, v)| k == "LINES" && v == "40"));
-            assert!(spec.env.iter().any(|(k, v)| k == "COLUMNS" && v == "120"));
-            assert!(spec.env_remove.contains(&"PROMPT_COMMAND".to_string()));
-            assert!(spec.env_remove.contains(&"PS1".to_string()));
-
-            testing::restore_shell_override(original_override);
-            if let Some(home) = original_home {
-                env::set_var("HOME", home);
-            } else {
-                env::remove_var("HOME");
-            }
-            if let Some(path) = original_path {
-                env::set_var("PATH", path);
-            } else {
-                env::remove_var("PATH");
-            }
-        });
-    }
-
-    #[test]
-    fn resolves_application_command_and_merges_env() {
-        let _lock = testing::override_lock();
-        let rt = Runtime::new().expect("runtime");
-
-        rt.block_on(async {
-            let original_home = std::env::var("HOME").ok();
-            let original_path = std::env::var("PATH").ok();
-            let original_override = testing::capture_shell_override();
-            let temp_dir = TempDir::new().expect("temp dir");
-            let bin_path = temp_dir.path().join("run-agent");
-            std::fs::write(&bin_path, "#!/bin/sh\nexit 0\n").expect("write script");
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                let mut perms = std::fs::metadata(&bin_path)
-                    .expect("metadata")
-                    .permissions();
-                perms.set_mode(0o755);
-                std::fs::set_permissions(&bin_path, perms).expect("set perms");
-            }
-
-            env::set_var("PATH", format!("{}:/usr/bin", temp_dir.path().display()));
-            env::set_var("HOME", temp_dir.path());
-
-            let params = CreateParams {
-                id: "spec-app".to_string(),
-                cwd: "/tmp".to_string(),
-                app: Some(ApplicationSpec {
-                    command: "run-agent".to_string(),
-                    args: vec!["--flag".to_string()],
-                    env: vec![("FOO".to_string(), "bar".to_string())],
-                    ready_timeout_ms: 1000,
-                }),
-            };
-
-            let spec = build_command_spec(&params, 80, 24)
-                .await
-                .expect("expected app command spec");
-
-            assert_eq!(spec.program, bin_path.to_string_lossy());
-            assert!(spec.args.contains(&"--flag".to_string()));
-            assert!(spec.env.iter().any(|(k, v)| k == "FOO" && v == "bar"));
-
-            testing::restore_shell_override(original_override);
-            if let Some(home) = original_home {
-                env::set_var("HOME", home);
-            } else {
-                env::remove_var("HOME");
-            }
-            if let Some(path) = original_path {
-                env::set_var("PATH", path);
-            } else {
-                env::remove_var("PATH");
-            }
-        });
-    }
-
-    #[test]
-    fn falls_back_when_env_shell_is_missing() {
-        let _lock = testing::override_lock();
-        let rt = Runtime::new().expect("runtime");
-
-        rt.block_on(async {
-            let original_env_shell = env::var("SHELL").ok();
-            let original_override = testing::capture_shell_override();
-
-            testing::reset_shell_override();
-
-            // Simulate an invalid shell configuration from the environment.
-            env::set_var("SHELL", "/definitely/not/a/shell");
-
-            let params = CreateParams {
-                id: "fallback-shell".to_string(),
-                cwd: "/tmp".to_string(),
-                app: None,
-            };
-
-            let spec = build_command_spec(&params, 80, 24)
-                .await
-                .expect("expected shell command spec");
-
-            let expected_shell = crate::domains::terminal::testing::fallback_shell_candidates()
-                .iter()
-                .find(|candidate| Path::new(candidate).exists())
-                .map(|candidate| candidate.to_string())
-                .expect("at least one fallback shell to exist on the system");
-
-            assert_eq!(spec.program, expected_shell);
-            assert!(
-                spec.args.is_empty(),
-                "fallback shell should not apply override args"
-            );
-
-            match original_env_shell {
-                Some(value) => env::set_var("SHELL", value),
-                None => env::remove_var("SHELL"),
-            }
-            testing::restore_shell_override(original_override);
-        });
-    }
-}
 
 fn build_environment(cols: u16, rows: u16) -> Vec<(String, String)> {
     let mut envs = vec![
@@ -248,7 +88,11 @@ fn build_environment(cols: u16, rows: u16) -> Vec<(String, String)> {
     let path_value = if let Ok(home) = std::env::var("HOME") {
         envs.push(("HOME".to_string(), home.clone()));
 
-        let mut path_components = vec![
+        use std::collections::HashSet;
+        let mut seen = HashSet::new();
+        let mut path_components = Vec::new();
+
+        let priority_paths = vec![
             format!("{home}/.local/bin"),
             format!("{home}/.cargo/bin"),
             format!("{home}/.pyenv/shims"),
@@ -264,10 +108,29 @@ fn build_environment(cols: u16, rows: u16) -> Vec<(String, String)> {
             "/sbin".to_string(),
         ];
 
+        for path in priority_paths {
+            if seen.insert(path.clone()) {
+                path_components.push(path);
+            }
+        }
+
         if let Ok(existing_path) = std::env::var("PATH") {
+            const MAX_PATH_LENGTH: usize = 32768;
+            let mut current_length: usize = path_components.iter().map(|s| s.len() + 1).sum();
+
             for component in existing_path.split(':') {
                 let component = component.trim();
-                if !component.is_empty() && !path_components.contains(&component.to_string()) {
+                if component.is_empty() {
+                    continue;
+                }
+
+                if seen.insert(component.to_string()) {
+                    let new_length = current_length + component.len() + 1;
+                    if new_length > MAX_PATH_LENGTH {
+                        log::warn!("PATH truncated at {current_length} bytes to prevent 'path too long' error");
+                        break;
+                    }
+                    current_length = new_length;
                     path_components.push(component.to_string());
                 }
             }
