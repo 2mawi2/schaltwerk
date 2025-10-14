@@ -961,6 +961,9 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             try {
                 const unlisten = await listenEvent(SchaltEvent.SessionsRefreshed, async (updatedSessions) => {
                     if (selection.kind !== 'session' || !selection.payload) return
+
+                    const processingToken = selectionTokenRef.current
+
                     try {
                         let snapshot: SessionSnapshot | null = null
                         if (Array.isArray(updatedSessions)) {
@@ -973,6 +976,11 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                         if (!snapshot) {
                             snapshot = await ensureSessionSnapshot(selection.payload, { refresh: false })
                         }
+
+                        if (processingToken !== selectionTokenRef.current) {
+                            return
+                        }
+
                         const state = snapshot?.sessionState
                         const worktreePath = snapshot?.worktreePath
                         const nowSpec = state === 'spec'
@@ -990,20 +998,20 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
 
                             try {
                                 const ids = await ensureTerminals(updatedSelection)
-                                setTerminals(ids)
+                                if (processingToken === selectionTokenRef.current) {
+                                    setTerminals(ids)
+                                }
                             } catch (_e) {
                                 logger.warn('[SelectionContext] Failed to create terminals for newly running session', _e)
                             }
                         }
 
                         if (!wasSpec && nowSpec) {
-                            // Only close terminals when worktree is actually removed
-                            // Reviewed sessions still have active worktrees
                             if (worktreePath) {
                                 logger.info(`[SelectionContext] Session ${selection.payload} marked reviewed, preserving terminals`)
                                 return
                             }
-                            
+
                             logger.info(`[SelectionContext] Session ${selection.payload} converting to spec, closing terminals`)
                             const updatedSelection = {
                                 ...selection,
@@ -1014,11 +1022,23 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                             setSelectionState(updatedSelection)
                             setTerminals(updatedTerminals)
                             setCurrentSelection(updatedSelection.payload ?? null)
-                            
+
                             try {
                                 await clearTerminalTracking([updatedTerminals.top])
                             } catch (_e) {
                                 logger.warn('[SelectionContext] Failed to cleanup terminals after running→spec transition:', _e)
+                            }
+                            return
+                        }
+
+                        if (!wasSpec && !nowSpec && state !== selection.sessionState) {
+                            const updatedSelection = {
+                                ...selection,
+                                sessionState: state,
+                                worktreePath: worktreePath || selection.worktreePath
+                            }
+                            if (processingToken === selectionTokenRef.current) {
+                                setSelectionState(updatedSelection)
                             }
                         }
                     } catch (_e) {
