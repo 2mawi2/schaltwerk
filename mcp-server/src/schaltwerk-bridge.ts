@@ -363,11 +363,11 @@ export class SchaltwerkBridge {
     }
   }
 
-  async createSession(name: string, prompt?: string, baseBranch?: string): Promise<Session> {
+  async createSession(name: string, prompt?: string, baseBranch?: string, agentType?: string, skipPermissions?: boolean): Promise<Session> {
     try {
       const response = await this.fetchWithAutoPort('/api/sessions', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           ...this.getProjectHeaders()
         },
@@ -375,19 +375,21 @@ export class SchaltwerkBridge {
           name,
           prompt,
           base_branch: baseBranch,
+          agent_type: agentType,
+          skip_permissions: skipPermissions,
           user_edited_name: false
         })
       })
-      
+
       if (!response.ok) {
         throw new Error(`Failed to create session: ${response.statusText}`)
       }
-      
+
       const session = await response.json() as Session
 
       // Notify Schaltwerk UI about the new session
       await this.notifySessionAdded(session)
-      
+
       return session
     } catch (error) {
       console.error('Failed to create session via API:', error)

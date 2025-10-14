@@ -901,12 +901,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
             createArgs.agent_type,
             createArgs.skip_permissions
           )
-          
+
           result = `Session created successfully:
 - Name: ${session.name}
 - Branch: ${session.branch}
 - Worktree: ${session.worktree_path}
-- Agent: ${session.original_agent_type}
+- Agent: ${createArgs.agent_type || 'claude'}
 - Base Branch: ${session.parent_branch}
 ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
         }

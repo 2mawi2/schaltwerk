@@ -527,6 +527,8 @@ async fn create_session(
     let prompt = payload["prompt"].as_str().map(|s| s.to_string());
     let base_branch = payload["base_branch"].as_str().map(|s| s.to_string());
     let user_edited_name = payload["user_edited_name"].as_bool();
+    let agent_type = payload["agent_type"].as_str().map(|s| s.to_string());
+    let skip_permissions = payload["skip_permissions"].as_bool();
 
     let manager = match get_core_write().await {
         Ok(core) => core.session_manager(),
@@ -543,14 +545,20 @@ async fn create_session(
     let was_user_edited = user_edited_name.unwrap_or(false);
     let was_auto_generated = looks_docker_style && !was_user_edited;
 
-    match manager.create_session_with_auto_flag(
+    use schaltwerk::domains::sessions::service::SessionCreationParams;
+
+    let params = SessionCreationParams {
         name,
-        prompt.as_deref(),
-        base_branch.as_deref(),
+        prompt: prompt.as_deref(),
+        base_branch: base_branch.as_deref(),
         was_auto_generated,
-        None,
-        None,
-    ) {
+        version_group_id: None,
+        version_number: None,
+        agent_type: agent_type.as_deref(),
+        skip_permissions,
+    };
+
+    match manager.create_session_with_agent(params) {
         Ok(session) => {
             info!("Created session via API: {name}");
             request_sessions_refresh(&app, SessionsRefreshReason::SessionLifecycle);
