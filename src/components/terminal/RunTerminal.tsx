@@ -4,16 +4,17 @@ import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
 import { AnimatedText } from '../common/AnimatedText'
 import { logger } from '../../utils/logger'
-import { listenEvent, SchaltEvent, listenTerminalOutput } from '../../common/eventSystem'
+import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import { theme } from '../../common/theme'
 import { bestBootstrapSize } from '../../common/terminalSizeCache'
 import {
   createRunTerminalBackend,
   terminalExistsBackend,
   writeTerminalBackend,
-  subscribeTerminalBackend,
   isPluginTerminal,
 } from '../../terminal/transport/backend'
+import { useTerminalListener } from '../../hooks/useTerminalListener'
+import { useStreamingDecoder } from '../../hooks/useStreamingDecoder'
 
 interface RunScript {
   command: string
@@ -22,7 +23,6 @@ interface RunScript {
 }
 
 const RUN_EXIT_SENTINEL_PREFIX = '__SCHALTWERK_RUN_EXIT__='
-const RUN_EXIT_SENTINEL_TERMINATORS = ['\r', '\n'] as const
 const RUN_EXIT_PRINTF_COMMAND = `printf '${RUN_EXIT_SENTINEL_PREFIX}%s\r' "$__schaltwerk_exit_code"`
 const RUN_EXIT_CLEAR_LINE = "printf '\\r\\033[K'"
 
@@ -56,14 +56,11 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
 
   const [isRunning, setIsRunning] = useState(() => sessionStorage.getItem(runStateKey) === 'true')
   const runningRef = useRef(isRunning)
-  const outputBufferRef = useRef('')
   const terminalRef = useRef<TerminalHandle | null>(null)
   const [scrollRequestId, setScrollRequestId] = useState(0)
   const pendingScrollToBottomRef = useRef(false)
   const [pluginTransportActive, setPluginTransportActive] = useState(() => isPluginTerminal(runTerminalId))
   const pluginSeqRef = useRef(0)
-  const textDecoderRef = useRef<TextDecoder | null>(null)
-  const textEncoderRef = useRef<TextEncoder | null>(null)
 
   const syncPluginTransportState = useCallback(() => {
     const active = isPluginTerminal(runTerminalId)
@@ -79,43 +76,19 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
     return active
   }, [runTerminalId])
 
-  const processChunk = useCallback((chunk: string) => {
-    if (chunk.length > 0) {
-      outputBufferRef.current = (outputBufferRef.current + chunk).slice(-2048)
-    }
+  const handleRunComplete = useCallback((exitCode: string) => {
+    logger.info('[RunTerminal] Detected run command completion with exit code:', exitCode || 'unknown')
 
-    const trimmed = chunk.trim()
-    const containsSentinel = chunk.includes(RUN_EXIT_SENTINEL_PREFIX)
-    if (trimmed.length === 0 && !containsSentinel) {
-      return
-    }
-
-    let searchIndex = outputBufferRef.current.indexOf(RUN_EXIT_SENTINEL_PREFIX)
-    while (searchIndex !== -1) {
-      const start = searchIndex + RUN_EXIT_SENTINEL_PREFIX.length
-      const terminatorIndex = RUN_EXIT_SENTINEL_TERMINATORS
-        .map(term => ({ term, index: outputBufferRef.current.indexOf(term, start) }))
-        .filter(({ index }) => index !== -1)
-        .sort((a, b) => a.index - b.index)[0]?.index ?? -1
-
-      if (terminatorIndex === -1) {
-        outputBufferRef.current = outputBufferRef.current.slice(searchIndex)
-        return
-      }
-
-      const exitCode = outputBufferRef.current.slice(start, terminatorIndex)
-      logger.info('[RunTerminal] Detected run command completion with exit code:', exitCode || 'unknown')
-
-      if (runningRef.current) {
-        runningRef.current = false
-        setIsRunning(false)
-        onRunningStateChange?.(false)
-      }
-
-      outputBufferRef.current = outputBufferRef.current.slice(terminatorIndex + 1)
-      searchIndex = outputBufferRef.current.indexOf(RUN_EXIT_SENTINEL_PREFIX)
+    if (runningRef.current) {
+      runningRef.current = false
+      setIsRunning(false)
+      onRunningStateChange?.(false)
     }
   }, [onRunningStateChange])
+
+  const { processChunk } = useStreamingDecoder({
+    onSentinel: handleRunComplete
+  })
 
   useEffect(() => {
     runningRef.current = isRunning
@@ -180,7 +153,6 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
           if (payload.terminal_id === runTerminalId) {
             logger.info('[RunTerminal] TerminalClosed for run terminal; marking stopped')
             runningRef.current = false
-            outputBufferRef.current = ''
             setIsRunning(false)
             onRunningStateChange?.(false)
           }
@@ -193,99 +165,13 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
     return () => { unlisten?.() }
   }, [runTerminalId, onRunningStateChange])
 
-  useEffect(() => {
-    let mounted = true
-    let unlisten: (() => void) | null = null
-
-    const flushStreamingDecoder = () => {
-      const decoder = textDecoderRef.current
-      if (!decoder) return
-      try {
-        const tail = decoder.decode(new Uint8Array(0), { stream: false })
-        if (tail && tail.length > 0) {
-          processChunk(tail)
-        }
-      } catch (error) {
-        logger.debug('[RunTerminal] decoder flush failed', error)
-      }
-      textDecoderRef.current = null
-    }
-
-    const setup = async () => {
-      try {
-        if (pluginTransportActive) {
-          const unsubscribe = await subscribeTerminalBackend(
-            runTerminalId,
-            pluginSeqRef.current,
-            (message) => {
-              const decoder = textDecoderRef.current ?? (typeof TextDecoder !== 'undefined' ? new TextDecoder('utf-8', { fatal: false }) : null)
-              if (!decoder) {
-                logger.warn('[RunTerminal] TextDecoder unavailable; dropping PTY chunk')
-                return
-              }
-              textDecoderRef.current = decoder
-              pluginSeqRef.current = message.seq
-              const chunk = decoder.decode(message.bytes, { stream: true })
-              if (chunk.length === 0) {
-                return
-              }
-              processChunk(chunk)
-            },
-          )
-
-          const pluginUnlisten = () => {
-            try {
-              flushStreamingDecoder()
-              const result = unsubscribe?.() as unknown
-              if (result instanceof Promise) {
-                void (result as Promise<void>).catch(err => logger.debug('[RunTerminal] unsubscribe failed', err))
-              }
-            } catch (error) {
-              logger.debug('[RunTerminal] unsubscribe failed', error)
-            }
-          }
-
-          if (!mounted) {
-            try {
-              pluginUnlisten()
-            } catch (error) {
-              logger.debug(`[RunTerminal] Cleaned up plugin listener after unmount during setup`, error)
-            }
-            return
-          }
-
-          unlisten = pluginUnlisten
-        } else {
-          const unlistenOutput = await listenTerminalOutput(runTerminalId, (payload) => {
-            if (!payload) return
-            processChunk(payload.toString())
-          })
-
-          if (!mounted) {
-            try {
-              unlistenOutput()
-            } catch (error) {
-              logger.debug(`[RunTerminal] Cleaned up listener after unmount during setup`, error)
-            }
-            return
-          }
-
-          unlisten = unlistenOutput
-        }
-      } catch (err) {
-        logger.error('[RunTerminal] Failed to listen for run completion sentinel:', err)
-      }
-    }
-
-    setup()
-    return () => {
-      mounted = false
-      unlisten?.()
-      flushStreamingDecoder()
-      textDecoderRef.current = null
-      textEncoderRef.current = null
-    }
-  }, [runTerminalId, onRunningStateChange, pluginTransportActive, processChunk])
+  useTerminalListener({
+    terminalId: runTerminalId,
+    onOutput: processChunk,
+    enabled: true,
+    usePlugin: pluginTransportActive,
+    initialSeq: pluginSeqRef.current
+  })
 
   const executeRunCommand = useCallback(async (command: string) => {
     try {
@@ -297,7 +183,6 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
         RUN_EXIT_CLEAR_LINE,
         'unset __schaltwerk_exit_code'
       ].join('; ') + '\n'
-      outputBufferRef.current = ''
       await writeTerminalBackend(runTerminalId, decoratedCommand)
       logger.info('[RunTerminal] Executed run script command:', command)
       runningRef.current = true
@@ -345,7 +230,6 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
         try {
           await writeTerminalBackend(runTerminalId, '\u0003')
           runningRef.current = false
-          outputBufferRef.current = ''
           setIsRunning(false)
           onRunningStateChange?.(false)
         } catch (err) {
