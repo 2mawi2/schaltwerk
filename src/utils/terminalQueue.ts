@@ -74,6 +74,6 @@ export function makeDefaultQueueConfig(): QueueConfig {
     maxQueueBytes,
     targetAfterDrop,
     lowWaterMark: Math.floor(targetAfterDrop / 2),
-    maxWriteChunk: 128 * 1024, // 128KB
+    maxWriteChunk: 256 * 1024,
   }
 }

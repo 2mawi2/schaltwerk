@@ -74,7 +74,7 @@ pub async fn handle_coalesced_output(
     }
 
     // Deterministic, read-driven emission without timers
-    const THRESHOLD: usize = 8 * 1024;
+    const THRESHOLD: usize = 32 * 1024;
     // Take a snapshot of the buffer and compute safe split
     let (emit_bytes, remainder) = {
         let mut buffers = coalescing_state.emit_buffers.write().await;

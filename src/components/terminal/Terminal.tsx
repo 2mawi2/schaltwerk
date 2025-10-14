@@ -1014,11 +1014,25 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             cursorInactiveStyle: 'outline',
             scrollback: scrollbackLines,
             smoothScrollDuration: 0,
-            // Important: Keep TUI control sequences intact (e.g., emitted by agent CLIs)
             // Converting EOLs breaks carriage-return based updates and causes visual jumping
             convertEol: false,
             disableStdin: readOnly,
             minimumContrastRatio: atlasContrast,
+
+            customGlyphs: true,
+            drawBoldTextInBrightColors: false,
+            rescaleOverlappingGlyphs: false,
+            allowTransparency: false,
+            allowProposedApi: false,
+
+            fastScrollSensitivity: 8,
+            scrollSensitivity: 1.5,
+            scrollOnUserInput: true,
+
+            altClickMovesCursor: true,
+            rightClickSelectsWord: true,
+
+            tabStopWidth: 8,
         });
 
         // Add fit addon for proper sizing
@@ -1037,7 +1051,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
         if (!isBackground && termRef.current && terminal.current) {
             const suspensionManager = TerminalSuspensionManager.getInstance({
-                suspendAfterMs: 1800000,
+                suspendAfterMs: 5000,
                 maxSuspendedTerminals: 100,
                 keepAliveTerminalIds: new Set()
             });
