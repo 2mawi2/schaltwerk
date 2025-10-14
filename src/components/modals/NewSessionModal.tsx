@@ -20,6 +20,7 @@ import {
 import { AgentDefaultsSection } from '../shared/AgentDefaultsSection'
 import { useProjectFileIndex } from '../../hooks/useProjectFileIndex'
 import type { MarkdownEditorRef } from '../plans/MarkdownEditor'
+import { ResizableModal } from '../shared/ResizableModal'
 
 const MarkdownEditor = lazy(() => import('../plans/MarkdownEditor').then(m => ({ default: m.MarkdownEditor })))
 
@@ -631,11 +632,88 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
         creating ||
         (createAsDraft && !taskContent.trim())
 
+    const footer = (
+        <>
+            {!createAsDraft && (
+                <Dropdown
+                  open={showVersionMenu}
+                  onOpenChange={setShowVersionMenu}
+                  items={([1,2,3,4] as const).map(n => ({ key: String(n), label: `${n} ${n === 1 ? 'version' : 'versions'}` }))}
+                  selectedKey={String(versionCount)}
+                  align="right"
+                  onSelect={(key) => setVersionCount(parseInt(key))}
+                  menuTestId="version-selector-menu"
+                >
+                  {({ open, toggle }) => (
+                    <button
+                      type="button"
+                      data-testid="version-selector"
+                      onClick={toggle}
+                      className="px-2 h-9 rounded inline-flex items-center gap-2 hover:opacity-90"
+                      style={{
+                        backgroundColor: open ? theme.colors.background.hover : theme.colors.background.elevated,
+                        color: theme.colors.text.primary,
+                        border: `1px solid ${open ? theme.colors.border.default : theme.colors.border.subtle}`,
+                      }}
+                      title="Number of parallel versions"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'block', verticalAlign: 'middle' }}>
+                        <path d="M12 2L3 6l9 4 9-4-9-4z" fill={theme.colors.text.primary} fillOpacity={0.9}/>
+                        <path d="M3 10l9 4 9-4" stroke={theme.colors.text.primary} strokeOpacity={0.5} strokeWidth={1.2}/>
+                        <path d="M3 14l9 4 9-4" stroke={theme.colors.text.primary} strokeOpacity={0.35} strokeWidth={1.2}/>
+                      </svg>
+                      <span style={{ lineHeight: 1 }}>{versionCount}x</span>
+                      <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 120ms ease' }}>
+                        <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  )}
+                </Dropdown>
+            )}
+            <button
+                onClick={onClose}
+                className="px-3 h-9 rounded group relative hover:opacity-90 inline-flex items-center"
+                style={{ backgroundColor: theme.colors.background.elevated, color: theme.colors.text.primary, border: `1px solid ${theme.colors.border.subtle}` }}
+                title="Cancel (Esc)"
+            >
+                Cancel
+                <span className="ml-1.5 text-xs opacity-60 group-hover:opacity-100">Esc</span>
+            </button>
+            <button
+                onClick={handleCreate}
+                disabled={isStartDisabled}
+                className={`px-3 h-9 disabled:cursor-not-allowed rounded text-white group relative inline-flex items-center gap-2 ${isStartDisabled ? 'opacity-60' : 'hover:opacity-90'}`}
+                style={{
+                    backgroundColor: createAsDraft ? theme.colors.accent.amber.DEFAULT : theme.colors.accent.blue.DEFAULT,
+                    opacity: creating ? 0.9 : 1
+                }}
+                title={createAsDraft ? "Create spec (Cmd+Enter)" : "Start agent (Cmd+Enter)"}
+            >
+                {creating && (
+                    <span
+                        className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/60 border-t-transparent"
+                        aria-hidden="true"
+                    />
+                )}
+                <span>{createAsDraft ? "Create Spec" : "Start Agent"}</span>
+                {!creating && <span className="ml-1.5 text-xs opacity-60 group-hover:opacity-100">⌘↵</span>}
+            </button>
+        </>
+    )
+
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: theme.colors.overlay.backdrop }}>
-            <div className="w-[720px] max-w-[95vw] rounded-xl shadow-xl" style={{ backgroundColor: theme.colors.background.tertiary, borderColor: theme.colors.border.subtle, border: '1px solid' }}>
-                <div className="px-4 py-3 border-b font-medium" style={{ borderBottomColor: theme.colors.border.default, color: theme.colors.text.primary }}>{createAsDraft ? "Create new spec" : "Start new agent"}</div>
-                <div className="p-4 space-y-4">
+        <ResizableModal
+            isOpen={open}
+            onClose={onClose}
+            title={createAsDraft ? "Create new spec" : "Start new agent"}
+            storageKey="new-session"
+            defaultWidth={720}
+            defaultHeight={700}
+            minWidth={600}
+            minHeight={500}
+            footer={footer}
+        >
+            <div className="flex flex-col h-full p-4 gap-4">
                     <div>
                         <label className="block text-sm text-slate-300 mb-1">Agent name</label>
                         <input 
@@ -686,14 +764,13 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                         )}
                     </div>
 
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center gap-2">
                         <input
                             id="createAsDraft"
                             type="checkbox"
                             checked={createAsDraft}
                             onChange={e => {
                                 setCreateAsDraft(e.target.checked)
-                                // Clear validation error when switching modes to prevent stale errors
                                 if (validationError) {
                                     setValidationError('')
                                 }
@@ -703,12 +780,12 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                         <label htmlFor="createAsDraft" className="text-sm text-slate-300">Create as spec (no agent will start)</label>
                     </div>
 
-                    <div>
+                    <div className="flex flex-col flex-1 min-h-0">
                         <label className="block text-sm text-slate-300 mb-1">
                             {createAsDraft ? 'Spec content' : 'Initial prompt (optional)'}
                         </label>
-                        <Suspense fallback={<div className="h-40 rounded border border-slate-700" style={{ backgroundColor: theme.colors.background.elevated }} /> }>
-                            <div className="h-40" data-testid="session-task-editor">
+                        <Suspense fallback={<div className="flex-1 rounded border border-slate-700" style={{ backgroundColor: theme.colors.background.elevated }} /> }>
+                            <div className="flex-1" data-testid="session-task-editor">
                                 <MarkdownEditor
                                     ref={markdownEditorRef}
                                     value={taskContent}
@@ -778,73 +855,6 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                         </>
                     )}
                 </div>
-                <div className="px-4 py-3 border-t border-slate-800 flex justify-end gap-2 relative">
-                    {!createAsDraft && (
-                        <Dropdown
-                          open={showVersionMenu}
-                          onOpenChange={setShowVersionMenu}
-                          items={([1,2,3,4] as const).map(n => ({ key: String(n), label: `${n} ${n === 1 ? 'version' : 'versions'}` }))}
-                          selectedKey={String(versionCount)}
-                          align="right"
-                          onSelect={(key) => setVersionCount(parseInt(key))}
-                          menuTestId="version-selector-menu"
-                        >
-                          {({ open, toggle }) => (
-                            <button
-                              type="button"
-                              data-testid="version-selector"
-                              onClick={toggle}
-                              className="px-2 h-9 rounded inline-flex items-center gap-2 hover:opacity-90"
-                              style={{
-                                backgroundColor: open ? theme.colors.background.hover : theme.colors.background.elevated,
-                                color: theme.colors.text.primary,
-                                border: `1px solid ${open ? theme.colors.border.default : theme.colors.border.subtle}`,
-                              }}
-                              title="Number of parallel versions"
-                            >
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'block', verticalAlign: 'middle' }}>
-                                <path d="M12 2L3 6l9 4 9-4-9-4z" fill={theme.colors.text.primary} fillOpacity={0.9}/>
-                                <path d="M3 10l9 4 9-4" stroke={theme.colors.text.primary} strokeOpacity={0.5} strokeWidth={1.2}/>
-                                <path d="M3 14l9 4 9-4" stroke={theme.colors.text.primary} strokeOpacity={0.35} strokeWidth={1.2}/>
-                              </svg>
-                              <span style={{ lineHeight: 1 }}>{versionCount}x</span>
-                              <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 120ms ease' }}>
-                                <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clipRule="evenodd" />
-                              </svg>
-                            </button>
-                          )}
-                        </Dropdown>
-                    )}
-                    <button 
-                        onClick={onClose} 
-                        className="px-3 h-9 rounded group relative hover:opacity-90 inline-flex items-center"
-                        style={{ backgroundColor: theme.colors.background.elevated, color: theme.colors.text.primary, border: `1px solid ${theme.colors.border.subtle}` }}
-                        title="Cancel (Esc)"
-                    >
-                        Cancel
-                        <span className="ml-1.5 text-xs opacity-60 group-hover:opacity-100">Esc</span>
-                    </button>
-                    <button 
-                        onClick={handleCreate} 
-                        disabled={isStartDisabled}
-                        className={`px-3 h-9 disabled:cursor-not-allowed rounded text-white group relative inline-flex items-center gap-2 ${isStartDisabled ? 'opacity-60' : 'hover:opacity-90'}`}
-                        style={{ 
-                            backgroundColor: createAsDraft ? theme.colors.accent.amber.DEFAULT : theme.colors.accent.blue.DEFAULT,
-                            opacity: creating ? 0.9 : 1
-                        }}
-                        title={createAsDraft ? "Create spec (Cmd+Enter)" : "Start agent (Cmd+Enter)"}
-                    >
-                        {creating && (
-                            <span
-                                className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/60 border-t-transparent"
-                                aria-hidden="true"
-                            />
-                        )}
-                        <span>{createAsDraft ? "Create Spec" : "Start Agent"}</span>
-                        {!creating && <span className="ml-1.5 text-xs opacity-60 group-hover:opacity-100">⌘↵</span>}
-                    </button>
-                </div>
-            </div>
-        </div>
+        </ResizableModal>
     )
 }
