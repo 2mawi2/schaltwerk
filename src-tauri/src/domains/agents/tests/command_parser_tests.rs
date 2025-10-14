@@ -158,7 +158,11 @@ fn test_parse_agent_command_rejects_unsupported_agent() {
 
     let qwen_cmd = r#"cd /tmp/work && qwen --yolo"#;
     let qwen_result = parse_agent_command(qwen_cmd);
-    assert!(qwen_result.is_err());
+    assert!(qwen_result.is_ok());
+    let (cwd, agent, args) = qwen_result.unwrap();
+    assert_eq!(cwd, "/tmp/work");
+    assert_eq!(agent, "qwen");
+    assert_eq!(args, vec!["--yolo"]);
 }
 
 #[test]

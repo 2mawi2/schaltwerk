@@ -42,3 +42,11 @@ default_binary_path = "/Users/marius.wichtner/.local/bin/droid"
 auto_send_initial_command = true
 supports_resume = false
 ready_marker = "You are standing in an open terminal. An AI awaits your commands."
+
+[agents.qwen]
+id = "qwen"
+display_name = "Qwen"
+binary_name = "qwen"
+default_binary_path = "qwen"
+auto_send_initial_command = false
+supports_resume = false

@@ -4,12 +4,13 @@ import { theme } from '../../common/theme'
 import { Dropdown } from './Dropdown'
 import { AgentType, AGENT_TYPES, AGENT_SUPPORTS_SKIP_PERMISSIONS } from '../../types/session'
 
-const MODEL_METADATA: Record<AgentType, { label: string; color: 'blue' | 'green' | 'orange' | 'red' | 'violet' }> = {
+const MODEL_METADATA: Record<AgentType, { label: string; color: 'blue' | 'green' | 'orange' | 'red' | 'violet' | 'cyan' }> = {
     claude: { label: 'Claude', color: 'blue' },
     opencode: { label: 'OpenCode', color: 'green' },
     gemini: { label: 'Gemini', color: 'orange' },
     codex: { label: 'Codex', color: 'red' },
-    droid: { label: 'Droid', color: 'violet' }
+    droid: { label: 'Droid', color: 'violet' },
+    qwen: { label: 'Qwen', color: 'cyan' }
 }
 
 interface ModelSelectorProps {
@@ -95,6 +96,7 @@ export function ModelSelector({
                                                   model.color === 'green' ? theme.colors.accent.green.DEFAULT :
                                                   model.color === 'orange' ? theme.colors.accent.amber.DEFAULT :
                                                   model.color === 'violet' ? theme.colors.accent.violet.DEFAULT :
+                                                  model.color === 'cyan' ? theme.colors.accent.cyan.DEFAULT :
                                                   theme.colors.accent.red.DEFAULT
                               }} />
                     )}

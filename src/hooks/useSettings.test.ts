@@ -25,7 +25,8 @@ describe('useSettings', () => {
         opencode: [{ key: 'OPENAI_API_KEY', value: 'openai-key' }],
         gemini: [{ key: 'PROJECT_ID', value: 'test-id' }],
         codex: [],
-        droid: [{ key: 'WELCOME_PROMPT', value: 'ready' }]
+        droid: [{ key: 'WELCOME_PROMPT', value: 'ready' }],
+        qwen: [{ key: 'PROJECT_ID', value: 'test-id' }]
       }
 
       const cliArgs: Record<AgentType, string> = {
@@ -33,7 +34,8 @@ describe('useSettings', () => {
         opencode: '--temperature 0.8',
         gemini: '--project test',
         codex: '',
-        droid: '--log-level debug'
+        droid: '--log-level debug',
+        qwen: '--project test'
       }
 
       await act(async () => {
@@ -72,7 +74,7 @@ describe('useSettings', () => {
         agentType: 'droid',
         cliArgs: '--log-level debug'
       })
-      expect(mockInvoke).toHaveBeenCalledTimes(10)
+      expect(mockInvoke).toHaveBeenCalledTimes(12)
     })
 
     it('filters out empty environment variable keys', async () => {
@@ -87,7 +89,8 @@ describe('useSettings', () => {
         opencode: [],
         gemini: [],
         codex: [],
-        droid: []
+        droid: [],
+        qwen: []
       }
 
       const cliArgs: Record<AgentType, string> = {
@@ -95,7 +98,8 @@ describe('useSettings', () => {
         opencode: '',
         gemini: '',
         codex: '',
-        droid: ''
+        droid: '',
+        qwen: ''
       }
 
       await act(async () => {
@@ -226,7 +230,8 @@ describe('useSettings', () => {
         opencode: [],
         gemini: [],
         codex: [],
-        droid: []
+        droid: [],
+        qwen: []
       }
 
       const cliArgs: Record<AgentType, string> = {
@@ -234,7 +239,8 @@ describe('useSettings', () => {
         opencode: '',
         gemini: '',
         codex: '',
-        droid: ''
+        droid: '',
+        qwen: ''
       }
       
       const projectSettings = {
@@ -295,7 +301,8 @@ describe('useSettings', () => {
         opencode: [],
         gemini: [],
         codex: [],
-        droid: []
+        droid: [],
+        qwen: []
       }
 
       const cliArgs: Record<AgentType, string> = {
@@ -303,7 +310,8 @@ describe('useSettings', () => {
         opencode: '',
         gemini: '',
         codex: '',
-        droid: ''
+        droid: '',
+        qwen: ''
       }
       
       const projectSettings = {
@@ -359,7 +367,8 @@ describe('useSettings', () => {
         opencode: [],
         gemini: [],
         codex: [],
-        droid: []
+        droid: [],
+        qwen: []
       }
 
       const cliArgs: Record<AgentType, string> = {
@@ -367,7 +376,8 @@ describe('useSettings', () => {
         opencode: '',
         gemini: '',
         codex: '',
-        droid: ''
+        droid: '',
+        qwen: ''
       }
 
       const projectSettings = {
@@ -472,7 +482,8 @@ describe('useSettings', () => {
         opencode: [],
         gemini: [{ key: 'PROJECT', value: 'gemini-project' }],
         codex: [],
-        droid: []
+        droid: [],
+        qwen: []
       })
       expect(result.current.loading).toBe(false)
     })
@@ -491,7 +502,8 @@ describe('useSettings', () => {
         opencode: [],
         gemini: [],
         codex: [],
-        droid: []
+        droid: [],
+        qwen: []
       })
     })
   })
@@ -523,7 +535,8 @@ describe('useSettings', () => {
         opencode: '--silent',
         gemini: '',
         codex: '',
-        droid: ''
+        droid: '',
+        qwen: ''
       })
     })
 
@@ -541,7 +554,8 @@ describe('useSettings', () => {
         opencode: '',
         gemini: '',
         codex: '',
-        droid: ''
+        droid: '',
+        qwen: ''
       })
     })
   })

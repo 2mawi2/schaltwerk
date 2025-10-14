@@ -105,7 +105,10 @@ describe('SwitchOrchestratorModal', () => {
     // Change selection to Claude via dropdown and switch again
     const selectorButton = screen.getByRole('button', { name: /opencode/i })
     fireEvent.click(selectorButton)
-    const claudeOption = await screen.findByRole('button', { name: /^claude$/i })
+    
+    // Wait for dropdown to appear and contain Claude option
+    // The Claude option is nested inside spans, so we need to use role with name matching
+    const claudeOption = await screen.findByRole('button', { name: /Claude/i })
     fireEvent.click(claudeOption)
 
     fireEvent.click(screen.getByRole('button', { name: /switch agent/i }))

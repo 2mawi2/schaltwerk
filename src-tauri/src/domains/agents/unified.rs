@@ -3,6 +3,7 @@ use super::droid;
 use super::format_binary_invocation;
 use super::launch_spec::AgentLaunchSpec;
 use super::manifest::AgentManifest;
+use super::qwen;
 use log::warn;
 use std::collections::HashMap;
 use std::path::Path;
@@ -175,6 +176,32 @@ impl AgentAdapter for OpenCodeAdapter {
     }
 }
 
+pub struct QwenAdapter;
+
+impl AgentAdapter for QwenAdapter {
+    fn find_session(&self, path: &Path) -> Option<String> {
+        qwen::find_qwen_session(path)
+    }
+
+    fn build_launch_spec(&self, ctx: AgentLaunchContext) -> AgentLaunchSpec {
+        let config = qwen::QwenConfig {
+            binary_path: Some(
+                ctx.binary_override
+                    .unwrap_or(&ctx.manifest.default_binary_path)
+                    .to_string(),
+            ),
+        };
+        let command = qwen::build_qwen_command_with_config(
+            ctx.worktree_path,
+            ctx.session_id,
+            ctx.initial_prompt,
+            ctx.skip_permissions,
+            Some(&config),
+        );
+        AgentLaunchSpec::new(command, ctx.worktree_path.to_path_buf())
+    }
+}
+
 pub struct AgentRegistry {
     adapters: HashMap<String, Box<dyn AgentAdapter>>,
 }
@@ -188,6 +215,7 @@ impl AgentRegistry {
         adapters.insert("gemini".to_string(), Box::new(GeminiAdapter));
         adapters.insert("opencode".to_string(), Box::new(OpenCodeAdapter));
         adapters.insert("droid".to_string(), Box::new(DroidAdapter));
+        adapters.insert("qwen".to_string(), Box::new(QwenAdapter));
 
         for agent_id in AgentManifest::supported_agents() {
             if !adapters.contains_key(&agent_id) {
@@ -251,18 +279,20 @@ mod tests {
         assert!(registry.get("gemini").is_some());
         assert!(registry.get("opencode").is_some());
         assert!(registry.get("droid").is_some());
+        assert!(registry.get("qwen").is_some());
     }
 
     #[test]
     fn test_registry_supported_agents() {
         let registry = AgentRegistry::new();
         let supported = registry.supported_agents();
-        assert!(supported.len() >= 5);
+        assert!(supported.len() >= 6);
         assert!(supported.contains(&"claude".to_string()));
         assert!(supported.contains(&"codex".to_string()));
         assert!(supported.contains(&"droid".to_string()));
         assert!(supported.contains(&"gemini".to_string()));
         assert!(supported.contains(&"opencode".to_string()));
+        assert!(supported.contains(&"qwen".to_string()));
     }
 
     #[test]
@@ -508,6 +538,31 @@ mod tests {
             } else {
                 std::env::remove_var("PATH");
             }
+        }
+    }
+
+    mod qwen_tests {
+        use super::*;
+
+        #[test]
+        fn test_qwen_adapter_basic() {
+            let adapter = QwenAdapter;
+            let manifest = AgentManifest::get("qwen").unwrap();
+
+            let ctx = AgentLaunchContext {
+                worktree_path: Path::new("/test/path"),
+                session_id: None,
+                initial_prompt: Some("test prompt"),
+                skip_permissions: true,
+                binary_override: Some("qwen"),
+                manifest,
+            };
+
+            let spec = adapter.build_launch_spec(ctx);
+            assert!(spec.shell_command.contains("qwen"));
+            assert!(spec.shell_command.contains("--yolo"));
+            assert!(spec.shell_command.contains("--prompt-interactive"));
+            assert!(spec.shell_command.contains("test prompt"));
         }
     }
 }

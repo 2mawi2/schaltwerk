@@ -4,7 +4,7 @@
 
 **Native terminal AI agents with git worktree isolation. Spec-driven development for parallel workflows.**
 
-Run Claude Code, OpenCode, Gemini, Codex, and Factory Droid natively—no wrappers, no limitations. Each gets its own worktree.
+Run Claude Code, OpenCode, Gemini, Codex, Qwen, and Factory Droid natively—no wrappers, no limitations. Each gets its own worktree.
 
 [![Test](https://github.com/2mawi2/schaltwerk/actions/workflows/test.yml/badge.svg)](https://github.com/2mawi2/schaltwerk/actions/workflows/test.yml)
 
@@ -31,7 +31,7 @@ Run Claude Code, OpenCode, Gemini, Codex, and Factory Droid natively—no wrappe
 - **macOS 11+** (Big Sur or later) - currently supported
 - **Linux** - alpha version coming soon (work in progress)
 - **Git 2.30+**
-- At least one agentic coding CLI: Claude Code, OpenCode, Gemini, Codex, or Factory Droid
+- At least one agentic coding CLI: Claude Code, OpenCode, Gemini, Codex, Qwen, or Factory Droid
 
 ## Quick Start (60 seconds)
 
@@ -40,7 +40,7 @@ Run Claude Code, OpenCode, Gemini, Codex, and Factory Droid natively—no wrappe
    brew install --cask 2mawi2/tap/schaltwerk && open -a Schaltwerk
    ```
 2. Open your project: drag the repo in or use `File → Open Project…`.
-3. Start an agent (`⌘N`): choose Claude Code, OpenCode, or another AI and give it a task prompt.
+3. Start an agent (`⌘N`): choose Claude Code, OpenCode, Qwen, or another AI and give it a task prompt.
 4. Let the agent work—Schaltwerk spins up its own branch/worktree; use the second terminal to run tests or manual checks while it codes.
 5. Review diffs, leave comments, mark reviewed with `⌘R`, then in Reviewed hit **Merge/PR** or `⌘⇧M` to squash-merge back to your branch.
 

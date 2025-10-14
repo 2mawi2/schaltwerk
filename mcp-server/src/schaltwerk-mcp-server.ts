@@ -17,7 +17,7 @@ import { SchaltwerkBridge, Session, MergeModeOption } from "./schaltwerk-bridge.
 interface SchaltwerkStartArgs {
   name?: string
   prompt?: string
-  agent_type?: 'claude' | 'opencode' | 'gemini' | 'codex'
+  agent_type?: 'claude' | 'opencode' | 'gemini' | 'codex' | 'qwen' | 'droid'
   base_branch?: string
   skip_permissions?: boolean
   is_draft?: boolean
@@ -62,7 +62,7 @@ interface SchaltwerkCurrentSpecUpdateArgs {
 
 interface SchaltwerkDraftStartArgs {
   session_name: string
-  agent_type?: 'claude' | 'opencode' | 'gemini' | 'codex'
+  agent_type?: 'claude' | 'opencode' | 'gemini' | 'codex' | 'qwen' | 'droid'
   skip_permissions?: boolean
   base_branch?: string
 }
@@ -144,6 +144,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 - 'gemini': Use Google's Gemini CLI tooling
 - 'codex': Use Codex CLI with sandbox controls
 - 'droid': Use Factory Droid for build-and-test automation
+- 'qwen': Use Qwen Code assistant
 
 📝 PROMPTING:
 When creating sessions for AI agents, provide clear, specific prompts:
@@ -172,7 +173,7 @@ The prompt becomes the initial context for the AI agent working in that session.
             },
             agent_type: {
               type: "string",
-              enum: ["claude", "opencode", "gemini", "codex"],
+              enum: ["claude", "opencode", "gemini", "codex", "qwen", "droid"],
               description: "AI agent type to use (default: claude)"
             },
             base_branch: {
@@ -197,7 +198,7 @@ The prompt becomes the initial context for the AI agent working in that session.
  - status: "new" | "reviewed"
  - created_at: ISO timestamp
  - last_activity: ISO timestamp or null
- - agent_type: "claude" | "opencode" | "gemini" | "codex" | "droid"
+ - agent_type: "claude" | "opencode" | "gemini" | "codex" | "droid" | "qwen"
  - branch: Git branch name
  - worktree_path: Local path
  - initial_prompt: Original agent description
@@ -536,6 +537,7 @@ REQUIREMENTS: Target session must exist and be active.`,
 - 'gemini': Gemini CLI agent
 - 'codex': Codex assistant with sandbox controls
 - 'droid': Factory Droid for build-and-test automation
+- 'qwen': Qwen Code assistant
 
 ⚡ WHAT HAPPENS:
 1. Creates Git worktree from base branch
@@ -553,7 +555,7 @@ REQUIREMENTS: Target session must exist and be active.`,
             },
             agent_type: {
               type: "string",
-              enum: ["claude", "opencode", "gemini", "codex"],
+              enum: ["claude", "opencode", "gemini", "codex", "qwen", "droid"],
               description: "AI agent type to use (default: claude)"
             },
             skip_permissions: {
