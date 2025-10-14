@@ -1517,6 +1517,14 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                         logger.debug('[Terminal] plugin unsubscribe failed', error);
                     }
                 };
+                if (cancelled) {
+                    try {
+                        unlisten();
+                    } catch (error) {
+                        logger.debug(`[Terminal ${terminalId}] Cleaned up plugin listener after cancel during setup`, error);
+                    }
+                    return () => {};
+                }
                 unlistenRef.current = unlisten;
                 return unlisten;
             }
@@ -1535,6 +1543,14 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                     scheduleFlush();
                 }
             });
+            if (cancelled) {
+                try {
+                    unlisten();
+                } catch (error) {
+                    logger.debug(`[Terminal ${terminalId}] Cleaned up listener after cancel during setup`, error);
+                }
+                return () => {};
+            }
             unlistenRef.current = unlisten;
             return unlisten;
         };
@@ -1944,17 +1960,25 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             
             // no timers to clear
 
-            // Synchronously detach if possible to avoid races in tests
             const fn = unlistenRef.current;
-            if (fn) { try { fn(); } catch (error) {
-                logger.error(`[Terminal ${terminalId}] Event listener cleanup error:`, error);
-            }}
-            else if (unlistenPromiseRef.current) {
-                // Detach once promise resolves
-                unlistenPromiseRef.current.then((resolved) => { 
-                    try { resolved(); } catch (error) {
-                        logger.error(`[Terminal ${terminalId}] Async event listener cleanup error:`, error);
+            if (fn) {
+                try {
+                    fn();
+                } catch (error) {
+                    logger.error(`[Terminal ${terminalId}] Event listener cleanup error:`, error);
+                }
+            }
+            if (unlistenPromiseRef.current) {
+                unlistenPromiseRef.current.then((resolved) => {
+                    if (cancelled) {
+                        try {
+                            resolved();
+                        } catch (error) {
+                            logger.error(`[Terminal ${terminalId}] Async event listener cleanup error:`, error);
+                        }
                     }
+                }).catch((error) => {
+                    logger.debug(`[Terminal ${terminalId}] Listener setup was cancelled or failed:`, error);
                 });
             }
             if (resumeUnlistenRef.current) {
@@ -2112,7 +2136,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         let mounted = true;
         const attach = async () => {
             try {
-                unlistenRef.current = await listenTerminalOutput(terminalId, (output) => {
+                const unlisten = await listenTerminalOutput(terminalId, (output) => {
                     if (!mounted) return;
                     if (!hydratedRef.current) {
                         pendingOutput.current.push(output);
@@ -2121,6 +2145,15 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                         flushQueuedWritesLight();
                     }
                 });
+                if (!mounted) {
+                    try {
+                        unlisten();
+                    } catch (error) {
+                        logger.debug(`[Terminal ${terminalId}] Cleaned up listener after unmount during agent type change`, error);
+                    }
+                    return;
+                }
+                unlistenRef.current = unlisten;
                 listenerAgentRef.current = agentType;
             } catch (e) {
                 logger.warn(`[Terminal ${terminalId}] Failed to reconfigure output listener:`, e);

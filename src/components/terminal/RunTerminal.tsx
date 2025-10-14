@@ -194,6 +194,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
   }, [runTerminalId, onRunningStateChange])
 
   useEffect(() => {
+    let mounted = true
     let unlisten: (() => void) | null = null
 
     const flushStreamingDecoder = () => {
@@ -231,8 +232,8 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
               processChunk(chunk)
             },
           )
-          
-          unlisten = () => {
+
+          const pluginUnlisten = () => {
             try {
               flushStreamingDecoder()
               const result = unsubscribe?.() as unknown
@@ -243,11 +244,33 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
               logger.debug('[RunTerminal] unsubscribe failed', error)
             }
           }
+
+          if (!mounted) {
+            try {
+              pluginUnlisten()
+            } catch (error) {
+              logger.debug(`[RunTerminal] Cleaned up plugin listener after unmount during setup`, error)
+            }
+            return
+          }
+
+          unlisten = pluginUnlisten
         } else {
-          unlisten = await listenTerminalOutput(runTerminalId, (payload) => {
+          const unlistenOutput = await listenTerminalOutput(runTerminalId, (payload) => {
             if (!payload) return
             processChunk(payload.toString())
           })
+
+          if (!mounted) {
+            try {
+              unlistenOutput()
+            } catch (error) {
+              logger.debug(`[RunTerminal] Cleaned up listener after unmount during setup`, error)
+            }
+            return
+          }
+
+          unlisten = unlistenOutput
         }
       } catch (err) {
         logger.error('[RunTerminal] Failed to listen for run completion sentinel:', err)
@@ -256,6 +279,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
 
     setup()
     return () => {
+      mounted = false
       unlisten?.()
       flushStreamingDecoder()
       textDecoderRef.current = null

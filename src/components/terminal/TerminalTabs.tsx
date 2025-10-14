@@ -105,7 +105,7 @@ const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(
         <div className="h-full relative">
           {tabs.filter(tab => tab.index === activeTab).map((tab) => (
             <div
-              key={tab.index}
+              key={tab.terminalId}
               className="absolute inset-0"
             >
               <Terminal
@@ -193,7 +193,7 @@ const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(
       <div className="flex-1 min-h-0 relative">
         {tabs.filter(tab => tab.index === activeTab).map((tab) => (
           <div
-            key={tab.index}
+            key={tab.terminalId}
             className="absolute inset-0"
           >
             <Terminal
