@@ -43,7 +43,7 @@ jobs:
       - name: Setup Node.js (GitHub Actions)
         # Skip in act since Node is pre-installed in custom image
         if: ${{ !env.ACT }}
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
