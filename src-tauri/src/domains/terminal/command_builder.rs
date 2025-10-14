@@ -77,7 +77,6 @@ pub async fn build_command_spec(
     })
 }
 
-
 fn build_environment(cols: u16, rows: u16) -> Vec<(String, String)> {
     let mut envs = vec![
         ("TERM".to_string(), "xterm-256color".to_string()),
@@ -115,23 +114,28 @@ fn build_environment(cols: u16, rows: u16) -> Vec<(String, String)> {
         }
 
         if let Ok(existing_path) = std::env::var("PATH") {
-            const MAX_PATH_LENGTH: usize = 32768;
+            const MAX_PATH_LENGTH: usize = 4096;
             let mut current_length: usize = path_components.iter().map(|s| s.len() + 1).sum();
+            let mut truncated = false;
 
             for component in existing_path.split(':') {
-                let component = component.trim();
-                if component.is_empty() {
-                    continue;
+                if truncated {
+                    break;
                 }
 
-                if seen.insert(component.to_string()) {
-                    let new_length = current_length + component.len() + 1;
-                    if new_length > MAX_PATH_LENGTH {
-                        log::warn!("PATH truncated at {current_length} bytes to prevent 'path too long' error");
-                        break;
+                for entry in normalize_path_component(component) {
+                    if seen.insert(entry.clone()) {
+                        let new_length = current_length + entry.len() + 1;
+                        if new_length > MAX_PATH_LENGTH {
+                            log::warn!(
+                                "PATH truncated at {current_length} bytes to prevent 'path too long' error"
+                            );
+                            truncated = true;
+                            break;
+                        }
+                        current_length = new_length;
+                        path_components.push(entry);
                     }
-                    current_length = new_length;
-                    path_components.push(component.to_string());
                 }
             }
         }
@@ -227,4 +231,86 @@ fn resolve_command(command: &str) -> String {
 
     log::warn!("Could not resolve path for '{command}', using as-is");
     command.to_string()
+}
+
+fn normalize_path_component(raw: &str) -> Vec<String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Vec::new();
+    }
+
+    let cleaned = trimmed
+        .trim_matches(|c| matches!(c, '"' | '\''))
+        .trim()
+        .to_string();
+    if cleaned.is_empty() {
+        return Vec::new();
+    }
+
+    if !cleaned.contains(" /") {
+        return vec![cleaned];
+    }
+
+    let mut entries = Vec::new();
+    let mut remainder = cleaned.as_str();
+    loop {
+        if let Some(idx) = remainder.find(" /") {
+            let (head, tail) = remainder.split_at(idx);
+            let head_trimmed = head.trim();
+            if !head_trimmed.is_empty() {
+                entries.push(head_trimmed.to_string());
+            }
+            remainder = tail[1..].trim_start();
+        } else {
+            let final_trimmed = remainder.trim();
+            if !final_trimmed.is_empty() {
+                entries.push(final_trimmed.to_string());
+            }
+            break;
+        }
+    }
+
+    if entries.is_empty() {
+        entries.push(cleaned);
+    }
+
+    entries
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_path_component;
+
+    #[test]
+    fn normalize_path_component_splits_whitespace_delimited_segments() {
+        let result = normalize_path_component("/foo/bin /bar/bin /baz/bin");
+        assert_eq!(
+            result,
+            vec![
+                "/foo/bin".to_string(),
+                "/bar/bin".to_string(),
+                "/baz/bin".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn normalize_path_component_preserves_regular_segments() {
+        let result = normalize_path_component("/Applications/Ghostty.app/Contents/MacOS");
+        assert_eq!(
+            result,
+            vec!["/Applications/Ghostty.app/Contents/MacOS".to_string()]
+        );
+    }
+
+    #[test]
+    fn normalize_path_component_strips_quotes() {
+        let result = normalize_path_component(
+            "\"/Applications/Visual Studio Code.app/Contents/Resources/app/bin\"",
+        );
+        assert_eq!(
+            result,
+            vec!["/Applications/Visual Studio Code.app/Contents/Resources/app/bin".to_string()]
+        );
+    }
 }

@@ -228,7 +228,12 @@ mod tests {
         let original_open_log = env::var("SCHALTWERK_ZED_OPEN_LOG").ok();
 
         env::set_var("HOME", home_dir.path());
-        env::set_var("PATH", cli_dir.path());
+        let mut path_entries = vec![cli_dir.path().to_path_buf()];
+        if let Some(ref orig) = original_path {
+            path_entries.extend(env::split_paths(orig));
+        }
+        let joined = env::join_paths(path_entries).expect("failed to join PATH entries");
+        env::set_var("PATH", &joined);
         env::set_var("SCHALTWERK_TEST_OPEN_BIN", open_script.to_str().unwrap());
         env::set_var("SCHALTWERK_ZED_OPEN_LOG", open_log.to_str().unwrap());
 
