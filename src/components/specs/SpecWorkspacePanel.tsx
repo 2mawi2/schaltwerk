@@ -73,6 +73,13 @@ export function SpecWorkspacePanel({
                 fontSize: theme.fontSize.label
               }}
               onClick={() => onTabChange(specId)}
+              onMouseDown={event => {
+                if (event.button === 1) {
+                  event.stopPropagation()
+                  event.preventDefault()
+                  onTabClose(specId)
+                }
+              }}
             >
               <span className="max-w-[120px] truncate">{displayName}</span>
               {hasUnsaved && (
