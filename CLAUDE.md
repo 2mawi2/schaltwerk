@@ -190,6 +190,7 @@ When creating specs for implementation agents:
 - **Structure**: Components → Implementation → Configuration → Phases
 - **Omit**: Resource constraints, obvious details, verbose explanations
 - **Include**: Platform-specific APIs, code snippets, data flows, dependencies
+- When a user asks for a “spec” use the Schaltwerk MCP spec commands instead of creating local plan files. Only create Markdown plan files when the request explicitly mentions a plan file/`.md` output.
 
 ### Before ANY Commit
 Run `bun run test` - ALL must pass:
