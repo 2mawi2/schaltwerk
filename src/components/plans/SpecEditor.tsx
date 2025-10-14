@@ -298,7 +298,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
           ) : error ? (
             <span className="text-red-400">{error}</span>
           ) : viewMode === 'edit' ? (
-            'Editing spec'
+            'Editing spec — Type @ to reference project files'
           ) : (
             'Preview mode'
           )}
