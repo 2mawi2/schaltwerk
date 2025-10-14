@@ -10,7 +10,6 @@ import {
   ReadResourceRequestSchema,
   McpError,
   CallToolRequest,
-  ListResourcesRequest,
 } from "@modelcontextprotocol/sdk/types.js"
 import { SchaltwerkBridge, Session, MergeModeOption } from "./schaltwerk-bridge.js"
 
@@ -27,10 +26,6 @@ interface SchaltwerkStartArgs {
 interface SchaltwerkCancelArgs {
   session_name: string
   force?: boolean
-}
-
-interface SchaltwerkPauseArgs {
-  session_name: string
 }
 
 interface SchaltwerkListArgs {
@@ -336,7 +331,7 @@ REQUIREMENTS: Target session must exist and be active.`,
    - User handles: Content duplication decisions, strategic choices, session purpose clarification
 
   🛡️ SAFER ALTERNATIVES:
-  - 'schaltwerk_pause': Archive session without deletion (RECOMMENDED for uncertain sessions)
+  - 'schaltwerk_convert_to_spec': Convert to spec state to preserve work without worktree (RECOMMENDED for uncertain sessions)
   - Commit your work first, then cancel
   - Use proper merge workflow to integrate work before cancellation
 
@@ -352,51 +347,6 @@ REQUIREMENTS: Target session must exist and be active.`,
               type: "boolean",
               description: "Force deletion even if uncommitted changes exist. DANGEROUS - only use if you're certain you want to lose uncommitted work.",
               default: false
-            }
-          },
-          required: ["session_name"]
-        }
-      },
-       {
-         name: "schaltwerk_pause",
-         description: `Pause a Schaltwerk session without deleting it (SAFE alternative to cancel).
-
- 🛡️ SAFE OPERATION - NO DATA LOSS
- - Preserves all uncommitted changes
- - Keeps Git branch intact
- - Maintains worktree for future use
- - Can be easily resumed later
-
- 📋 USAGE:
- schaltwerk_pause(session_name: "feature-auth")
-
- ✅ WHEN TO USE:
- - Taking a break from current work
- - Switching to other priorities
- - Keeping work for later review
- - Uncertain about whether to keep the session
- - When you need to preserve work but cannot complete it immediately
-
- 🔄 TO RESUME:
- - Session remains available in schaltwerk_list
- - Worktree and branch are preserved
- - Can continue work exactly where you left off
-
- 💡 This is the RECOMMENDED way to stop working on a session without losing progress.
-
-  🔒 SESSION PROTECTION:
-  - Pausing is always safe - no work is ever lost (RECOMMENDED for uncertain sessions)
-  - Use pause instead of cancel when uncertain about session state
-  - Reviewed sessions can be paused and resumed without affecting their reviewed status
-  - All Git commits and uncommitted changes are preserved when pausing
-  - If MCP server is not accessible, ask user for help rather than attempting risky operations
-  - Safe alternative to cancellation - preserves all work for future use`,
-        inputSchema: {
-          type: "object",
-          properties: {
-            session_name: {
-              type: "string",
-              description: "Name of the session to pause (preserves all work)"
             }
           },
           required: ["session_name"]
@@ -1026,19 +976,10 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
 
       case "schaltwerk_cancel": {
         const cancelArgs = args as unknown as SchaltwerkCancelArgs
-        
-        await bridge.cancelSession(cancelArgs.session_name, cancelArgs.force)
-        
-        result = `Session '${cancelArgs.session_name}' has been cancelled and removed`
-        break
-      }
 
-      case "schaltwerk_pause": {
-        const pauseArgs = args as unknown as SchaltwerkPauseArgs
-        
-        await bridge.pauseSession(pauseArgs.session_name)
-        
-        result = `Session '${pauseArgs.session_name}' has been paused (all work preserved)`
+        await bridge.cancelSession(cancelArgs.session_name, cancelArgs.force)
+
+        result = `Session '${cancelArgs.session_name}' has been cancelled and removed`
         break
       }
 

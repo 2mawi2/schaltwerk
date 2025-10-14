@@ -14,7 +14,7 @@ export interface Session {
   branch: string
   parent_branch: string
   worktree_path: string
-  status: 'active' | 'cancelled' | 'paused' | 'spec'
+  status: 'active' | 'cancelled' | 'spec'
   session_state?: 'Spec' | 'Running' | 'Reviewed'
   created_at: number
   updated_at: number
@@ -27,15 +27,6 @@ export interface Session {
   original_skip_permissions?: boolean
   pending_name_generation: boolean
   was_auto_generated: boolean
-}
-
-export interface GitStats {
-  session_id: string
-  files_changed: number
-  lines_added: number
-  lines_removed: number
-  has_uncommitted: boolean
-  calculated_at: number
 }
 
 interface GitStatusResult {
@@ -372,7 +363,7 @@ export class SchaltwerkBridge {
     }
   }
 
-  async createSession(name: string, prompt?: string, baseBranch?: string, agentType?: string, skipPermissions?: boolean): Promise<Session> {
+  async createSession(name: string, prompt?: string, baseBranch?: string): Promise<Session> {
     try {
       const response = await this.fetchWithAutoPort('/api/sessions', {
         method: 'POST',
@@ -393,13 +384,8 @@ export class SchaltwerkBridge {
       }
       
       const session = await response.json() as Session
-      
-      // Also update app config if agent type or skip permissions were specified
-      if (agentType || skipPermissions !== undefined) {
-        await this.updateAppConfig(agentType, skipPermissions)
-      }
-      
-      // Notify Schaltwerk UI about the new session  
+
+      // Notify Schaltwerk UI about the new session
       await this.notifySessionAdded(session)
       
       return session
@@ -447,9 +433,9 @@ export class SchaltwerkBridge {
    - git commit -m "Save progress before cancellation"
    - Then retry cancellation
 
-2. SAFER ALTERNATIVE: Use schaltwerk_pause instead
-   - Preserves all work without deletion
-   - Can resume later exactly where you left off
+2. SAFER ALTERNATIVE: Use schaltwerk_convert_to_spec instead
+   - Converts session to spec state, removing worktree but preserving branch
+   - Can be restarted later with schaltwerk_draft_start
 
 3. FORCE DELETION (DANGEROUS): Add force: true parameter
    - schaltwerk_cancel(session_name: "${name}", force: true)
@@ -492,26 +478,6 @@ export class SchaltwerkBridge {
       // If API fails, at least notify the UI
       await this.notifySessionRemoved(name)
     }
-  }
-
-  async pauseSession(name: string): Promise<void> {
-    const session = await this.getSession(name)
-    if (!session) {
-      throw new Error(`Session '${name}' not found`)
-    }
-    
-    // TODO: Implement pause session via API when needed
-    // For now, this method does nothing as pausing isn't fully implemented
-    console.warn('pauseSession: API implementation pending')
-    
-    // Note: We intentionally do NOT remove the worktree or branch
-    // This preserves all work and allows resuming later
-  }
-
-  async getGitStats(): Promise<GitStats | undefined> {
-    // TODO: Implement git stats via API when needed
-    console.warn('getGitStats: API implementation pending')
-    return undefined
   }
 
   private async checkGitStatus(worktreePath: string): Promise<GitStatusResult> {
@@ -627,11 +593,6 @@ export class SchaltwerkBridge {
     })
     
     return worktreePath
-  }
-
-  private async updateAppConfig(agentType?: string, skipPermissions?: boolean): Promise<void> {
-    // TODO: Implement app config update via API when needed
-    console.warn('updateAppConfig: API implementation pending', { agentType, skipPermissions })
   }
 
   private async notifySessionAdded(session: Session): Promise<void> {

@@ -1,18 +1,25 @@
+import { beforeEach, afterEach, describe, it, expect, mock } from 'bun:test'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import fetch from 'node-fetch'
 import { SchaltwerkBridge } from '../src/schaltwerk-bridge'
 
-jest.mock('node-fetch')
+const mockFetch = mock(() => Promise.resolve({
+  ok: true,
+  status: 200,
+  statusText: 'OK',
+  json: () => Promise.resolve([])
+}))
 
-const mockFetch = fetch as unknown as jest.Mock
+mock.module('node-fetch', () => ({
+  default: mockFetch
+}))
 
 const createResponse = (payload: unknown) => ({
   ok: true,
   status: 200,
   statusText: 'OK',
-  json: jest.fn().mockResolvedValue(payload)
+  json: mock().mockResolvedValue(payload)
 })
 
 const createConnectionError = (message: string) => {
@@ -25,8 +32,7 @@ describe('SchaltwerkBridge port discovery', () => {
   let tempDir: string
 
   beforeEach(() => {
-    jest.resetModules()
-    jest.clearAllMocks()
+    mockFetch.mockReset()
 
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'schaltwerk-port-test-'))
     process.env.SCHALTWERK_PROJECT_PATH = tempDir

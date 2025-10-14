@@ -1,16 +1,23 @@
+import { beforeEach, afterEach, beforeAll, afterAll, describe, it, expect, mock, spyOn } from 'bun:test'
 import path from 'path'
-import fetch from 'node-fetch'
 import { SchaltwerkBridge } from '../src/schaltwerk-bridge'
 
-jest.mock('node-fetch')
+const fetchMock = mock(() => Promise.resolve({
+  ok: true,
+  status: 200,
+  statusText: 'OK',
+  text: async () => '{}'
+}))
 
-const fetchMock = fetch as unknown as jest.Mock
+mock.module('node-fetch', () => ({
+  default: fetchMock
+}))
 
 describe('SchaltwerkBridge merge/pr helpers', () => {
-  let consoleErrorSpy: jest.SpyInstance
+  let consoleErrorSpy: ReturnType<typeof spyOn>
 
   beforeAll(() => {
-    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
+    consoleErrorSpy = spyOn(console, 'error').mockImplementation(() => {})
   })
 
   afterAll(() => {

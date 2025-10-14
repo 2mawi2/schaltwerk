@@ -84,5 +84,13 @@ jobs:
           fi
           node scripts/package-manager.mjs install --frozen-lockfile
 
-      - name: Run full test suite (lint, TS, clippy, frontend, Rust, build)
+          # Install MCP server dependencies
+          if [ -d "mcp-server" ]; then
+            echo "Installing MCP server dependencies..."
+            cd mcp-server
+            node ../scripts/package-manager.mjs install --frozen-lockfile
+            cd ..
+          fi
+
+      - name: Run full test suite (lint, TS, MCP, clippy, frontend, MCP tests, Rust, build)
         run: node scripts/package-manager.mjs run test
