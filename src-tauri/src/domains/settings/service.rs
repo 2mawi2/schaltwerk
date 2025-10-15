@@ -56,7 +56,7 @@ impl SettingsService {
             "codex" => self.settings.agent_env_vars.codex.clone(),
             "droid" => self.settings.agent_env_vars.droid.clone(),
             "qwen" => self.settings.agent_env_vars.qwen.clone(),
-            "terminal" => HashMap::new(),
+            "terminal" => self.settings.agent_env_vars.terminal.clone(),
             _ => HashMap::new(),
         }
     }
@@ -73,7 +73,7 @@ impl SettingsService {
             "codex" => self.settings.agent_env_vars.codex = env_vars,
             "droid" => self.settings.agent_env_vars.droid = env_vars,
             "qwen" => self.settings.agent_env_vars.qwen = env_vars,
-            "terminal" => {}
+            "terminal" => self.settings.agent_env_vars.terminal = env_vars,
             _ => {
                 return Err(SettingsServiceError::UnknownAgentType(
                     agent_type.to_string(),
@@ -523,6 +523,24 @@ mod tests {
             .expect("should accept qwen env vars");
 
         assert_eq!(repo_handle.snapshot().agent_env_vars.qwen, vars);
+    }
+
+    #[test]
+    fn set_agent_env_vars_supports_terminal() {
+        let repo = InMemoryRepository::default();
+        let repo_handle = repo.clone();
+        let mut service = SettingsService::new(Box::new(repo));
+
+        let mut vars = HashMap::new();
+        vars.insert("CUSTOM_VAR".to_string(), "test_value".to_string());
+        vars.insert("PATH".to_string(), "/custom/path".to_string());
+
+        service
+            .set_agent_env_vars("terminal", vars.clone())
+            .expect("should accept terminal env vars");
+
+        assert_eq!(repo_handle.snapshot().agent_env_vars.terminal, vars);
+        assert_eq!(service.get_agent_env_vars("terminal"), vars);
     }
 
     #[test]

@@ -30,6 +30,7 @@ pub struct AgentEnvVars {
     pub codex: HashMap<String, String>,
     pub droid: HashMap<String, String>,
     pub qwen: HashMap<String, String>,
+    pub terminal: HashMap<String, String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
