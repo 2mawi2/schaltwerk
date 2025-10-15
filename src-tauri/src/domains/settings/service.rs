@@ -56,6 +56,7 @@ impl SettingsService {
             "codex" => self.settings.agent_env_vars.codex.clone(),
             "droid" => self.settings.agent_env_vars.droid.clone(),
             "qwen" => self.settings.agent_env_vars.qwen.clone(),
+            "terminal" => self.settings.agent_env_vars.terminal.clone(),
             _ => HashMap::new(),
         }
     }
@@ -72,6 +73,7 @@ impl SettingsService {
             "codex" => self.settings.agent_env_vars.codex = env_vars,
             "droid" => self.settings.agent_env_vars.droid = env_vars,
             "qwen" => self.settings.agent_env_vars.qwen = env_vars,
+            "terminal" => self.settings.agent_env_vars.terminal = env_vars,
             _ => {
                 return Err(SettingsServiceError::UnknownAgentType(
                     agent_type.to_string(),
@@ -103,6 +105,10 @@ impl SettingsService {
     }
 
     pub fn get_agent_cli_args(&self, agent_type: &str) -> String {
+        if agent_type == "terminal" {
+            return String::new();
+        }
+
         match agent_type {
             "claude" => self.settings.agent_cli_args.claude.clone(),
             "opencode" => self.settings.agent_cli_args.opencode.clone(),
@@ -119,6 +125,13 @@ impl SettingsService {
         agent_type: &str,
         cli_args: String,
     ) -> Result<(), SettingsServiceError> {
+        if agent_type == "terminal" {
+            log::warn!("Terminal-only mode does not support CLI args");
+            return Err(SettingsServiceError::UnknownAgentType(
+                "Terminal-only mode does not support CLI args".to_string(),
+            ));
+        }
+
         log::debug!(
             "Setting CLI args in settings: agent_type='{agent_type}', cli_args='{cli_args}'"
         );
@@ -161,6 +174,7 @@ impl SettingsService {
             "codex" => self.settings.agent_initial_commands.codex.clone(),
             "droid" => self.settings.agent_initial_commands.droid.clone(),
             "qwen" => self.settings.agent_initial_commands.qwen.clone(),
+            "terminal" => String::new(),
             _ => String::new(),
         }
     }
@@ -182,6 +196,7 @@ impl SettingsService {
             "codex" => self.settings.agent_initial_commands.codex = initial_command.clone(),
             "droid" => self.settings.agent_initial_commands.droid = initial_command.clone(),
             "qwen" => self.settings.agent_initial_commands.qwen = initial_command.clone(),
+            "terminal" => {}
             _ => {
                 let error = format!("Unknown agent type: {agent_type}");
                 log::error!("Invalid agent type in set_agent_initial_command: {error}");
@@ -291,6 +306,7 @@ impl SettingsService {
             "codex" => self.settings.agent_binaries.codex.clone(),
             "droid" => self.settings.agent_binaries.droid.clone(),
             "qwen" => self.settings.agent_binaries.qwen.clone(),
+            "terminal" => None,
             _ => None,
         }
     }
@@ -299,6 +315,13 @@ impl SettingsService {
         &mut self,
         config: AgentBinaryConfig,
     ) -> Result<(), SettingsServiceError> {
+        if config.agent_name == "terminal" {
+            log::warn!("Terminal-only mode does not support binary configuration");
+            return Err(SettingsServiceError::UnknownAgentType(
+                "Terminal-only mode does not support binary configuration".to_string(),
+            ));
+        }
+
         match config.agent_name.as_str() {
             "claude" => self.settings.agent_binaries.claude = Some(config),
             "opencode" => self.settings.agent_binaries.opencode = Some(config),
@@ -500,6 +523,24 @@ mod tests {
             .expect("should accept qwen env vars");
 
         assert_eq!(repo_handle.snapshot().agent_env_vars.qwen, vars);
+    }
+
+    #[test]
+    fn set_agent_env_vars_supports_terminal() {
+        let repo = InMemoryRepository::default();
+        let repo_handle = repo.clone();
+        let mut service = SettingsService::new(Box::new(repo));
+
+        let mut vars = HashMap::new();
+        vars.insert("CUSTOM_VAR".to_string(), "test_value".to_string());
+        vars.insert("PATH".to_string(), "/custom/path".to_string());
+
+        service
+            .set_agent_env_vars("terminal", vars.clone())
+            .expect("should accept terminal env vars");
+
+        assert_eq!(repo_handle.snapshot().agent_env_vars.terminal, vars);
+        assert_eq!(service.get_agent_env_vars("terminal"), vars);
     }
 
     #[test]

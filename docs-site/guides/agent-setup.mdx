@@ -43,12 +43,13 @@ Configure each agent from **Settings → Agent Configuration** before you launch
 
 <Steps>
   <Step title="Select agent tab">
-    Choose from: Claude Code, Codex, OpenCode, Gemini, Qwen, or Factory Droid
+    Choose from: Claude Code, Codex, OpenCode, Gemini, Qwen, Factory Droid, or Terminal
   </Step>
 
   <Step title="Pick binary">
     - Select a detected binary from the dropdown
     - Or paste an absolute path for custom builds
+    - For Terminal mode: No binary required (uses system shell)
   </Step>
 
   <Step title="Verify details">
@@ -58,6 +59,35 @@ Configure each agent from **Settings → Agent Configuration** before you launch
     - Full path to executable
   </Step>
 </Steps>
+
+### Terminal-Only Mode
+
+<Info>
+  Terminal mode opens a session with just your default system shell - no AI agent is started automatically.
+</Info>
+
+**Use Cases:**
+- Running custom agents manually
+- Custom development workflows
+- Testing commands in isolated worktrees
+- Manual code exploration
+
+**How It Works:**
+- Creates an isolated Git worktree (same as other sessions)
+- Opens top terminal with your default shell (`$SHELL`)
+- No agent binary required
+- Initial prompt is not pasted automatically
+- Environment variables and setup scripts still apply
+
+**Configuration:**
+- **Binary:** None required (Terminal uses system shell)
+- **CLI Arguments:** Not applicable for Terminal mode
+- **Environment Variables:** Supported - configure in Settings
+- **Setup Scripts:** Supported - runs before terminal opens
+
+<Tip>
+  Terminal mode is perfect for running agents not yet integrated into Schaltwerk, or for custom development workflows that don't require AI assistance.
+</Tip>
 
 ### Common Binary Locations
 

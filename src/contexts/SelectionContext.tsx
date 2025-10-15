@@ -9,7 +9,7 @@ import { FilterMode } from '../types/sessionFilters'
 import { RawSession, EnrichedSession } from '../types/session'
 import { logger } from '../utils/logger'
 import { useModal } from './ModalContext'
-import { UiEvent, emitUiEvent } from '../common/uiEvents'
+import { UiEvent, emitUiEvent, listenUiEvent } from '../common/uiEvents'
 import {
     createTerminalBackend,
     terminalExistsBackend,
@@ -1258,8 +1258,16 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             setSelection(pending, false, true).catch(_e => logger.error('Failed to apply deferred selection:', _e))
         }
     }, [openModals, setSelection])
-    
-    
+
+    useEffect(() => {
+        const cleanup = listenUiEvent(UiEvent.OpenSpecInOrchestrator, async (detail) => {
+            if (!detail?.sessionName) return
+            logger.info('[SelectionContext] Received OpenSpecInOrchestrator event, switching to orchestrator')
+            await setSelection({ kind: 'orchestrator' }, false, true)
+        })
+        return cleanup
+    }, [setSelection])
+
     return (
         <SelectionContext.Provider value={{ 
             selection, 

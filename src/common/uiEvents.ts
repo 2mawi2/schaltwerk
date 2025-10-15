@@ -33,6 +33,7 @@ export enum UiEvent {
   EnterSpecMode = 'schaltwerk:enter-spec-mode',
   CreatePullRequest = 'schaltwerk:create-pull-request',
   AgentLifecycle = 'schaltwerk:agent-lifecycle',
+  OpenSpecInOrchestrator = 'schaltwerk:open-spec-in-orchestrator',
 }
 
 export interface TerminalResizeRequestDetail {
@@ -130,6 +131,10 @@ export interface AgentLifecycleDetail {
   reason?: string
 }
 
+export interface OpenSpecInOrchestratorDetail {
+  sessionName: string
+}
+
 export type UiEventPayloads = {
   [UiEvent.PermissionError]: { error: string }
   [UiEvent.BackgroundStartMarked]: { terminalId: string }
@@ -165,6 +170,7 @@ export type UiEventPayloads = {
   [UiEvent.EnterSpecMode]: EnterSpecModeDetail
   [UiEvent.CreatePullRequest]: CreatePullRequestDetail
   [UiEvent.AgentLifecycle]: AgentLifecycleDetail
+  [UiEvent.OpenSpecInOrchestrator]: OpenSpecInOrchestratorDetail
 }
 
 type UiEventArgs<T extends UiEvent> = undefined extends UiEventPayloads[T]

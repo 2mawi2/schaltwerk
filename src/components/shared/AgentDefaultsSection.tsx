@@ -104,7 +104,10 @@ export function AgentDefaultsSection({
                 <div className="min-w-0">
                     <p className="text-sm text-slate-300">Advanced agent settings</p>
                     <p className="text-xs text-slate-400 mt-1">
-                        Configure optional arguments and environment variables for {agentDisplayName}.
+                        {agentType === 'terminal'
+                            ? `Configure environment variables for ${agentDisplayName}.`
+                            : `Configure optional arguments and environment variables for ${agentDisplayName}.`
+                        }
                     </p>
                 </div>
                 <button
@@ -121,22 +124,24 @@ export function AgentDefaultsSection({
 
             {advancedOpen && (
                 <div className="space-y-3">
-                    <div>
-                        <label className="block text-sm text-slate-300 mb-1">Default custom arguments</label>
-                        <textarea
-                            ref={cliArgsRef}
-                            data-testid="agent-cli-args-input"
-                            value={cliArgs}
-                            onChange={event => onCliArgsChange(event.target.value)}
-                            className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 font-mono text-sm"
-                            placeholder="e.g. --max-tokens 8000 --sampling-temp 0.2"
-                            rows={2}
-                            disabled={loading}
-                        />
-                        <p className="text-xs text-slate-400 mt-1">
-                            These arguments are appended whenever {agentDisplayName} starts.
-                        </p>
-                    </div>
+                    {agentType !== 'terminal' && (
+                        <div>
+                            <label className="block text-sm text-slate-300 mb-1">Default custom arguments</label>
+                            <textarea
+                                ref={cliArgsRef}
+                                data-testid="agent-cli-args-input"
+                                value={cliArgs}
+                                onChange={event => onCliArgsChange(event.target.value)}
+                                className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 font-mono text-sm"
+                                placeholder="e.g. --max-tokens 8000 --sampling-temp 0.2"
+                                rows={2}
+                                disabled={loading}
+                            />
+                            <p className="text-xs text-slate-400 mt-1">
+                                These arguments are appended whenever {agentDisplayName} starts.
+                            </p>
+                        </div>
+                    )}
                     <div>
                         <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="min-w-0">
@@ -228,7 +233,10 @@ export function AgentDefaultsSection({
                             </div>
                         )}
                         <p className="text-xs text-slate-400 mt-1">
-                            Environment variables are injected into the {agentDisplayName} process before it starts.
+                            {agentType === 'terminal'
+                                ? `Environment variables are available in the ${agentDisplayName} shell.`
+                                : `Environment variables are injected into the ${agentDisplayName} process before it starts.`
+                            }
                         </p>
                     </div>
                 </div>

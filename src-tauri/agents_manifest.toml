@@ -50,3 +50,11 @@ binary_name = "qwen"
 default_binary_path = "qwen"
 auto_send_initial_command = false
 supports_resume = false
+
+[agents.terminal]
+id = "terminal"
+display_name = "Terminal Only"
+binary_name = "sh"
+default_binary_path = "/bin/sh"
+auto_send_initial_command = false
+supports_resume = false

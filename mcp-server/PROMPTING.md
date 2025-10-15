@@ -98,7 +98,8 @@ Be specific and detailed in your prompts:
 
 #### Agent Type Selection
 - Use `"claude"` for general development agents (default)
-- Set `skip_permissions: true` for fully autonomous operation
+- Use `"terminal"` for manual work without AI agents - opens only a usable terminal
+- Set `skip_permissions: true` for fully autonomous operation (not applicable to terminal mode)
 
 ### Monitoring Sessions
 

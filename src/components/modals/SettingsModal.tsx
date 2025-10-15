@@ -1349,10 +1349,11 @@ fi`}
                      )}
 
                     {/* Binary Path Configuration */}
+                    {activeAgentTab !== 'terminal' && (
                     <div>
                         <h3 className="text-body font-medium text-slate-200 mb-2">Binary Path</h3>
                         <div className="text-body text-slate-400 mb-4">
-                            Configure which {displayNameForAgent(activeAgentTab)} binary to use. 
+                            Configure which {displayNameForAgent(activeAgentTab)} binary to use.
                             Auto-detection finds all installed versions and recommends the best one.
                             <span className="block mt-2 text-caption text-slate-500">
                                 Note: Agent binary configurations are stored globally and apply to all projects.
@@ -1483,7 +1484,9 @@ fi`}
                             )}
                         </div>
                     </div>
+                    )}
 
+                    {activeAgentTab !== 'terminal' && (
                     <div className="border-t border-slate-700 pt-6">
                         <h3 className="text-body font-medium text-slate-200 mb-2">CLI Arguments</h3>
                         <div className="text-body text-slate-400 mb-3">
@@ -1506,12 +1509,26 @@ fi`}
                              Examples: <code className={theme.colors.accent.blue.DEFAULT}>--profile test</code>, <code className={theme.colors.accent.blue.DEFAULT}>-d</code>, <code className={theme.colors.accent.blue.DEFAULT}>--model gpt-4</code>
                         </div>
                     </div>
+                    )}
 
                     <div className="border-t border-slate-700 pt-6">
                         <h3 className="text-body font-medium text-slate-200 mb-2">Environment Variables</h3>
                         <div className="text-body text-slate-400 mb-4">
-                            Configure environment variables for {displayNameForAgent(activeAgentTab)} agent. 
-                            These variables will be available when starting agents with this agent type.
+                            {activeAgentTab === 'terminal' ? (
+                                <>
+                                    Configure environment variables for {displayNameForAgent(activeAgentTab)} sessions.
+                                    These variables will be available in the terminal shell.
+                                    <div className="mt-3 p-3 bg-blue-900/30 border border-blue-700/50 rounded text-caption text-blue-200">
+                                        <p className="font-medium mb-1">Terminal-only mode</p>
+                                        <p>Terminal mode opens a session with your default system shell. No binary configuration or CLI arguments are needed.</p>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    Configure environment variables for {displayNameForAgent(activeAgentTab)} agent.
+                                    These variables will be available when starting agents with this agent type.
+                                </>
+                            )}
                         </div>
 
                         <div className="space-y-3">

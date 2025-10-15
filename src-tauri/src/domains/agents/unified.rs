@@ -202,6 +202,14 @@ impl AgentAdapter for QwenAdapter {
     }
 }
 
+pub struct TerminalAdapter;
+
+impl AgentAdapter for TerminalAdapter {
+    fn build_launch_spec(&self, _ctx: AgentLaunchContext) -> AgentLaunchSpec {
+        AgentLaunchSpec::new(String::new(), _ctx.worktree_path.to_path_buf())
+    }
+}
+
 pub struct AgentRegistry {
     adapters: HashMap<String, Box<dyn AgentAdapter>>,
 }
@@ -216,6 +224,7 @@ impl AgentRegistry {
         adapters.insert("opencode".to_string(), Box::new(OpenCodeAdapter));
         adapters.insert("droid".to_string(), Box::new(DroidAdapter));
         adapters.insert("qwen".to_string(), Box::new(QwenAdapter));
+        adapters.insert("terminal".to_string(), Box::new(TerminalAdapter));
 
         for agent_id in AgentManifest::supported_agents() {
             if !adapters.contains_key(&agent_id) {
@@ -280,19 +289,21 @@ mod tests {
         assert!(registry.get("opencode").is_some());
         assert!(registry.get("droid").is_some());
         assert!(registry.get("qwen").is_some());
+        assert!(registry.get("terminal").is_some());
     }
 
     #[test]
     fn test_registry_supported_agents() {
         let registry = AgentRegistry::new();
         let supported = registry.supported_agents();
-        assert!(supported.len() >= 6);
+        assert!(supported.len() >= 7);
         assert!(supported.contains(&"claude".to_string()));
         assert!(supported.contains(&"codex".to_string()));
         assert!(supported.contains(&"droid".to_string()));
         assert!(supported.contains(&"gemini".to_string()));
         assert!(supported.contains(&"opencode".to_string()));
         assert!(supported.contains(&"qwen".to_string()));
+        assert!(supported.contains(&"terminal".to_string()));
     }
 
     #[test]

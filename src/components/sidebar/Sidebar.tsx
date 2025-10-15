@@ -777,11 +777,20 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         emitUiEvent(UiEvent.CreatePullRequest, { sessionId: selection.payload })
     }, [isAnyModalOpen, selection, sessions, github.canCreatePr])
 
+    const handleRefineSpecShortcut = useCallback(() => {
+        if (isAnyModalOpen()) return
+        if (selection.kind !== 'session' || !selection.payload) return
+        const session = sessions.find(s => s.info.session_id === selection.payload)
+        if (!session || !isSpec(session.info)) return
+        emitUiEvent(UiEvent.OpenSpecInOrchestrator, { sessionName: selection.payload })
+    }, [isAnyModalOpen, selection, sessions])
+
     useKeyboardShortcuts({
         onSelectOrchestrator: handleSelectOrchestrator,
         onSelectSession: handleSelectSession,
         onCancelSelectedSession: handleCancelSelectedSession,
         onMarkSelectedSessionReady: handleMarkSelectedSessionReady,
+        onRefineSpec: handleRefineSpecShortcut,
         onSpecSession: handleSpecSelectedSession,
         onPromoteSelectedVersion: handlePromoteSelectedVersion,
         sessionCount: sessions.length,
@@ -1261,6 +1270,9 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                         } catch (err) {
                                             logger.error('Failed to open start modal from spec:', err)
                                         }
+                                    }}
+                                    onRefineSpec={(sessionId) => {
+                                        emitUiEvent(UiEvent.OpenSpecInOrchestrator, { sessionName: sessionId })
                                     }}
                                     onDeleteSpec={async (sessionId) => {
                                         beginSessionMutation(sessionId, 'remove')

@@ -124,11 +124,17 @@ export async function startSessionTop(params: {
   agentType?: string
 }) {
   const { sessionName, topId, projectOrchestratorId, measured } = params
+  const agentType = params.agentType ?? 'claude'
+
+  if (agentType === 'terminal') {
+    logger.info(`[agentSpawn] Skipping agent startup for terminal-only session: ${sessionName}`)
+    return
+  }
+
   if (hasInflight(topId)) return
   markBackgroundStart(topId)
   try {
     const { cols, rows } = computeSpawnSize({ topId, measured, projectOrchestratorId })
-    const agentType = params.agentType ?? 'claude'
     const timeoutMs = determineStartTimeoutMs(agentType)
     const command = TauriCommands.SchaltwerkCoreStartSessionAgent
 

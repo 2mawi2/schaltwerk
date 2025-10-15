@@ -22,6 +22,7 @@ interface SessionVersionGroupProps {
   onCancel: (sessionId: string, hasUncommitted: boolean) => void
   onConvertToSpec?: (sessionId: string) => void
   onRunDraft?: (sessionId: string) => void
+  onRefineSpec?: (sessionId: string) => void
   onDeleteSpec?: (sessionId: string) => void
   onSelectBestVersion?: (groupBaseName: string, selectedSessionId: string) => void
   onReset?: (sessionId: string) => void
@@ -49,6 +50,7 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
   onCancel,
   onConvertToSpec,
   onRunDraft,
+  onRefineSpec,
   onDeleteSpec,
   onSelectBestVersion,
   onReset,
@@ -91,6 +93,7 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
         onCancel={onCancel}
         onConvertToSpec={onConvertToSpec}
         onRunDraft={onRunDraft}
+        onRefineSpec={onRefineSpec}
         onDeleteSpec={onDeleteSpec}
         onReset={onReset}
         onSwitchModel={onSwitchModel}
@@ -298,6 +301,7 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
                       onCancel={onCancel}
                       onConvertToSpec={onConvertToSpec}
                       onRunDraft={onRunDraft}
+                      onRefineSpec={onRefineSpec}
                       onDeleteSpec={onDeleteSpec}
                       onPromoteVersion={() => {
                         if (onSelectBestVersion) {

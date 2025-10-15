@@ -1085,6 +1085,19 @@ pub async fn schaltwerk_core_start_claude_with_restart(
     let core = get_core_write().await?;
     let manager = core.session_manager();
 
+    let session = manager
+        .get_session(&session_name)
+        .map_err(|e| format!("Failed to get session: {e}"))?;
+    let agent_type = session
+        .original_agent_type
+        .clone()
+        .unwrap_or(core.db.get_agent_type().map_err(|e| format!("Failed to get agent type: {e}"))?);
+
+    if agent_type == "terminal" {
+        log::info!("Skipping agent startup for terminal-only session: {session_name}");
+        return Ok("Terminal-only session - no agent to start".to_string());
+    }
+
     // Resolve binary paths at command level (with caching)
     let binary_paths = if let Some(settings_manager) = SETTINGS_MANAGER.get() {
         let settings = settings_manager.lock().await;
