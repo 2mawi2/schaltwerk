@@ -41,6 +41,7 @@ const RightPanelTabsComponent = ({ onFileSelect, onOpenHistoryDiff, selectionOve
   const [userSelectedTab, setUserSelectedTab] = useState<'changes' | 'agent' | 'info' | 'history' | 'specs' | null>(null)
   const [localFocus, setLocalFocus] = useState<boolean>(false)
   const [showSpecPicker, setShowSpecPicker] = useState(false)
+  const [pendingSpecToOpen, setPendingSpecToOpen] = useState<string | null>(null)
   const { config: keyboardShortcutConfig } = useKeyboardShortcutsConfig()
   const platform = useMemo(() => detectPlatformSafe(), [])
 
@@ -217,6 +218,28 @@ const RightPanelTabsComponent = ({ onFileSelect, onOpenHistoryDiff, selectionOve
       cleanupSpecCreated()
     }
   }, [effectiveSelection.kind, openSpecInWorkspace])
+
+  // Listen for OpenSpecInOrchestrator events
+  useEffect(() => {
+    const cleanup = listenUiEvent(UiEvent.OpenSpecInOrchestrator, (detail) => {
+      if (detail?.sessionName) {
+        logger.info('[RightPanelTabs] Received OpenSpecInOrchestrator event for spec:', detail.sessionName)
+        setPendingSpecToOpen(detail.sessionName)
+        setUserSelectedTab('specs')
+      }
+    })
+
+    return cleanup
+  }, [])
+
+  // When selection becomes orchestrator and we have a pending spec, open it
+  useEffect(() => {
+    if (effectiveSelection.kind === 'orchestrator' && pendingSpecToOpen) {
+      logger.info('[RightPanelTabs] Orchestrator selected, opening pending spec:', pendingSpecToOpen)
+      openSpecInWorkspace(pendingSpecToOpen)
+      setPendingSpecToOpen(null)
+    }
+  }, [effectiveSelection.kind, pendingSpecToOpen, openSpecInWorkspace])
   
   const handlePanelClick = () => {
     const sessionKey = effectiveSelection.kind === 'orchestrator' ? 'orchestrator' : effectiveSelection.payload || 'unknown'

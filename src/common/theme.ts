@@ -277,6 +277,13 @@ export const theme = {
       },
     },
   },
+
+  layers: {
+    modalOverlay: 1600,
+    modalContent: 1610,
+    dropdownOverlay: 2000,
+    dropdownMenu: 2010,
+  },
   
   spacing: {
     xs: '0.25rem',  // 4px

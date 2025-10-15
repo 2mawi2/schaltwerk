@@ -27,6 +27,7 @@ export interface SessionCardProps {
     onCancel?: (sessionId: string, hasUncommitted: boolean) => void
     onConvertToSpec?: (sessionId: string) => void
     onRunDraft?: (sessionId: string) => void
+    onRefineSpec?: (sessionId: string) => void
     onDeleteSpec?: (sessionId: string) => void
     className?: string
     index?: number
@@ -49,6 +50,7 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
     onCancel,
     onConvertToSpec,
     onRunDraft,
+    onRefineSpec,
     onDeleteSpec,
     className,
     index,
@@ -184,6 +186,7 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
                                 worktreePath={s.worktree_path}
                                 defaultBranch={s.parent_branch ?? undefined}
                                 onRunSpec={onRunDraft}
+                                onRefineSpec={onRefineSpec}
                                 onDeleteSpec={onDeleteSpec}
                                 onMarkReviewed={onMarkReady}
                                 onUnmarkReviewed={onUnmarkReady}

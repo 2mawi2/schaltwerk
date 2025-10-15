@@ -13,6 +13,7 @@ interface KeyboardShortcutsProps {
   onSelectSession: (index: number) => void
   onCancelSelectedSession?: (immediate: boolean) => void
   onMarkSelectedSessionReady?: () => void
+  onRefineSpec?: () => void
   onSpecSession?: () => void
   onPromoteSelectedVersion?: () => void
   sessionCount: number
@@ -46,6 +47,7 @@ export function useKeyboardShortcuts(
     onSelectSession,
     onCancelSelectedSession,
     onMarkSelectedSessionReady,
+    onRefineSpec,
     onSpecSession,
     onPromoteSelectedVersion,
     sessionCount,
@@ -166,6 +168,12 @@ export function useKeyboardShortcuts(
         return
       }
 
+      if (onRefineSpec && isShortcutForAction(event, KeyboardShortcutAction.RefineSpec, shortcutConfig, { platform })) {
+        event.preventDefault()
+        onRefineSpec()
+        return
+      }
+
       if (onSpecSession && isShortcutForAction(event, KeyboardShortcutAction.ConvertSessionToSpec, shortcutConfig, { platform })) {
         event.preventDefault()
         onSpecSession()
@@ -230,6 +238,7 @@ export function useKeyboardShortcuts(
     onCancelSelectedSession,
     onOpenDiffViewer,
     onMarkSelectedSessionReady,
+    onRefineSpec,
     onSpecSession,
     onPromoteSelectedVersion,
     onFocusClaude,

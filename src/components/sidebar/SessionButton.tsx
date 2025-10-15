@@ -32,6 +32,7 @@ interface SessionButtonProps {
     onCancel: (sessionId: string, hasUncommitted: boolean) => void
     onConvertToSpec?: (sessionId: string) => void
     onRunDraft?: (sessionId: string) => void
+    onRefineSpec?: (sessionId: string) => void
     onDeleteSpec?: (sessionId: string) => void
     onPromoteVersion?: () => void
     onPromoteVersionHover?: () => void
@@ -73,6 +74,7 @@ export const SessionButton = memo<SessionButtonProps>(({
     onCancel,
     onConvertToSpec,
     onRunDraft,
+    onRefineSpec,
     onDeleteSpec,
     onPromoteVersion,
     onPromoteVersionHover,
@@ -315,6 +317,7 @@ export const SessionButton = memo<SessionButtonProps>(({
                             defaultBranch={s.parent_branch ?? undefined}
                             showPromoteIcon={showPromoteIcon}
                             onRunSpec={onRunDraft}
+                            onRefineSpec={onRefineSpec}
                             onDeleteSpec={onDeleteSpec}
                             onMarkReviewed={onMarkReady}
                             onUnmarkReviewed={onUnmarkReady}
@@ -347,6 +350,7 @@ export const SessionButton = memo<SessionButtonProps>(({
                         defaultBranch={s.parent_branch ?? undefined}
                         showPromoteIcon={showPromoteIcon}
                         onRunSpec={onRunDraft}
+                        onRefineSpec={onRefineSpec}
                         onDeleteSpec={onDeleteSpec}
                         onMarkReviewed={onMarkReady}
                         onUnmarkReviewed={onUnmarkReady}
