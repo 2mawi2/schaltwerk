@@ -60,6 +60,7 @@ mod tests {
         assert!(AgentManifest::get("gemini").is_some());
         assert!(AgentManifest::get("opencode").is_some());
         assert!(AgentManifest::get("droid").is_some());
+        assert!(AgentManifest::get("terminal").is_some());
     }
 
     #[test]
@@ -76,9 +77,9 @@ mod tests {
     #[test]
     fn test_supported_agents_sorted() {
         let agents = AgentManifest::supported_agents();
-        assert!(agents.len() >= 5);
+        assert!(agents.len() >= 6);
 
-        let expected = vec!["claude", "codex", "droid", "gemini", "opencode"];
+        let expected = vec!["claude", "codex", "droid", "gemini", "opencode", "terminal"];
         for agent in expected {
             assert!(agents.contains(&agent.to_string()));
         }
@@ -100,6 +101,17 @@ mod tests {
             droid.ready_marker.as_deref(),
             Some("You are standing in an open terminal. An AI awaits your commands.")
         );
+    }
+
+    #[test]
+    fn test_terminal_definition() {
+        let terminal = AgentManifest::get("terminal").expect("Terminal manifest entry missing");
+        assert_eq!(terminal.id, "terminal");
+        assert_eq!(terminal.display_name, "Terminal Only");
+        assert_eq!(terminal.binary_name, "sh");
+        assert_eq!(terminal.default_binary_path, "/bin/sh");
+        assert!(!terminal.auto_send_initial_command);
+        assert!(!terminal.supports_resume);
     }
 
     #[test]

@@ -10,7 +10,8 @@ const MODEL_METADATA: Record<AgentType, { label: string; color: 'blue' | 'green'
     gemini: { label: 'Gemini', color: 'orange' },
     codex: { label: 'Codex', color: 'red' },
     droid: { label: 'Droid', color: 'violet' },
-    qwen: { label: 'Qwen', color: 'cyan' }
+    qwen: { label: 'Qwen', color: 'cyan' },
+    terminal: { label: 'Terminal Only', color: 'green' }
 }
 
 interface ModelSelectorProps {

@@ -26,7 +26,8 @@ describe('useSettings', () => {
         gemini: [{ key: 'PROJECT_ID', value: 'test-id' }],
         codex: [],
         droid: [{ key: 'WELCOME_PROMPT', value: 'ready' }],
-        qwen: [{ key: 'PROJECT_ID', value: 'test-id' }]
+        qwen: [{ key: 'PROJECT_ID', value: 'test-id' }],
+        terminal: []
       }
 
       const cliArgs: Record<AgentType, string> = {
@@ -35,7 +36,8 @@ describe('useSettings', () => {
         gemini: '--project test',
         codex: '',
         droid: '--log-level debug',
-        qwen: '--project test'
+        qwen: '--project test',
+        terminal: ''
       }
 
       await act(async () => {
@@ -74,7 +76,7 @@ describe('useSettings', () => {
         agentType: 'droid',
         cliArgs: '--log-level debug'
       })
-      expect(mockInvoke).toHaveBeenCalledTimes(12)
+      expect(mockInvoke).toHaveBeenCalledTimes(14)
     })
 
     it('filters out empty environment variable keys', async () => {
@@ -90,7 +92,8 @@ describe('useSettings', () => {
         gemini: [],
         codex: [],
         droid: [],
-        qwen: []
+        qwen: [],
+        terminal: []
       }
 
       const cliArgs: Record<AgentType, string> = {
@@ -99,7 +102,8 @@ describe('useSettings', () => {
         gemini: '',
         codex: '',
         droid: '',
-        qwen: ''
+        qwen: '',
+        terminal: ''
       }
 
       await act(async () => {
@@ -231,7 +235,8 @@ describe('useSettings', () => {
         gemini: [],
         codex: [],
         droid: [],
-        qwen: []
+        qwen: [],
+        terminal: []
       }
 
       const cliArgs: Record<AgentType, string> = {
@@ -240,7 +245,8 @@ describe('useSettings', () => {
         gemini: '',
         codex: '',
         droid: '',
-        qwen: ''
+        qwen: '',
+        terminal: ''
       }
       
       const projectSettings = {
@@ -302,7 +308,8 @@ describe('useSettings', () => {
         gemini: [],
         codex: [],
         droid: [],
-        qwen: []
+        qwen: [],
+        terminal: []
       }
 
       const cliArgs: Record<AgentType, string> = {
@@ -311,7 +318,8 @@ describe('useSettings', () => {
         gemini: '',
         codex: '',
         droid: '',
-        qwen: ''
+        qwen: '',
+        terminal: ''
       }
       
       const projectSettings = {
@@ -368,7 +376,8 @@ describe('useSettings', () => {
         gemini: [],
         codex: [],
         droid: [],
-        qwen: []
+        qwen: [],
+        terminal: []
       }
 
       const cliArgs: Record<AgentType, string> = {
@@ -377,7 +386,8 @@ describe('useSettings', () => {
         gemini: '',
         codex: '',
         droid: '',
-        qwen: ''
+        qwen: '',
+        terminal: ''
       }
 
       const projectSettings = {
@@ -483,7 +493,8 @@ describe('useSettings', () => {
         gemini: [{ key: 'PROJECT', value: 'gemini-project' }],
         codex: [],
         droid: [],
-        qwen: []
+        qwen: [],
+        terminal: []
       })
       expect(result.current.loading).toBe(false)
     })
@@ -503,7 +514,8 @@ describe('useSettings', () => {
         gemini: [],
         codex: [],
         droid: [],
-        qwen: []
+        qwen: [],
+        terminal: []
       })
     })
   })
@@ -536,7 +548,8 @@ describe('useSettings', () => {
         gemini: '',
         codex: '',
         droid: '',
-        qwen: ''
+        qwen: '',
+        terminal: ''
       })
     })
 
@@ -555,7 +568,8 @@ describe('useSettings', () => {
         gemini: '',
         codex: '',
         droid: '',
-        qwen: ''
+        qwen: '',
+        terminal: ''
       })
     })
   })

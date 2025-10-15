@@ -4,7 +4,7 @@
 
 **Native terminal AI agents with git worktree isolation. Spec-driven development for parallel workflows.**
 
-Run Claude Code, OpenCode, Gemini, Codex, Qwen, and Factory Droid natively—no wrappers, no limitations. Each gets its own worktree.
+Run Claude Code, OpenCode, Gemini, Codex, Qwen, and Factory Droid natively—no wrappers, no limitations. Or use Terminal Only mode for manual work. Each session gets its own worktree.
 
 [![Test](https://github.com/2mawi2/schaltwerk/actions/workflows/test.yml/badge.svg)](https://github.com/2mawi2/schaltwerk/actions/workflows/test.yml)
 
@@ -31,7 +31,7 @@ Run Claude Code, OpenCode, Gemini, Codex, Qwen, and Factory Droid natively—no 
 - **macOS 11+** (Big Sur or later) - currently supported
 - **Linux** - alpha version coming soon (work in progress)
 - **Git 2.30+**
-- At least one agentic coding CLI: Claude Code, OpenCode, Gemini, Codex, Qwen, or Factory Droid
+- At least one agentic coding CLI: Claude Code, OpenCode, Gemini, Codex, Qwen, or Factory Droid (or use Terminal Only mode for manual work)
 
 ## Quick Start (60 seconds)
 
@@ -98,6 +98,7 @@ Looking for multi-agent orchestration patterns? Check out the **Scaffold → Swa
 - Run against private APIs (Azure, self-hosted)
 - No data tracking from Schaltwerk
 - MCP server for orchestrator agents
+- Terminal Only mode for manual work without AI agents
 
 ## Installation
 

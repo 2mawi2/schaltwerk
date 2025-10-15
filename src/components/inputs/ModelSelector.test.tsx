@@ -227,7 +227,7 @@ describe('ModelSelector', () => {
     await user.keyboard('{ArrowUp}')
     await user.keyboard('{Enter}')
 
-    expect(onChange).toHaveBeenCalledWith('qwen')
+    expect(onChange).toHaveBeenCalledWith('terminal')
   })
 
   test('keyboard navigation: Escape closes dropdown', async () => {

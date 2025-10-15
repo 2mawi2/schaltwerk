@@ -19,7 +19,7 @@ export interface AgentBinaryConfig {
     detected_binaries: DetectedBinary[]
 }
 
-export type AgentType = 'claude' | 'opencode' | 'gemini' | 'codex' | 'droid' | 'qwen'
+export type AgentType = 'claude' | 'opencode' | 'gemini' | 'codex' | 'droid' | 'qwen' | 'terminal'
 
 // UI agent names to backend agent names mapping
 const AGENT_TO_BINARY_MAPPING: Record<string, AgentType> = {
@@ -40,7 +40,7 @@ interface UseAgentBinaryDetectionOptions {
     cacheResults?: boolean
 }
 
-const DEFAULT_CONFIGS: Record<AgentType, AgentBinaryConfig> = {
+const DEFAULT_CONFIGS: Record<string, AgentBinaryConfig> = {
     'claude': { agent_name: 'claude', custom_path: null, auto_detect: true, detected_binaries: [] },
     'opencode': { agent_name: 'opencode', custom_path: null, auto_detect: true, detected_binaries: [] },
     'gemini': { agent_name: 'gemini', custom_path: null, auto_detect: true, detected_binaries: [] },
@@ -55,7 +55,7 @@ const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
 
 export function useAgentBinaryDetection(options: UseAgentBinaryDetectionOptions = {}) {
     const { autoLoad = true, cacheResults = true } = options
-    const [binaryConfigs, setBinaryConfigs] = useState<Record<AgentType, AgentBinaryConfig>>(DEFAULT_CONFIGS)
+    const [binaryConfigs, setBinaryConfigs] = useState<Record<string, AgentBinaryConfig>>(DEFAULT_CONFIGS)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
@@ -81,17 +81,19 @@ export function useAgentBinaryDetection(options: UseAgentBinaryDetectionOptions 
         try {
             setLoading(true)
             setError(null)
-            
+
             const configs = await invoke<AgentBinaryConfig[]>(TauriCommands.GetAllAgentBinaryConfigs)
-            
-            const configMap: Record<AgentType, AgentBinaryConfig> = { ...DEFAULT_CONFIGS }
-            
+
+            const configMap: Record<string, AgentBinaryConfig> = { ...DEFAULT_CONFIGS }
+
             configs.forEach(config => {
                 const agentType = config.agent_name as AgentType
                 configMap[agentType] = config
-                setCachedConfig(agentType, config)
+                if (agentType !== 'terminal') {
+                    setCachedConfig(agentType, config)
+                }
             })
-            
+
             setBinaryConfigs(configMap)
         } catch (err) {
             logger.error('Failed to load binary configurations:', err)
@@ -105,23 +107,27 @@ export function useAgentBinaryDetection(options: UseAgentBinaryDetectionOptions 
     const getAgentBinaryConfig = useCallback(async (agentName: string): Promise<AgentBinaryConfig | null> => {
         try {
             const binaryName = mapAgentToBinary(agentName)
-            
+
+            if (binaryName === 'terminal') {
+                return null
+            }
+
             // Check cache first
             const cached = getCachedConfig(binaryName)
             if (cached) {
                 return cached
             }
-            
-            const config = await invoke<AgentBinaryConfig>(TauriCommands.GetAgentBinaryConfig, { 
-                agentName: binaryName 
+
+            const config = await invoke<AgentBinaryConfig>(TauriCommands.GetAgentBinaryConfig, {
+                agentName: binaryName
             })
-            
+
             setCachedConfig(binaryName, config)
             setBinaryConfigs(prev => ({
                 ...prev,
                 [binaryName]: config
             }))
-            
+
             return config
         } catch (err) {
             logger.error(`Failed to get binary config for ${agentName}:`, err)
@@ -133,17 +139,21 @@ export function useAgentBinaryDetection(options: UseAgentBinaryDetectionOptions 
     const refreshAgentBinaryDetection = useCallback(async (agentName: string): Promise<AgentBinaryConfig | null> => {
         try {
             const binaryName = mapAgentToBinary(agentName)
-            
-            const config = await invoke<AgentBinaryConfig>(TauriCommands.RefreshAgentBinaryDetection, { 
-                agentName: binaryName 
+
+            if (binaryName === 'terminal') {
+                return null
+            }
+
+            const config = await invoke<AgentBinaryConfig>(TauriCommands.RefreshAgentBinaryDetection, {
+                agentName: binaryName
             })
-            
+
             setCachedConfig(binaryName, config)
             setBinaryConfigs(prev => ({
                 ...prev,
                 [binaryName]: config
             }))
-            
+
             return config
         } catch (err) {
             logger.error(`Failed to refresh binary detection for ${agentName}:`, err)
@@ -155,23 +165,27 @@ export function useAgentBinaryDetection(options: UseAgentBinaryDetectionOptions 
     const setAgentBinaryPath = useCallback(async (agentName: string, path: string | null): Promise<boolean> => {
         try {
             const binaryName = mapAgentToBinary(agentName)
-            
-            await invoke(TauriCommands.SetAgentBinaryPath, { 
-                agentName: binaryName, 
-                path: path || null 
+
+            if (binaryName === 'terminal') {
+                return false
+            }
+
+            await invoke(TauriCommands.SetAgentBinaryPath, {
+                agentName: binaryName,
+                path: path || null
             })
-            
+
             // Get the updated config
-            const updatedConfig = await invoke<AgentBinaryConfig>(TauriCommands.GetAgentBinaryConfig, { 
-                agentName: binaryName 
+            const updatedConfig = await invoke<AgentBinaryConfig>(TauriCommands.GetAgentBinaryConfig, {
+                agentName: binaryName
             })
-            
+
             setCachedConfig(binaryName, updatedConfig)
             setBinaryConfigs(prev => ({
                 ...prev,
                 [binaryName]: updatedConfig
             }))
-            
+
             return true
         } catch (err) {
             logger.error(`Failed to set binary path for ${agentName}:`, err)
@@ -182,10 +196,15 @@ export function useAgentBinaryDetection(options: UseAgentBinaryDetectionOptions 
     // Check if an agent is available
     const isAgentAvailable = useCallback((agentName: string): boolean => {
         const binaryName = mapAgentToBinary(agentName)
+
+        if (binaryName === 'terminal') {
+            return true
+        }
+
         const config = binaryConfigs[binaryName]
-        
+
         if (!config) return false
-        
+
         // Agent is available if it has a custom path or detected binaries
         return Boolean(config.custom_path) || config.detected_binaries.length > 0
     }, [binaryConfigs])
@@ -193,15 +212,20 @@ export function useAgentBinaryDetection(options: UseAgentBinaryDetectionOptions 
     // Get the recommended binary path for an agent
     const getRecommendedPath = useCallback((agentName: string): string | null => {
         const binaryName = mapAgentToBinary(agentName)
+
+        if (binaryName === 'terminal') {
+            return null
+        }
+
         const config = binaryConfigs[binaryName]
-        
+
         if (!config) return null
-        
+
         // Custom path takes precedence
         if (config.custom_path) {
             return config.custom_path
         }
-        
+
         // Otherwise find the recommended binary
         const recommended = config.detected_binaries.find(b => b.is_recommended)
         return recommended?.path || config.detected_binaries[0]?.path || null
