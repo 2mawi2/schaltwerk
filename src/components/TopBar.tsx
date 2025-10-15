@@ -176,9 +176,6 @@ export function TopBar({
         
         {/* Branch indicator - only shows in development builds */}
         <BranchIndicator />
-        
-        {/* GitHub status/actions */}
-        <GithubMenuButton className="mr-2" hasActiveProject={Boolean(activeTabPath)} />
 
         {/* Open in IDE button - only show when a tab is active */}
         {activeTabPath && (
@@ -189,6 +186,9 @@ export function TopBar({
             />
           </div>
         )}
+
+        {/* GitHub status/actions */}
+        <GithubMenuButton className="mr-2" hasActiveProject={Boolean(activeTabPath)} />
 
         
         {/* Right panel collapse button - only show when a tab is active */}
