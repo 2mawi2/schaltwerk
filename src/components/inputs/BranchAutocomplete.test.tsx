@@ -2,6 +2,7 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, expect, test, beforeEach, vi } from 'vitest'
 import { BranchAutocomplete } from './BranchAutocomplete'
 import { useState } from 'react'
+import userEvent from '@testing-library/user-event'
 
 describe('BranchAutocomplete', () => {
     function Wrapper({ initialValue = '' }: { initialValue?: string }) {
@@ -32,5 +33,18 @@ describe('BranchAutocomplete', () => {
         expect(screen.getAllByText(matchExactText('fix/bug-123'))[0]).toBeInTheDocument()
         expect(screen.queryByText(matchExactText('main'))).not.toBeInTheDocument()
         expect(screen.queryByText(matchExactText('feature/login-ui'))).not.toBeInTheDocument()
+    })
+
+    test('renders suggestion list in a portal positioned relative to the viewport', async () => {
+        const user = userEvent.setup()
+        render(<Wrapper />)
+
+        const input = screen.getByRole('textbox')
+        await user.click(input)
+
+        const menu = await screen.findByTestId('branch-autocomplete-menu')
+
+        expect(menu.parentElement).toBe(document.body)
+        expect(window.getComputedStyle(menu).position).toBe('fixed')
     })
 })

@@ -32,8 +32,10 @@ const customTheme = EditorView.theme({
   },
   '.cm-editor': {
     backgroundColor: editorColors.background,
-    height: 'auto',
+    height: '100%',
     minHeight: '100%',
+    display: 'flex',
+    flexDirection: 'column',
   },
   '.cm-editor.cm-focused': {
     backgroundColor: editorColors.background,
@@ -49,6 +51,8 @@ const customTheme = EditorView.theme({
     fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
     lineHeight: '1.5',
     minHeight: '100%',
+    height: '100%',
+    overflowY: 'auto',
   },
   '.cm-line': {
     padding: '0 2px',

@@ -1,5 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState, useLayoutEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { theme } from '../../common/theme'
+import { calculateDropdownGeometry, DropdownGeometry } from './dropdownGeometry'
 
 export interface DropdownItem {
   key: string
@@ -24,6 +26,7 @@ export function Dropdown({ open, onOpenChange, items, selectedKey, onSelect, ali
   const [focusedIndex, setFocusedIndex] = useState<number>(-1)
   const selectedIndex = useMemo(() => items.findIndex(i => i.key === selectedKey), [items, selectedKey])
   const containerRef = useRef<HTMLDivElement>(null)
+  const [menuGeometry, setMenuGeometry] = useState<DropdownGeometry | null>(null)
 
   useEffect(() => {
     if (open) {
@@ -75,19 +78,65 @@ export function Dropdown({ open, onOpenChange, items, selectedKey, onSelect, ali
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [open, focusedIndex, items, onSelect, onOpenChange])
 
+  useLayoutEffect(() => {
+    if (!open) {
+      setMenuGeometry(null)
+      return
+    }
+
+    const updateGeometry = () => {
+      const container = containerRef.current
+      if (!container) return
+
+      const nextGeometry = calculateDropdownGeometry({
+        anchorRect: container.getBoundingClientRect(),
+        viewport: {
+          width: window.innerWidth,
+          height: window.innerHeight
+        },
+        alignment: align,
+        minWidth
+      })
+
+      setMenuGeometry(nextGeometry)
+    }
+
+    updateGeometry()
+
+    const handleScroll = () => updateGeometry()
+    const handleResize = () => updateGeometry()
+
+    window.addEventListener('scroll', handleScroll, true)
+    window.addEventListener('resize', handleResize)
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll, true)
+      window.removeEventListener('resize', handleResize)
+    }
+  }, [open, align, minWidth])
+
   return (
     <div className="relative" ref={containerRef}>
       {children({ open, toggle: () => onOpenChange(!open) })}
-      {open && (
+      {open && menuGeometry && createPortal(
         <>
-          <div className="fixed inset-0 z-40" onClick={() => onOpenChange(false)} />
+          <div
+            className="fixed inset-0"
+            style={{ zIndex: theme.layers.dropdownOverlay }}
+            onClick={() => onOpenChange(false)}
+          />
           <div
             data-testid={menuTestId}
-            className={`absolute mt-1 z-50 rounded shadow-lg overflow-hidden ${align === 'right' ? 'right-0' : align === 'left' ? 'left-0' : 'left-0 right-0'}`}
+            className="rounded shadow-lg overflow-auto"
             style={{
+              position: 'fixed',
+              top: menuGeometry.top,
+              left: menuGeometry.left,
+              width: menuGeometry.width,
+              maxHeight: menuGeometry.maxHeight,
+              zIndex: theme.layers.dropdownMenu,
               backgroundColor: theme.colors.background.elevated,
               border: `1px solid ${theme.colors.border.default}`,
-              minWidth
             }}
           >
             {items.map((item, index) => {
@@ -112,9 +161,9 @@ export function Dropdown({ open, onOpenChange, items, selectedKey, onSelect, ali
               )
             })}
           </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   )
 }
-

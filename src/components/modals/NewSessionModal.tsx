@@ -785,7 +785,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                             {createAsDraft ? 'Spec content' : 'Initial prompt (optional)'}
                         </label>
                         <Suspense fallback={<div className="flex-1 rounded border border-slate-700" style={{ backgroundColor: theme.colors.background.elevated }} /> }>
-                            <div className="flex-1" data-testid="session-task-editor">
+                            <div className="flex-1 min-h-0 overflow-hidden" data-testid="session-task-editor">
                                 <MarkdownEditor
                                     ref={markdownEditorRef}
                                     value={taskContent}
