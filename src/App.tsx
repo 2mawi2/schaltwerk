@@ -760,6 +760,7 @@ function AppContent() {
     name: string
     prompt?: string
     baseBranch: string
+    customBranch?: string
     userEditedName?: boolean
     isSpec?: boolean
     draftContent?: string
@@ -902,6 +903,7 @@ function AppContent() {
               name: versionName,
               prompt: data.prompt || null,
               baseBranch: data.baseBranch || null,
+              customBranch: data.customBranch || null,
               userEditedName: count > 1 ? false : (data.userEditedName ?? false),
               versionGroupId,
               versionNumber: i,

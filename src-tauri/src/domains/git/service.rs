@@ -16,7 +16,8 @@ pub use super::history::{
     get_commit_file_changes, get_git_history, CommitFileChange, HistoryProviderSnapshot,
 };
 pub use super::operations::{
-    commit_all_changes, has_conflicts, has_uncommitted_changes, is_valid_session_name,
+    commit_all_changes, has_conflicts, has_uncommitted_changes, is_valid_branch_name,
+    is_valid_session_name,
 };
 pub use super::stats::{calculate_git_stats_fast, get_changed_files};
 #[cfg(test)]

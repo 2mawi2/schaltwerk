@@ -48,6 +48,7 @@ pub struct SessionCreationParams<'a> {
     pub name: &'a str,
     pub prompt: Option<&'a str>,
     pub base_branch: Option<&'a str>,
+    pub custom_branch: Option<&'a str>,
     pub was_auto_generated: bool,
     pub version_group_id: Option<&'a str>,
     pub version_number: Option<i32>,
@@ -912,6 +913,7 @@ mod service_unified_tests {
             name: "copy-local",
             prompt: None,
             base_branch: None,
+            custom_branch: None,
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
@@ -983,6 +985,7 @@ mod service_unified_tests {
             name: "opencode-session",
             prompt: None,
             base_branch: None,
+            custom_branch: None,
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
@@ -1041,6 +1044,7 @@ mod service_unified_tests {
             name: "compare-gemini",
             prompt: None,
             base_branch: None,
+            custom_branch: None,
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
@@ -1335,6 +1339,7 @@ impl SessionManager {
             name,
             prompt,
             base_branch,
+            custom_branch: None,
             was_auto_generated,
             version_group_id,
             version_number,
@@ -1360,8 +1365,33 @@ impl SessionManager {
             ));
         }
 
-        let (unique_name, branch, worktree_path) =
-            self.utils.find_unique_session_paths(params.name)?;
+        let (unique_name, branch, worktree_path) = if let Some(custom_branch) = params.custom_branch
+        {
+            if !git::is_valid_branch_name(custom_branch) {
+                return Err(anyhow!(
+                    "Invalid branch name: branch names must be valid git references"
+                ));
+            }
+
+            let branch_exists = git::branch_exists(&self.repo_path, custom_branch)?;
+            let final_branch = if branch_exists {
+                let suffix = SessionUtils::generate_random_suffix(2);
+                format!("{custom_branch}-{suffix}")
+            } else {
+                custom_branch.to_string()
+            };
+
+            let worktree_path = self
+                .repo_path
+                .join(".schaltwerk")
+                .join("worktrees")
+                .join(params.name);
+
+            (params.name.to_string(), final_branch, worktree_path)
+        } else {
+            self.utils.find_unique_session_paths(params.name)?
+        };
+
         let session_id = SessionUtils::generate_session_id();
         self.utils.cleanup_existing_worktree(&worktree_path)?;
 

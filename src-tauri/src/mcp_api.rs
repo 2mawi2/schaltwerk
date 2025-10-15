@@ -940,6 +940,7 @@ async fn create_session(
     };
     let prompt = payload["prompt"].as_str().map(|s| s.to_string());
     let base_branch = payload["base_branch"].as_str().map(|s| s.to_string());
+    let custom_branch = payload["custom_branch"].as_str().map(|s| s.to_string());
     let user_edited_name = payload["user_edited_name"].as_bool();
     let agent_type = payload["agent_type"].as_str().map(|s| s.to_string());
     let skip_permissions = payload["skip_permissions"].as_bool();
@@ -965,6 +966,7 @@ async fn create_session(
         name,
         prompt: prompt.as_deref(),
         base_branch: base_branch.as_deref(),
+        custom_branch: custom_branch.as_deref(),
         was_auto_generated,
         version_group_id: None,
         version_number: None,

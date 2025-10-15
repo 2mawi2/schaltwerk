@@ -117,6 +117,8 @@ describe('SessionConfigurationPanel', () => {
                     return Promise.resolve('main')
                 case TauriCommands.GetProjectDefaultBranch:
                     return Promise.resolve('main')
+                case TauriCommands.GetProjectSettings:
+                    return Promise.resolve({ setup_script: '', branch_prefix: 'schaltwerk' })
                 case TauriCommands.RepositoryIsEmpty:
                     return Promise.resolve(false)
                 case TauriCommands.SetProjectDefaultBaseBranch:

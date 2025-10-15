@@ -105,6 +105,8 @@ const defaultInvokeImplementation = (cmd: string) => {
       return Promise.resolve(null)
     case TauriCommands.GetProjectDefaultBranch:
       return Promise.resolve('main')
+    case TauriCommands.GetProjectSettings:
+      return Promise.resolve({ setup_script: '', branch_prefix: 'schaltwerk' })
     case TauriCommands.RepositoryIsEmpty:
       return Promise.resolve(false)
     case TauriCommands.GetAgentEnvVars:

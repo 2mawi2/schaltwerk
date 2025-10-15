@@ -270,6 +270,7 @@ mod tests {
                     name: "diff-non-main",
                     prompt: None,
                     base_branch: None,
+            custom_branch: None,
                     was_auto_generated: false,
                     version_group_id: None,
                     version_number: None,

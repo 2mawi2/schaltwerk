@@ -154,6 +154,50 @@ pub fn is_valid_session_name(name: &str) -> bool {
         .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
 }
 
+pub fn is_valid_branch_name(branch: &str) -> bool {
+    if branch.is_empty() || branch.len() > 255 {
+        return false;
+    }
+
+    if branch.starts_with('/') || branch.ends_with('/') {
+        return false;
+    }
+
+    if branch.contains("//") {
+        return false;
+    }
+
+    if branch.contains("..") {
+        return false;
+    }
+
+    if branch.starts_with('.') || branch.ends_with('.') {
+        return false;
+    }
+
+    if branch.ends_with(".lock") {
+        return false;
+    }
+
+    if branch.contains(" ") {
+        return false;
+    }
+
+    for part in branch.split('/') {
+        if part.is_empty() || part.starts_with('.') || part.ends_with('.') {
+            return false;
+        }
+    }
+
+    branch.chars().all(|c| {
+        c.is_alphanumeric()
+            || c == '-'
+            || c == '_'
+            || c == '/'
+            || c == '.'
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -212,6 +256,42 @@ mod tests {
         // Length check (100 chars should be valid)
         let max_name = "a".repeat(100);
         assert!(is_valid_session_name(&max_name));
+    }
+
+    #[test]
+    fn test_is_valid_branch_name() {
+        assert!(is_valid_branch_name("feature/my-feature"));
+        assert!(is_valid_branch_name("bugfix/123"));
+        assert!(is_valid_branch_name("main"));
+        assert!(is_valid_branch_name("develop"));
+        assert!(is_valid_branch_name("feature-branch"));
+        assert!(is_valid_branch_name("feature_branch"));
+        assert!(is_valid_branch_name("v1.0.0"));
+        assert!(is_valid_branch_name("release/1.0"));
+        assert!(is_valid_branch_name("hotfix/critical-bug"));
+        assert!(is_valid_branch_name("feature/user-auth_v2.0"));
+
+        assert!(!is_valid_branch_name(""));
+        assert!(!is_valid_branch_name("/leading-slash"));
+        assert!(!is_valid_branch_name("trailing-slash/"));
+        assert!(!is_valid_branch_name("double//slash"));
+        assert!(!is_valid_branch_name("has..dots"));
+        assert!(!is_valid_branch_name(".starts-with-dot"));
+        assert!(!is_valid_branch_name("ends-with-dot."));
+        assert!(!is_valid_branch_name("branch.lock"));
+        assert!(!is_valid_branch_name("has spaces"));
+        assert!(!is_valid_branch_name("feature/.hidden"));
+        assert!(!is_valid_branch_name("feature/ends-with-dot."));
+        assert!(!is_valid_branch_name("feature//empty-component"));
+        assert!(!is_valid_branch_name("has@special"));
+        assert!(!is_valid_branch_name("has#chars"));
+        assert!(!is_valid_branch_name("has$dollar"));
+
+        let long_branch = "a".repeat(256);
+        assert!(!is_valid_branch_name(&long_branch));
+
+        let max_branch = "a".repeat(255);
+        assert!(is_valid_branch_name(&max_branch));
     }
 
     #[test]

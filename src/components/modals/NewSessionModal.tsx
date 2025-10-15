@@ -34,6 +34,7 @@ interface Props {
         name: string
         prompt?: string
         baseBranch: string
+        customBranch?: string
         userEditedName?: boolean
         isSpec?: boolean
         draftContent?: string
@@ -49,6 +50,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
     const [, setWasEdited] = useState(false)
     const [taskContent, setTaskContent] = useState('')
     const [baseBranch, setBaseBranch] = useState('')
+    const [customBranch, setCustomBranch] = useState('')
     const [agentType, setAgentType] = useState<AgentType>('claude')
     const [skipPermissions, setSkipPermissions] = useState(false)
     const [validationError, setValidationError] = useState('')
@@ -268,6 +270,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                 name: finalName,
                 prompt: createAsDraft ? undefined : (taskContent || undefined),
                 baseBranch: createAsDraft ? '' : baseBranch,
+                customBranch: customBranch.trim() || undefined,
                 userEditedName: !!userEdited,
                 isSpec: createAsDraft,
                 draftContent: createAsDraft ? taskContent : undefined,
@@ -286,7 +289,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
         } catch (_e) {
             setCreating(false)
         }
-    }, [creating, name, taskContent, baseBranch, onCreate, validateSessionName, createAsDraft, versionCount, agentType, skipPermissions])
+    }, [creating, name, taskContent, baseBranch, customBranch, onCreate, validateSessionName, createAsDraft, versionCount, agentType, skipPermissions])
 
     // Keep ref in sync immediately on render to avoid stale closures in tests
     createRef.current = handleCreate
@@ -409,6 +412,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                 setTaskContent(cachedPrompt)
                 setValidationError('')
                 setCreateAsDraft(initialIsDraft)
+                setCustomBranch('')
                 setNameLocked(false)
                 setOriginalSpecName('')
                 setShowVersionMenu(false)
@@ -485,6 +489,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
             setIsPrefillPending(false)
             setHasPrefillData(false)
             setCreateAsDraft(false)
+            setCustomBranch('')
             setNameLocked(false)
             setOriginalSpecName('')
             setName('')
@@ -837,9 +842,17 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                 onBaseBranchChange={handleBranchChange}
                                 onAgentTypeChange={handleAgentTypeChange}
                                 onSkipPermissionsChange={handleSkipPermissionsChange}
+                                onCustomBranchChange={(branch) => {
+                                    setCustomBranch(branch)
+                                    if (validationError) {
+                                        setValidationError('')
+                                    }
+                                }}
                                 initialBaseBranch={baseBranch}
                                 initialAgentType={agentType}
                                 initialSkipPermissions={skipPermissions}
+                                initialCustomBranch={customBranch}
+                                sessionName={name}
                                 ignorePersistedAgentType={ignorePersistedAgentType}
                             />
                             <AgentDefaultsSection

@@ -14,9 +14,12 @@ interface SessionConfigurationPanelProps {
     onBaseBranchChange?: (branch: string) => void
     onAgentTypeChange?: (agentType: AgentType) => void
     onSkipPermissionsChange?: (enabled: boolean) => void
+    onCustomBranchChange?: (branch: string) => void
     initialBaseBranch?: string
     initialAgentType?: AgentType
     initialSkipPermissions?: boolean
+    initialCustomBranch?: string
+    sessionName?: string
     disabled?: boolean
     hideLabels?: boolean
     hideAgentType?: boolean
@@ -35,9 +38,12 @@ export function SessionConfigurationPanel({
     onBaseBranchChange,
     onAgentTypeChange,
     onSkipPermissionsChange,
+    onCustomBranchChange,
     initialBaseBranch = '',
     initialAgentType = 'claude',
     initialSkipPermissions = false,
+    initialCustomBranch = '',
+    sessionName = '',
     disabled = false,
     hideLabels = false,
     hideAgentType = false,
@@ -49,11 +55,14 @@ export function SessionConfigurationPanel({
     const [isValidBranch, setIsValidBranch] = useState(true)
     const [agentType, setAgentType] = useState<AgentType>(initialAgentType)
     const [skipPermissions, setSkipPermissions] = useState(initialSkipPermissions)
+    const [customBranch, setCustomBranch] = useState(initialCustomBranch)
+    const [branchPrefix, setBranchPrefix] = useState<string>('schaltwerk')
     const { getSkipPermissions, setSkipPermissions: saveSkipPermissions, getAgentType, setAgentType: saveAgentType } = useClaudeSession()
 
     const onBaseBranchChangeRef = useRef(onBaseBranchChange)
     const onAgentTypeChangeRef = useRef(onAgentTypeChange)
     const onSkipPermissionsChangeRef = useRef(onSkipPermissionsChange)
+    const onCustomBranchChangeRef = useRef(onCustomBranchChange)
     const baseBranchValueRef = useRef(initialBaseBranch)
     const userEditedBranchRef = useRef(false)
     const skipPermissionsTouchedRef = useRef(false)
@@ -69,6 +78,7 @@ export function SessionConfigurationPanel({
     useEffect(() => { onBaseBranchChangeRef.current = onBaseBranchChange }, [onBaseBranchChange])
     useEffect(() => { onAgentTypeChangeRef.current = onAgentTypeChange }, [onAgentTypeChange])
     useEffect(() => { onSkipPermissionsChangeRef.current = onSkipPermissionsChange }, [onSkipPermissionsChange])
+    useEffect(() => { onCustomBranchChangeRef.current = onCustomBranchChange }, [onCustomBranchChange])
     useEffect(() => { getSkipPermissionsRef.current = getSkipPermissions }, [getSkipPermissions])
     useEffect(() => { getAgentTypeRef.current = getAgentType }, [getAgentType])
     useEffect(() => { saveAgentTypeRef.current = saveAgentType }, [saveAgentType])
@@ -81,15 +91,19 @@ export function SessionConfigurationPanel({
     const loadConfiguration = useCallback(async () => {
         setLoadingBranches(true)
         try {
-            const [branchList, savedDefaultBranch, gitDefaultBranch, storedSkipPerms, storedAgentType] = await Promise.all([
+            const [branchList, savedDefaultBranch, gitDefaultBranch, storedSkipPerms, storedAgentType, projectSettings] = await Promise.all([
                 invoke<string[]>(TauriCommands.ListProjectBranches),
                 invoke<string | null>(TauriCommands.GetProjectDefaultBaseBranch),
                 invoke<string>(TauriCommands.GetProjectDefaultBranch),
                 getSkipPermissionsRef.current(),
-                getAgentTypeRef.current()
+                getAgentTypeRef.current(),
+                invoke<{ branch_prefix: string }>(TauriCommands.GetProjectSettings).catch(() => ({ branch_prefix: 'schaltwerk' }))
             ])
 
+            const storedBranchPrefix = projectSettings.branch_prefix || 'schaltwerk'
+
             setBranches(branchList)
+            setBranchPrefix(storedBranchPrefix)
 
             const hasUserBranch = userEditedBranchRef.current || !!(baseBranchValueRef.current && baseBranchValueRef.current.trim() !== '')
             if (!hasUserBranch) {
@@ -186,6 +200,11 @@ export function SessionConfigurationPanel({
         }
     }, [saveAgentType, skipPermissions, handleSkipPermissionsChange])
 
+    const handleCustomBranchChange = useCallback((branch: string) => {
+        setCustomBranch(branch)
+        onCustomBranchChangeRef.current?.(branch)
+    }, [])
+
     // Ensure isValidBranch is considered "used" by TypeScript
     React.useEffect(() => {
         // This effect ensures the validation state is properly tracked
@@ -275,35 +294,63 @@ export function SessionConfigurationPanel({
         )
     }
 
+    const normalizedSessionName = sessionName.replace(/ /g, '_')
+    const branchPlaceholder = normalizedSessionName
+        ? `${branchPrefix}/${normalizedSessionName}`
+        : `${branchPrefix}/your-session-name`
+
     return (
         <div className="grid grid-cols-2 gap-3">
-            <div>
-                <label className="block text-sm mb-1" style={{ color: theme.colors.text.secondary }}>
-                    Base branch
-                </label>
-                {loadingBranches ? (
-                    <div 
-                        className="w-full rounded px-3 py-2 border flex items-center justify-center" 
+            <div className="flex flex-col gap-3">
+                <div>
+                    <label className="block text-sm mb-1" style={{ color: theme.colors.text.secondary }}>
+                        Base branch
+                    </label>
+                    {loadingBranches ? (
+                        <div
+                            className="w-full rounded px-3 py-2 border flex items-center justify-center"
+                            style={{
+                                backgroundColor: theme.colors.background.elevated,
+                                borderColor: theme.colors.border.default
+                            }}
+                        >
+                            <span className="text-slate-500 text-xs">Loading...</span>
+                        </div>
+                    ) : (
+                        <BranchAutocomplete
+                            value={baseBranch}
+                            onChange={handleBaseBranchChange}
+                            branches={branches}
+                            disabled={disabled || branches.length === 0}
+                            placeholder={branches.length === 0 ? "No branches available" : "Type to search branches... (Tab to autocomplete)"}
+                            onValidationChange={setIsValidBranch}
+                        />
+                    )}
+                    <p className="text-xs mt-1" style={{ color: theme.colors.text.muted }}>
+                        Existing branch to create the new worktree from
+                    </p>
+                </div>
+
+                <div>
+                    <label className="block text-sm mb-1" style={{ color: theme.colors.text.secondary }}>
+                        Branch name (optional)
+                    </label>
+                    <input
+                        value={customBranch}
+                        onChange={(e) => handleCustomBranchChange(e.target.value)}
+                        className="w-full rounded px-3 py-2 border"
                         style={{
                             backgroundColor: theme.colors.background.elevated,
+                            color: theme.colors.text.primary,
                             borderColor: theme.colors.border.default
                         }}
-                    >
-                        <span className="text-slate-500 text-xs">Loading...</span>
-                    </div>
-                ) : (
-                    <BranchAutocomplete
-                        value={baseBranch}
-                        onChange={handleBaseBranchChange}
-                        branches={branches}
-                        disabled={disabled || branches.length === 0}
-                        placeholder={branches.length === 0 ? "No branches available" : "Type to search branches... (Tab to autocomplete)"}
-                        onValidationChange={setIsValidBranch}
+                        placeholder={branchPlaceholder}
+                        disabled={disabled}
                     />
-                )}
-                <p className="text-xs mt-1" style={{ color: theme.colors.text.muted }}>
-                    Branch from which to create the worktree
-                </p>
+                    <p className="text-xs mt-1" style={{ color: theme.colors.text.muted }}>
+                        New branch name for this session. Leave empty to auto-generate: {branchPlaceholder}
+                    </p>
+                </div>
             </div>
 
             {!hideAgentType && (
