@@ -29,6 +29,25 @@ export interface Session {
   was_auto_generated: boolean
 }
 
+export interface SpecSummary {
+  session_id: string
+  display_name?: string
+  content_length: number
+  updated_at: string
+}
+
+export interface SpecContent {
+  session_id: string
+  display_name?: string
+  content: string
+  content_length: number
+  updated_at: string
+}
+
+interface SpecSummaryResponse {
+  specs: SpecSummary[]
+}
+
 interface GitStatusResult {
   hasUncommittedChanges: boolean
   modifiedFiles: number
@@ -77,6 +96,63 @@ export interface PullRequestResult {
   cancelRequested: boolean
   cancelQueued: boolean
   cancelError?: string
+}
+
+export interface DiffSummaryOptions {
+  session?: string
+  cursor?: string
+  pageSize?: number
+}
+
+export interface DiffChunkOptions {
+  session?: string
+  path: string
+  cursor?: string
+  lineLimit?: number
+}
+
+export type DiffSummaryPayload = {
+  scope: string
+  session_id?: string
+  branch_info: {
+    current_branch: string
+    parent_branch: string
+    merge_base_short: string
+    head_short: string
+  }
+  has_spec: boolean
+  files: Array<{ path: string; change_type: string }>
+  paging: {
+    next_cursor: string | null
+    total_files: number
+    returned: number
+  }
+}
+
+export type DiffChunkPayload = {
+  file: { path: string; change_type: string }
+  branch_info: DiffSummaryPayload['branch_info']
+  stats: { additions: number; deletions: number }
+  is_binary: boolean
+  lines: Array<{
+    content: string
+    line_type: string
+    old_line_number?: number
+    new_line_number?: number
+    is_collapsible?: boolean
+    collapsed_count?: number
+  }>
+  paging: {
+    cursor: string | null
+    next_cursor: string | null
+    returned: number
+  }
+}
+
+export type SessionSpecPayload = {
+  session_id: string
+  content: string
+  updated_at: string
 }
 
 interface ProjectContext {
@@ -269,6 +345,43 @@ export class SchaltwerkBridge {
     )
   }
 
+  private async parseJsonResponse<T>(response: Response, context: string): Promise<T | null> {
+    const rawBody = await response.text()
+
+    if (!response.ok) {
+      const message = this.extractErrorMessage(rawBody)
+      throw new Error(`Failed to fetch ${context}: ${response.status} ${response.statusText}${message ? ` - ${message}` : ''}`)
+    }
+
+    if (!rawBody || response.status === 204) {
+      return null
+    }
+
+    try {
+      return JSON.parse(rawBody) as T
+    } catch (error) {
+      console.error(`Failed to parse ${context} response:`, error)
+      throw new Error(`Failed to parse ${context} response as JSON`)
+    }
+  }
+
+  private extractErrorMessage(rawBody: string): string {
+    if (!rawBody) {
+      return ''
+    }
+
+    try {
+      const parsed = JSON.parse(rawBody)
+      if (parsed && typeof parsed.error === 'string' && parsed.error.trim().length > 0) {
+        return parsed.error
+      }
+    } catch {
+      // Ignore parse errors and return the raw body instead
+    }
+
+    return rawBody
+  }
+
   async listSessions(): Promise<Session[]> {
     try {
       const response = await this.fetchWithAutoPort('/api/sessions', {
@@ -395,6 +508,80 @@ export class SchaltwerkBridge {
       console.error('Failed to create session via API:', error)
       throw error
     }
+  }
+
+  async getDiffSummary(options: DiffSummaryOptions = {}): Promise<DiffSummaryPayload | null> {
+    const params = new URLSearchParams()
+    if (options.session) {
+      params.set('session', options.session)
+    }
+    if (options.cursor) {
+      params.set('cursor', options.cursor)
+    }
+    if (options.pageSize !== undefined) {
+      if (!Number.isInteger(options.pageSize) || options.pageSize <= 0) {
+        throw new Error('pageSize must be a positive integer')
+      }
+      params.set('page_size', String(options.pageSize))
+    }
+
+    const query = params.toString()
+    const response = await this.fetchWithAutoPort(`/api/diff/summary${query ? `?${query}` : ''}`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        ...this.getProjectHeaders()
+      }
+    })
+
+    return this.parseJsonResponse<DiffSummaryPayload>(response, 'diff summary')
+  }
+
+  async getDiffChunk(options: DiffChunkOptions): Promise<DiffChunkPayload | null> {
+    if (!options.path || options.path.trim().length === 0) {
+      throw new Error('path is required to fetch a diff chunk')
+    }
+
+    const params = new URLSearchParams()
+    params.set('path', options.path)
+    if (options.session) {
+      params.set('session', options.session)
+    }
+    if (options.cursor) {
+      params.set('cursor', options.cursor)
+    }
+    if (options.lineLimit !== undefined) {
+      if (!Number.isInteger(options.lineLimit) || options.lineLimit <= 0) {
+        throw new Error('lineLimit must be a positive integer')
+      }
+      params.set('line_limit', String(options.lineLimit))
+    }
+
+    const response = await this.fetchWithAutoPort(`/api/diff/file?${params.toString()}`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        ...this.getProjectHeaders()
+      }
+    })
+
+    return this.parseJsonResponse<DiffChunkPayload>(response, 'diff chunk')
+  }
+
+  async getSessionSpec(session: string): Promise<SessionSpecPayload | null> {
+    if (!session || session.trim().length === 0) {
+      throw new Error('session identifier is required to fetch a session spec')
+    }
+
+    const response = await this.fetchWithAutoPort(`/api/sessions/${encodeURIComponent(session)}/spec`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        ...this.getProjectHeaders()
+      }
+    })
+
+    return this.parseJsonResponse<SessionSpecPayload>(response, 'session spec')
   }
 
   async sendFollowUpMessage(sessionName: string, message: string): Promise<void> {
@@ -788,6 +975,40 @@ export class SchaltwerkBridge {
       console.error('Failed to list spec sessions via API:', error)
       return []
     }
+  }
+
+  async listSpecSummaries(): Promise<SpecSummary[]> {
+    try {
+      const response = await this.fetchWithAutoPort('/api/specs/summary', {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          ...this.getProjectHeaders()
+        }
+      })
+
+      const payload = await this.parseJsonResponse<SpecSummaryResponse>(response, 'spec summaries')
+      return payload?.specs ?? []
+    } catch (error) {
+      console.error('Failed to list spec summaries via API:', error)
+      return []
+    }
+  }
+
+  async getSpecDocument(sessionName: string): Promise<SpecContent | null> {
+    if (!sessionName || sessionName.trim().length === 0) {
+      throw new Error('sessionName is required to fetch a spec')
+    }
+
+    const response = await this.fetchWithAutoPort(`/api/specs/${encodeURIComponent(sessionName)}`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        ...this.getProjectHeaders()
+      }
+    })
+
+    return this.parseJsonResponse<SpecContent>(response, 'spec content')
   }
 
   async listSessionsByState(filter?: 'all' | 'active' | 'spec' | 'reviewed'): Promise<Session[]> {

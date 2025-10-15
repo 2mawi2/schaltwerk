@@ -1,17 +1,22 @@
 use http_body_util::BodyExt;
 use hyper::{body::Incoming, Method, Request, Response, StatusCode};
 use log::{error, info, warn};
+use serde::Serialize;
+use url::form_urlencoded;
 
 use crate::commands::github::{github_create_reviewed_pr, CreateReviewedPrArgs};
 use crate::commands::schaltwerk_core::{
     merge_session_with_events, schaltwerk_core_cancel_session, MergeCommandError,
 };
 use crate::commands::sessions_refresh::{request_sessions_refresh, SessionsRefreshReason};
+use crate::mcp_api::diff_api::{DiffApiError, DiffChunkRequest, DiffScope, SummaryQuery};
 use crate::{get_core_read, get_core_write};
 use schaltwerk::domains::merge::MergeMode;
 use schaltwerk::domains::sessions::entity::Session;
 use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
 use schaltwerk::schaltwerk_core::{SessionManager, SessionState};
+
+mod diff_api;
 
 pub async fn handle_mcp_request(
     req: Request<Incoming>,
@@ -21,8 +26,15 @@ pub async fn handle_mcp_request(
     let path = req.uri().path().to_string();
 
     match (&method, path.as_str()) {
+        (&Method::GET, "/api/diff/summary") => diff_summary(req).await,
+        (&Method::GET, "/api/diff/file") => diff_chunk(req).await,
         (&Method::POST, "/api/specs") => create_draft(req, app).await,
         (&Method::GET, "/api/specs") => list_drafts().await,
+        (&Method::GET, "/api/specs/summary") => list_spec_summaries().await,
+        (&Method::GET, path) if path.starts_with("/api/specs/") && !path.ends_with("/start") => {
+            let name = extract_draft_name(path, "/api/specs/");
+            get_spec_content(&name).await
+        }
         (&Method::PATCH, path) if path.starts_with("/api/specs/") && !path.ends_with("/start") => {
             let name = extract_draft_name(path, "/api/specs/");
             update_spec_content(req, &name, app).await
@@ -36,6 +48,10 @@ pub async fn handle_mcp_request(
             delete_draft(&name, app).await
         }
         (&Method::POST, "/api/sessions") => create_session(req, app).await,
+        (&Method::GET, path) if path.starts_with("/api/sessions/") && path.ends_with("/spec") => {
+            let name = extract_session_name_for_action(path, "/spec");
+            get_session_spec(&name).await
+        }
         (&Method::GET, "/api/sessions") => list_sessions(req).await,
         (&Method::GET, path) if path.starts_with("/api/sessions/") => {
             let name = extract_session_name(path);
@@ -147,12 +163,223 @@ fn json_response(status: StatusCode, json: String) -> Response<String> {
     response
 }
 
+fn json_error_response(status: StatusCode, message: String) -> Response<String> {
+    let body = serde_json::json!({ "error": message }).to_string();
+    json_response(status, body)
+}
+
+async fn diff_summary(req: Request<Incoming>) -> Result<Response<String>, hyper::Error> {
+    let query = req.uri().query().unwrap_or("");
+    let mut session_param: Option<String> = None;
+    let mut cursor_param: Option<String> = None;
+    let mut page_size_param: Option<String> = None;
+
+    for (key, value) in form_urlencoded::parse(query.as_bytes()) {
+        match key.as_ref() {
+            "session" => session_param = Some(value.into_owned()),
+            "cursor" => cursor_param = Some(value.into_owned()),
+            "page_size" => page_size_param = Some(value.into_owned()),
+            _ => {}
+        }
+    }
+
+    let page_size = match parse_optional_usize(page_size_param, "page_size") {
+        Ok(value) => value,
+        Err(err) => return Ok(diff_error_response(err)),
+    };
+
+    let scope = match resolve_diff_scope(session_param.as_deref()).await {
+        Ok(scope) => scope,
+        Err(err) => return Ok(diff_error_response(err)),
+    };
+
+    let summary = match diff_api::compute_diff_summary(
+        &scope,
+        SummaryQuery {
+            cursor: cursor_param,
+            page_size,
+        },
+    ) {
+        Ok(summary) => summary,
+        Err(err) => return Ok(diff_error_response(err)),
+    };
+
+    let json = match serde_json::to_string(&summary) {
+        Ok(json) => json,
+        Err(e) => {
+            return Ok(json_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to serialize diff summary: {e}"),
+            ))
+        }
+    };
+
+    Ok(json_response(StatusCode::OK, json))
+}
+
+async fn diff_chunk(req: Request<Incoming>) -> Result<Response<String>, hyper::Error> {
+    let query = req.uri().query().unwrap_or("");
+    let mut session_param: Option<String> = None;
+    let mut cursor_param: Option<String> = None;
+    let mut line_limit_param: Option<String> = None;
+    let mut path_param: Option<String> = None;
+
+    for (key, value) in form_urlencoded::parse(query.as_bytes()) {
+        match key.as_ref() {
+            "session" => session_param = Some(value.into_owned()),
+            "cursor" => cursor_param = Some(value.into_owned()),
+            "line_limit" => line_limit_param = Some(value.into_owned()),
+            "path" => path_param = Some(value.into_owned()),
+            _ => {}
+        }
+    }
+
+    let path = match path_param {
+        Some(path) if !path.trim().is_empty() => path,
+        _ => {
+            return Ok(json_error_response(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "path query parameter is required".into(),
+            ))
+        }
+    };
+
+    let line_limit = match parse_optional_usize(line_limit_param, "line_limit") {
+        Ok(value) => value,
+        Err(err) => return Ok(diff_error_response(err)),
+    };
+
+    let scope = match resolve_diff_scope(session_param.as_deref()).await {
+        Ok(scope) => scope,
+        Err(err) => return Ok(diff_error_response(err)),
+    };
+
+    let chunk = match diff_api::compute_diff_chunk(
+        &scope,
+        &path,
+        DiffChunkRequest {
+            cursor: cursor_param,
+            line_limit,
+        },
+    ) {
+        Ok(chunk) => chunk,
+        Err(err) => return Ok(diff_error_response(err)),
+    };
+
+    let json = match serde_json::to_string(&chunk) {
+        Ok(json) => json,
+        Err(e) => {
+            return Ok(json_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to serialize diff chunk: {e}"),
+            ))
+        }
+    };
+
+    Ok(json_response(StatusCode::OK, json))
+}
+
+async fn get_session_spec(name: &str) -> Result<Response<String>, hyper::Error> {
+    let core = match get_core_read().await {
+        Ok(core) => core,
+        Err(e) => {
+            return Ok(json_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Internal error: {e}"),
+            ))
+        }
+    };
+
+    let manager = core.session_manager();
+    let session = match resolve_session_by_selector(&manager, name) {
+        Ok(session) => session,
+        Err(err) => return Ok(diff_error_response(err)),
+    };
+    drop(core);
+
+    let spec = match diff_api::fetch_session_spec(&session) {
+        Ok(spec) => spec,
+        Err(err) => return Ok(diff_error_response(err)),
+    };
+
+    let json = match serde_json::to_string(&spec) {
+        Ok(json) => json,
+        Err(e) => {
+            return Ok(json_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to serialize session spec: {e}"),
+            ))
+        }
+    };
+
+    Ok(json_response(StatusCode::OK, json))
+}
+
+async fn resolve_diff_scope(session_param: Option<&str>) -> Result<DiffScope, DiffApiError> {
+    let core = get_core_read()
+        .await
+        .map_err(|e| internal_diff_error(format!("Internal error: {e}")))?;
+
+    let scope = if let Some(selector) = session_param {
+        let manager = core.session_manager();
+        let session = resolve_session_by_selector(&manager, selector)?;
+        DiffScope::for_session(&session)?
+    } else {
+        DiffScope::for_orchestrator(core.repo_path.clone())?
+    };
+
+    Ok(scope)
+}
+
+fn resolve_session_by_selector(
+    manager: &SessionManager,
+    selector: &str,
+) -> Result<Session, DiffApiError> {
+    manager
+        .get_session_by_id(selector)
+        .or_else(|_| manager.get_session(selector))
+        .map_err(|_| {
+            DiffApiError::new(
+                StatusCode::NOT_FOUND,
+                format!("Session '{selector}' not found"),
+            )
+        })
+}
+
+fn diff_error_response(err: DiffApiError) -> Response<String> {
+    json_error_response(err.status, err.message)
+}
+
+fn parse_optional_usize(value: Option<String>, field: &str) -> Result<Option<usize>, DiffApiError> {
+    if let Some(raw) = value {
+        if raw.trim().is_empty() {
+            return Ok(None);
+        }
+        let parsed = raw.parse::<usize>().map_err(|_| {
+            DiffApiError::new(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                format!("{field} must be a positive integer"),
+            )
+        })?;
+        Ok(Some(parsed))
+    } else {
+        Ok(None)
+    }
+}
+
+fn internal_diff_error(message: String) -> DiffApiError {
+    DiffApiError::new(StatusCode::INTERNAL_SERVER_ERROR, message)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::Utc;
     use git2::Repository;
+    use schaltwerk::domains::sessions::entity::{SessionState, SessionStatus};
     use schaltwerk::schaltwerk_core::Database;
     use std::path::Path;
+    use std::path::PathBuf;
     use std::sync::{Arc, Mutex};
     use tempfile::TempDir;
 
@@ -188,6 +415,34 @@ mod tests {
         let db_path = repo_path.join("test.db");
         let database = Database::new(Some(db_path)).expect("db");
         SessionManager::new(database, repo_path.to_path_buf())
+    }
+
+    fn make_spec_session(name: &str, content: Option<&str>) -> Session {
+        Session {
+            id: format!("spec-{name}"),
+            name: name.to_string(),
+            display_name: Some(format!("Display {name}")),
+            version_group_id: None,
+            version_number: None,
+            repository_path: PathBuf::from("/tmp/mock"),
+            repository_name: "mock".to_string(),
+            branch: format!("spec/{name}"),
+            parent_branch: "main".to_string(),
+            worktree_path: PathBuf::from("/tmp/mock/spec"),
+            status: SessionStatus::Spec,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            last_activity: None,
+            initial_prompt: None,
+            ready_to_merge: false,
+            original_agent_type: None,
+            original_skip_permissions: None,
+            pending_name_generation: false,
+            was_auto_generated: false,
+            spec_content: content.map(|c| c.to_string()),
+            session_state: SessionState::Spec,
+            resume_allowed: false,
+        }
     }
 
     #[test]
@@ -230,6 +485,30 @@ mod tests {
                 .any(|id| id == &session.name),
             "emitted sessions should include the new spec"
         );
+    }
+
+    #[test]
+    fn spec_summary_from_session_surface_length_and_display_name() {
+        let content = "# Spec\n\nDetails line";
+        let session = make_spec_session("alpha", Some(content));
+        let summary = SpecSummary::from_session(&session);
+        assert_eq!(summary.session_id, "alpha");
+        assert_eq!(summary.display_name.as_deref(), Some("Display alpha"));
+        assert_eq!(summary.content_length, content.chars().count());
+        assert!(
+            !summary.updated_at.is_empty(),
+            "updated_at should be populated"
+        );
+    }
+
+    #[test]
+    fn spec_content_response_defaults_to_empty_when_missing() {
+        let session = make_spec_session("beta", None);
+        let response = SpecContentResponse::from_session(&session);
+        assert_eq!(response.session_id, "beta");
+        assert_eq!(response.display_name.as_deref(), Some("Display beta"));
+        assert_eq!(response.content, "");
+        assert_eq!(response.content_length, 0);
     }
 }
 
@@ -302,6 +581,58 @@ async fn create_draft(
     }
 }
 
+#[derive(Debug, Serialize, Clone)]
+struct SpecSummaryResponse {
+    specs: Vec<SpecSummary>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+struct SpecSummary {
+    session_id: String,
+    display_name: Option<String>,
+    content_length: usize,
+    updated_at: String,
+}
+
+#[derive(Debug, Serialize, Clone)]
+struct SpecContentResponse {
+    session_id: String,
+    display_name: Option<String>,
+    content: String,
+    content_length: usize,
+    updated_at: String,
+}
+
+impl SpecSummary {
+    fn from_session(session: &Session) -> Self {
+        let content_length = session
+            .spec_content
+            .as_ref()
+            .map(|content| content.chars().count())
+            .unwrap_or(0);
+        Self {
+            session_id: session.name.clone(),
+            display_name: session.display_name.clone(),
+            content_length,
+            updated_at: session.updated_at.to_rfc3339(),
+        }
+    }
+}
+
+impl SpecContentResponse {
+    fn from_session(session: &Session) -> Self {
+        let content = session.spec_content.clone().unwrap_or_default();
+        let content_length = content.chars().count();
+        Self {
+            session_id: session.name.clone(),
+            display_name: session.display_name.clone(),
+            content,
+            content_length,
+            updated_at: session.updated_at.to_rfc3339(),
+        }
+    }
+}
+
 async fn list_drafts() -> Result<Response<String>, hyper::Error> {
     let manager = match get_core_read().await {
         Ok(core) => core.session_manager(),
@@ -327,6 +658,89 @@ async fn list_drafts() -> Result<Response<String>, hyper::Error> {
             Ok(error_response(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("Failed to list specs: {e}"),
+            ))
+        }
+    }
+}
+
+async fn list_spec_summaries() -> Result<Response<String>, hyper::Error> {
+    let manager = match get_core_read().await {
+        Ok(core) => core.session_manager(),
+        Err(e) => {
+            error!("Failed to get core for spec summaries: {e}");
+            return Ok(json_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Internal error: {e}"),
+            ));
+        }
+    };
+
+    match manager.list_sessions_by_state(SessionState::Spec) {
+        Ok(mut sessions) => {
+            sessions.sort_by(|a, b| a.name.cmp(&b.name));
+            let specs: Vec<SpecSummary> = sessions.iter().map(SpecSummary::from_session).collect();
+            let payload = SpecSummaryResponse { specs };
+            match serde_json::to_string(&payload) {
+                Ok(json) => Ok(json_response(StatusCode::OK, json)),
+                Err(e) => {
+                    error!("Failed to serialize spec summaries: {e}");
+                    Ok(json_error_response(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        format!("Failed to serialize spec summaries: {e}"),
+                    ))
+                }
+            }
+        }
+        Err(e) => {
+            error!("Failed to list spec summaries: {e}");
+            Ok(json_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to list specs: {e}"),
+            ))
+        }
+    }
+}
+
+async fn get_spec_content(name: &str) -> Result<Response<String>, hyper::Error> {
+    let manager = match get_core_read().await {
+        Ok(core) => core.session_manager(),
+        Err(e) => {
+            error!("Failed to get core for spec content: {e}");
+            return Ok(json_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Internal error: {e}"),
+            ));
+        }
+    };
+
+    let session = match manager
+        .get_session(name)
+        .or_else(|_| manager.get_session_by_id(name))
+    {
+        Ok(session) => session,
+        Err(_) => {
+            return Ok(json_error_response(
+                StatusCode::NOT_FOUND,
+                format!("Spec '{name}' not found"),
+            ));
+        }
+    };
+
+    if session.session_state != SessionState::Spec {
+        return Ok(json_error_response(
+            StatusCode::NOT_FOUND,
+            format!("Spec '{name}' is not available in spec state"),
+        ));
+    }
+
+    let payload = SpecContentResponse::from_session(&session);
+    match serde_json::to_string(&payload) {
+        Ok(json) => Ok(json_response(StatusCode::OK, json)),
+        Err(e) => {
+            error!("Failed to serialize spec content response: {e}");
+            Ok(json_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to serialize spec content: {e}"),
             ))
         }
     }

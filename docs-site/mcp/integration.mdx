@@ -111,6 +111,48 @@ Once set up, your AI agent can use these MCP tools to automate session managemen
   </Card>
 </CardGroup>
 
+## Spec Discovery API
+
+Agents can inspect specs without crawling the full session list. Use the following MCP tools when you need to review planning docs before starting work:
+
+- `schaltwerk_spec_list` — returns an array of spec summaries `{ session_id, display_name?, content_length, updated_at }`
+- `schaltwerk_spec_read` — fetches the full markdown plus metadata for a given spec
+
+Developing against the REST API directly? The MCP bridge proxies two lightweight endpoints:
+
+```text
+GET /api/specs/summary
+```
+
+```json
+{
+  "specs": [
+    {
+      "session_id": "auth-registration",
+      "display_name": "Auth Registration",
+      "content_length": 1824,
+      "updated_at": "2025-01-12T10:42:03Z"
+    }
+  ]
+}
+```
+
+```text
+GET /api/specs/{session_id}
+```
+
+```json
+{
+  "session_id": "auth-registration",
+  "display_name": "Auth Registration",
+  "content": "# Spec…",
+  "content_length": 1824,
+  "updated_at": "2025-01-12T10:42:03Z"
+}
+```
+
+Both endpoints diff against the same backing data the desktop app uses, so you always see the latest spec content without hitting git. Response sizes are bounded by the spec markdown itself; `content_length` is counted in Unicode code points so agents can paginate or highlight accurately.
+
 ## How It Works
 
 <Steps>

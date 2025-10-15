@@ -470,6 +470,105 @@ REQUIREMENTS: Target session must exist and be active.`,
         }
       },
       {
+        name: "schaltwerk_spec_list",
+        description: `List available specs with their content length and last update time.`,
+        inputSchema: {
+          type: "object",
+          additionalProperties: false
+        }
+      },
+      {
+        name: "schaltwerk_spec_read",
+        description: `Fetch the full markdown content for a spec session by id or name.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            session: {
+              type: "string",
+              description: "Spec session id or name to read"
+            }
+          },
+          required: ["session"],
+          additionalProperties: false
+        }
+      },
+      {
+        name: "schaltwerk_diff_summary",
+        description: `List changed files for a session (or orchestrator) using merge-base semantics.
+
+📋 DETAILS:
+- Scope defaults to orchestrator when session is omitted
+- Always diffs against merge-base(HEAD, parent_branch)
+- Mirrors the desktop diff summary response` ,
+        inputSchema: {
+          type: "object",
+          properties: {
+            session: {
+              type: "string",
+              description: "Optional session id or name to target"
+            },
+            cursor: {
+              type: "string",
+              description: "Opaque cursor returned from a previous call"
+            },
+            page_size: {
+              type: "number",
+              description: "Maximum number of files to return (default 100)",
+              minimum: 1
+            }
+          },
+          additionalProperties: false
+        }
+      },
+      {
+        name: "schaltwerk_diff_chunk",
+        description: `Fetch unified diff lines for a changed file.
+
+📋 DETAILS:
+- Paginates large diffs using an opaque cursor
+- Applies merge-base semantics identical to the desktop app
+- Marks binaries automatically and returns an empty line list`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            session: {
+              type: "string",
+              description: "Optional session id or name to target"
+            },
+            path: {
+              type: "string",
+              description: "Repository-relative path to the file",
+            },
+            cursor: {
+              type: "string",
+              description: "Cursor returned from a previous chunk request"
+            },
+            line_limit: {
+              type: "number",
+              description: "Maximum number of diff lines to return (default 400, max 1000)",
+              minimum: 1
+            }
+          },
+          required: ["path"],
+          additionalProperties: false
+        }
+      },
+      {
+        name: "schaltwerk_session_spec",
+        description: `Fetch spec markdown (and the last updated timestamp) for a running session by id or name.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            session: {
+              type: "string",
+              description: "Session id or name"
+            }
+          },
+          required: ["session"],
+          additionalProperties: false
+        }
+      },
+      {
         name: "schaltwerk_draft_start",
         description: `Start a spec session with an AI agent.
 
@@ -875,8 +974,71 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
 
   try {
     let result: string
+    let resultMimeType: string | undefined
 
     switch (name) {
+      case "schaltwerk_spec_list": {
+        const payload = await bridge.listSpecSummaries()
+        result = JSON.stringify({ specs: payload }, null, 2)
+        resultMimeType = "application/json"
+        break
+      }
+
+      case "schaltwerk_spec_read": {
+        const specArgs = args as { session?: string }
+        if (!specArgs.session || specArgs.session.trim().length === 0) {
+          throw new McpError(ErrorCode.InvalidParams, "'session' is required when invoking schaltwerk_spec_read.")
+        }
+        const payload = await bridge.getSpecDocument(specArgs.session)
+        result = JSON.stringify(payload, null, 2)
+        resultMimeType = "application/json"
+        break
+      }
+
+      case "schaltwerk_diff_summary": {
+        const diffArgs = args as { session?: string; cursor?: string; page_size?: number }
+        const payload = await bridge.getDiffSummary({
+          session: diffArgs.session,
+          cursor: diffArgs.cursor,
+          pageSize: diffArgs.page_size,
+        })
+        result = JSON.stringify(payload, null, 2)
+        resultMimeType = "application/json"
+        break
+      }
+
+      case "schaltwerk_diff_chunk": {
+        const diffArgs = args as { session?: string; path?: string; cursor?: string; line_limit?: number }
+        if (!diffArgs.path || diffArgs.path.trim().length === 0) {
+          throw new McpError(ErrorCode.InvalidParams, "'path' is required when invoking schaltwerk_diff_chunk.")
+        }
+
+        const cappedLineLimit = diffArgs.line_limit !== undefined
+          ? Math.min(diffArgs.line_limit, 1000)
+          : undefined
+
+        const payload = await bridge.getDiffChunk({
+          session: diffArgs.session,
+          path: diffArgs.path,
+          cursor: diffArgs.cursor,
+          lineLimit: cappedLineLimit,
+        })
+        result = JSON.stringify(payload, null, 2)
+        resultMimeType = "application/json"
+        break
+      }
+
+      case "schaltwerk_session_spec": {
+        const specArgs = args as { session: string }
+        if (!specArgs.session || specArgs.session.trim().length === 0) {
+          throw new McpError(ErrorCode.InvalidParams, "'session' is required when invoking schaltwerk_session_spec.")
+        }
+        const payload = await bridge.getSessionSpec(specArgs.session)
+        result = JSON.stringify(payload, null, 2)
+        resultMimeType = "application/json"
+        break
+      }
+
       case "schaltwerk_create": {
         const createArgs = args as SchaltwerkStartArgs
         
@@ -1292,13 +1454,16 @@ ${cancelLine}`
         throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`)
     }
 
+    const contentEntry: { type: string; text: string; mimeType?: string } = {
+      type: "text",
+      text: result
+    }
+    if (resultMimeType) {
+      contentEntry.mimeType = resultMimeType
+    }
+
     return {
-      content: [
-        {
-          type: "text",
-          text: result
-        }
-      ]
+      content: [contentEntry]
     }
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error)

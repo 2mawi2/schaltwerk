@@ -71,7 +71,20 @@ When Claude Code has MCP access to Schaltwerk, you can manage sessions using nat
 - `auth-password-reset` - 📝 Spec (not started)
 - `auth-session-management` - 📝 Spec (not started)
 
-### 4. Merging Work
+### 4. Browsing Specs Before Starting
+
+**You:** "List the specs in this project with their sizes"
+
+**Claude:** Uses `schaltwerk_spec_list` to return something like:
+
+- `auth-password-reset` — 1.2 KB (updated 2 minutes ago)
+- `auth-session-management` — 3.6 KB (updated yesterday)
+
+**You:** "Open the full markdown for `auth-password-reset`"
+
+**Claude:** Calls `schaltwerk_spec_read` and shows the spec content so you can review it before starting work.
+
+### 5. Merging Work
 
 **You:** "The auth-registration session looks good. Merge it to main."
 

@@ -63,12 +63,16 @@ Schaltwerk ships with a prebuilt Model Context Protocol (MCP) server. In most ca
 
 Once MCP is enabled, agents can call these tools:
 
-<CardGroup cols={3}>
+<CardGroup cols={2}>
   <Card title="Create Sessions" icon="plus">
     `schaltwerk_create` — Create new specs or running sessions
   </Card>
   <Card title="List Sessions" icon="list">
     `schaltwerk_list` — Retrieve sessions with status info
+  </Card>
+  <Card title="Browse Specs" icon="document">
+    `schaltwerk_spec_list` — See spec names, sizes, and timestamps<br />
+    `schaltwerk_spec_read` — Fetch full markdown for a single spec
   </Card>
   <Card title="Cancel Sessions" icon="trash">
     `schaltwerk_cancel` — Remove sessions after they merge (deletes worktree & branch; spec moves to Archives)

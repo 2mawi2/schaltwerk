@@ -1,6 +1,5 @@
 import { beforeEach, afterEach, beforeAll, afterAll, describe, it, expect, mock, spyOn } from 'bun:test'
 import path from 'path'
-import { SchaltwerkBridge } from '../src/schaltwerk-bridge'
 
 const fetchMock = mock(() => Promise.resolve({
   ok: true,
@@ -12,6 +11,8 @@ const fetchMock = mock(() => Promise.resolve({
 mock.module('node-fetch', () => ({
   default: fetchMock
 }))
+
+const { SchaltwerkBridge } = await import('../src/schaltwerk-bridge')
 
 describe('SchaltwerkBridge merge/pr helpers', () => {
   let consoleErrorSpy: ReturnType<typeof spyOn>

@@ -2,24 +2,27 @@ import { beforeEach, afterEach, describe, it, expect, mock } from 'bun:test'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { SchaltwerkBridge } from '../src/schaltwerk-bridge'
 
 const mockFetch = mock(() => Promise.resolve({
   ok: true,
   status: 200,
   statusText: 'OK',
-  json: () => Promise.resolve([])
+  text: async () => '[]',
+  json: async () => []
 }))
 
 mock.module('node-fetch', () => ({
   default: mockFetch
 }))
 
+const { SchaltwerkBridge } = await import('../src/schaltwerk-bridge')
+
 const createResponse = (payload: unknown) => ({
   ok: true,
   status: 200,
   statusText: 'OK',
-  json: mock().mockResolvedValue(payload)
+  text: async () => JSON.stringify(payload),
+  json: async () => payload
 })
 
 const createConnectionError = (message: string) => {
