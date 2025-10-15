@@ -12,41 +12,41 @@ interface MarkReadyConfirmationProps {
   onSuccess: () => void
 }
 
-export function MarkReadyConfirmation({ 
-  open, 
-  sessionName, 
-  hasUncommittedChanges, 
+export function MarkReadyConfirmation({
+  open,
+  sessionName,
+  hasUncommittedChanges,
   onClose,
-  onSuccess 
+  onSuccess
 }: MarkReadyConfirmationProps) {
   const [autoCommit, setAutoCommit] = useState(true)
+  const [customMessage, setCustomMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const [freshHasUncommitted, setFreshHasUncommitted] = useState<boolean | null>(null)
 
-  // Load fresh uncommitted changes state when modal opens
   useEffect(() => {
     if (!open) {
       setFreshHasUncommitted(null)
+      setCustomMessage('')
       return
     }
-    
+
     let cancelled = false
     ;(async () => {
       try {
         const dirty = await invoke<boolean>(TauriCommands.SchaltwerkCoreHasUncommittedChanges, { name: sessionName })
-        
+
         if (!cancelled) {
           setFreshHasUncommitted(dirty)
         }
       } catch (error) {
         logger.error('Failed to check uncommitted changes:', error)
-        // If check fails, fall back to the passed value
         if (!cancelled) {
           setFreshHasUncommitted(hasUncommittedChanges)
         }
       }
     })()
-    
+
     return () => { cancelled = true }
   }, [open, sessionName, hasUncommittedChanges])
 
@@ -57,15 +57,17 @@ export function MarkReadyConfirmation({
   const handleConfirm = useCallback(async () => {
     if (loading) return
     if (effectiveHasUncommitted && !autoCommit) return
-    
+
     setLoading(true)
     try {
+      const commitMessage = customMessage.trim() || undefined
+
       const success = await invoke<boolean>(TauriCommands.SchaltwerkCoreMarkSessionReady, {
         name: sessionName,
-        // Always pass current autoCommit choice; backend is idempotent if clean
-        autoCommit: autoCommit
+        autoCommit: autoCommit,
+        commitMessage
       })
-      
+
       if (success) {
         onSuccess()
         onClose()
@@ -78,7 +80,7 @@ export function MarkReadyConfirmation({
     } finally {
       setLoading(false)
     }
-  }, [loading, effectiveHasUncommitted, autoCommit, sessionName, onSuccess, onClose])
+  }, [loading, effectiveHasUncommitted, autoCommit, customMessage, sessionName, onSuccess, onClose])
   
   if (!open) return null
 
@@ -90,7 +92,7 @@ export function MarkReadyConfirmation({
       {effectiveHasUncommitted && (
         <div className="bg-amber-950/50 border border-amber-800 rounded p-3 mb-4">
           <p className="text-amber-200 text-sm mb-3">⚠ This session has uncommitted changes</p>
-          <label className="flex items-center gap-2 cursor-pointer">
+          <label className="flex items-center gap-2 cursor-pointer mb-3">
             <input
               type="checkbox"
               checked={autoCommit}
@@ -98,10 +100,34 @@ export function MarkReadyConfirmation({
               className="rounded border-slate-600 bg-slate-800 text-cyan-400 focus:ring-cyan-400"
             />
             <span className="text-sm text-slate-300">
-              Automatically commit all changes with message "Complete development work for {sessionName}"
+              Automatically commit all changes
             </span>
           </label>
-          <p className="text-slate-500 text-xs mt-2">
+          {autoCommit && (
+            <div className="ml-6 mb-3">
+              <label className="block text-xs text-slate-400 mb-1">
+                Custom commit message (optional):
+              </label>
+              <input
+                type="text"
+                value={customMessage}
+                onChange={(e) => setCustomMessage(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    handleConfirm()
+                  }
+                }}
+                placeholder={`Complete development work for ${sessionName}`}
+                className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 text-sm focus:outline-none focus:border-cyan-400 transition-colors"
+                spellCheck={false}
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                Leave empty to use the default message • Press Enter to submit
+              </p>
+            </div>
+          )}
+          <p className="text-slate-500 text-xs">
             💡 Tip: You can enable auto-commit globally in Settings → Sessions to skip this dialog entirely.
           </p>
         </div>

@@ -2730,28 +2730,31 @@ impl SessionManager {
     }
 
     pub fn mark_session_ready(&self, session_name: &str, auto_commit: bool) -> Result<bool> {
+        self.mark_session_ready_with_message(session_name, auto_commit, None)
+    }
+
+    pub fn mark_session_ready_with_message(
+        &self,
+        session_name: &str,
+        auto_commit: bool,
+        commit_message: Option<&str>,
+    ) -> Result<bool> {
         let session = self.db_manager.get_session_by_name(session_name)?;
 
         let has_uncommitted = git::has_uncommitted_changes(&session.worktree_path)?;
 
         if has_uncommitted && auto_commit {
-            git::commit_all_changes(
-                &session.worktree_path,
-                &SESSION_READY_COMMIT_MESSAGE.replace("{}", session_name),
-            )?;
+            let message = commit_message
+                .map(|m| m.to_string())
+                .unwrap_or_else(|| SESSION_READY_COMMIT_MESSAGE.replace("{}", session_name));
+
+            git::commit_all_changes(&session.worktree_path, &message)?;
         }
 
-        // Mark as ready to merge in DB
         self.db_manager
             .update_session_ready_to_merge(&session.id, true)?;
 
-        // Always refresh git stats immediately so UI reflects the latest state.
-        // This avoids relying on the 60s cache window in get_enriched_git_stats()
-        // and fixes cases where a prior cached value showed uncommitted changes
-        // even though the session is now reviewed and clean.
-        // Note: Safe to run whether or not auto-commit happened above.
         if let Err(e) = self.db_manager.update_git_stats(&session.id) {
-            // Do not fail the overall action if stats update fails; log and continue
             log::warn!("mark_session_ready: failed to refresh git stats for '{session_name}': {e}");
         }
 

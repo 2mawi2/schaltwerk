@@ -2021,8 +2021,9 @@ fi`}
                                 <strong>Auto-commit on Review:</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li>When enabled: Sessions with uncommitted changes are automatically committed when marked as reviewed</li>
-                                    <li>When disabled: A confirmation dialog appears with the option to commit changes</li>
-                                    <li>Commit message format: "Complete development work for {'{session_name}'}"</li>
+                                    <li>When disabled: A confirmation dialog appears with the option to commit changes and provide a custom message</li>
+                                    <li>Default commit message format: "Complete development work for {'{session_name}'}"</li>
+                                    <li>Custom commit messages can be provided in the confirmation dialog</li>
                                     <li>All file types are included: modified, deleted, and new untracked files</li>
                                 </ul>
                                 

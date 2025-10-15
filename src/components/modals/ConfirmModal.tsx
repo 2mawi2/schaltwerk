@@ -45,9 +45,14 @@ export function ConfirmModal({
         e.stopPropagation()
         onCancel()
       } else if (e.key === 'Enter') {
-        e.preventDefault()
-        e.stopPropagation()
-        handleConfirm()
+        const target = e.target as HTMLElement
+        const isInputField = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA'
+
+        if (!isInputField) {
+          e.preventDefault()
+          e.stopPropagation()
+          handleConfirm()
+        }
       }
     }
 
