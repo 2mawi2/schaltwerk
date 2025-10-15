@@ -173,9 +173,13 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const [resolvedFontFamily, setResolvedFontFamily] = useState<string | null>(null);
     const [customFontFamily, setCustomFontFamily] = useState<string | null>(null);
     const [webglEnabled, setWebglEnabled] = useState<boolean>(true);
+    // Agent conversation terminal detection reused across sizing logic and scrollback config
+    const isAgentTopTerminal = useMemo(() => (
+        terminalId.endsWith('-top') && (terminalId.startsWith('session-') || terminalId.startsWith('orchestrator-'))
+    ), [terminalId]);
     const gpuEnabledForTerminal = useMemo(() => (
-        !isBackground && webglEnabled && agentType !== 'run'
-    ), [agentType, isBackground, webglEnabled]);
+        !isBackground && webglEnabled && agentType !== 'run' && (isAgentTopTerminal || isCommander)
+    ), [agentType, isBackground, isAgentTopTerminal, isCommander, webglEnabled]);
     // Drag-selection suppression for run terminals
     const suppressNextClickRef = useRef<boolean>(false);
     const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null);
@@ -208,37 +212,79 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         return true;
     }, [terminalId]);
 
+    const gpuRefreshState = useRef<{
+        refreshing: boolean;
+        queued: boolean;
+        redrawId: number | null;
+    }>({
+        refreshing: false,
+        queued: false,
+        redrawId: null,
+    });
+
     const refreshGpuFontRendering = useCallback(() => {
+        const state = gpuRefreshState.current;
         const renderer = gpuRenderer.current;
         const term = terminal.current;
         if (!renderer || !term) {
+            state.queued = false;
             return;
         }
 
-        const state = renderer.getState();
-        if (state.type !== 'webgl') {
+        if (renderer.getState().type !== 'webgl') {
+            state.queued = false;
             return;
         }
 
-        try {
-            renderer.clearTextureAtlas();
-        } catch (error) {
-            logger.debug(`[Terminal ${terminalId}] Failed to clear WebGL texture atlas:`, error);
+        state.queued = true;
+        if (state.refreshing) {
+            return;
         }
 
-        requestAnimationFrame(() => {
-            const current = terminal.current;
-            if (!current) {
+        const performRefresh = () => {
+            const activeRenderer = gpuRenderer.current;
+            const activeTerminal = terminal.current;
+            if (!activeRenderer || !activeTerminal) {
+                state.refreshing = false;
+                state.queued = false;
+                return;
+            }
+
+            if (activeRenderer.getState().type !== 'webgl') {
+                state.refreshing = false;
+                state.queued = false;
                 return;
             }
 
             try {
-                const rows = Math.max(0, current.rows - 1);
-                (current as unknown as { refresh?: (start: number, end: number) => void })?.refresh?.(0, rows);
+                activeRenderer.clearTextureAtlas();
             } catch (error) {
-                logger.debug(`[Terminal ${terminalId}] Failed to refresh terminal after atlas clear:`, error);
+                logger.debug(`[Terminal ${terminalId}] Failed to clear WebGL texture atlas:`, error);
             }
-        });
+
+            state.redrawId = requestAnimationFrame(() => {
+                state.redrawId = null;
+                const current = terminal.current;
+                if (current) {
+                    try {
+                        const rows = Math.max(0, current.rows - 1);
+                        (current as unknown as { refresh?: (start: number, end: number) => void })?.refresh?.(0, rows);
+                    } catch (error) {
+                        logger.debug(`[Terminal ${terminalId}] Failed to refresh terminal after atlas clear:`, error);
+                    }
+                }
+
+                state.refreshing = false;
+                if (state.queued) {
+                    state.queued = false;
+                    refreshGpuFontRendering();
+                }
+            });
+        };
+
+        state.refreshing = true;
+        state.queued = false;
+        performRefresh();
     }, [terminalId]);
 
     const applyLetterSpacing = useCallback((useRelaxedSpacing: boolean) => {
@@ -293,11 +339,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         if (!terminal.current) return;
         pinBottomDefinitive(terminal.current as unknown as XTermLike);
     }, []);
-
-     // Agent conversation terminal detection reused across sizing logic and scrollback config
-     const isAgentTopTerminal = useMemo(() => (
-         terminalId.endsWith('-top') && (terminalId.startsWith('session-') || terminalId.startsWith('orchestrator-'))
-     ), [terminalId])
 
      // Initialize agentStopped state from sessionStorage (only for agent top terminals)
      useEffect(() => {
@@ -610,6 +651,15 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         if (!gpuEnabledForTerminal && gpuRenderer.current) {
             gpuRenderer.current.dispose();
             gpuRenderer.current = null;
+            if (typeof cancelAnimationFrame === 'function') {
+                const redrawId = gpuRefreshState.current.redrawId;
+                if (redrawId !== null) {
+                    cancelAnimationFrame(redrawId);
+                }
+            }
+            gpuRefreshState.current.refreshing = false;
+            gpuRefreshState.current.queued = false;
+            gpuRefreshState.current.redrawId = null;
         }
     }, [gpuEnabledForTerminal]);
 
@@ -957,6 +1007,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     useEffect(() => {
         mountedRef.current = true;
         let cancelled = false;
+        const refreshState = gpuRefreshState.current;
         const ackState = pluginAckRef.current;
         // track mounted lifecycle only; no timer-based logic tied to mount time
         if (!termRef.current) {
@@ -2001,6 +2052,16 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 logger.debug(`[Terminal ${terminalId}] Renderer observer already disconnected:`, e);
             }
             try { visibilityObserver?.disconnect(); } catch { /* ignore */ }
+
+            if (typeof cancelAnimationFrame === 'function') {
+                const redrawId = refreshState.redrawId;
+                if (redrawId !== null) {
+                    cancelAnimationFrame(redrawId);
+                }
+            }
+            refreshState.refreshing = false;
+            refreshState.queued = false;
+            refreshState.redrawId = null;
 
             gpuRenderer.current?.dispose();
             gpuRenderer.current = null;

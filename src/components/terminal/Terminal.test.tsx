@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { MockTauriInvokeArgs } from '../../types/testing'
 import { UiEvent, emitUiEvent } from '../../common/uiEvents'
 import { beginSplitDrag, endSplitDrag, resetSplitDragForTests } from '../../utils/splitDragCoordinator'
-import { GPU_LETTER_SPACING } from '../../utils/terminalLetterSpacing'
+import { DEFAULT_LETTER_SPACING, GPU_LETTER_SPACING } from '../../utils/terminalLetterSpacing'
 import { stableSessionTerminalId, sessionTerminalGroup } from '../../common/terminalIdentity'
 
 const CLAUDE_SHIFT_ENTER_SEQUENCE = '\\'
@@ -1766,7 +1766,7 @@ describe('Terminal component', () => {
     const supportSpy = vi.spyOn(WebGLCapability, 'isWebGLSupported').mockReturnValue(true)
     const clearSpy = vi.spyOn(WebGLTerminalRenderer.prototype, 'clearTextureAtlas')
 
-    const { container } = renderTerminal({ terminalId: 'session-font-webgl', sessionName: 'font-webgl' })
+    const { container } = renderTerminal({ terminalId: topIdFor('font-webgl'), sessionName: 'font-webgl' })
     await flushAll()
 
     const outer = container.querySelector('[data-smartdash-exempt="true"]') as HTMLDivElement | null
@@ -1820,6 +1820,34 @@ describe('Terminal component', () => {
     const xterm = getLastXtermInstance()
     expect(Number(xterm.options.letterSpacing || 0)).toBeGreaterThanOrEqual(GPU_LETTER_SPACING)
 
+    supportSpy.mockRestore()
+  })
+
+  it('keeps bottom terminals on the canvas renderer to avoid GPU context churn', async () => {
+    const core = TauriCore as unknown as MockTauriCore
+    core.__setInvokeHandler(TauriCommands.GetTerminalSettings, () => ({ webglEnabled: true }))
+
+    const supportSpy = vi.spyOn(WebGLCapability, 'isWebGLSupported').mockReturnValue(true)
+    const initializeSpy = vi.spyOn(WebGLTerminalRenderer.prototype, 'initialize')
+
+    const terminalId = bottomIdFor('letterspacing', '-0')
+    const { container } = renderTerminal({ terminalId, sessionName: 'letterspacing' })
+    await flushAll()
+
+    const outer = container.querySelector('[data-smartdash-exempt="true"]') as HTMLDivElement | null
+    const termEl = outer?.querySelector('div') as HTMLDivElement | null
+    setElementDimensions(outer, 800, 480)
+    setElementDimensions(termEl, 800, 480)
+
+    const ro = (globalThis as Record<string, unknown>).__lastRO as MockResizeObserver | undefined
+    ro?.trigger()
+    await advanceAndFlush(50)
+
+    const xterm = getLastXtermInstance()
+    expect(Number(xterm.options.letterSpacing || 0)).toBe(DEFAULT_LETTER_SPACING)
+    expect(initializeSpy).not.toHaveBeenCalled()
+
+    initializeSpy.mockRestore()
     supportSpy.mockRestore()
   })
 
