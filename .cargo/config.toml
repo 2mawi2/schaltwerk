@@ -1,5 +1,5 @@
 [build]
-jobs = 16
+jobs = 8
 incremental = true
 # Each worktree will have its own target directory
 # This allows parallel builds but uses more disk space
@@ -8,16 +8,10 @@ incremental = true
 
 
 [target.x86_64-apple-darwin]
-rustflags = [
-  "-C", "target-cpu=native",
-  "-C", "link-arg=-Wl,-dead_strip_dylibs",
-]
+rustflags = ["-C", "target-cpu=native"]
 
 [target.aarch64-apple-darwin]
-rustflags = [
-  "-C", "target-cpu=native",
-  "-C", "link-arg=-Wl,-dead_strip_dylibs",
-]
+rustflags = ["-C", "target-cpu=native"]
 
 [net]
 git-fetch-with-cli = true

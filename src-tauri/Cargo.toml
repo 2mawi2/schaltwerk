@@ -119,18 +119,15 @@ debug = 0
 split-debuginfo = "unpacked"
 incremental = true
 overflow-checks = false
-codegen-units = 256
 
 # Dependencies get minimal optimization for fastest compile
 [profile.dev.package."*"]
 opt-level = 0
 debug = false
-codegen-units = 256
 
 [profile.dev.build-override]
 opt-level = 0
 debug = false
-codegen-units = 256
 
 # Production-like dev profile for performance testing
 [profile.dev-opt]
