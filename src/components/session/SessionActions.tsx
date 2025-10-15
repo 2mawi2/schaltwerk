@@ -10,7 +10,8 @@ import {
   VscRefresh,
   VscCode,
   VscGitMerge,
-  VscWarning
+  VscWarning,
+  VscBeaker
 } from 'react-icons/vsc';
 import { FaGithub } from 'react-icons/fa'
 import { IconButton } from '../common/IconButton';
@@ -35,6 +36,7 @@ interface SessionActionsProps {
   defaultBranch?: string;
   showPromoteIcon?: boolean;
   onRunSpec?: (sessionId: string) => void;
+  onRefineSpec?: (sessionId: string) => void;
   onDeleteSpec?: (sessionId: string) => void;
   onMarkReviewed?: (sessionId: string, hasUncommitted: boolean) => void;
   onUnmarkReviewed?: (sessionId: string) => void;
@@ -63,6 +65,7 @@ export function SessionActions({
   defaultBranch,
   showPromoteIcon = false,
   onRunSpec,
+  onRefineSpec,
   onDeleteSpec,
   onMarkReviewed,
   onUnmarkReviewed,
@@ -151,6 +154,14 @@ export function SessionActions({
       {/* Spec state actions */}
       {sessionState === 'spec' && (
         <>
+          {onRefineSpec && (
+            <IconButton
+              icon={<VscBeaker />}
+              onClick={() => onRefineSpec(sessionId)}
+              ariaLabel="Refine spec"
+              tooltip="Refine in orchestrator (⌘⇧R)"
+            />
+          )}
           {onRunSpec && (
             <IconButton
               icon={<VscPlay />}
