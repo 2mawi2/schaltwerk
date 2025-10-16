@@ -336,6 +336,41 @@ impl ProjectManager {
         Ok(())
     }
 
+    /// Remove a project from the manager, cleaning up all resources
+    pub async fn remove_project(&self, path: &PathBuf) -> Result<(), String> {
+        let canonical = std::fs::canonicalize(path).unwrap_or(path.clone());
+
+        let mut projects = self.projects.write().await;
+
+        if let Some(project) = projects.remove(&canonical) {
+            info!("🧹 Removing project from manager: {}", canonical.display());
+
+            drop(projects);
+
+            if let Err(e) = project.terminal_manager.cleanup_all().await {
+                warn!(
+                    "Failed to cleanup terminals for project {}: {}",
+                    canonical.display(),
+                    e
+                );
+                return Err(e);
+            }
+
+            drop(project);
+            info!("✅ Removed project from manager: {}", canonical.display());
+        } else {
+            drop(projects);
+            info!("⚠️ Project not found in manager: {}", canonical.display());
+        }
+
+        let mut current = self.current_project.write().await;
+        if current.as_ref() == Some(&canonical) {
+            *current = None;
+        }
+
+        Ok(())
+    }
+
     /// Get terminal manager for current project
     pub async fn current_terminal_manager(&self) -> Result<Arc<TerminalManager>> {
         let project = self.current_project().await?;
@@ -564,5 +599,48 @@ mod tests {
         );
 
         assert_eq!(path_a, path_b);
+    }
+
+    #[tokio::test]
+    async fn test_remove_project_clears_hashmap_and_current() {
+        let mgr = ProjectManager::new();
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().to_path_buf();
+
+        let p1 = mgr.switch_to_project_in_memory(path.clone()).await.unwrap();
+
+        let term_id = "test-terminal".to_string();
+        p1.terminal_manager
+            .create_terminal(term_id.clone(), "/tmp".into())
+            .await
+            .unwrap();
+
+        assert!(p1.terminal_manager.terminal_exists(&term_id).await.unwrap());
+
+        mgr.remove_project(&path).await.unwrap();
+
+        assert!(mgr.current_project_path().await.is_none());
+
+        let projects = mgr.projects.read().await;
+        assert!(projects.get(&path).is_none());
+    }
+
+    #[tokio::test]
+    async fn test_remove_project_allows_fresh_reinitialization() {
+        let mgr = ProjectManager::new();
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().to_path_buf();
+
+        let p1 = mgr.switch_to_project_in_memory(path.clone()).await.unwrap();
+        let first_ptr = Arc::as_ptr(&p1);
+
+        mgr.remove_project(&path).await.unwrap();
+
+        let p2 = mgr.switch_to_project_in_memory(path.clone()).await.unwrap();
+        let second_ptr = Arc::as_ptr(&p2);
+
+        assert_ne!(first_ptr, second_ptr);
+
+        let _ = p2.terminal_manager.cleanup_all().await;
     }
 }
