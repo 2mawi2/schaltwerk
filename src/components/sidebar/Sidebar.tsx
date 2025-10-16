@@ -195,6 +195,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     })
     const sidebarRef = useRef<HTMLDivElement>(null)
     const isProjectSwitching = useRef(false)
+    const previousProjectPathRef = useRef<string | null>(null)
 
     const selectionMemoryRef = useRef<Map<string, Record<FilterMode, SelectionMemoryEntry>>>(new Map())
 
@@ -211,13 +212,29 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
       return selectionMemoryRef.current.get(key)!;
     }, [projectPath]);
 
+    useEffect(() => {
+        if (previousProjectPathRef.current !== null && previousProjectPathRef.current !== projectPath) {
+            isProjectSwitching.current = true
+        }
+        previousProjectPathRef.current = projectPath
+    }, [projectPath]);
+
+    useEffect(() => {
+        const cleanup = listenUiEvent(UiEvent.ProjectSwitchComplete, () => {
+            isProjectSwitching.current = false
+        })
+        return cleanup
+    }, []);
+
     const reloadSessionsAndRefreshIdle = useCallback(async () => {
         await reloadSessions()
     }, [reloadSessions]);
     
     // Maintain per-filter selection memory and choose the next best session when visibility changes
     useEffect(() => {
-        if (isProjectSwitching.current) return
+        if (isProjectSwitching.current) {
+            return
+        }
 
         const memory = ensureProjectMemory();
         const entry = memory[filterMode];

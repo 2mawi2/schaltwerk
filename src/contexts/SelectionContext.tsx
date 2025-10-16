@@ -498,7 +498,6 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         if (projectPath) {
             const remembered = lastSelectionByProjectRef.current.get(projectPath)
             if (remembered) {
-                logger.info('[SelectionContext] Restored in-memory selection for project:', projectPath, remembered)
                 return { ...remembered }
             }
         }
@@ -977,28 +976,22 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     // Initialize on mount and when project path changes
     useEffect(() => {
         const initialize = async () => {
-            logger.info('[SelectionContext] Initialize effect triggered, projectPath:', projectPath)
-            
             // Wait for projectPath to be set before initializing
             if (!projectPath) {
-                logger.info('[SelectionContext] No projectPath, skipping initialization')
                 setIsReady(true)
                 return
             }
-            
+
             // Skip if already initialized with same project path
             if (hasInitialized.current && previousProjectPath.current === projectPath) {
-                logger.info('[SelectionContext] Already initialized with same project path, skipping')
                 return
             }
-            
+
             // Check if we're switching projects
-            const projectChanged = hasInitialized.current && 
-                                  previousProjectPath.current !== null && 
+            const projectChanged = hasInitialized.current &&
+                                  previousProjectPath.current !== null &&
                                   previousProjectPath.current !== projectPath
-            
-            logger.info('[SelectionContext] Project changed?', projectChanged, 'Previous:', previousProjectPath.current, 'New:', projectPath)
-            
+
             // Set initialized flag and update previous path
             hasInitialized.current = true
             // Bump the project epoch on project change
@@ -1007,6 +1000,22 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             }
 
             previousProjectPath.current = projectPath
+
+            // If switching projects, restore the last selection for this project
+            if (projectChanged) {
+                isRestoringRef.current = true
+                try {
+                    const defaultSelection = await getDefaultSelection()
+                    const validatedSelection = await validateAndRestoreSelection(defaultSelection)
+                    await setSelection(validatedSelection, false, false)
+                } catch (_e) {
+                    await setSelection({ kind: 'orchestrator' }, false, false)
+                } finally {
+                    isRestoringRef.current = false
+                    emitUiEvent(UiEvent.ProjectSwitchComplete, { projectPath })
+                }
+                return
+            }
 
             // Check if terminal IDs have changed before doing expensive operations
             const currentIds = getTerminalIds({ kind: 'orchestrator' })
@@ -1055,7 +1064,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             }
             return
         }
-        
+
         // Only run if not currently initializing
         initialize().catch(_e => {
             logger.error('[SelectionContext] Failed to initialize:', _e)
