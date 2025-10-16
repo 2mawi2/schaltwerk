@@ -26,6 +26,7 @@ class FakeTerminal {
   rows = 24
 
   clearCalls = 0
+  resetCalls = 0
   writes: string[] = []
   scrollTargets: number[] = []
 
@@ -36,6 +37,10 @@ class FakeTerminal {
 
   clear(): void {
     this.clearCalls++
+  }
+
+  reset(): void {
+    this.resetCalls++
   }
 
   write(data: string, callback?: () => void): void {
@@ -57,6 +62,7 @@ function createManager(options?: Partial<Parameters<typeof TerminalSuspensionMan
     maxSuspendedTerminals: 2,
     snapshotSizeLimitBytes: 1024,
     keepAliveTerminalIds: new Set(),
+    captureSnapshots: false,
     ...options
   })
 }
@@ -85,6 +91,7 @@ describe('TerminalSuspensionManager buffer snapshots', () => {
   })
 
   it('captures and restores terminal buffer on suspend/resume', async () => {
+    manager = createManager({ captureSnapshots: true })
     const terminal = new FakeTerminal([new FakeLine('line a'), new FakeLine('line b')])
     ;(manager as unknown as ManagerInternals).terminals.set('term-1', terminal)
     ;(manager as unknown as ManagerInternals).states.set('term-1', {
@@ -96,7 +103,7 @@ describe('TerminalSuspensionManager buffer snapshots', () => {
     expect(suspended).toBe(true)
     const state = (manager as unknown as ManagerInternals).states.get('term-1')
     expect(state?.bufferSnapshot?.data).toContain('line a')
-    expect(terminal.clearCalls).toBe(1)
+    expect(terminal.resetCalls).toBe(1)
 
     const resumeResult = manager.resume('term-1')
     expect(resumeResult).toBe(true)
@@ -108,8 +115,25 @@ describe('TerminalSuspensionManager buffer snapshots', () => {
     expect(updatedState?.bufferSnapshot).toBeUndefined()
   })
 
+  it('resets terminal immediately when snapshots are disabled', () => {
+    const terminal = new FakeTerminal([new FakeLine('disabled snapshot line')])
+    ;(manager as unknown as ManagerInternals).terminals.set('term-disabled', terminal)
+    ;(manager as unknown as ManagerInternals).states.set('term-disabled', {
+      suspended: false,
+      suspendedAt: 0
+    })
+
+    const suspended = manager.suspend('term-disabled')
+    expect(suspended).toBe(true)
+
+    const state = (manager as unknown as ManagerInternals).states.get('term-disabled')
+    expect(state?.bufferSnapshot).toBeUndefined()
+    expect(terminal.resetCalls).toBe(1)
+    expect(terminal.clearCalls).toBe(0)
+  })
+
   it('skips destructive clear when snapshot exceeds limit', () => {
-    manager = createManager({ snapshotSizeLimitBytes: 4 })
+    manager = createManager({ snapshotSizeLimitBytes: 4, captureSnapshots: true })
     const terminal = new FakeTerminal([new FakeLine('oversized line')])
     ;(manager as unknown as ManagerInternals).terminals.set('term-2', terminal)
     ;(manager as unknown as ManagerInternals).states.set('term-2', {
@@ -125,7 +149,7 @@ describe('TerminalSuspensionManager buffer snapshots', () => {
   })
 
   it('evicts oldest snapshot when exceeding max suspended terminals', async () => {
-    manager = createManager({ maxSuspendedTerminals: 1 })
+    manager = createManager({ maxSuspendedTerminals: 1, captureSnapshots: true })
     const terminalA = new FakeTerminal([new FakeLine('A')])
     const terminalB = new FakeTerminal([new FakeLine('B')])
     ;(manager as unknown as ManagerInternals).terminals.set('term-A', terminalA)

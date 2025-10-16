@@ -22,13 +22,15 @@ export interface TerminalSuspensionOptions {
     maxSuspendedTerminals?: number;
     keepAliveTerminalIds?: Set<string>;
     snapshotSizeLimitBytes?: number;
+    captureSnapshots?: boolean;
 }
 
 const DEFAULT_OPTIONS: Required<TerminalSuspensionOptions> = {
     suspendAfterMs: 5000,
     maxSuspendedTerminals: 100,
     keepAliveTerminalIds: new Set(),
-    snapshotSizeLimitBytes: 2 * 1024 * 1024
+    snapshotSizeLimitBytes: 0,
+    captureSnapshots: false
 };
 
 export class TerminalSuspensionManager {
@@ -136,18 +138,22 @@ export class TerminalSuspensionManager {
             };
 
             const snapshotResult = this.captureSnapshot(terminalId, terminal);
-            if (snapshotResult.type === 'error') {
-                logger.warn(`[TerminalSuspension] Snapshot failed for ${terminalId}, skipping buffer clear.`);
-            } else if (snapshotResult.type === 'skipped') {
-                logger.warn(
-                    `[TerminalSuspension] Snapshot for ${terminalId} skipped (${snapshotResult.reason}). Terminal left active with ${bufferLines} lines.`
-                );
-            } else {
+            if (snapshotResult.type === 'captured') {
                 this.enforceSuspensionLimit(terminalId);
                 state.bufferSnapshot = snapshotResult.snapshot;
-                terminal.clear();
-                terminal.write('\x1b[2J\x1b[H');
+                this.resetTerminal(terminal);
                 logger.info(`[TerminalSuspension] Snapshot captured for ${terminalId}: ${snapshotResult.snapshot.size} bytes`);
+            } else if (snapshotResult.type === 'skipped') {
+                if (snapshotResult.reason === 'disabled') {
+                    logger.debug(`[TerminalSuspension] Snapshot disabled for ${terminalId}; relying on backend hydration.`);
+                    this.resetTerminal(terminal);
+                } else {
+                    logger.warn(
+                        `[TerminalSuspension] Snapshot for ${terminalId} skipped (${snapshotResult.reason}). Terminal left active with ${bufferLines} lines.`
+                    );
+                }
+            } else {
+                logger.warn(`[TerminalSuspension] Snapshot failed for ${terminalId}, leaving buffer intact.`);
             }
 
             state.suspended = true;
@@ -242,9 +248,14 @@ export class TerminalSuspensionManager {
     private captureSnapshot(terminalId: string, terminal: XTerm):
         | { type: 'captured'; snapshot: SuspensionSnapshot }
         | { type: 'skipped'; reason: 'size_limit' }
+        | { type: 'skipped'; reason: 'disabled' }
         | { type: 'error' } {
         const captureStartTime = performance.now();
         try {
+            if (!this.options.captureSnapshots) {
+                return { type: 'skipped', reason: 'disabled' };
+            }
+
             const buffer = terminal.buffer.active;
             const length = buffer.length ?? 0;
             if (length <= 0) {
@@ -370,6 +381,20 @@ export class TerminalSuspensionManager {
         };
 
         void replay();
+    }
+
+    private resetTerminal(terminal: XTerm): void {
+        if (typeof terminal.reset === 'function') {
+            terminal.reset();
+            return;
+        }
+
+        try {
+            terminal.clear();
+            terminal.write('\x1b[2J\x1b[H');
+        } catch (error) {
+            logger.debug('[TerminalSuspension] Fallback reset failed:', error);
+        }
     }
 
     private writeSnapshot(terminal: XTerm, snapshot: string): Promise<void> {

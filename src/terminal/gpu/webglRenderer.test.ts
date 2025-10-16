@@ -20,7 +20,8 @@ describe('WebGLTerminalRenderer', () => {
 
     beforeEach(() => {
         mockTerminal = {
-            loadAddon: vi.fn()
+            loadAddon: vi.fn(),
+            element: document.createElement('div')
         } as unknown as XTerm
 
         renderer = new WebGLTerminalRenderer(mockTerminal, 'test-terminal')
@@ -53,6 +54,18 @@ describe('WebGLTerminalRenderer', () => {
         const secondCallCount = vi.mocked(mockTerminal.loadAddon).mock.calls.length
 
         expect(secondCallCount).toBe(firstCallCount)
+    })
+
+    it('should defer initialization when terminal element is missing', async () => {
+        const terminalWithoutElement = {
+            loadAddon: vi.fn()
+        } as unknown as XTerm
+        const rendererWithoutElement = new WebGLTerminalRenderer(terminalWithoutElement, 'missing-element')
+
+        const state = await rendererWithoutElement.initialize()
+
+        expect(state.type).toBe('none')
+        expect(vi.mocked(terminalWithoutElement.loadAddon)).not.toHaveBeenCalled()
     })
 
     it('should dispose the renderer and reset state', async () => {

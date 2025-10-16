@@ -16,6 +16,10 @@ export function schedulePtyResize(
   size: Size,
   opts?: { force?: boolean }
 ) {
+  if (process.env.NODE_ENV === 'test') {
+    // eslint-disable-next-line no-console
+    console.log('[schedulePtyResize]', id, size, opts?.force);
+  }
   pending.set(id, size)
   if (opts?.force) {
     flush(performance.now(), true)
