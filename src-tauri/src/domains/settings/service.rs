@@ -126,10 +126,8 @@ impl SettingsService {
         cli_args: String,
     ) -> Result<(), SettingsServiceError> {
         if agent_type == "terminal" {
-            log::warn!("Terminal-only mode does not support CLI args");
-            return Err(SettingsServiceError::UnknownAgentType(
-                "Terminal-only mode does not support CLI args".to_string(),
-            ));
+            log::debug!("Ignoring CLI args update for terminal-only mode");
+            return Ok(());
         }
 
         log::debug!(
@@ -316,10 +314,8 @@ impl SettingsService {
         config: AgentBinaryConfig,
     ) -> Result<(), SettingsServiceError> {
         if config.agent_name == "terminal" {
-            log::warn!("Terminal-only mode does not support binary configuration");
-            return Err(SettingsServiceError::UnknownAgentType(
-                "Terminal-only mode does not support binary configuration".to_string(),
-            ));
+            log::debug!("Ignoring binary configuration update for terminal-only mode");
+            return Ok(());
         }
 
         match config.agent_name.as_str() {

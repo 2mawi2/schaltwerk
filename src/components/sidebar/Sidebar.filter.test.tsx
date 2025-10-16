@@ -295,17 +295,6 @@ describe('Sidebar filter functionality and persistence', () => {
         if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
           return sessionsList
         }
-        if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
-          const fm = ((args as Record<string, unknown>)?.filterMode as FilterMode) || FilterMode.All
-          const filtered = fm === FilterMode.All
-            ? sessionsList
-            : fm === FilterMode.Spec
-              ? sessionsList.filter(s => (s.info as SessionInfo & { session_state?: string }).session_state === 'spec')
-              : fm === FilterMode.Reviewed
-                ? sessionsList.filter(s => s.info.ready_to_merge)
-                : sessionsList.filter(s => !(s.info.ready_to_merge) && (s.info as SessionInfo & { session_state?: string }).session_state !== 'spec')
-          return filtered
-        }
         if (cmd === TauriCommands.GetProjectSessionsSettings) {
           return { filter_mode: currentFilterMode, sort_mode: SortMode.Name }
         }
@@ -372,20 +361,9 @@ describe('Sidebar filter functionality and persistence', () => {
         createSession('gamma', false, 'active'),
       ]
 
-      vi.mocked(invoke).mockImplementation(async (cmd, args?: unknown) => {
+      vi.mocked(invoke).mockImplementation(async (cmd, _args?: unknown) => {
         if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
           return sessionsList
-        }
-        if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
-          const fm = ((args as Record<string, unknown>)?.filterMode as FilterMode) || FilterMode.All
-          const filtered = fm === FilterMode.All
-            ? sessionsList
-            : fm === FilterMode.Spec
-              ? sessionsList.filter(s => (s.info as SessionInfo & { session_state?: string }).session_state === 'spec')
-              : fm === FilterMode.Reviewed
-                ? sessionsList.filter(s => s.info.ready_to_merge)
-                : sessionsList.filter(s => !(s.info.ready_to_merge) && (s.info as SessionInfo & { session_state?: string }).session_state !== 'spec')
-          return filtered
         }
         if (cmd === TauriCommands.GetProjectSessionsSettings) {
           return { filter_mode: FilterMode.Running, sort_mode: SortMode.Name }
@@ -436,20 +414,9 @@ describe('Sidebar filter functionality and persistence', () => {
         createSession('session-2', false, 'active'),
       ]
 
-      vi.mocked(invoke).mockImplementation(async (cmd, args?: unknown) => {
+      vi.mocked(invoke).mockImplementation(async (cmd, _args?: unknown) => {
         if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
           return sessionsList
-        }
-        if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
-          const fm = ((args as Record<string, unknown>)?.filterMode as FilterMode) || FilterMode.All
-          const filtered = fm === FilterMode.All
-            ? sessionsList
-            : fm === FilterMode.Spec
-              ? sessionsList.filter(s => (s.info as SessionInfo & { session_state?: string }).session_state === 'spec')
-              : fm === FilterMode.Reviewed
-                ? sessionsList.filter(s => s.info.ready_to_merge)
-                : sessionsList.filter(s => !(s.info.ready_to_merge) && (s.info as SessionInfo & { session_state?: string }).session_state !== 'spec')
-          return filtered
         }
         if (cmd === TauriCommands.GetProjectSessionsSettings) {
           return { filter_mode: FilterMode.Running, sort_mode: SortMode.Name }
@@ -504,20 +471,9 @@ describe('Sidebar filter functionality and persistence', () => {
         createSession('temp-2', false, 'active'),
       ]
 
-      vi.mocked(invoke).mockImplementation(async (cmd, args?: unknown) => {
+      vi.mocked(invoke).mockImplementation(async (cmd, _args?: unknown) => {
         if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
           return sessionsList
-        }
-        if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
-          const fm = ((args as Record<string, unknown>)?.filterMode as FilterMode) || FilterMode.All
-          const filtered = fm === FilterMode.All
-            ? sessionsList
-            : fm === FilterMode.Spec
-              ? sessionsList.filter(s => (s.info as SessionInfo & { session_state?: string }).session_state === 'spec')
-              : fm === FilterMode.Reviewed
-                ? sessionsList.filter(s => s.info.ready_to_merge)
-                : sessionsList.filter(s => !(s.info.ready_to_merge) && (s.info as SessionInfo & { session_state?: string }).session_state !== 'spec')
-          return filtered
         }
         if (cmd === TauriCommands.GetProjectSessionsSettings) {
           return { filter_mode: FilterMode.Running, sort_mode: SortMode.Name }
