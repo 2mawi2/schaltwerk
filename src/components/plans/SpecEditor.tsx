@@ -11,6 +11,7 @@ import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
 import { detectPlatformSafe, isShortcutForAction } from '../../keyboardShortcuts/helpers'
 import { useSpecContent } from '../../hooks/useSpecContent'
 import { MarkdownRenderer } from './MarkdownRenderer'
+import { useSpecEditorState } from '../../contexts/SpecEditorStateContext'
 
 interface Props {
   sessionName: string
@@ -19,31 +20,33 @@ interface Props {
 }
 
 export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false }: Props) {
-  const [content, setContent] = useState('')
+  const [currentContent, setCurrentContent] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copying, setCopying] = useState(false)
   const [starting, setStarting] = useState(false)
-  const [hasLocalChanges, setHasLocalChanges] = useState(false)
   const [displayName, setDisplayName] = useState<string | null>(null)
-  const [viewMode, setViewMode] = useState<'edit' | 'preview'>('preview')
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const lastServerContentRef = useRef<string>('')
-  const contentRef = useRef<string>('')
-  const hasLocalChangesRef = useRef<boolean>(false)
   const markdownEditorRef = useRef<MarkdownEditorRef>(null)
+  const saveCountRef = useRef(0)
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const { config: keyboardShortcutConfig } = useKeyboardShortcutsConfig()
   const platform = useMemo(() => detectPlatformSafe(), [])
   const projectFileIndex = useProjectFileIndex()
 
   const { content: cachedContent, displayName: cachedDisplayName, hasData: hasCachedData } = useSpecContent(sessionName)
-  const lastSyncedSessionRef = useRef<string | null>(null)
+  const { getViewMode, setViewMode } = useSpecEditorState()
+
+  const viewMode = getViewMode(sessionName)
 
   useEffect(() => {
-    hasLocalChangesRef.current = false
-    setHasLocalChanges(false)
     setError(null)
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+    }
   }, [sessionName])
 
   useEffect(() => {
@@ -62,15 +65,12 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
         if (cancelled) return
 
         const text = draftContent ?? initialPrompt ?? ''
-        setContent(text)
-        contentRef.current = text
-        lastServerContentRef.current = text
-        lastSyncedSessionRef.current = sessionName
+        setCurrentContent(text)
         setDisplayName(sessionName)
         setLoading(false)
       } catch (e) {
         if (cancelled) return
-        logger.error('Failed to load spec content:', e)
+        logger.error('[SpecEditor] Failed to load spec content:', e)
         setError(String(e))
         setLoading(false)
       }
@@ -91,99 +91,15 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
   useEffect(() => {
     if (!hasCachedData) return
 
-    const sessionChanged = lastSyncedSessionRef.current !== sessionName
+    if (saveCountRef.current > 0) {
+      logger.info('[SpecEditor] Skipping update - save in progress')
+      return
+    }
+
     const serverContent = cachedContent ?? ''
-
-    if (!sessionChanged && hasLocalChangesRef.current) {
-      logger.info('[SpecEditor] Skipping cached content update - local changes pending')
-      return
-    }
-
-    if (!sessionChanged && serverContent === lastServerContentRef.current) {
-      return
-    }
-
-    const activeElement = document.activeElement
-    const isEditorFocused = activeElement?.closest('.markdown-editor-container') !== null
-    let cursorPosition: number | null = null
-
-    if (isEditorFocused && activeElement) {
-      try {
-        const cmEditor = activeElement.closest('.cm-editor') as HTMLElement & {
-          cmView?: { state?: { selection?: { main?: { head?: number } } } }
-        }
-        if (cmEditor) {
-          const cmView = cmEditor.cmView
-          if (cmView && cmView.state) {
-            cursorPosition = cmView.state.selection?.main?.head ?? null
-          }
-        }
-      } catch (e) {
-        logger.warn('[SpecEditor] Could not get cursor position:', e)
-      }
-    }
-
-    setContent(serverContent)
-    lastServerContentRef.current = serverContent
-    lastSyncedSessionRef.current = sessionName
-    setHasLocalChanges(false)
-    hasLocalChangesRef.current = false
-
-    if (isEditorFocused) {
-      requestAnimationFrame(() => {
-        const editorElement = document.querySelector('.markdown-editor-container .cm-editor') as HTMLElement
-        if (editorElement) {
-          editorElement.focus()
-
-          if (cursorPosition !== null) {
-            try {
-              const cmView = (editorElement as HTMLElement & {
-                cmView?: { state?: { doc?: { length?: number } }, dispatch?: (transaction: unknown) => void }
-              }).cmView
-              if (cmView && cmView.state) {
-                const maxPos = cmView.state.doc?.length ?? 0
-                const safePos = Math.min(cursorPosition, maxPos)
-                cmView.dispatch?.({
-                  selection: { anchor: safePos, head: safePos }
-                })
-              }
-            } catch (e) {
-              logger.warn('[SpecEditor] Could not restore cursor position:', e)
-            }
-          }
-        }
-      })
-    }
-  }, [cachedContent, hasCachedData, sessionName])
-
-  // Auto-save content only when there are local changes
-  useEffect(() => {
-    if (!hasLocalChanges) return
-    
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    saveTimerRef.current = setTimeout(async () => {
-      try {
-        setSaving(true)
-        await invoke(TauriCommands.SchaltwerkCoreUpdateSpecContent, { name: sessionName, content })
-        lastServerContentRef.current = content
-        setHasLocalChanges(false)
-      } catch (e) {
-        logger.error('[DraftEditor] Failed to save spec:', e)
-      } finally {
-        setSaving(false)
-      }
-    }, 1000)
-    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }
-  }, [content, sessionName, hasLocalChanges])
-
-  // Keep refs in sync with state
-  useEffect(() => {
-    contentRef.current = content
-  }, [content])
-  
-  useEffect(() => {
-    hasLocalChangesRef.current = hasLocalChanges
-  }, [hasLocalChanges])
+    logger.info('[SpecEditor] Updating content from server')
+    setCurrentContent(serverContent)
+  }, [cachedContent, hasCachedData])
 
   const ensureProjectFiles = projectFileIndex.ensureIndex
 
@@ -192,16 +108,39 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
   }, [ensureProjectFiles])
 
   const handleContentChange = (newContent: string) => {
-    setContent(newContent)
-    setHasLocalChanges(true)
+    setCurrentContent(newContent)
+
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current)
+    }
+
+    setSaving(true)
+    saveTimeoutRef.current = setTimeout(async () => {
+      saveCountRef.current++
+      try {
+        await invoke(TauriCommands.SchaltwerkCoreUpdateSpecContent, {
+          name: sessionName,
+          content: newContent
+        })
+        logger.info('[SpecEditor] Spec saved automatically')
+      } catch (e) {
+        logger.error('[SpecEditor] Failed to save spec:', e)
+        setError(String(e))
+      } finally {
+        saveCountRef.current--
+        if (saveCountRef.current === 0) {
+          setSaving(false)
+        }
+      }
+    }, 400)
   }
 
   const handleCopy = async () => {
     try {
       setCopying(true)
-      await navigator.clipboard.writeText(content)
+      await navigator.clipboard.writeText(currentContent)
     } catch (err) {
-      logger.error('[DraftEditor] Failed to copy content:', err)
+      logger.error('[SpecEditor] Failed to copy content:', err)
     } finally {
       setTimeout(() => setCopying(false), 1000)
     }
@@ -214,13 +153,12 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
       setError(null)
       onStart()
     } catch (e: unknown) {
-      logger.error('[DraftEditor] Failed to start spec:', e)
+      logger.error('[SpecEditor] Failed to start spec:', e)
       setError(String(e))
     } finally {
       setStarting(false)
     }
   }, [onStart])
-
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -231,7 +169,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
         e.preventDefault()
         if (markdownEditorRef.current) {
           markdownEditorRef.current.focusEnd()
-          logger.info('[SpecEditor] Focused spec content via Cmd+T and moved cursor to end')
+          logger.info('[SpecEditor] Focused spec content via shortcut')
         }
       }
     }
@@ -254,12 +192,15 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <h2 className="text-sm font-semibold text-slate-200 truncate">{displayName || sessionName}</h2>
           {viewMode === 'edit' && !disableFocusShortcut && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400" title="Focus spec content (⌘T)">⌘T</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400" title="Focus spec content">⌘T</span>
+          )}
+          {saving && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-700/50 text-blue-400" title="Saving...">💾</span>
           )}
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setViewMode(viewMode === 'edit' ? 'preview' : 'edit')}
+            onClick={() => setViewMode(sessionName, viewMode === 'edit' ? 'preview' : 'edit')}
             className="px-2 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600 text-white flex items-center gap-1"
             title={viewMode === 'edit' ? 'Preview markdown' : 'Edit markdown'}
           >
@@ -270,10 +211,10 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
             onClick={handleRun}
             disabled={starting}
             className="px-3 py-1 text-xs rounded bg-green-600 hover:bg-green-500 text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Run agent (⌘⏎)"
+            title="Run agent"
           >
             <VscPlay />
-{starting ? (
+            {starting ? (
               <AnimatedText text="loading" size="xs" />
             ) : (
               'Run Agent'
@@ -281,21 +222,19 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
           </button>
           <button
             onClick={handleCopy}
-            disabled={copying || !content}
+            disabled={copying || !currentContent}
             className="px-2 py-1 text-xs rounded bg-blue-700 hover:bg-blue-600 text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Copy agent content"
+            title="Copy content"
           >
             <VscCopy />
             {copying ? 'Copied!' : 'Copy'}
           </button>
         </div>
       </div>
-      
+
       <div className="px-4 py-1 border-b border-slate-800 flex items-center justify-between">
         <div className="text-xs text-slate-400">
-          {saving ? (
-            <AnimatedText text="loading" size="xs" centered={false} />
-          ) : error ? (
+          {error ? (
             <span className="text-red-400">{error}</span>
           ) : viewMode === 'edit' ? (
             'Editing spec — Type @ to reference project files'
@@ -305,19 +244,20 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden">
-        {viewMode === 'edit' ? (
+      <div className="flex-1 overflow-hidden relative">
+        <div style={{ display: viewMode === 'edit' ? 'block' : 'none' }} className="h-full">
           <MarkdownEditor
             ref={markdownEditorRef}
-            value={content}
+            value={currentContent}
             onChange={handleContentChange}
             placeholder="Enter agent description in markdown…"
             className="h-full"
             fileReferenceProvider={projectFileIndex}
           />
-        ) : (
-          <MarkdownRenderer content={content} className="h-full" />
-        )}
+        </div>
+        <div style={{ display: viewMode === 'preview' ? 'block' : 'none' }} className="h-full">
+          <MarkdownRenderer content={currentContent} className="h-full" />
+        </div>
       </div>
     </div>
   )

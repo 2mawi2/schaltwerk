@@ -1,11 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { theme } from '../../common/theme'
 import { EnrichedSession } from '../../types/session'
 import { VscFiles, VscClose } from 'react-icons/vsc'
 import { SpecEditor } from '../plans/SpecEditor'
 import { SpecPickerOverlay } from './SpecPickerOverlay'
-import { listenEvent, SchaltEvent } from '../../common/eventSystem'
-import { logger } from '../../utils/logger'
 
 interface Props {
   specs: EnrichedSession[]
@@ -31,18 +29,6 @@ export function SpecWorkspacePanel({
   onPickerClose
 }: Props) {
   const [unsavedTabs] = useState<Set<string>>(new Set())
-  const [, setRefreshTrigger] = useState(0)
-
-  useEffect(() => {
-    const cleanup = listenEvent(SchaltEvent.SessionsRefreshed, () => {
-      logger.info('[SpecWorkspacePanel] Sessions refreshed - triggering re-render for spec updates')
-      setRefreshTrigger(prev => prev + 1)
-    })
-
-    return () => {
-      cleanup.then(unlisten => unlisten())
-    }
-  }, [])
 
   const activeSpec = specs.find(s => s.info.session_id === activeTab)
 

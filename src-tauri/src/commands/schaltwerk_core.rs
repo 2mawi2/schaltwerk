@@ -2103,7 +2103,6 @@ pub async fn schaltwerk_core_update_session_state(
 
 #[tauri::command]
 pub async fn schaltwerk_core_update_spec_content(
-    _app: tauri::AppHandle,
     name: String,
     content: String,
 ) -> Result<(), String> {

@@ -208,6 +208,10 @@ const RightPanelTabsComponent = ({ onFileSelect, onOpenHistoryDiff, selectionOve
 
     const cleanupSpecCreated = listenUiEvent(UiEvent.SpecCreated, (detail) => {
       if (detail?.name) {
+        if (openTabs.includes(detail.name)) {
+          logger.info('[RightPanelTabs] Spec already open in workspace, skipping auto-switch:', detail.name)
+          return
+        }
         logger.info('[RightPanelTabs] Spec created by orchestrator:', detail.name, '- auto-opening in workspace')
         setUserSelectedTab('specs')
         openSpecInWorkspace(detail.name)
@@ -217,7 +221,7 @@ const RightPanelTabsComponent = ({ onFileSelect, onOpenHistoryDiff, selectionOve
     return () => {
       cleanupSpecCreated()
     }
-  }, [effectiveSelection.kind, openSpecInWorkspace])
+  }, [effectiveSelection.kind, openSpecInWorkspace, openTabs])
 
   // Listen for OpenSpecInOrchestrator events
   useEffect(() => {

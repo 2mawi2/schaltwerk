@@ -357,13 +357,16 @@ export function useSpecMode({ projectPath, selection, sessions, setFilterMode, s
 
       logger.info('[useSpecMode] Pruned removed spec tabs')
 
-      if (activeTab && !filtered.includes(activeTab)) {
-        setActiveTab(filtered.length > 0 ? filtered[0] : null)
-      }
+      setActiveTab(currentActiveTab => {
+        if (currentActiveTab && !filtered.includes(currentActiveTab)) {
+          return filtered.length > 0 ? filtered[0] : null
+        }
+        return currentActiveTab
+      })
 
       return filtered
     })
-  }, [sessions, activeTab])
+  }, [sessions])
 
   // Build spec mode state object
   const specModeState: SpecModeState = {
