@@ -9,6 +9,12 @@ export interface RendererState {
     contextLost: boolean;
 }
 
+export interface WebGLRendererCallbacks {
+    onContextLost?: () => void;
+    onWebGLLoaded?: () => void;
+    onWebGLUnloaded?: () => void;
+}
+
 let cachedWebglCtorPromise: Promise<typeof WebglAddon> | null = null;
 
 async function loadWebglAddonCtor(): Promise<typeof WebglAddon> {
@@ -22,12 +28,13 @@ export class WebGLTerminalRenderer {
     private readonly terminal: XTerm;
     private readonly terminalId: string;
     private state: RendererState;
-    private contextLostHandler?: () => void;
+    private callbacks: WebGLRendererCallbacks;
     private initAttempted = false;
 
-    constructor(terminal: XTerm, terminalId: string) {
+    constructor(terminal: XTerm, terminalId: string, callbacks: WebGLRendererCallbacks = {}) {
         this.terminal = terminal;
         this.terminalId = terminalId;
+        this.callbacks = callbacks;
         this.state = { type: 'none', contextLost: false };
     }
 
@@ -65,14 +72,13 @@ export class WebGLTerminalRenderer {
                 } catch (error) {
                     logger.debug(`[GPU] Error disposing WebGL addon after context loss (${this.terminalId})`, error);
                 }
-                if (this.contextLostHandler) {
-                    this.contextLostHandler();
-                }
+                this.callbacks.onContextLost?.();
             });
 
             this.terminal.loadAddon(webglAddon);
             this.state = { type: 'webgl', addon: webglAddon, contextLost: false };
             logger.info(`[GPU] WebGL renderer initialized for terminal ${this.terminalId}`);
+            this.callbacks.onWebGLLoaded?.();
             return this.state;
         } catch (error) {
             logger.warn(`[GPU] Failed to initialize WebGL for terminal ${this.terminalId}, falling back to canvas`, error);
@@ -82,6 +88,7 @@ export class WebGLTerminalRenderer {
     }
 
     dispose(): void {
+        const wasWebGL = this.state.type === 'webgl';
         if (this.state.addon) {
             try {
                 this.state.addon.dispose();
@@ -91,10 +98,13 @@ export class WebGLTerminalRenderer {
         }
         this.state = { type: 'none', contextLost: false };
         this.initAttempted = false;
+        if (wasWebGL) {
+            this.callbacks.onWebGLUnloaded?.();
+        }
     }
 
-    onContextLost(handler: () => void): void {
-        this.contextLostHandler = handler;
+    setCallbacks(callbacks: WebGLRendererCallbacks): void {
+        this.callbacks = { ...this.callbacks, ...callbacks };
     }
 
     getState(): RendererState {

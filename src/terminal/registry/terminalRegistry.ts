@@ -1,7 +1,11 @@
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
-import { WebGLTerminalRenderer } from '../gpu/webglRenderer';
+import { Unicode11Addon } from '@xterm/addon-unicode11';
+import { ClipboardAddon } from '@xterm/addon-clipboard';
+import { LigaturesAddon } from '@xterm/addon-ligatures';
+import { ImageAddon } from '@xterm/addon-image';
+import { WebGLTerminalRenderer, WebGLRendererCallbacks } from '../gpu/webglRenderer';
 import { logger } from '../../utils/logger';
 
 export interface TerminalInstanceRecord {
@@ -9,6 +13,10 @@ export interface TerminalInstanceRecord {
   terminal: XTerm;
   fitAddon: FitAddon;
   searchAddon: SearchAddon;
+  unicode11Addon?: Unicode11Addon;
+  clipboardAddon?: ClipboardAddon;
+  ligaturesAddon?: LigaturesAddon;
+  imageAddon?: ImageAddon;
   wrapper: HTMLDivElement;
   gpuRenderer?: WebGLTerminalRenderer;
   refCount: number;
@@ -25,6 +33,10 @@ type TerminalInstanceFactory = () => {
   terminal: XTerm;
   fitAddon: FitAddon;
   searchAddon: SearchAddon;
+  unicode11Addon?: Unicode11Addon;
+  clipboardAddon?: ClipboardAddon;
+  ligaturesAddon?: LigaturesAddon;
+  imageAddon?: ImageAddon;
   wrapper: HTMLDivElement;
 };
 
@@ -52,6 +64,10 @@ class TerminalInstanceRegistry {
       terminal: created.terminal,
       fitAddon: created.fitAddon,
       searchAddon: created.searchAddon,
+      unicode11Addon: created.unicode11Addon,
+      clipboardAddon: created.clipboardAddon,
+      ligaturesAddon: created.ligaturesAddon,
+      imageAddon: created.imageAddon,
       wrapper: created.wrapper,
       refCount: 1,
       lastSeq: null,
@@ -119,6 +135,26 @@ class TerminalInstanceRegistry {
     } catch (error) {
       logger.warn('[terminalRegistry] search addon dispose failed', error);
     }
+    try {
+      record.unicode11Addon?.dispose?.();
+    } catch (error) {
+      logger.warn('[terminalRegistry] unicode11 addon dispose failed', error);
+    }
+    try {
+      record.clipboardAddon?.dispose?.();
+    } catch (error) {
+      logger.warn('[terminalRegistry] clipboard addon dispose failed', error);
+    }
+    try {
+      record.ligaturesAddon?.dispose?.();
+    } catch (error) {
+      logger.warn('[terminalRegistry] ligatures addon dispose failed', error);
+    }
+    try {
+      record.imageAddon?.dispose?.();
+    } catch (error) {
+      logger.warn('[terminalRegistry] image addon dispose failed', error);
+    }
     if (record.gpuRenderer) {
       try {
         record.gpuRenderer.dispose();
@@ -176,11 +212,12 @@ export function releaseTerminalInstance(id: string): void {
 export function ensureGpuRenderer(
   record: TerminalInstanceRecord,
   terminalId: string,
-  onContextLoss: () => void,
+  callbacks: WebGLRendererCallbacks,
 ): WebGLTerminalRenderer {
   if (!record.gpuRenderer) {
-    record.gpuRenderer = new WebGLTerminalRenderer(record.terminal, terminalId);
-    record.gpuRenderer.onContextLost(onContextLoss);
+    record.gpuRenderer = new WebGLTerminalRenderer(record.terminal, terminalId, callbacks);
+  } else {
+    record.gpuRenderer.setCallbacks(callbacks);
   }
   return record.gpuRenderer;
 }

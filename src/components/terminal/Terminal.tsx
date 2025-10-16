@@ -7,6 +7,10 @@ import { Terminal as XTerm } from '@xterm/xterm';
 import type { IDisposable } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
+import { Unicode11Addon } from '@xterm/addon-unicode11';
+import { ClipboardAddon } from '@xterm/addon-clipboard';
+import { LigaturesAddon } from '@xterm/addon-ligatures';
+import { ImageAddon } from '@xterm/addon-image';
 import { invoke } from '@tauri-apps/api/core'
 import { startOrchestratorTop, startSessionTop, AGENT_START_TIMEOUT_MESSAGE } from '../../common/agentSpawn'
 import { schedulePtyResize } from '../../common/ptyResizeScheduler'
@@ -1007,7 +1011,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             minimumContrastRatio: atlasContrast,
             customGlyphs: true,
             drawBoldTextInBrightColors: false,
-            rescaleOverlappingGlyphs: false,
+            rescaleOverlappingGlyphs: true,
             allowTransparency: false,
             allowProposedApi: false,
             fastScrollSensitivity: 8,
@@ -1024,10 +1028,38 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             instance.loadAddon(fit);
             const search = new SearchAddon();
             instance.loadAddon(search);
+            let unicode11: Unicode11Addon | undefined;
+            let clipboard: ClipboardAddon | undefined;
+            let ligatures: LigaturesAddon | undefined;
+            let image: ImageAddon | undefined;
+            try {
+                unicode11 = new Unicode11Addon();
+                instance.loadAddon(unicode11);
+            } catch (error) {
+                logger.debug(`[Terminal ${terminalId}] Failed to load Unicode11Addon`, error);
+            }
+            try {
+                clipboard = new ClipboardAddon();
+                instance.loadAddon(clipboard);
+            } catch (error) {
+                logger.debug(`[Terminal ${terminalId}] Failed to load ClipboardAddon`, error);
+            }
+            try {
+                ligatures = new LigaturesAddon();
+                instance.loadAddon(ligatures);
+            } catch (error) {
+                logger.debug(`[Terminal ${terminalId}] Failed to load LigaturesAddon`, error);
+            }
+            try {
+                image = new ImageAddon();
+                instance.loadAddon(image);
+            } catch (error) {
+                logger.debug(`[Terminal ${terminalId}] Failed to load ImageAddon`, error);
+            }
             const wrapper = document.createElement('div');
             wrapper.dataset.terminalId = terminalId;
             wrapper.classList.add('schaltwerk-terminal-wrapper');
-            return { terminal: instance, fitAddon: fit, searchAddon: search, wrapper };
+            return { terminal: instance, fitAddon: fit, searchAddon: search, unicode11Addon: unicode11, clipboardAddon: clipboard, ligaturesAddon: ligatures, imageAddon: image, wrapper };
         });
 
         registryRecordRef.current = registryRecord;
@@ -1099,7 +1131,21 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             if (!gpuEnabledForTerminal || !registryRecordRef.current) {
                 return;
             }
-            const renderer = ensureGpuRenderer(registryRecordRef.current, terminalId, handleContextLoss);
+            const renderer = ensureGpuRenderer(registryRecordRef.current, terminalId, {
+                onContextLost: handleContextLoss,
+                onWebGLLoaded: () => {
+                    emitUiEvent(UiEvent.TerminalDimensionRefresh, {
+                        terminalId,
+                        reason: 'webgl-load',
+                    });
+                },
+                onWebGLUnloaded: () => {
+                    emitUiEvent(UiEvent.TerminalDimensionRefresh, {
+                        terminalId,
+                        reason: 'webgl-unload',
+                    });
+                },
+            });
             gpuRenderer.current = renderer;
             try {
                 const state = await renderer.initialize();

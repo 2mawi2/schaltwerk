@@ -107,6 +107,9 @@ vi.mock('@xterm/xterm', () => {
     parser = {
       registerOscHandler: vi.fn()
     }
+    unicode = {
+      activeVersion: '6'
+    }
     constructor(options: Record<string, unknown>) {
       this.options = options
       instances.push(this)
@@ -201,6 +204,66 @@ vi.mock('@xterm/addon-search', () => {
   return {
     SearchAddon: MockSearchAddon,
     __getLastSearchAddon,
+  }
+})
+
+vi.mock('@xterm/addon-unicode11', () => {
+  const instances: unknown[] = []
+  class MockUnicode11Addon {
+    activate() {}
+    dispose = vi.fn()
+    constructor() {
+      instances.push(this)
+    }
+  }
+  return {
+    Unicode11Addon: MockUnicode11Addon,
+    __instances: instances,
+  }
+})
+
+vi.mock('@xterm/addon-clipboard', () => {
+  const instances: unknown[] = []
+  class MockClipboardAddon {
+    activate() {}
+    dispose = vi.fn()
+    constructor() {
+      instances.push(this)
+    }
+  }
+  return {
+    ClipboardAddon: MockClipboardAddon,
+    __instances: instances,
+  }
+})
+
+vi.mock('@xterm/addon-ligatures', () => {
+  const instances: unknown[] = []
+  class MockLigaturesAddon {
+    activate() {}
+    dispose = vi.fn()
+    constructor() {
+      instances.push(this)
+    }
+  }
+  return {
+    LigaturesAddon: MockLigaturesAddon,
+    __instances: instances,
+  }
+})
+
+vi.mock('@xterm/addon-image', () => {
+  const instances: unknown[] = []
+  class MockImageAddon {
+    activate() {}
+    dispose = vi.fn()
+    constructor() {
+      instances.push(this)
+    }
+  }
+  return {
+    ImageAddon: MockImageAddon,
+    __instances: instances,
   }
 })
 
