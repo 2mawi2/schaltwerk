@@ -116,10 +116,6 @@ describe('SelectionContext', () => {
           return Promise.resolve()
         case TauriCommands.SchaltwerkCoreGetFontSizes:
           return Promise.resolve([13, 14])
-        case TauriCommands.SuspendSessionTerminals:
-        case TauriCommands.ResumeSessionTerminals:
-        case TauriCommands.RegisterSessionTerminals:
-          return Promise.resolve()
         default:
           return Promise.resolve()
       }

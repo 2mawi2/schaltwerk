@@ -33,10 +33,6 @@ describe('useTerminalTabs', () => {
         return Promise.resolve()
       case TauriCommands.CloseTerminal:
         return Promise.resolve()
-      case TauriCommands.RegisterSessionTerminals:
-      case TauriCommands.SuspendSessionTerminals:
-      case TauriCommands.ResumeSessionTerminals:
-        return Promise.resolve()
       default:
         return Promise.resolve()
     }

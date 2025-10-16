@@ -144,14 +144,11 @@ describe('SelectionContext - Terminal Preservation on Review', () => {
         
         case TauriCommands.GetProjectSessionsSettings:
           return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
-        
-        case TauriCommands.SuspendSessionTerminals:
-        case TauriCommands.ResumeSessionTerminals:
-        case TauriCommands.RegisterSessionTerminals:
+
         case TauriCommands.StartFileWatcher:
         case TauriCommands.StopFileWatcher:
           return Promise.resolve()
-        
+
         default:
           return Promise.resolve()
       }
