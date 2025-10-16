@@ -27,6 +27,7 @@ import { useTerminalWriteQueue } from '../../hooks/useTerminalWriteQueue'
 import { TerminalLoadingOverlay } from './TerminalLoadingOverlay'
 import { TerminalSearchPanel } from './TerminalSearchPanel'
 import { detectPlatformSafe } from '../../keyboardShortcuts/helpers'
+import { matchKeybinding, shouldSkipShell, shouldHandleClaudeShiftEnter, TerminalCommand } from './terminalKeybindings'
 import {
     writeTerminalBackend,
     resizeTerminalBackend,
@@ -1365,54 +1366,41 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             }
         });
 
-        // Intercept global shortcuts before xterm.js processes them
         terminal.current.attachCustomKeyEventHandler((event: KeyboardEvent) => {
-            const isMac = navigator.userAgent.includes('Mac')
-            const modifierKey = isMac ? event.metaKey : event.ctrlKey
-            const shouldHandleClaudeShiftEnter = (
-                agentType === 'claude' &&
-                isAgentTopTerminal &&
-                event.key === 'Enter' &&
-                event.type === 'keydown' &&
-                event.shiftKey &&
-                !modifierKey &&
-                !event.altKey &&
-                !readOnly
-            )
-
-            if (shouldHandleClaudeShiftEnter) {
+            if (shouldHandleClaudeShiftEnter(event, agentType, isAgentTopTerminal, readOnly)) {
                 beginClaudeShiftEnter();
-                return true
+                return true;
             }
-            
-            // Modifier+Enter for new line (like Claude Code)
-            if (modifierKey && event.key === 'Enter' && event.type === 'keydown') {
-                // Send a newline character without submitting the command
-                // This allows multiline input in shells that support it
-                writeTerminalBackend(terminalId, '\n').catch(err => logger.debug('[Terminal] newline ignored (backend not ready yet)', err));
-                return false; // Prevent default Enter behavior
+
+            const keybindingMatch = matchKeybinding(event);
+
+            if (keybindingMatch.matches && shouldSkipShell(keybindingMatch.commandId)) {
+                event.preventDefault?.();
+
+                switch (keybindingMatch.commandId) {
+                    case TerminalCommand.NewLine:
+                        writeTerminalBackend(terminalId, '\n').catch(err =>
+                            logger.debug('[Terminal] newline ignored (backend not ready yet)', err)
+                        );
+                        break;
+                    case TerminalCommand.NewSpec:
+                        emitUiEvent(UiEvent.NewSpecRequest);
+                        break;
+                    case TerminalCommand.NewSession:
+                        emitUiEvent(UiEvent.GlobalNewSessionShortcut);
+                        break;
+                    case TerminalCommand.MarkReady:
+                        emitUiEvent(UiEvent.GlobalMarkReadyShortcut);
+                        break;
+                    case TerminalCommand.Search:
+                        setIsSearchVisible(true);
+                        break;
+                }
+
+                return false;
             }
-            // Prefer Shift+Modifier+N as "New spec"
-            if (modifierKey && event.shiftKey && (event.key === 'n' || event.key === 'N')) {
-                emitUiEvent(UiEvent.NewSpecRequest)
-                return false
-            }
-            // Plain Modifier+N opens the regular new session modal
-            if (modifierKey && !event.shiftKey && (event.key === 'n' || event.key === 'N')) {
-                emitUiEvent(UiEvent.GlobalNewSessionShortcut)
-                return false // Prevent xterm.js from processing this event
-            }
-            if (modifierKey && (event.key === 'r' || event.key === 'R')) {
-                emitUiEvent(UiEvent.GlobalMarkReadyShortcut)
-                return false
-            }
-            if (modifierKey && (event.key === 'f' || event.key === 'F')) {
-                // Show search UI
-                setIsSearchVisible(true);
-                return false; // Prevent xterm.js from processing this event
-            }
-            
-            return true // Allow xterm.js to process other events
+
+            return true;
         })
         
         // Helper to ensure element is laid out before fitting
