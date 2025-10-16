@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { TauriCommands } from '../../common/tauriCommands'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { Sidebar } from './Sidebar'
 import { TestProviders } from '../../tests/test-utils'
 import { invoke } from '@tauri-apps/api/core'
@@ -8,9 +8,26 @@ import { FilterMode, SortMode } from '../../types/sessionFilters'
 import { EnrichedSession, SessionInfo } from '../../types/session'
 
 vi.mock('@tauri-apps/api/core')
+
+let eventHandlers: Record<string, ((_event: unknown) => void)[]> = {}
+
 vi.mock('@tauri-apps/api/event', () => ({
-  listen: vi.fn(() => Promise.resolve(() => {}))
+  listen: vi.fn((event: string, handler: (_event: unknown) => void) => {
+    if (!eventHandlers[event]) {
+      eventHandlers[event] = []
+    }
+    eventHandlers[event].push(handler)
+    return Promise.resolve(() => {
+      eventHandlers[event] = eventHandlers[event].filter(h => h !== handler)
+    })
+  }),
+  emit: vi.fn()
 }))
+
+const emitEvent = async (eventName: string, payload?: unknown) => {
+  const handlers = eventHandlers[eventName] || []
+  await Promise.all(handlers.map(handler => Promise.resolve(handler({ payload }))))
+}
 
 // Mock the useProject hook to always return a project path
 vi.mock('../../contexts/ProjectContext', async () => {
@@ -46,6 +63,7 @@ describe('Sidebar filter functionality and persistence', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()
+    eventHandlers = {}
 
     const sessions = [
       createSession('alpha', false, 'spec'),
@@ -259,6 +277,284 @@ describe('Sidebar filter functionality and persistence', () => {
       expect(reviewed).toHaveLength(2)
       const sortBtn = screen.getByTitle(/^Sort:/i)
       expect(sortBtn).toBeInTheDocument() // sanity
+    })
+  })
+
+  describe('Reviewed session preservation with Running filter', () => {
+    it('preserves selection when currently selected session is marked as reviewed while Running filter is active', async () => {
+      let sessionsList: EnrichedSession[] = [
+        createSession('running-1', false, 'active'),
+        createSession('running-2', false, 'active'),
+        createSession('running-3', false, 'active'),
+      ]
+
+      const mockSetSelection = vi.fn()
+      let currentFilterMode = FilterMode.Running
+
+      vi.mocked(invoke).mockImplementation(async (cmd, args?: unknown) => {
+        if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
+          return sessionsList
+        }
+        if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
+          const fm = ((args as Record<string, unknown>)?.filterMode as FilterMode) || FilterMode.All
+          const filtered = fm === FilterMode.All
+            ? sessionsList
+            : fm === FilterMode.Spec
+              ? sessionsList.filter(s => (s.info as SessionInfo & { session_state?: string }).session_state === 'spec')
+              : fm === FilterMode.Reviewed
+                ? sessionsList.filter(s => s.info.ready_to_merge)
+                : sessionsList.filter(s => !(s.info.ready_to_merge) && (s.info as SessionInfo & { session_state?: string }).session_state !== 'spec')
+          return filtered
+        }
+        if (cmd === TauriCommands.GetProjectSessionsSettings) {
+          return { filter_mode: currentFilterMode, sort_mode: SortMode.Name }
+        }
+        if (cmd === TauriCommands.SetProjectSessionsSettings) {
+          const settings = (args as Record<string, unknown>)?.settings as Record<string, unknown>
+          if (settings?.filter_mode) {
+            currentFilterMode = settings.filter_mode as FilterMode
+          }
+          return undefined
+        }
+        if (cmd === TauriCommands.GetCurrentDirectory) return '/test/dir'
+        if (cmd === TauriCommands.TerminalExists) return false
+        if (cmd === TauriCommands.CreateTerminal) return true
+        if (cmd === 'get_buffer') return ''
+        if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
+        return undefined
+      })
+
+      render(<TestProviders><Sidebar /></TestProviders>)
+
+      await waitFor(() => {
+        const runningButton = screen.getByTitle('Show running agents')
+        expect(runningButton.textContent).toContain('3')
+      })
+
+      const runningButton = screen.getByTitle('Show running agents')
+      fireEvent.click(runningButton)
+
+      await waitFor(() => {
+        const sessions = screen.getAllByRole('button').filter(b => (b.textContent || '').includes('para/'))
+        expect(sessions).toHaveLength(3)
+      })
+
+      const firstSessionButton = screen.getAllByRole('button').find(b => b.textContent?.includes('running-1'))
+      expect(firstSessionButton).toBeInTheDocument()
+      fireEvent.click(firstSessionButton!)
+
+      sessionsList = [
+        createSession('running-1', true, 'active'),
+        createSession('running-2', false, 'active'),
+        createSession('running-3', false, 'active'),
+      ]
+
+      await act(async () => {
+        await emitEvent('schaltwerk:sessions-refreshed', sessionsList)
+      })
+
+      await waitFor(() => {
+        const runningCount = screen.getByTitle('Show running agents')
+        expect(runningCount.textContent).toContain('2')
+      })
+
+      expect(mockSetSelection).not.toHaveBeenCalledWith(
+        expect.objectContaining({ payload: 'running-2' }),
+        expect.anything(),
+        expect.anything()
+      )
+    })
+
+    it('preserves selection when first session moves to reviewed with Running filter active', async () => {
+      let sessionsList: EnrichedSession[] = [
+        createSession('alpha', false, 'active'),
+        createSession('beta', false, 'active'),
+        createSession('gamma', false, 'active'),
+      ]
+
+      vi.mocked(invoke).mockImplementation(async (cmd, args?: unknown) => {
+        if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
+          return sessionsList
+        }
+        if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
+          const fm = ((args as Record<string, unknown>)?.filterMode as FilterMode) || FilterMode.All
+          const filtered = fm === FilterMode.All
+            ? sessionsList
+            : fm === FilterMode.Spec
+              ? sessionsList.filter(s => (s.info as SessionInfo & { session_state?: string }).session_state === 'spec')
+              : fm === FilterMode.Reviewed
+                ? sessionsList.filter(s => s.info.ready_to_merge)
+                : sessionsList.filter(s => !(s.info.ready_to_merge) && (s.info as SessionInfo & { session_state?: string }).session_state !== 'spec')
+          return filtered
+        }
+        if (cmd === TauriCommands.GetProjectSessionsSettings) {
+          return { filter_mode: FilterMode.Running, sort_mode: SortMode.Name }
+        }
+        if (cmd === TauriCommands.SetProjectSessionsSettings) {
+          return undefined
+        }
+        if (cmd === TauriCommands.GetCurrentDirectory) return '/test/dir'
+        if (cmd === TauriCommands.TerminalExists) return false
+        if (cmd === TauriCommands.CreateTerminal) return true
+        if (cmd === 'get_buffer') return ''
+        if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
+        return undefined
+      })
+
+      render(<TestProviders><Sidebar /></TestProviders>)
+
+      await waitFor(() => {
+        const runningButton = screen.getByTitle('Show running agents')
+        expect(runningButton.textContent).toContain('3')
+      })
+
+      const alphaButton = screen.getAllByRole('button').find(b => b.textContent?.includes('alpha'))
+      expect(alphaButton).toBeInTheDocument()
+      fireEvent.click(alphaButton!)
+
+      sessionsList = [
+        createSession('alpha', true, 'active'),
+        createSession('beta', false, 'active'),
+        createSession('gamma', false, 'active'),
+      ]
+
+      await act(async () => {
+        await emitEvent('schaltwerk:sessions-refreshed', sessionsList)
+      })
+
+      await waitFor(() => {
+        const runningButton = screen.getByTitle('Show running agents')
+        expect(runningButton.textContent).toContain('2')
+        const reviewedButton = screen.getByTitle('Show reviewed agents')
+        expect(reviewedButton.textContent).toContain('1')
+      })
+    })
+
+    it('allows switching to different session after reviewed session disappears from Running filter', async () => {
+      let sessionsList: EnrichedSession[] = [
+        createSession('session-1', false, 'active'),
+        createSession('session-2', false, 'active'),
+      ]
+
+      vi.mocked(invoke).mockImplementation(async (cmd, args?: unknown) => {
+        if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
+          return sessionsList
+        }
+        if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
+          const fm = ((args as Record<string, unknown>)?.filterMode as FilterMode) || FilterMode.All
+          const filtered = fm === FilterMode.All
+            ? sessionsList
+            : fm === FilterMode.Spec
+              ? sessionsList.filter(s => (s.info as SessionInfo & { session_state?: string }).session_state === 'spec')
+              : fm === FilterMode.Reviewed
+                ? sessionsList.filter(s => s.info.ready_to_merge)
+                : sessionsList.filter(s => !(s.info.ready_to_merge) && (s.info as SessionInfo & { session_state?: string }).session_state !== 'spec')
+          return filtered
+        }
+        if (cmd === TauriCommands.GetProjectSessionsSettings) {
+          return { filter_mode: FilterMode.Running, sort_mode: SortMode.Name }
+        }
+        if (cmd === TauriCommands.SetProjectSessionsSettings) {
+          return undefined
+        }
+        if (cmd === TauriCommands.GetCurrentDirectory) return '/test/dir'
+        if (cmd === TauriCommands.TerminalExists) return false
+        if (cmd === TauriCommands.CreateTerminal) return true
+        if (cmd === 'get_buffer') return ''
+        if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
+        return undefined
+      })
+
+      render(<TestProviders><Sidebar /></TestProviders>)
+
+      await waitFor(() => {
+        const runningButton = screen.getByTitle('Show running agents')
+        expect(runningButton.textContent).toContain('2')
+      })
+
+      const session1Button = screen.getAllByRole('button').find(b => b.textContent?.includes('session-1'))
+      fireEvent.click(session1Button!)
+
+      sessionsList = [
+        createSession('session-1', true, 'active'),
+        createSession('session-2', false, 'active'),
+      ]
+
+      await act(async () => {
+        await emitEvent('schaltwerk:sessions-refreshed', sessionsList)
+      })
+
+      await waitFor(() => {
+        const runningButton = screen.getByTitle('Show running agents')
+        expect(runningButton.textContent).toContain('1')
+      })
+
+      const session2Button = screen.getAllByRole('button').find(b => b.textContent?.includes('session-2'))
+      expect(session2Button).toBeInTheDocument()
+      fireEvent.click(session2Button!)
+
+      await waitFor(() => {
+        expect(session2Button).toHaveClass('session-ring')
+      })
+    })
+
+    it('does not preserve selection when session is removed (not just marked reviewed)', async () => {
+      let sessionsList: EnrichedSession[] = [
+        createSession('temp-1', false, 'active'),
+        createSession('temp-2', false, 'active'),
+      ]
+
+      vi.mocked(invoke).mockImplementation(async (cmd, args?: unknown) => {
+        if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
+          return sessionsList
+        }
+        if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
+          const fm = ((args as Record<string, unknown>)?.filterMode as FilterMode) || FilterMode.All
+          const filtered = fm === FilterMode.All
+            ? sessionsList
+            : fm === FilterMode.Spec
+              ? sessionsList.filter(s => (s.info as SessionInfo & { session_state?: string }).session_state === 'spec')
+              : fm === FilterMode.Reviewed
+                ? sessionsList.filter(s => s.info.ready_to_merge)
+                : sessionsList.filter(s => !(s.info.ready_to_merge) && (s.info as SessionInfo & { session_state?: string }).session_state !== 'spec')
+          return filtered
+        }
+        if (cmd === TauriCommands.GetProjectSessionsSettings) {
+          return { filter_mode: FilterMode.Running, sort_mode: SortMode.Name }
+        }
+        if (cmd === TauriCommands.SetProjectSessionsSettings) {
+          return undefined
+        }
+        if (cmd === TauriCommands.GetCurrentDirectory) return '/test/dir'
+        if (cmd === TauriCommands.TerminalExists) return false
+        if (cmd === TauriCommands.CreateTerminal) return true
+        if (cmd === 'get_buffer') return ''
+        if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
+        return undefined
+      })
+
+      render(<TestProviders><Sidebar /></TestProviders>)
+
+      await waitFor(() => {
+        const runningButton = screen.getByTitle('Show running agents')
+        expect(runningButton.textContent).toContain('2')
+      })
+
+      const temp1Button = screen.getAllByRole('button').find(b => b.textContent?.includes('temp-1'))
+      fireEvent.click(temp1Button!)
+
+      sessionsList = [
+        createSession('temp-2', false, 'active'),
+      ]
+
+      await act(async () => {
+        await emitEvent('schaltwerk:sessions-refreshed', sessionsList)
+      })
+
+      await waitFor(() => {
+        const runningButton = screen.getByTitle('Show running agents')
+        expect(runningButton.textContent).toContain('1')
+      })
     })
   })
 })

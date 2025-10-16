@@ -246,10 +246,20 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             lastMergedReviewedSessionRef.current = null
         }
 
-        // Check if the removed session was a reviewed session
         const wasReviewedSession = removalCandidate ?
             allSessions.find(s => s.info.session_id === removalCandidate)?.info.ready_to_merge : false
         const shouldPreserveForReviewedRemoval = Boolean(wasReviewedSession && removalCandidate && filterMode !== FilterMode.Reviewed)
+
+        const currentSessionMovedToReviewed = Boolean(
+            currentSelectionId &&
+            !visibleIds.has(currentSelectionId) &&
+            allSessions.find(s => s.info.session_id === currentSelectionId)?.info.ready_to_merge &&
+            filterMode === FilterMode.Running
+        )
+
+        if (currentSessionMovedToReviewed) {
+            return
+        }
 
         if (selection.kind === 'orchestrator') {
             entry.lastSelection = null
