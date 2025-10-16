@@ -8,6 +8,19 @@ Tauri-based desktop app for managing AI coding sessions using git worktrees. Eac
 
 > **Tooling Note:** Examples in this guide default to `bun`. Replace them with the equivalent `npm` commands (`npm install`, `npm run …`, etc.) if you prefer npm.
 
+## Working Directory (CRITICAL)
+
+**Your starting working directory is where you work. Do not navigate away from it.**
+
+- Check `<env>` for your working directory and current branch
+- If in a worktree (branch: `schaltwerk/*`): All files are here. Make changes here.
+- If in main repo (branch: `main`): Work here directly.
+- Do NOT infer parent paths from directory structure
+- Do NOT `cd` to other locations unless explicitly required
+
+❌ WRONG: `cd /inferred/path && command`
+✅ RIGHT: `command` (in current directory)
+
 ## System Architecture
 
 ### Core Concepts
@@ -352,4 +365,3 @@ Automatically updates versions, commits, tags, and triggers GitHub Actions.
 
 - Project documentation is maintained in `docs-site/` using Mintlify
 - MDX files in `docs-site/` cover core concepts, guides, MCP integration, and installation
-- if you are in a worktree, don't do your changes on main if possible follow the instructions and apply changes on your own branch, only if the user asks you or it requries it then switch to the main branch
