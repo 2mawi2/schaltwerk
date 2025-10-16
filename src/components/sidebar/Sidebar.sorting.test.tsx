@@ -59,7 +59,7 @@ describe('Sidebar sorting functionality', () => {
   const createInvokeMock = (sessions: EnrichedSession[]) => {
     return async (cmd: string, args?: MockTauriInvokeArgs) => {
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
         const mode = (args as { sortMode?: string })?.sortMode || SortMode.Name
         // Ensure reviewed sessions are placed at the end regardless of mode
         const isReviewed = (s: EnrichedSession) => !!s.info.ready_to_merge

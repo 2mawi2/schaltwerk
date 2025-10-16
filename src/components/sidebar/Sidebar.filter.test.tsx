@@ -74,7 +74,7 @@ describe('Sidebar filter functionality and persistence', () => {
 
     vi.mocked(invoke).mockImplementation(async (cmd, args?: unknown) => {
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
         const fm = ((args as Record<string, unknown>)?.filterMode as FilterMode) || FilterMode.All
         const filtered = fm === FilterMode.All
           ? sessions
@@ -211,7 +211,7 @@ describe('Sidebar filter functionality and persistence', () => {
           }
           return undefined
         }
-      if (command === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
+      if (command === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
         const all = [
           createSession('session1'),
           createSession('session2'),

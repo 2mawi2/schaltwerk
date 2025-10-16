@@ -74,7 +74,7 @@ describe('Reviewed session cancellation focus preservation', () => {
         console.log('Returning sessions:', sessions)
         return sessions
       }
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
         const mode = (args as { filterMode?: string })?.filterMode || 'all'
         const filtered = mode === 'spec' ? sessions.filter(s => s.info.session_state === 'spec') :
           mode === 'running' ? sessions.filter(s => s.info.session_state !== 'spec' && !s.info.ready_to_merge) :
@@ -151,7 +151,7 @@ describe('Reviewed session cancellation focus preservation', () => {
 
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
         const mode = (args as { filterMode?: string })?.filterMode || 'all'
         if (mode === 'spec') return sessions.filter(s => s.info.session_state === 'spec')
         if (mode === 'running') return sessions.filter(s => s.info.session_state !== 'spec' && !s.info.ready_to_merge)
@@ -203,7 +203,7 @@ describe('Reviewed session cancellation focus preservation', () => {
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
         return (globalThis as { __testCurrentSessions?: TestSession[] }).__testCurrentSessions || currentSessions
       }
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
         const sessions = (globalThis as { __testCurrentSessions?: TestSession[] }).__testCurrentSessions || currentSessions
         const mode = (args as { filterMode?: string })?.filterMode || 'all'
         if (mode === 'reviewed') return sessions.filter(s => s.info.ready_to_merge)
@@ -360,7 +360,7 @@ describe('Reviewed session cancellation focus preservation', () => {
 
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
         const mode = (args as { filterMode?: string })?.filterMode || 'all'
         if (mode === 'spec') return sessions.filter(s => s.info.session_state === 'spec')
         if (mode === 'running') return sessions.filter(s => s.info.session_state !== 'spec' && !s.info.ready_to_merge)
@@ -407,7 +407,7 @@ describe('Reviewed session cancellation focus preservation', () => {
 
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
         const mode = (args as { filterMode?: string })?.filterMode || 'all'
         if (mode === 'spec') return sessions.filter(s => s.info.session_state === 'spec')
         if (mode === 'running') return sessions.filter(s => s.info.session_state !== 'spec' && !s.info.ready_to_merge)
@@ -457,7 +457,7 @@ describe('Reviewed session cancellation focus preservation', () => {
 
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
         const mode = (args as { filterMode?: string })?.filterMode || 'all'
         if (mode === 'spec') return sessions.filter(s => s.info.session_state === 'spec')
         if (mode === 'running') return sessions.filter(s => s.info.session_state !== 'spec' && !s.info.ready_to_merge)
@@ -521,7 +521,7 @@ describe('Merge selection progression', () => {
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       const sessions = (globalThis as { __testCurrentSessions?: ReturnType<typeof mockEnrichedSession>[] }).__testCurrentSessions || currentSessions
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
         const mode = (args as { filterMode?: string })?.filterMode || 'all'
         if (mode === 'spec') return sessions.filter(s => s.info.session_state === 'spec')
         if (mode === 'running') return sessions.filter(s => s.info.session_state !== 'spec' && !s.info.ready_to_merge)
@@ -611,7 +611,7 @@ describe('Merge selection progression', () => {
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       const sessions = (globalThis as { __testCurrentSessions?: ReturnType<typeof mockEnrichedSession>[] }).__testCurrentSessions || currentSessions
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
         const mode = (args as { filterMode?: string })?.filterMode || 'all'
         if (mode === 'reviewed') return sessions.filter(s => s.info.ready_to_merge)
         return sessions

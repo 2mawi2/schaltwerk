@@ -107,7 +107,6 @@ describe('TerminalGrid spec fallback when backend metadata missing', () => {
     mockedInvoke.mockImplementation(async (command: string, args?: MockTauriInvokeArgs) => {
       switch (command) {
         case TauriCommands.SchaltwerkCoreListEnrichedSessions:
-        case TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted:
           return currentSessions
         case TauriCommands.SchaltwerkCoreListSessionsByState:
           return []

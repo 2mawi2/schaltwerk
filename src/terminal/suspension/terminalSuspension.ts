@@ -109,7 +109,16 @@ export class TerminalSuspensionManager {
         }
     }
 
+    suspendImmediate(terminalId: string): void {
+        this.clearSuspensionTimer(terminalId);
+        if (!this.options.keepAliveTerminalIds.has(terminalId)) {
+            logger.debug(`[TerminalSuspension] Immediate suspension requested for ${terminalId}`);
+            this.suspend(terminalId);
+        }
+    }
+
     suspend(terminalId: string): boolean {
+        const suspendStartTime = performance.now();
         const terminal = this.terminals.get(terminalId);
         const state = this.states.get(terminalId);
 
@@ -118,6 +127,9 @@ export class TerminalSuspensionManager {
         }
 
         try {
+            const bufferLines = terminal.buffer.active.length ?? 0;
+            logger.info(`[TerminalSuspension] Starting suspension of ${terminalId} with ${bufferLines} lines`);
+
             state.scrollPosition = {
                 x: terminal.buffer.active.viewportY,
                 y: terminal.buffer.active.baseY
@@ -128,19 +140,21 @@ export class TerminalSuspensionManager {
                 logger.warn(`[TerminalSuspension] Snapshot failed for ${terminalId}, skipping buffer clear.`);
             } else if (snapshotResult.type === 'skipped') {
                 logger.warn(
-                    `[TerminalSuspension] Snapshot for ${terminalId} skipped (${snapshotResult.reason}). Terminal left active.`
+                    `[TerminalSuspension] Snapshot for ${terminalId} skipped (${snapshotResult.reason}). Terminal left active with ${bufferLines} lines.`
                 );
             } else {
                 this.enforceSuspensionLimit(terminalId);
                 state.bufferSnapshot = snapshotResult.snapshot;
                 terminal.clear();
                 terminal.write('\x1b[2J\x1b[H');
+                logger.info(`[TerminalSuspension] Snapshot captured for ${terminalId}: ${snapshotResult.snapshot.size} bytes`);
             }
 
             state.suspended = true;
             state.suspendedAt = Date.now();
 
-            logger.info(`[TerminalSuspension] Suspended terminal ${terminalId}`);
+            const suspendDuration = performance.now() - suspendStartTime;
+            logger.info(`[TerminalSuspension] Suspended terminal ${terminalId} in ${suspendDuration.toFixed(2)}ms`);
             return true;
         } catch (error) {
             logger.error(`[TerminalSuspension] Error suspending terminal ${terminalId}:`, error);
@@ -229,6 +243,7 @@ export class TerminalSuspensionManager {
         | { type: 'captured'; snapshot: SuspensionSnapshot }
         | { type: 'skipped'; reason: 'size_limit' }
         | { type: 'error' } {
+        const captureStartTime = performance.now();
         try {
             const buffer = terminal.buffer.active;
             const length = buffer.length ?? 0;
@@ -245,6 +260,7 @@ export class TerminalSuspensionManager {
                 };
             }
 
+            const iterationStartTime = performance.now();
             const lines: string[] = [];
             for (let i = 0; i < length; i++) {
                 const line = buffer.getLine(i);
@@ -254,13 +270,22 @@ export class TerminalSuspensionManager {
                 }
                 lines.push(line.translateToString(true));
             }
+            const iterationDuration = performance.now() - iterationStartTime;
 
+            const joinStartTime = performance.now();
             const data = lines.join('\n');
+            const joinDuration = performance.now() - joinStartTime;
+
             const size = this.encoder.encode(data).length;
+
+            const captureDuration = performance.now() - captureStartTime;
+            logger.info(
+                `[TerminalSuspension] Snapshot capture for ${terminalId}: ${length} lines → ${size} bytes in ${captureDuration.toFixed(2)}ms (iteration: ${iterationDuration.toFixed(2)}ms, join: ${joinDuration.toFixed(2)}ms)`
+            );
 
             if (size > this.options.snapshotSizeLimitBytes) {
                 logger.warn(
-                    `[TerminalSuspension] Snapshot for ${terminalId} is ${size} bytes, exceeding limit ${this.options.snapshotSizeLimitBytes}.`
+                    `[TerminalSuspension] Snapshot for ${terminalId} is ${size} bytes (${(size / 1024 / 1024).toFixed(2)}MB), exceeding limit ${(this.options.snapshotSizeLimitBytes / 1024 / 1024).toFixed(2)}MB.`
                 );
                 return { type: 'skipped', reason: 'size_limit' };
             }
@@ -300,6 +325,7 @@ export class TerminalSuspensionManager {
     }
 
     private restoreTerminal(terminalId: string, terminal: XTerm, state: SuspensionState): void {
+        const restoreStartTime = performance.now();
         const snapshot = state.bufferSnapshot;
         const scrollPosition = state.scrollPosition;
 
@@ -314,7 +340,12 @@ export class TerminalSuspensionManager {
         const replay = async () => {
             try {
                 if (snapshot) {
+                    const writeStartTime = performance.now();
                     await this.writeSnapshot(terminal, snapshot.data);
+                    const writeDuration = performance.now() - writeStartTime;
+                    logger.info(
+                        `[TerminalSuspension] Snapshot restored for ${terminalId}: ${snapshot.size} bytes in ${writeDuration.toFixed(2)}ms`
+                    );
                 }
 
                 if (scrollPosition) {
@@ -330,7 +361,8 @@ export class TerminalSuspensionManager {
                 }
 
                 finalize();
-                logger.info(`[TerminalSuspension] Resumed terminal ${terminalId}`);
+                const restoreDuration = performance.now() - restoreStartTime;
+                logger.info(`[TerminalSuspension] Resumed terminal ${terminalId} in ${restoreDuration.toFixed(2)}ms`);
             } catch (error) {
                 finalize();
                 logger.error(`[TerminalSuspension] Error resuming terminal ${terminalId}:`, error);

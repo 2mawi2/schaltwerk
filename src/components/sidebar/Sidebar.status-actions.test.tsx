@@ -41,7 +41,7 @@ describe('Sidebar status indicators and actions', () => {
 
     vi.mocked(invoke).mockImplementation(async (cmd: string) => {
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
-            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) return sessions
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
       if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
       if (cmd === TauriCommands.SchaltwerkCoreUnmarkSessionReady) return undefined
       if (cmd === TauriCommands.GetCurrentDirectory) return '/cwd'

@@ -10,7 +10,7 @@ import { EnrichedSession, SessionInfo, SessionState, RawSession } from '../types
 import { logger } from '../utils/logger'
 import { useOptionalToast } from '../common/toast/ToastProvider'
 import { hasBackgroundStart, emitUiEvent, UiEvent } from '../common/uiEvents'
-import { hasInflight } from '../utils/singleflight'
+import { hasInflight, singleflight } from '../utils/singleflight'
 import { startSessionTop, computeProjectOrchestratorId } from '../common/agentSpawn'
 import { EventPayloadMap, GitOperationFailedPayload, GitOperationPayload } from '../common/events'
 import { areSessionInfosEqual } from '../utils/sessionComparison'
@@ -616,7 +616,10 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             if (!hasInitialLoadCompleted.current) {
                 setLoading(true)
             }
-            const enrichedSessions = await invoke<EnrichedSession[]>(TauriCommands.SchaltwerkCoreListEnrichedSessions)
+            const enrichedSessions = await singleflight(
+                `list_enriched_sessions:${projectPath}`,
+                () => invoke<EnrichedSession[]>(TauriCommands.SchaltwerkCoreListEnrichedSessions)
+            )
             const enriched = enrichedSessions || []
             const previousSessions = new Map(allSessionsRef.current.map(session => [session.info.session_id, session]))
 
@@ -905,10 +908,12 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
 
     const updateSessionStatus = useCallback(async (sessionId: string, newStatus: string) => {
         try {
-            // First, we need to get the current session state
-            const currentSessions = await invoke<EnrichedSession[]>(TauriCommands.SchaltwerkCoreListEnrichedSessions)
+            const currentSessions = await singleflight(
+                `list_enriched_sessions:${projectPath}`,
+                () => invoke<EnrichedSession[]>(TauriCommands.SchaltwerkCoreListEnrichedSessions)
+            )
             const session = currentSessions?.find(s => s.info.session_id === sessionId)
-            
+
             if (!session) {
                 logger.error(`Session ${sessionId} not found`)
                 return
@@ -930,7 +935,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         } catch (error) {
             logger.error('Failed to update session status:', error)
         }
-    }, [reloadSessions])
+    }, [projectPath, reloadSessions])
 
     const createDraft = useCallback(async (name: string, content: string) => {
         try {

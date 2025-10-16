@@ -65,7 +65,7 @@ describe('Sidebar sort mode persistence', () => {
 
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
         const mode = (args as { sortMode?: string })?.sortMode || SortMode.Name
         if (mode === SortMode.Created) {
           return [...sessions].sort((a, b) => {
@@ -265,7 +265,7 @@ describe('Sidebar sort mode persistence', () => {
       }
       // Default handling for other commands
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
-            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) return sessions
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
       if (cmd === TauriCommands.GetProjectSessionsSettings) {
         return { filter_mode: savedFilterMode, sort_mode: savedSortMode }
       }

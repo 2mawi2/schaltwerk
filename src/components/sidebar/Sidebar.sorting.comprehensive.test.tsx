@@ -60,7 +60,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
 
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
         const mode = (args as { sortMode?: string })?.sortMode || 'name'
         if (mode === 'created') {
           return [...sessions].sort((a, b) => {
@@ -122,7 +122,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
 
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
         const mode = (args as { sortMode?: string })?.sortMode || 'name'
         if (mode === 'created') {
           return [...sessions].sort((a, b) => {
@@ -192,7 +192,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
 
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
         const mode = (args as { sortMode?: string })?.sortMode || 'name'
         if (mode === 'created') {
           return [...sessions].sort((a, b) => {
@@ -264,7 +264,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
 
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
         const mode = (args as { sortMode?: string })?.sortMode || 'name'
         const isReviewed = (s: EnrichedSession) => !!s.info?.ready_to_merge
         const specs = sessions.filter(s => s.info?.session_state === 'spec')
@@ -362,7 +362,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
 
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
         const mode = (args as { sortMode?: string })?.sortMode || 'name'
         const isReviewed = (s: EnrichedSession) => !!s.info?.ready_to_merge
         const specs = sessions.filter(s => s.info?.session_state === 'spec')

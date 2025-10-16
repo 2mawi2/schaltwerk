@@ -39,7 +39,7 @@ import { applyTerminalLetterSpacing } from '../../utils/terminalLetterSpacing'
 
 const DEFAULT_SCROLLBACK_LINES = 10000
 const BACKGROUND_SCROLLBACK_LINES = 5000
-const AGENT_SCROLLBACK_LINES = 200000
+const AGENT_SCROLLBACK_LINES = 20000
 const FAST_HYDRATION_REVEAL_THRESHOLD = 512 * 1024
 const RIGHT_EDGE_GUARD_COLUMNS = 2
 const CLAUDE_SHIFT_ENTER_SEQUENCE = '\\'
@@ -119,6 +119,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const [agentStopped, setAgentStopped] = useState(false);
     const terminalEverStartedRef = useRef<boolean>(false);
     const hydratedRef = useRef<boolean>(false);
+    const initialHydrationStartedRef = useRef<boolean>(false);
     const pendingRevealRef = useRef<'fast' | 'post-flush' | 'failure' | null>(null);
     const pendingOutput = useRef<string[]>([]);
     const snapshotCursorRef = useRef<number | null>(null);
@@ -649,7 +650,14 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
     useEffect(() => {
         if (!gpuEnabledForTerminal && gpuRenderer.current) {
-            gpuRenderer.current.dispose();
+            try {
+                const dispose = (gpuRenderer.current as any)?.dispose?.bind(gpuRenderer.current);
+                if (typeof dispose === 'function') {
+                    dispose();
+                }
+            } catch (e) {
+                logger.debug('[GPU] Safe-dispose fallback', e);
+            }
             gpuRenderer.current = null;
             if (typeof cancelAnimationFrame === 'function') {
                 const redrawId = gpuRefreshState.current.redrawId;
@@ -735,7 +743,14 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                     logger.info(`[Terminal ${terminalId}] WebGL context lost, using Canvas renderer`)
                 })
             } else if (!allowWebgl && gpuRenderer.current) {
-                gpuRenderer.current.dispose()
+                try {
+                    const dispose = (gpuRenderer.current as any)?.dispose?.bind(gpuRenderer.current);
+                    if (typeof dispose === 'function') {
+                        dispose();
+                    }
+                } catch (e) {
+                    logger.debug('[GPU] Safe-dispose fallback', e);
+                }
                 gpuRenderer.current = null
                 applyLetterSpacing(false)
             }
@@ -1845,7 +1860,11 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
         attachResumeListener()
         attachSuspendListener()
-        hydrateTerminal();
+
+        if (!initialHydrationStartedRef.current) {
+            initialHydrationStartedRef.current = true;
+            hydrateTerminal();
+        }
 
         // Handle font size changes with better debouncing
         let fontSizeRafPending = false;
@@ -2001,6 +2020,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         // Terminal processes will be cleaned up when the app exits
         return () => {
             mountedRef.current = false;
+            initialHydrationStartedRef.current = false;
             rehydrateByReasonRef.current = null;
             cancelled = true;
             rendererReadyRef.current = false;
@@ -2063,10 +2083,22 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             refreshState.queued = false;
             refreshState.redrawId = null;
 
-            gpuRenderer.current?.dispose();
-            gpuRenderer.current = null;
+            if (gpuRenderer.current) {
+                try {
+                    const dispose = (gpuRenderer.current as any)?.dispose?.bind(gpuRenderer.current);
+                    if (typeof dispose === 'function') {
+                        dispose();
+                    }
+                } catch (e) {
+                    logger.debug('[GPU] Safe-dispose fallback', e);
+                }
+                gpuRenderer.current = null;
+            }
 
             const suspensionManager = TerminalSuspensionManager.getInstance();
+            if (!isBackground && terminal.current) {
+                suspensionManager.suspendImmediate(terminalId);
+            }
             suspensionManager.unregisterTerminal(terminalId);
 
             terminal.current?.dispose();

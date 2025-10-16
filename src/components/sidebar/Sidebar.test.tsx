@@ -266,8 +266,6 @@ describe('Sidebar', () => {
         switch (command) {
           case TauriCommands.SchaltwerkCoreListEnrichedSessions:
             return Promise.resolve(mockSessions)
-          case TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted:
-            return Promise.resolve(mockSessions)
           case TauriCommands.SchaltwerkCoreListSessionsByState:
             return Promise.resolve([])
           case TauriCommands.GetCurrentDirectory:
@@ -524,8 +522,6 @@ describe('Sidebar', () => {
       mockInvoke.mockImplementation((command: string) => {
         switch (command) {
           case TauriCommands.SchaltwerkCoreListEnrichedSessions:
-            return Promise.resolve(mockSessions)
-          case TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted:
             return Promise.resolve(mockSessions)
           case TauriCommands.SchaltwerkCoreListSessionsByState:
             return Promise.resolve([])

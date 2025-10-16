@@ -247,7 +247,7 @@ describe('SessionsContext', () => {
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {
             _callCount++
             if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
-            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) return mockSessions
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
             if (cmd === TauriCommands.SchaltwerkCoreStartSpecSession) return undefined
             if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
             return undefined
@@ -268,7 +268,7 @@ describe('SessionsContext', () => {
         const { invoke } = await import('@tauri-apps/api/core')
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {
             if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
-            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) return mockSessions
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
             if (cmd === TauriCommands.SchaltwerkCoreConvertSessionToDraft) return undefined
             if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
             return undefined
@@ -288,7 +288,7 @@ describe('SessionsContext', () => {
         const { invoke } = await import('@tauri-apps/api/core')
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {
             if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
-            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) return mockSessions
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
             if (cmd === TauriCommands.SchaltwerkCoreMarkReady) return undefined
             if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
             return undefined
@@ -308,7 +308,7 @@ describe('SessionsContext', () => {
         const { invoke } = await import('@tauri-apps/api/core')
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {
             if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
-            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) return mockSessions
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
             if (cmd === TauriCommands.SchaltwerkCoreCreateSpecSession) return undefined
             if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
             return undefined

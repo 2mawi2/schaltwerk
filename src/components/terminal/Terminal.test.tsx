@@ -930,7 +930,7 @@ describe('Terminal component', () => {
     await flushAll()
 
     const xterm = getLastXtermInstance()
-    expect(xterm.options.scrollback).toBe(200000)
+    expect(xterm.options.scrollback).toBe(20000)
   })
 
   it('resizes agent top terminals without reducing backend columns', async () => {

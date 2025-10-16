@@ -146,8 +146,6 @@ describe('Sidebar navigation with arrow keys including orchestrator', () => {
       switch (command) {
         case TauriCommands.SchaltwerkCoreListEnrichedSessions:
           return Promise.resolve(sessionsFixture)
-        case TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted:
-          return Promise.resolve(sessionsFixture)
         case TauriCommands.SchaltwerkCoreListSessionsByState:
           return Promise.resolve([])
         case TauriCommands.GetCurrentDirectory:
