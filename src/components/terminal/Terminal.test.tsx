@@ -1881,6 +1881,8 @@ describe('Terminal component', () => {
     const ro = (globalThis as Record<string, unknown>).__lastRO as MockResizeObserver | undefined
     ro?.trigger()
     await advanceAndFlush(50)
+    await flushAll()
+    await flushAll()
 
     const xterm = getLastXtermInstance()
     expect(Number(xterm.options.letterSpacing || 0)).toBeGreaterThanOrEqual(GPU_LETTER_SPACING)
@@ -1907,6 +1909,8 @@ describe('Terminal component', () => {
     const ro = (globalThis as Record<string, unknown>).__lastRO as MockResizeObserver | undefined
     ro?.trigger()
     await advanceAndFlush(50)
+    await flushAll()
+    await flushAll()
 
     const xterm = getLastXtermInstance()
     expect(Number(xterm.options.letterSpacing || 0)).toBeGreaterThanOrEqual(GPU_LETTER_SPACING)

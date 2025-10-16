@@ -196,6 +196,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const sidebarRef = useRef<HTMLDivElement>(null)
     const isProjectSwitching = useRef(false)
     const previousProjectPathRef = useRef<string | null>(null)
+    const previousFilterModeRef = useRef<FilterMode>(filterMode)
 
     const selectionMemoryRef = useRef<Map<string, Record<FilterMode, SelectionMemoryEntry>>>(new Map())
 
@@ -215,9 +216,10 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     useEffect(() => {
         if (previousProjectPathRef.current !== null && previousProjectPathRef.current !== projectPath) {
             isProjectSwitching.current = true
+            previousFilterModeRef.current = filterMode
         }
         previousProjectPathRef.current = projectPath
-    }, [projectPath]);
+    }, [projectPath, filterMode]);
 
     useEffect(() => {
         const cleanup = listenUiEvent(UiEvent.ProjectSwitchComplete, () => {
@@ -267,7 +269,11 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             allSessions.find(s => s.info.session_id === removalCandidate)?.info.ready_to_merge : false
         const shouldPreserveForReviewedRemoval = Boolean(wasReviewedSession && removalCandidate && filterMode !== FilterMode.Reviewed)
 
+        const filterModeChanged = previousFilterModeRef.current !== filterMode
+        previousFilterModeRef.current = filterMode
+
         const currentSessionMovedToReviewed = Boolean(
+            !filterModeChanged &&
             currentSelectionId &&
             !visibleIds.has(currentSelectionId) &&
             allSessions.find(s => s.info.session_id === currentSelectionId)?.info.ready_to_merge &&
@@ -672,69 +678,34 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         }
     }
 
-    // Filter navigation functions
     const handleNavigateToPrevFilter = () => {
         const currentIndex = FILTER_MODES.indexOf(filterMode)
         const prevIndex = currentIndex === 0 ? FILTER_MODES.length - 1 : currentIndex - 1
         const nextFilter = FILTER_MODES[prevIndex]
-        
-        // Trigger keyboard navigation animation
+
         setKeyboardNavigatedFilter(nextFilter)
-        setTimeout(() => setKeyboardNavigatedFilter(null), 400) // Clear after animation
-        
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                setKeyboardNavigatedFilter(null)
+            })
+        })
+
         setFilterMode(nextFilter)
-        
-        // Smart session selection after filter change
-        setTimeout(() => {
-            // If current selection is not visible in the new filter, select the first visible session
-            if (selection.kind === 'session') {
-                const sessionsAfterFilter = sessions // This will be the new filtered list after setFilterMode
-                const currentSessionVisible = sessionsAfterFilter.some(s => s.info.session_id === selection.payload)
-                
-                if (!currentSessionVisible && sessionsAfterFilter.length > 0) {
-                    // Select the first session in the new filter
-                    const firstSession = sessionsAfterFilter[0]
-                    setSelection({
-                        kind: 'session',
-                        payload: firstSession.info.session_id,
-                        worktreePath: firstSession.info.worktree_path,
-                        sessionState: mapSessionUiState(firstSession.info)
-                    }, false, true) // User action - intentional
-                }
-            }
-        }, 0) // Allow filter change to process first
     }
 
     const handleNavigateToNextFilter = () => {
         const currentIndex = FILTER_MODES.indexOf(filterMode)
         const nextIndex = (currentIndex + 1) % FILTER_MODES.length
         const nextFilter = FILTER_MODES[nextIndex]
-        
-        // Trigger keyboard navigation animation
+
         setKeyboardNavigatedFilter(nextFilter)
-        setTimeout(() => setKeyboardNavigatedFilter(null), 400) // Clear after animation
-        
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                setKeyboardNavigatedFilter(null)
+            })
+        })
+
         setFilterMode(nextFilter)
-        
-        // Smart session selection after filter change
-        setTimeout(() => {
-            // If current selection is not visible in the new filter, select the first visible session
-            if (selection.kind === 'session') {
-                const sessionsAfterFilter = sessions // This will be the new filtered list after setFilterMode
-                const currentSessionVisible = sessionsAfterFilter.some(s => s.info.session_id === selection.payload)
-                
-                if (!currentSessionVisible && sessionsAfterFilter.length > 0) {
-                    // Select the first session in the new filter
-                    const firstSession = sessionsAfterFilter[0]
-                    setSelection({
-                        kind: 'session',
-                        payload: firstSession.info.session_id,
-                        worktreePath: firstSession.info.worktree_path,
-                        sessionState: mapSessionUiState(firstSession.info)
-                    }, false, true) // User action - intentional
-                }
-            }
-        }, 0) // Allow filter change to process first
     }
 
     const findSessionById = useCallback((sessionId?: string | null) => {
