@@ -43,11 +43,11 @@ const mockProps: Partial<DiffViewerProps> = {
   fileBodyHeights: new Map<string, number>(),
   onFileBodyHeightChange: vi.fn(),
   getCommentsForFile: vi.fn(() => []),
-  getCommentForLine: vi.fn(() => undefined),
   highlightCode: vi.fn((_filePath: string, _lineKey: string, code: string) => code),
   toggleCollapsed: vi.fn(),
   handleLineMouseDown: vi.fn(),
   handleLineMouseEnter: vi.fn(),
+  handleLineMouseLeave: vi.fn(),
   handleLineMouseUp: vi.fn(),
   lineSelection: {
     isLineSelected: vi.fn(() => false),
@@ -126,8 +126,16 @@ describe('DiffViewer', () => {
 
   it('shows comment count when file has comments', () => {
     const getCommentsForFile = vi.fn(() => [
-      { id: '1', filePath: 'src/file1.ts', lineRange: { start: 1, end: 1 }, side: 'new' as const, selectedText: 'test', comment: 'test comment', timestamp: Date.now() },
-      { id: '2', filePath: 'src/file1.ts', lineRange: { start: 2, end: 2 }, side: 'new' as const, selectedText: 'test2', comment: 'test comment2', timestamp: Date.now() }
+      {
+        id: 'thread-1',
+        filePath: 'src/file1.ts',
+        side: 'new' as const,
+        lineRange: { start: 1, end: 1 },
+        comments: [
+          { id: '1', filePath: 'src/file1.ts', lineRange: { start: 1, end: 1 }, side: 'new' as const, selectedText: 'test', comment: 'test comment', timestamp: Date.now() },
+          { id: '2', filePath: 'src/file1.ts', lineRange: { start: 1, end: 1 }, side: 'new' as const, selectedText: 'test-2', comment: 'follow-up', timestamp: Date.now() }
+        ]
+      }
     ])
     render(<DiffViewer {...mockProps as DiffViewerProps} getCommentsForFile={getCommentsForFile} />)
     
@@ -248,4 +256,5 @@ describe('DiffViewer', () => {
     expect(tableWrapper).not.toBeNull()
     expect(tableWrapper?.className).toContain('overflow-x-auto')
   })
+
 })

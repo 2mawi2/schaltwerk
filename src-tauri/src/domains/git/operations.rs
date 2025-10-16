@@ -189,13 +189,9 @@ pub fn is_valid_branch_name(branch: &str) -> bool {
         }
     }
 
-    branch.chars().all(|c| {
-        c.is_alphanumeric()
-            || c == '-'
-            || c == '_'
-            || c == '/'
-            || c == '.'
-    })
+    branch
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '/' || c == '.')
 }
 
 #[cfg(test)]

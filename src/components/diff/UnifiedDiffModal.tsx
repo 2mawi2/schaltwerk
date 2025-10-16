@@ -30,6 +30,8 @@ import type { Platform } from '../../keyboardShortcuts/matcher'
 import { useHighlightWorker } from '../../hooks/useHighlightWorker'
 import { hashSegments } from '../../utils/hashSegments'
 import { stableSessionTerminalId } from '../../common/terminalIdentity'
+import { ReviewCommentThread, ReviewComment } from '../../types/review'
+import { theme } from '../../common/theme'
 
 // ChangedFile type now imported from DiffFileExplorer
 
@@ -53,6 +55,7 @@ interface UnifiedDiffModalProps {
 interface DiffViewPreferences {
   continuous_scroll: boolean
   compact_diffs: boolean
+  sidebar_width?: number
 }
 
 // FileDiffData type moved to loadDiffs
@@ -102,8 +105,14 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
   const [continuousScroll, setContinuousScroll] = useState(false)
   const [compactDiffs, setCompactDiffs] = useState(true)
   const [isSearchVisible, setIsSearchVisible] = useState(false)
+  const [sidebarWidth, setSidebarWidth] = useState(320)
+  const sidebarWidthRef = useRef(320)
+  const [isResizingSidebar, setIsResizingSidebar] = useState(false)
+  const sidebarDragStartRef = useRef<{ x: number; width: number } | null>(null)
+  const resizeFrameRef = useRef<number | null>(null)
   const fileBodyHeightsRef = useRef<Map<string, number>>(new Map())
   const [, setFileHeightsVersion] = useState(0)
+  const clampSidebarWidth = useCallback((value: number) => Math.min(600, Math.max(200, value)), [])
   
   // Virtual scrolling state for continuous mode
   const [visibleFileSet, setVisibleFileSet] = useState<Set<string>>(new Set())
@@ -115,8 +124,10 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
   const recentlyVisibleRef = useRef<string[]>([])
   const historyPrefetchQueueRef = useRef<string[]>([])
   const historyPrefetchActiveRef = useRef<Set<string>>(new Set())
+  const activeSelectionFileRef = useRef<string | null>(null)
   const historyLoadedRef = useRef<Set<string>>(new Set())
   const [historyPrefetchVersion, setHistoryPrefetchVersion] = useState(0)
+
   const historyFiles = useMemo<ChangedFile[]>(() => {
     if (mode !== 'history' || !historyContext) {
       return []
@@ -148,12 +159,46 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
       setSelectedFileIndex(0)
     }
   }, [isOpen, mode, historyInitialFile, historyFiles])
-  const emptyCommentsForFile = useCallback(() => [], [])
-  const emptyCommentForLine = useCallback(() => undefined, [])
+  const emptyThreadCommentsForFile = useCallback((): ReviewCommentThread[] => [], [])
+  const emptyReviewCommentsForFile = useCallback((): ReviewComment[] => [], [])
   const historyLineSelection = useMemo(() => ({
     isLineSelected: () => false,
     selection: null as LineSelection | null,
   }), [])
+
+  const commentThreadsByFile = useMemo(() => {
+    const map = new Map<string, ReviewCommentThread[]>()
+    if (mode === 'history') {
+      return map
+    }
+
+    files.forEach(file => {
+      const comments = getCommentsForFile(file.path)
+      if (!comments || comments.length === 0) {
+        map.set(file.path, [])
+        return
+      }
+      const grouped = new Map<string, ReviewCommentThread>()
+      comments.forEach(comment => {
+        const key = `${comment.side}:${comment.lineRange.start}:${comment.lineRange.end}`
+        const existing = grouped.get(key)
+        if (existing) {
+          existing.comments = [...existing.comments, comment]
+        } else {
+          grouped.set(key, {
+            id: `${file.path}-${key}`,
+            filePath: file.path,
+            side: comment.side,
+            lineRange: { ...comment.lineRange },
+            comments: [comment]
+          })
+        }
+      })
+      map.set(file.path, Array.from(grouped.values()))
+    })
+
+    return map
+  }, [mode, files, getCommentsForFile])
 
   // Use single file view mode when continuousScroll is disabled
   const effectiveContinuousScroll = mode === 'history' ? true : continuousScroll
@@ -184,17 +229,11 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
     if (!targetSession) return false
     return mapSessionUiState(targetSession.info) === 'running'
   }, [targetSession])
-  
+
   // Helper to check if a line has comments
-  const getCommentForLine = useCallback((lineNum: number | undefined, side: 'old' | 'new') => {
-    if (!lineNum || !selectedFile) return undefined
-    const comments = getCommentsForFile(selectedFile)
-    return comments.find(c => 
-      c.side === side && 
-      lineNum >= c.lineRange.start && 
-      lineNum <= c.lineRange.end
-    )
-  }, [selectedFile, getCommentsForFile])
+  const getThreadsForFile = useCallback((filePath: string) => {
+    return commentThreadsByFile.get(filePath) ?? []
+  }, [commentThreadsByFile])
   
   // Show comment form whenever there's a selection (but not while dragging)
   useEffect(() => {
@@ -206,6 +245,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
     } else if (!lineSelection.selection) {
       setShowCommentForm(false)
       setCommentFormPosition(null)
+      activeSelectionFileRef.current = null
     }
   }, [mode, lineSelection.selection, isDraggingSelection])
 
@@ -230,6 +270,25 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
   }, [mode, isOpen, selection.kind, sessionName, currentReview, startReview])
 
   
+  const persistDiffPreferences = useCallback(async (partial: Partial<{ continuous_scroll: boolean; compact_diffs: boolean; sidebar_width: number }>) => {
+    if (mode === 'history') {
+      return
+    }
+    const payload = {
+      continuous_scroll: partial.continuous_scroll ?? continuousScroll,
+      compact_diffs: partial.compact_diffs ?? compactDiffs,
+      sidebar_width: partial.sidebar_width ?? sidebarWidthRef.current,
+    }
+
+    try {
+      await invoke(TauriCommands.SetDiffViewPreferences, {
+        preferences: payload
+      })
+    } catch (err) {
+      logger.error('Failed to save diff view preference:', err)
+    }
+  }, [mode, continuousScroll, compactDiffs])
+
   const toggleContinuousScroll = useCallback(async () => {
     if (mode === 'history') {
       return
@@ -260,28 +319,99 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
       }
     }
     
+    void persistDiffPreferences({ continuous_scroll: newValue })
+  }, [mode, continuousScroll, selectedFile, files, sessionName, persistDiffPreferences])
+
+
+  const toggleCompactDiffs = useCallback(() => {
+    setCompactDiffs(prev => {
+      const next = !prev
+      void persistDiffPreferences({ compact_diffs: next })
+      return next
+    })
+  }, [persistDiffPreferences])
+
+  const handleCopyLineFromContext = useCallback(async ({ filePath, lineNumber }: { filePath: string; lineNumber: number; side: 'old' | 'new' }) => {
     try {
-      await invoke(TauriCommands.SetDiffViewPreferences, {
-        preferences: { continuous_scroll: newValue, compact_diffs: compactDiffs }
-      })
+      await invoke(TauriCommands.ClipboardWriteText, { text: String(lineNumber) })
     } catch (err) {
-      logger.error('Failed to save diff view preference:', err)
+      logger.error('Failed to copy line number to clipboard', { filePath, lineNumber, err })
     }
-  }, [mode, continuousScroll, selectedFile, files, sessionName, compactDiffs])
+  }, [])
 
-
-  const toggleCompactDiffs = useCallback(async () => {
-    const newValue = !compactDiffs
-    setCompactDiffs(newValue)
-
+  const handleCopyCodeFromContext = useCallback(async ({ filePath, text }: { filePath: string; text: string }) => {
     try {
-      await invoke(TauriCommands.SetDiffViewPreferences, {
-        preferences: { continuous_scroll: continuousScroll, compact_diffs: newValue }
-      })
+      await invoke(TauriCommands.ClipboardWriteText, { text })
     } catch (err) {
-      logger.error('Failed to save diff view preference:', err)
+      logger.error('Failed to copy code to clipboard', { filePath, err })
     }
-  }, [compactDiffs, continuousScroll])
+  }, [])
+
+  const handleCopyFilePath = useCallback(async (filePath: string) => {
+    try {
+      await invoke(TauriCommands.ClipboardWriteText, { text: filePath })
+    } catch (err) {
+      logger.error('Failed to copy file path to clipboard', err)
+    }
+  }, [])
+
+
+  const beginSidebarResize = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    sidebarDragStartRef.current = {
+      x: event.clientX,
+      width: sidebarWidthRef.current
+    }
+    setIsResizingSidebar(true)
+    document.body.style.cursor = 'col-resize'
+  }, [])
+
+  const handleSidebarResizeMove = useCallback((event: MouseEvent) => {
+    const start = sidebarDragStartRef.current
+    if (!start) return
+    const delta = event.clientX - start.x
+    const targetWidth = clampSidebarWidth(start.width + delta)
+    if (targetWidth === sidebarWidthRef.current) return
+    if (resizeFrameRef.current !== null) return
+    sidebarWidthRef.current = targetWidth
+    setSidebarWidth(targetWidth)
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+      resizeFrameRef.current = window.requestAnimationFrame(() => {
+        resizeFrameRef.current = null
+      })
+    }
+  }, [clampSidebarWidth])
+
+  const finishSidebarResize = useCallback(() => {
+    if (!isResizingSidebar) return
+    setIsResizingSidebar(false)
+    sidebarDragStartRef.current = null
+    if (resizeFrameRef.current !== null) {
+      cancelAnimationFrame(resizeFrameRef.current)
+      resizeFrameRef.current = null
+    }
+    document.body.style.cursor = ''
+    void persistDiffPreferences({ sidebar_width: Math.round(sidebarWidthRef.current) })
+  }, [isResizingSidebar, persistDiffPreferences])
+
+  useEffect(() => {
+    if (!isResizingSidebar) return
+    const onMove = (event: MouseEvent) => handleSidebarResizeMove(event)
+    const onUp = () => finishSidebarResize()
+
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      document.body.style.cursor = ''
+      if (resizeFrameRef.current !== null) {
+        cancelAnimationFrame(resizeFrameRef.current)
+        resizeFrameRef.current = null
+      }
+    }
+  }, [isResizingSidebar, handleSidebarResizeMove, finishSidebarResize])
 
 
   const fetchSessionChangedFiles = useCallback(async () => {
@@ -389,6 +519,24 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
       logger.error('Failed to load changed files:', error)
     }
   }, [mode, historyContext, historyFiles, historyInitialFile, isCommanderView, fetchOrchestratorChangedFiles, fetchSessionChangedFiles, filePath, sessionName])
+
+  const handleDiscardFile = useCallback(async (filePath: string) => {
+    if (mode === 'history') {
+      return
+    }
+    try {
+      if (selection.kind === 'orchestrator') {
+        await invoke(TauriCommands.SchaltwerkCoreDiscardFileInOrchestrator, { filePath })
+      } else if (sessionName) {
+        await invoke(TauriCommands.SchaltwerkCoreDiscardFileInSession, { sessionName, filePath })
+      } else {
+        return
+      }
+      await loadChangedFiles()
+    } catch (err) {
+      logger.error('Failed to discard file changes', err)
+    }
+  }, [mode, selection.kind, sessionName, loadChangedFiles])
 
   useEffect(() => {
     if (mode !== 'history' || !isOpen || !historyContext) {
@@ -891,13 +1039,16 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
         .then(prefs => {
           setContinuousScroll(prefs.continuous_scroll)
           setCompactDiffs(prefs.compact_diffs ?? true)
+          const width = clampSidebarWidth(prefs.sidebar_width ?? sidebarWidthRef.current)
+          setSidebarWidth(width)
+          sidebarWidthRef.current = width
           // If continuous scroll is enabled, load all diffs
           // No need to load all diffs - using lazy loading with viewport detection
         })
         .catch(err => logger.error('Failed to load diff view preferences:', err))
     }
     // No need to reset loading states - using lazy loading now
-  }, [isOpen, loadChangedFiles])
+  }, [isOpen, loadChangedFiles, clampSidebarWidth])
 
 
   useEffect(() => {
@@ -1035,20 +1186,26 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
     }
   }, [isOpen])
 
-  const handleLineMouseDown = useCallback((lineNum: number, side: 'old' | 'new', event: React.MouseEvent) => {
+  const clearActiveSelection = useCallback(() => {
+    lineSelection.clearSelection()
+    activeSelectionFileRef.current = null
+  }, [lineSelection])
+
+  const handleLineMouseDown = useCallback(({ lineNum, side, filePath, event }: { lineNum: number; side: 'old' | 'new'; filePath: string; event: React.MouseEvent }) => {
     event.preventDefault()
     setIsDraggingSelection(true)
+    activeSelectionFileRef.current = filePath
     
     // Start new selection
-    lineSelection.handleLineClick(lineNum, side, event)
+    lineSelection.handleLineClick(lineNum, side, filePath, event)
     
     // Don't set position here - we'll calculate it after selection is complete
   }, [lineSelection])
 
-  const handleLineMouseEnter = useCallback((lineNum: number, side: 'old' | 'new') => {
-    if (isDraggingSelection && lineSelection.selection && lineSelection.selection.side === side) {
+  const handleLineMouseEnter = useCallback(({ lineNum, side, filePath }: { lineNum: number; side: 'old' | 'new'; filePath: string }) => {
+    if (isDraggingSelection && lineSelection.selection && lineSelection.selection.side === side && activeSelectionFileRef.current === filePath) {
       // Extend selection while dragging
-      lineSelection.extendSelection(lineNum, side)
+      lineSelection.extendSelection(lineNum, side, filePath)
     }
     
     // Update hover tracking for keyboard shortcuts
@@ -1057,55 +1214,80 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
     }
   }, [isDraggingSelection, lineSelection, selectedFile, setHoveredLineInfo])
   
-  const handleLineMouseLeave = useCallback(() => {
+  const handleLineMouseLeave = useCallback((_: { filePath: string }) => {
     clearHoveredLine()
   }, [clearHoveredLine])
   
-  const startCommentOnLine = useCallback((lineNum: number, side: 'old' | 'new', _filePath: string) => {
+  const startCommentOnLine = useCallback((lineNum: number, side: 'old' | 'new', filePath: string) => {
     // Clear any existing selection first
-    lineSelection.clearSelection()
+    clearActiveSelection()
+    activeSelectionFileRef.current = filePath
     
     // Create a new single-line selection using handleLineClick
-    lineSelection.handleLineClick(lineNum, side)
+    lineSelection.handleLineClick(lineNum, side, filePath)
     
     // The useEffect will automatically show the comment form when selection is set
     setShowCommentForm(true)
-  }, [lineSelection])
+  }, [clearActiveSelection, lineSelection])
+
+  const handleStartCommentFromContext = useCallback((payload: { filePath: string; lineNumber: number; side: 'old' | 'new' }) => {
+    startCommentOnLine(payload.lineNumber, payload.side, payload.filePath)
+  }, [startCommentOnLine])
   
   // Enable keyboard shortcuts for hovered lines
   useHoverKeyboardShortcuts(startCommentOnLine, isOpen && mode !== 'history')
 
-  const handleLineMouseUp = useCallback((event: React.MouseEvent) => {
-    if (isDraggingSelection) {
-      setIsDraggingSelection(false)
-      
-      // Always use the mouse position from the event
-      if (lineSelection.selection) {
-        setCommentFormPosition({ 
-          x: window.innerWidth - 420, // Right-aligned with some margin
-          y: event.clientY + 10 
-        })
-      }
+  const handleLineMouseUp = useCallback(({ event, filePath }: { event: MouseEvent | React.MouseEvent; filePath: string }) => {
+    if (!isDraggingSelection) {
+      return
     }
+
+    setIsDraggingSelection(false)
+
+    const targetFile = activeSelectionFileRef.current ?? filePath
+    if (!lineSelection.selection || (targetFile && lineSelection.selection.filePath !== targetFile)) {
+      activeSelectionFileRef.current = null
+      return
+    }
+
+    activeSelectionFileRef.current = null
+    setCommentFormPosition({
+      x: window.innerWidth - 420, // Right-aligned with some margin
+      y: event.clientY + 10
+    })
   }, [isDraggingSelection, lineSelection.selection])
 
   // Global mouse up handler
   useEffect(() => {
-    if (isDraggingSelection) {
-      const handleGlobalMouseUp = (e: MouseEvent) => {
-        setIsDraggingSelection(false)
-        // Use the global mouse event position when mouseup happens outside the button
-        if (lineSelection.selection) {
-          setCommentFormPosition({ 
-            x: window.innerWidth - 420,
-            y: e.clientY + 10 
-          })
-        }
-      }
-      document.addEventListener('mouseup', handleGlobalMouseUp)
-      return () => document.removeEventListener('mouseup', handleGlobalMouseUp)
+    if (!isDraggingSelection) {
+      return
     }
-  }, [isDraggingSelection, lineSelection.selection])
+    const handleGlobalMouseUp = (e: MouseEvent) => {
+      const fileForSelection = activeSelectionFileRef.current ?? selectedFile ?? ''
+      handleLineMouseUp({ event: e, filePath: fileForSelection })
+    }
+    window.addEventListener('mouseup', handleGlobalMouseUp, true)
+    return () => window.removeEventListener('mouseup', handleGlobalMouseUp, true)
+  }, [handleLineMouseUp, isDraggingSelection, selectedFile])
+
+  useEffect(() => {
+    if (typeof document === 'undefined') {
+      return
+    }
+    const noSelectClass = 'sw-no-text-select'
+    const body = document.body
+    if (!body) {
+      return
+    }
+    if (isDraggingSelection) {
+      body.classList.add(noSelectClass)
+    } else {
+      body.classList.remove(noSelectClass)
+    }
+    return () => {
+      body.classList.remove(noSelectClass)
+    }
+  }, [isDraggingSelection])
 
   const registerFileBodyHeight = useCallback((filePath: string, height: number) => {
     const normalizedHeight = Math.max(0, Math.round(height))
@@ -1259,8 +1441,8 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
     
     setShowCommentForm(false)
     setCommentFormPosition(null)
-    lineSelection.clearSelection()
-   }, [lineSelection, selectedFile, addComment, sessionName])
+    clearActiveSelection()
+   }, [lineSelection, selectedFile, addComment, sessionName, clearActiveSelection])
 
   const { formatReviewForPrompt, getConfirmationMessage } = useReviewComments()
 
@@ -1355,7 +1537,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
         } else if (showCommentForm) {
           setShowCommentForm(false)
           setCommentFormPosition(null)
-          lineSelection.clearSelection()
+          clearActiveSelection()
         } else if (isOpen) {
           onClose()
         }
@@ -1381,7 +1563,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
 
     window.addEventListener('keydown', handleKeyDown, true) // capture phase
     return () => window.removeEventListener('keydown', handleKeyDown, true)
-  }, [mode, isOpen, showCommentForm, isSearchVisible, onClose, lineSelection, selectedFileIndex, files, scrollToFile, handleFinishReview, setIsSearchVisible, setShowCommentForm, setCommentFormPosition, keyboardShortcutConfig, platform])
+  }, [mode, isOpen, showCommentForm, isSearchVisible, onClose, lineSelection, selectedFileIndex, files, scrollToFile, handleFinishReview, setIsSearchVisible, setShowCommentForm, setCommentFormPosition, keyboardShortcutConfig, platform, clearActiveSelection])
 
   if (!isOpen) return null
 
@@ -1446,18 +1628,51 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
               </div>
             </div>
             <div className="flex flex-1 overflow-hidden">
-              <DiffFileExplorer
-                files={files}
-                selectedFile={selectedFile}
-                visibleFilePath={visibleFilePath}
-                onFileSelect={scrollToFile}
-                getCommentsForFile={emptyCommentsForFile}
-                currentReview={null}
-                onFinishReview={() => {}}
-                onCancelReview={() => {}}
-                removeComment={() => {}}
-                getConfirmationMessage={() => ''}
-              />
+              <div
+                className="flex flex-col h-full"
+                data-testid="diff-sidebar"
+                style={{
+                  width: `${sidebarWidth}px`,
+                  minWidth: '200px',
+                  maxWidth: '600px'
+                }}
+              >
+                <DiffFileExplorer
+                  files={files}
+                  selectedFile={selectedFile}
+                  visibleFilePath={visibleFilePath}
+                  onFileSelect={scrollToFile}
+                  getCommentsForFile={emptyReviewCommentsForFile}
+                  currentReview={null}
+                  onFinishReview={() => {}}
+                  onCancelReview={() => {}}
+                  removeComment={() => {}}
+                  getConfirmationMessage={() => ''}
+                />
+              </div>
+              <div
+                data-testid="diff-resize-handle"
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="Resize file list"
+                onMouseDown={beginSidebarResize}
+                className="flex items-center justify-center"
+                style={{
+                  width: '6px',
+                  cursor: 'col-resize',
+                  backgroundColor: isResizingSidebar ? theme.colors.accent.blue.DEFAULT : theme.colors.border.subtle
+                }}
+              >
+                <div
+                  style={{
+                    width: '2px',
+                    height: '40px',
+                    borderRadius: '9999px',
+                    backgroundColor: theme.colors.border.strong,
+                    opacity: 0.6
+                  }}
+                />
+              </div>
               <div className="flex-1 flex flex-col overflow-hidden relative">
                 <DiffViewer
                   files={files}
@@ -1475,8 +1690,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
                   fileRefs={fileRefs}
                   fileBodyHeights={fileBodyHeightsRef.current}
                   onFileBodyHeightChange={registerFileBodyHeight}
-                  getCommentsForFile={emptyCommentsForFile}
-                  getCommentForLine={emptyCommentForLine}
+                  getCommentsForFile={emptyThreadCommentsForFile}
                   highlightCode={highlightCode}
                   toggleCollapsed={toggleCollapsed}
                   handleLineMouseDown={() => {}}
@@ -1484,6 +1698,10 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
                   handleLineMouseLeave={() => {}}
                   handleLineMouseUp={() => {}}
                   lineSelection={historyLineSelection}
+                  onCopyLine={handleCopyLineFromContext}
+                  onCopyCode={handleCopyCodeFromContext}
+                  onCopyFilePath={handleCopyFilePath}
+                  onStartCommentFromContext={handleStartCommentFromContext}
                 />
                 <SearchBox
                   targetRef={scrollContainerRef}
@@ -1566,19 +1784,51 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
               </div>
 
               <div className="flex flex-1 overflow-hidden">
-                {/* File list sidebar */}
-                <DiffFileExplorer
-                  files={files}
-                  selectedFile={selectedFile}
-                  visibleFilePath={visibleFilePath}
-                  onFileSelect={scrollToFile}
-                  getCommentsForFile={getCommentsForFile}
-                  currentReview={currentReview}
-                  onFinishReview={handleFinishReview}
-                  onCancelReview={clearReview}
-                  removeComment={removeComment}
-                  getConfirmationMessage={getConfirmationMessage}
-                />
+                <div
+                  className="flex flex-col h-full"
+                  data-testid="diff-sidebar"
+                  style={{
+                    width: `${sidebarWidth}px`,
+                    minWidth: '200px',
+                    maxWidth: '600px'
+                  }}
+                >
+                  <DiffFileExplorer
+                    files={files}
+                    selectedFile={selectedFile}
+                    visibleFilePath={visibleFilePath}
+                    onFileSelect={scrollToFile}
+                    getCommentsForFile={getCommentsForFile}
+                    currentReview={currentReview}
+                    onFinishReview={handleFinishReview}
+                    onCancelReview={clearReview}
+                    removeComment={removeComment}
+                    getConfirmationMessage={getConfirmationMessage}
+                  />
+                </div>
+                <div
+                  data-testid="diff-resize-handle"
+                  role="separator"
+                  aria-orientation="vertical"
+                  aria-label="Resize file list"
+                  onMouseDown={beginSidebarResize}
+                  className="flex items-center justify-center"
+                  style={{
+                    width: '6px',
+                    cursor: 'col-resize',
+                    backgroundColor: isResizingSidebar ? theme.colors.accent.blue.DEFAULT : theme.colors.border.subtle
+                  }}
+                >
+                  <div
+                    style={{
+                      width: '2px',
+                      height: '40px',
+                      borderRadius: '9999px',
+                      backgroundColor: theme.colors.border.strong,
+                      opacity: 0.6
+                    }}
+                  />
+                </div>
 
                 {/* Diff viewer */}
                 <div className="flex-1 flex flex-col overflow-hidden relative">
@@ -1598,8 +1848,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
                     fileRefs={fileRefs}
                     fileBodyHeights={fileBodyHeightsRef.current}
                     onFileBodyHeightChange={registerFileBodyHeight}
-                    getCommentsForFile={getCommentsForFile}
-                    getCommentForLine={getCommentForLine}
+                    getCommentsForFile={getThreadsForFile}
                     highlightCode={highlightCode}
                     toggleCollapsed={toggleCollapsed}
                     handleLineMouseDown={handleLineMouseDown}
@@ -1607,6 +1856,11 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
                     handleLineMouseLeave={handleLineMouseLeave}
                     handleLineMouseUp={handleLineMouseUp}
                     lineSelection={lineSelection}
+                    onCopyLine={handleCopyLineFromContext}
+                    onCopyCode={handleCopyCodeFromContext}
+                    onCopyFilePath={handleCopyFilePath}
+                    onDiscardFile={handleDiscardFile}
+                    onStartCommentFromContext={handleStartCommentFromContext}
                   />
 
                   {/* Search functionality */}
@@ -1630,7 +1884,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
                           e.stopPropagation()
                           setShowCommentForm(false)
                           setCommentFormPosition(null)
-                          lineSelection.clearSelection()
+                          clearActiveSelection()
                         }}
                       />
                       <div 
@@ -1655,7 +1909,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
                           onCancel={() => {
                             setShowCommentForm(false)
                             setCommentFormPosition(null)
-                            lineSelection.clearSelection()
+                            clearActiveSelection()
                           }}
                           keyboardShortcutConfig={keyboardShortcutConfig}
                           platform={platform}

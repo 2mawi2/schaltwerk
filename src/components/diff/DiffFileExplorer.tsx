@@ -44,7 +44,10 @@ export function DiffFileExplorer({
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
 
   return (
-  <div className="w-80 border-r border-slate-800 bg-slate-900/30 flex flex-col">
+    <div
+      className="border-r border-slate-800 bg-slate-900/30 flex flex-col h-full"
+      style={{ width: '100%' }}
+    >
       <div className="p-3 border-b border-slate-800">
         <div className="text-sm font-medium mb-1">Changed Files</div>
         <div className="text-xs text-slate-500">{files.length} files</div>

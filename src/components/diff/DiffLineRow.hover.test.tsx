@@ -15,46 +15,15 @@ describe('DiffLineRow hover functionality', () => {
     line: mockLine,
     index: 'test-line',
     isSelected: false,
+    filePath: 'test-file.js',
     onLineMouseDown: vi.fn(),
     onLineMouseEnter: vi.fn(),
     onLineMouseLeave: vi.fn(),
-    onLineMouseUp: vi.fn(),
-    filePath: 'test-file.js'
+    onLineMouseUp: vi.fn()
   }
 
   beforeEach(() => {
     vi.clearAllMocks()
-  })
-
-  it('should show hover hint when hovered', () => {
-    render(<DiffLineRow {...defaultProps} />)
-    
-    const row = screen.getByRole('row')
-    
-    // Should not show hint initially
-    expect(screen.queryByText('Press Enter to comment')).not.toBeInTheDocument()
-    
-    // Hover over the row
-    fireEvent.mouseEnter(row)
-    
-    // Should show the hint
-    expect(screen.getByText('Press Enter to comment')).toBeInTheDocument()
-  })
-
-  it('should hide hover hint when mouse leaves', () => {
-    render(<DiffLineRow {...defaultProps} />)
-    
-    const row = screen.getByRole('row')
-    
-    // Hover and check hint appears
-    fireEvent.mouseEnter(row)
-    expect(screen.getByText('Press Enter to comment')).toBeInTheDocument()
-    
-    // Mouse leave
-    fireEvent.mouseLeave(row)
-    
-    // Hint should be gone
-    expect(screen.queryByText('Press Enter to comment')).not.toBeInTheDocument()
   })
 
   it('should call onLineMouseEnter with correct parameters', () => {
@@ -64,7 +33,7 @@ describe('DiffLineRow hover functionality', () => {
     const row = screen.getByRole('row')
     fireEvent.mouseEnter(row)
     
-    expect(onLineMouseEnter).toHaveBeenCalledWith(42, 'new')
+    expect(onLineMouseEnter).toHaveBeenCalledWith({ lineNum: 42, side: 'new', filePath: 'test-file.js' })
   })
 
   it('should call onLineMouseLeave when mouse leaves', () => {
@@ -75,7 +44,7 @@ describe('DiffLineRow hover functionality', () => {
     fireEvent.mouseEnter(row)
     fireEvent.mouseLeave(row)
     
-    expect(onLineMouseLeave).toHaveBeenCalled()
+    expect(onLineMouseLeave).toHaveBeenCalledWith({ filePath: 'test-file.js' })
   })
 
   it('should have correct data attributes for DOM detection', () => {
@@ -139,28 +108,27 @@ describe('DiffLineRow hover functionality', () => {
     
     // Check mouse enter callback
     fireEvent.mouseEnter(row)
-    expect(onLineMouseEnter).toHaveBeenCalledWith(25, 'old')
+    expect(onLineMouseEnter).toHaveBeenCalledWith({ lineNum: 25, side: 'old', filePath: 'test-file.js' })
   })
 
-  it('should not interfere with existing comment display', () => {
+  it('starts selection when row body is pressed', () => {
+    const onLineMouseDown = vi.fn()
+
     render(
-      <DiffLineRow 
-        {...defaultProps} 
-        hasComment={true}
-        commentText="Existing comment here"
+      <DiffLineRow
+        {...defaultProps}
+        onLineMouseDown={onLineMouseDown}
       />
     )
-    
-    const row = screen.getByRole('row')
-    
-    // Should show existing comment
-    expect(screen.getByText('Comment')).toBeInTheDocument()
-    
-    // Hover to show hint
-    fireEvent.mouseEnter(row)
-    
-    // Both should be visible
-    expect(screen.getByText('Comment')).toBeInTheDocument()
-    expect(screen.getByText('Press Enter to comment')).toBeInTheDocument()
+
+    const code = screen.getByText('console.log("Hello world")')
+    fireEvent.mouseDown(code, { button: 0 })
+
+    expect(onLineMouseDown).toHaveBeenCalledWith({
+      lineNum: 42,
+      side: 'new',
+      filePath: 'test-file.js',
+      event: expect.any(Object)
+    })
   })
 })

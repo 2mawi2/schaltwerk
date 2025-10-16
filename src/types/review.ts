@@ -16,3 +16,14 @@ export interface ReviewSession {
   sessionName: string
   createdAt: number
 }
+
+export interface ReviewCommentThread {
+  id: string
+  filePath: string
+  side: 'old' | 'new'
+  lineRange: {
+    start: number
+    end: number
+  }
+  comments: ReviewComment[]
+}

@@ -38,6 +38,15 @@ import { TerminalSuspensionManager } from '../../terminal/suspension/terminalSus
 import { applyTerminalLetterSpacing } from '../../utils/terminalLetterSpacing'
 
 const DEFAULT_SCROLLBACK_LINES = 10000
+
+const disposeGpuRenderer = (renderer: WebGLTerminalRenderer | null, context: string) => {
+    if (!renderer) return
+    try {
+        renderer.dispose()
+    } catch (error) {
+        logger.debug(`[GPU] Safe-dispose fallback${context ? ` (${context})` : ''}`, error)
+    }
+}
 const BACKGROUND_SCROLLBACK_LINES = 5000
 const AGENT_SCROLLBACK_LINES = 20000
 const FAST_HYDRATION_REVEAL_THRESHOLD = 512 * 1024
@@ -650,14 +659,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
     useEffect(() => {
         if (!gpuEnabledForTerminal && gpuRenderer.current) {
-            try {
-                const dispose = (gpuRenderer.current as any)?.dispose?.bind(gpuRenderer.current);
-                if (typeof dispose === 'function') {
-                    dispose();
-                }
-            } catch (e) {
-                logger.debug('[GPU] Safe-dispose fallback', e);
-            }
+            disposeGpuRenderer(gpuRenderer.current, 'during feature toggle');
             gpuRenderer.current = null;
             if (typeof cancelAnimationFrame === 'function') {
                 const redrawId = gpuRefreshState.current.redrawId;
@@ -743,14 +745,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                     logger.info(`[Terminal ${terminalId}] WebGL context lost, using Canvas renderer`)
                 })
             } else if (!allowWebgl && gpuRenderer.current) {
-                try {
-                    const dispose = (gpuRenderer.current as any)?.dispose?.bind(gpuRenderer.current);
-                    if (typeof dispose === 'function') {
-                        dispose();
-                    }
-                } catch (e) {
-                    logger.debug('[GPU] Safe-dispose fallback', e);
-                }
+                disposeGpuRenderer(gpuRenderer.current, 'while toggling WebGL');
                 gpuRenderer.current = null
                 applyLetterSpacing(false)
             }
@@ -2084,14 +2079,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             refreshState.redrawId = null;
 
             if (gpuRenderer.current) {
-                try {
-                    const dispose = (gpuRenderer.current as any)?.dispose?.bind(gpuRenderer.current);
-                    if (typeof dispose === 'function') {
-                        dispose();
-                    }
-                } catch (e) {
-                    logger.debug('[GPU] Safe-dispose fallback', e);
-                }
+                disposeGpuRenderer(gpuRenderer.current, 'on unmount');
                 gpuRenderer.current = null;
             }
 

@@ -1092,10 +1092,11 @@ pub async fn schaltwerk_core_start_claude_with_restart(
     let session = manager
         .get_session(&session_name)
         .map_err(|e| format!("Failed to get session: {e}"))?;
-    let agent_type = session
-        .original_agent_type
-        .clone()
-        .unwrap_or(core.db.get_agent_type().map_err(|e| format!("Failed to get agent type: {e}"))?);
+    let agent_type = session.original_agent_type.clone().unwrap_or(
+        core.db
+            .get_agent_type()
+            .map_err(|e| format!("Failed to get agent type: {e}"))?,
+    );
 
     if agent_type == "terminal" {
         log::info!("Skipping agent startup for terminal-only session: {session_name}");
@@ -1564,11 +1565,7 @@ pub async fn schaltwerk_core_mark_session_ready(
     let manager = core.session_manager();
 
     let result = manager
-        .mark_session_ready_with_message(
-            &name,
-            effective_auto_commit,
-            commit_message.as_deref(),
-        )
+        .mark_session_ready_with_message(&name, effective_auto_commit, commit_message.as_deref())
         .map_err(|e| format!("Failed to mark session as reviewed: {e}"))?;
 
     if let Ok(session) = manager.get_session(&name) {
