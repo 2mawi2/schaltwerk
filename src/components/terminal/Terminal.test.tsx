@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { MockTauriInvokeArgs } from '../../types/testing'
 import { UiEvent, emitUiEvent } from '../../common/uiEvents'
 import { beginSplitDrag, endSplitDrag, resetSplitDragForTests } from '../../utils/splitDragCoordinator'
-import { GPU_LETTER_SPACING } from '../../utils/terminalLetterSpacing'
+import { DEFAULT_LETTER_SPACING, GPU_LETTER_SPACING } from '../../utils/terminalLetterSpacing'
 import { stableSessionTerminalId, sessionTerminalGroup } from '../../common/terminalIdentity'
 
 const CLAUDE_SHIFT_ENTER_SEQUENCE = '\\'
@@ -81,7 +81,6 @@ vi.mock('@xterm/xterm', () => {
     options: Record<string, unknown>
     cols = 80
     rows = 24
-    element: HTMLElement | null = null
     write = vi.fn((_d?: string, cb?: () => void) => {
       if (typeof cb === 'function') cb()
       return undefined as unknown as void
@@ -107,16 +106,11 @@ vi.mock('@xterm/xterm', () => {
     parser = {
       registerOscHandler: vi.fn()
     }
-    unicode = {
-      activeVersion: '6'
-    }
     constructor(options: Record<string, unknown>) {
       this.options = options
       instances.push(this)
     }
-    open(el: HTMLElement) {
-      this.element = el
-    }
+    open(_el: HTMLElement) {}
     attachCustomKeyEventHandler(fn: (e: KeyboardEvent) => boolean) {
       this.keyHandler = fn
       return true
@@ -204,66 +198,6 @@ vi.mock('@xterm/addon-search', () => {
   return {
     SearchAddon: MockSearchAddon,
     __getLastSearchAddon,
-  }
-})
-
-vi.mock('@xterm/addon-unicode11', () => {
-  const instances: unknown[] = []
-  class MockUnicode11Addon {
-    activate() {}
-    dispose = vi.fn()
-    constructor() {
-      instances.push(this)
-    }
-  }
-  return {
-    Unicode11Addon: MockUnicode11Addon,
-    __instances: instances,
-  }
-})
-
-vi.mock('@xterm/addon-clipboard', () => {
-  const instances: unknown[] = []
-  class MockClipboardAddon {
-    activate() {}
-    dispose = vi.fn()
-    constructor() {
-      instances.push(this)
-    }
-  }
-  return {
-    ClipboardAddon: MockClipboardAddon,
-    __instances: instances,
-  }
-})
-
-vi.mock('@xterm/addon-ligatures', () => {
-  const instances: unknown[] = []
-  class MockLigaturesAddon {
-    activate() {}
-    dispose = vi.fn()
-    constructor() {
-      instances.push(this)
-    }
-  }
-  return {
-    LigaturesAddon: MockLigaturesAddon,
-    __instances: instances,
-  }
-})
-
-vi.mock('@xterm/addon-image', () => {
-  const instances: unknown[] = []
-  class MockImageAddon {
-    activate() {}
-    dispose = vi.fn()
-    constructor() {
-      instances.push(this)
-    }
-  }
-  return {
-    ImageAddon: MockImageAddon,
-    __instances: instances,
   }
 })
 
@@ -641,19 +575,14 @@ describe('Terminal component', () => {
   })
 
 
-  it('defers initial resize until container becomes measurable (guard before fit)', async () => {
+  it('defers initial resize until container becomes measurable', async () => {
     const { container } = renderTerminal({ terminalId: 'session-defer-top', sessionName: 'defer' })
     await flushAll()
 
-      const allInitialCalls = (TauriCore as unknown as MockTauriCore & {
+      const resizeCalls = (TauriCore as unknown as MockTauriCore & {
         invoke: { mock: { calls: unknown[][] } }
       }).invoke.mock.calls.filter((c: unknown[]) => c[0] === TauriCommands.ResizeTerminal)
-      expect(allInitialCalls.length).toBeGreaterThan(0)
-      const initialArgs = allInitialCalls.map(call => call[1] as { cols: number; rows: number })
-      initialArgs.forEach(args => {
-        expect(args.cols).toBeGreaterThanOrEqual(2)
-        expect(args.rows).toBeGreaterThan(0)
-      })
+      expect(resizeCalls.length).toBe(0)
 
 
       const outer = container.querySelector('[data-smartdash-exempt="true"]') as HTMLDivElement | null
@@ -684,11 +613,12 @@ describe('Terminal component', () => {
       const afterCalls = (TauriCore as unknown as MockTauriCore & {
         invoke: { mock: { calls: unknown[][] } }
       }).invoke.mock.calls.filter((c: unknown[]) => c[0] === TauriCommands.ResizeTerminal)
-      const lastArgs = afterCalls.at(-1)?.[1] as { cols: number; rows: number } | undefined
-      expect(lastArgs).toBeDefined()
-      expect(lastArgs!.rows).toBe(40)
-      expect(lastArgs!.cols).toBeLessThanOrEqual(120)
+      // Allow small variance due to protective guard-band fits
+      expect(afterCalls.length).toBeGreaterThanOrEqual(1)
       expect(afterCalls.length).toBeLessThanOrEqual(8)
+      const lastCall = afterCalls[0]
+      // Allow Claude guard-band to adjust reported columns; rows should still match
+      expect(lastCall[1]).toMatchObject({ id: topIdFor('defer'), rows: 40 })
   })
 
   // Test removed - Codex normalization confirmed working in production
@@ -1120,8 +1050,8 @@ describe('Terminal component', () => {
         c[0] === TauriCommands.ResizeTerminal
       ).length
       
-      // VS Code style allows a couple of guard resizes while dragging
-      expect(afterCalls - initialCalls).toBeLessThanOrEqual(2)
+      // Allow for minimal additional calls but should be limited during drag
+      expect(afterCalls - initialCalls).toBeLessThanOrEqual(1)
       
       // Clean up
       endSplitDrag('terminal-test')
@@ -1204,16 +1134,18 @@ describe('Terminal component', () => {
       ro.trigger()
       await advanceAndFlush(250)
       
-      // Should not spam resizes; invalid container may trigger a couple of guarded attempts
+      // Should not have added significant new resize calls with invalid container
       const afterCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
         c[0] === TauriCommands.ResizeTerminal
       ).length
       
-      expect(afterCalls - initialCalls).toBeLessThanOrEqual(3)
+      // Allow for minimal additional calls but should be limited with invalid container
+      expect(afterCalls - initialCalls).toBeLessThanOrEqual(1)
     })
   })
 
-  it('sanitizes PTY dimensions even for tiny container jitter', async () => {
+  it('ignores tiny container jitter for Claude (no resize ack for <2px delta)', async () => {
+    // Arrange: render Claude terminal
     const core = (TauriCore as unknown as MockTauriCore)
     core.__clearInvokeHandlers()
     core.__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => ({
@@ -1257,12 +1189,12 @@ describe('Terminal component', () => {
     jitterRO?.trigger()
     await advanceAndFlush(50)
 
-    const resizeCalls = core.invoke.mock.calls.filter(c => c[0] === TauriCommands.ResizeTerminal)
-    expect(resizeCalls.length).toBeGreaterThan(0)
-    const lastArgs = resizeCalls.at(-1)?.[1] as { cols: number; rows: number } | undefined
-    expect(lastArgs).toBeDefined()
-    expect(lastArgs!.cols).toBeGreaterThanOrEqual(2)
-    expect(lastArgs!.rows).toBeGreaterThan(0)
+    // Expect no PTY resize call due to jitter suppression
+    expect(core.invoke).not.toHaveBeenCalledWith(TauriCommands.ResizeTerminal, expect.any(Object))
+
+    // Confirm no ResizeTerminal was invoked for sub-2px jitter
+    const jitterCalls = core.invoke.mock.calls.filter(c => c[0] === TauriCommands.ResizeTerminal)
+    expect(jitterCalls.length).toBe(0)
   })
 
   it('records last measured size for bottom terminals with guard columns', async () => {
@@ -1331,10 +1263,12 @@ describe('Terminal component', () => {
     const afterListenCalls = eventModule.listen.mock.calls.length
     expect(afterListenCalls).toBeGreaterThan(initialListenCalls)
 
-    // Subsequent output should flow through the latest listener without throwing
-    expect(() => {
-      ;(TauriEvent as unknown as MockTauriEvent).__emit(`terminal-output-${stableId('session-agent-top')}`, 'hello-world')
-    }).not.toThrow()
+    ;(TauriEvent as unknown as MockTauriEvent).__emit(`terminal-output-${stableId('session-agent-top')}`, 'hello-world')
+    await flushAll()
+
+    const xterm = getLastXtermInstance()
+    const writes = (xterm.write as unknown as { mock: { calls: unknown[][] } }).mock.calls.map(call => call[0]).join('')
+    expect(writes).toContain('hello-world')
   })
 
   it('handles OpenCode search and selection resize events for matching sessions', async () => {
@@ -1596,6 +1530,7 @@ describe('Terminal component', () => {
 
     const termRoot = view.container.querySelector('.transition-opacity') as HTMLDivElement | null
     expect(termRoot).not.toBeNull()
+    expect(termRoot?.className).toContain('opacity-0')
 
     const xterm = getLastXtermInstance()
     expect(xterm.scrollToLine).not.toHaveBeenCalled()
@@ -1765,8 +1700,8 @@ describe('Terminal component', () => {
       const writes = (xterm.write as unknown as { mock: { calls: unknown[][] } }).mock.calls
         .map(call => call[0] as string)
         .join('')
-      expect(bufferCall).toBeGreaterThanOrEqual(2)
-      expect(writes).toMatch(/RESUME|RECOVERED/)
+      expect(bufferCall).toBeGreaterThanOrEqual(3)
+      expect(writes).toContain('RECOVERED')
     } finally {
       queueSpy.mockRestore()
     }
@@ -1824,7 +1759,7 @@ describe('Terminal component', () => {
     fontSpy.mockRestore()
   })
 
-  it('refreshes WebGL rendering when font family changes', async () => {
+  it('clears WebGL texture atlas when font family changes', async () => {
     const core = TauriCore as unknown as MockTauriCore
     core.__setInvokeHandler(TauriCommands.GetTerminalSettings, () => ({ fontFamily: 'Victor Mono', webglEnabled: true }))
 
@@ -1855,7 +1790,7 @@ describe('Terminal component', () => {
     await flushAll()
     await advanceAndFlush(50)
 
-    expect(clearSpy).not.toHaveBeenCalled()
+    expect(clearSpy).toHaveBeenCalled()
     if (fontLoadMock) {
       expect(fontLoadMock).toHaveBeenCalledWith('14px "Cousine"')
     }
@@ -1881,8 +1816,6 @@ describe('Terminal component', () => {
     const ro = (globalThis as Record<string, unknown>).__lastRO as MockResizeObserver | undefined
     ro?.trigger()
     await advanceAndFlush(50)
-    await flushAll()
-    await flushAll()
 
     const xterm = getLastXtermInstance()
     expect(Number(xterm.options.letterSpacing || 0)).toBeGreaterThanOrEqual(GPU_LETTER_SPACING)
@@ -1890,7 +1823,7 @@ describe('Terminal component', () => {
     supportSpy.mockRestore()
   })
 
-  it('enables WebGL renderer for bottom terminals when available', async () => {
+  it('keeps bottom terminals on the canvas renderer to avoid GPU context churn', async () => {
     const core = TauriCore as unknown as MockTauriCore
     core.__setInvokeHandler(TauriCommands.GetTerminalSettings, () => ({ webglEnabled: true }))
 
@@ -1909,12 +1842,10 @@ describe('Terminal component', () => {
     const ro = (globalThis as Record<string, unknown>).__lastRO as MockResizeObserver | undefined
     ro?.trigger()
     await advanceAndFlush(50)
-    await flushAll()
-    await flushAll()
 
     const xterm = getLastXtermInstance()
-    expect(Number(xterm.options.letterSpacing || 0)).toBeGreaterThanOrEqual(GPU_LETTER_SPACING)
-    expect(initializeSpy).toHaveBeenCalled()
+    expect(Number(xterm.options.letterSpacing || 0)).toBe(DEFAULT_LETTER_SPACING)
+    expect(initializeSpy).not.toHaveBeenCalled()
 
     initializeSpy.mockRestore()
     supportSpy.mockRestore()
@@ -1940,7 +1871,7 @@ describe('Terminal component', () => {
     vi.advanceTimersByTime(1)
     await flushAll()
     const startCallsSecond = filterSessionStartCalls(core.invoke.mock.calls as unknown[][])
-    expect(startCallsSecond.length).toBeGreaterThan(0)
+    expect(startCallsSecond.length).toBe(0)
     second.unmount()
 
     clearTerminalStartedTracking([terminalId])
@@ -2096,7 +2027,7 @@ describe('Terminal component', () => {
     await advanceAndFlush(50)
 
     const resizeCalls = core.invoke.mock.calls.filter(call => call[0] === TauriCommands.ResizeTerminal)
-    expect(resizeCalls.length).toBeLessThanOrEqual(1)
+    expect(resizeCalls.length).toBe(0)
     expect(resizeSpy).toHaveBeenCalled()
   })
 
@@ -2143,29 +2074,20 @@ describe('Terminal component', () => {
 
   it('ignores focus events originating from the search container', async () => {
     const onTerminalClick = vi.fn()
-    const ref = createRef<TerminalHandle>()
-    const view = render(
-      <TestProviders>
-        <Terminal terminalId={topIdFor('search-focus')} sessionName="search-focus" onTerminalClick={onTerminalClick} ref={ref} />
-      </TestProviders>
-    )
+    const { container } = renderTerminal({ terminalId: 'session-search-focus-top', sessionName: 'search-focus', onTerminalClick })
     await flushAll()
 
+    const xterm = getLastXtermInstance()
     act(() => {
-      ref.current?.showSearch()
+      xterm.__triggerKey({ key: 'f', metaKey: true, ctrlKey: false } as KeyboardEvent)
     })
     await flushAll()
 
-    const searchContainer = view.container.querySelector('[data-terminal-search="true"]') as HTMLDivElement | null
-    expect(searchContainer).not.toBeNull()
-    if (!searchContainer) {
-      throw new Error('search container not rendered')
-    }
+    const searchContainer = container.querySelector('[data-terminal-search="true"]') as HTMLDivElement
     fireEvent.focusIn(searchContainer)
     await flushAll()
 
     expect(onTerminalClick).not.toHaveBeenCalled()
-    view.unmount()
   })
 
   it('flushes buffered output when hydration fails', async () => {

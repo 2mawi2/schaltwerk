@@ -1,11 +1,6 @@
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
-import { Unicode11Addon } from '@xterm/addon-unicode11';
-import { ClipboardAddon } from '@xterm/addon-clipboard';
-import { LigaturesAddon } from '@xterm/addon-ligatures';
-import { ImageAddon } from '@xterm/addon-image';
-import { WebGLTerminalRenderer, WebGLRendererCallbacks } from '../gpu/webglRenderer';
 import { logger } from '../../utils/logger';
 
 export interface TerminalInstanceRecord {
@@ -13,12 +8,7 @@ export interface TerminalInstanceRecord {
   terminal: XTerm;
   fitAddon: FitAddon;
   searchAddon: SearchAddon;
-  unicode11Addon?: Unicode11Addon;
-  clipboardAddon?: ClipboardAddon;
-  ligaturesAddon?: LigaturesAddon;
-  imageAddon?: ImageAddon;
   wrapper: HTMLDivElement;
-  gpuRenderer?: WebGLTerminalRenderer;
   refCount: number;
   lastSeq: number | null;
   initialized: boolean;
@@ -33,10 +23,6 @@ type TerminalInstanceFactory = () => {
   terminal: XTerm;
   fitAddon: FitAddon;
   searchAddon: SearchAddon;
-  unicode11Addon?: Unicode11Addon;
-  clipboardAddon?: ClipboardAddon;
-  ligaturesAddon?: LigaturesAddon;
-  imageAddon?: ImageAddon;
   wrapper: HTMLDivElement;
 };
 
@@ -47,6 +33,7 @@ class TerminalInstanceRegistry {
     const existing = this.instances.get(id);
     if (existing) {
       existing.refCount += 1;
+      logger.debug(`[Registry] Acquired existing terminal ${id}, refCount: ${existing.refCount}`);
       return { record: existing, isNew: false };
     }
 
@@ -59,40 +46,67 @@ class TerminalInstanceRegistry {
     created.wrapper.style.alignItems = 'stretch';
     created.wrapper.style.justifyContent = 'stretch';
     created.wrapper.style.overflow = 'hidden';
+
     const record: TerminalInstanceRecord = {
       id,
       terminal: created.terminal,
       fitAddon: created.fitAddon,
       searchAddon: created.searchAddon,
-      unicode11Addon: created.unicode11Addon,
-      clipboardAddon: created.clipboardAddon,
-      ligaturesAddon: created.ligaturesAddon,
-      imageAddon: created.imageAddon,
       wrapper: created.wrapper,
       refCount: 1,
       lastSeq: null,
       initialized: false,
     };
+
     this.instances.set(id, record);
+    logger.debug(`[Registry] Created new terminal ${id}, refCount: 1`);
     return { record, isNew: true };
+  }
+
+  release(id: string): void {
+    const record = this.instances.get(id);
+    if (!record) {
+      logger.debug(`[Registry] Release called for non-existent terminal ${id}`);
+      return;
+    }
+
+    record.refCount -= 1;
+    logger.debug(`[Registry] Released terminal ${id}, refCount: ${record.refCount}`);
+
+    if (record.refCount <= 0) {
+      this.instances.delete(id);
+      record.terminal.dispose();
+      logger.debug(`[Registry] Disposed terminal ${id} (refCount reached 0)`);
+    }
   }
 
   attach(id: string, container: HTMLElement): void {
     const record = this.instances.get(id);
-    if (!record) return;
+    if (!record) {
+      logger.debug(`[Registry] Attach called for non-existent terminal ${id}`);
+      return;
+    }
+
     if (!record.wrapper.isConnected) {
       container.appendChild(record.wrapper);
+      logger.debug(`[Registry] Attached terminal ${id} to container`);
     } else if (record.wrapper.parentElement !== container) {
       record.wrapper.remove();
       container.appendChild(record.wrapper);
+      logger.debug(`[Registry] Moved terminal ${id} to new container`);
     }
   }
 
   detach(id: string): void {
     const record = this.instances.get(id);
-    if (!record) return;
+    if (!record) {
+      logger.debug(`[Registry] Detach called for non-existent terminal ${id}`);
+      return;
+    }
+
     if (record.wrapper.parentElement) {
       record.wrapper.parentElement.removeChild(record.wrapper);
+      logger.debug(`[Registry] Detached terminal ${id} from DOM`);
     }
   }
 
@@ -103,86 +117,50 @@ class TerminalInstanceRegistry {
   }
 
   getLastSeq(id: string): number | null {
-    return this.instances.get(id)?.lastSeq ?? null;
+    const record = this.instances.get(id);
+    return record?.lastSeq ?? null;
   }
 
   markInitialized(id: string): void {
     const record = this.instances.get(id);
     if (!record) return;
     record.initialized = true;
+    logger.debug(`[Registry] Marked terminal ${id} as initialized`);
   }
 
-  release(id: string): void {
+  isInitialized(id: string): boolean {
     const record = this.instances.get(id);
-    if (!record) return;
-    record.refCount = Math.max(0, record.refCount - 1);
-    if (record.refCount > 0) {
-      return;
-    }
+    return record?.initialized ?? false;
+  }
 
-    try {
-      record.terminal.dispose();
-    } catch (error) {
-      logger.warn('[terminalRegistry] terminal dispose failed', error);
-    }
-    try {
-      record.fitAddon.dispose?.();
-    } catch (error) {
-      logger.warn('[terminalRegistry] fit addon dispose failed', error);
-    }
-    try {
-      record.searchAddon.dispose?.();
-    } catch (error) {
-      logger.warn('[terminalRegistry] search addon dispose failed', error);
-    }
-    try {
-      record.unicode11Addon?.dispose?.();
-    } catch (error) {
-      logger.warn('[terminalRegistry] unicode11 addon dispose failed', error);
-    }
-    try {
-      record.clipboardAddon?.dispose?.();
-    } catch (error) {
-      logger.warn('[terminalRegistry] clipboard addon dispose failed', error);
-    }
-    try {
-      record.ligaturesAddon?.dispose?.();
-    } catch (error) {
-      logger.warn('[terminalRegistry] ligatures addon dispose failed', error);
-    }
-    try {
-      record.imageAddon?.dispose?.();
-    } catch (error) {
-      logger.warn('[terminalRegistry] image addon dispose failed', error);
-    }
-    if (record.gpuRenderer) {
+  has(id: string): boolean {
+    return this.instances.has(id);
+  }
+
+  clear(): void {
+    for (const [id, record] of this.instances) {
       try {
-        record.gpuRenderer.dispose();
+        record.terminal.dispose();
+        logger.debug(`[Registry] Cleared terminal ${id}`);
       } catch (error) {
-        logger.warn('[terminalRegistry] gpu renderer dispose failed during release', error);
-      } finally {
-        record.gpuRenderer = undefined;
+        logger.debug(`[Registry] Error disposing terminal ${id} during clear:`, error);
       }
     }
-    this.detach(id);
-    this.instances.delete(id);
+    this.instances.clear();
   }
-
 }
 
 const registry = new TerminalInstanceRegistry();
 
-export function acquireTerminalInstance(
-  id: string,
-  factory: TerminalInstanceFactory,
-): AcquireTerminalResult {
+export function acquireTerminalInstance(id: string, factory: TerminalInstanceFactory): AcquireTerminalResult {
   return registry.acquire(id, factory);
 }
 
-export function attachTerminalInstance(
-  id: string,
-  container: HTMLElement,
-): void {
+export function releaseTerminalInstance(id: string): void {
+  registry.release(id);
+}
+
+export function attachTerminalInstance(id: string, container: HTMLElement): void {
   registry.attach(id, container);
 }
 
@@ -190,10 +168,7 @@ export function detachTerminalInstance(id: string): void {
   registry.detach(id);
 }
 
-export function updateTerminalInstanceLastSeq(
-  id: string,
-  seq: number | null,
-): void {
+export function updateTerminalInstanceLastSeq(id: string, seq: number | null): void {
   registry.updateLastSeq(id, seq);
 }
 
@@ -205,35 +180,14 @@ export function markTerminalInstanceInitialized(id: string): void {
   registry.markInitialized(id);
 }
 
-export function releaseTerminalInstance(id: string): void {
-  registry.release(id);
+export function isTerminalInstanceInitialized(id: string): boolean {
+  return registry.isInitialized(id);
 }
 
-export function ensureGpuRenderer(
-  record: TerminalInstanceRecord,
-  terminalId: string,
-  callbacks: WebGLRendererCallbacks,
-): WebGLTerminalRenderer {
-  if (!record.gpuRenderer) {
-    record.gpuRenderer = new WebGLTerminalRenderer(record.terminal, terminalId, callbacks);
-  } else {
-    record.gpuRenderer.setCallbacks(callbacks);
-  }
-  return record.gpuRenderer;
+export function hasTerminalInstance(id: string): boolean {
+  return registry.has(id);
 }
 
-export function disposeRecordGpuRenderer(
-  record: TerminalInstanceRecord,
-  reason: string,
-): void {
-  if (!record.gpuRenderer) {
-    return;
-  }
-  try {
-    record.gpuRenderer.dispose();
-  } catch (error) {
-    logger.warn(`[terminalRegistry] gpu renderer dispose failed (${reason})`, error);
-  } finally {
-    record.gpuRenderer = undefined;
-  }
+export function clearTerminalRegistry(): void {
+  registry.clear();
 }

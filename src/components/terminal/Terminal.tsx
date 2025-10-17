@@ -4,13 +4,8 @@ import { SchaltEvent, listenEvent, listenTerminalOutput } from '../../common/eve
 import { UiEvent, emitUiEvent, listenUiEvent, hasBackgroundStart, clearBackgroundStarts } from '../../common/uiEvents'
 import { recordTerminalSize } from '../../common/terminalSizeCache'
 import { Terminal as XTerm } from '@xterm/xterm';
-import type { IDisposable } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
-import { Unicode11Addon } from '@xterm/addon-unicode11';
-import { ClipboardAddon } from '@xterm/addon-clipboard';
-import { LigaturesAddon } from '@xterm/addon-ligatures';
-import { ImageAddon } from '@xterm/addon-image';
 import { invoke } from '@tauri-apps/api/core'
 import { startOrchestratorTop, startSessionTop, AGENT_START_TIMEOUT_MESSAGE } from '../../common/agentSpawn'
 import { schedulePtyResize } from '../../common/ptyResizeScheduler'
@@ -31,7 +26,6 @@ import { useTerminalWriteQueue } from '../../hooks/useTerminalWriteQueue'
 import { TerminalLoadingOverlay } from './TerminalLoadingOverlay'
 import { TerminalSearchPanel } from './TerminalSearchPanel'
 import { detectPlatformSafe } from '../../keyboardShortcuts/helpers'
-import { matchKeybinding, shouldSkipShell, shouldHandleClaudeShiftEnter, TerminalCommand } from './terminalKeybindings'
 import {
     writeTerminalBackend,
     resizeTerminalBackend,
@@ -40,21 +34,23 @@ import {
     isPluginTerminal,
 } from '../../terminal/transport/backend'
 import { WebGLTerminalRenderer } from '../../terminal/gpu/webglRenderer'
+import { TerminalSuspensionManager } from '../../terminal/suspension/terminalSuspension'
+import { applyTerminalLetterSpacing } from '../../utils/terminalLetterSpacing'
 import {
     acquireTerminalInstance,
-    attachTerminalInstance,
-    detachTerminalInstance,
-    getTerminalInstanceLastSeq,
-    markTerminalInstanceInitialized,
-    updateTerminalInstanceLastSeq,
-    ensureGpuRenderer,
-    disposeRecordGpuRenderer,
+    releaseTerminalInstance,
 } from '../../terminal/registry/terminalRegistry'
-import type { TerminalInstanceRecord } from '../../terminal/registry/terminalRegistry'
-import { applyTerminalLetterSpacing } from '../../utils/terminalLetterSpacing'
 
 const DEFAULT_SCROLLBACK_LINES = 10000
 
+const disposeGpuRenderer = (renderer: WebGLTerminalRenderer | null, context: string) => {
+    if (!renderer) return
+    try {
+        renderer.dispose()
+    } catch (error) {
+        logger.debug(`[GPU] Safe-dispose fallback${context ? ` (${context})` : ''}`, error)
+    }
+}
 const BACKGROUND_SCROLLBACK_LINES = 5000
 const AGENT_SCROLLBACK_LINES = 20000
 const FAST_HYDRATION_REVEAL_THRESHOLD = 512 * 1024
@@ -129,8 +125,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const fitAddon = useRef<FitAddon | null>(null);
     const searchAddon = useRef<SearchAddon | null>(null);
     const gpuRenderer = useRef<WebGLTerminalRenderer | null>(null);
-    const ensureGpuRendererRef = useRef<(reason: string) => Promise<void>>(async () => {});
-    const registryRecordRef = useRef<TerminalInstanceRecord | null>(null);
     const lastSize = useRef<{ cols: number; rows: number }>({ cols: 80, rows: 24 });
     const lastEffectiveRef = useRef<{ cols: number; rows: number }>(lastEffectiveRefInit);
     const [hydrated, setHydrated] = useState(false);
@@ -180,7 +174,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const pluginAckRef = useRef<{ lastSeq: number }>({ lastSeq: 0 });
     const textDecoderRef = useRef<TextDecoder | null>(null);
     const textEncoderRef = useRef<TextEncoder | null>(null);
-    const dataListenerRef = useRef<IDisposable | null>(null);
     const termDebug = () => (typeof window !== 'undefined' && localStorage.getItem('TERMINAL_DEBUG') === '1');
     // No timer-based retries; gate on renderer readiness and microtasks/RAFs
     const unlistenRef = useRef<UnlistenFn | null>(null);
@@ -199,8 +192,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         terminalId.endsWith('-top') && (terminalId.startsWith('session-') || terminalId.startsWith('orchestrator-'))
     ), [terminalId]);
     const gpuEnabledForTerminal = useMemo(() => (
-        !isBackground && webglEnabled
-    ), [isBackground, webglEnabled]);
+        !isBackground && webglEnabled && agentType !== 'run' && (isAgentTopTerminal || isCommander)
+    ), [agentType, isBackground, isAgentTopTerminal, isCommander, webglEnabled]);
     // Drag-selection suppression for run terminals
     const suppressNextClickRef = useRef<boolean>(false);
     const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null);
@@ -277,6 +270,12 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 return;
             }
 
+            try {
+                activeRenderer.clearTextureAtlas();
+            } catch (error) {
+                logger.debug(`[Terminal ${terminalId}] Failed to clear WebGL texture atlas:`, error);
+            }
+
             state.redrawId = requestAnimationFrame(() => {
                 state.redrawId = null;
                 const current = terminal.current;
@@ -285,7 +284,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                         const rows = Math.max(0, current.rows - 1);
                         (current as unknown as { refresh?: (start: number, end: number) => void })?.refresh?.(0, rows);
                     } catch (error) {
-                        logger.debug(`[Terminal ${terminalId}] Failed to refresh terminal after GPU redraw:`, error);
+                        logger.debug(`[Terminal ${terminalId}] Failed to refresh terminal after atlas clear:`, error);
                     }
                 }
 
@@ -387,46 +386,112 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
     const applySizeUpdate = useCallback((cols: number, rows: number, reason: string, force = false) => {
         const MIN_DIMENSION = 2;
-        if (!terminal.current) {
+        if (!terminal.current) return false;
+        // Step 1: only apply resize thrash suppression (no right-edge margin yet)
+        if (cols < MIN_DIMENSION || rows < MIN_DIMENSION) {
+            logger.debug(`[Terminal ${terminalId}] Skipping ${reason} resize due to tiny dimensions ${cols}x${rows}`);
+            const prevCols = lastSize.current.cols;
+            const prevRows = lastSize.current.rows;
+            if (prevCols >= MIN_DIMENSION && prevRows >= MIN_DIMENSION) {
+                requestAnimationFrame(() => {
+                    try {
+                        terminal.current?.resize(prevCols, prevRows);
+                    } catch (error) {
+                        logger.debug(`[Terminal ${terminalId}] Failed to restore previous size after tiny resize`, error);
+                    }
+                });
+            }
             return false;
         }
 
-        const boundedCols = Math.max(cols, MIN_DIMENSION);
-        const boundedRows = Math.max(rows, MIN_DIMENSION);
-        const effectiveCols = Math.max(boundedCols - RIGHT_EDGE_GUARD_COLUMNS, MIN_DIMENSION);
-
         const dragging = document.body.classList.contains('is-split-dragging');
+        // Suppress resize thrash: ignore tiny oscillations (<2 total delta) unless forced or dragging
         if (!force && !dragging) {
-            const prev = lastEffectiveRef.current;
-            if (prev.cols === effectiveCols && prev.rows === boundedRows) {
-                return false;
+            const dCols = Math.abs(cols - lastSize.current.cols);
+            const dRows = Math.abs(rows - lastSize.current.rows);
+            if (dCols + dRows < 2) return false;
+        }
+
+        const effectiveCols = Math.max(cols - RIGHT_EDGE_GUARD_COLUMNS, MIN_DIMENSION);
+
+        const measuredChanged = (cols !== lastSize.current.cols) || (rows !== lastSize.current.rows);
+        lastSize.current = { cols, rows };
+
+        let wasAtBottom = false;
+        let bufferLinesBefore = 0;
+        try {
+            const buf = terminal.current.buffer.active;
+            wasAtBottom = buf.viewportY === buf.baseY;
+            bufferLinesBefore = buf.length;
+            if (termDebug()) {
+                logger.debug(`[Terminal ${terminalId}] BEFORE resize: buffer.length=${buf.length}, viewportY=${buf.viewportY}, baseY=${buf.baseY}, wasAtBottom=${wasAtBottom}`);
             }
+        } catch (_e) {
+            wasAtBottom = true;
         }
 
-        lastSize.current = { cols: boundedCols, rows: boundedRows };
-        lastEffectiveRef.current = { cols: effectiveCols, rows: boundedRows };
-
+        // Align frontend grid to effective size first, then repaint
         try {
-            terminal.current.resize(effectiveCols, boundedRows);
-        } catch (error) {
-            logger.debug(`[Terminal ${terminalId}] Failed to apply resize (${reason})`, error);
+            terminal.current.resize(effectiveCols, rows);
+            (terminal.current as unknown as { refresh?: (start: number, end: number) => void })?.refresh?.(0, Math.max(0, rows - 1));
+
+            if (termDebug()) {
+                try {
+                    const buf = terminal.current.buffer.active;
+                    logger.debug(`[Terminal ${terminalId}] AFTER resize: buffer.length=${buf.length}, viewportY=${buf.viewportY}, baseY=${buf.baseY}, linesLost=${bufferLinesBefore - buf.length}`);
+                } catch (_e) {
+                    logger.debug(`[Terminal ${terminalId}] Could not read buffer after resize`);
+                }
+            }
+
+            if (wasAtBottom) {
+                requestAnimationFrame(() => {
+                    try {
+                        if (!terminal.current) return;
+                        const buf = terminal.current.buffer.active;
+                        const linesToScroll = buf.baseY - buf.viewportY;
+                        if (linesToScroll !== 0) {
+                            terminal.current.scrollLines(linesToScroll);
+                        }
+                    } catch (e) {
+                        logger.debug(`[Terminal ${terminalId}] Failed to scroll to bottom after resize`, e);
+                    }
+                });
+            }
+        } catch (e) {
+            logger.debug(`[Terminal ${terminalId}] Failed to apply frontend resize to ${effectiveCols}x${rows}`, e);
         }
 
-        try {
-            (terminal.current as unknown as { refresh?: (start: number, end: number) => void })?.refresh?.(0, Math.max(0, boundedRows - 1));
-        } catch (error) {
-            logger.debug(`[Terminal ${terminalId}] Failed to refresh after resize (${reason})`, error);
+        // If the container changed but the effective cols stayed the same, TUIs may not reflow (no SIGWINCH).
+        const sameEffective = (effectiveCols === lastEffectiveRef.current.cols) && (rows === lastEffectiveRef.current.rows);
+        // Nudge top agent terminals when not dragging to guarantee reflow
+        if (!dragging && isAgentTopTerminal && measuredChanged && sameEffective) {
+            const nudgeCols = Math.max(effectiveCols - 1, MIN_DIMENSION);
+            try {
+                terminal.current.resize(nudgeCols, rows);
+                (terminal.current as unknown as { refresh?: (start: number, end: number) => void })?.refresh?.(0, Math.max(0, rows - 1));
+            } catch (e) {
+                logger.debug(`[Terminal ${terminalId}] frontend nudge resize failed`, e);
+            }
+            recordTerminalSize(terminalId, nudgeCols, rows);
+            schedulePtyResize(terminalId, { cols: nudgeCols, rows }, { force: true });
+            try {
+                terminal.current?.resize(effectiveCols, rows);
+                (terminal.current as unknown as { refresh?: (start: number, end: number) => void })?.refresh?.(0, Math.max(0, rows - 1));
+            } catch (e) {
+                logger.debug(`[Terminal ${terminalId}] final resize after nudge failed`, e);
+            }
+            recordTerminalSize(terminalId, effectiveCols, rows);
+            schedulePtyResize(terminalId, { cols: effectiveCols, rows }, { force: true });
+            lastEffectiveRef.current = { cols: effectiveCols, rows };
+            return true;
         }
 
-        recordTerminalSize(terminalId, effectiveCols, boundedRows);
-        schedulePtyResize(
-            terminalId,
-            { cols: effectiveCols, rows: boundedRows },
-            force ? { force: true } : undefined,
-        );
-
+        recordTerminalSize(terminalId, effectiveCols, rows);
+        schedulePtyResize(terminalId, { cols: effectiveCols, rows });
+        lastEffectiveRef.current = { cols: effectiveCols, rows };
         return true;
-    }, [terminalId]);
+    }, [terminalId, isAgentTopTerminal]);
 
     // Selection-aware autoscroll helpers (run terminal: avoid jumping while user selects text)
     const isUserSelectingInTerminal = useCallback((): boolean => {
@@ -597,8 +662,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     }, [onTerminalClick]);
 
     useEffect(() => {
-        if (!gpuEnabledForTerminal && registryRecordRef.current) {
-            disposeRecordGpuRenderer(registryRecordRef.current, 'feature-toggle');
+        if (!gpuEnabledForTerminal && gpuRenderer.current) {
+            disposeGpuRenderer(gpuRenderer.current, 'during feature toggle');
             gpuRenderer.current = null;
             if (typeof cancelAnimationFrame === 'function') {
                 const redrawId = gpuRefreshState.current.redrawId;
@@ -609,8 +674,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             gpuRefreshState.current.refreshing = false;
             gpuRefreshState.current.queued = false;
             gpuRefreshState.current.redrawId = null;
-        } else if (gpuEnabledForTerminal) {
-            void ensureGpuRendererRef.current('feature-toggle');
         }
     }, [gpuEnabledForTerminal]);
 
@@ -676,17 +739,25 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
             if (!terminal.current) return
 
-            const allowWebgl = !isBackground && newWebglEnabled
-            if (allowWebgl) {
-                await ensureGpuRendererRef.current('renderer-update')
-            } else if (registryRecordRef.current) {
-                disposeRecordGpuRenderer(registryRecordRef.current, 'renderer-update')
+            const allowWebgl = !isBackground && newWebglEnabled && agentType !== 'run'
+            if (allowWebgl && !gpuRenderer.current) {
+                gpuRenderer.current = new WebGLTerminalRenderer(terminal.current, terminalId)
+                await gpuRenderer.current.initialize()
+                refreshGpuFontRendering()
+                applyLetterSpacing(true)
+                gpuRenderer.current.setCallbacks({
+                    onContextLost: () => {
+                        logger.info(`[Terminal ${terminalId}] WebGL context lost, using Canvas renderer`)
+                    }
+                })
+            } else if (!allowWebgl && gpuRenderer.current) {
+                disposeGpuRenderer(gpuRenderer.current, 'while toggling WebGL');
                 gpuRenderer.current = null
                 applyLetterSpacing(false)
             }
         })
         return cleanup
-    }, [terminalId, isBackground, refreshGpuFontRendering, applyLetterSpacing])
+    }, [agentType, terminalId, isBackground, refreshGpuFontRendering, applyLetterSpacing])
 
      // Listen for unified agent-start events to prevent double-starting
      useEffect(() => {
@@ -960,6 +1031,12 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             return;
         }
 
+        setHydrated(false);
+        pendingRevealRef.current = null;
+        hydratedRef.current = false;
+        pendingOutput.current = [];
+        resetQueue();
+
         // Revert: Always show a visible terminal cursor.
         // Prior logic adjusted/hid the xterm cursor for TUI agents which led to
         // "no cursor" reports in bottom terminals (e.g., Neovim/Neogrim). We now
@@ -974,303 +1051,83 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         }
 
         const atlasContrast = ATLAS_CONTRAST_BASE + computeAtlasContrastOffset(terminalId);
-        const terminalTheme = {
-            background: theme.colors.background.secondary,
-            foreground: theme.colors.text.primary,
-            cursor: theme.colors.text.primary,
-            cursorAccent: theme.colors.background.secondary,
-            black: theme.colors.background.elevated,
-            red: theme.colors.accent.red.DEFAULT,
-            green: theme.colors.accent.green.DEFAULT,
-            yellow: theme.colors.accent.yellow.DEFAULT,
-            blue: theme.colors.accent.blue.DEFAULT,
-            magenta: theme.colors.accent.purple.DEFAULT,
-            cyan: theme.colors.accent.cyan.DEFAULT,
-            white: theme.colors.text.primary,
-            brightBlack: theme.colors.background.hover,
-            brightRed: theme.colors.accent.red.light,
-            brightGreen: theme.colors.accent.green.light,
-            brightYellow: theme.colors.accent.yellow.light,
-            brightBlue: theme.colors.accent.blue.light,
-            brightMagenta: theme.colors.accent.purple.light,
-            brightCyan: theme.colors.accent.cyan.light,
-            brightWhite: theme.colors.text.primary,
-        } as const;
 
-        const terminalOptions = {
-            theme: terminalTheme,
-            fontFamily: resolvedFontFamily || 'Menlo, Monaco, ui-monospace, SFMono-Regular, monospace',
-            fontSize: terminalFontSize,
-            cursorBlink: true,
-            cursorStyle: 'block' as const,
-            cursorInactiveStyle: 'outline' as const,
-            scrollback: scrollbackLines,
-            smoothScrollDuration: 0,
-            convertEol: false,
-            disableStdin: readOnly,
-            minimumContrastRatio: atlasContrast,
-            customGlyphs: true,
-            drawBoldTextInBrightColors: false,
-            rescaleOverlappingGlyphs: true,
-            allowTransparency: false,
-            allowProposedApi: false,
-            fastScrollSensitivity: 8,
-            scrollSensitivity: 1.5,
-            scrollOnUserInput: true,
-            altClickMovesCursor: true,
-            rightClickSelectsWord: true,
-            tabStopWidth: 8,
-        };
+        const { record } = acquireTerminalInstance(terminalId, () => {
+            const term = new XTerm({
+                theme: {
+                    background: theme.colors.background.secondary,
+                    foreground: theme.colors.text.primary,
+                    cursor: theme.colors.text.primary,
+                    cursorAccent: theme.colors.background.secondary,
+                    black: theme.colors.background.elevated,
+                    red: theme.colors.accent.red.DEFAULT,
+                    green: theme.colors.accent.green.DEFAULT,
+                    yellow: theme.colors.accent.yellow.DEFAULT,
+                    blue: theme.colors.accent.blue.DEFAULT,
+                    magenta: theme.colors.accent.purple.DEFAULT,
+                    cyan: theme.colors.accent.cyan.DEFAULT,
+                    white: theme.colors.text.primary,
+                    brightBlack: theme.colors.background.hover,
+                    brightRed: theme.colors.accent.red.light,
+                    brightGreen: theme.colors.accent.green.light,
+                    brightYellow: theme.colors.accent.yellow.light,
+                    brightBlue: theme.colors.accent.blue.light,
+                    brightMagenta: theme.colors.accent.purple.light,
+                    brightCyan: theme.colors.accent.cyan.light,
+                    brightWhite: theme.colors.text.primary,
+                },
+                fontFamily: resolvedFontFamily || 'Menlo, Monaco, ui-monospace, SFMono-Regular, monospace',
+                fontSize: terminalFontSize,
+                cursorBlink: true,
+                cursorStyle: 'block',
+                cursorInactiveStyle: 'outline',
+                scrollback: scrollbackLines,
+                smoothScrollDuration: 0,
+                convertEol: false,
+                disableStdin: readOnly,
+                minimumContrastRatio: atlasContrast,
+                customGlyphs: true,
+                drawBoldTextInBrightColors: false,
+                rescaleOverlappingGlyphs: false,
+                allowTransparency: false,
+                allowProposedApi: false,
+                fastScrollSensitivity: 8,
+                scrollSensitivity: 1.5,
+                scrollOnUserInput: true,
+                altClickMovesCursor: true,
+                rightClickSelectsWord: true,
+                tabStopWidth: 8,
+            });
 
-        const { record: registryRecord, isNew: isNewInstance } = acquireTerminalInstance(terminalId, () => {
-            const instance = new XTerm(terminalOptions);
             const fit = new FitAddon();
-            instance.loadAddon(fit);
+            term.loadAddon(fit);
+
             const search = new SearchAddon();
-            instance.loadAddon(search);
-            let unicode11: Unicode11Addon | undefined;
-            let clipboard: ClipboardAddon | undefined;
-            let ligatures: LigaturesAddon | undefined;
-            let image: ImageAddon | undefined;
-            try {
-                unicode11 = new Unicode11Addon();
-                instance.loadAddon(unicode11);
-            } catch (error) {
-                logger.debug(`[Terminal ${terminalId}] Failed to load Unicode11Addon`, error);
-            }
-            try {
-                clipboard = new ClipboardAddon();
-                instance.loadAddon(clipboard);
-            } catch (error) {
-                logger.debug(`[Terminal ${terminalId}] Failed to load ClipboardAddon`, error);
-            }
-            try {
-                ligatures = new LigaturesAddon();
-                instance.loadAddon(ligatures);
-            } catch (error) {
-                logger.debug(`[Terminal ${terminalId}] Failed to load LigaturesAddon`, error);
-            }
-            try {
-                image = new ImageAddon();
-                instance.loadAddon(image);
-            } catch (error) {
-                logger.debug(`[Terminal ${terminalId}] Failed to load ImageAddon`, error);
-            }
+            term.loadAddon(search);
+
             const wrapper = document.createElement('div');
             wrapper.dataset.terminalId = terminalId;
-            wrapper.classList.add('schaltwerk-terminal-wrapper');
-            return { terminal: instance, fitAddon: fit, searchAddon: search, unicode11Addon: unicode11, clipboardAddon: clipboard, ligaturesAddon: ligatures, imageAddon: image, wrapper };
+
+            return { terminal: term, fitAddon: fit, searchAddon: search, wrapper };
         });
 
-        registryRecordRef.current = registryRecord;
-
-        terminal.current = registryRecord.terminal;
-        fitAddon.current = registryRecord.fitAddon;
-        searchAddon.current = registryRecord.searchAddon;
-
-        if (isNewInstance) {
-            setHydrated(false);
-            pendingRevealRef.current = null;
-            hydratedRef.current = false;
-            pendingOutput.current = [];
-            resetQueue();
-        } else {
-            pendingOutput.current = [];
-            resetQueue();
-        }
-
-        // Ensure runtime option updates propagate to reused terminals
-        try {
-            Object.assign(terminal.current.options, terminalOptions);
-            terminal.current.options.theme = terminalTheme;
-            terminal.current.options.fontFamily = terminalOptions.fontFamily;
-            terminal.current.options.fontSize = terminalOptions.fontSize;
-            terminal.current.options.scrollback = scrollbackLines;
-            terminal.current.options.disableStdin = readOnly;
-        } catch (error) {
-            logger.debug(`[Terminal ${terminalId}] Failed to update terminal options`, error);
-        }
-
-        if (isNewInstance) {
-            if (!registryRecord.wrapper.firstChild) {
-                terminal.current.open(registryRecord.wrapper);
-            }
-            // Drop OSC (Operating System Command) color queries so they do not get rendered as text
-            terminal.current.parser.registerOscHandler(10, () => true);
-            terminal.current.parser.registerOscHandler(11, () => true);
-            terminal.current.parser.registerOscHandler(12, () => true);
-            terminal.current.parser.registerOscHandler(13, () => true);
-            terminal.current.parser.registerOscHandler(14, () => true);
-            terminal.current.parser.registerOscHandler(15, () => true);
-            terminal.current.parser.registerOscHandler(16, () => true);
-            terminal.current.parser.registerOscHandler(17, () => true);
-            terminal.current.parser.registerOscHandler(19, () => true);
-            markTerminalInstanceInitialized(terminalId);
-        }
-
-        attachTerminalInstance(terminalId, termRef.current);
-        if (fitAddon.current && terminal.current) {
-            try {
-                fitAddon.current.fit();
-                const { cols, rows } = terminal.current;
-                applySizeUpdate(cols, rows, 'attach-fit');
-            } catch (error) {
-                logger.debug(`[Terminal ${terminalId}] attach-fit failed`, error);
-            }
-        }
-        const refreshable = terminal.current as unknown as { refresh?: (start: number, end: number) => void };
-        if (refreshable?.refresh) {
-            try {
-                const rows = Math.max(0, terminal.current.rows - 1);
-                refreshable.refresh(0, rows);
-            } catch (error) {
-                logger.debug(`[Terminal ${terminalId}] refresh after attach failed`, error);
-            }
-        }
-        async function ensureRenderer(reason: string): Promise<void> {
-            if (!gpuEnabledForTerminal || !registryRecordRef.current) {
-                return;
-            }
-            const renderer = ensureGpuRenderer(registryRecordRef.current, terminalId, {
-                onContextLost: handleContextLoss,
-                onWebGLLoaded: () => {
-                    emitUiEvent(UiEvent.TerminalDimensionRefresh, {
-                        terminalId,
-                        reason: 'webgl-load',
-                    });
-                },
-                onWebGLUnloaded: () => {
-                    emitUiEvent(UiEvent.TerminalDimensionRefresh, {
-                        terminalId,
-                        reason: 'webgl-unload',
-                    });
-                },
-            });
-            gpuRenderer.current = renderer;
-            try {
-                const state = await renderer.initialize();
-                if (state.type === 'webgl') {
-                    refreshGpuFontRendering();
-                    applyLetterSpacing(true);
-                    requestAnimationFrame(() => {
-                        if (!fitAddon.current || !terminal.current) {
-                            return;
-                        }
-                        try {
-                            fitAddon.current.fit();
-                            const { cols, rows } = terminal.current;
-                            applySizeUpdate(cols, rows, `webgl-init:${reason}`, true);
-                        } catch (error) {
-                            logger.debug(`[Terminal ${terminalId}] Failed to refit after WebGL init (${reason})`, error);
-                        }
-                    });
-                    return;
-                }
-
-                if (state.type === 'none') {
-                    applyLetterSpacing(false);
-                    requestAnimationFrame(() => {
-                        if (!cancelled) {
-                            void ensureGpuRendererRef.current(`deferred:${reason}`);
-                        }
-                    });
-                    return;
-                }
-
-                // Canvas fallback
-                applyLetterSpacing(false);
-                requestAnimationFrame(() => {
-                    if (!fitAddon.current || !terminal.current) {
-                        return;
-                    }
-                    try {
-                        fitAddon.current.fit();
-                        const { cols, rows } = terminal.current;
-                        applySizeUpdate(cols, rows, `webgl-fallback:${reason}`, true);
-                    } catch (error) {
-                        logger.debug(`[Terminal ${terminalId}] Failed to refit after WebGL fallback (${reason})`, error);
-                    }
-                });
-            } catch (error) {
-                logger.warn(`[Terminal ${terminalId}] Failed to initialize WebGL (${reason})`, error);
-                if (registryRecordRef.current) {
-                    disposeRecordGpuRenderer(registryRecordRef.current, `init-error:${reason}`);
-                }
-                gpuRenderer.current = null;
-                applyLetterSpacing(false);
-            }
-        }
-
-        function handleContextLoss(): void {
-            logger.info(`[Terminal ${terminalId}] WebGL context lost, falling back to canvas`);
-            if (registryRecordRef.current) {
-                disposeRecordGpuRenderer(registryRecordRef.current, 'context-loss');
-            }
-            gpuRenderer.current = null;
-            requestAnimationFrame(() => {
-                if (!fitAddon.current || !terminal.current) {
-                    return;
-                }
-                try {
-                    fitAddon.current.fit();
-                    const { cols, rows } = terminal.current;
-                    applySizeUpdate(cols, rows, 'context-loss');
-                } catch (error) {
-                    logger.warn(`[Terminal ${terminalId}] Failed to refit after context loss`, error);
-                }
-            });
-            if (!gpuEnabledForTerminal) {
-                return;
-            }
-            setTimeout(() => {
-                void ensureGpuRendererRef.current('context-loss-retry');
-            }, 0);
-        }
-
-        ensureGpuRendererRef.current = ensureRenderer;
-
-        if (gpuEnabledForTerminal) {
-            void ensureGpuRendererRef.current('attach');
-        } else if (registryRecordRef.current) {
-            disposeRecordGpuRenderer(registryRecordRef.current, 'attach-disabled');
-            gpuRenderer.current = null;
-            applyLetterSpacing(false);
-            requestAnimationFrame(() => {
-                if (!fitAddon.current || !terminal.current) {
-                    return;
-                }
-                try {
-                    fitAddon.current.fit();
-                    const { cols, rows } = terminal.current;
-                    applySizeUpdate(cols, rows, 'attach-disabled', true);
-                } catch (error) {
-                    logger.debug(`[Terminal ${terminalId}] Failed to refit after disabling WebGL`, error);
-                }
-            });
-        } else {
-            applyLetterSpacing(false);
-        }
-
+        terminal.current = record.terminal;
+        fitAddon.current = record.fitAddon;
+        searchAddon.current = record.searchAddon;
+        
+        // Open terminal to DOM first
+        terminal.current.open(termRef.current);
+        applyLetterSpacing(gpuEnabledForTerminal);
+        // Allow streaming immediately; proper fits will still run later
         rendererReadyRef.current = true;
 
-        const cachedSeq = getTerminalInstanceLastSeq(terminalId);
-        if (cachedSeq !== null) {
-            snapshotCursorRef.current = cachedSeq;
-        }
-
-        if (!isNewInstance && gpuEnabledForTerminal && !gpuRenderer.current) {
-            void ensureGpuRendererRef.current('reuse');
-        }
-
-        applyLetterSpacing(gpuEnabledForTerminal);
-        if (!isNewInstance) {
-            hydratedRef.current = true;
-            initialHydrationStartedRef.current = true;
-            pendingRevealRef.current = 'fast';
-            setHydrated(true);
-            requestAnimationFrame(() => {
-                applyPostHydrationScroll('success');
+        if (!isBackground && termRef.current && terminal.current) {
+            const suspensionManager = TerminalSuspensionManager.getInstance({
+                suspendAfterMs: 5000,
+                maxSuspendedTerminals: 100,
+                keepAliveTerminalIds: new Set()
             });
+            suspensionManager.registerTerminal(terminalId, terminal.current, termRef.current);
         }
 
         // Ensure proper initial fit after terminal is opened
@@ -1298,6 +1155,18 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         };
         
         performInitialFit();
+        
+        // Add OSC handler to prevent color query responses from showing up in terminal
+        terminal.current.parser.registerOscHandler(10, () => true); // foreground color
+        terminal.current.parser.registerOscHandler(11, () => true); // background color
+        terminal.current.parser.registerOscHandler(12, () => true); // cursor color
+        terminal.current.parser.registerOscHandler(13, () => true); // mouse foreground color
+        terminal.current.parser.registerOscHandler(14, () => true); // mouse background color
+        terminal.current.parser.registerOscHandler(15, () => true); // Tek foreground color
+        terminal.current.parser.registerOscHandler(16, () => true); // Tek background color
+        terminal.current.parser.registerOscHandler(17, () => true); // highlight background color
+        terminal.current.parser.registerOscHandler(19, () => true); // highlight foreground color
+        
         let rendererInitialized = false;
         const initializeRenderer = async () => {
             if (rendererInitialized || cancelled || !terminal.current || !termRef.current) {
@@ -1318,7 +1187,15 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                     }
 
                     if (gpuEnabledForTerminal) {
-                        await ensureGpuRendererRef.current('lazy-init');
+                        gpuRenderer.current = new WebGLTerminalRenderer(terminal.current, terminalId);
+                        await gpuRenderer.current.initialize();
+                        refreshGpuFontRendering();
+
+                        gpuRenderer.current.setCallbacks({
+                            onContextLost: () => {
+                                logger.info(`[Terminal ${terminalId}] WebGL context lost, using Canvas renderer`);
+                            }
+                        });
                     }
 
                     rendererReadyRef.current = true;
@@ -1412,41 +1289,54 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             }
         });
 
+        // Intercept global shortcuts before xterm.js processes them
         terminal.current.attachCustomKeyEventHandler((event: KeyboardEvent) => {
-            if (shouldHandleClaudeShiftEnter(event, agentType, isAgentTopTerminal, readOnly)) {
+            const isMac = navigator.userAgent.includes('Mac')
+            const modifierKey = isMac ? event.metaKey : event.ctrlKey
+            const shouldHandleClaudeShiftEnter = (
+                agentType === 'claude' &&
+                isAgentTopTerminal &&
+                event.key === 'Enter' &&
+                event.type === 'keydown' &&
+                event.shiftKey &&
+                !modifierKey &&
+                !event.altKey &&
+                !readOnly
+            )
+
+            if (shouldHandleClaudeShiftEnter) {
                 beginClaudeShiftEnter();
-                return true;
+                return true
             }
-
-            const keybindingMatch = matchKeybinding(event);
-
-            if (keybindingMatch.matches && shouldSkipShell(keybindingMatch.commandId)) {
-                event.preventDefault?.();
-
-                switch (keybindingMatch.commandId) {
-                    case TerminalCommand.NewLine:
-                        writeTerminalBackend(terminalId, '\n').catch(err =>
-                            logger.debug('[Terminal] newline ignored (backend not ready yet)', err)
-                        );
-                        break;
-                    case TerminalCommand.NewSpec:
-                        emitUiEvent(UiEvent.NewSpecRequest);
-                        break;
-                    case TerminalCommand.NewSession:
-                        emitUiEvent(UiEvent.GlobalNewSessionShortcut);
-                        break;
-                    case TerminalCommand.MarkReady:
-                        emitUiEvent(UiEvent.GlobalMarkReadyShortcut);
-                        break;
-                    case TerminalCommand.Search:
-                        setIsSearchVisible(true);
-                        break;
-                }
-
-                return false;
+            
+            // Modifier+Enter for new line (like Claude Code)
+            if (modifierKey && event.key === 'Enter' && event.type === 'keydown') {
+                // Send a newline character without submitting the command
+                // This allows multiline input in shells that support it
+                writeTerminalBackend(terminalId, '\n').catch(err => logger.debug('[Terminal] newline ignored (backend not ready yet)', err));
+                return false; // Prevent default Enter behavior
             }
-
-            return true;
+            // Prefer Shift+Modifier+N as "New spec"
+            if (modifierKey && event.shiftKey && (event.key === 'n' || event.key === 'N')) {
+                emitUiEvent(UiEvent.NewSpecRequest)
+                return false
+            }
+            // Plain Modifier+N opens the regular new session modal
+            if (modifierKey && !event.shiftKey && (event.key === 'n' || event.key === 'N')) {
+                emitUiEvent(UiEvent.GlobalNewSessionShortcut)
+                return false // Prevent xterm.js from processing this event
+            }
+            if (modifierKey && (event.key === 'r' || event.key === 'R')) {
+                emitUiEvent(UiEvent.GlobalMarkReadyShortcut)
+                return false
+            }
+            if (modifierKey && (event.key === 'f' || event.key === 'F')) {
+                // Show search UI
+                setIsSearchVisible(true);
+                return false; // Prevent xterm.js from processing this event
+            }
+            
+            return true // Allow xterm.js to process other events
         })
         
         // Helper to ensure element is laid out before fitting
@@ -2024,34 +1914,30 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
         addEventListener(window, 'font-size-changed', handleFontSizeChange);
 
-        // Ensure prior handler is cleared before registering a new one
-        dataListenerRef.current?.dispose();
-        dataListenerRef.current = null;
-
-        // Send input to backend (disabled for readOnly terminals)
-        if (!readOnly) {
-            dataListenerRef.current = terminal.current.onData((data) => {
-                if (finalizeClaudeShiftEnter(data)) {
-                    return;
-                }
-                if (inputFilter && !inputFilter(data)) {
-                    if (termDebug()) {
-                        logger.debug(`[Terminal ${terminalId}] blocked input: ${JSON.stringify(data)}`);
-                    }
-                    return;
-                }
-
-                // Track interrupt signal for agent stop detection
-                if (isAgentTopTerminal && data === '\u0003') {
-                    lastSigintAtRef.current = Date.now();
-                    const platform = detectPlatformSafe()
-                    const keyCombo = platform === 'mac' ? 'Cmd+C' : 'Ctrl+C'
-                    logger.debug(`[Terminal ${terminalId}] Interrupt signal detected (${keyCombo})`);
-                }
-
-                writeTerminalBackend(terminalId, data).catch(err => logger.debug('[Terminal] write ignored (backend not ready yet)', err));
-            });
-        }
+     // Send input to backend (disabled for readOnly terminals)
+     if (!readOnly) {
+         terminal.current.onData((data) => {
+             if (finalizeClaudeShiftEnter(data)) {
+                 return;
+             }
+             if (inputFilter && !inputFilter(data)) {
+                 if (termDebug()) {
+                     logger.debug(`[Terminal ${terminalId}] blocked input: ${JSON.stringify(data)}`);
+                 }
+                 return;
+             }
+             
+             // Track interrupt signal for agent stop detection
+             if (isAgentTopTerminal && data === '\u0003') {
+                 lastSigintAtRef.current = Date.now();
+                 const platform = detectPlatformSafe()
+                 const keyCombo = platform === 'mac' ? 'Cmd+C' : 'Ctrl+C'
+                 logger.debug(`[Terminal ${terminalId}] Interrupt signal detected (${keyCombo})`);
+             }
+             
+            writeTerminalBackend(terminalId, data).catch(err => logger.debug('[Terminal] write ignored (backend not ready yet)', err));
+         });
+     }
         
         // Send initialization sequence to ensure proper terminal mode
         // This helps with arrow key handling in some shells
@@ -2074,8 +1960,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 fitAddon.current.fit();
                 const { cols, rows } = terminal.current;
                 const dragging = document.body.classList.contains('is-split-dragging');
-                const forceResize = !dragging;
-                applySizeUpdate(cols, rows, 'resize-observer', forceResize);
+                applySizeUpdate(cols, rows, 'resize-observer', dragging);
             } catch (e) {
                 logger.warn(`[Terminal ${terminalId}] fit() failed during resize; skipping this tick`, e);
                 return;
@@ -2083,8 +1968,15 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         };
 
         // Use ResizeObserver with more stable debouncing to prevent jitter
+        let roRafPending = false;
+        
         addResizeObserver(termRef.current, () => {
-            handleResize();
+            if (roRafPending) return;
+            roRafPending = true;
+            requestAnimationFrame(() => {
+                roRafPending = false;
+                handleResize();
+            });
         });
         
         // Initial fit: fonts ready + RAF
@@ -2199,13 +2091,19 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             refreshState.queued = false;
             refreshState.redrawId = null;
 
-            dataListenerRef.current?.dispose();
-            dataListenerRef.current = null;
+            if (gpuRenderer.current) {
+                disposeGpuRenderer(gpuRenderer.current, 'on unmount');
+                gpuRenderer.current = null;
+            }
 
-            updateTerminalInstanceLastSeq(terminalId, snapshotCursorRef.current ?? null);
-            detachTerminalInstance(terminalId);
+            const suspensionManager = TerminalSuspensionManager.getInstance();
+            if (!isBackground && terminal.current) {
+                suspensionManager.suspendImmediate(terminalId);
+            }
+            suspensionManager.unregisterTerminal(terminalId);
+
+            releaseTerminalInstance(terminalId);
             terminal.current = null;
-            gpuRenderer.current = null;
             setHydrated(false);
             pendingRevealRef.current = null;
             pendingOutput.current = [];
