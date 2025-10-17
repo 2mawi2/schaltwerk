@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { MockTauriInvokeArgs } from '../../types/testing'
 import { UiEvent, emitUiEvent } from '../../common/uiEvents'
 import { beginSplitDrag, endSplitDrag, resetSplitDragForTests } from '../../utils/splitDragCoordinator'
-import { DEFAULT_LETTER_SPACING, GPU_LETTER_SPACING } from '../../utils/terminalLetterSpacing'
+import { GPU_LETTER_SPACING } from '../../utils/terminalLetterSpacing'
 import { stableSessionTerminalId, sessionTerminalGroup } from '../../common/terminalIdentity'
 
 const CLAUDE_SHIFT_ENTER_SEQUENCE = '\\'
