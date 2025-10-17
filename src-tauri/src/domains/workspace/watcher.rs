@@ -9,7 +9,7 @@ use crate::domains::sessions::activity::SessionGitStatsUpdated;
 use crate::domains::sessions::cache::{cache_worktree_size, invalidate_worktree_size};
 use crate::domains::sessions::storage::compute_worktree_size_bytes;
 use crate::infrastructure::events::{emit_event, SchaltEvent};
-use log::{debug, error, info, warn};
+use log::{debug, error, info, trace, warn};
 use notify::{RecommendedWatcher, RecursiveMode};
 use notify_debouncer_mini::{new_debouncer, DebounceEventResult, Debouncer};
 use serde::{Deserialize, Serialize};
@@ -81,7 +81,7 @@ impl FileWatcher {
             while let Some(result) = rx.recv().await {
                 match result {
                     Ok(events) => {
-                        debug!(
+                        trace!(
                             "File watcher received {} events for session {}",
                             events.len(),
                             session_name_clone
@@ -186,7 +186,6 @@ impl FileWatcher {
             .all(|event| Self::should_ignore_path(&event.path));
 
         if should_ignore_event {
-            debug!("Ignoring file changes in system directories for session {session_name}");
             return Ok(());
         }
 
