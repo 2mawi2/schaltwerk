@@ -245,11 +245,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             return;
         }
 
-        if (renderer.getState().type !== 'webgl') {
-            state.queued = false;
-            return;
-        }
-
         state.queued = true;
         if (state.refreshing) {
             return;
@@ -264,16 +259,17 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 return;
             }
 
-            if (activeRenderer.getState().type !== 'webgl') {
-                state.refreshing = false;
-                state.queued = false;
-                return;
-            }
-
+            const rendererState = activeRenderer.getState();
             try {
                 activeRenderer.clearTextureAtlas();
             } catch (error) {
                 logger.debug(`[Terminal ${terminalId}] Failed to clear WebGL texture atlas:`, error);
+            }
+
+            if (rendererState.type !== 'webgl') {
+                state.refreshing = false;
+                state.queued = false;
+                return;
             }
 
             state.redrawId = requestAnimationFrame(() => {
