@@ -143,16 +143,21 @@ pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
                             responses.push(SequenceResponse::Immediate(
                                 b"\x1b]10;rgb:ef/ef/ef\x07".to_vec(),
                             ));
+                            i = term_idx + terminator_len;
                         } else if text.starts_with("11;?") {
                             log::debug!("Responding to OSC background query {text:?}");
                             responses.push(SequenceResponse::Immediate(
                                 b"\x1b]11;rgb:1e/1e/1e\x07".to_vec(),
                             ));
+                            i = term_idx + terminator_len;
                         } else {
-                            log::debug!("Dropping OSC sequence {text:?}");
+                            data.extend_from_slice(&input[i..=term_idx + terminator_len - 1]);
+                            i = term_idx + terminator_len;
                         }
+                    } else {
+                        data.extend_from_slice(&input[i..=term_idx + terminator_len - 1]);
+                        i = term_idx + terminator_len;
                     }
-                    i = term_idx + terminator_len;
                 } else {
                     remainder = Some(input[i..].to_vec());
                     break;
@@ -225,7 +230,7 @@ mod tests {
     }
 
     #[test]
-    fn drops_osc_palette_queries_and_responds_to_foreground_request() {
+    fn responds_to_foreground_query() {
         let result = sanitize_control_sequences(b"pre\x1b]10;?\x07post");
 
         assert_eq!(result.data, b"prepost");
@@ -240,7 +245,7 @@ mod tests {
     }
 
     #[test]
-    fn drops_osc_queries_terminated_with_st_and_responds_background() {
+    fn responds_to_background_query() {
         let result = sanitize_control_sequences(b"pre\x1b]11;?\x1b\\post");
 
         assert_eq!(result.data, b"prepost");
@@ -252,5 +257,35 @@ mod tests {
             result.responses[0],
             SequenceResponse::Immediate(b"\x1b]11;rgb:1e/1e/1e\x07".to_vec()),
         );
+    }
+
+    #[test]
+    fn passes_through_osc_8_hyperlinks() {
+        let result = sanitize_control_sequences(b"pre\x1b]8;;https://example.com\x07link\x1b]8;;\x07post");
+
+        assert_eq!(result.data, b"pre\x1b]8;;https://example.com\x07link\x1b]8;;\x07post");
+        assert!(result.remainder.is_none());
+        assert_eq!(result.cursor_queries, 0);
+        assert!(result.responses.is_empty());
+    }
+
+    #[test]
+    fn passes_through_osc_9_4_progress() {
+        let result = sanitize_control_sequences(b"pre\x1b]9;4;3;50\x07post");
+
+        assert_eq!(result.data, b"pre\x1b]9;4;3;50\x07post");
+        assert!(result.remainder.is_none());
+        assert_eq!(result.cursor_queries, 0);
+        assert!(result.responses.is_empty());
+    }
+
+    #[test]
+    fn passes_through_unknown_osc_sequences() {
+        let result = sanitize_control_sequences(b"pre\x1b]133;A\x07post");
+
+        assert_eq!(result.data, b"pre\x1b]133;A\x07post");
+        assert!(result.remainder.is_none());
+        assert_eq!(result.cursor_queries, 0);
+        assert!(result.responses.is_empty());
     }
 }
