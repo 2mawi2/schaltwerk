@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@xterm/xterm', () => {
   const instances: unknown[] = []
@@ -20,15 +20,29 @@ vi.mock('@xterm/xterm', () => {
 vi.mock('@xterm/addon-fit', () => ({
   FitAddon: class {
     fit = vi.fn()
-  }
+    dispose = vi.fn()
+  },
 }))
 
 vi.mock('@xterm/addon-search', () => ({
   SearchAddon: class {
     findNext = vi.fn()
     findPrevious = vi.fn()
+    dispose = vi.fn()
+  },
+}))
+
+const registerMock = vi.fn()
+
+vi.mock('./xtermAddonImporter', () => ({
+  XtermAddonImporter: class {
+    static registerPreloadedAddon = registerMock
   }
 }))
+
+beforeEach(() => {
+  registerMock.mockClear()
+})
 
 describe('XtermTerminal wrapper', () => {
   it('creates a terminal instance, loads addons, and attaches to a container', async () => {
@@ -36,6 +50,7 @@ describe('XtermTerminal wrapper', () => {
 
     const options = { rows: 42, cursorBlink: true }
     const wrapper = new XtermTerminal({ terminalId: 'test-id', xtermOptions: options })
+    await wrapper.ensureCoreAddonsLoaded()
 
     const { Terminal: MockTerminal } = await import('@xterm/xterm') as unknown as {
       Terminal: { __instances: Array<{ options: Record<string, unknown>; loadAddon: ReturnType<typeof vi.fn>; open: ReturnType<typeof vi.fn> }> }
@@ -44,6 +59,8 @@ describe('XtermTerminal wrapper', () => {
     const instance = MockTerminal.__instances[0]
     expect(instance.options).toEqual(options)
     expect(instance.loadAddon).toHaveBeenCalledTimes(2)
+    expect(registerMock).toHaveBeenCalledWith('fit', expect.any(Function))
+    expect(registerMock).toHaveBeenCalledWith('search', expect.any(Function))
 
     const container = document.createElement('div')
     wrapper.attach(container)
@@ -64,6 +81,7 @@ describe('XtermTerminal wrapper', () => {
     const { XtermTerminal } = await import('./XtermTerminal')
 
     const wrapper = new XtermTerminal({ terminalId: 'opts', xtermOptions: { fontSize: 13 } })
+    await wrapper.ensureCoreAddonsLoaded()
     const { Terminal: MockTerminal } = await import('@xterm/xterm') as unknown as {
       Terminal: { __instances: Array<{ options: Record<string, unknown> }> }
     }

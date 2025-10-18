@@ -2,6 +2,7 @@ import { Terminal as XTerm } from '@xterm/xterm';
 import type { WebglAddon } from '@xterm/addon-webgl';
 import { logger } from '../../utils/logger';
 import { isWebGLSupported } from './webglCapability';
+import { XtermAddonImporter } from '../xterm/xtermAddonImporter';
 
 export interface RendererState {
     type: 'webgl' | 'canvas' | 'none';
@@ -15,13 +16,10 @@ export interface WebGLRendererCallbacks {
     onWebGLUnloaded?: () => void;
 }
 
-let cachedWebglCtorPromise: Promise<typeof WebglAddon> | null = null;
+const addonImporter = new XtermAddonImporter();
 
 async function loadWebglAddonCtor(): Promise<typeof WebglAddon> {
-    if (!cachedWebglCtorPromise) {
-        cachedWebglCtorPromise = import('@xterm/addon-webgl').then((module) => module.WebglAddon);
-    }
-    return cachedWebglCtorPromise;
+    return addonImporter.importAddon('webgl');
 }
 
 export class WebGLTerminalRenderer {
@@ -141,9 +139,5 @@ export class WebGLTerminalRenderer {
 
     resetAttempt(): void {
         this.initAttempted = false;
-    }
-
-    static resetCachedAddon(): void {
-        cachedWebglCtorPromise = null;
     }
 }

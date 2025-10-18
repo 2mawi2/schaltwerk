@@ -3,6 +3,8 @@ import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
 
+import { XtermAddonImporter } from './xtermAddonImporter'
+
 export interface XtermTerminalOptions {
   terminalId: string
   xtermOptions: Partial<ITerminalOptions>
@@ -14,15 +16,20 @@ export class XtermTerminal {
   readonly searchAddon: SearchAddon
   private readonly container: HTMLDivElement
   private opened = false
+  private readonly coreAddonsReady: Promise<void>
 
   constructor(options: XtermTerminalOptions) {
     this.raw = new XTerm(options.xtermOptions as ITerminalOptions)
-
     this.fitAddon = new FitAddon()
     this.raw.loadAddon(this.fitAddon)
 
     this.searchAddon = new SearchAddon()
     this.raw.loadAddon(this.searchAddon)
+
+    XtermAddonImporter.registerPreloadedAddon('fit', FitAddon)
+    XtermAddonImporter.registerPreloadedAddon('search', SearchAddon)
+
+    this.coreAddonsReady = Promise.resolve()
 
     this.container = document.createElement('div')
     this.container.dataset.terminalId = options.terminalId
@@ -54,6 +61,10 @@ export class XtermTerminal {
     if (this.container.parentElement) {
       this.container.parentElement.removeChild(this.container)
     }
+  }
+
+  async ensureCoreAddonsLoaded(): Promise<void> {
+    await this.coreAddonsReady
   }
 
   updateOptions(options: Partial<ITerminalOptions>): void {
