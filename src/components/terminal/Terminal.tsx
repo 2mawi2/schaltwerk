@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, forwardRef, useImperativeHandle, useCallback, useMemo, memo } from 'react';
 import { TauriCommands } from '../../common/tauriCommands'
-import { SchaltEvent, listenEvent, listenTerminalOutput } from '../../common/eventSystem'
+import { SchaltEvent, listenEvent } from '../../common/eventSystem'
 import { UiEvent, emitUiEvent, listenUiEvent, hasBackgroundStart, clearBackgroundStarts } from '../../common/uiEvents'
 import { recordTerminalSize } from '../../common/terminalSizeCache'
 import { Terminal as XTerm, type IDisposable } from '@xterm/xterm';
@@ -20,19 +20,10 @@ import { logger } from '../../utils/logger'
 import { useModal } from '../../contexts/ModalContext'
 import { safeTerminalFocus, safeTerminalFocusImmediate } from '../../utils/safeFocus'
 import { buildTerminalFontFamily } from '../../utils/terminalFonts'
-import { ActiveBufferLike, readScrollState, pinBottomDefinitive, type XTermLike } from '../../utils/termScroll'
-import { makeAgentQueueConfig, makeDefaultQueueConfig } from '../../utils/terminalQueue'
-import { useTerminalWriteQueue } from '../../hooks/useTerminalWriteQueue'
 import { TerminalLoadingOverlay } from './TerminalLoadingOverlay'
 import { TerminalSearchPanel } from './TerminalSearchPanel'
 import { detectPlatformSafe } from '../../keyboardShortcuts/helpers'
-import {
-    writeTerminalBackend,
-    resizeTerminalBackend,
-    subscribeTerminalBackend,
-    ackTerminalBackend,
-    isPluginTerminal,
-} from '../../terminal/transport/backend'
+import { writeTerminalBackend, resizeTerminalBackend } from '../../terminal/transport/backend'
 import {
     acquireTerminalInstance,
     detachTerminalInstance,
@@ -40,6 +31,7 @@ import {
 } from '../../terminal/registry/terminalRegistry'
 import { XtermTerminal } from '../../terminal/xterm/XtermTerminal'
 import { useTerminalGpu } from '../../hooks/useTerminalGpu'
+import { terminalOutputManager } from '../../terminal/stream/terminalOutputManager'
 
 const DEFAULT_SCROLLBACK_LINES = 10000
 const BACKGROUND_SCROLLBACK_LINES = 5000
@@ -69,12 +61,6 @@ export function clearTerminalStartedTracking(terminalIds: string[]) {
     terminalIds.forEach(id => startedGlobal.delete(id));
     clearInflights(terminalIds);
     clearBackgroundStarts(terminalIds);
-}
-
-interface TerminalBufferResponse {
-    seq: number;
-    startSeq: number;
-    data: string;
 }
 
 interface TerminalProps {
@@ -125,8 +111,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const [agentStopped, setAgentStopped] = useState(false);
     const terminalEverStartedRef = useRef<boolean>(false);
     const hydratedOnceRef = useRef<boolean>(false);
-    const pendingOutput = useRef<string[]>([]);
-    const snapshotCursorRef = useRef<number | null>(null);
     // Tracks user-initiated interrupt signal to distinguish from startup/other exits.
     const lastSigintAtRef = useRef<number | null>(null);
     const [isSearchVisible, setIsSearchVisible] = useState(false);
@@ -148,20 +132,10 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         setIsSearchVisible(false);
         setSearchTerm('');
     }, []);
-    const seqRef = useRef<number>(0);
-    const [pluginTransportActive, setPluginTransportActive] = useState(() => isPluginTerminal(terminalId));
-    const pluginAckRef = useRef<{ lastSeq: number }>({ lastSeq: 0 });
-    const textDecoderRef = useRef<TextDecoder | null>(null);
-    const textEncoderRef = useRef<TextEncoder | null>(null);
     const termDebug = () => (typeof window !== 'undefined' && localStorage.getItem('TERMINAL_DEBUG') === '1');
-    // No timer-based retries; gate on renderer readiness and microtasks/RAFs
-    const unlistenRef = useRef<UnlistenFn | null>(null);
-    const resumeUnlistenRef = useRef<UnlistenFn | null>(null);
-    const unlistenPromiseRef = useRef<Promise<UnlistenFn> | null>(null);
     const mountedRef = useRef<boolean>(false);
     const startingTerminals = useRef<Map<string, boolean>>(new Map());
     const previousTerminalId = useRef<string>(terminalId);
-    const listenerAgentRef = useRef<string | undefined>(agentType);
     const rendererReadyRef = useRef<boolean>(false); // Canvas renderer readiness flag
     const [resolvedFontFamily, setResolvedFontFamily] = useState<string | null>(null);
     const [customFontFamily, setCustomFontFamily] = useState<string | null>(null);
@@ -201,76 +175,12 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         return true;
     }, [terminalId]);
 
-    useEffect(() => {
-        let cancelled = false;
-        const refresh = () => {
-            const active = isPluginTerminal(terminalId);
-            if (!cancelled) {
-                setPluginTransportActive(active);
-                if (!active) {
-                    pluginAckRef.current.lastSeq = 0;
-                }
-            }
-        };
-        refresh();
-        let timer: number | undefined;
-        if (typeof window !== 'undefined') {
-            timer = window.setTimeout(refresh, 0);
-        }
-        return () => {
-            cancelled = true;
-            if (typeof window !== 'undefined' && timer !== undefined) {
-                window.clearTimeout(timer);
-            }
-        };
-    }, [terminalId]);
-
-    const acknowledgeChunk = useCallback((chunk: string) => {
-        if (!pluginTransportActive) return;
-        if (typeof TextEncoder === 'undefined') return;
-        if (!chunk || chunk.length === 0) return;
-        const encoder = textEncoderRef.current ?? new TextEncoder();
-        textEncoderRef.current = encoder;
-        const bytes = encoder.encode(chunk).length;
-        if (bytes === 0) return;
-        const seq = pluginAckRef.current.lastSeq;
-        ackTerminalBackend(terminalId, seq, bytes).catch(error => {
-            logger.debug(`[Terminal ${terminalId}] ack failed`, error);
-        });
-    }, [pluginTransportActive, terminalId]);
-
-    const scrollToBottomInstant = useCallback(() => {
-        if (!terminal.current) return;
-        pinBottomDefinitive(terminal.current as unknown as XTermLike);
-    }, []);
-
      // Initialize agentStopped state from sessionStorage (only for agent top terminals)
      useEffect(() => {
          if (!isAgentTopTerminal) return;
          const key = `schaltwerk:agent-stopped:${terminalId}`;
          setAgentStopped(sessionStorage.getItem(key) === 'true');
      }, [isAgentTopTerminal, terminalId]);
-
-    // Write queue helpers shared across effects (agent terminals get larger buffers)
-    const queueCfg = useMemo(() => (
-        agentType ? makeAgentQueueConfig() : makeDefaultQueueConfig()
-    ), [agentType]);
-
-    const handleOverflow = useCallback((info: { droppedBytes: number }) => {
-        logger.warn(`[Terminal ${terminalId}] Write queue overflow dropped ${info.droppedBytes}B`);
-    }, [terminalId]);
-
-    const {
-        enqueue: enqueueQueue,
-        flushPending: flushQueuePending,
-        reset: resetQueue,
-        stats: getQueueStats,
-    } = useTerminalWriteQueue({
-        queueConfig: queueCfg,
-        logger,
-        onOverflow: handleOverflow,
-        debugTag: terminalId,
-    });
 
     const applySizeUpdate = useCallback((cols: number, rows: number, reason: string, force = false) => {
         const MIN_DIMENSION = 2;
@@ -424,20 +334,9 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         }
     }, []);
 
-    const shouldAutoScroll = useCallback((wasAtBottom: boolean) => {
-        if (!wasAtBottom) return false;
-        if (isUserSelectingInTerminal()) return false;
-        return true;
-    }, [isUserSelectingInTerminal]);
-
-    const enqueueWrite = useCallback((data: string) => {
-        if (data.length === 0) return;
-        enqueueQueue(data);
-        if (termDebug()) {
-            const { queueLength } = getQueueStats();
-            logger.debug(`[Terminal ${terminalId}] enqueue +${data.length}B qlen=${queueLength}`);
-        }
-    }, [enqueueQueue, getQueueStats, terminalId]);
+    const scrollToBottomInstant = useCallback(() => {
+        terminal.current?.scrollToBottom();
+    }, []);
 
     const restartAgent = useCallback(async () => {
         if (!isAgentTopTerminal) return;
@@ -820,7 +719,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     useEffect(() => {
         mountedRef.current = true;
         let cancelled = false;
-        const ackState = pluginAckRef.current;
         // track mounted lifecycle only; no timer-based logic tied to mount time
         if (!termRef.current) {
             logger.error(`[Terminal ${terminalId}] No ref available!`);
@@ -830,8 +728,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         setHydrated(false);
         hydratedRef.current = false;
         hydratedOnceRef.current = false;
-        pendingOutput.current = [];
-        resetQueue();
 
         // Revert: Always show a visible terminal cursor.
         // Prior logic adjusted/hid the xterm cursor for TUI agents which led to
@@ -935,6 +831,11 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         };
         
         performInitialFit();
+
+        // Ensure scrollbar thumb reflects the current buffer position when the terminal is attached.
+        requestAnimationFrame(() => {
+            terminal.current?.scrollToBottom();
+        });
         
         // Add OSC handler to prevent color query responses from showing up in terminal
         terminal.current.parser.registerOscHandler(10, () => true); // foreground color
@@ -1134,38 +1035,14 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             scheduleInitialFit();
         }
 
-        // Defer initial resize until we have a real fit with measurable container
+        // Terminal streaming is handled by the terminal registry.
+        const outputDisposables: IDisposable[] = [];
 
-
-        const scheduleFlush = () => {
-            if (!rendererReadyRef.current || !terminal.current) return;
-            if (getQueueStats().queueLength === 0) return;
-
-            flushQueuePending((chunk) => {
-                if (!rendererReadyRef.current || !terminal.current) {
-                    return false;
-                }
-
-                const buffer = terminal.current.buffer.active as unknown as ActiveBufferLike & { viewportY?: number; baseY?: number };
-                const wasAtBottom = (buffer?.viewportY != null && buffer?.baseY != null)
-                    ? buffer.viewportY === buffer.baseY
-                    : false;
-
-                if (termDebug()) {
-                    const { queueLength } = getQueueStats();
-                    logger.debug(`[Terminal ${terminalId}] flush: bytes=${chunk.length} wasAtBottom=${wasAtBottom} qlen=${queueLength}`);
-                }
-
-                try {
-                    terminal.current.write(chunk, () => {
-                        try {
-                            if (shouldAutoScroll(wasAtBottom)) {
-                                scrollToBottomInstant();
-                            }
-                        } catch (error) {
-                            logger.debug('Scroll error during terminal output (cb)', error);
-                        }
-
+        if (terminal.current) {
+            const renderHandler = (terminal.current as unknown as { onRender?: (cb: () => void) => { dispose?: () => void } | void }).onRender;
+            if (typeof renderHandler === 'function') {
+                const disposable = renderHandler.call(terminal.current, () => {
+                    if (!hydratedRef.current) {
                         hydratedRef.current = true;
                         if (!hydratedOnceRef.current) {
                             hydratedOnceRef.current = true;
@@ -1174,187 +1051,18 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                                 onReady();
                             }
                         }
-
-                        acknowledgeChunk(chunk);
-                        if (getQueueStats().queueLength > 0) {
-                            scheduleFlush();
-                        }
-                    });
-                } catch (error) {
-                    logger.debug('xterm write failed in scheduleFlush', error);
-                    return false;
-                }
-
-                return true;
-            });
-        };
-
-        // Immediate flush helper (no debounce), used during hydration transitions
-        const flushStreamingDecoder = () => {
-            const decoder = textDecoderRef.current;
-            if (!decoder) return;
-            try {
-                const tail = decoder.decode(new Uint8Array(0), { stream: false });
-                if (tail && tail.length > 0) {
-                    if (!rendererReadyRef.current) {
-                        pendingOutput.current.push(tail);
-                    } else {
-                        enqueueWrite(tail);
-                        scheduleFlush();
                     }
-                }
-            } catch (error) {
-                logger.debug(`[Terminal ${terminalId}] decoder flush failed`, error);
-            }
-            textDecoderRef.current = null;
-        };
 
-        // Listen for terminal output from backend (buffer until hydrated)
-        unlistenRef.current = null;
-        const loadInitialSnapshot = async () => {
-            if (pluginTransportActive) return;
-            try {
-                const snapshot = await invoke<TerminalBufferResponse | null>(TauriCommands.GetTerminalBuffer, {
-                    id: terminalId,
-                    from_seq: snapshotCursorRef.current ?? null,
                 });
-                if (!snapshot || typeof snapshot.seq !== 'number' || typeof snapshot.startSeq !== 'number') {
-                    return;
-                }
-                snapshotCursorRef.current = snapshot.seq;
-                if (snapshot.data && snapshot.data.length > 0) {
-                    pendingOutput.current.unshift(snapshot.data);
-                }
-            } catch (error) {
-                logger.debug(`[Terminal ${terminalId}] Failed to load initial snapshot`, error);
-            }
-        };
-
-        const attachListener = async () => {
-            if (pluginTransportActive) {
-                const unsubscribe = await subscribeTerminalBackend(
-                    terminalId,
-                    snapshotCursorRef.current ?? 0,
-                    (message) => {
-                        if (cancelled) return;
-                        if (!pluginTransportActive) return;
-
-                        const decoder = textDecoderRef.current ?? (typeof TextDecoder !== 'undefined' ? new TextDecoder('utf-8', { fatal: false }) : null);
-                        if (!decoder) {
-                            logger.warn('[Terminal] TextDecoder unavailable; dropping PTY chunk');
-                            return;
-                        }
-                        textDecoderRef.current = decoder;
-
-                        pluginAckRef.current.lastSeq = message.seq;
-                        snapshotCursorRef.current = message.seq;
-
-                        const output = decoder.decode(message.bytes, { stream: true });
-
-                        if (output.length === 0) {
-                            return;
-                        }
-
-                        if (termDebug()) {
-                            const n = ++seqRef.current;
-                            const { queueLength } = getQueueStats();
-                            logger.debug(`[Terminal ${terminalId}] recv(plugin) #${n} +${message.bytes.length}B qlen=${queueLength}`);
-                        }
-
-                        if (!rendererReadyRef.current) {
-                            pendingOutput.current.push(output);
-                        } else {
-                            enqueueWrite(output);
-                            scheduleFlush();
-                        }
-                    },
-                );
-
-                const unlisten: UnlistenFn = () => {
-                    flushStreamingDecoder();
-                    try {
-                        const result = unsubscribe?.() as unknown;
-                        if (result instanceof Promise) {
-                            (result as Promise<void>).catch((error) => logger.debug('[Terminal] plugin unsubscribe failed', error));
-                        }
-                    } catch (error) {
-                        logger.debug('[Terminal] plugin unsubscribe failed', error);
-                    }
-                };
-                if (cancelled) {
-                    try {
-                        unlisten();
-                    } catch (error) {
-                        logger.debug(`[Terminal ${terminalId}] Cleaned up plugin listener after cancel during setup`, error);
-                    }
-                    return () => {};
-                }
-                unlistenRef.current = unlisten;
-                await loadInitialSnapshot();
-                return unlisten;
-            }
-
-            await loadInitialSnapshot();
-
-            const unlisten = await listenTerminalOutput(terminalId, (output) => {
-                if (termDebug()) {
-                    const n = ++seqRef.current;
-                    const { queueLength } = getQueueStats();
-                    logger.debug(`[Terminal ${terminalId}] recv #${n} +${(output?.length ?? 0)}B qlen=${queueLength}`);
-                }
-                if (cancelled) return;
-                if (!rendererReadyRef.current) {
-                    pendingOutput.current.push(output);
-                } else {
-                    enqueueWrite(output);
-                    scheduleFlush();
-                }
-            });
-            if (cancelled) {
-                try {
-                    unlisten();
-                } catch (error) {
-                    logger.debug(`[Terminal ${terminalId}] Cleaned up listener after cancel during setup`, error);
-                }
-                return () => {};
-            }
-            unlistenRef.current = unlisten;
-            return unlisten;
-        };
-        unlistenPromiseRef.current = attachListener();
-        listenerAgentRef.current = agentType;
-
-        const flushBufferedOutput = () => {
-            if (!rendererReadyRef.current) return;
-            if (pendingOutput.current.length === 0) return;
-            const buffered = pendingOutput.current.splice(0, pendingOutput.current.length);
-            buffered.forEach(chunk => enqueueWrite(chunk));
-            scheduleFlush();
-            ensureHydrated();
-        };
-
-        const ensureHydrated = () => {
-            if (!hydratedOnceRef.current) {
-                hydratedOnceRef.current = true;
-                setHydrated(true);
-                if (onReady) {
-                    onReady();
+                if (disposable && typeof disposable === 'object' && typeof (disposable as { dispose?: () => void }).dispose === 'function') {
+                    outputDisposables.push(disposable as IDisposable);
                 }
             }
-            hydratedRef.current = true;
-        };
-
-        if (unlistenPromiseRef.current) {
-            unlistenPromiseRef.current
-                .then(() => {
-                    if (!cancelled) {
-                        flushBufferedOutput();
-                    }
-                })
-                .catch((error) => {
-                    logger.debug(`[Terminal ${terminalId}] Listener setup failed before flush`, error);
-                });
         }
+
+        void terminalOutputManager.ensureStarted(terminalId).catch(error => {
+            logger.warn(`[Terminal ${terminalId}] Failed to ensure terminal stream`, error);
+        });
 
         // Handle font size changes with better debouncing
         let fontSizeRafPending = false;
@@ -1373,19 +1081,9 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 fontSizeRafPending = false;
                 if (!fitAddon.current || !terminal.current || !mountedRef.current) return;
 
-                const { atBottom } = readScrollState(terminal.current as unknown as XTermLike);
-
                 try {
                     fitAddon.current.fit();
                     const { cols, rows } = terminal.current;
-
-                    const isUILayoutChange = document.body.classList.contains('session-switching');
-                    if (atBottom && !isUILayoutChange && !isUserSelectingInTerminal()) {
-                        requestAnimationFrame(() => {
-                            if (!terminal.current) return
-                            pinBottomDefinitive(terminal.current as unknown as XTermLike);
-                        });
-                    }
 
                     applySizeUpdate(cols, rows, 'font-size-change');
                 } catch (e) {
@@ -1492,18 +1190,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                     requestAnimationFrame(() => {
                         if (!fitAddon.current || !terminal.current) return;
 
-                        const { atBottom } = readScrollState(terminal.current as unknown as XTermLike);
-
                         fitAddon.current.fit();
                         const { cols, rows } = terminal.current;
-
-                        const isUILayoutChange = document.body.classList.contains('session-switching');
-                        if (atBottom && !isUILayoutChange) {
-                            requestAnimationFrame(() => {
-                                if (!terminal.current) return
-                                pinBottomDefinitive(terminal.current as unknown as XTermLike);
-                            });
-                       }
 
                         applySizeUpdate(cols, rows, 'split-final');
                     });
@@ -1521,41 +1209,15 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             mountedRef.current = false;
             cancelled = true;
             rendererReadyRef.current = false;
-            flushStreamingDecoder();
-            textDecoderRef.current = null;
-            textEncoderRef.current = null;
-            ackState.lastSeq = 0;
-            
-            // no timers to clear
 
-            const fn = unlistenRef.current;
-            if (fn) {
+            outputDisposables.forEach(disposable => {
                 try {
-                    fn();
+                    disposable.dispose();
                 } catch (error) {
-                    logger.error(`[Terminal ${terminalId}] Event listener cleanup error:`, error);
+                    logger.debug(`[Terminal ${terminalId}] output disposable cleanup error:`, error);
                 }
-            }
-            if (unlistenPromiseRef.current) {
-                unlistenPromiseRef.current.then((resolved) => {
-                    if (cancelled) {
-                        try {
-                            resolved();
-                        } catch (error) {
-                            logger.error(`[Terminal ${terminalId}] Async event listener cleanup error:`, error);
-                        }
-                    }
-                }).catch((error) => {
-                    logger.debug(`[Terminal ${terminalId}] Listener setup was cancelled or failed:`, error);
-                });
-            }
-            if (resumeUnlistenRef.current) {
-                try { resumeUnlistenRef.current(); } catch (error) {
-                    logger.error(`[Terminal ${terminalId}] Resume listener cleanup error:`, error);
-                }
-                resumeUnlistenRef.current = null;
-            }
-            // Only disconnect if not already disconnected (it disconnects itself after initialization)
+            });
+
             try {
                 rendererObserver?.disconnect();
             } catch (e) {
@@ -1586,8 +1248,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             terminal.current = null;
             setHydrated(false);
             hydratedRef.current = false;
-            pendingOutput.current = [];
-            resetQueue();
             // Note: We intentionally don't close terminals here to allow switching between sessions
             // All terminals are cleaned up when the app exits via the backend cleanup handler
             // useCleanupRegistry handles other cleanup automatically
@@ -1602,117 +1262,16 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         onReady,
         resolvedFontFamily,
         readOnly,
-        enqueueWrite,
-        shouldAutoScroll,
-        isUserSelectingInTerminal,
         applySizeUpdate,
-        flushQueuePending,
-        getQueueStats,
-        resetQueue,
         inputFilter,
         isAgentTopTerminal,
-        scrollToBottomInstant,
-        pluginTransportActive,
-        acknowledgeChunk,
-                beginClaudeShiftEnter,
+        beginClaudeShiftEnter,
         finalizeClaudeShiftEnter,
         refreshGpuFontRendering,
         gpuEnabledForTerminal,
         applyLetterSpacing,
         gpuRenderer,
     ]);
-
-    // Reconfigure output listener when agent type changes for the same terminal
-    useEffect(() => {
-        if (!terminal.current) return;
-        if (listenerAgentRef.current === agentType) return;
-
-        // Helper: minimal flush to reuse existing buffering
-        const flushQueuedWritesLight = () => {
-            if (!terminal.current || getQueueStats().queueLength === 0) return;
-
-            flushQueuePending((chunk) => {
-                if (!terminal.current) {
-                    return false;
-                }
-
-                let wasAtBottom = false;
-                try {
-                    const buffer = terminal.current.buffer.active as ActiveBufferLike & { viewportY?: number; baseY?: number };
-                    wasAtBottom = buffer.viewportY === buffer.baseY;
-                } catch (error) {
-                    logger.debug(`[Terminal ${terminalId}] Unable to read buffer before flush`, error);
-                }
-
-                try {
-                    terminal.current.write(chunk);
-                } catch (error) {
-                    logger.warn(`[Terminal ${terminalId}] Failed to flush queued writes`, error);
-                    return false;
-                }
-
-                requestAnimationFrame(() => {
-                    try {
-                        if (shouldAutoScroll(wasAtBottom)) {
-                            scrollToBottomInstant();
-                        }
-                        if (getQueueStats().queueLength > 0) {
-                            flushQueuedWritesLight();
-                        }
-                    } catch (e) {
-                        logger.warn(`[Terminal ${terminalId}] Failed to scroll after flush:`, e);
-                    }
-                });
-
-                return true;
-            }, { immediate: true });
-        };
-
-        // Detach previous listener
-        const detach = () => {
-            if (unlistenRef.current) {
-                try { unlistenRef.current(); } catch (e) {
-                    logger.warn(`[Terminal ${terminalId}] Listener detach failed:`, e);
-                }
-                unlistenRef.current = null;
-            }
-        };
-        detach();
-
-        // Attach appropriate listener for current agent type
-        let mounted = true;
-        const attach = async () => {
-            try {
-                const unlisten = await listenTerminalOutput(terminalId, (output) => {
-                    if (!mounted) return;
-                    if (!rendererReadyRef.current) {
-                        pendingOutput.current.push(output);
-                    } else {
-                        enqueueWrite(output);
-                        flushQueuedWritesLight();
-                    }
-                });
-                if (!mounted) {
-                    try {
-                        unlisten();
-                    } catch (error) {
-                        logger.debug(`[Terminal ${terminalId}] Cleaned up listener after unmount during agent type change`, error);
-                    }
-                    return;
-                }
-                unlistenRef.current = unlisten;
-                listenerAgentRef.current = agentType;
-            } catch (e) {
-                logger.warn(`[Terminal ${terminalId}] Failed to reconfigure output listener:`, e);
-            }
-        };
-        attach();
-
-        return () => {
-            mounted = false;
-            detach();
-        };
-    }, [agentType, terminalId, enqueueWrite, flushQueuePending, getQueueStats, shouldAutoScroll, scrollToBottomInstant]);
 
 
      // Automatically start Claude for top terminals when hydrated and first ready
@@ -1946,14 +1505,11 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             return
         }
 
-        previousTerminalId.current = terminalId
-        snapshotCursorRef.current = null
-        pendingOutput.current = []
-        hydratedOnceRef.current = false
-        setHydrated(false)
-        hydratedRef.current = false
-        resetQueue()
-    }, [terminalId, resetQueue]);
+    previousTerminalId.current = terminalId
+    hydratedOnceRef.current = false
+    setHydrated(false)
+    hydratedRef.current = false
+}, [terminalId]);
 
 
     const handleTerminalClick = (event?: React.MouseEvent<HTMLDivElement>) => {

@@ -2,6 +2,7 @@ import { logger } from '../../utils/logger';
 import { XtermTerminal } from '../xterm/XtermTerminal';
 import { disposeGpuRenderer } from '../gpu/gpuRendererRegistry';
 import { sessionTerminalGroup } from '../../common/terminalIdentity';
+import { terminalOutputManager } from '../stream/terminalOutputManager';
 
 export interface TerminalInstanceRecord {
   id: string;
@@ -10,6 +11,8 @@ export interface TerminalInstanceRecord {
   lastSeq: number | null;
   initialized: boolean;
   attached: boolean;
+  streamRegistered: boolean;
+  streamListener?: (chunk: string) => void;
 }
 
 export interface AcquireTerminalResult {
@@ -26,6 +29,7 @@ class TerminalInstanceRegistry {
     const existing = this.instances.get(id);
     if (existing) {
       existing.attached = true;
+      this.ensureStream(existing);
       logger.debug(`[Registry] Reusing existing terminal ${id}`);
       return { record: existing, isNew: false };
     }
@@ -39,10 +43,12 @@ class TerminalInstanceRegistry {
       lastSeq: null,
       initialized: false,
       attached: true,
+      streamRegistered: false,
     };
 
     this.instances.set(id, record);
     logger.debug(`[Registry] Created new terminal ${id}, refCount: 1`);
+    this.ensureStream(record);
     return { record, isNew: true };
   }
 
@@ -58,6 +64,7 @@ class TerminalInstanceRegistry {
 
     if (record.refCount <= 0) {
       record.attached = false;
+      this.teardownStream(record);
       try {
         record.xterm.detach();
       } catch (error) {
@@ -130,6 +137,7 @@ class TerminalInstanceRegistry {
       } catch (error) {
         logger.debug(`[Registry] Error disposing terminal ${id} during clear:`, error);
       }
+      this.teardownStream(record);
       disposeGpuRenderer(id, 'registry-clear');
     }
     this.instances.clear();
@@ -145,6 +153,39 @@ class TerminalInstanceRegistry {
     for (const id of idsToRelease) {
       this.release(id);
     }
+  }
+
+  private ensureStream(record: TerminalInstanceRecord): void {
+    if (record.streamRegistered) {
+      return;
+    }
+    const listener = (chunk: string) => {
+      try {
+        record.xterm.raw.write(chunk);
+      } catch (error) {
+        logger.debug(`[Registry] Failed to write chunk for ${record.id}`, error);
+      }
+    };
+    record.streamListener = listener;
+    terminalOutputManager.addListener(record.id, listener);
+    record.streamRegistered = true;
+    void terminalOutputManager.ensureStarted(record.id).catch(error => {
+      logger.debug(`[Registry] ensureStarted failed for ${record.id}`, error);
+    });
+  }
+
+  private teardownStream(record: TerminalInstanceRecord): void {
+    if (!record.streamRegistered) {
+      return;
+    }
+    if (record.streamListener) {
+      terminalOutputManager.removeListener(record.id, record.streamListener);
+      record.streamListener = undefined;
+    }
+    record.streamRegistered = false;
+    void terminalOutputManager.dispose(record.id).catch(error => {
+      logger.debug(`[Registry] dispose stream failed for ${record.id}`, error);
+    });
   }
 }
 

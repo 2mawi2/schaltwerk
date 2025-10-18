@@ -78,7 +78,12 @@ vi.mock('@xterm/xterm', () => {
     options: Record<string, unknown>
     cols = 80
     rows = 24
+    private renderHandlers: Array<() => void> = []
+    private scrollHandlers: Array<() => void> = []
     write = vi.fn((_d?: string, cb?: () => void) => {
+      for (const handler of this.renderHandlers) {
+        handler()
+      }
       if (typeof cb === 'function') cb()
       return undefined as unknown as void
     })
@@ -115,8 +120,16 @@ vi.mock('@xterm/xterm', () => {
     onData(fn: (d: string) => void) {
       this.dataHandler = fn
     }
-    scrollToBottom() {}
-    scrollLines = vi.fn()
+    scrollToBottom() {
+      for (const handler of this.scrollHandlers) {
+        handler()
+      }
+    }
+    scrollLines = vi.fn((_delta?: number) => {
+      for (const handler of this.scrollHandlers) {
+        handler()
+      }
+    })
     scrollToLine = vi.fn((line: number) => {
       const delta = line - this.buffer.active.viewportY
       if (delta !== 0) {
@@ -138,6 +151,22 @@ vi.mock('@xterm/xterm', () => {
     }
     __triggerKey(e: KeyboardEvent) {
       return this.keyHandler ? this.keyHandler(e) : true
+    }
+    onRender(handler: () => void) {
+      this.renderHandlers.push(handler)
+      return {
+        dispose: () => {
+          this.renderHandlers = this.renderHandlers.filter(h => h !== handler)
+        }
+      }
+    }
+    onScroll(handler: () => void) {
+      this.scrollHandlers.push(handler)
+      return {
+        dispose: () => {
+          this.scrollHandlers = this.scrollHandlers.filter(h => h !== handler)
+        }
+      }
     }
   }
   function __getLastInstance() {
