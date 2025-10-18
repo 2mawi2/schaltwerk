@@ -1511,6 +1511,31 @@ fi`}
                     </div>
                     )}
 
+                    {/* MCP Server Configuration for Amp */}
+                    {activeAgentTab === 'amp' && (
+                        <div className="border-t border-slate-700 pt-6">
+                            <h3 className="text-body font-medium text-slate-200 mb-2">MCP Server Configuration</h3>
+                            <div className="text-body text-slate-400 mb-4">
+                                Configure Model Context Protocol servers that Amp can use for additional tools.
+                                These servers will be automatically configured when starting Amp sessions.
+                                <span className="block mt-2 text-caption text-slate-500">
+                                    Note: MCP server configurations are stored globally and apply to all Amp sessions.
+                                </span>
+                            </div>
+                            <div className="text-body text-slate-400 mb-4">
+                                <div className="mb-2">
+                                    <strong>Local MCP Servers:</strong> Executables that provide tools via stdio
+                                </div>
+                                <div className="mb-2">
+                                    <strong>Remote MCP Servers:</strong> HTTP/SSE endpoints with optional authentication
+                                </div>
+                                <div className="text-caption text-slate-500 mt-2">
+                                    Configure via Amp's CLI: <code className="bg-slate-800 px-1 py-0.5 rounded text-xs">amp mcp add &lt;name&gt; &lt;url&gt;</code>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="border-t border-slate-700 pt-6">
                         <h3 className="text-body font-medium text-slate-200 mb-2">Environment Variables</h3>
                         <div className="text-body text-slate-400 mb-4">

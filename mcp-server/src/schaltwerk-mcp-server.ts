@@ -16,7 +16,7 @@ import { SchaltwerkBridge, Session, MergeModeOption } from "./schaltwerk-bridge.
 interface SchaltwerkStartArgs {
   name?: string
   prompt?: string
-  agent_type?: 'claude' | 'opencode' | 'gemini' | 'codex' | 'qwen' | 'droid'
+  agent_type?: 'claude' | 'opencode' | 'gemini' | 'codex' | 'qwen' | 'droid' | 'amp'
   base_branch?: string
   skip_permissions?: boolean
   is_draft?: boolean
@@ -57,7 +57,7 @@ interface SchaltwerkCurrentSpecUpdateArgs {
 
 interface SchaltwerkDraftStartArgs {
   session_name: string
-  agent_type?: 'claude' | 'opencode' | 'gemini' | 'codex' | 'qwen' | 'droid'
+  agent_type?: 'claude' | 'opencode' | 'gemini' | 'codex' | 'qwen' | 'droid' | 'amp'
   skip_permissions?: boolean
   base_branch?: string
 }
@@ -136,9 +136,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               description: "Initial agent description or context for AI agent. Be specific and detailed."
             },
             agent_type: {
-              type: "string",
-              enum: ["claude", "opencode", "gemini", "codex", "qwen", "droid"],
-              description: "AI agent type to use (default: claude)"
+            type: "string",
+            enum: ["claude", "opencode", "gemini", "codex", "qwen", "droid", "amp"],
+            description: "AI agent type to use (default: claude)"
             },
             base_branch: {
               type: "string",
@@ -374,9 +374,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               description: "Name of the spec session to start"
             },
             agent_type: {
-              type: "string",
-              enum: ["claude", "opencode", "gemini", "codex", "qwen", "droid"],
-              description: "AI agent type to use (default: claude)"
+            type: "string",
+            enum: ["claude", "opencode", "gemini", "codex", "qwen", "droid", "amp"],
+            description: "AI agent type to use (default: claude)"
             },
             skip_permissions: {
               type: "boolean",

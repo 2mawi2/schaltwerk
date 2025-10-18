@@ -41,6 +41,8 @@ export const TauriCommands = {
   GetGitGraphHistory: 'get_git_graph_history',
   GetGitGraphCommitFiles: 'get_git_graph_commit_files',
   GetMcpStatus: 'get_mcp_status',
+  GetAmpMcpServers: 'get_amp_mcp_servers',
+  SetAmpMcpServers: 'set_amp_mcp_servers',
   GetOrchestratorWorkingChanges: 'get_orchestrator_working_changes',
   GetProjectActionButtons: 'get_project_action_buttons',
   GetProjectDefaultBaseBranch: 'get_project_default_base_branch',

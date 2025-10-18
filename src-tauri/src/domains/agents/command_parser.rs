@@ -43,12 +43,37 @@ pub fn parse_agent_command(command: &str) -> Result<(String, String, Vec<String>
 
     if tokens.is_empty() {
         return Err(format!(
-            "Second part doesn't start with 'claude', 'opencode', 'gemini', or 'codex': {command}"
+            "Second part doesn't start with 'claude', 'opencode', 'gemini', 'codex', or 'amp': {command}"
         ));
     }
 
     let mut iter = tokens.into_iter();
     let mut agent_token = iter.next().unwrap();
+
+    // Special handling for Amp: if command starts with "echo ... | amp", treat "amp" as the agent
+    if agent_token == "echo" {
+        // Look for " | " followed by amp binary
+        if let Some(pipe_pos) = agent_part.find(" | ") {
+            let after_pipe = &agent_part[pipe_pos + 3..];
+            let after_pipe_tokens: Vec<&str> = after_pipe.split_whitespace().collect();
+            if let Some(first_after_pipe) = after_pipe_tokens.first() {
+                // Check if it's amp or ends with /amp
+                if *first_after_pipe == "amp" || first_after_pipe.ends_with("/amp") {
+                    agent_token = first_after_pipe.to_string();
+                    // Skip tokens until we reach the amp binary
+                    while let Some(token) = iter.next() {
+                        if token == "|" {
+                            // Next token should be the amp binary
+                            if let Some(amp_token) = iter.next() {
+                                agent_token = amp_token;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     let first_segment = extract_first_segment(agent_part);
     if first_segment.contains('\\') && !agent_token.contains('\\') {
@@ -66,14 +91,16 @@ pub fn parse_agent_command(command: &str) -> Result<(String, String, Vec<String>
         .and_then(|s| s.to_str())
         .unwrap_or(fname);
 
+    // For Amp, we need to check both the binary name and path
+    let is_amp = agent_token == "amp" || agent_token.ends_with("/amp") || agent_token.ends_with("\\amp");
     let is_supported = supported_agents
         .iter()
-        .any(|agent| stem == *agent || agent_token == *agent);
+        .any(|agent| stem == *agent || agent_token == *agent) || is_amp;
 
     if !is_supported {
         let agent_list = supported_agents.join(", ");
         return Err(format!(
-            "Unsupported agent '{agent_token}'. Supported agents: {agent_list}"
+            "Unsupported agent '{agent_token}'. Supported agents: {agent_list}, amp"
         ));
     }
 

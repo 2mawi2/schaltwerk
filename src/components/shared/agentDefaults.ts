@@ -23,6 +23,8 @@ export const displayNameForAgent = (agent: AgentType) => {
             return 'Droid'
         case 'qwen':
             return 'Qwen'
+        case 'amp':
+            return 'Amp'
         case 'terminal':
             return 'Terminal Only'
         default:

@@ -2,23 +2,10 @@ use schaltwerk::services::terminals::{
     CreateRunTerminalRequest, CreateTerminalRequest, CreateTerminalWithSizeRequest,
 };
 use schaltwerk::services::ServiceHandles;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use tauri::State;
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RegisterSessionTerminalsPayload {
-    project_id: String,
-    session_id: Option<String>,
-    terminal_ids: Vec<String>,
-}
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionTerminalActionPayload {
-    project_id: String,
-    session_id: Option<String>,
-}
 
 #[tauri::command]
 pub async fn create_terminal(
@@ -177,32 +164,36 @@ pub async fn get_all_terminal_activity(
 #[tauri::command]
 pub async fn register_session_terminals(
     services: State<'_, ServiceHandles>,
-    payload: RegisterSessionTerminalsPayload,
+    project_id: String,
+    session_id: Option<String>,
+    terminal_ids: Vec<String>,
 ) -> Result<(), String> {
     services
         .terminals
-        .register_session_terminals(payload.project_id, payload.session_id, payload.terminal_ids)
+        .register_session_terminals(project_id, session_id, terminal_ids)
         .await
 }
 
 #[tauri::command]
 pub async fn suspend_session_terminals(
     services: State<'_, ServiceHandles>,
-    payload: SessionTerminalActionPayload,
+    project_id: String,
+    session_id: Option<String>,
 ) -> Result<(), String> {
     services
         .terminals
-        .suspend_session_terminals(payload.project_id, payload.session_id)
+        .suspend_session_terminals(project_id, session_id)
         .await
 }
 
 #[tauri::command]
 pub async fn resume_session_terminals(
     services: State<'_, ServiceHandles>,
-    payload: SessionTerminalActionPayload,
+    project_id: String,
+    session_id: Option<String>,
 ) -> Result<(), String> {
     services
         .terminals
-        .resume_session_terminals(payload.project_id, payload.session_id)
+        .resume_session_terminals(project_id, session_id)
         .await
 }

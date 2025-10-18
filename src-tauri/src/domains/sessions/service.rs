@@ -220,7 +220,7 @@ mod service_unified_tests {
 
         // First start should be FRESH (no --continue / no -r)
         let cmd1 = manager
-            .start_claude_in_session_with_restart_and_binary(spec_name, false, &HashMap::new())
+            .start_claude_in_session_with_restart_and_binary(spec_name, false, &HashMap::new(), None)
             .unwrap();
         let shell1 = &cmd1.shell_command;
         assert!(shell1.contains(" claude"));
@@ -229,7 +229,7 @@ mod service_unified_tests {
 
         // Second start should allow resume now (resume_allowed flipped true)
         let cmd2 = manager
-            .start_claude_in_session_with_restart_and_binary(spec_name, false, &HashMap::new())
+            .start_claude_in_session_with_restart_and_binary(spec_name, false, &HashMap::new(), None)
             .unwrap();
         let shell2 = &cmd2.shell_command;
         assert!(
@@ -268,6 +268,7 @@ mod service_unified_tests {
                 &session.name,
                 false,
                 &binary_paths,
+                None,
             );
 
             // Should succeed for all supported agents
@@ -301,6 +302,7 @@ mod service_unified_tests {
             &session.name,
             false,
             &binary_paths,
+            None,
         );
 
         assert!(result.is_ok());
@@ -319,6 +321,7 @@ mod service_unified_tests {
             &session.name,
             false,
             &binary_paths,
+            None,
         );
 
         assert!(result.is_ok());
@@ -394,7 +397,7 @@ mod service_unified_tests {
         setup_opencode_session_history(home_dir.path(), &session.worktree_path, "oc-session", 3);
 
         let cmd = manager
-            .start_claude_in_session_with_restart_and_binary(&session.name, false, &HashMap::new())
+            .start_claude_in_session_with_restart_and_binary(&session.name, false, &HashMap::new(), None)
             .expect("expected OpenCode command");
         let shell_command = &cmd.shell_command;
 
@@ -438,7 +441,7 @@ mod service_unified_tests {
         setup_opencode_session_history(home_dir.path(), &session.worktree_path, "oc-gate", 4);
 
         let cmd_first = manager
-            .start_claude_in_session_with_restart_and_binary(&session.name, false, &HashMap::new())
+            .start_claude_in_session_with_restart_and_binary(&session.name, false, &HashMap::new(), None)
             .expect("expected OpenCode command");
         let first_shell = &cmd_first.shell_command;
 
@@ -461,7 +464,7 @@ mod service_unified_tests {
         );
 
         let cmd_second = manager
-            .start_claude_in_session_with_restart_and_binary(&session.name, false, &HashMap::new())
+            .start_claude_in_session_with_restart_and_binary(&session.name, false, &HashMap::new(), None)
             .expect("expected OpenCode command");
         let second_shell = &cmd_second.shell_command;
 
@@ -855,6 +858,7 @@ mod service_unified_tests {
             &session.name,
             false,
             &binary_paths,
+            None,
         );
 
         // Should return an error with supported agent types listed
@@ -2161,6 +2165,7 @@ impl SessionManager {
             session_name,
             force_restart,
             &HashMap::new(),
+            None,
         )
     }
 
@@ -2169,7 +2174,7 @@ impl SessionManager {
         session_name: &str,
         binary_paths: &HashMap<String, String>,
     ) -> Result<AgentLaunchSpec> {
-        self.start_claude_in_session_with_restart_and_binary(session_name, false, binary_paths)
+        self.start_claude_in_session_with_restart_and_binary(session_name, false, binary_paths, None)
     }
 
     pub fn start_claude_in_session_with_args(
@@ -2186,7 +2191,7 @@ impl SessionManager {
         _cli_args: Option<&str>,
         binary_paths: &HashMap<String, String>,
     ) -> Result<AgentLaunchSpec> {
-        self.start_claude_in_session_with_restart_and_binary(session_name, false, binary_paths)
+        self.start_claude_in_session_with_restart_and_binary(session_name, false, binary_paths, None)
     }
 
     pub fn start_claude_in_session_with_restart_and_binary(
@@ -2194,6 +2199,7 @@ impl SessionManager {
         session_name: &str,
         force_restart: bool,
         binary_paths: &HashMap<String, String>,
+        amp_mcp_servers: Option<&HashMap<String, crate::domains::settings::McpServerConfig>>,
     ) -> Result<AgentLaunchSpec> {
         let session = self.db_manager.get_session_by_name(session_name)?;
         let skip_permissions = session
@@ -2495,6 +2501,39 @@ impl SessionManager {
             ) {
                 return Ok(spec);
             }
+        }
+
+        // Special handling for Amp with MCP servers
+        if agent_type == "amp" {
+            self.cache_manager
+                .mark_session_prompted(&session.worktree_path);
+            let prompt_to_use = session.initial_prompt.as_deref();
+
+            let binary_path = self.utils.get_effective_binary_path_with_override(
+                &agent_type,
+                binary_paths.get(&agent_type).map(|s| s.as_str()),
+            );
+
+            // Get MCP servers from parameter
+            let mcp_servers = amp_mcp_servers.unwrap_or(&HashMap::new()).clone();
+
+            let config = crate::domains::agents::amp::AmpConfig {
+                binary_path: Some(binary_path.clone()),
+                mcp_servers,
+            };
+
+            let command = crate::domains::agents::amp::build_amp_command_with_config(
+                &session.worktree_path,
+                None,
+                prompt_to_use,
+                skip_permissions,
+                Some(&config),
+            );
+
+            return Ok(crate::domains::agents::AgentLaunchSpec::new(
+                command,
+                session.worktree_path.clone(),
+            ));
         }
 
         // For all other agents, use the registry directly
