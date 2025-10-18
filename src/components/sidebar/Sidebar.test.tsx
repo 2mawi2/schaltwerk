@@ -679,12 +679,14 @@ describe('Sidebar', () => {
       // Wait for the scroll-to-view logic to complete
       // The implementation uses requestAnimationFrame + setTimeout with 50ms delay
       await waitFor(() => {
-        expect(mockScrollIntoView).toHaveBeenCalledWith({
-          behavior: 'smooth',
+        expect(mockScrollIntoView).toHaveBeenCalledWith(expect.objectContaining({
           block: 'nearest',
           inline: 'nearest'
-        })
+        }))
       }, { timeout: 1000 })
+
+      const [[scrollOptions]] = mockScrollIntoView.mock.calls
+      expect('behavior' in scrollOptions).toBe(false)
     })
   })
 })

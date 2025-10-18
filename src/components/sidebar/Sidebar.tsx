@@ -868,7 +868,6 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 const selectedElement = sidebarRef.current?.querySelector(`[data-session-selected="true"]`)
                 if (selectedElement) {
                     selectedElement.scrollIntoView({
-                        behavior: 'smooth',
                         block: 'nearest',
                         inline: 'nearest'
                     })
