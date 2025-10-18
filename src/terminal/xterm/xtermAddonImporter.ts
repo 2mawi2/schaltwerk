@@ -2,7 +2,6 @@ import type { ClipboardAddon as ClipboardAddonType } from '@xterm/addon-clipboar
 import type { FitAddon as FitAddonType } from '@xterm/addon-fit'
 import type { ImageAddon as ImageAddonType } from '@xterm/addon-image'
 import type { LigaturesAddon as LigaturesAddonType } from '@xterm/addon-ligatures'
-import type { ProgressAddon as ProgressAddonType } from '@xterm/addon-progress'
 import type { SearchAddon as SearchAddonType } from '@xterm/addon-search'
 import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serialize'
 import type { Unicode11Addon as Unicode11AddonType } from '@xterm/addon-unicode11'
@@ -13,7 +12,6 @@ export interface IXtermAddonNameToCtor {
   fit: typeof FitAddonType
   image: typeof ImageAddonType
   ligatures: typeof LigaturesAddonType
-  progress: typeof ProgressAddonType
   search: typeof SearchAddonType
   serialize: typeof SerializeAddonType
   unicode11: typeof Unicode11AddonType
@@ -48,10 +46,6 @@ async function loadAddonCtor<T extends XtermAddonName>(name: T): Promise<IXtermA
       case 'ligatures': {
         const module = await import('@xterm/addon-ligatures')
         return module.LigaturesAddon as IXtermAddonNameToCtor[T]
-      }
-      case 'progress': {
-        const module = await import('@xterm/addon-progress')
-        return module.ProgressAddon as IXtermAddonNameToCtor[T]
       }
       case 'search': {
         const module = await import('@xterm/addon-search')

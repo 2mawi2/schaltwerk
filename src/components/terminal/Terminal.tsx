@@ -20,7 +20,7 @@ import { logger } from '../../utils/logger'
 import { useModal } from '../../contexts/ModalContext'
 import { safeTerminalFocus, safeTerminalFocusImmediate } from '../../utils/safeFocus'
 import { buildTerminalFontFamily } from '../../utils/terminalFonts'
-import { ActiveBufferLike, readScrollState, restoreScrollState, pinBottomDefinitive, type XTermLike } from '../../utils/termScroll'
+import { ActiveBufferLike, readScrollState, pinBottomDefinitive, type XTermLike } from '../../utils/termScroll'
 import { makeAgentQueueConfig, makeDefaultQueueConfig } from '../../utils/terminalQueue'
 import { useTerminalWriteQueue } from '../../hooks/useTerminalWriteQueue'
 import { TerminalLoadingOverlay } from './TerminalLoadingOverlay'
@@ -33,7 +33,6 @@ import {
     ackTerminalBackend,
     isPluginTerminal,
 } from '../../terminal/transport/backend'
-import { TerminalSuspensionManager } from '../../terminal/suspension/terminalSuspension'
 import {
     acquireTerminalInstance,
     detachTerminalInstance,
@@ -41,12 +40,10 @@ import {
 } from '../../terminal/registry/terminalRegistry'
 import { XtermTerminal } from '../../terminal/xterm/XtermTerminal'
 import { useTerminalGpu } from '../../hooks/useTerminalGpu'
-import { createDebouncedAsync, type DebouncedAsync } from '../../utils/debounce'
 
 const DEFAULT_SCROLLBACK_LINES = 10000
 const BACKGROUND_SCROLLBACK_LINES = 5000
 const AGENT_SCROLLBACK_LINES = 20000
-const FAST_HYDRATION_REVEAL_THRESHOLD = 512 * 1024
 const RIGHT_EDGE_GUARD_COLUMNS = 2
 const CLAUDE_SHIFT_ENTER_SEQUENCE = '\\'
 // Track last effective size we told the PTY (after guard), for SIGWINCH nudging
@@ -75,10 +72,11 @@ export function clearTerminalStartedTracking(terminalIds: string[]) {
 }
 
 interface TerminalBufferResponse {
-    seq: number
-    startSeq: number
-    data: string
+    seq: number;
+    startSeq: number;
+    data: string;
 }
+
 interface TerminalProps {
     terminalId: string;
     className?: string;
@@ -122,30 +120,15 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const lastSize = useRef<{ cols: number; rows: number }>({ cols: 80, rows: 24 });
     const lastEffectiveRef = useRef<{ cols: number; rows: number }>(lastEffectiveRefInit);
     const [hydrated, setHydrated] = useState(false);
+    const hydratedRef = useRef<boolean>(false);
     const [agentLoading, setAgentLoading] = useState(false);
     const [agentStopped, setAgentStopped] = useState(false);
     const terminalEverStartedRef = useRef<boolean>(false);
-    const hydratedRef = useRef<boolean>(false);
-    const initialHydrationStartedRef = useRef<boolean>(false);
-    const pendingRevealRef = useRef<'fast' | 'post-flush' | 'failure' | null>(null);
+    const hydratedOnceRef = useRef<boolean>(false);
     const pendingOutput = useRef<string[]>([]);
     const snapshotCursorRef = useRef<number | null>(null);
-    const rehydrateScrollRef = useRef<{ atBottom: boolean; y: number } | null>(null);
-    const rehydrateSkipAutoScrollRef = useRef<boolean>(false);
-    const rehydrateInProgressRef = useRef<boolean>(false);
-    const rehydrateHandledRef = useRef<boolean>(false);
-    const wasSuspendedRef = useRef<boolean>(false);
     // Tracks user-initiated interrupt signal to distinguish from startup/other exits.
     const lastSigintAtRef = useRef<number | null>(null);
-    const [overflowEpoch, setOverflowEpoch] = useState(0);
-    const overflowNoticesRef = useRef<number[]>([]);
-    const overflowReplayNeededRef = useRef<boolean>(false);
-    const rehydrateByReasonRef = useRef<((reason: 'resume' | 'overflow') => Promise<'completed' | 'deferred' | 'failed'>) | null>(null);
-    const overflowQueuedRef = useRef<boolean>(false);
-    const overflowProcessingRef = useRef<boolean>(false);
-    const rehydrateInFlightRef = useRef<boolean>(false);
-    const hydrationInFlightRef = useRef<boolean>(false);
-    const postHydrationReasonRef = useRef<'resume' | 'overflow' | null>(null);
     const [isSearchVisible, setIsSearchVisible] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const handleSearchTermChange = useCallback((value: string) => {
@@ -274,8 +257,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     ), [agentType]);
 
     const handleOverflow = useCallback((info: { droppedBytes: number }) => {
-        overflowNoticesRef.current.push(info.droppedBytes);
-        setOverflowEpoch((tick) => tick + 1);
         logger.warn(`[Terminal ${terminalId}] Write queue overflow dropped ${info.droppedBytes}B`);
     }, [terminalId]);
 
@@ -444,62 +425,10 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     }, []);
 
     const shouldAutoScroll = useCallback((wasAtBottom: boolean) => {
-        if (rehydrateSkipAutoScrollRef.current) {
-            if (wasAtBottom) {
-                rehydrateSkipAutoScrollRef.current = false;
-            } else {
-                return false;
-            }
-        }
         if (!wasAtBottom) return false;
-        if (rehydrateScrollRef.current && !rehydrateScrollRef.current.atBottom) return false;
         if (isUserSelectingInTerminal()) return false;
         return true;
     }, [isUserSelectingInTerminal]);
-
-    const applyPostHydrationScroll = useCallback((phase: 'success' | 'failure') => {
-        if (!terminal.current) {
-            rehydrateScrollRef.current = null;
-            return;
-        }
-
-        const saved = rehydrateScrollRef.current;
-        rehydrateScrollRef.current = null;
-
-        if (rehydrateInProgressRef.current && !saved) {
-            rehydrateInProgressRef.current = false;
-            return;
-        }
-
-        if (!saved && rehydrateHandledRef.current) {
-            rehydrateHandledRef.current = false;
-            return;
-        }
-
-        try {
-            if (!saved || saved.atBottom) {
-                pinBottomDefinitive(terminal.current as unknown as XTermLike);
-                rehydrateSkipAutoScrollRef.current = false;
-            } else {
-                restoreScrollState(terminal.current as unknown as XTermLike, saved);
-                rehydrateSkipAutoScrollRef.current = true;
-            }
-        } catch (error) {
-            logger.warn(`[Terminal ${terminalId}] Failed to apply scroll after hydration ${phase}:`, error);
-        }
-
-        rehydrateHandledRef.current = Boolean(saved);
-        rehydrateInProgressRef.current = false;
-        const pendingReveal = pendingRevealRef.current;
-        if (pendingReveal) {
-            pendingRevealRef.current = null;
-            setHydrated(true);
-            logger.info(`[Terminal ${terminalId}] Hydration revealed via ${pendingReveal}`);
-            if (onReady) {
-                onReady();
-            }
-        }
-    }, [terminalId, onReady]);
 
     const enqueueWrite = useCallback((data: string) => {
         if (data.length === 0) return;
@@ -560,10 +489,10 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         scrollToBottom: scrollToBottomInstant
     }), [isAnyModalOpen, isSearchVisible, focusSearchInput, scrollToBottomInstant]);
 
-    // Keep hydratedRef in sync so listeners see the latest state
     useEffect(() => {
         hydratedRef.current = hydrated;
     }, [hydrated]);
+
 
     useEffect(() => {
         if (!onTerminalClick) return;
@@ -899,8 +828,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         }
 
         setHydrated(false);
-        pendingRevealRef.current = null;
         hydratedRef.current = false;
+        hydratedOnceRef.current = false;
         pendingOutput.current = [];
         resetQueue();
 
@@ -980,15 +909,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         applyLetterSpacing(gpuEnabledForTerminal);
         // Allow streaming immediately; proper fits will still run later
         rendererReadyRef.current = true;
-
-        if (!isBackground && termRef.current && terminal.current) {
-            const suspensionManager = TerminalSuspensionManager.getInstance({
-                suspendAfterMs: 5000,
-                maxSuspendedTerminals: 100,
-                keepAliveTerminalIds: new Set()
-            });
-            suspensionManager.registerTerminal(terminalId, terminal.current, termRef.current);
-        }
 
         // Ensure proper initial fit after terminal is opened
         // CRITICAL: Wait for container dimensions before fitting - essential for xterm.js 5.x cursor positioning
@@ -1246,6 +1166,15 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                             logger.debug('Scroll error during terminal output (cb)', error);
                         }
 
+                        hydratedRef.current = true;
+                        if (!hydratedOnceRef.current) {
+                            hydratedOnceRef.current = true;
+                            setHydrated(true);
+                            if (onReady) {
+                                onReady();
+                            }
+                        }
+
                         acknowledgeChunk(chunk);
                         if (getQueueStats().queueLength > 0) {
                             scheduleFlush();
@@ -1261,55 +1190,13 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         };
 
         // Immediate flush helper (no debounce), used during hydration transitions
-        const flushNow = () => {
-            if (!rendererReadyRef.current || !terminal.current) return;
-            if (getQueueStats().queueLength === 0) return;
-
-            flushQueuePending((chunk) => {
-                if (!rendererReadyRef.current || !terminal.current) {
-                    return false;
-                }
-
-                const buffer = terminal.current.buffer.active as unknown as ActiveBufferLike & { viewportY?: number; baseY?: number };
-                const wasAtBottom = (buffer?.viewportY != null && buffer?.baseY != null)
-                    ? buffer.viewportY === buffer.baseY
-                    : false;
-
-                if (termDebug()) {
-                    logger.debug(`[Terminal ${terminalId}] flushNow: bytes=${chunk.length} wasAtBottom=${wasAtBottom}`);
-                }
-
-                try {
-                    terminal.current.write(chunk, () => {
-                        try {
-                            if (shouldAutoScroll(wasAtBottom)) {
-                                scrollToBottomInstant();
-                            }
-                        } catch (error) {
-                            logger.debug('Scroll error during buffer flush (cb)', error);
-                        } finally {
-                            acknowledgeChunk(chunk);
-                            if (getQueueStats().queueLength > 0) {
-                                queueMicrotask(() => flushNow());
-                            }
-                        }
-                    });
-                } catch (error) {
-                    logger.debug('xterm write failed in flushNow', error);
-                    return false;
-                }
-
-                return true;
-            }, { immediate: true });
-        };
-
         const flushStreamingDecoder = () => {
             const decoder = textDecoderRef.current;
             if (!decoder) return;
             try {
                 const tail = decoder.decode(new Uint8Array(0), { stream: false });
                 if (tail && tail.length > 0) {
-                    if (!hydratedRef.current) {
+                    if (!rendererReadyRef.current) {
                         pendingOutput.current.push(tail);
                     } else {
                         enqueueWrite(tail);
@@ -1322,76 +1209,27 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             textDecoderRef.current = null;
         };
 
-        // Promise-based drain used only during initial hydration to guarantee "all content applied" before reveal
-        const flushAllNowAsync = async (): Promise<void> => {
-            // Loop until renderer ready, queue empty, and no pending outputs remain
-            // We purposely avoid timeouts and use RAF + xterm write callbacks for determinism
-            // 1) Wait for renderer
-            if (!rendererReadyRef.current) {
-                await new Promise<void>((resolve) => {
-                    const tick = () => {
-                        if (!mountedRef.current) return resolve();
-                        if (rendererReadyRef.current) return resolve();
-                        requestAnimationFrame(tick);
-                    };
-                    requestAnimationFrame(tick);
-                });
-            }
-
-            // 2) Move any pendingOutput into the write queue first
-            if (pendingOutput.current.length > 0) {
-                for (const output of pendingOutput.current) enqueueWrite(output);
-                pendingOutput.current = [];
-            }
-
-            // 3) Drain queue to empty using write callbacks
-            if (!terminal.current) return;
-            await new Promise<void>((resolve) => {
-                const step = () => {
-                    if (!mountedRef.current || !terminal.current) return resolve();
-                    if (getQueueStats().queueLength === 0) {
-                        // Double-check no new pending arrived mid-drain; if so, loop again
-                        if (pendingOutput.current.length > 0) {
-                            for (const output of pendingOutput.current) enqueueWrite(output);
-                            pendingOutput.current = [];
-                            // Continue draining
-                        } else {
-                            return resolve();
-                        }
-                    }
-
-                    // Write one chunk synchronously and continue on its callback
-                    let chunkProcessed = false;
-                    flushQueuePending((chunk) => {
-                        chunkProcessed = chunk.length > 0;
-                        if (!terminal.current) {
-                            return false;
-                        }
-
-                        try {
-                            terminal.current.write(chunk, () => {
-                                acknowledgeChunk(chunk);
-                                queueMicrotask(step);
-                            });
-                        } catch (error) {
-                            logger.debug('xterm write failed in flushAllNowAsync', error);
-                            return false;
-                        }
-
-                        return true;
-                    }, { immediate: true });
-
-                    if (!chunkProcessed) {
-                        // No chunk processed (e.g., queue emptied during callbacks). Re-evaluate on next tick.
-                        queueMicrotask(step);
-                    }
-                };
-                step();
-            });
-        };
-
         // Listen for terminal output from backend (buffer until hydrated)
         unlistenRef.current = null;
+        const loadInitialSnapshot = async () => {
+            if (pluginTransportActive) return;
+            try {
+                const snapshot = await invoke<TerminalBufferResponse | null>(TauriCommands.GetTerminalBuffer, {
+                    id: terminalId,
+                    from_seq: snapshotCursorRef.current ?? null,
+                });
+                if (!snapshot || typeof snapshot.seq !== 'number' || typeof snapshot.startSeq !== 'number') {
+                    return;
+                }
+                snapshotCursorRef.current = snapshot.seq;
+                if (snapshot.data && snapshot.data.length > 0) {
+                    pendingOutput.current.unshift(snapshot.data);
+                }
+            } catch (error) {
+                logger.debug(`[Terminal ${terminalId}] Failed to load initial snapshot`, error);
+            }
+        };
+
         const attachListener = async () => {
             if (pluginTransportActive) {
                 const unsubscribe = await subscribeTerminalBackend(
@@ -1423,7 +1261,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                             logger.debug(`[Terminal ${terminalId}] recv(plugin) #${n} +${message.bytes.length}B qlen=${queueLength}`);
                         }
 
-                        if (!hydratedRef.current) {
+                        if (!rendererReadyRef.current) {
                             pendingOutput.current.push(output);
                         } else {
                             enqueueWrite(output);
@@ -1452,8 +1290,11 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                     return () => {};
                 }
                 unlistenRef.current = unlisten;
+                await loadInitialSnapshot();
                 return unlisten;
             }
+
+            await loadInitialSnapshot();
 
             const unlisten = await listenTerminalOutput(terminalId, (output) => {
                 if (termDebug()) {
@@ -1462,7 +1303,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                     logger.debug(`[Terminal ${terminalId}] recv #${n} +${(output?.length ?? 0)}B qlen=${queueLength}`);
                 }
                 if (cancelled) return;
-                if (!hydratedRef.current) {
+                if (!rendererReadyRef.current) {
                     pendingOutput.current.push(output);
                 } else {
                     enqueueWrite(output);
@@ -1483,284 +1324,36 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         unlistenPromiseRef.current = attachListener();
         listenerAgentRef.current = agentType;
 
-        let scheduleRehydrate!: DebouncedAsync<'resume' | 'overflow', 'completed' | 'deferred' | 'failed'>;
+        const flushBufferedOutput = () => {
+            if (!rendererReadyRef.current) return;
+            if (pendingOutput.current.length === 0) return;
+            const buffered = pendingOutput.current.splice(0, pendingOutput.current.length);
+            buffered.forEach(chunk => enqueueWrite(chunk));
+            scheduleFlush();
+            ensureHydrated();
+        };
 
-        // Hydrate from buffer
-        const hydrateTerminal = async () => {
-            if (hydrationInFlightRef.current) {
-                logger.debug(`[Terminal ${terminalId}] Hydration already in flight, skipping additional start`);
-                return;
+        const ensureHydrated = () => {
+            if (!hydratedOnceRef.current) {
+                hydratedOnceRef.current = true;
+                setHydrated(true);
+                if (onReady) {
+                    onReady();
+                }
             }
-            hydrationInFlightRef.current = true;
-            const hydrateStart = (typeof performance !== 'undefined' ? performance.now() : Date.now());
-            try {
-                // Ensure listener is attached before snapshot so there is zero gap
-                try {
-                    await unlistenPromiseRef.current;
-                } catch (e) {
-                    logger.warn(`[Terminal ${terminalId}] Listener attach awaited with error (continuing):`, e);
-                }
-                logger.info(`[Terminal ${terminalId}] Hydration started (plugin=${pluginTransportActive})`);
-                let snapshotBytes = 0;
-                let pendingSkipCount = 0;
-                if (!pluginTransportActive) {
-                    const snapshot = await invoke<TerminalBufferResponse>(TauriCommands.GetTerminalBuffer, {
-                        id: terminalId,
-                        from_seq: snapshotCursorRef.current ?? null,
-                    });
-
-                    snapshotCursorRef.current = snapshot.seq;
-
-                    if (snapshot.data) {
-                        enqueueWrite(snapshot.data);
-                        snapshotBytes = snapshot.data.length;
-                    }
-                    pendingSkipCount = pendingOutput.current.length;
-                }
-                // Queue any pending output that arrived during hydration
-                if (pendingOutput.current.length > 0) {
-                    const outputs = pendingOutput.current;
-                    const startIndex = pluginTransportActive
-                        ? 0
-                        : Math.min(pendingSkipCount, outputs.length);
-                    for (let i = startIndex; i < outputs.length; i += 1) {
-                        const output = outputs[i];
-                        enqueueWrite(output);
-                    }
-                    pendingOutput.current = [];
-                }
-
-                const markHydrated = (reason: 'fast' | 'post-flush') => {
-                    if (hydratedRef.current) return;
-                    hydratedRef.current = true;
-                    pendingRevealRef.current = reason;
-                };
-
-                const shouldRevealEarly = snapshotBytes >= FAST_HYDRATION_REVEAL_THRESHOLD || startedGlobal.has(terminalId);
-                if (shouldRevealEarly) {
-                    markHydrated('fast');
-                }
-
-                // Drain all queued content before running post-hydration sizing/scrolling work
-                await flushAllNowAsync();
-
-                if (!shouldRevealEarly) {
-                    markHydrated('post-flush');
-                }
-
-                const hydrateElapsed = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - hydrateStart;
-                logger.info(
-                    `[Terminal ${terminalId}] Hydration completed (snapshot=${snapshotBytes}B, early=${shouldRevealEarly}) in ${hydrateElapsed.toFixed(1)}ms`
-                );
-                  
-                  // After hydration, ensure a definitive fit+resize once layout/fonts are ready
-                  const doHydrationFit = () => {
-                      if (!fitAddon.current || !terminal.current || !termRef.current) return;
-                      const el = termRef.current;
-                      if (!el.isConnected || el.clientWidth === 0 || el.clientHeight === 0) return;
-                      try {
-                          fitAddon.current.fit();
-                          const { cols, rows } = terminal.current;
-                          applySizeUpdate(cols, rows, 'hydration');
-                      } catch (e) {
-                          // Non-fatal; ResizeObserver and later events will correct
-                          logger.warn(`[Terminal ${terminalId}] Hydration fit failed:`, e);
-                      }
-                  };
-                  // Run on next frame, then after fonts are ready (if supported)
-                  requestAnimationFrame(() => {
-                      doHydrationFit();
-                      // Use Font Loading API if available to ensure accurate cell metrics
-                      try {
-                          const fontsReady: Promise<FontFaceSet> | undefined = (document as Document & { fonts?: { ready?: Promise<FontFaceSet> } }).fonts?.ready;
-                          if (fontsReady && typeof fontsReady.then === 'function') {
-                              fontsReady.then(() => {
-                                  requestAnimationFrame(() => doHydrationFit());
-                              }).catch(error => {
-                                  logger.warn('Font readiness check failed:', error)
-                              });
-                          }
-                      } catch (error) {
-                          logger.warn('Error during terminal hydration fit:', error)
-                      }
-                  });
-
-                  // Scroll to bottom after hydration to show latest content (Codex: then tighten once)
-                  requestAnimationFrame(() => {
-                      applyPostHydrationScroll('success');
-                  });
-
-                  // Emit terminal ready event for focus management after we've fully flushed and fitted
-                  if (typeof window !== 'undefined') {
-                      emitUiEvent(UiEvent.TerminalReady, { terminalId });
-                 }
-                
-        } catch (error) {
-            logger.error(`[Terminal ${terminalId}] Failed to hydrate:`, error);
-            // On failure, still shift to live streaming and flush any buffered output to avoid drops
             hydratedRef.current = true;
-            pendingRevealRef.current = 'failure';
-            if (pendingOutput.current.length > 0) {
-                for (const output of pendingOutput.current) {
-                    enqueueWrite(output);
-                }
-                pendingOutput.current = [];
-                // Flush immediately; subsequent events will be batched
-                flushNow();
-            }
-            requestAnimationFrame(() => {
-                applyPostHydrationScroll('failure');
-            });
-        }
-        hydrationInFlightRef.current = false;
-        const queuedReason = postHydrationReasonRef.current;
-        postHydrationReasonRef.current = null;
-        if (queuedReason) {
-            scheduleRehydrate(queuedReason).catch(err => {
-                logger.error(`[Terminal ${terminalId}] Post-hydration rehydrate failed`, err);
-            });
-        }
         };
 
-
-        const performRehydrate = async (reason: 'resume' | 'overflow'): Promise<'completed' | 'deferred' | 'failed'> => {
-            if (!mountedRef.current) {
-                return 'deferred';
-            }
-
-            if (hydrationInFlightRef.current) {
-                logger.debug(`[Terminal ${terminalId}] Queuing ${reason} rehydrate until current hydration completes`);
-                const existing = postHydrationReasonRef.current;
-                if (reason === 'overflow' || existing !== 'overflow') {
-                    postHydrationReasonRef.current = reason;
-                }
-                if (reason === 'overflow') {
-                    overflowReplayNeededRef.current = true;
-                }
-                return 'deferred';
-            }
-
-            if (rehydrateInFlightRef.current) {
-                logger.debug(`[Terminal ${terminalId}] Skipping ${reason} rehydrate; already in progress`);
-                if (reason === 'overflow') {
-                    overflowReplayNeededRef.current = true;
-                }
-                return 'deferred';
-            }
-
-            rehydrateInFlightRef.current = true;
-            try {
-                if (reason === 'resume') {
-                    const sawSuspension = wasSuspendedRef.current;
-                    wasSuspendedRef.current = false;
-                    logger.debug(`[Terminal ${terminalId}] rehydrate(${reason}) called, previouslySuspended=${sawSuspension}`);
-                    if (!sawSuspension) {
-                        logger.debug(`[Terminal ${terminalId}] Proceeding with resume hydration despite missing suspend event`);
+        if (unlistenPromiseRef.current) {
+            unlistenPromiseRef.current
+                .then(() => {
+                    if (!cancelled) {
+                        flushBufferedOutput();
                     }
-                } else {
-                    logger.info(`[Terminal ${terminalId}] Rehydrating after write queue overflow`);
-                }
-
-                logger.debug(`[Terminal ${terminalId}] Starting rehydration - CLEARING TERMINAL`);
-                if (reason !== 'resume' || !rehydrateScrollRef.current) {
-                    if (terminal.current) {
-                        rehydrateScrollRef.current = readScrollState(terminal.current as unknown as XTermLike);
-                    } else {
-                        rehydrateScrollRef.current = { atBottom: true, y: 0 };
-                    }
-                }
-                const snapshotBefore = rehydrateScrollRef.current;
-                rehydrateSkipAutoScrollRef.current = snapshotBefore ? !snapshotBefore.atBottom : false;
-                rehydrateHandledRef.current = false;
-                rehydrateInProgressRef.current = true;
-                pendingOutput.current = [];
-                resetQueue();
-                if (terminal.current) {
-                    try {
-                        terminal.current.reset();
-                        logger.debug(`[Terminal ${terminalId}] Terminal reset complete`);
-                    } catch (error) {
-                        logger.warn(`[Terminal ${terminalId}] Failed to reset terminal before ${reason}:`, error);
-                    }
-                }
-                setHydrated(false);
-                pendingRevealRef.current = null;
-                hydratedRef.current = false;
-                snapshotCursorRef.current = null;
-                await hydrateTerminal();
-                logger.debug(`[Terminal ${terminalId}] Rehydration (${reason}) complete`);
-                return 'completed';
-            } catch (error) {
-                logger.error(`[Terminal ${terminalId}] Failed to rehydrate after ${reason}:`, error);
-                if (reason === 'overflow') {
-                    overflowReplayNeededRef.current = true;
-                }
-                rehydrateInProgressRef.current = false;
-                return 'failed';
-            } finally {
-                rehydrateInFlightRef.current = false;
-                if (overflowReplayNeededRef.current) {
-                    overflowReplayNeededRef.current = false;
-                    if (overflowNoticesRef.current.length > 0) {
-                        overflowQueuedRef.current = true;
-                        setOverflowEpoch((tick) => tick + 1);
-                    }
-                }
-            }
-        }
-
-        scheduleRehydrate = createDebouncedAsync<'resume' | 'overflow', 'completed' | 'deferred' | 'failed'>(performRehydrate, {
-            delay: 20,
-            merge: (prev, next) => {
-                if (prev === 'overflow' || next === 'overflow') {
-                    return 'overflow';
-                }
-                return next;
-            },
-        });
-
-        rehydrateByReasonRef.current = scheduleRehydrate;
-
-        const attachResumeListener = async () => {
-            try {
-                const unlisten = await listenEvent(SchaltEvent.TerminalResumed, (payload) => {
-                    if (payload?.terminal_id !== terminalId) return;
-                    scheduleRehydrate('resume')
-                        .then((result) => {
-                            if (result === 'failed') {
-                                logger.warn(`[Terminal ${terminalId}] Resume rehydrate reported failure`);
-                            }
-                        })
-                        .catch(err => logger.error(`[Terminal ${terminalId}] Resume hydration failed:`, err));
-                });
-                resumeUnlistenRef.current = unlisten;
-            } catch (error) {
-                logger.warn(`[Terminal ${terminalId}] Failed to attach resume listener`, error);
-            }
-        };
-
-        let suspendUnlisten: UnlistenFn | null = null
-        const attachSuspendListener = async () => {
-            try {
-                suspendUnlisten = await listenEvent(SchaltEvent.TerminalSuspended, (payload) => {
-                    if (payload?.terminal_id !== terminalId) return
-                    wasSuspendedRef.current = true
-                    if (!rehydrateScrollRef.current && terminal.current) {
-                        rehydrateScrollRef.current = readScrollState(terminal.current as unknown as XTermLike);
-                    }
-                    logger.debug(`[Terminal ${terminalId}] Marked as suspended`)
                 })
-            } catch (error) {
-                logger.warn(`[Terminal ${terminalId}] Failed to attach suspend listener`, error)
-            }
-        }
-
-        attachResumeListener()
-        attachSuspendListener()
-
-        if (!initialHydrationStartedRef.current) {
-            initialHydrationStartedRef.current = true;
-            hydrateTerminal();
+                .catch((error) => {
+                    logger.debug(`[Terminal ${terminalId}] Listener setup failed before flush`, error);
+                });
         }
 
         // Handle font size changes with better debouncing
@@ -1926,8 +1519,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         // Terminal processes will be cleaned up when the app exits
         return () => {
             mountedRef.current = false;
-            initialHydrationStartedRef.current = false;
-            rehydrateByReasonRef.current = null;
             cancelled = true;
             rendererReadyRef.current = false;
             flushStreamingDecoder();
@@ -1964,14 +1555,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 }
                 resumeUnlistenRef.current = null;
             }
-            if (suspendUnlisten) {
-                try { suspendUnlisten(); } catch (error) {
-                    logger.error(`[Terminal ${terminalId}] Suspend listener cleanup error:`, error);
-                }
-            }
-
-            scheduleRehydrate.dispose();
-            
             // Only disconnect if not already disconnected (it disconnects itself after initialization)
             try {
                 rendererObserver?.disconnect();
@@ -1982,13 +1565,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             try { visibilityObserver?.disconnect(); } catch { /* ignore */ }
 
             cancelGpuRefreshWorkRef.current?.();
-            hydrationInFlightRef.current = false;
-
-            const suspensionManager = TerminalSuspensionManager.getInstance();
-            if (!isBackground && terminal.current) {
-                suspensionManager.suspendImmediate(terminalId);
-            }
-            suspensionManager.unregisterTerminal(terminalId);
 
             if (onDataDisposableRef.current) {
                 try {
@@ -2009,7 +1585,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             gpuRenderer.current = null;
             terminal.current = null;
             setHydrated(false);
-            pendingRevealRef.current = null;
+            hydratedRef.current = false;
             pendingOutput.current = [];
             resetQueue();
             // Note: We intentionally don't close terminals here to allow switching between sessions
@@ -2038,69 +1614,13 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         scrollToBottomInstant,
         pluginTransportActive,
         acknowledgeChunk,
-        applyPostHydrationScroll,
-        beginClaudeShiftEnter,
+                beginClaudeShiftEnter,
         finalizeClaudeShiftEnter,
         refreshGpuFontRendering,
         gpuEnabledForTerminal,
         applyLetterSpacing,
         gpuRenderer,
     ]);
-
-    useEffect(() => {
-        if (overflowEpoch === 0) return;
-        overflowQueuedRef.current = true;
-        if (overflowProcessingRef.current) return;
-
-        const processOverflow = async () => {
-            while (overflowNoticesRef.current.length > 0) {
-                const droppedBytes = overflowNoticesRef.current[0];
-                const rehydrate = rehydrateByReasonRef.current;
-
-                if (typeof droppedBytes !== 'number') {
-                    overflowNoticesRef.current.shift();
-                    continue;
-                }
-
-                if (!rehydrate) {
-                    logger.debug(`[Terminal ${terminalId}] Overflow recovery skipped; rehydrate handler unavailable`);
-                    break;
-                }
-
-                logger.debug(`[Terminal ${terminalId}] Processing overflow recovery (dropped ${droppedBytes}B)`);
-
-                let outcome: 'completed' | 'deferred' | 'failed';
-                try {
-                    outcome = await rehydrate('overflow');
-                } catch (error) {
-                    logger.error(`[Terminal ${terminalId}] Overflow rehydrate threw`, error);
-                    outcome = 'failed';
-                }
-
-                if (outcome === 'completed') {
-                    overflowNoticesRef.current.shift();
-                    continue;
-                }
-
-                if (outcome === 'deferred') {
-                    overflowQueuedRef.current = true;
-                    break;
-                }
-
-                logger.warn(`[Terminal ${terminalId}] Overflow rehydrate reported failure`);
-                break;
-            }
-
-            if (overflowNoticesRef.current.length === 0) {
-                overflowQueuedRef.current = false;
-            }
-
-            overflowProcessingRef.current = false;
-        };
-
-        overflowProcessingRef.current = true;
-        processOverflow();
-    }, [overflowEpoch, terminalId]);
 
     // Reconfigure output listener when agent type changes for the same terminal
     useEffect(() => {
@@ -2165,7 +1685,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             try {
                 const unlisten = await listenTerminalOutput(terminalId, (output) => {
                     if (!mounted) return;
-                    if (!hydratedRef.current) {
+                    if (!rendererReadyRef.current) {
                         pendingOutput.current.push(output);
                     } else {
                         enqueueWrite(output);
@@ -2429,23 +1949,9 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         previousTerminalId.current = terminalId
         snapshotCursorRef.current = null
         pendingOutput.current = []
-        rehydrateScrollRef.current = null
-        rehydrateSkipAutoScrollRef.current = false
-        rehydrateHandledRef.current = false
-        rehydrateInProgressRef.current = false
-        rehydrateInFlightRef.current = false
-        rehydrateByReasonRef.current = null
-        wasSuspendedRef.current = false
-        overflowReplayNeededRef.current = false
-        overflowQueuedRef.current = false
-        overflowNoticesRef.current = []
-
-        if (hydratedRef.current) {
-            hydratedRef.current = false
-            setHydrated(false)
-            pendingRevealRef.current = null
-        }
-
+        hydratedOnceRef.current = false
+        setHydrated(false)
+        hydratedRef.current = false
         resetQueue()
     }, [terminalId, resetQueue]);
 

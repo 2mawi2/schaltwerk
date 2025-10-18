@@ -146,7 +146,6 @@ pub struct LocalPtyAdapter {
     reader_handles: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>,
     // Coalescing state for terminal output handling
     coalescing_state: CoalescingState,
-    suspended: Arc<RwLock<HashSet<String>>>,
     pending_control_sequences: Arc<Mutex<HashMap<String, Vec<u8>>>>,
     initial_commands: Arc<Mutex<HashMap<String, InitialCommandState>>>,
     // Event broadcasting for deterministic testing
@@ -159,7 +158,6 @@ struct ReaderState {
     pty_masters: Arc<Mutex<HashMap<String, Box<dyn MasterPty + Send>>>>,
     pty_writers: Arc<Mutex<HashMap<String, Box<dyn Write + Send>>>>,
     coalescing_state: CoalescingState,
-    suspended: Arc<RwLock<HashSet<String>>>,
     pending_control_sequences: Arc<Mutex<HashMap<String, Vec<u8>>>>,
     initial_commands: Arc<Mutex<HashMap<String, InitialCommandState>>>,
     output_event_sender: Arc<broadcast::Sender<(String, u64)>>,
@@ -199,7 +197,6 @@ impl LocalPtyAdapter {
                 norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
                 utf8_streams: Arc::new(RwLock::new(HashMap::new())),
             },
-            suspended: Arc::new(RwLock::new(HashSet::new())),
             pending_control_sequences: Arc::new(Mutex::new(HashMap::new())),
             initial_commands: Arc::new(Mutex::new(HashMap::new())),
             output_event_sender: Arc::new(output_event_sender),
@@ -448,7 +445,6 @@ impl LocalPtyAdapter {
                         let coalescing_state_ready = reader_state.coalescing_state.clone();
                         let initial_commands_clone = Arc::clone(&reader_state.initial_commands);
                         let pty_writers_clone_for_ready = Arc::clone(&reader_state.pty_writers);
-                        let suspended_clone = Arc::clone(&reader_state.suspended);
                         let output_event_sender_clone =
                             Arc::clone(&reader_state.output_event_sender);
 
@@ -485,10 +481,6 @@ impl LocalPtyAdapter {
 
                                     let _ =
                                         output_event_sender_clone.send((id_clone.clone(), new_seq));
-
-                                    if suspended_clone.read().await.contains(&id_clone) {
-                                        return response;
-                                    }
 
                                     handle_coalesced_output(
                                         &coalescing_state_output,
@@ -598,7 +590,6 @@ impl LocalPtyAdapter {
                 pty_masters: Arc::clone(&self.pty_masters),
                 pty_writers: Arc::clone(&self.pty_writers),
                 coalescing_state: self.coalescing_state.clone(),
-                suspended: Arc::clone(&self.suspended),
                 pending_control_sequences: Arc::clone(&self.pending_control_sequences),
                 initial_commands: Arc::clone(&self.initial_commands),
                 output_event_sender: Arc::clone(&self.output_event_sender),
@@ -927,7 +918,6 @@ impl TerminalBackend for LocalPtyAdapter {
         self.pty_masters.lock().await.remove(id);
         self.pty_writers.lock().await.remove(id);
         self.terminals.write().await.remove(id);
-        self.suspended.write().await.remove(id);
         self.pending_control_sequences.lock().await.remove(id);
         self.initial_commands.lock().await.remove(id);
 
@@ -982,35 +972,6 @@ impl TerminalBackend for LocalPtyAdapter {
         }
     }
 
-    async fn suspend(&self, id: &str) -> Result<(), String> {
-        self.suspended.write().await.insert(id.to_string());
-        self.coalescing_state.clear_for(id).await;
-        self.pending_control_sequences.lock().await.remove(id);
-        self.abort_reader(id).await;
-        if let Some(handle) = self.coalescing_state.app_handle.lock().await.as_ref() {
-            let payload = serde_json::json!({ "terminal_id": id });
-            emit_event(handle, SchaltEvent::TerminalSuspended, &payload)
-                .map_err(|e| format!("Failed to emit terminal suspended event: {e}"))?;
-        }
-        Ok(())
-    }
-
-    async fn resume(&self, id: &str) -> Result<(), String> {
-        self.pending_control_sequences.lock().await.remove(id);
-        self.spawn_reader_for(id).await?;
-        self.suspended.write().await.remove(id);
-        if let Some(handle) = self.coalescing_state.app_handle.lock().await.as_ref() {
-            let payload = serde_json::json!({ "terminal_id": id });
-            emit_event(handle, SchaltEvent::TerminalResumed, &payload)
-                .map_err(|e| format!("Failed to emit terminal resumed event: {e}"))?;
-        }
-        Ok(())
-    }
-
-    async fn is_suspended(&self, id: &str) -> Result<bool, String> {
-        Ok(self.suspended.read().await.contains(id))
-    }
-
     async fn force_kill_all(&self) -> Result<(), String> {
         info!("Force killing all terminals for app exit");
 
@@ -1024,7 +985,6 @@ impl TerminalBackend for LocalPtyAdapter {
         self.pty_writers.lock().await.clear();
         self.reader_handles.lock().await.clear();
         self.terminals.write().await.clear();
-        self.suspended.write().await.clear();
         self.pending_control_sequences.lock().await.clear();
         self.initial_commands.lock().await.clear();
         self.coalescing_state.clear_all().await;
