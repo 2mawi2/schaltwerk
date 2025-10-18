@@ -880,4 +880,58 @@ describe('NewSessionModal', () => {
     consoleWarnSpy.mockRestore()
   })
 
+  it('should not re-run initialization effect when cachedPrompt changes', async () => {
+    const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    function ControlledModal() {
+      const [prompt, setPrompt] = useState('Initial prompt')
+      const [isOpen] = useState(true)
+
+      return (
+        <ModalProvider>
+          <NewSessionModal
+            open={isOpen}
+            cachedPrompt={prompt}
+            onPromptChange={setPrompt}
+            onClose={vi.fn()}
+            onCreate={vi.fn()}
+          />
+          <button
+            data-testid="update-prompt"
+            onClick={() => setPrompt('Updated prompt')}
+          >
+            Update
+          </button>
+        </ModalProvider>
+      )
+    }
+
+    render(<ControlledModal />)
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('eager_cosmos')).toBeTruthy()
+    })
+
+    const initialModalOpenedCalls = consoleLogSpy.mock.calls.filter(call =>
+      call[0]?.includes?.('[NewSessionModal] Modal opened')
+    ).length
+
+    expect(initialModalOpenedCalls).toBe(1)
+
+    consoleLogSpy.mockClear()
+
+    const updateButton = screen.getByTestId('update-prompt')
+    fireEvent.click(updateButton)
+
+    await waitFor(() => {
+      const modalOpenedCallsAfterUpdate = consoleLogSpy.mock.calls.filter(call =>
+        call[0]?.includes?.('[NewSessionModal] Modal opened')
+      ).length
+
+      expect(modalOpenedCallsAfterUpdate).toBe(0)
+    })
+
+    consoleLogSpy.mockRestore()
+  })
+
 })
