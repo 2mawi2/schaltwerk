@@ -2,6 +2,7 @@ import { Terminal as XTerm } from '@xterm/xterm';
 import type { WebglAddon } from '@xterm/addon-webgl';
 import { logger } from '../../utils/logger';
 import { isWebGLSupported } from './webglCapability';
+import { markWebglFailedGlobally } from './gpuFallbackState';
 import { XtermAddonImporter } from '../xterm/xtermAddonImporter';
 
 export interface RendererState {
@@ -56,6 +57,7 @@ export class WebGLTerminalRenderer {
 
         if (!isWebGLSupported()) {
             logger.info(`[GPU] WebGL not supported for terminal ${this.terminalId}, using canvas renderer`);
+            markWebglFailedGlobally('unsupported');
             this.state = { type: 'canvas', contextLost: false };
             this.initializing = false;
             return this.state;
@@ -73,6 +75,7 @@ export class WebGLTerminalRenderer {
                 } catch (error) {
                     logger.debug(`[GPU] Error disposing WebGL addon after context loss (${this.terminalId})`, error);
                 }
+                markWebglFailedGlobally('context-loss');
                 this.callbacks.onContextLost?.();
             });
 
@@ -82,7 +85,11 @@ export class WebGLTerminalRenderer {
             this.callbacks.onWebGLLoaded?.();
             return this.state;
         } catch (error) {
-            logger.warn(`[GPU] Failed to initialize WebGL for terminal ${this.terminalId}, falling back to canvas`, error);
+            logger.warn(
+                `[GPU] WebGL could not be loaded for terminal ${this.terminalId}. Falling back to DOM renderer for all terminals`,
+                error
+            );
+            markWebglFailedGlobally('initialization-failed');
             this.state = { type: 'canvas', contextLost: false };
             return this.state;
         } finally {

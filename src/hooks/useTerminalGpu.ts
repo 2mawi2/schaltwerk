@@ -11,6 +11,12 @@ import {
   setGpuRenderer,
   disposeGpuRenderer as disposeRegisteredGpuRenderer,
 } from '../terminal/gpu/gpuRendererRegistry';
+import {
+  shouldAttemptWebgl,
+  resetSuggestedRendererType,
+  markWebglFailedGlobally,
+  type GpuAccelerationPreference,
+} from '../terminal/gpu/gpuFallbackState';
 import { applyTerminalLetterSpacing } from '../utils/terminalLetterSpacing';
 import { logger } from '../utils/logger';
 
@@ -136,7 +142,8 @@ export function useTerminalGpu({
   );
 
   const handleContextLost = useCallback(() => {
-    logger.info(`[Terminal ${terminalId}] WebGL context lost, using Canvas renderer`);
+    markWebglFailedGlobally('context-loss');
+    logger.info(`[Terminal ${terminalId}] WebGL context lost, falling back to DOM renderer globally`);
     disposeRegisteredGpuRenderer(terminalId, 'context-loss');
     gpuRenderer.current = null;
     applyLetterSpacing(false);
@@ -156,6 +163,17 @@ export function useTerminalGpu({
     const terminal = terminalRef.current;
     if (!terminal) return;
 
+    const preference: GpuAccelerationPreference = webglEnabled ? 'auto' : 'off';
+    if (!shouldAttemptWebgl(preference)) {
+      logger.info(
+        `[Terminal ${terminalId}] Skipping WebGL initialization due to previous failure (DOM renderer active)`,
+      );
+      disposeRegisteredGpuRenderer(terminalId, 'global-fallback');
+      gpuRenderer.current = null;
+      applyLetterSpacing(false);
+      return;
+    }
+
     let renderer = getGpuRenderer(terminalId);
     if (!renderer) {
       renderer = new WebGLTerminalRenderer(terminal, terminalId);
@@ -171,9 +189,21 @@ export function useTerminalGpu({
       refreshGpuFontRendering();
       applyLetterSpacing(true);
     } else {
+      if (preference !== 'off') {
+        logger.warn(
+          `[Terminal ${terminalId}] WebGL renderer unavailable, continuing with DOM renderer`,
+        );
+      }
       applyLetterSpacing(false);
     }
-  }, [terminalId, terminalRef, handleContextLost, refreshGpuFontRendering, applyLetterSpacing]);
+  }, [
+    terminalId,
+    terminalRef,
+    handleContextLost,
+    refreshGpuFontRendering,
+    applyLetterSpacing,
+    webglEnabled,
+  ]);
 
   useEffect(() => {
     let mounted = true;
@@ -197,7 +227,15 @@ export function useTerminalGpu({
   useEffect(() => {
     const cleanup = listenUiEvent(UiEvent.TerminalRendererUpdated, async detail => {
       const newWebglEnabled = detail.webglEnabled;
-      setWebglEnabled(newWebglEnabled);
+      setWebglEnabled(prev => {
+        if (prev !== newWebglEnabled) {
+          resetSuggestedRendererType();
+          logger.info(
+            `[Terminal ${terminalId}] GPU acceleration setting changed, clearing fallback state`,
+          );
+        }
+        return newWebglEnabled;
+      });
 
       if (!terminalRef.current) return;
 
