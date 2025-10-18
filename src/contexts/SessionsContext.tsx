@@ -576,6 +576,8 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         const previousStates = options?.previousStates ?? prevStatesRef.current
         const reason = options?.reason ?? 'sessions-refresh'
 
+        logger.info(`[AGENT_LAUNCH_TRACE] autoStartRunningSessions called: reason=${reason}, sessionCount=${sessions.length}`)
+
         for (const session of sessions) {
             const sessionId = session?.info?.session_id
             if (!sessionId) {
@@ -589,15 +591,18 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
 
             const wasRunning = previousStates.get(sessionId) === 'running'
             if (wasRunning) {
+                logger.debug(`[AGENT_LAUNCH_TRACE] autoStartRunningSessions - skipping ${sessionId}: was already running`)
                 continue
             }
 
             const topId = stableSessionTerminalId(sessionId, 'top')
 
             if (hasBackgroundStart(topId) || hasInflight(topId)) {
-                logger.debug(`[SessionsContext] Skipping auto-start for ${sessionId}; background mark or inflight present (${reason})`)
+                logger.info(`[AGENT_LAUNCH_TRACE] autoStartRunningSessions - skipping ${sessionId}; background mark or inflight present (${reason})`)
                 continue
             }
+
+            logger.info(`[AGENT_LAUNCH_TRACE] autoStartRunningSessions - will auto-start ${sessionId} (reason: ${reason})`)
 
             const launch = async () => {
                 try {
@@ -1283,6 +1288,9 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             const nowIso = new Date().toISOString()
             const createdAt = event.created_at ?? nowIso
             const lastModified = event.last_modified ?? createdAt
+
+            logger.info(`[AGENT_LAUNCH_TRACE] SessionAdded event received: session_name=${session_name}`)
+
             setAllSessions(prev => {
                 if (prev.some(s => s.info.session_id === session_name)) return prev
 
@@ -1319,7 +1327,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                 const topId = stableSessionTerminalId(session_name, 'top')
 
                 if (hasBackgroundStart(topId) || hasInflight(topId)) {
-                    logger.debug(`[SessionsContext] Skip auto-start; mark or inflight present for ${topId}`)
+                    logger.info(`[AGENT_LAUNCH_TRACE] SessionAdded handler - skipping auto-start for ${session_name}; background mark or inflight present for ${topId}`)
                     return
                 }
 

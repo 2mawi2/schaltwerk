@@ -162,6 +162,8 @@ describe('App.tsx', () => {
     mockState.isGitRepo = false
     mockState.currentDir = '/Users/me/sample-project'
     mockState.defaultBranch = 'main'
+    const { clearBackgroundStartsByPrefix } = await import('./common/uiEvents')
+    clearBackgroundStartsByPrefix('')
   })
 
   it('renders without crashing (shows Home by default)', async () => {
@@ -304,6 +306,14 @@ describe('App.tsx', () => {
 })
 
 describe('validatePanelPercentage', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    startSessionTopMock.mockClear()
+    listenEventHandlers.length = 0
+    const { clearBackgroundStartsByPrefix } = await import('./common/uiEvents')
+    clearBackgroundStartsByPrefix('')
+  })
+
   it('should return default value when input is null', () => {
     expect(validatePanelPercentage(null, 30)).toBe(30)
   })
@@ -413,7 +423,11 @@ describe('validatePanelPercentage', () => {
     })
     const sessionsRefreshedHandlers = listenEventHandlers.filter(entry => String(entry.event) === String(SchaltEvent.SessionsRefreshed))
     for (const { handler } of sessionsRefreshedHandlers) {
-      handler({})
+      handler([
+        { info: { session_id: 'feature-unique', status: 'Active', session_state: 'Running' } },
+        { info: { session_id: 'feature-unique_v2', status: 'Active', session_state: 'Running' } },
+        { info: { session_id: 'feature-unique_v3', status: 'Active', session_state: 'Running' } }
+      ])
     }
     listenEventHandlers.length = 0
 
@@ -433,6 +447,90 @@ describe('validatePanelPercentage', () => {
     expect(secondCall!.sessionName).toBe('feature-unique_v2')
     expect(thirdCall!.sessionName).toBe('feature-unique_v3')
     expect([firstCall!.sessionName, secondCall!.sessionName, thirdCall!.sessionName]).not.toContain('feature')
+
+    invokeMock.mockImplementation(defaultInvokeImpl)
+  })
+
+  it('should skip starting agents for sessions cancelled during version group creation', async () => {
+    renderApp()
+
+    fireEvent.click(await screen.findByTestId('open-project'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('sidebar-mock')).toBeInTheDocument()
+    })
+
+    const modalCall = newSessionModalMock.mock.calls.at(-1)
+    expect(modalCall).toBeTruthy()
+    type OnCreatePayload = {
+      name: string
+      prompt?: string
+      baseBranch: string
+      versionCount?: number
+      agentType?: string
+      isSpec?: boolean
+      userEditedName?: boolean
+      skipPermissions?: boolean
+      agentTypes?: string[]
+    }
+    type OnCreateFn = (data: OnCreatePayload) => Promise<void>
+    const modalProps = modalCall![0] as { onCreate: OnCreateFn }
+    expect(typeof modalProps.onCreate).toBe('function')
+
+    const createdResponses = [
+      { name: 'session-a', version_number: 1 },
+      { name: 'session-b', version_number: 2 }
+    ]
+
+    const { invoke } = await import('@tauri-apps/api/core')
+    const invokeMock = invoke as unknown as ReturnType<typeof vi.fn>
+    invokeMock.mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
+      if (cmd === TauriCommands.SchaltwerkCoreCreateSession) {
+        const next = createdResponses.shift()
+        if (!next) {
+          throw new Error('Unexpected extra session creation')
+        }
+        return {
+          name: next.name,
+          branch: `${args?.baseBranch ?? 'main'}/${next.name}`,
+          parent_branch: args?.baseBranch ?? 'main',
+          worktree_path: `/tmp/${next.name}`,
+          version_number: next.version_number,
+        }
+      }
+      return defaultInvokeImpl(cmd, args)
+    })
+
+    const createPromise = modalProps.onCreate({
+      name: 'test',
+      prompt: undefined,
+      baseBranch: 'main',
+      versionCount: 2,
+      agentType: 'claude',
+      isSpec: false,
+      userEditedName: true,
+    })
+
+    await waitFor(() => {
+      const hasHandler = listenEventHandlers.some(entry => String(entry.event) === String(SchaltEvent.SessionsRefreshed))
+      expect(hasHandler).toBe(true)
+    })
+
+    const sessionsRefreshedHandlers = listenEventHandlers.filter(entry => String(entry.event) === String(SchaltEvent.SessionsRefreshed))
+
+    for (const { handler } of sessionsRefreshedHandlers) {
+      handler([
+        { info: { session_id: 'session-b', status: 'Active', session_state: 'Running' } }
+      ])
+    }
+    listenEventHandlers.length = 0
+
+    await createPromise
+
+    expect(startSessionTopMock).toHaveBeenCalledTimes(1)
+    const callArgs = startSessionTopMock.mock.calls as Array<[StartSessionTopParams]>
+
+    expect(callArgs[0]?.[0].sessionName).toBe('session-b')
 
     invokeMock.mockImplementation(defaultInvokeImpl)
   })
