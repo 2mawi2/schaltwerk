@@ -1,17 +1,15 @@
-import { Terminal as XTerm } from '@xterm/xterm';
-import { FitAddon } from '@xterm/addon-fit';
-import { SearchAddon } from '@xterm/addon-search';
 import { logger } from '../../utils/logger';
+import { XtermTerminal } from '../xterm/XtermTerminal';
+import { disposeGpuRenderer } from '../gpu/gpuRendererRegistry';
+import { sessionTerminalGroup } from '../../common/terminalIdentity';
 
 export interface TerminalInstanceRecord {
   id: string;
-  terminal: XTerm;
-  fitAddon: FitAddon;
-  searchAddon: SearchAddon;
-  wrapper: HTMLDivElement;
+  xterm: XtermTerminal;
   refCount: number;
   lastSeq: number | null;
   initialized: boolean;
+  attached: boolean;
 }
 
 export interface AcquireTerminalResult {
@@ -19,12 +17,7 @@ export interface AcquireTerminalResult {
   isNew: boolean;
 }
 
-type TerminalInstanceFactory = () => {
-  terminal: XTerm;
-  fitAddon: FitAddon;
-  searchAddon: SearchAddon;
-  wrapper: HTMLDivElement;
-};
+type TerminalInstanceFactory = () => XtermTerminal;
 
 class TerminalInstanceRegistry {
   private instances = new Map<string, TerminalInstanceRecord>();
@@ -32,30 +25,20 @@ class TerminalInstanceRegistry {
   acquire(id: string, factory: TerminalInstanceFactory): AcquireTerminalResult {
     const existing = this.instances.get(id);
     if (existing) {
-      existing.refCount += 1;
-      logger.debug(`[Registry] Acquired existing terminal ${id}, refCount: ${existing.refCount}`);
+      existing.attached = true;
+      logger.debug(`[Registry] Reusing existing terminal ${id}`);
       return { record: existing, isNew: false };
     }
 
     const created = factory();
-    created.wrapper.style.width = '100%';
-    created.wrapper.style.height = '100%';
-    created.wrapper.style.display = 'flex';
-    created.wrapper.style.flexDirection = 'column';
-    created.wrapper.style.flex = '1 1 auto';
-    created.wrapper.style.alignItems = 'stretch';
-    created.wrapper.style.justifyContent = 'stretch';
-    created.wrapper.style.overflow = 'hidden';
 
     const record: TerminalInstanceRecord = {
       id,
-      terminal: created.terminal,
-      fitAddon: created.fitAddon,
-      searchAddon: created.searchAddon,
-      wrapper: created.wrapper,
+      xterm: created,
       refCount: 1,
       lastSeq: null,
       initialized: false,
+      attached: true,
     };
 
     this.instances.set(id, record);
@@ -74,8 +57,15 @@ class TerminalInstanceRegistry {
     logger.debug(`[Registry] Released terminal ${id}, refCount: ${record.refCount}`);
 
     if (record.refCount <= 0) {
+      record.attached = false;
+      try {
+        record.xterm.detach();
+      } catch (error) {
+        logger.debug(`[Registry] Error detaching terminal ${id} during release:`, error);
+      }
+      disposeGpuRenderer(id, 'registry-release');
       this.instances.delete(id);
-      record.terminal.dispose();
+      record.xterm.dispose();
       logger.debug(`[Registry] Disposed terminal ${id} (refCount reached 0)`);
     }
   }
@@ -87,14 +77,9 @@ class TerminalInstanceRegistry {
       return;
     }
 
-    if (!record.wrapper.isConnected) {
-      container.appendChild(record.wrapper);
-      logger.debug(`[Registry] Attached terminal ${id} to container`);
-    } else if (record.wrapper.parentElement !== container) {
-      record.wrapper.remove();
-      container.appendChild(record.wrapper);
-      logger.debug(`[Registry] Moved terminal ${id} to new container`);
-    }
+    record.xterm.attach(container);
+    record.attached = true;
+    logger.debug(`[Registry] Attached terminal ${id} to container`);
   }
 
   detach(id: string): void {
@@ -104,10 +89,9 @@ class TerminalInstanceRegistry {
       return;
     }
 
-    if (record.wrapper.parentElement) {
-      record.wrapper.parentElement.removeChild(record.wrapper);
-      logger.debug(`[Registry] Detached terminal ${id} from DOM`);
-    }
+    record.xterm.detach();
+    record.attached = false;
+    logger.debug(`[Registry] Detached terminal ${id} from DOM`);
   }
 
   updateLastSeq(id: string, seq: number | null): void {
@@ -140,13 +124,27 @@ class TerminalInstanceRegistry {
   clear(): void {
     for (const [id, record] of this.instances) {
       try {
-        record.terminal.dispose();
+        record.xterm.detach();
+        record.xterm.dispose();
         logger.debug(`[Registry] Cleared terminal ${id}`);
       } catch (error) {
         logger.debug(`[Registry] Error disposing terminal ${id} during clear:`, error);
       }
+      disposeGpuRenderer(id, 'registry-clear');
     }
     this.instances.clear();
+  }
+
+  releaseByPredicate(predicate: (id: string) => boolean): void {
+    const idsToRelease: string[] = [];
+    for (const id of this.instances.keys()) {
+      if (predicate(id)) {
+        idsToRelease.push(id);
+      }
+    }
+    for (const id of idsToRelease) {
+      this.release(id);
+    }
   }
 }
 
@@ -190,4 +188,13 @@ export function hasTerminalInstance(id: string): boolean {
 
 export function clearTerminalRegistry(): void {
   registry.clear();
+}
+
+export function releaseTerminalFamilyByPrefix(prefix: string): void {
+  registry.releaseByPredicate((id) => id === prefix || id.startsWith(`${prefix}-`));
+}
+
+export function releaseSessionTerminals(sessionName: string): void {
+  const group = sessionTerminalGroup(sessionName);
+  registry.releaseByPredicate((id) => id === group.base || id.startsWith(`${group.base}-`));
 }

@@ -10,6 +10,7 @@ import {
   createTerminalBackend,
   terminalExistsBackend,
 } from '../terminal/transport/backend'
+import { releaseTerminalInstance } from '../terminal/registry/terminalRegistry'
 
 interface SessionTabState {
   activeTab: number
@@ -77,6 +78,7 @@ export function useTerminalTabs({
         // Clean up terminals
         currentState.tabs.forEach(tab => {
           globalTerminalCreated.delete(tab.terminalId)
+          releaseTerminalInstance(tab.terminalId)
         })
       }
       
@@ -195,6 +197,7 @@ export function useTerminalTabs({
     try {
       await closeTerminalBackend(tabToClose.terminalId)
       globalTerminalCreated.delete(tabToClose.terminalId)
+      releaseTerminalInstance(tabToClose.terminalId)
 
       const newTabs = sessionTabs.tabs.filter(t => t.index !== tabIndex)
       let newActiveTab = sessionTabs.activeTab

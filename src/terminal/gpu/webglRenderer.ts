@@ -30,6 +30,7 @@ export class WebGLTerminalRenderer {
     private state: RendererState;
     private callbacks: WebGLRendererCallbacks;
     private initAttempted = false;
+    private initializing = false;
 
     constructor(terminal: XTerm, terminalId: string, callbacks: WebGLRendererCallbacks = {}) {
         this.terminal = terminal;
@@ -43,7 +44,7 @@ export class WebGLTerminalRenderer {
             return this.state;
         }
 
-        if (this.initAttempted) {
+        if (this.initializing || this.initAttempted) {
             return this.state;
         }
 
@@ -52,11 +53,13 @@ export class WebGLTerminalRenderer {
             return this.state;
         }
 
+        this.initializing = true;
         this.initAttempted = true;
 
         if (!isWebGLSupported()) {
             logger.info(`[GPU] WebGL not supported for terminal ${this.terminalId}, using canvas renderer`);
             this.state = { type: 'canvas', contextLost: false };
+            this.initializing = false;
             return this.state;
         }
 
@@ -84,6 +87,8 @@ export class WebGLTerminalRenderer {
             logger.warn(`[GPU] Failed to initialize WebGL for terminal ${this.terminalId}, falling back to canvas`, error);
             this.state = { type: 'canvas', contextLost: false };
             return this.state;
+        } finally {
+            this.initializing = false;
         }
     }
 
@@ -100,6 +105,19 @@ export class WebGLTerminalRenderer {
         this.initAttempted = false;
         if (wasWebGL) {
             this.callbacks.onWebGLUnloaded?.();
+        }
+    }
+
+    async ensureLoaded(): Promise<RendererState> {
+        if (this.state.type === 'webgl' || this.initializing) {
+            return this.state;
+        }
+        return this.initialize();
+    }
+
+    disposeIfLoaded(): void {
+        if (this.state.type === 'webgl') {
+            this.dispose();
         }
     }
 

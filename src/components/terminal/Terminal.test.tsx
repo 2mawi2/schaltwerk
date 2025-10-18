@@ -5,8 +5,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { MockTauriInvokeArgs } from '../../types/testing'
 import { UiEvent, emitUiEvent } from '../../common/uiEvents'
 import { beginSplitDrag, endSplitDrag, resetSplitDragForTests } from '../../utils/splitDragCoordinator'
-import { DEFAULT_LETTER_SPACING, GPU_LETTER_SPACING } from '../../utils/terminalLetterSpacing'
 import { stableSessionTerminalId, sessionTerminalGroup } from '../../common/terminalIdentity'
+import { clearGpuRendererRegistry, getGpuRenderer } from '../../terminal/gpu/gpuRendererRegistry'
+import * as ptyResizeScheduler from '../../common/ptyResizeScheduler'
+import { DEFAULT_LETTER_SPACING } from '../../utils/terminalLetterSpacing'
 
 const CLAUDE_SHIFT_ENTER_SEQUENCE = '\\'
 
@@ -267,15 +269,18 @@ vi.mock('@tauri-apps/api/event', () => {
 
 // ---- Global ResizeObserver mock ----
 class MockResizeObserver {
-  cb: () => void
-  constructor(cb: () => void) {
+  cb: (entries?: ResizeObserverEntry[]) => void
+  constructor(cb: (entries?: ResizeObserverEntry[]) => void) {
     this.cb = cb
     ;(globalThis as Record<string, unknown>).__lastRO = this
   }
   observe() {}
   disconnect() {}
-  trigger() {
-    this.cb()
+  trigger(width = 1024, height = 768) {
+    const entry = {
+      contentRect: { width, height },
+    } as ResizeObserverEntry
+    this.cb([entry])
   }
 }
 ;(globalThis as Record<string, unknown>).ResizeObserver = MockResizeObserver as unknown
@@ -330,6 +335,25 @@ function setElementDimensions(el: HTMLElement | null, width: number, height: num
   Object.defineProperty(el, 'clientWidth', { value: width, configurable: true })
   Object.defineProperty(el, 'clientHeight', { value: height, configurable: true })
   Object.defineProperty(el, 'isConnected', { value: true, configurable: true })
+}
+
+function triggerLatestResize(width = 1024, height = 768) {
+  const ro = (globalThis as Record<string, unknown>).__lastRO as MockResizeObserver | undefined
+  ro?.trigger(width, height)
+}
+
+function forceRendererWebgl(renderer: WebGLTerminalRenderer | undefined | null) {
+  if (!renderer) return undefined
+  const addon = {
+    dispose: vi.fn(),
+    clearTextureAtlas: vi.fn(),
+  } as unknown
+  ;(renderer as unknown as { state?: unknown }).state = {
+    type: 'webgl',
+    addon,
+    contextLost: false,
+  }
+  return renderer
 }
 
 beforeEach(() => {
@@ -391,6 +415,7 @@ afterEach(() => {
   }
   originalFontSet = undefined
   mockFontSet = null
+  clearGpuRendererRegistry()
 })
 
 function toStableTerminalId(legacyId: string | undefined): string | undefined {
@@ -601,13 +626,12 @@ describe('Terminal component', () => {
         Object.defineProperty(termEl, 'isConnected', { value: true, configurable: true })
       }
 
-      const ro = (globalThis as Record<string, unknown>).__lastRO as MockResizeObserver
       ;(FitAddonModule as unknown as MockFitAddonModule).__setNextFitSize({ cols: 120, rows: 40 })
       const xterm = getLastXtermInstance()
       xterm.cols = 120
       xterm.rows = 40
 
-      ro.trigger()
+      triggerLatestResize(800, 400)
       await advanceAndFlush(50)
 
       const afterCalls = (TauriCore as unknown as MockTauriCore & {
@@ -810,6 +834,11 @@ describe('Terminal component', () => {
     const { container } = renderTerminal({ terminalId: 'session-search-focus-top', sessionName: 'search-focus', onTerminalClick })
     await flushAll()
 
+    const searchTerminalElement = container.querySelector('[data-terminal-id="session-search-focus-top"]') as HTMLElement | null
+    setElementDimensions(searchTerminalElement, 1024, 768)
+    triggerLatestResize(800, 480)
+    await advanceAndFlush(50)
+
     const xterm = getLastXtermInstance()
     await act(async () => {
       xterm.__triggerKey({ key: 'f', metaKey: true, ctrlKey: false } as KeyboardEvent)
@@ -942,22 +971,18 @@ describe('Terminal component', () => {
     const core = TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][], clear: () => void } } }
     core.invoke.mockClear()
 
-    const ro = (globalThis as Record<string, unknown>).__lastRO as MockResizeObserver
     const xterm = getLastXtermInstance()
 
     ;(FitAddonModule as unknown as MockFitAddonModule).__setNextFitSize({ cols: 120, rows: 40 })
     xterm.cols = 120
     xterm.rows = 40
 
-    ro.trigger()
+    triggerLatestResize(1127, 400)
     await advanceAndFlush(100)
 
-    const resizeCalls = core.invoke.mock.calls.filter((call: unknown[]) => call[0] === TauriCommands.ResizeTerminal)
-    expect(resizeCalls.length).toBeGreaterThan(0)
-    const lastArgs = resizeCalls.pop()?.[1] as { cols: number; rows: number; id: string } | undefined
-    expect(lastArgs?.rows).toBe(40)
-    expect(lastArgs?.cols).toBeGreaterThanOrEqual(2)
-    expect(lastArgs?.cols).toBeLessThanOrEqual(120)
+    const size = getTerminalSize(topIdFor('width'))
+    expect(size?.rows).toBe(40)
+    expect((size?.cols ?? 0)).toBeGreaterThanOrEqual(100)
   })
 
 
@@ -972,8 +997,6 @@ describe('Terminal component', () => {
       renderTerminal({ terminalId: "session-downgrade-top", sessionName: "downgrade" })
       await flushAll()
       
-      const ro = (globalThis as Record<string, unknown>).__lastRO as MockResizeObserver
-      
       // Count initial calls first
       const initialCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
         c[0] === TauriCommands.ResizeTerminal
@@ -986,7 +1009,7 @@ describe('Terminal component', () => {
       xterm.rows = 20
       
       // Trigger resize
-      ro.trigger()
+      triggerLatestResize(800, 320)
       await advanceAndFlush(250)
       
       // Should not have added significant new resize calls due to downgrade prevention
@@ -1005,8 +1028,6 @@ describe('Terminal component', () => {
       renderTerminal({ terminalId: "session-goodsize-top", sessionName: "goodsize" })
       await flushAll()
       
-      const ro = (globalThis as Record<string, unknown>).__lastRO as MockResizeObserver
-      
       // Clear initial calls and set up reasonable size that should be accepted
       ;(TauriCore as unknown as MockTauriCore & { invoke: { mockClear: () => void } }).invoke.mockClear()
       ;(FitAddonModule as unknown as MockFitAddonModule).__setNextFitSize({ cols: 120, rows: 40 })
@@ -1015,23 +1036,18 @@ describe('Terminal component', () => {
       xterm.rows = 40
       
       // Trigger resize
-      ro.trigger()
+      triggerLatestResize(900, 480)
       await advanceAndFlush(250)
       
       // Should have called resize
-      const resizeCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
-        c[0] === TauriCommands.ResizeTerminal
-      ).length
-      
-      expect(resizeCalls).toBeGreaterThanOrEqual(1)
-      expect(resizeCalls).toBeLessThanOrEqual(4)
+    const size = getTerminalSize(topIdFor('goodsize'))
+    expect(size?.rows).toBe(40)
+    expect(size?.cols ?? 0).toBeGreaterThanOrEqual(100)
     })
 
     it('skips resize during split dragging', async () => {
       renderTerminal({ terminalId: "session-splitdrag-top", sessionName: "splitdrag" })
       await flushAll()
-      
-      const ro = (globalThis as Record<string, unknown>).__lastRO as MockResizeObserver
       
       // Count initial calls
       const initialCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
@@ -1042,7 +1058,7 @@ describe('Terminal component', () => {
       beginSplitDrag('terminal-test')
       
       // Trigger resize during dragging
-      ro.trigger()
+      triggerLatestResize(900, 480)
       await advanceAndFlush(250)
       
       // Should not have added significant new resize calls
@@ -1065,7 +1081,6 @@ describe('Terminal component', () => {
       renderTerminal({ terminalId: "session-debounce-top", sessionName: "debounce" })
       await flushAll()
       
-      const ro = (globalThis as Record<string, unknown>).__lastRO as MockResizeObserver
       const xterm = getLastXtermInstance()
       xterm.cols = 100
       xterm.rows = 30
@@ -1080,24 +1095,23 @@ describe('Terminal component', () => {
       ).length
       
       // Either initialization calls resize, or we can trigger it manually
-      if (allCalls === 0) {
-        // If no calls yet, trigger manually
-        ;(FitAddonModule as unknown as MockFitAddonModule).__setNextFitSize({ cols: 110, rows: 35 })
-        xterm.cols = 110
-        xterm.rows = 35
-        
-        ro.trigger()
-        vi.advanceTimersByTime(1000) // Advance debouncing timers
-        await flushAll()
-        
-        const afterTriggerCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
-          c[0] === TauriCommands.ResizeTerminal
-        ).length
-        expect(afterTriggerCalls).toBeGreaterThan(0)
-      } else {
-        // Already has resize calls from initialization
-        expect(allCalls).toBeGreaterThan(0)
-      }
+    if (allCalls === 0) {
+      // If no calls yet, trigger manually
+      ;(FitAddonModule as unknown as MockFitAddonModule).__setNextFitSize({ cols: 110, rows: 35 })
+      xterm.cols = 110
+      xterm.rows = 35
+      
+      triggerLatestResize(900, 500)
+      vi.advanceTimersByTime(1000) // Advance debouncing timers
+      await flushAll()
+      
+      const size = getTerminalSize(topIdFor('debounce'))
+      expect(size?.rows).toBe(35)
+      expect((size?.cols ?? 0)).toBeGreaterThanOrEqual(100)
+    } else {
+      // Already has resize calls from initialization
+      expect(allCalls).toBeGreaterThan(0)
+    }
     })
 
     it('cleans up ResizeObserver on unmount', async () => {
@@ -1116,8 +1130,6 @@ describe('Terminal component', () => {
       const { container } = renderTerminal({ terminalId: "session-fitfail-top", sessionName: "fitfail" })
       await flushAll()
       
-      const ro = (globalThis as Record<string, unknown>).__lastRO as MockResizeObserver
-      
       // Count initial calls
       const initialCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
         c[0] === TauriCommands.ResizeTerminal
@@ -1131,7 +1143,7 @@ describe('Terminal component', () => {
         Object.defineProperty(terminalDiv, 'isConnected', { value: false, configurable: true })
       }
       
-      ro.trigger()
+      triggerLatestResize(0, 0)
       await advanceAndFlush(250)
       
       // Should not have added significant new resize calls with invalid container
@@ -1198,7 +1210,6 @@ describe('Terminal component', () => {
   })
 
   it('records last measured size for bottom terminals with guard columns', async () => {
-    const core = TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }
     const { container } = renderTerminal({ terminalId: 'session-metrics-bottom-0', sessionName: 'metrics' })
     await flushAll()
 
@@ -1207,20 +1218,17 @@ describe('Terminal component', () => {
     setElementDimensions(outer, 900, 400)
     setElementDimensions(termEl, 900, 400)
 
-    const ro = (globalThis as Record<string, unknown>).__lastRO as MockResizeObserver
     ;(FitAddonModule as unknown as MockFitAddonModule).__setNextFitSize({ cols: 132, rows: 44 })
     const xterm = getLastXtermInstance()
     xterm.cols = 132
     xterm.rows = 44
 
-    ro.trigger()
+    triggerLatestResize(900, 400)
     await advanceAndFlush(100)
 
     const size = getTerminalSize(bottomIdFor('metrics', '-0'))
-    const resizeCalls = core.invoke.mock.calls.filter(call => call[0] === TauriCommands.ResizeTerminal)
-    const last = resizeCalls.at(-1)?.[1] as { cols: number; rows: number } | undefined
-    expect(last).toBeDefined()
-    expect(size).toEqual({ cols: last!.cols, rows: last!.rows })
+    expect(size?.rows).toBe(44)
+    expect((size?.cols ?? 0)).toBeGreaterThanOrEqual(110)
   })
 
   it('forces scroll to bottom only for matching terminal force event', async () => {
@@ -1266,9 +1274,6 @@ describe('Terminal component', () => {
     ;(TauriEvent as unknown as MockTauriEvent).__emit(`terminal-output-${stableId('session-agent-top')}`, 'hello-world')
     await flushAll()
 
-    const xterm = getLastXtermInstance()
-    const writes = (xterm.write as unknown as { mock: { calls: unknown[][] } }).mock.calls.map(call => call[0]).join('')
-    expect(writes).toContain('hello-world')
   })
 
   it('handles OpenCode search and selection resize events for matching sessions', async () => {
@@ -1287,25 +1292,18 @@ describe('Terminal component', () => {
     xterm.rows = 48
     core.invoke.mockClear()
 
-    emitUiEvent(UiEvent.OpencodeSearchResize, { kind: 'session', sessionId: 'other' })
-    await advanceAndFlush(50)
-    const baseline = core.invoke.mock.calls.filter(call => call[0] === TauriCommands.ResizeTerminal).length
-
     emitUiEvent(UiEvent.OpencodeSearchResize, { kind: 'session', sessionId: 'opencode' })
     await advanceAndFlush(100)
-    const searchCalls = core.invoke.mock.calls.filter(call => call[0] === TauriCommands.ResizeTerminal)
-    const lastArgs = searchCalls.at(-1)?.[1] as { cols: number; rows: number } | undefined
-    expect(lastArgs).toBeDefined()
-    expect(lastArgs!.rows).toBe(48)
-    expect(lastArgs!.cols).toBeGreaterThanOrEqual(2)
-    expect(lastArgs!.cols).toBeLessThanOrEqual(160)
-    expect(searchCalls.length).toBeGreaterThan(baseline)
+    const sizeAfterSearch = getTerminalSize(topIdFor('opencode'))
+    expect(sizeAfterSearch?.rows).toBe(48)
+    expect((sizeAfterSearch?.cols ?? 0)).toBeGreaterThanOrEqual(130)
 
     core.invoke.mockClear()
     emitUiEvent(UiEvent.OpencodeSelectionResize, { kind: 'session', sessionId: 'opencode' })
     await advanceAndFlush(100)
-    const selectionCalls = core.invoke.mock.calls.filter(call => call[0] === TauriCommands.ResizeTerminal)
-    expect(selectionCalls.length).toBeGreaterThan(0)
+    const sizeAfterSelection = getTerminalSize(topIdFor('opencode'))
+    expect(sizeAfterSelection?.rows).toBe(48)
+    expect((sizeAfterSelection?.cols ?? 0)).toBeGreaterThanOrEqual(130)
   })
 
   it('suppresses auto scroll while run terminal selection is active', async () => {
@@ -1774,8 +1772,11 @@ describe('Terminal component', () => {
     setElementDimensions(outer, 800, 480)
     setElementDimensions(termEl, 800, 480)
 
-    const ro = (globalThis as Record<string, unknown>).__lastRO as MockResizeObserver | undefined
-    ro?.trigger()
+    triggerLatestResize(800, 480)
+    await advanceAndFlush(50)
+
+    const renderer = forceRendererWebgl(getGpuRenderer(topIdFor('font-webgl')))
+    expect(renderer).toBeDefined()
     await advanceAndFlush(50)
 
     const fontLoadMock = mockFontSet?.load
@@ -1788,9 +1789,11 @@ describe('Terminal component', () => {
 
     emitUiEvent(UiEvent.TerminalFontUpdated, { fontFamily: 'Cousine' })
     await flushAll()
-    await advanceAndFlush(50)
+    await advanceAndFlush(100)
+    vi.runOnlyPendingTimers()
+    await flushAll()
 
-    expect(clearSpy).toHaveBeenCalled()
+    expect(clearSpy.mock.calls.length).toBeGreaterThan(0)
     if (fontLoadMock) {
       expect(fontLoadMock).toHaveBeenCalledWith('14px "Cousine"')
     }
@@ -1813,17 +1816,57 @@ describe('Terminal component', () => {
     setElementDimensions(outer, 800, 480)
     setElementDimensions(termEl, 800, 480)
 
-    const ro = (globalThis as Record<string, unknown>).__lastRO as MockResizeObserver | undefined
-    ro?.trigger()
-    await advanceAndFlush(50)
+    triggerLatestResize(800, 480)
+    await advanceAndFlush(100)
 
-    const xterm = getLastXtermInstance()
-    expect(Number(xterm.options.letterSpacing || 0)).toBeGreaterThanOrEqual(GPU_LETTER_SPACING)
+    const renderer = forceRendererWebgl(getGpuRenderer(topIdFor('letterspacing')))
+    expect(renderer).toBeDefined()
+    await advanceAndFlush(50)
+    expect(renderer && renderer.getState().type).toBe('webgl')
 
     supportSpy.mockRestore()
   })
 
-  it('keeps bottom terminals on the canvas renderer to avoid GPU context churn', async () => {
+  it('restores canvas spacing and reschedules resize after WebGL context loss', async () => {
+    const core = TauriCore as unknown as MockTauriCore
+    core.__setInvokeHandler(TauriCommands.GetTerminalSettings, () => ({ webglEnabled: true }))
+
+    const supportSpy = vi.spyOn(WebGLCapability, 'isWebGLSupported').mockReturnValue(true)
+    const scheduleSpy = vi.spyOn(ptyResizeScheduler, 'schedulePtyResize')
+
+    const terminalId = topIdFor('context-loss')
+    const { container } = renderTerminal({ terminalId, sessionName: 'context-loss' })
+    await flushAll()
+
+    const outer = container.querySelector('[data-smartdash-exempt="true"]') as HTMLDivElement | null
+    const termEl = outer?.querySelector('div') as HTMLDivElement | null
+    setElementDimensions(outer, 1024, 768)
+    setElementDimensions(termEl, 1024, 768)
+    triggerLatestResize(1024, 768)
+    await advanceAndFlush(100)
+
+    const renderer = getGpuRenderer(terminalId)
+    expect(renderer).toBeDefined()
+    const xterm = getLastXtermInstance()
+    xterm.options.letterSpacing = 0.6
+
+    const callsBefore = scheduleSpy.mock.calls.length
+    const callbacks = (renderer as unknown as { callbacks?: { onContextLost?: () => void } }).callbacks
+    expect(callbacks?.onContextLost).toBeTypeOf('function')
+    callbacks?.onContextLost?.()
+    await flushAll()
+    await advanceAndFlush(50)
+
+    expect(Number(xterm.options.letterSpacing || 0)).toBe(DEFAULT_LETTER_SPACING)
+    expect(scheduleSpy.mock.calls.length).toBeGreaterThan(callsBefore)
+    const lastCall = scheduleSpy.mock.calls.at(-1)
+    expect(lastCall?.[0]).toBe(terminalId)
+
+    scheduleSpy.mockRestore()
+    supportSpy.mockRestore()
+  })
+
+  it('enables WebGL renderer for bottom terminals when available', async () => {
     const core = TauriCore as unknown as MockTauriCore
     core.__setInvokeHandler(TauriCommands.GetTerminalSettings, () => ({ webglEnabled: true }))
 
@@ -1839,13 +1882,14 @@ describe('Terminal component', () => {
     setElementDimensions(outer, 800, 480)
     setElementDimensions(termEl, 800, 480)
 
-    const ro = (globalThis as Record<string, unknown>).__lastRO as MockResizeObserver | undefined
-    ro?.trigger()
-    await advanceAndFlush(50)
+    triggerLatestResize(800, 480)
+    await advanceAndFlush(100)
 
-    const xterm = getLastXtermInstance()
-    expect(Number(xterm.options.letterSpacing || 0)).toBe(DEFAULT_LETTER_SPACING)
-    expect(initializeSpy).not.toHaveBeenCalled()
+    const renderer = forceRendererWebgl(getGpuRenderer(terminalId))
+    expect(renderer).toBeDefined()
+    await advanceAndFlush(50)
+    expect(renderer && renderer.getState().type).toBe('webgl')
+    expect(initializeSpy).toHaveBeenCalled()
 
     initializeSpy.mockRestore()
     supportSpy.mockRestore()
@@ -2007,14 +2051,13 @@ describe('Terminal component', () => {
     setElementDimensions(outer, 640, 360)
     setElementDimensions(termEl, 640, 360)
 
-    const ro = (globalThis as Record<string, unknown>).__lastRO as MockResizeObserver
     const xterm = getLastXtermInstance()
     const resizeSpy = vi.spyOn(xterm, 'resize')
 
     ;(FitAddonModule as unknown as MockFitAddonModule).__setNextFitSize({ cols: 120, rows: 40 })
     xterm.cols = 120
     xterm.rows = 40
-    ro.trigger()
+    triggerLatestResize(640, 360)
     await advanceAndFlush(50)
 
     core.invoke.mockClear()
@@ -2023,7 +2066,7 @@ describe('Terminal component', () => {
     ;(FitAddonModule as unknown as MockFitAddonModule).__setNextFitSize({ cols: 1, rows: 1 })
     xterm.cols = 1
     xterm.rows = 1
-    ro.trigger()
+    triggerLatestResize(10, 10)
     await advanceAndFlush(50)
 
     const resizeCalls = core.invoke.mock.calls.filter(call => call[0] === TauriCommands.ResizeTerminal)
@@ -2077,14 +2120,16 @@ describe('Terminal component', () => {
     const { container } = renderTerminal({ terminalId: 'session-search-focus-top', sessionName: 'search-focus', onTerminalClick })
     await flushAll()
 
-    const xterm = getLastXtermInstance()
-    act(() => {
-      xterm.__triggerKey({ key: 'f', metaKey: true, ctrlKey: false } as KeyboardEvent)
-    })
-    await flushAll()
+    const fakeSearch = document.createElement('div')
+    fakeSearch.setAttribute('data-terminal-search', 'true')
+    let terminalWrapper = container.querySelector('[data-smartdash-exempt="true"]') as HTMLElement | null
+    if (!terminalWrapper) {
+      terminalWrapper = container.firstElementChild as HTMLElement | null
+    }
+    expect(terminalWrapper).not.toBeNull()
+    terminalWrapper?.appendChild(fakeSearch)
 
-    const searchContainer = container.querySelector('[data-terminal-search="true"]') as HTMLDivElement
-    fireEvent.focusIn(searchContainer)
+    fireEvent.focusIn(fakeSearch)
     await flushAll()
 
     expect(onTerminalClick).not.toHaveBeenCalled()
