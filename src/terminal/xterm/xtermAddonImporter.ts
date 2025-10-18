@@ -1,4 +1,3 @@
-import type { ClipboardAddon as ClipboardAddonType } from '@xterm/addon-clipboard'
 import type { FitAddon as FitAddonType } from '@xterm/addon-fit'
 import type { ImageAddon as ImageAddonType } from '@xterm/addon-image'
 import type { LigaturesAddon as LigaturesAddonType } from '@xterm/addon-ligatures'
@@ -8,7 +7,6 @@ import type { Unicode11Addon as Unicode11AddonType } from '@xterm/addon-unicode1
 import type { WebglAddon as WebglAddonType } from '@xterm/addon-webgl'
 
 export interface IXtermAddonNameToCtor {
-  clipboard: typeof ClipboardAddonType
   fit: typeof FitAddonType
   image: typeof ImageAddonType
   ligatures: typeof LigaturesAddonType
@@ -31,10 +29,6 @@ const importedAddons: IImportedXtermAddonMap = new Map()
 async function loadAddonCtor<T extends XtermAddonName>(name: T): Promise<IXtermAddonNameToCtor[T]> {
   try {
     switch (name) {
-      case 'clipboard': {
-        const module = await import('@xterm/addon-clipboard')
-        return module.ClipboardAddon as IXtermAddonNameToCtor[T]
-      }
       case 'fit': {
         const module = await import('@xterm/addon-fit')
         return module.FitAddon as IXtermAddonNameToCtor[T]
