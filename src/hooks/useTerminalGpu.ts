@@ -51,6 +51,7 @@ export function useTerminalGpu({
     redrawId: null,
   });
   const [webglEnabled, setWebglEnabled] = useState<boolean>(true);
+  const letterSpacingIssueLogged = useRef<'missing' | 'failure' | null>(null);
 
   const gpuEnabledForTerminal = useMemo(
     () => !isBackground && webglEnabled,
@@ -130,13 +131,36 @@ export function useTerminalGpu({
 
   const applyLetterSpacing = useCallback(
     (useRelaxedSpacing: boolean) => {
-      applyTerminalLetterSpacing({
-        terminal: terminalRef.current,
-        renderer: gpuRenderer.current,
-        relaxed: useRelaxedSpacing,
-        terminalId,
-        onWebglRefresh: refreshGpuFontRendering,
-      });
+      const helper =
+        typeof applyTerminalLetterSpacing === 'function' ? applyTerminalLetterSpacing : null;
+      if (!helper) {
+        if (letterSpacingIssueLogged.current !== 'missing') {
+          letterSpacingIssueLogged.current = 'missing';
+          logger.warn(
+            `[Terminal ${terminalId}] Letter spacing helper unavailable; skipping adjustments`,
+          );
+        }
+        return;
+      }
+
+      try {
+        helper({
+          terminal: terminalRef.current,
+          renderer: gpuRenderer.current,
+          relaxed: useRelaxedSpacing,
+          terminalId,
+          onWebglRefresh: refreshGpuFontRendering,
+        });
+        letterSpacingIssueLogged.current = null;
+      } catch (error) {
+        if (letterSpacingIssueLogged.current !== 'failure') {
+          letterSpacingIssueLogged.current = 'failure';
+          logger.error(
+            `[Terminal ${terminalId}] Failed to adjust terminal letter spacing:`,
+            error,
+          );
+        }
+      }
     },
     [refreshGpuFontRendering, terminalId, terminalRef],
   );
