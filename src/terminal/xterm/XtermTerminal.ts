@@ -125,12 +125,11 @@ export class XtermTerminal {
     if (this.container.parentElement !== target) {
       target.appendChild(this.container)
     }
+    this.container.style.display = 'flex'
   }
 
   detach(): void {
-    if (this.container.parentElement) {
-      this.container.parentElement.removeChild(this.container)
-    }
+    this.container.style.display = 'none'
   }
 
   async ensureCoreAddonsLoaded(): Promise<void> {

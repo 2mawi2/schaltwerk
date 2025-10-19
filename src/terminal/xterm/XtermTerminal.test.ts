@@ -94,11 +94,13 @@ describe('XtermTerminal wrapper', () => {
     const child = container.children[0] as HTMLElement
     expect(child.dataset.terminalId).toBe('test-id')
     expect(instance.open).toHaveBeenCalledTimes(1)
+    expect((child as HTMLElement).style.display).toBe('flex')
 
-    const newContainer = document.createElement('div')
-    wrapper.attach(newContainer)
-    expect(newContainer.children).toHaveLength(1)
-    expect(container.children).toHaveLength(0)
+    wrapper.detach()
+    expect((child as HTMLElement).style.display).toBe('none')
+
+    wrapper.attach(container)
+    expect((child as HTMLElement).style.display).toBe('flex')
     expect(instance.open).toHaveBeenCalledTimes(1)
   })
 
