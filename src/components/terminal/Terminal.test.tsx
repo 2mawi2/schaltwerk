@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, waitFor, cleanup } from '@testing-library/react'
-import React from 'react'
 import { Terminal } from './Terminal'
 
 const ATLAS_CONTRAST_BASE = 1
@@ -31,8 +30,45 @@ const observerMocks = vi.hoisted(() => {
   }
 })
 
+const cleanupRegistryMock = vi.hoisted(() => ({
+  addCleanup: vi.fn(),
+  addEventListener: vi.fn(),
+  addResizeObserver: vi.fn(),
+  addTimeout: vi.fn(),
+  addInterval: vi.fn(),
+}))
+
+type HarnessConfig = {
+  scrollback: number
+  fontSize: number
+  fontFamily: string
+  readOnly?: boolean
+  minimumContrastRatio: number
+  [key: string]: unknown
+}
+
+type HarnessInstance = {
+  config: HarnessConfig
+  applyConfig: ReturnType<typeof vi.fn>
+  fitAddon: { fit: ReturnType<typeof vi.fn>; proposeDimensions?: () => { cols: number; rows: number } }
+  searchAddon: { findNext: ReturnType<typeof vi.fn>; findPrevious: ReturnType<typeof vi.fn> }
+  raw: {
+    cols: number
+    rows: number
+    resize: ReturnType<typeof vi.fn>
+    options: {
+      scrollback?: number
+      fontFamily?: string
+      fontSize?: number
+      disableStdin?: boolean
+      minimumContrastRatio?: number
+      [key: string]: unknown
+    }
+  }
+}
+
 const terminalHarness = vi.hoisted(() => {
-  const instances: any[] = []
+  const instances: unknown[] = []
   let nextIsNew = true
 
   const createMockRaw = () => {
@@ -48,7 +84,7 @@ const terminalHarness = vi.hoisted(() => {
           length: 0,
         },
       },
-      resize: vi.fn(function resize(this: any, cols: number, rows: number) {
+      resize: vi.fn(function resize(this: { cols: number; rows: number }, cols: number, rows: number) {
         this.cols = cols
         this.rows = rows
       }),
@@ -68,13 +104,13 @@ const terminalHarness = vi.hoisted(() => {
   class MockXtermTerminal {
     static instances = instances
     raw: ReturnType<typeof createMockRaw>
-    fitAddon: { fit: typeof vi.fn }
-    searchAddon: { findNext: typeof vi.fn; findPrevious: typeof vi.fn }
+    fitAddon: HarnessInstance['fitAddon']
+    searchAddon: HarnessInstance['searchAddon']
     attach = vi.fn()
     detach = vi.fn()
     dispose = vi.fn()
     applyConfig = vi.fn((partial: Record<string, unknown>) => {
-      this.config = { ...this.config, ...partial }
+      this.config = { ...this.config, ...partial } as HarnessConfig
     })
     updateOptions = vi.fn((options: Record<string, unknown>) => {
       if ('fontSize' in options) {
@@ -84,17 +120,17 @@ const terminalHarness = vi.hoisted(() => {
         this.config.fontFamily = options.fontFamily as string
       }
     })
-    config: Record<string, unknown>
-    constructor(public readonly options: any) {
+    config: HarnessConfig
+    constructor(public readonly options: Record<string, unknown>) {
       this.raw = createMockRaw()
       this.fitAddon = { fit: vi.fn() }
       this.searchAddon = { findNext: vi.fn(), findPrevious: vi.fn() }
-      this.config = { ...(options?.config ?? {}) }
+      this.config = { scrollback: 0, fontSize: 0, fontFamily: '', minimumContrastRatio: 0, ...(options?.config ?? {}) } as HarnessConfig
       instances.push(this)
     }
   }
 
-  const acquireMock = vi.fn((id: string, factory: () => MockXtermTerminal) => {
+  const acquireMock = vi.fn((id: string, factory: () => HarnessInstance) => {
     const xterm = factory()
     const record = {
       id,
@@ -124,13 +160,7 @@ const terminalHarness = vi.hoisted(() => {
 })
 
 vi.mock('../../hooks/useCleanupRegistry', () => ({
-  useCleanupRegistry: () => ({
-    addCleanup: vi.fn(),
-    addEventListener: vi.fn(),
-    addResizeObserver: vi.fn(),
-    addTimeout: vi.fn(),
-    addInterval: vi.fn(),
-  }),
+  useCleanupRegistry: () => cleanupRegistryMock,
 }))
 
 vi.mock('../../contexts/FontSizeContext', () => ({
@@ -155,7 +185,7 @@ vi.mock('../../hooks/useTerminalGpu', () => ({
 vi.mock('../../terminal/registry/terminalRegistry', () => {
   const { acquireMock } = terminalHarness
   return {
-    acquireTerminalInstance: vi.fn((id: string, factory: () => unknown) => acquireMock(id, factory as () => any)),
+    acquireTerminalInstance: vi.fn((id: string, factory: () => unknown) => acquireMock(id, factory as () => HarnessInstance)),
     releaseTerminalInstance: vi.fn(),
     detachTerminalInstance: vi.fn(),
   }
@@ -239,15 +269,17 @@ vi.stubGlobal('cancelAnimationFrame', (id: number) => {
 beforeEach(() => {
   cleanup()
   const { NoopObserver } = observerMocks
-  // @ts-expect-error - assigning global constructors for test environment
-  global.ResizeObserver = NoopObserver
-  // @ts-expect-error - assigning global constructors for test environment
-  global.IntersectionObserver = NoopObserver
-  // @ts-expect-error - assigning global constructors for test environment
-  global.MutationObserver = NoopObserver
+  global.ResizeObserver = NoopObserver as unknown as typeof ResizeObserver
+  global.IntersectionObserver = NoopObserver as unknown as typeof IntersectionObserver
+  global.MutationObserver = NoopObserver as unknown as typeof MutationObserver
   terminalHarness.instances.length = 0
   terminalHarness.acquireMock.mockClear()
   terminalHarness.setNextIsNew(true)
+  cleanupRegistryMock.addCleanup.mockClear()
+  cleanupRegistryMock.addEventListener.mockClear()
+  cleanupRegistryMock.addResizeObserver.mockClear()
+  cleanupRegistryMock.addTimeout.mockClear()
+  cleanupRegistryMock.addInterval.mockClear()
   const navigatorAny = navigator as Navigator & { userAgent?: string }
   Object.defineProperty(navigatorAny, 'userAgent', {
     value: 'Macintosh',
@@ -267,7 +299,7 @@ describe('Terminal', () => {
       expect(terminalHarness.instances.length).toBeGreaterThan(0)
     })
 
-    const instance = terminalHarness.instances[0]
+    const instance = terminalHarness.instances[0] as HarnessInstance
     const expectedContrast = ATLAS_CONTRAST_BASE + computeAtlasContrastOffset('session-123-bottom')
     expect(instance.applyConfig).not.toHaveBeenCalled()
     expect(instance.config.scrollback).toBe(10000)
@@ -284,7 +316,7 @@ describe('Terminal', () => {
       expect(terminalHarness.instances.length).toBeGreaterThan(0)
     })
 
-    const instance = terminalHarness.instances[0]
+    const instance = terminalHarness.instances[0] as HarnessInstance
     const expectedContrast = ATLAS_CONTRAST_BASE + computeAtlasContrastOffset('background-1')
     expect(instance.applyConfig).not.toHaveBeenCalled()
     expect(instance.config.scrollback).toBe(5000)
@@ -300,7 +332,7 @@ describe('Terminal', () => {
       expect(terminalHarness.instances.length).toBeGreaterThan(0)
     })
 
-    const instance = terminalHarness.instances[0]
+    const instance = terminalHarness.instances[0] as HarnessInstance
     const expectedContrast = ATLAS_CONTRAST_BASE + computeAtlasContrastOffset('session-example-top')
     expect(instance.applyConfig).not.toHaveBeenCalled()
     expect(instance.config.scrollback).toBe(20000)
@@ -317,9 +349,48 @@ describe('Terminal', () => {
       expect(terminalHarness.instances.length).toBeGreaterThan(0)
     })
 
-    const instance = terminalHarness.instances[0]
+    const instance = terminalHarness.instances[0] as HarnessInstance
     expect(instance.applyConfig).toHaveBeenCalledWith(expect.objectContaining({
       readOnly: true,
     }))
+  })
+
+  it('ignores duplicate resize observer measurements', async () => {
+    render(<Terminal terminalId="session-resize-case-top" sessionName="resize-case" />)
+
+    await waitFor(() => {
+      expect(terminalHarness.acquireMock).toHaveBeenCalled()
+      expect(terminalHarness.instances.length).toBeGreaterThan(0)
+      expect(cleanupRegistryMock.addResizeObserver).toHaveBeenCalled()
+    })
+
+    const instance = terminalHarness.instances[0] as HarnessInstance
+    instance.fitAddon.proposeDimensions = vi.fn(() => ({ cols: 132, rows: 48 }))
+    instance.raw.cols = 132
+    instance.raw.rows = 48
+
+    vi.useFakeTimers()
+    try {
+      const calls = cleanupRegistryMock.addResizeObserver.mock.calls
+      const lastCall = calls[calls.length - 1]
+      const element = lastCall?.[0] as HTMLDivElement | undefined
+      const resizeCallback = lastCall?.[1] as (() => void) | undefined
+      expect(element).toBeDefined()
+      expect(resizeCallback).toBeDefined()
+
+      Object.defineProperty(element!, 'clientWidth', { configurable: true, value: 800 })
+      Object.defineProperty(element!, 'clientHeight', { configurable: true, value: 600 })
+
+      resizeCallback?.()
+      await vi.runOnlyPendingTimersAsync()
+      const baselineResizes = instance.raw.resize.mock.calls.length
+
+      resizeCallback?.()
+      await vi.runOnlyPendingTimersAsync()
+
+      expect(instance.raw.resize.mock.calls.length).toBe(baselineResizes)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

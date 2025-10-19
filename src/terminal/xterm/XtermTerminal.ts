@@ -1,4 +1,4 @@
-import type { ITerminalOptions, ITerminalTheme } from '@xterm/xterm'
+import type { ITerminalOptions } from '@xterm/xterm'
 import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
@@ -15,12 +15,35 @@ export interface XtermTerminalConfig {
   minimumContrastRatio: number
 }
 
+interface TerminalThemeDefinition {
+  background: string
+  foreground: string
+  cursor: string
+  cursorAccent: string
+  black: string
+  red: string
+  green: string
+  yellow: string
+  blue: string
+  magenta: string
+  cyan: string
+  white: string
+  brightBlack: string
+  brightRed: string
+  brightGreen: string
+  brightYellow: string
+  brightBlue: string
+  brightMagenta: string
+  brightCyan: string
+  brightWhite: string
+}
+
 export interface XtermTerminalOptions {
   terminalId: string
   config: XtermTerminalConfig
 }
 
-function buildTheme(): ITerminalTheme {
+function buildTheme(): TerminalThemeDefinition {
   return {
     background: theme.colors.background.secondary,
     foreground: theme.colors.text.primary,

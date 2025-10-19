@@ -23,7 +23,7 @@ import { buildTerminalFontFamily } from '../../utils/terminalFonts'
 import { TerminalLoadingOverlay } from './TerminalLoadingOverlay'
 import { TerminalSearchPanel } from './TerminalSearchPanel'
 import { detectPlatformSafe } from '../../keyboardShortcuts/helpers'
-import { writeTerminalBackend, resizeTerminalBackend } from '../../terminal/transport/backend'
+import { writeTerminalBackend } from '../../terminal/transport/backend'
 import {
     acquireTerminalInstance,
     detachTerminalInstance,
@@ -32,6 +32,7 @@ import {
 import { XtermTerminal } from '../../terminal/xterm/XtermTerminal'
 import { useTerminalGpu } from '../../hooks/useTerminalGpu'
 import { terminalOutputManager } from '../../terminal/stream/terminalOutputManager'
+import { TerminalResizeCoordinator } from './resize/TerminalResizeCoordinator'
 
 const DEFAULT_SCROLLBACK_LINES = 10000
 const BACKGROUND_SCROLLBACK_LINES = 5000
@@ -40,6 +41,8 @@ const RIGHT_EDGE_GUARD_COLUMNS = 2
 const CLAUDE_SHIFT_ENTER_SEQUENCE = '\\'
 // Track last effective size we told the PTY (after guard), for SIGWINCH nudging
 const lastEffectiveRefInit = { cols: 80, rows: 24 }
+
+const RESIZE_PIXEL_EPSILON = 0.75
 
 const ATLAS_CONTRAST_BASE = 1;
 const ATLAS_CONTRAST_BUCKETS = 30;
@@ -98,6 +101,24 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         return false;
     }, []);
     const termRef = useRef<HTMLDivElement>(null);
+    const lastMeasuredDimensionsRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
+    const readDimensions = useCallback(() => {
+        const el = termRef.current;
+        if (!el || !el.isConnected) {
+            return null;
+        }
+        return {
+            width: el.clientWidth,
+            height: el.clientHeight,
+        };
+    }, [termRef]);
+    const rememberDimensions = useCallback(() => {
+        const dims = readDimensions();
+        if (dims) {
+            lastMeasuredDimensionsRef.current = dims;
+        }
+        return dims;
+    }, [readDimensions]);
     const xtermWrapperRef = useRef<XtermTerminal | null>(null);
     const terminal = useRef<XTerm | null>(null);
     const onDataDisposableRef = useRef<IDisposable | null>(null);
@@ -105,6 +126,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const searchAddon = useRef<SearchAddon | null>(null);
     const lastSize = useRef<{ cols: number; rows: number }>({ cols: 80, rows: 24 });
     const lastEffectiveRef = useRef<{ cols: number; rows: number }>(lastEffectiveRefInit);
+    const resizeCoordinatorRef = useRef<TerminalResizeCoordinator | null>(null);
     const [hydrated, setHydrated] = useState(false);
     const hydratedRef = useRef<boolean>(false);
     const [agentLoading, setAgentLoading] = useState(false);
@@ -282,14 +304,49 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             recordTerminalSize(terminalId, effectiveCols, rows);
             schedulePtyResize(terminalId, { cols: effectiveCols, rows }, { force: true });
             lastEffectiveRef.current = { cols: effectiveCols, rows };
+            rememberDimensions();
             return true;
         }
 
         recordTerminalSize(terminalId, effectiveCols, rows);
         schedulePtyResize(terminalId, { cols: effectiveCols, rows });
         lastEffectiveRef.current = { cols: effectiveCols, rows };
+        rememberDimensions();
         return true;
-    }, [terminalId, isAgentTopTerminal]);
+    }, [terminalId, isAgentTopTerminal, rememberDimensions]);
+
+    useEffect(() => {
+        const coordinator = new TerminalResizeCoordinator({
+            getBufferLength: () => {
+                try {
+                    return terminal.current?.buffer.active.length ?? 0;
+                } catch {
+                    return 0;
+                }
+            },
+            isVisible: () => {
+                const el = containerRef.current;
+                if (!el || !el.isConnected) {
+                    return false;
+                }
+                if (typeof el.offsetParent === 'object') {
+                    return el.offsetParent !== null;
+                }
+                return el.getClientRects().length > 0;
+            },
+            applyResize: (cols, rows, context) => {
+                applySizeUpdate(cols, rows, context.reason, context.force);
+            },
+            applyRows: (cols, rows, context) => {
+                applySizeUpdate(cols, rows, context.reason, context.force);
+            },
+        });
+        resizeCoordinatorRef.current = coordinator;
+        return () => {
+            coordinator.dispose();
+            resizeCoordinatorRef.current = null;
+        };
+    }, [applySizeUpdate]);
 
     const {
         gpuRenderer,
@@ -315,6 +372,40 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     useEffect(() => {
         cancelGpuRefreshWorkRef.current = cancelGpuRefreshWork;
     }, [cancelGpuRefreshWork]);
+
+    const requestResize = useCallback((reason: string, options?: { immediate?: boolean; force?: boolean }) => {
+        if (!fitAddon.current || !terminal.current) {
+            return;
+        }
+
+        const measured = readDimensions();
+        if (!measured) {
+            return;
+        }
+
+        if (!options?.force) {
+            const prev = lastMeasuredDimensionsRef.current;
+            const deltaWidth = Math.abs(measured.width - prev.width);
+            const deltaHeight = Math.abs(measured.height - prev.height);
+            if (!options?.immediate && deltaWidth < RESIZE_PIXEL_EPSILON && deltaHeight < RESIZE_PIXEL_EPSILON) {
+                return;
+            }
+        }
+        lastMeasuredDimensionsRef.current = measured;
+
+        const proposer = fitAddon.current as unknown as { proposeDimensions?: () => { cols: number; rows: number } | undefined };
+        const proposed = proposer.proposeDimensions?.();
+        if (!proposed || !Number.isFinite(proposed.cols) || !Number.isFinite(proposed.rows) || proposed.cols <= 0 || proposed.rows <= 0) {
+            return;
+        }
+
+        resizeCoordinatorRef.current?.resize({
+            cols: proposed.cols,
+            rows: proposed.rows,
+            reason,
+            immediate: options?.immediate ?? false,
+        });
+    }, [readDimensions]);
 
     // Selection-aware autoscroll helpers (run terminal: avoid jumping while user selects text)
     const isUserSelectingInTerminal = useCallback((): boolean => {
@@ -550,7 +641,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     useEffect(() => {
         const handleSearchResize = (detail?: { kind?: 'session' | 'orchestrator'; sessionId?: string }) => {
             if (agentType !== 'opencode' || isBackground) return;
-            if (!fitAddon.current || !terminal.current || !termRef.current) return;
+            if (!termRef.current) return;
             const el = termRef.current;
             if (!el.isConnected || el.clientWidth === 0 || el.clientHeight === 0) return;
 
@@ -564,10 +655,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
             const doFitAndNotify = () => {
                 try {
-                    fitAddon.current!.fit();
-                    const { cols, rows } = terminal.current!;
-                    // Always notify PTY to nudge the TUI even if equal (OpenCode can need explicit resize)
-                    applySizeUpdate(cols, rows, 'opencode-search', true);
+                    requestResize('opencode-search', { immediate: true, force: true });
                 } catch (e) {
                     logger.warn(`[Terminal ${terminalId}] OpenCode search-resize failed:`, e);
                 }
@@ -586,7 +674,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         const cleanup = listenUiEvent(UiEvent.OpencodeSearchResize, handleSearchResize)
         return cleanup
         // Deliberately depend on agentType/isBackground to keep logic accurate per mount
-    }, [agentType, isBackground, terminalId, sessionName, isCommander, applySizeUpdate]);
+    }, [agentType, isBackground, terminalId, sessionName, isCommander, requestResize]);
 
     // Listen for session-switching animation completion for OpenCode
     useEffect(() => {
@@ -597,13 +685,11 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             if (!document.body.classList.contains('session-switching')) {
                 const doFitAndNotify = () => {
                     try {
-                        if (!fitAddon.current || !terminal.current || !termRef.current) return;
+                        if (!termRef.current) return;
                         const el = termRef.current;
                         if (!el.isConnected || el.clientWidth === 0 || el.clientHeight === 0) return;
 
-                        fitAddon.current!.fit();
-                        const { cols, rows } = terminal.current!;
-                        applySizeUpdate(cols, rows, 'opencode-session-switch', true);
+                        requestResize('opencode-session-switch', { immediate: true, force: true });
                     } catch (e) {
                         logger.warn(`[Terminal ${terminalId}] OpenCode session-switch resize failed:`, e);
                     }
@@ -627,7 +713,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
 
         return () => observer.disconnect();
-    }, [agentType, isBackground, terminalId, applySizeUpdate]);
+    }, [agentType, isBackground, terminalId, requestResize]);
 
     // Deterministic refit on session switch specifically for OpenCode
     useEffect(() => {
@@ -639,21 +725,11 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 if (!isCommander) return;
             }
 
-            if (!fitAddon.current || !terminal.current || !termRef.current) return;
-            if (!termRef.current.isConnected) return;
+            if (!termRef.current || !termRef.current.isConnected) return;
 
             const run = () => {
                 try {
-                    if (!fitAddon.current || !terminal.current || !termRef.current) return;
-                    fitAddon.current.fit();
-                    const { cols, rows } = terminal.current;
-                    // Use strong recompute to mirror initialization
-                    // Force=true to bypass thrash guards on selection events
-                    const MIN_DIM = 2;
-                    const effectiveCols = Math.max(cols - RIGHT_EDGE_GUARD_COLUMNS, MIN_DIM);
-                    try { terminal.current.resize(effectiveCols, rows); } catch (e) { logger.debug(`[Terminal ${terminalId}] frontend resize failed during opencode-selection`, e) }
-                    recordTerminalSize(terminalId, effectiveCols, rows);
-                    resizeTerminalBackend(terminalId, effectiveCols, rows).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
+                    requestResize('opencode-selection', { immediate: true, force: true });
                 } catch (error) {
                     logger.warn(`[Terminal ${terminalId}] Selection resize fit failed:`, error);
                 }
@@ -667,9 +743,9 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         };
         const cleanup = listenUiEvent(UiEvent.OpencodeSelectionResize, handleSelectionResize)
         return cleanup
-    }, [agentType, isBackground, terminalId, sessionName, isCommander, applySizeUpdate]);
+    }, [agentType, isBackground, terminalId, sessionName, isCommander, requestResize]);
 
-    // Generic, agent-agnostic terminal resize request listener (reuse applySizeUpdate; two-pass fit)
+    // Generic, agent-agnostic terminal resize request listener (delegates to requestResize with two-pass fit)
     useEffect(() => {
         const handler = (e: Event) => {
             const detail = (e as CustomEvent<{ target: 'session' | 'orchestrator' | 'all'; sessionId?: string }>).detail
@@ -691,19 +767,12 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             if (document.body.classList.contains('is-split-dragging')) return
 
             try {
-                if (!fitAddon.current || !terminal.current || !termRef.current) return
-                if (!termRef.current.isConnected) return
-                // Pass 1: fit now
-                fitAddon.current.fit()
-                let { cols, rows } = terminal.current
-                applySizeUpdate(cols, rows, 'generic-resize-request:raf1', true)
-                // Pass 2: fit again on next frame (layout/scrollbar settles)
+                if (!termRef.current || !termRef.current.isConnected) return
+                requestResize('generic-resize-request:raf1', { immediate: true, force: true })
                 requestAnimationFrame(() => {
                     try {
-                        if (!fitAddon.current || !terminal.current || !termRef.current || !termRef.current.isConnected) return
-                        fitAddon.current.fit()
-                        const m = terminal.current
-                        applySizeUpdate(m.cols, m.rows, 'generic-resize-request:raf2', true)
+                        if (!termRef.current || !termRef.current.isConnected) return
+                        requestResize('generic-resize-request:raf2', { immediate: true, force: true })
                     } catch (err) {
                         logger.debug('[Terminal] second-pass generic fit failed', err)
                     }
@@ -714,7 +783,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         }
         window.addEventListener(String(UiEvent.TerminalResizeRequest), handler as EventListener)
         return () => window.removeEventListener(String(UiEvent.TerminalResizeRequest), handler as EventListener)
-    }, [terminalId, applySizeUpdate])
+    }, [terminalId, requestResize])
 
     useEffect(() => {
         mountedRef.current = true;
@@ -792,14 +861,14 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
             try {
                 fitAddon.current.fit();
+                requestResize('initial-fit', { immediate: true, force: true });
                 const { cols, rows } = terminal.current;
-                applySizeUpdate(cols, rows, 'initial-fit');
                 logger.info(`[Terminal ${terminalId}] Initial fit: ${cols}x${rows} (container: ${containerWidth}x${containerHeight})`);
             } catch (e) {
                 logger.warn(`[Terminal ${terminalId}] Initial fit failed:`, e);
             }
         };
-        
+
         performInitialFit();
 
         // Ensure scrollbar thumb reflects the current buffer position when the terminal is attached.
@@ -818,8 +887,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                     if (fitAddon.current && terminal.current) {
                         fitAddon.current.fit();
                         try {
-                            const { cols, rows } = terminal.current;
-                            applySizeUpdate(cols, rows, 'renderer-init');
+                            requestResize('renderer-init', { immediate: true, force: true });
                         } catch (e) {
                             logger.warn(`[Terminal ${terminalId}] Early initial resize failed:`, e);
                         }
@@ -835,8 +903,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                         if (fitAddon.current && terminal.current) {
                             try {
                                 fitAddon.current.fit();
-                                const { cols, rows } = terminal.current;
-                                applySizeUpdate(cols, rows, 'post-init');
+                                requestResize('post-init', { immediate: true, force: true });
                             } catch (e) {
                                 logger.warn(`[Terminal ${terminalId}] Post-init fit failed:`, e);
                             }
@@ -902,8 +969,12 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 if (!el.isConnected || el.clientWidth === 0 || el.clientHeight === 0) return;
                 try {
                     fitAddon.current.fit();
-                    const { cols, rows } = terminal.current;
-                    applySizeUpdate(cols, rows, 'visibility');
+                } catch (e) {
+                    logger.debug(`[Terminal ${terminalId}] Visibility pre-fit failure`, e);
+                }
+                resizeCoordinatorRef.current?.flush('visibility');
+                try {
+                    requestResize('visibility', { immediate: true, force: true });
                 } catch (e) {
                     logger.warn(`[Terminal ${terminalId}] Visibility fit failed:`, e);
                 }
@@ -982,8 +1053,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 if (!isReadyForFit() || !fitAddon.current || !terminal.current) return;
                 try {
                     fitAddon.current.fit();
-                    const { cols, rows } = terminal.current;
-                    applySizeUpdate(cols, rows, 'initial-raf');
+                    requestResize('initial-raf', { immediate: true, force: true });
                 } catch {
                     // ignore single-shot fit error; RO will retry
                 }
@@ -1041,9 +1111,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
                 try {
                     fitAddon.current.fit();
-                    const { cols, rows } = terminal.current;
-
-                    applySizeUpdate(cols, rows, 'font-size-change');
+                    requestResize('font-size-change', { immediate: true, force: true });
                 } catch (e) {
                     logger.warn(`[Terminal ${terminalId}] Font size change fit failed:`, e);
                 }
@@ -1098,19 +1166,11 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         const handleResize = () => {
             if (!fitAddon.current || !terminal.current) return;
 
-            const el = termRef.current;
-            if (!el || !el.isConnected) {
-                return;
-            }
-
+            const dragging = document.body.classList.contains('is-split-dragging');
             try {
-                fitAddon.current.fit();
-                const { cols, rows } = terminal.current;
-                const dragging = document.body.classList.contains('is-split-dragging');
-                applySizeUpdate(cols, rows, 'resize-observer', dragging);
+                requestResize('resize-observer', { force: dragging });
             } catch (e) {
-                logger.warn(`[Terminal ${terminalId}] fit() failed during resize; skipping this tick`, e);
-                return;
+                logger.warn(`[Terminal ${terminalId}] resize-observer measurement failed; skipping this tick`, e);
             }
         };
 
@@ -1148,10 +1208,13 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                     requestAnimationFrame(() => {
                         if (!fitAddon.current || !terminal.current) return;
 
-                        fitAddon.current.fit();
-                        const { cols, rows } = terminal.current;
-
-                        applySizeUpdate(cols, rows, 'split-final');
+                        try {
+                            fitAddon.current.fit();
+                        } catch (err) {
+                            logger.debug(`[Terminal ${terminalId}] Split-final pre-fit failed`, err);
+                        }
+                        resizeCoordinatorRef.current?.flush('split-final');
+                        requestResize('split-final', { immediate: true, force: true });
                     });
                 }
             } catch (error) {
@@ -1220,7 +1283,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         onReady,
         resolvedFontFamily,
         readOnly,
-        applySizeUpdate,
+        requestResize,
         inputFilter,
         isAgentTopTerminal,
         beginClaudeShiftEnter,
@@ -1399,15 +1462,14 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 xtermWrapperRef.current?.updateOptions({ fontFamily: resolvedFontFamily })
                 if (fitAddon.current) {
                     fitAddon.current.fit()
-                    const { cols, rows } = terminal.current
-                    applySizeUpdate(cols, rows, 'font-family');
+                    requestResize('font-family', { immediate: true, force: true })
                 }
                 refreshGpuFontRendering()
             }
         } catch (e) {
             logger.warn(`[Terminal ${terminalId}] Failed to apply font family`, e)
         }
-    }, [resolvedFontFamily, terminalId, applySizeUpdate, refreshGpuFontRendering])
+    }, [resolvedFontFamily, terminalId, requestResize, refreshGpuFontRendering])
 
     useEffect(() => {
         if (!resolvedFontFamily) {
