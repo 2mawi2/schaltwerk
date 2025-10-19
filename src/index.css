@@ -9,6 +9,15 @@ body,
 #root {
   color-scheme: dark;
   font-size: var(--ui-font-size);
+  line-height: var(--line-height-body);
+}
+
+body,
+button,
+input,
+textarea,
+select {
+  line-height: inherit;
 }
 
 /* Ensure text selection works in diff viewer */

@@ -293,6 +293,13 @@ export const theme = {
     xl: '2rem',     // 32px
     '2xl': '3rem',  // 48px
   },
+
+  lineHeight: {
+    body: 1.35,        // match VS Code baseline to avoid emoji clipping
+    heading: 1.25,     // tighter for headings while keeping emoji visible
+    compact: 1.15,     // compact stacks (badges, pills)
+    badge: 1.2,        // inline badges with mixed text/emoji
+  },
   
   borderRadius: {
     none: '0',

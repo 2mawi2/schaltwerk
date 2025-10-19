@@ -397,8 +397,9 @@ export const SessionButton = memo<SessionButtonProps>(({
                 <div className="flex items-center gap-2">
                     {agentType && sessionState !== 'spec' && !isWithinVersionGroup && (
                         <span
-                             className="inline-flex items-center gap-1 px-1.5 py-[1px] rounded text-[10px] border leading-none"
+                             className="inline-flex items-center gap-1 px-1.5 py-[1px] rounded text-[10px] border"
                              style={{
+                               lineHeight: theme.lineHeight.badge,
                                backgroundColor: agentColor === 'blue' ? theme.colors.accent.blue.bg :
                                                agentColor === 'green' ? theme.colors.accent.green.bg :
                                                agentColor === 'orange' ? theme.colors.accent.amber.bg :
@@ -430,8 +431,9 @@ export const SessionButton = memo<SessionButtonProps>(({
                     )}
                     {worktreeSizeLabel && (
                         <span
-                            className="inline-flex items-center gap-1 px-1.5 py-[1px] rounded text-[10px] border leading-none"
+                            className="inline-flex items-center gap-1 px-1.5 py-[1px] rounded text-[10px] border"
                             style={{
+                                lineHeight: theme.lineHeight.badge,
                                 backgroundColor: theme.colors.background.elevated,
                                 color: theme.colors.text.muted,
                                 borderColor: theme.colors.border.subtle

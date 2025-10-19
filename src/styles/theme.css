@@ -440,4 +440,8 @@
   --terminal-font-size: 13px;
   --ui-font-size: 14px;
   --base-font-size: 14px;
+  --line-height-body: 1.35;
+  --line-height-heading: 1.25;
+  --line-height-compact: 1.15;
+  --line-height-badge: 1.2;
 }

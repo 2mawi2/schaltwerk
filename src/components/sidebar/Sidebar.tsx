@@ -1106,7 +1106,10 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
                             </svg>
                             {/* Compact text indicator */}
-                            <span className="text-[9px] font-medium leading-none w-6 text-left">
+                            <span
+                                className="text-[9px] font-medium w-6 text-left"
+                                style={{ lineHeight: theme.lineHeight.compact }}
+                            >
                                 {sortMode === SortMode.Name ? 'A-Z' : sortMode === SortMode.Created ? 'New' : 'Edit'}
                             </span>
                         </button>
