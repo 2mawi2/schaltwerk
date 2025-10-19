@@ -99,8 +99,9 @@ export function useTerminalGpu({
       }
 
       if (rendererState.type !== 'webgl') {
+        // WebGL not ready yet; keep the refresh queued so ensureRenderer can retry once the addon loads.
         state.refreshing = false;
-        state.queued = false;
+        state.queued = true;
         return;
       }
 
