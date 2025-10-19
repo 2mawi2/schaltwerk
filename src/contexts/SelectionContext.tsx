@@ -306,60 +306,6 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         return fetchPromise
     }, [])
 
-    const computeSessionParams = useCallback((sel: Selection) => {
-        if (!projectPath) return null
-        if (sel.kind === 'session') {
-            const sessionId = sel.payload ?? null
-            if (!sessionId) return null
-            return { projectId: projectPath, sessionId }
-        }
-        if (sel.kind === 'orchestrator') {
-            return { projectId: projectPath, sessionId: null }
-        }
-        return null
-    }, [projectPath])
-
-    const registerTerminalsForSelection = useCallback(async (terminalIds: string[], sel: Selection) => {
-        if (terminalIds.length === 0) return
-        const params = computeSessionParams(sel)
-        if (!params) return
-        try {
-            await invoke(TauriCommands.RegisterSessionTerminals, {
-                projectId: params.projectId,
-                sessionId: params.sessionId,
-                terminalIds,
-            })
-        } catch (error) {
-            logger.warn('[SelectionContext] Failed to register terminals for session', error)
-        }
-    }, [computeSessionParams])
-
-    const suspendTerminalsForSelection = useCallback(async (sel: Selection) => {
-        const params = computeSessionParams(sel)
-        if (!params) return
-        try {
-            await invoke(TauriCommands.SuspendSessionTerminals, {
-                projectId: params.projectId,
-                sessionId: params.sessionId,
-            })
-        } catch (error) {
-            logger.warn('[SelectionContext] Failed to suspend terminals for selection', error)
-        }
-    }, [computeSessionParams])
-
-    const resumeTerminalsForSelection = useCallback(async (sel: Selection) => {
-        const params = computeSessionParams(sel)
-        if (!params) return
-        try {
-            await invoke(TauriCommands.ResumeSessionTerminals, {
-                projectId: params.projectId,
-                sessionId: params.sessionId,
-            })
-        } catch (error) {
-            logger.warn('[SelectionContext] Failed to resume terminals for selection', error)
-        }
-    }, [computeSessionParams])
-
     // Create a single terminal with deduplication
     const createTerminal = useCallback(async (id: string, cwd: string) => {
         // If already created, skip
@@ -457,7 +403,6 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             }
 
             await createTerminal(ids.top, cwd)
-            await registerTerminalsForSelection([ids.top], sel)
             return ids
         }
 
@@ -497,7 +442,6 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             if (resolvedState === 'running' && sel.worktreePath) {
                 const fallbackWorktree = sel.worktreePath
                 await createTerminal(ids.top, fallbackWorktree)
-                await registerTerminalsForSelection([ids.top], sel)
                 return {
                     ...ids,
                     workingDirectory: fallbackWorktree,
@@ -533,7 +477,6 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         }
 
         await createTerminal(ids.top, worktreePath)
-        await registerTerminalsForSelection([ids.top], sel)
         try {
             const legacyExists = await invoke<boolean>(TauriCommands.TerminalExists, { id: ids.bottomBase })
             if (legacyExists) {
@@ -548,14 +491,13 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             ...ids,
             workingDirectory: worktreePath
         }
-    }, [getTerminalIds, projectPath, createTerminal, registerTerminalsForSelection, getCachedSessionSnapshot, ensureSessionSnapshot, resolveSessionState])
+    }, [getTerminalIds, projectPath, createTerminal, getCachedSessionSnapshot, ensureSessionSnapshot, resolveSessionState])
 
     // Helper to get default selection for current project
     const getDefaultSelection = useCallback(async (): Promise<Selection> => {
         if (projectPath) {
             const remembered = lastSelectionByProjectRef.current.get(projectPath)
             if (remembered) {
-                logger.info('[SelectionContext] Restored in-memory selection for project:', projectPath, remembered)
                 return { ...remembered }
             }
         }
@@ -722,31 +664,6 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             }
         }
 
-        const shouldSwitchSessions = forceRecreate || selection.kind !== newSelection.kind || selection.payload !== newSelection.payload
-        let previousSuspended = false
-        let resumedNew = false
-
-        const suspendIfNeeded = async () => {
-            if (shouldSwitchSessions && !previousSuspended) {
-                try {
-                    await suspendTerminalsForSelection(selection)
-                    previousSuspended = true
-                } catch (error) {
-                    logger.warn('[SelectionContext] Failed to suspend previous session terminals', error)
-                }
-            }
-        }
-
-        const resumeIfNeeded = async () => {
-            if (shouldSwitchSessions && !resumedNew) {
-                try {
-                    await resumeTerminalsForSelection(newSelection)
-                    resumedNew = true
-                } catch (error) {
-                    logger.warn('[SelectionContext] Failed to resume new session terminals', error)
-                }
-            }
-        }
 
         try {
             if (forceRecreate) {
@@ -795,8 +712,6 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                     setIsSpecState(false)
                 }
 
-                await suspendIfNeeded()
-
                 if (callToken === selectionTokenRef.current) {
                     setSelectionState(newSelection)
                     setTerminals(newTerminalIds)
@@ -810,7 +725,6 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                     rememberSelection(newSelection)
                 }
 
-                await resumeIfNeeded()
                 return
             }
 
@@ -826,8 +740,6 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             if (isAuto && (lastUserToken > callToken || lastUserSelectionEpochRef.current === projectEpochRef.current)) {
                 return
             }
-
-            await suspendIfNeeded()
 
             if (newSelection.kind === 'session') {
                 const currentSnapshot = getCachedSessionSnapshot(newSelection.payload)
@@ -854,18 +766,9 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             }
 
             setIsReady(true)
-
-            await resumeIfNeeded()
         } catch (error) {
             logger.error('[SelectionContext] Failed to set selection:', error)
             setIsReady(true)
-            if (previousSuspended && !resumedNew) {
-                try {
-                    await resumeTerminalsForSelection(selection)
-                } catch (resumeError) {
-                    logger.warn('[SelectionContext] Failed to re-resume previous session after error', resumeError)
-                }
-            }
         } finally {
             finalizeSelectionChange(newSelection)
             if (isIntentional) {
@@ -875,7 +778,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 userSelectionInFlightRef.current = false
             }
         }
-    }, [ensureTerminals, getTerminalIds, clearTerminalTracking, isReady, selection, terminals, isSpec, setCurrentSelection, finalizeSelectionChange, suspendTerminalsForSelection, resumeTerminalsForSelection, getCachedSessionSnapshot, ensureSessionSnapshot, rememberSelection, resolveSessionState])
+    }, [ensureTerminals, getTerminalIds, clearTerminalTracking, isReady, selection, terminals, isSpec, setCurrentSelection, finalizeSelectionChange, getCachedSessionSnapshot, ensureSessionSnapshot, rememberSelection, resolveSessionState])
 
     // Start a lightweight backend watcher for the currently selected running session
     useEffect(() => {
@@ -1073,28 +976,22 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     // Initialize on mount and when project path changes
     useEffect(() => {
         const initialize = async () => {
-            logger.info('[SelectionContext] Initialize effect triggered, projectPath:', projectPath)
-            
             // Wait for projectPath to be set before initializing
             if (!projectPath) {
-                logger.info('[SelectionContext] No projectPath, skipping initialization')
                 setIsReady(true)
                 return
             }
-            
+
             // Skip if already initialized with same project path
             if (hasInitialized.current && previousProjectPath.current === projectPath) {
-                logger.info('[SelectionContext] Already initialized with same project path, skipping')
                 return
             }
-            
+
             // Check if we're switching projects
-            const projectChanged = hasInitialized.current && 
-                                  previousProjectPath.current !== null && 
+            const projectChanged = hasInitialized.current &&
+                                  previousProjectPath.current !== null &&
                                   previousProjectPath.current !== projectPath
-            
-            logger.info('[SelectionContext] Project changed?', projectChanged, 'Previous:', previousProjectPath.current, 'New:', projectPath)
-            
+
             // Set initialized flag and update previous path
             hasInitialized.current = true
             // Bump the project epoch on project change
@@ -1103,6 +1000,22 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             }
 
             previousProjectPath.current = projectPath
+
+            // If switching projects, restore the last selection for this project
+            if (projectChanged) {
+                isRestoringRef.current = true
+                try {
+                    const defaultSelection = await getDefaultSelection()
+                    const validatedSelection = await validateAndRestoreSelection(defaultSelection)
+                    await setSelection(validatedSelection, false, false)
+                } catch (_e) {
+                    await setSelection({ kind: 'orchestrator' }, false, false)
+                } finally {
+                    isRestoringRef.current = false
+                    emitUiEvent(UiEvent.ProjectSwitchComplete, { projectPath })
+                }
+                return
+            }
 
             // Check if terminal IDs have changed before doing expensive operations
             const currentIds = getTerminalIds({ kind: 'orchestrator' })
@@ -1151,7 +1064,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             }
             return
         }
-        
+
         // Only run if not currently initializing
         initialize().catch(_e => {
             logger.error('[SelectionContext] Failed to initialize:', _e)

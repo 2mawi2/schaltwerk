@@ -6,13 +6,29 @@ vi.mock('./webglCapability', () => ({
     isWebGLSupported: vi.fn(() => true)
 }))
 
-vi.mock('@xterm/addon-webgl', () => ({
-    WebglAddon: vi.fn().mockImplementation(() => ({
-        onContextLoss: vi.fn(),
-        dispose: vi.fn(),
-        clearTextureAtlas: vi.fn()
-    }))
-}))
+const mockWebglAddonInstance = {
+    onContextLoss: vi.fn(),
+    dispose: vi.fn(),
+    clearTextureAtlas: vi.fn()
+};
+const mockWebglAddonCtor = vi.fn(() => mockWebglAddonInstance);
+
+let importAddonMock: ReturnType<typeof vi.fn>;
+
+vi.mock('../xterm/xtermAddonImporter', () => ({
+    XtermAddonImporter: class {
+        importAddon(name: string) {
+            return importAddonMock(name);
+        }
+    }
+}));
+
+importAddonMock = vi.fn(async (name: string) => {
+    if (name === 'webgl') {
+        return mockWebglAddonCtor;
+    }
+    throw new Error(`Unexpected addon request: ${name}`);
+});
 
 describe('WebGLTerminalRenderer', () => {
     let mockTerminal: XTerm
@@ -20,10 +36,17 @@ describe('WebGLTerminalRenderer', () => {
 
     beforeEach(() => {
         mockTerminal = {
-            loadAddon: vi.fn()
+            loadAddon: vi.fn(),
+            element: document.createElement('div')
         } as unknown as XTerm
 
         renderer = new WebGLTerminalRenderer(mockTerminal, 'test-terminal')
+
+        importAddonMock.mockClear();
+        mockWebglAddonCtor.mockClear();
+        mockWebglAddonInstance.onContextLoss.mockClear();
+        mockWebglAddonInstance.dispose.mockClear();
+        mockWebglAddonInstance.clearTextureAtlas.mockClear();
     })
 
     it('should initialize with WebGL when supported', async () => {
@@ -32,6 +55,7 @@ describe('WebGLTerminalRenderer', () => {
         expect(state.type).toBe('webgl')
         expect(state.contextLost).toBe(false)
         expect(mockTerminal.loadAddon).toHaveBeenCalled()
+        expect(importAddonMock).toHaveBeenCalledWith('webgl')
     })
 
     it('should fall back to Canvas when WebGL is not supported', async () => {
@@ -53,6 +77,18 @@ describe('WebGLTerminalRenderer', () => {
         const secondCallCount = vi.mocked(mockTerminal.loadAddon).mock.calls.length
 
         expect(secondCallCount).toBe(firstCallCount)
+    })
+
+    it('should defer initialization when terminal element is missing', async () => {
+        const terminalWithoutElement = {
+            loadAddon: vi.fn()
+        } as unknown as XTerm
+        const rendererWithoutElement = new WebGLTerminalRenderer(terminalWithoutElement, 'missing-element')
+
+        const state = await rendererWithoutElement.initialize()
+
+        expect(state.type).toBe('none')
+        expect(vi.mocked(terminalWithoutElement.loadAddon)).not.toHaveBeenCalled()
     })
 
     it('should dispose the renderer and reset state', async () => {

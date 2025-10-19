@@ -2,6 +2,10 @@ use super::CreateParams;
 use portable_pty::CommandBuilder;
 use std::path::PathBuf;
 
+const TERM_PROGRAM_NAME: &str = "schaltwerk";
+const TERM_PROGRAM_VERSION: &str = env!("CARGO_PKG_VERSION");
+const COLORTERM_VALUE: &str = "truecolor";
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommandSpec {
     pub program: String,
@@ -158,6 +162,12 @@ fn build_environment(cols: u16, rows: u16) -> Vec<(String, String)> {
 
     envs.push(("CLICOLOR".to_string(), "1".to_string()));
     envs.push(("CLICOLOR_FORCE".to_string(), "1".to_string()));
+    envs.push(("COLORTERM".to_string(), COLORTERM_VALUE.to_string()));
+    envs.push(("TERM_PROGRAM".to_string(), TERM_PROGRAM_NAME.to_string()));
+    envs.push((
+        "TERM_PROGRAM_VERSION".to_string(),
+        TERM_PROGRAM_VERSION.to_string(),
+    ));
 
     envs
 }
@@ -279,7 +289,7 @@ fn normalize_path_component(raw: &str) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::normalize_path_component;
+    use super::{build_environment, normalize_path_component};
 
     #[test]
     fn normalize_path_component_splits_whitespace_delimited_segments() {
@@ -312,5 +322,19 @@ mod tests {
             result,
             vec!["/Applications/Visual Studio Code.app/Contents/Resources/app/bin".to_string()]
         );
+    }
+
+    #[test]
+    fn environment_includes_terminal_metadata() {
+        let env = build_environment(80, 24);
+        assert!(env
+            .iter()
+            .any(|(key, value)| key == "TERM_PROGRAM" && value == "schaltwerk"));
+        assert!(env
+            .iter()
+            .any(|(key, value)| { key == "TERM_PROGRAM_VERSION" && !value.trim().is_empty() }));
+        assert!(env
+            .iter()
+            .any(|(key, value)| key == "COLORTERM" && value == "truecolor"));
     }
 }

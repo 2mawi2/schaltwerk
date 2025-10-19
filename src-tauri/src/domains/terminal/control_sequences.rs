@@ -7,7 +7,7 @@ pub enum SequenceResponse {
 pub struct SanitizedOutput {
     pub data: Vec<u8>,
     pub remainder: Option<Vec<u8>>,
-    pub cursor_queries: usize,
+    pub cursor_query_offsets: Vec<usize>,
     pub responses: Vec<SequenceResponse>,
 }
 
@@ -48,7 +48,7 @@ fn analyze_control_sequence(
 pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
     let mut data = Vec::with_capacity(input.len());
     let mut remainder = None;
-    let mut cursor_queries = 0usize;
+    let mut cursor_query_offsets = Vec::new();
     let mut responses = Vec::new();
 
     let mut i = 0;
@@ -101,7 +101,7 @@ pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
                     }
                     ControlSequenceAction::RespondCursorPosition => {
                         log::debug!("Captured cursor position query {:?}", &input[i..=cursor]);
-                        cursor_queries = cursor_queries.saturating_add(1);
+                        cursor_query_offsets.push(data.len());
                         i = cursor + 1;
                     }
                     ControlSequenceAction::Drop => {
@@ -143,16 +143,21 @@ pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
                             responses.push(SequenceResponse::Immediate(
                                 b"\x1b]10;rgb:ef/ef/ef\x07".to_vec(),
                             ));
+                            i = term_idx + terminator_len;
                         } else if text.starts_with("11;?") {
                             log::debug!("Responding to OSC background query {text:?}");
                             responses.push(SequenceResponse::Immediate(
                                 b"\x1b]11;rgb:1e/1e/1e\x07".to_vec(),
                             ));
+                            i = term_idx + terminator_len;
                         } else {
-                            log::debug!("Dropping OSC sequence {text:?}");
+                            data.extend_from_slice(&input[i..=term_idx + terminator_len - 1]);
+                            i = term_idx + terminator_len;
                         }
+                    } else {
+                        data.extend_from_slice(&input[i..=term_idx + terminator_len - 1]);
+                        i = term_idx + terminator_len;
                     }
-                    i = term_idx + terminator_len;
                 } else {
                     remainder = Some(input[i..].to_vec());
                     break;
@@ -170,7 +175,7 @@ pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
     SanitizedOutput {
         data,
         remainder,
-        cursor_queries,
+        cursor_query_offsets,
         responses,
     }
 }
@@ -187,7 +192,7 @@ mod tests {
             SanitizedOutput {
                 data: b"prepost".to_vec(),
                 remainder: None,
-                cursor_queries: 1,
+                cursor_query_offsets: vec![3],
                 responses: Vec::new(),
             }
         );
@@ -198,7 +203,7 @@ mod tests {
         let result = sanitize_control_sequences(b"pre\x1b[?1;2cpost");
         assert_eq!(result.data, b"prepost");
         assert_eq!(result.remainder, None);
-        assert_eq!(result.cursor_queries, 0);
+        assert!(result.cursor_query_offsets.is_empty());
         assert_eq!(result.responses.len(), 1);
         assert_eq!(
             result.responses[0],
@@ -211,7 +216,7 @@ mod tests {
         let result = sanitize_control_sequences(b"pre\x1b[123Xpost");
         assert_eq!(result.data, b"pre\x1b[123Xpost");
         assert!(result.remainder.is_none());
-        assert_eq!(result.cursor_queries, 0);
+        assert!(result.cursor_query_offsets.is_empty());
         assert!(result.responses.is_empty());
     }
 
@@ -220,17 +225,17 @@ mod tests {
         let result = sanitize_control_sequences(b"partial\x1b[");
         assert_eq!(result.data, b"partial");
         assert_eq!(result.remainder, Some(b"\x1b[".to_vec()));
-        assert_eq!(result.cursor_queries, 0);
+        assert!(result.cursor_query_offsets.is_empty());
         assert!(result.responses.is_empty());
     }
 
     #[test]
-    fn drops_osc_palette_queries_and_responds_to_foreground_request() {
+    fn responds_to_foreground_query() {
         let result = sanitize_control_sequences(b"pre\x1b]10;?\x07post");
 
         assert_eq!(result.data, b"prepost");
         assert!(result.remainder.is_none());
-        assert_eq!(result.cursor_queries, 0);
+        assert!(result.cursor_query_offsets.is_empty());
 
         assert_eq!(result.responses.len(), 1);
         assert_eq!(
@@ -240,17 +245,51 @@ mod tests {
     }
 
     #[test]
-    fn drops_osc_queries_terminated_with_st_and_responds_background() {
+    fn responds_to_background_query() {
         let result = sanitize_control_sequences(b"pre\x1b]11;?\x1b\\post");
 
         assert_eq!(result.data, b"prepost");
         assert!(result.remainder.is_none());
-        assert_eq!(result.cursor_queries, 0);
+        assert!(result.cursor_query_offsets.is_empty());
 
         assert_eq!(result.responses.len(), 1);
         assert_eq!(
             result.responses[0],
             SequenceResponse::Immediate(b"\x1b]11;rgb:1e/1e/1e\x07".to_vec()),
         );
+    }
+
+    #[test]
+    fn passes_through_osc_8_hyperlinks() {
+        let result =
+            sanitize_control_sequences(b"pre\x1b]8;;https://example.com\x07link\x1b]8;;\x07post");
+
+        assert_eq!(
+            result.data,
+            b"pre\x1b]8;;https://example.com\x07link\x1b]8;;\x07post"
+        );
+        assert!(result.remainder.is_none());
+        assert!(result.cursor_query_offsets.is_empty());
+        assert!(result.responses.is_empty());
+    }
+
+    #[test]
+    fn passes_through_osc_9_4_progress() {
+        let result = sanitize_control_sequences(b"pre\x1b]9;4;3;50\x07post");
+
+        assert_eq!(result.data, b"pre\x1b]9;4;3;50\x07post");
+        assert!(result.remainder.is_none());
+        assert!(result.cursor_query_offsets.is_empty());
+        assert!(result.responses.is_empty());
+    }
+
+    #[test]
+    fn passes_through_unknown_osc_sequences() {
+        let result = sanitize_control_sequences(b"pre\x1b]133;A\x07post");
+
+        assert_eq!(result.data, b"pre\x1b]133;A\x07post");
+        assert!(result.remainder.is_none());
+        assert!(result.cursor_query_offsets.is_empty());
+        assert!(result.responses.is_empty());
     }
 }

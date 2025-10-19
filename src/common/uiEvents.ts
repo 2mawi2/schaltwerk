@@ -34,6 +34,8 @@ export enum UiEvent {
   CreatePullRequest = 'schaltwerk:create-pull-request',
   AgentLifecycle = 'schaltwerk:agent-lifecycle',
   OpenSpecInOrchestrator = 'schaltwerk:open-spec-in-orchestrator',
+  ProjectSwitchComplete = 'schaltwerk:project-switch-complete',
+  TerminalDimensionRefresh = 'schaltwerk:terminal-dimension-refresh',
 }
 
 export interface TerminalResizeRequestDetail {
@@ -135,6 +137,15 @@ export interface OpenSpecInOrchestratorDetail {
   sessionName: string
 }
 
+export interface ProjectSwitchCompleteDetail {
+  projectPath: string
+}
+
+export interface TerminalDimensionRefreshDetail {
+  terminalId: string
+  reason: 'webgl-load' | 'webgl-unload' | 'font-change'
+}
+
 export type UiEventPayloads = {
   [UiEvent.PermissionError]: { error: string }
   [UiEvent.BackgroundStartMarked]: { terminalId: string }
@@ -171,6 +182,8 @@ export type UiEventPayloads = {
   [UiEvent.CreatePullRequest]: CreatePullRequestDetail
   [UiEvent.AgentLifecycle]: AgentLifecycleDetail
   [UiEvent.OpenSpecInOrchestrator]: OpenSpecInOrchestratorDetail
+  [UiEvent.ProjectSwitchComplete]: ProjectSwitchCompleteDetail
+  [UiEvent.TerminalDimensionRefresh]: TerminalDimensionRefreshDetail
 }
 
 type UiEventArgs<T extends UiEvent> = undefined extends UiEventPayloads[T]

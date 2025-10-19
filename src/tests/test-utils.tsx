@@ -13,6 +13,7 @@ import { ModalProvider } from '../contexts/ModalContext'
 import { ToastProvider } from '../common/toast/ToastProvider'
 import { GithubIntegrationContext } from '../contexts/GithubIntegrationContext'
 import type { GithubIntegrationValue } from '../hooks/useGithubIntegration'
+import { SpecEditorStateProvider } from '../contexts/SpecEditorStateContext'
 
 type GithubOverrides = Partial<GithubIntegrationValue>
 
@@ -71,9 +72,11 @@ function ProviderTree({ children, githubOverrides, includeTestInitializer = fals
           <FocusProvider>
             <ReviewProvider>
               <RunProvider>
-                <GithubIntegrationTestProvider overrides={githubOverrides}>
-                  {children}
-                </GithubIntegrationTestProvider>
+                <SpecEditorStateProvider>
+                  <GithubIntegrationTestProvider overrides={githubOverrides}>
+                    {children}
+                  </GithubIntegrationTestProvider>
+                </SpecEditorStateProvider>
               </RunProvider>
             </ReviewProvider>
           </FocusProvider>

@@ -17,6 +17,21 @@ vi.mock('../../utils/dockerNames', () => ({
     generateDockerStyleName: () => 'test_session'
 }))
 
+// Mock useAgentAvailability
+vi.mock('../../hooks/useAgentAvailability', () => ({
+    useAgentAvailability: () => ({
+        availability: {},
+        loading: false,
+        isAvailable: () => true,
+        getRecommendedPath: () => null,
+        getInstallationMethod: () => null,
+        refreshAvailability: vi.fn(),
+        refreshSingleAgent: vi.fn(),
+        clearCache: vi.fn(),
+        forceRefresh: vi.fn(),
+    })
+}))
+
 // Mock SessionConfigurationPanel
 vi.mock('../shared/SessionConfigurationPanel', () => ({
     SessionConfigurationPanel: ({

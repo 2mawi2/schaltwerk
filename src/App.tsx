@@ -40,6 +40,7 @@ import {
   emitUiEvent,
   clearBackgroundStarts,
   clearBackgroundStartsByPrefix,
+  markBackgroundStart,
   SessionActionDetail,
   StartAgentFromSpecDetail,
   AgentLifecycleDetail,
@@ -54,7 +55,7 @@ import { createTerminalBackend } from './terminal/transport/backend'
 import { beginSplitDrag, endSplitDrag } from './utils/splitDragCoordinator'
 import { useOptionalToast } from './common/toast/ToastProvider'
 import { AppUpdateResultPayload } from './common/events'
-import { RawSession } from './types/session'
+import { RawSession, EnrichedSession } from './types/session'
 import { stableSessionTerminalId } from './common/terminalIdentity'
 
 
@@ -756,6 +757,8 @@ function AppContent() {
     }
   }
 
+  const versionGroupHandlerRef = useRef<(() => void) | null>(null)
+
   const handleCreateSession = async (data: {
     name: string
     prompt?: string
@@ -950,22 +953,49 @@ function AppContent() {
           // For regular (non-spec) sessions: proactively start each version once with its intended agent type.
           // This prevents later starters from falling back to a global default.
           if (!data.isSpec) {
-            // Wait for SessionsRefreshed so the sessions exist
-            await new Promise<void>((resolve) => {
-              let done = false
-              let unlistenRef: (() => void) | null = null
-              listenEvent(SchaltEvent.SessionsRefreshed, () => {
-                done = true
-                if (unlistenRef) unlistenRef()
-                resolve()
-              }).then((unlisten) => {
-                unlistenRef = unlisten
-                if (done && unlistenRef) unlistenRef()
-              })
-            })
-
-            const projectOrchestratorId = computeProjectOrchestratorId(projectPath)
             for (const createdSession of createdSessions) {
+              const topId = stableSessionTerminalId(createdSession.name, 'top')
+              markBackgroundStart(topId)
+            }
+            logger.info(`[AGENT_LAUNCH_TRACE] Version group handler - marked ${createdSessions.length} sessions for background start`)
+
+            logger.info(`[AGENT_LAUNCH_TRACE] Version group handler - waiting for SessionsRefreshed for ${createdSessions.length} sessions`)
+            const refreshedSessions = await (async function() {
+              if (versionGroupHandlerRef.current) {
+                logger.info('[AGENT_LAUNCH_TRACE] Cleaning up previous version group handler before creating new one')
+                versionGroupHandlerRef.current()
+                versionGroupHandlerRef.current = null
+              }
+
+              let resolveFn: ((sessions: EnrichedSession[]) => void) | undefined
+              const promise = new Promise<EnrichedSession[]>((resolve) => {
+                resolveFn = resolve
+              })
+
+              const unlisten = await listenEvent(SchaltEvent.SessionsRefreshed, (sessions: EnrichedSession[]) => {
+                logger.info(`[AGENT_LAUNCH_TRACE] Version group handler - SessionsRefreshed received with ${sessions.length} sessions`)
+                if (resolveFn) resolveFn(sessions)
+              })
+
+              versionGroupHandlerRef.current = unlisten
+
+              const result = await promise
+              unlisten()
+              versionGroupHandlerRef.current = null
+              return result
+            })()
+
+            const refreshedSessionNames = new Set(refreshedSessions.map(s => s.info.session_id))
+            const validSessions = createdSessions.filter(s => refreshedSessionNames.has(s.name))
+            const skippedSessions = createdSessions.filter(s => !refreshedSessionNames.has(s.name))
+
+            if (skippedSessions.length > 0) {
+              logger.warn(`[AGENT_LAUNCH_TRACE] Version group handler - skipping ${skippedSessions.length} cancelled sessions: ${skippedSessions.map(s => s.name).join(', ')}`)
+            }
+
+            logger.info(`[AGENT_LAUNCH_TRACE] Version group handler - starting agents for ${validSessions.length} sessions: ${validSessions.map(s => s.name).join(', ')}`)
+            const projectOrchestratorId = computeProjectOrchestratorId(projectPath)
+            for (const createdSession of validSessions) {
               const sessionName = createdSession.name
               const agentTypeForVersion = createdSession.agentType ?? undefined
               const topId = stableSessionTerminalId(sessionName, 'top')
@@ -984,6 +1014,11 @@ function AppContent() {
         }
       })
     } catch (error) {
+      if (versionGroupHandlerRef.current) {
+        logger.info('[AGENT_LAUNCH_TRACE] Cleaning up version group handler due to error')
+        versionGroupHandlerRef.current()
+        versionGroupHandlerRef.current = null
+      }
       logger.error('Failed to create session:', error)
       alert(`Failed to create session: ${error}`)
     }

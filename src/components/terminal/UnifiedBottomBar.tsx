@@ -135,7 +135,12 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
                 }}
                 title="Add new terminal"
               >
-                <span className="text-base font-bold leading-none">+</span>
+                <span
+                  className="text-base font-bold"
+                  style={{ lineHeight: theme.lineHeight.heading }}
+                >
+                  +
+                </span>
               </button>
             )}
           </div>

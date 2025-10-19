@@ -15,6 +15,7 @@ import { startSessionTop, computeProjectOrchestratorId } from '../common/agentSp
 import { EventPayloadMap, GitOperationFailedPayload, GitOperationPayload } from '../common/events'
 import { areSessionInfosEqual } from '../utils/sessionComparison'
 import { stableSessionTerminalId, isTopTerminalId } from '../common/terminalIdentity'
+import { releaseSessionTerminals } from '../terminal/registry/terminalRegistry'
 
 type MergeModeOption = 'squash' | 'reapply'
 
@@ -550,6 +551,20 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         allSessionsRef.current = allSessions
     }, [allSessions])
 
+    const releaseRemovedSessions = useCallback((nextSessions: EnrichedSession[] | null | undefined) => {
+        const nextList = Array.isArray(nextSessions) ? nextSessions : []
+        const previousIds = new Set(allSessionsRef.current.map(session => session.info.session_id))
+        if (previousIds.size === 0) {
+            return
+        }
+        const nextIds = new Set(nextList.map(session => session.info.session_id))
+        for (const id of previousIds) {
+            if (!nextIds.has(id)) {
+                releaseSessionTerminals(id)
+            }
+        }
+    }, [allSessionsRef])
+
     const reloadInFlightRef = useRef<Promise<void> | null>(null)
     const reloadDirtyRef = useRef(false)
 
@@ -560,6 +575,8 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
 
         const previousStates = options?.previousStates ?? prevStatesRef.current
         const reason = options?.reason ?? 'sessions-refresh'
+
+        logger.info(`[AGENT_LAUNCH_TRACE] autoStartRunningSessions called: reason=${reason}, sessionCount=${sessions.length}`)
 
         for (const session of sessions) {
             const sessionId = session?.info?.session_id
@@ -574,15 +591,18 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
 
             const wasRunning = previousStates.get(sessionId) === 'running'
             if (wasRunning) {
+                logger.debug(`[AGENT_LAUNCH_TRACE] autoStartRunningSessions - skipping ${sessionId}: was already running`)
                 continue
             }
 
             const topId = stableSessionTerminalId(sessionId, 'top')
 
             if (hasBackgroundStart(topId) || hasInflight(topId)) {
-                logger.debug(`[SessionsContext] Skipping auto-start for ${sessionId}; background mark or inflight present (${reason})`)
+                logger.info(`[AGENT_LAUNCH_TRACE] autoStartRunningSessions - skipping ${sessionId}; background mark or inflight present (${reason})`)
                 continue
             }
+
+            logger.info(`[AGENT_LAUNCH_TRACE] autoStartRunningSessions - will auto-start ${sessionId} (reason: ${reason})`)
 
             const launch = async () => {
                 try {
@@ -606,6 +626,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
 
     const executeReload = useCallback(async () => {
         if (!projectPath) {
+            releaseRemovedSessions([])
             setAllSessions([])
             setLoading(false)
             hasInitialLoadCompleted.current = false
@@ -661,6 +682,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
 
             if (hasSpecSessions(enriched)) {
                 const normalized = enriched.map(attachMergeSnapshot)
+                releaseRemovedSessions(normalized)
                 setAllSessions(normalized)
                 autoStartRunningSessions(normalized, { reason: 'initial-load', previousStates: prevStatesRef.current })
                 syncMergeStatuses(normalized)
@@ -710,6 +732,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                     logger.warn('Failed to fetch draft sessions, continuing with enriched sessions only:', error)
                 }
 
+                releaseRemovedSessions(all)
                 setAllSessions(all)
                 autoStartRunningSessions(all, { reason: 'initial-load', previousStates: prevStatesRef.current })
                 syncMergeStatuses(all)
@@ -721,12 +744,13 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             }
         } catch (error) {
             logger.error('Failed to load sessions:', error)
+            releaseRemovedSessions([])
             setAllSessions([])
         } finally {
             setLoading(false)
             hasInitialLoadCompleted.current = true
         }
-    }, [projectPath, mergeSessionsPreferDraft, syncMergeStatuses, autoStartRunningSessions])
+    }, [projectPath, mergeSessionsPreferDraft, syncMergeStatuses, autoStartRunningSessions, releaseRemovedSessions])
 
     const reloadSessions = useCallback(() => {
         if (reloadInFlightRef.current) {
@@ -1044,6 +1068,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             try {
                 if (event && event.length > 0) {
                     let updatedSessionIds: string[] | null = null
+                    let updatedSnapshot: EnrichedSession[] | null = null;
                     setAllSessions(prev => {
                         const newSessionsMap = new Map<string, EnrichedSession>()
                         for (const session of event) {
@@ -1076,12 +1101,18 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
 
                         if (updated.length === prev.length &&
                             updated.every((s, i) => s === prev[i])) {
+                            updatedSnapshot = null;
                             return prev
                         }
 
+                        updatedSnapshot = updated
                         updatedSessionIds = updated.map(session => session.info.session_id)
                         return updated
                     })
+
+                    if (updatedSnapshot) {
+                        releaseRemovedSessions(updatedSnapshot)
+                    }
 
                     const previousStatesSnapshot = new Map(prevStatesRef.current)
                     autoStartRunningSessions(event, { reason: 'sessions-refreshed', previousStates: previousStatesSnapshot })
@@ -1257,6 +1288,9 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             const nowIso = new Date().toISOString()
             const createdAt = event.created_at ?? nowIso
             const lastModified = event.last_modified ?? createdAt
+
+            logger.info(`[AGENT_LAUNCH_TRACE] SessionAdded event received: session_name=${session_name}`)
+
             setAllSessions(prev => {
                 if (prev.some(s => s.info.session_id === session_name)) return prev
 
@@ -1293,7 +1327,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                 const topId = stableSessionTerminalId(session_name, 'top')
 
                 if (hasBackgroundStart(topId) || hasInflight(topId)) {
-                    logger.debug(`[SessionsContext] Skip auto-start; mark or inflight present for ${topId}`)
+                    logger.info(`[AGENT_LAUNCH_TRACE] SessionAdded handler - skipping auto-start for ${session_name}; background mark or inflight present for ${topId}`)
                     return
                 }
 
@@ -1326,7 +1360,19 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         })
 
         register(SchaltEvent.SessionRemoved, (event) => {
-            setAllSessions(prev => prev.filter(s => s.info.session_id !== event.session_name))
+            let removed = false
+            setAllSessions(prev => {
+                const exists = prev.some(s => s.info.session_id === event.session_name)
+                if (!exists) {
+                    removed = false
+                    return prev
+                }
+                removed = true
+                return prev.filter(s => s.info.session_id !== event.session_name)
+            })
+            if (removed) {
+                releaseSessionTerminals(event.session_name)
+            }
             prevStatesRef.current.delete(event.session_name)
             setSessionMutations(prev => {
                 if (!prev.has(event.session_name)) {
@@ -1349,7 +1395,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             })
             unlisteners.length = 0
         }
-    }, [projectPath, reloadSessions, syncMergeStatuses, autoStartRunningSessions])
+    }, [projectPath, reloadSessions, syncMergeStatuses, autoStartRunningSessions, releaseRemovedSessions])
 
 
     useEffect(() => {

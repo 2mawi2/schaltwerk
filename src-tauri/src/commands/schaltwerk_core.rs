@@ -1307,6 +1307,9 @@ pub async fn schaltwerk_core_start_session_agent_with_restart(
     cols: Option<u16>,
     rows: Option<u16>,
 ) -> Result<String, String> {
+    log::info!(
+        "[AGENT_LAUNCH_TRACE] schaltwerk_core_start_session_agent_with_restart called: session={session_name}, force_restart={force_restart}"
+    );
     schaltwerk_core_start_claude_with_restart(app, session_name, force_restart, cols, rows).await
 }
 

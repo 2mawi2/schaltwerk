@@ -10,6 +10,7 @@ import { logger } from '../../utils/logger'
 import { useModal } from '../../contexts/ModalContext'
 import { AgentType, AGENT_TYPES, AGENT_SUPPORTS_SKIP_PERMISSIONS } from '../../types/session'
 import { UiEvent, listenUiEvent, NewSessionPrefillDetail } from '../../common/uiEvents'
+import { useAgentAvailability } from '../../hooks/useAgentAvailability'
 import {
     AgentCliArgsState,
     AgentEnvVar,
@@ -46,6 +47,7 @@ interface Props {
 
 export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '', onPromptChange, onClose, onCreate }: Props) {
     const { registerModal, unregisterModal } = useModal()
+    const { isAvailable } = useAgentAvailability()
     const [name, setName] = useState(() => generateDockerStyleName())
     const [, setWasEdited] = useState(false)
     const [taskContent, setTaskContent] = useState('')
@@ -604,16 +606,19 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                     e.stopImmediatePropagation()
                 }
 
-                const currentIndex = AGENT_TYPES.indexOf(agentType)
+                const availableAgents = AGENT_TYPES.filter(agent => agent === 'terminal' || isAvailable(agent))
+                if (availableAgents.length === 0) return
+
+                const currentIndex = availableAgents.indexOf(agentType)
                 let nextIndex: number
 
                 if (e.key === 'ArrowUp') {
-                    nextIndex = currentIndex === 0 ? AGENT_TYPES.length - 1 : currentIndex - 1
+                    nextIndex = currentIndex === 0 ? availableAgents.length - 1 : currentIndex - 1
                 } else {
-                    nextIndex = currentIndex === AGENT_TYPES.length - 1 ? 0 : currentIndex + 1
+                    nextIndex = currentIndex === availableAgents.length - 1 ? 0 : currentIndex + 1
                 }
 
-                handleAgentTypeChange(AGENT_TYPES[nextIndex])
+                handleAgentTypeChange(availableAgents[nextIndex])
             }
         }
 
@@ -627,15 +632,27 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
             window.removeEventListener('keydown', handleKeyDown, true)
             window.removeEventListener('schaltwerk:new-session:set-spec', setDraftHandler)
         }
-    }, [open, onClose, agentType, handleAgentTypeChange])
+    }, [open, onClose, agentType, handleAgentTypeChange, isAvailable])
 
     if (!open) return null
 
+    const canStartAgent = agentType === 'terminal' || isAvailable(agentType)
     const isStartDisabled =
         !name.trim() ||
         (!createAsDraft && !baseBranch) ||
         creating ||
-        (createAsDraft && !taskContent.trim())
+        (createAsDraft && !taskContent.trim()) ||
+        (!createAsDraft && !canStartAgent)
+
+    const getStartButtonTitle = () => {
+        if (createAsDraft) {
+            return "Create spec (Cmd+Enter)"
+        }
+        if (!canStartAgent) {
+            return `${agentType} is not installed. Please install it to use this agent.`
+        }
+        return "Start agent (Cmd+Enter)"
+    }
 
     const footer = (
         <>
@@ -692,7 +709,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                     backgroundColor: createAsDraft ? theme.colors.accent.amber.DEFAULT : theme.colors.accent.blue.DEFAULT,
                     opacity: creating ? 0.9 : 1
                 }}
-                title={createAsDraft ? "Create spec (Cmd+Enter)" : "Start agent (Cmd+Enter)"}
+                title={getStartButtonTitle()}
             >
                 {creating && (
                     <span

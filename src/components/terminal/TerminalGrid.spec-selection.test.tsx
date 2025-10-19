@@ -127,9 +127,6 @@ describe('TerminalGrid spec fallback when backend metadata missing', () => {
           return false
         case TauriCommands.CreateTerminal:
         case TauriCommands.CreateTerminalWithSize:
-        case TauriCommands.RegisterSessionTerminals:
-        case TauriCommands.SuspendSessionTerminals:
-        case TauriCommands.ResumeSessionTerminals:
         case TauriCommands.CloseTerminal:
         case TauriCommands.ResizeTerminal:
         case TauriCommands.WriteTerminal:

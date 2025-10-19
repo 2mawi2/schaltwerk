@@ -44,6 +44,38 @@ const pluginTransportHarness = vi.hoisted(() => {
   }
 })
 
+const terminalOutputHarness = vi.hoisted(() => {
+  const listeners = new Map<string, Set<(chunk: string) => void>>()
+  return {
+    add(id: string, listener: (chunk: string) => void) {
+      let set = listeners.get(id)
+      if (!set) {
+        set = new Set()
+        listeners.set(id, set)
+      }
+      set.add(listener)
+    },
+    remove(id: string, listener: (chunk: string) => void) {
+      const set = listeners.get(id)
+      if (!set) return
+      set.delete(listener)
+      if (set.size === 0) {
+        listeners.delete(id)
+      }
+    },
+    emit(id: string, chunk: string) {
+      const set = listeners.get(id)
+      if (!set) return
+      for (const listener of set) {
+        listener(chunk)
+      }
+    },
+    reset() {
+      listeners.clear()
+    }
+  }
+})
+
 vi.mock('../../terminal/transport/transportFlags', () => ({
   shouldUsePluginTransport: vi.fn(async () => pluginTransportHarness.isEnabled()),
   getPluginTransport: vi.fn(async () => (pluginTransportHarness.isEnabled() ? pluginTransportHarness.mockTransport : null)),
@@ -87,11 +119,28 @@ vi.mock('@tauri-apps/api/event', () => ({
   emit: vi.fn()
 }))
 
+vi.mock('../../terminal/stream/terminalOutputManager', () => ({
+  terminalOutputManager: {
+    ensureStarted: vi.fn(async () => {}),
+    addListener: vi.fn((id: string, listener: (chunk: string) => void) => {
+      terminalOutputHarness.add(id, listener)
+    }),
+    removeListener: vi.fn((id: string, listener: (chunk: string) => void) => {
+      terminalOutputHarness.remove(id, listener)
+    }),
+    dispose: vi.fn(async () => {}),
+    __emit: (id: string, chunk: string) => {
+      terminalOutputHarness.emit(id, chunk)
+    },
+  },
+}))
+
 beforeEach(() => {
   for (const key of Object.keys(eventHandlers)) {
     eventHandlers[key] = null
   }
   pluginTransportHarness.reset()
+  terminalOutputHarness.reset()
 })
 
 // Stub internal Terminal component to avoid xterm heavy setup while exposing scroll spy
@@ -263,13 +312,9 @@ describe('RunTerminal', () => {
     await screen.findByText('Running:')
     expect(onRunningStateChange).toHaveBeenCalledWith(true)
 
-    const sentinelEvent = eventHandlers[normalizeEventName('terminal-output-run-terminal-test')]
-    expect(sentinelEvent).toBeTruthy()
-
-    // Deliver sentinel in two chunks to verify buffer handling
     await act(async () => {
-      sentinelEvent?.({ payload: '__SCHALTWERK' })
-      sentinelEvent?.({ payload: '_RUN_EXIT__=0\r' })
+      terminalOutputHarness.emit('run-terminal-test', '__SCHALTWERK')
+      terminalOutputHarness.emit('run-terminal-test', '_RUN_EXIT__=0\r')
     })
 
     await screen.findByText('Ready to run:')
@@ -312,22 +357,8 @@ describe('RunTerminal', () => {
 
     await screen.findByText('Running:')
 
-    await waitFor(() => {
-      expect(pluginTransportHarness.mockTransport.subscribe).toHaveBeenCalledWith(
-        'run-terminal-test',
-        0,
-        expect.any(Function),
-      )
-    })
-
-    const subscriber = pluginTransportHarness.subscribers.get('run-terminal-test')
-    expect(subscriber).toBeTruthy()
-
     await act(async () => {
-      subscriber?.({
-        seq: 1,
-        bytes: new TextEncoder().encode('__SCHALTWERK_RUN_EXIT__=0\r'),
-      })
+      terminalOutputHarness.emit('run-terminal-test', '__SCHALTWERK_RUN_EXIT__=0\r')
     })
 
     await screen.findByText('Ready to run:')

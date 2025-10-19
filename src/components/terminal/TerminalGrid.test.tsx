@@ -399,10 +399,6 @@ beforeEach(() => {
         })
       case TauriCommands.GetProjectActionButtons:
         return Promise.resolve([])
-      case TauriCommands.RegisterSessionTerminals:
-      case TauriCommands.SuspendSessionTerminals:
-      case TauriCommands.ResumeSessionTerminals:
-        return Promise.resolve()
       default:
         return Promise.resolve(undefined)
     }

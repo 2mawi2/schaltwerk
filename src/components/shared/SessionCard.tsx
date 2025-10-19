@@ -260,8 +260,9 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
                 <div className="flex items-center gap-2">
                     {agentType && sessionState !== 'spec' && (
                         <span
-                            className="inline-flex items-center gap-1 px-1.5 py-[1px] rounded text-[10px] border leading-none"
+                            className="inline-flex items-center gap-1 px-1.5 py-[1px] rounded text-[10px] border"
                             style={{
+                              lineHeight: theme.lineHeight.badge,
                               backgroundColor: agentColor === 'blue' ? theme.colors.accent.blue.bg :
                                               agentColor === 'green' ? theme.colors.accent.green.bg :
                                               agentColor === 'orange' ? theme.colors.accent.amber.bg :

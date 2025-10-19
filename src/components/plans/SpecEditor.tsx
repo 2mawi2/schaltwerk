@@ -30,6 +30,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
   const markdownEditorRef = useRef<MarkdownEditorRef>(null)
   const saveCountRef = useRef(0)
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const shouldFocusAfterModeSwitch = useRef(false)
   const { config: keyboardShortcutConfig } = useKeyboardShortcutsConfig()
   const platform = useMemo(() => detectPlatformSafe(), [])
   const projectFileIndex = useProjectFileIndex()
@@ -107,6 +108,16 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
     void ensureProjectFiles()
   }, [ensureProjectFiles])
 
+  useEffect(() => {
+    if (viewMode === 'edit' && shouldFocusAfterModeSwitch.current) {
+      shouldFocusAfterModeSwitch.current = false
+      if (markdownEditorRef.current) {
+        markdownEditorRef.current.focusEnd()
+        logger.info('[SpecEditor] Focused spec content after mode switch')
+      }
+    }
+  }, [viewMode])
+
   const handleContentChange = (newContent: string) => {
     setCurrentContent(newContent)
 
@@ -167,7 +178,12 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
         handleRun()
       } else if (!disableFocusShortcut && isShortcutForAction(e, KeyboardShortcutAction.FocusClaude, keyboardShortcutConfig, { platform })) {
         e.preventDefault()
-        if (markdownEditorRef.current) {
+
+        if (viewMode === 'preview') {
+          shouldFocusAfterModeSwitch.current = true
+          setViewMode(sessionName, 'edit')
+          logger.info('[SpecEditor] Switched to edit mode via shortcut')
+        } else if (markdownEditorRef.current) {
           markdownEditorRef.current.focusEnd()
           logger.info('[SpecEditor] Focused spec content via shortcut')
         }
@@ -176,7 +192,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleRun, starting, keyboardShortcutConfig, platform, disableFocusShortcut])
+  }, [handleRun, starting, keyboardShortcutConfig, platform, disableFocusShortcut, viewMode, sessionName, setViewMode])
 
   if (loading) {
     return (
@@ -191,8 +207,8 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
       <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <h2 className="text-sm font-semibold text-slate-200 truncate">{displayName || sessionName}</h2>
-          {viewMode === 'edit' && !disableFocusShortcut && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400" title="Focus spec content">⌘T</span>
+          {!disableFocusShortcut && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400" title={viewMode === 'edit' ? 'Focus spec content' : 'Edit spec content'}>⌘T</span>
           )}
           {saving && (
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-700/50 text-blue-400" title="Saving...">💾</span>

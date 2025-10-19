@@ -126,12 +126,17 @@ export async function startSessionTop(params: {
   const { sessionName, topId, projectOrchestratorId, measured } = params
   const agentType = params.agentType ?? 'claude'
 
+  logger.info(`[AGENT_LAUNCH_TRACE] startSessionTop called: sessionName=${sessionName}, topId=${topId}, agentType=${agentType}`)
+
   if (agentType === 'terminal') {
     logger.info(`[agentSpawn] Skipping agent startup for terminal-only session: ${sessionName}`)
     return
   }
 
-  if (hasInflight(topId)) return
+  if (hasInflight(topId)) {
+    logger.info(`[AGENT_LAUNCH_TRACE] startSessionTop skipped - already inflight: ${topId}`)
+    return
+  }
   markBackgroundStart(topId)
   try {
     const { cols, rows } = computeSpawnSize({ topId, measured, projectOrchestratorId })

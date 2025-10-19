@@ -17,6 +17,11 @@ pub async fn launch_in_terminal(
     cols: Option<u16>,
     rows: Option<u16>,
 ) -> Result<String, String> {
+    log::info!(
+        "[AGENT_LAUNCH_TRACE] launch_in_terminal called: terminal_id={terminal_id}, command={}",
+        launch_spec.shell_command
+    );
+
     // Acquire (or create) a lock specific to this terminal id and hold it for the
     // whole close→create sequence. This guarantees only one launch pipeline runs
     // at a time for a given terminal.

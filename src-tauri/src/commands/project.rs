@@ -81,22 +81,11 @@ pub async fn close_project(path: String) -> Result<(), String> {
 
     let manager = get_project_manager().await;
 
-    // CRITICAL: Do NOT cancel sessions on project close - sessions should persist
-    // Sessions represent user work that should only be cancelled by explicit user action
-    // See CLAUDE.md for session lifecycle rules
+    manager
+        .remove_project(&std::path::PathBuf::from(&path))
+        .await?;
 
-    // Close all terminals for the specified project (not the current one)
-    if let Err(e) = manager
-        .cleanup_project_terminals(&std::path::PathBuf::from(&path))
-        .await
-    {
-        log::warn!("Failed to cleanup terminals for project {path}: {e}");
-    }
-
-    // Note: We do NOT clear the saved selection or cancel sessions
-    // Sessions and selection should persist for when the project is reopened
-
-    log::info!("✅ Project {path} closed and cleaned up");
+    log::info!("✅ Project {path} fully removed from manager");
     Ok(())
 }
 
