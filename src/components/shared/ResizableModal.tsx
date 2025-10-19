@@ -4,7 +4,7 @@ import { theme } from '../../common/theme'
 interface ResizableModalProps {
   isOpen: boolean
   onClose: () => void
-  title: string
+  title: string | ReactNode
   children: ReactNode
   storageKey: string
   defaultWidth?: number

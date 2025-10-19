@@ -6,7 +6,6 @@ import { useReview } from '../../contexts/ReviewContext'
 import { useFocus } from '../../contexts/FocusContext'
 import { useLineSelection, type LineSelection } from '../../hooks/useLineSelection'
 import { useDiffHover } from '../../hooks/useDiffHover'
-// getFileLanguage now comes from Rust backend via fileInfo in diff responses
 import { loadFileDiff, loadCommitFileDiff, normalizeCommitChangeType, type FileDiffData } from './loadDiffs'
 import type { CommitFileChange } from '../git-graph/types'
 import { getFileLanguage } from '../../utils/diff'
@@ -14,12 +13,11 @@ import { useReviewComments } from '../../hooks/useReviewComments'
 import { DiffFileExplorer, ChangedFile } from './DiffFileExplorer'
 import { DiffViewer } from './DiffViewer'
 import {
-  VscClose, VscSend, VscListFlat, VscListSelection, VscCollapseAll, VscExpandAll
+  VscSend, VscListFlat, VscListSelection, VscCollapseAll, VscExpandAll
 } from 'react-icons/vsc'
 import { SearchBox } from '../common/SearchBox'
 import '../../styles/vscode-dark-theme.css'
 import { logger } from '../../utils/logger'
-// AnimatedText imported elsewhere in this file; remove unused import here
 import { useSessions } from '../../contexts/SessionsContext'
 import { mapSessionUiState } from '../../utils/sessionFilters'
 import { DiffSessionActions } from './DiffSessionActions'
@@ -32,6 +30,7 @@ import { hashSegments } from '../../utils/hashSegments'
 import { stableSessionTerminalId } from '../../common/terminalIdentity'
 import { ReviewCommentThread, ReviewComment } from '../../types/review'
 import { theme } from '../../common/theme'
+import { ResizableModal } from '../shared/ResizableModal'
 
 // ChangedFile type now imported from DiffFileExplorer
 
@@ -1568,153 +1567,192 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
   if (!isOpen) return null
 
   if (mode === 'history') {
-    return (
-      <>
-        <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
-          onClick={onClose}
-        />
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-950 rounded-xl shadow-2xl w-[95vw] h-[90vh] flex flex-col overflow-hidden border border-slate-800">
-            <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-3">
-                  <h2 className="text-lg font-semibold">Commit Diff Viewer</h2>
-                  {historyHeader && (
-                    <span className="text-xs text-slate-400 font-mono">
-                      {historyHeader.hash.slice(0, 12)}
-                    </span>
-                  )}
-              </div>
-              {historyHeader && (
-                <div className="text-xs text-slate-500 flex flex-wrap items-center gap-2">
-                  <span className="font-medium text-slate-300 truncate">{historyHeader.subject}</span>
-                  <span>•</span>
-                  <span>{historyHeader.author}</span>
-                  {historyHeader.committedAt && (
-                    <>
-                      <span>•</span>
-                      <span>{historyHeader.committedAt}</span>
-                    </>
-                  )}
-                </div>
-              )}
-              {selectedFile && (
-                <div className="text-xs text-slate-500 truncate max-w-md">{selectedFile}</div>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-                <button
-                  onClick={toggleCompactDiffs}
-                  className="p-1.5 hover:bg-slate-800 rounded-lg"
-                  title={compactDiffs ? 'Show full context' : 'Collapse unchanged lines'}
-                  aria-label={compactDiffs ? 'Show full context' : 'Collapse unchanged lines'}
-                >
-                  {compactDiffs ? <VscExpandAll className="text-xl" /> : <VscCollapseAll className="text-xl" />}
-                </button>
-                <button
-                  className="p-1.5 rounded-lg opacity-60 cursor-not-allowed"
-                  title="Continuous scroll is always enabled in history mode"
-                  disabled
-                >
-                  <VscListFlat className="text-xl" />
-                </button>
-                <button
-                  onClick={onClose}
-                  className="p-1.5 hover:bg-slate-800 rounded-lg"
-                >
-                  <VscClose className="text-xl" />
-                </button>
-              </div>
-            </div>
-            <div className="flex flex-1 overflow-hidden">
-              <div
-                className="flex flex-col h-full"
-                data-testid="diff-sidebar"
-                style={{
-                  width: `${sidebarWidth}px`,
-                  minWidth: '200px',
-                  maxWidth: '600px'
-                }}
-              >
-                <DiffFileExplorer
-                  files={files}
-                  selectedFile={selectedFile}
-                  visibleFilePath={visibleFilePath}
-                  onFileSelect={scrollToFile}
-                  getCommentsForFile={emptyReviewCommentsForFile}
-                  currentReview={null}
-                  onFinishReview={() => {}}
-                  onCancelReview={() => {}}
-                  removeComment={() => {}}
-                  getConfirmationMessage={() => ''}
-                />
-              </div>
-              <div
-                data-testid="diff-resize-handle"
-                role="separator"
-                aria-orientation="vertical"
-                aria-label="Resize file list"
-                onMouseDown={beginSidebarResize}
-                className="flex items-center justify-center"
-                style={{
-                  width: '6px',
-                  cursor: 'col-resize',
-                  backgroundColor: isResizingSidebar ? theme.colors.accent.blue.DEFAULT : theme.colors.border.subtle
-                }}
-              >
-                <div
-                  style={{
-                    width: '2px',
-                    height: '40px',
-                    borderRadius: '9999px',
-                    backgroundColor: theme.colors.border.strong,
-                    opacity: 0.6
-                  }}
-                />
-              </div>
-              <div className="flex-1 flex flex-col overflow-hidden relative">
-                <DiffViewer
-                  files={files}
-                  selectedFile={selectedFile}
-                  allFileDiffs={allFileDiffs}
-                  fileError={fileError}
-                  branchInfo={null}
-                  expandedSectionsByFile={expandedSections}
-                  isLargeDiffMode={isLargeDiffMode}
-                  visibleFileSet={visibleFileSet}
-                  renderedFileSet={renderedFileSet}
-                  loadingFiles={loadingFiles}
-                  observerRef={observerRef}
-                  scrollContainerRef={scrollContainerRef as React.RefObject<HTMLDivElement>}
-                  fileRefs={fileRefs}
-                  fileBodyHeights={fileBodyHeightsRef.current}
-                  onFileBodyHeightChange={registerFileBodyHeight}
-                  getCommentsForFile={emptyThreadCommentsForFile}
-                  highlightCode={highlightCode}
-                  toggleCollapsed={toggleCollapsed}
-                  handleLineMouseDown={() => {}}
-                  handleLineMouseEnter={() => {}}
-                  handleLineMouseLeave={() => {}}
-                  handleLineMouseUp={() => {}}
-                  lineSelection={historyLineSelection}
-                  onCopyLine={handleCopyLineFromContext}
-                  onCopyCode={handleCopyCodeFromContext}
-                  onCopyFilePath={handleCopyFilePath}
-                  onStartCommentFromContext={handleStartCommentFromContext}
-                />
-                <SearchBox
-                  targetRef={scrollContainerRef}
-                  isVisible={isSearchVisible}
-                  onClose={() => setIsSearchVisible(false)}
-                />
-              </div>
-            </div>
-          </div>
+    const historyHeader2 = historyHeader ? (
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-3">
+          <span>Commit Diff Viewer</span>
+          <span className="text-xs text-slate-400 font-mono">
+            {historyHeader.hash.slice(0, 12)}
+          </span>
         </div>
+        <div className="text-xs text-slate-500 flex flex-wrap items-center gap-2">
+          <span className="font-medium text-slate-300 truncate">{historyHeader.subject}</span>
+          <span>•</span>
+          <span>{historyHeader.author}</span>
+          {historyHeader.committedAt && (
+            <>
+              <span>•</span>
+              <span>{historyHeader.committedAt}</span>
+            </>
+          )}
+        </div>
+        {selectedFile && (
+          <div className="text-xs text-slate-500 truncate max-w-md">{selectedFile}</div>
+        )}
+      </div>
+    ) : (
+      'Commit Diff Viewer'
+    )
+
+    const historyActions = (
+      <>
+        <button
+          onClick={toggleCompactDiffs}
+          className="p-1.5 hover:bg-slate-800 rounded-lg"
+          title={compactDiffs ? 'Show full context' : 'Collapse unchanged lines'}
+          aria-label={compactDiffs ? 'Show full context' : 'Collapse unchanged lines'}
+        >
+          {compactDiffs ? <VscExpandAll className="text-xl" /> : <VscCollapseAll className="text-xl" />}
+        </button>
+        <button
+          className="p-1.5 rounded-lg opacity-60 cursor-not-allowed"
+          title="Continuous scroll is always enabled in history mode"
+          disabled
+        >
+          <VscListFlat className="text-xl" />
+        </button>
       </>
     )
+
+    return (
+      <ResizableModal
+        isOpen={isOpen}
+        onClose={onClose}
+        title={historyHeader2}
+        storageKey="diff-history"
+        defaultWidth={Math.floor(window.innerWidth * 0.95)}
+        defaultHeight={Math.floor(window.innerHeight * 0.90)}
+        minWidth={800}
+        minHeight={600}
+        className="diff-modal-history"
+      >
+        <div className="absolute top-3 right-14 flex items-center gap-2 z-10">
+          {historyActions}
+        </div>
+        <div className="flex h-full overflow-hidden">
+          <div
+            className="flex flex-col h-full"
+            data-testid="diff-sidebar"
+            style={{
+              width: `${sidebarWidth}px`,
+              minWidth: '200px',
+              maxWidth: '600px'
+            }}
+          >
+            <DiffFileExplorer
+              files={files}
+              selectedFile={selectedFile}
+              visibleFilePath={visibleFilePath}
+              onFileSelect={scrollToFile}
+              getCommentsForFile={emptyReviewCommentsForFile}
+              currentReview={null}
+              onFinishReview={() => {}}
+              onCancelReview={() => {}}
+              removeComment={() => {}}
+              getConfirmationMessage={() => ''}
+            />
+          </div>
+          <div
+            data-testid="diff-resize-handle"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize file list"
+            onMouseDown={beginSidebarResize}
+            className="flex items-center justify-center"
+            style={{
+              width: '6px',
+              cursor: 'col-resize',
+              backgroundColor: isResizingSidebar ? theme.colors.accent.blue.DEFAULT : theme.colors.border.subtle
+            }}
+          >
+            <div
+              style={{
+                width: '2px',
+                height: '40px',
+                borderRadius: '9999px',
+                backgroundColor: theme.colors.border.strong,
+                opacity: 0.6
+              }}
+            />
+          </div>
+          <div className="flex-1 flex flex-col overflow-hidden relative">
+            <DiffViewer
+              files={files}
+              selectedFile={selectedFile}
+              allFileDiffs={allFileDiffs}
+              fileError={fileError}
+              branchInfo={null}
+              expandedSectionsByFile={expandedSections}
+              isLargeDiffMode={isLargeDiffMode}
+              visibleFileSet={visibleFileSet}
+              renderedFileSet={renderedFileSet}
+              loadingFiles={loadingFiles}
+              observerRef={observerRef}
+              scrollContainerRef={scrollContainerRef as React.RefObject<HTMLDivElement>}
+              fileRefs={fileRefs}
+              fileBodyHeights={fileBodyHeightsRef.current}
+              onFileBodyHeightChange={registerFileBodyHeight}
+              getCommentsForFile={emptyThreadCommentsForFile}
+              highlightCode={highlightCode}
+              toggleCollapsed={toggleCollapsed}
+              handleLineMouseDown={() => {}}
+              handleLineMouseEnter={() => {}}
+              handleLineMouseLeave={() => {}}
+              handleLineMouseUp={() => {}}
+              lineSelection={historyLineSelection}
+              onCopyLine={handleCopyLineFromContext}
+              onCopyCode={handleCopyCodeFromContext}
+              onCopyFilePath={handleCopyFilePath}
+              onStartCommentFromContext={handleStartCommentFromContext}
+            />
+            <SearchBox
+              targetRef={scrollContainerRef}
+              isVisible={isSearchVisible}
+              onClose={() => setIsSearchVisible(false)}
+            />
+          </div>
+        </div>
+      </ResizableModal>
+    )
   }
+
+  const sessionTitle = selectedFile ? (
+    <div className="flex items-center gap-4">
+      <span>Git Diff Viewer</span>
+      <div className="text-sm text-slate-400 font-mono">{selectedFile}</div>
+    </div>
+  ) : (
+    'Git Diff Viewer'
+  )
+
+  const sessionActions = ({ headerActions }: { headerActions: React.ReactNode }) => (
+    <>
+      {headerActions}
+      <button
+        onClick={toggleCompactDiffs}
+        className="p-1.5 hover:bg-slate-800 rounded-lg"
+        title={compactDiffs ? "Show full context" : "Collapse unchanged lines"}
+        aria-label={compactDiffs ? "Show full context" : "Collapse unchanged lines"}
+      >
+        {compactDiffs ? (
+          <VscExpandAll className="text-xl" />
+        ) : (
+          <VscCollapseAll className="text-xl" />
+        )}
+      </button>
+      <button
+        onClick={toggleContinuousScroll}
+        className="p-1.5 hover:bg-slate-800 rounded-lg"
+        title={continuousScroll ? "Switch to single file view" : "Switch to continuous scroll"}
+      >
+        {continuousScroll ? (
+          <VscListFlat className="text-xl" />
+        ) : (
+          <VscListSelection className="text-xl" />
+        )}
+      </button>
+    </>
+  )
 
   return (
     <DiffSessionActions
@@ -1727,201 +1765,151 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
       onLoadChangedFiles={loadChangedFiles}
     >
       {({ headerActions, dialogs }) => (
-        <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
-            onClick={onClose}
-          />
-
-          {/* Modal */}
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <ResizableModal
+          isOpen={isOpen}
+          onClose={onClose}
+          title={sessionTitle}
+          storageKey="diff-session"
+          defaultWidth={Math.floor(window.innerWidth * 0.95)}
+          defaultHeight={Math.floor(window.innerHeight * 0.90)}
+          minWidth={800}
+          minHeight={600}
+          className="diff-modal-session"
+        >
+          <div className="absolute top-3 right-14 flex items-center gap-2 z-10" data-testid="diff-modal" data-selected-file={selectedFile || ''}>
+            {sessionActions({ headerActions })}
+          </div>
+          <div className="flex h-full overflow-hidden">
             <div
-              className="bg-slate-950 rounded-xl shadow-2xl w-[95vw] h-[90vh] flex flex-col overflow-hidden border border-slate-800"
-              data-testid="diff-modal"
-              data-selected-file={selectedFile || ''}
+              className="flex flex-col h-full"
+              data-testid="diff-sidebar"
+              style={{
+                width: `${sidebarWidth}px`,
+                minWidth: '200px',
+                maxWidth: '600px'
+              }}
             >
-              {/* Header */}
-              <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
-                <div className="flex items-center gap-4">
-                  <h2 className="text-lg font-semibold">Git Diff Viewer</h2>
-                  {selectedFile && (
-                    <div className="text-sm text-slate-400 font-mono">{selectedFile}</div>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  {headerActions}
-                  <button
-                    onClick={toggleCompactDiffs}
-                    className="p-1.5 hover:bg-slate-800 rounded-lg"
-                    title={compactDiffs ? "Show full context" : "Collapse unchanged lines"}
-                    aria-label={compactDiffs ? "Show full context" : "Collapse unchanged lines"}
-                  >
-                    {compactDiffs ? (
-                      <VscExpandAll className="text-xl" />
-                    ) : (
-                      <VscCollapseAll className="text-xl" />
-                    )}
-                  </button>
-                  <button
-                    onClick={toggleContinuousScroll}
-                    className="p-1.5 hover:bg-slate-800 rounded-lg"
-                    title={continuousScroll ? "Switch to single file view" : "Switch to continuous scroll"}
-                  >
-                    {continuousScroll ? (
-                      <VscListFlat className="text-xl" />
-                    ) : (
-                      <VscListSelection className="text-xl" />
-                    )}
-                  </button>
-                  <button
-                    onClick={onClose}
-                    className="p-1.5 hover:bg-slate-800 rounded-lg"
-                  >
-                    <VscClose className="text-xl" />
-                  </button>
-                </div>
-              </div>
+              <DiffFileExplorer
+                files={files}
+                selectedFile={selectedFile}
+                visibleFilePath={visibleFilePath}
+                onFileSelect={scrollToFile}
+                getCommentsForFile={getCommentsForFile}
+                currentReview={currentReview}
+                onFinishReview={handleFinishReview}
+                onCancelReview={clearReview}
+                removeComment={removeComment}
+                getConfirmationMessage={getConfirmationMessage}
+              />
+            </div>
+            <div
+              data-testid="diff-resize-handle"
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Resize file list"
+              onMouseDown={beginSidebarResize}
+              className="flex items-center justify-center"
+              style={{
+                width: '6px',
+                cursor: 'col-resize',
+                backgroundColor: isResizingSidebar ? theme.colors.accent.blue.DEFAULT : theme.colors.border.subtle
+              }}
+            >
+              <div
+                style={{
+                  width: '2px',
+                  height: '40px',
+                  borderRadius: '9999px',
+                  backgroundColor: theme.colors.border.strong,
+                  opacity: 0.6
+                }}
+              />
+            </div>
 
-              <div className="flex flex-1 overflow-hidden">
-                <div
-                  className="flex flex-col h-full"
-                  data-testid="diff-sidebar"
-                  style={{
-                    width: `${sidebarWidth}px`,
-                    minWidth: '200px',
-                    maxWidth: '600px'
-                  }}
-                >
-                  <DiffFileExplorer
-                    files={files}
-                    selectedFile={selectedFile}
-                    visibleFilePath={visibleFilePath}
-                    onFileSelect={scrollToFile}
-                    getCommentsForFile={getCommentsForFile}
-                    currentReview={currentReview}
-                    onFinishReview={handleFinishReview}
-                    onCancelReview={clearReview}
-                    removeComment={removeComment}
-                    getConfirmationMessage={getConfirmationMessage}
-                  />
-                </div>
-                <div
-                  data-testid="diff-resize-handle"
-                  role="separator"
-                  aria-orientation="vertical"
-                  aria-label="Resize file list"
-                  onMouseDown={beginSidebarResize}
-                  className="flex items-center justify-center"
-                  style={{
-                    width: '6px',
-                    cursor: 'col-resize',
-                    backgroundColor: isResizingSidebar ? theme.colors.accent.blue.DEFAULT : theme.colors.border.subtle
-                  }}
-                >
+            <div className="flex-1 flex flex-col overflow-hidden relative">
+              <DiffViewer
+                files={files}
+                selectedFile={selectedFile}
+                allFileDiffs={allFileDiffs}
+                fileError={fileError}
+                branchInfo={branchInfo}
+                expandedSectionsByFile={expandedSections}
+                isLargeDiffMode={isLargeDiffMode}
+                visibleFileSet={visibleFileSet}
+                renderedFileSet={renderedFileSet}
+                loadingFiles={loadingFiles}
+                observerRef={observerRef}
+                scrollContainerRef={scrollContainerRef as React.RefObject<HTMLDivElement>}
+                fileRefs={fileRefs}
+                fileBodyHeights={fileBodyHeightsRef.current}
+                onFileBodyHeightChange={registerFileBodyHeight}
+                getCommentsForFile={getThreadsForFile}
+                highlightCode={highlightCode}
+                toggleCollapsed={toggleCollapsed}
+                handleLineMouseDown={handleLineMouseDown}
+                handleLineMouseEnter={handleLineMouseEnter}
+                handleLineMouseLeave={handleLineMouseLeave}
+                handleLineMouseUp={handleLineMouseUp}
+                lineSelection={lineSelection}
+                onCopyLine={handleCopyLineFromContext}
+                onCopyCode={handleCopyCodeFromContext}
+                onCopyFilePath={handleCopyFilePath}
+                onDiscardFile={handleDiscardFile}
+                onStartCommentFromContext={handleStartCommentFromContext}
+              />
+
+              <SearchBox
+                targetRef={scrollContainerRef}
+                isVisible={isSearchVisible}
+                onClose={() => setIsSearchVisible(false)}
+              />
+
+              {dialogs}
+
+              {showCommentForm && lineSelection.selection && (
+                <>
                   <div
-                    style={{
-                      width: '2px',
-                      height: '40px',
-                      borderRadius: '9999px',
-                      backgroundColor: theme.colors.border.strong,
-                      opacity: 0.6
+                    className="fixed inset-0 z-[59]"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setShowCommentForm(false)
+                      setCommentFormPosition(null)
+                      clearActiveSelection()
                     }}
                   />
-                </div>
-
-                {/* Diff viewer */}
-                <div className="flex-1 flex flex-col overflow-hidden relative">
-                  <DiffViewer
-                    files={files}
-                    selectedFile={selectedFile}
-                    allFileDiffs={allFileDiffs}
-                    fileError={fileError}
-                    branchInfo={branchInfo}
-                    expandedSectionsByFile={expandedSections}
-                    isLargeDiffMode={isLargeDiffMode}
-                    visibleFileSet={visibleFileSet}
-                    renderedFileSet={renderedFileSet}
-                    loadingFiles={loadingFiles}
-                    observerRef={observerRef}
-                    scrollContainerRef={scrollContainerRef as React.RefObject<HTMLDivElement>}
-                    fileRefs={fileRefs}
-                    fileBodyHeights={fileBodyHeightsRef.current}
-                    onFileBodyHeightChange={registerFileBodyHeight}
-                    getCommentsForFile={getThreadsForFile}
-                    highlightCode={highlightCode}
-                    toggleCollapsed={toggleCollapsed}
-                    handleLineMouseDown={handleLineMouseDown}
-                    handleLineMouseEnter={handleLineMouseEnter}
-                    handleLineMouseLeave={handleLineMouseLeave}
-                    handleLineMouseUp={handleLineMouseUp}
-                    lineSelection={lineSelection}
-                    onCopyLine={handleCopyLineFromContext}
-                    onCopyCode={handleCopyCodeFromContext}
-                    onCopyFilePath={handleCopyFilePath}
-                    onDiscardFile={handleDiscardFile}
-                    onStartCommentFromContext={handleStartCommentFromContext}
-                  />
-
-                  {/* Search functionality */}
-                  <SearchBox
-                    targetRef={scrollContainerRef}
-                    isVisible={isSearchVisible}
-                    onClose={() => setIsSearchVisible(false)}
-                  />
-
-                  {dialogs}
-
-                  {/* Comment form appears near the selected line */}
-                  
-                  {/* Comment form fixed on the right side */}
-                  {showCommentForm && lineSelection.selection && (
-                    <>
-                      {/* Invisible backdrop to detect clicks outside */}
-                      <div 
-                        className="fixed inset-0 z-[59]" 
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setShowCommentForm(false)
-                          setCommentFormPosition(null)
-                          clearActiveSelection()
-                        }}
-                      />
-                      <div 
-                        className="fixed right-4 bg-slate-900 border border-slate-700 rounded-lg shadow-xl p-4 w-96 z-[60]"
-                        style={{
-                          top: commentFormPosition ? Math.min(commentFormPosition.y, window.innerHeight - 300) : '50%',
-                          transform: commentFormPosition ? 'none' : 'translateY(-50%)'
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <div className="text-sm mb-3 text-slate-300">
-                          <div className="font-medium mb-1">Add Review Comment</div>
-                          <div className="text-xs text-slate-500">
-                            {lineSelection.selection.startLine === lineSelection.selection.endLine
-                              ? `Line ${lineSelection.selection.startLine}`
-                              : `Lines ${lineSelection.selection.startLine}-${lineSelection.selection.endLine}`
-                            } • {lineSelection.selection.side === 'old' ? 'Base version' : 'Current version'}
-                          </div>
-                        </div>
-                        <CommentForm
-                          onSubmit={handleSubmitComment}
-                          onCancel={() => {
-                            setShowCommentForm(false)
-                            setCommentFormPosition(null)
-                            clearActiveSelection()
-                          }}
-                          keyboardShortcutConfig={keyboardShortcutConfig}
-                          platform={platform}
-                        />
+                  <div
+                    className="fixed right-4 bg-slate-900 border border-slate-700 rounded-lg shadow-xl p-4 w-96 z-[60]"
+                    style={{
+                      top: commentFormPosition ? Math.min(commentFormPosition.y, window.innerHeight - 300) : '50%',
+                      transform: commentFormPosition ? 'none' : 'translateY(-50%)'
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="text-sm mb-3 text-slate-300">
+                      <div className="font-medium mb-1">Add Review Comment</div>
+                      <div className="text-xs text-slate-500">
+                        {lineSelection.selection.startLine === lineSelection.selection.endLine
+                          ? `Line ${lineSelection.selection.startLine}`
+                          : `Lines ${lineSelection.selection.startLine}-${lineSelection.selection.endLine}`
+                        } • {lineSelection.selection.side === 'old' ? 'Base version' : 'Current version'}
                       </div>
-                    </>
-                  )}
-                </div>
-              </div>
+                    </div>
+                    <CommentForm
+                      onSubmit={handleSubmitComment}
+                      onCancel={() => {
+                        setShowCommentForm(false)
+                        setCommentFormPosition(null)
+                        clearActiveSelection()
+                      }}
+                      keyboardShortcutConfig={keyboardShortcutConfig}
+                      platform={platform}
+                    />
+                  </div>
+                </>
+              )}
             </div>
           </div>
-        </>
+        </ResizableModal>
       )}
     </DiffSessionActions>
   )
