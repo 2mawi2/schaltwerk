@@ -11,9 +11,8 @@ import {
   createRunTerminalBackend,
   terminalExistsBackend,
   writeTerminalBackend,
-  isPluginTerminal,
 } from '../../terminal/transport/backend'
-import { useTerminalListener } from '../../hooks/useTerminalListener'
+import { terminalOutputManager } from '../../terminal/stream/terminalOutputManager'
 import { useStreamingDecoder } from '../../hooks/useStreamingDecoder'
 
 interface RunScript {
@@ -59,22 +58,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
   const terminalRef = useRef<TerminalHandle | null>(null)
   const [scrollRequestId, setScrollRequestId] = useState(0)
   const pendingScrollToBottomRef = useRef(false)
-  const [pluginTransportActive, setPluginTransportActive] = useState(() => isPluginTerminal(runTerminalId))
-  const pluginSeqRef = useRef(0)
-
-  const syncPluginTransportState = useCallback(() => {
-    const active = isPluginTerminal(runTerminalId)
-    setPluginTransportActive(prev => {
-      if (prev === active) {
-        return prev
-      }
-      return active
-    })
-    if (!active) {
-      pluginSeqRef.current = 0
-    }
-    return active
-  }, [runTerminalId])
+  const startPendingRef = useRef(false)
 
   const handleRunComplete = useCallback((exitCode: string) => {
     logger.info('[RunTerminal] Detected run command completion with exit code:', exitCode || 'unknown')
@@ -84,6 +68,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
       setIsRunning(false)
       onRunningStateChange?.(false)
     }
+    startPendingRef.current = false
   }, [onRunningStateChange])
 
   const { processChunk } = useStreamingDecoder({
@@ -97,10 +82,6 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
   useEffect(() => {
     sessionStorage.setItem(runStateKey, String(isRunning))
   }, [isRunning, runStateKey])
-
-  useEffect(() => {
-    syncPluginTransportState()
-  }, [runTerminalId, syncPluginTransportState])
 
   useEffect(() => {
     const loadRunScript = async () => {
@@ -130,7 +111,6 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
         const exists = await terminalExistsBackend(runTerminalId)
         if (exists) {
           setTerminalCreated(true)
-          syncPluginTransportState()
           const storedRunning = sessionStorage.getItem(runStateKey) === 'true'
           if (storedRunning !== isRunning) {
             runningRef.current = storedRunning
@@ -143,7 +123,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
       }
     }
     checkExistingTerminal()
-  }, [runTerminalId, runStateKey, onRunningStateChange, isRunning, syncPluginTransportState])
+  }, [runTerminalId, runStateKey, onRunningStateChange, isRunning])
 
   useEffect(() => {
     let unlisten: (() => void) | null = null
@@ -155,6 +135,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
             runningRef.current = false
             setIsRunning(false)
             onRunningStateChange?.(false)
+            startPendingRef.current = false
           }
         })
       } catch (err) {
@@ -165,13 +146,21 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
     return () => { unlisten?.() }
   }, [runTerminalId, onRunningStateChange])
 
-  useTerminalListener({
-    terminalId: runTerminalId,
-    onOutput: processChunk,
-    enabled: true,
-    usePlugin: pluginTransportActive,
-    initialSeq: pluginSeqRef.current
-  })
+  useEffect(() => {
+    const handler = (chunk: string) => {
+      if (!chunk) return
+      processChunk(chunk)
+    }
+
+    terminalOutputManager.addListener(runTerminalId, handler)
+    void terminalOutputManager.ensureStarted(runTerminalId).catch(error => {
+      logger.debug('[RunTerminal] Failed to ensure terminal stream', error)
+    })
+
+    return () => {
+      terminalOutputManager.removeListener(runTerminalId, handler)
+    }
+  }, [runTerminalId, processChunk])
 
   const executeRunCommand = useCallback(async (command: string) => {
     try {
@@ -232,10 +221,16 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
           runningRef.current = false
           setIsRunning(false)
           onRunningStateChange?.(false)
+          startPendingRef.current = false
         } catch (err) {
           logger.error('[RunTerminal] Failed to stop run process:', err)
         }
       } else {
+        if (startPendingRef.current) {
+          logger.info('[RunTerminal] toggleRun ignored because a start is already pending')
+          return
+        }
+        startPendingRef.current = true
         try {
           let cwd = workingDirectory || script?.workingDirectory
           if (!cwd) {
@@ -262,7 +257,6 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
               cols: sizeHint.cols,
               rows: sizeHint.rows,
             })
-            syncPluginTransportState()
           } else {
             setTerminalCreated(true)
             if (terminalRef.current) {
@@ -271,17 +265,18 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
               pendingScrollToBottomRef.current = true
               setScrollRequestId(id => id + 1)
             }
-            syncPluginTransportState()
           }
 
           await executeRunCommand(script.command)
         } catch (err) {
           logger.error('[RunTerminal] Failed to start run process:', err)
+        } finally {
+          startPendingRef.current = false
         }
       }
     },
     isRunning: () => isRunning,
-  }), [runScript, workingDirectory, isRunning, runTerminalId, onRunningStateChange, executeRunCommand, syncPluginTransportState])
+  }), [runScript, workingDirectory, isRunning, runTerminalId, onRunningStateChange, executeRunCommand])
 
   useEffect(() => {
     if (!pendingScrollToBottomRef.current) return
