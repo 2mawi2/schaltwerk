@@ -7,7 +7,7 @@ pub enum SequenceResponse {
 pub struct SanitizedOutput {
     pub data: Vec<u8>,
     pub remainder: Option<Vec<u8>>,
-    pub cursor_queries: usize,
+    pub cursor_query_offsets: Vec<usize>,
     pub responses: Vec<SequenceResponse>,
 }
 
@@ -48,7 +48,7 @@ fn analyze_control_sequence(
 pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
     let mut data = Vec::with_capacity(input.len());
     let mut remainder = None;
-    let mut cursor_queries = 0usize;
+    let mut cursor_query_offsets = Vec::new();
     let mut responses = Vec::new();
 
     let mut i = 0;
@@ -101,7 +101,7 @@ pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
                     }
                     ControlSequenceAction::RespondCursorPosition => {
                         log::debug!("Captured cursor position query {:?}", &input[i..=cursor]);
-                        cursor_queries = cursor_queries.saturating_add(1);
+                        cursor_query_offsets.push(data.len());
                         i = cursor + 1;
                     }
                     ControlSequenceAction::Drop => {
@@ -175,7 +175,7 @@ pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
     SanitizedOutput {
         data,
         remainder,
-        cursor_queries,
+        cursor_query_offsets,
         responses,
     }
 }
@@ -192,7 +192,7 @@ mod tests {
             SanitizedOutput {
                 data: b"prepost".to_vec(),
                 remainder: None,
-                cursor_queries: 1,
+                cursor_query_offsets: vec![3],
                 responses: Vec::new(),
             }
         );
@@ -203,7 +203,7 @@ mod tests {
         let result = sanitize_control_sequences(b"pre\x1b[?1;2cpost");
         assert_eq!(result.data, b"prepost");
         assert_eq!(result.remainder, None);
-        assert_eq!(result.cursor_queries, 0);
+        assert!(result.cursor_query_offsets.is_empty());
         assert_eq!(result.responses.len(), 1);
         assert_eq!(
             result.responses[0],
@@ -216,7 +216,7 @@ mod tests {
         let result = sanitize_control_sequences(b"pre\x1b[123Xpost");
         assert_eq!(result.data, b"pre\x1b[123Xpost");
         assert!(result.remainder.is_none());
-        assert_eq!(result.cursor_queries, 0);
+        assert!(result.cursor_query_offsets.is_empty());
         assert!(result.responses.is_empty());
     }
 
@@ -225,7 +225,7 @@ mod tests {
         let result = sanitize_control_sequences(b"partial\x1b[");
         assert_eq!(result.data, b"partial");
         assert_eq!(result.remainder, Some(b"\x1b[".to_vec()));
-        assert_eq!(result.cursor_queries, 0);
+        assert!(result.cursor_query_offsets.is_empty());
         assert!(result.responses.is_empty());
     }
 
@@ -235,7 +235,7 @@ mod tests {
 
         assert_eq!(result.data, b"prepost");
         assert!(result.remainder.is_none());
-        assert_eq!(result.cursor_queries, 0);
+        assert!(result.cursor_query_offsets.is_empty());
 
         assert_eq!(result.responses.len(), 1);
         assert_eq!(
@@ -250,7 +250,7 @@ mod tests {
 
         assert_eq!(result.data, b"prepost");
         assert!(result.remainder.is_none());
-        assert_eq!(result.cursor_queries, 0);
+        assert!(result.cursor_query_offsets.is_empty());
 
         assert_eq!(result.responses.len(), 1);
         assert_eq!(
@@ -261,11 +261,15 @@ mod tests {
 
     #[test]
     fn passes_through_osc_8_hyperlinks() {
-        let result = sanitize_control_sequences(b"pre\x1b]8;;https://example.com\x07link\x1b]8;;\x07post");
+        let result =
+            sanitize_control_sequences(b"pre\x1b]8;;https://example.com\x07link\x1b]8;;\x07post");
 
-        assert_eq!(result.data, b"pre\x1b]8;;https://example.com\x07link\x1b]8;;\x07post");
+        assert_eq!(
+            result.data,
+            b"pre\x1b]8;;https://example.com\x07link\x1b]8;;\x07post"
+        );
         assert!(result.remainder.is_none());
-        assert_eq!(result.cursor_queries, 0);
+        assert!(result.cursor_query_offsets.is_empty());
         assert!(result.responses.is_empty());
     }
 
@@ -275,7 +279,7 @@ mod tests {
 
         assert_eq!(result.data, b"pre\x1b]9;4;3;50\x07post");
         assert!(result.remainder.is_none());
-        assert_eq!(result.cursor_queries, 0);
+        assert!(result.cursor_query_offsets.is_empty());
         assert!(result.responses.is_empty());
     }
 
@@ -285,7 +289,7 @@ mod tests {
 
         assert_eq!(result.data, b"pre\x1b]133;A\x07post");
         assert!(result.remainder.is_none());
-        assert_eq!(result.cursor_queries, 0);
+        assert!(result.cursor_query_offsets.is_empty());
         assert!(result.responses.is_empty());
     }
 }

@@ -81,7 +81,9 @@ pub async fn close_project(path: String) -> Result<(), String> {
 
     let manager = get_project_manager().await;
 
-    manager.remove_project(&std::path::PathBuf::from(&path)).await?;
+    manager
+        .remove_project(&std::path::PathBuf::from(&path))
+        .await?;
 
     log::info!("✅ Project {path} fully removed from manager");
     Ok(())

@@ -400,7 +400,7 @@ impl LocalPtyAdapter {
                         let SanitizedOutput {
                             data: sanitized,
                             remainder,
-                            cursor_queries,
+                            cursor_query_offsets,
                             responses,
                         } = sanitize_control_sequences(&data);
 
@@ -431,13 +431,12 @@ impl LocalPtyAdapter {
                         }
                         drop(pending_guard);
 
-                        if sanitized.is_empty() && cursor_queries == 0 {
+                        if sanitized.is_empty() && cursor_query_offsets.is_empty() {
                             continue;
                         }
 
-                        let sanitized_len = sanitized.len();
-                        let cursor_queries_count = cursor_queries;
                         let sanitized_data = sanitized;
+                        let query_offsets = cursor_query_offsets;
 
                         let id_clone = id.clone();
                         let terminals_clone = Arc::clone(&reader_state.terminals);
@@ -448,78 +447,119 @@ impl LocalPtyAdapter {
                         let output_event_sender_clone =
                             Arc::clone(&reader_state.output_event_sender);
 
-                        let cursor_response = runtime.block_on(async move {
-                            let mut terminals = terminals_clone.write().await;
-                            if let Some(state) = terminals.get_mut(&id_clone) {
-                                if sanitized_len > 0 {
-                                    state.buffer.extend_from_slice(&sanitized_data);
+                        let cursor_responses = runtime.block_on(async move {
+                            let mut responses: Vec<Vec<u8>> = Vec::new();
+                            let mut current_seq: Option<u64> = None;
 
+                            {
+                                let mut terminals = terminals_clone.write().await;
+                                if let Some(state) = terminals.get_mut(&id_clone) {
+                                    let total_len = sanitized_data.len();
+                                    let mut processed = 0usize;
                                     let max_size = if lifecycle::is_agent_terminal(&id_clone) {
                                         AGENT_MAX_BUFFER_SIZE
                                     } else {
                                         DEFAULT_MAX_BUFFER_SIZE
                                     };
 
-                                    state.seq = state.seq.saturating_add(sanitized_len as u64);
-                                    state.last_output = SystemTime::now();
+                                    let apply_segment =
+                                        |state: &mut TerminalState, segment: &[u8]| {
+                                            if segment.is_empty() {
+                                                return;
+                                            }
 
-                                    let now = Instant::now();
-                                    state.idle_detector.observe_bytes(now, &sanitized_data);
+                                            state.buffer.extend_from_slice(segment);
+                                            state.screen.feed_bytes(segment);
+                                            state.seq =
+                                                state.seq.saturating_add(segment.len() as u64);
+                                            state.last_output = SystemTime::now();
 
-                                    if state.buffer.len() > max_size {
-                                        let excess = state.buffer.len() - max_size;
-                                        state.buffer.drain(0..excess);
-                                        state.start_seq =
-                                            state.start_seq.saturating_add(excess as u64);
+                                            if state.buffer.len() > max_size {
+                                                let excess = state.buffer.len() - max_size;
+                                                state.buffer.drain(0..excess);
+                                                state.start_seq =
+                                                    state.start_seq.saturating_add(excess as u64);
+                                            }
+
+                                            let now_segment = Instant::now();
+                                            state.idle_detector.observe_bytes(now_segment, segment);
+                                        };
+
+                                    for offset in query_offsets.iter().copied() {
+                                        if offset > total_len {
+                                            continue;
+                                        }
+
+                                        if offset > processed {
+                                            let segment = &sanitized_data[processed..offset];
+                                            apply_segment(state, segment);
+                                            processed = offset;
+                                        }
+
+                                        if let Some(response) =
+                                            state.cursor_position_response(&id_clone, 1)
+                                        {
+                                            responses.push(response);
+                                        }
                                     }
 
-                                    let new_seq = state.seq;
-                                    let response = state
-                                        .cursor_position_response(&id_clone, cursor_queries_count);
+                                    if processed < total_len {
+                                        let segment = &sanitized_data[processed..];
+                                        apply_segment(state, segment);
+                                    }
 
-                                    drop(terminals);
-
-                                    let _ =
-                                        output_event_sender_clone.send((id_clone.clone(), new_seq));
-
-                                    handle_coalesced_output(
-                                        &coalescing_state_output,
-                                        CoalescingParams {
-                                            terminal_id: &id_clone,
-                                            data: &sanitized_data,
-                                        },
-                                    )
-                                    .await;
-
-                                    maybe_dispatch_initial_command(
-                                        &initial_commands_clone,
-                                        &pty_writers_clone_for_ready,
-                                        &coalescing_state_ready,
-                                        &id_clone,
-                                        &sanitized_data,
-                                    )
-                                    .await;
-
-                                    response
-                                } else {
-                                    let response = state
-                                        .cursor_position_response(&id_clone, cursor_queries_count);
-                                    drop(terminals);
-                                    response
+                                    current_seq = Some(state.seq);
                                 }
-                            } else {
-                                None
                             }
+
+                            if !sanitized_data.is_empty() {
+                                if let Some(seq) = current_seq {
+                                    if output_event_sender_clone
+                                        .send((id_clone.clone(), seq))
+                                        .is_err()
+                                    {
+                                        debug!(
+                                            "[Terminal {id_clone}] Output listener closed; skipping notification"
+                                        );
+                                    }
+                                }
+
+                                handle_coalesced_output(
+                                    &coalescing_state_output,
+                                    CoalescingParams {
+                                        terminal_id: &id_clone,
+                                        data: &sanitized_data,
+                                    },
+                                )
+                                .await;
+
+                                maybe_dispatch_initial_command(
+                                    &initial_commands_clone,
+                                    &pty_writers_clone_for_ready,
+                                    &coalescing_state_ready,
+                                    &id_clone,
+                                    &sanitized_data,
+                                )
+                                .await;
+                            }
+
+                            responses
                         });
 
-                        if let Some(response) = cursor_response {
-                            if !response.is_empty() {
-                                let mut writers = runtime.block_on(reader_state.pty_writers.lock());
-                                if let Some(writer) = writers.get_mut(&id) {
+                        if !cursor_responses.is_empty() {
+                            let mut writers = runtime.block_on(reader_state.pty_writers.lock());
+                            if let Some(writer) = writers.get_mut(&id) {
+                                for response in cursor_responses {
+                                    if response.is_empty() {
+                                        continue;
+                                    }
                                     if let Err(e) = writer.write_all(&response) {
                                         warn!("Failed to write cursor response for {id}: {e}");
-                                    } else if let Err(e) = writer.flush() {
+                                        break;
+                                    }
+                                    if let Err(e) = writer.flush() {
                                         warn!("Failed to flush cursor response for {id}: {e}");
+                                        break;
                                     }
                                 }
                             }
