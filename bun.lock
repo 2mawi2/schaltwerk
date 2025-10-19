@@ -19,12 +19,11 @@
         "@xterm/addon-fit": "^0.10.0",
         "@xterm/addon-image": "^0.8.0",
         "@xterm/addon-ligatures": "^0.9.0",
-        "@xterm/addon-progress": "^0.1.0",
         "@xterm/addon-search": "^0.15.0",
         "@xterm/addon-serialize": "^0.13.0",
         "@xterm/addon-unicode11": "^0.8.0",
         "@xterm/addon-webgl": "^0.18.0",
-        "@xterm/xterm": "5.6.0-beta.94",
+        "@xterm/xterm": "^5.5.0",
         "autoprefixer": "^10.4.21",
         "clsx": "^2.1.1",
         "gpt-tokenizer": "^3.2.0",
@@ -456,8 +455,6 @@
 
     "@xterm/addon-ligatures": ["@xterm/addon-ligatures@0.9.0", "", { "dependencies": { "font-finder": "^1.1.0", "font-ligatures": "^1.4.1" }, "peerDependencies": { "@xterm/xterm": "^5.0.0" } }, "sha512-zVV1AHV1SIm/rdzR5VDPyg+qUnR1SjH4H75iXiB7r6YDa1yEHIqc/EwnUIwz+yeeZozkh8hjbH80L7luEgtxtQ=="],
 
-    "@xterm/addon-progress": ["@xterm/addon-progress@0.1.0", "", { "peerDependencies": { "@xterm/xterm": "^5.6.0-beta.94" } }, "sha512-fDyD0QjylpZy5Go9EtNPh6NK3BU246vWe+8b6oh3BAmyHo/sQ6yTz81hdmzC18GnQyRSYn38gd4mVNZHfHdVwA=="],
-
     "@xterm/addon-search": ["@xterm/addon-search@0.15.0", "", { "peerDependencies": { "@xterm/xterm": "^5.0.0" } }, "sha512-ZBZKLQ+EuKE83CqCmSSz5y1tx+aNOCUaA7dm6emgOX+8J9H1FWXZyrKfzjwzV+V14TV3xToz1goIeRhXBS5qjg=="],
 
     "@xterm/addon-serialize": ["@xterm/addon-serialize@0.13.0", "", { "peerDependencies": { "@xterm/xterm": "^5.0.0" } }, "sha512-kGs8o6LWAmN1l2NpMp01/YkpxbmO4UrfWybeGu79Khw5K9+Krp7XhXbBTOTc3GJRRhd6EmILjpR8k5+odY39YQ=="],
@@ -466,7 +463,7 @@
 
     "@xterm/addon-webgl": ["@xterm/addon-webgl@0.18.0", "", { "peerDependencies": { "@xterm/xterm": "^5.0.0" } }, "sha512-xCnfMBTI+/HKPdRnSOHaJDRqEpq2Ugy8LEj9GiY4J3zJObo3joylIFaMvzBwbYRg8zLtkO0KQaStCeSfoaI2/w=="],
 
-    "@xterm/xterm": ["@xterm/xterm@5.6.0-beta.94", "", {}, "sha512-bHizB8g526p2ua0H+5Hm+87TFut7Dvi4kcdo5fz+bK+ojneRrpwdTyZF8pl6atZJddMGSu573tFDoZoHgumOGA=="],
+    "@xterm/xterm": ["@xterm/xterm@5.5.0", "", {}, "sha512-hqJHYaQb5OptNunnyAnkHyM8aCjZ1MEIDTQu1iIbbTD/xops91NB5yq1ZK/dC2JDbVWtF23zUtl9JE2NqwT87A=="],
 
     "acorn": ["acorn@8.15.0", "", { "bin": { "acorn": "bin/acorn" } }, "sha512-NZyJarBfL7nWwIq+FDL6Zp/yHEhePMNnnJ0y3qfieCrmNvYct8uvtiV41UvlSe6apAfk0fY1FbWx+NwfmpvtTg=="],
 
