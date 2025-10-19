@@ -355,6 +355,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         applyLetterSpacing,
         cancelGpuRefreshWork,
         ensureRenderer,
+        handleFontPreferenceChange,
     } = useTerminalGpu({
         terminalId,
         terminalRef: terminal,
@@ -1103,6 +1104,12 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 xtermWrapperRef.current?.updateOptions({ fontSize: newTerminalFontSize });
             }
 
+            applyLetterSpacing(gpuEnabledForTerminal);
+            refreshGpuFontRendering();
+            if (gpuEnabledForTerminal) {
+                void handleFontPreferenceChange();
+            }
+
             if (fontSizeRafPending) return;
             fontSizeRafPending = true;
             requestAnimationFrame(() => {
@@ -1292,6 +1299,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         gpuEnabledForTerminal,
         applyLetterSpacing,
         gpuRenderer,
+        handleFontPreferenceChange,
     ]);
 
 
@@ -1476,8 +1484,16 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             return
         }
 
-        if (typeof document === 'undefined' || typeof (document as { fonts?: FontFaceSet }).fonts === 'undefined') {
+        const finalizeFontUpdate = () => {
+            applyLetterSpacing(gpuEnabledForTerminal)
             refreshGpuFontRendering()
+            if (gpuEnabledForTerminal) {
+                void handleFontPreferenceChange()
+            }
+        }
+
+        if (typeof document === 'undefined' || typeof (document as { fonts?: FontFaceSet }).fonts === 'undefined') {
+            finalizeFontUpdate()
             return
         }
 
@@ -1490,7 +1506,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             }
 
             if (targets.length === 0) {
-                refreshGpuFontRendering()
+                finalizeFontUpdate()
                 return
             }
 
@@ -1509,7 +1525,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 logger.debug(`[Terminal ${terminalId}] Font preload failed for WebGL renderer:`, error)
             } finally {
                 if (!cancelled) {
-                    refreshGpuFontRendering()
+                    finalizeFontUpdate()
                 }
             }
         }
@@ -1518,7 +1534,16 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         return () => {
             cancelled = true
         }
-    }, [resolvedFontFamily, customFontFamily, terminalFontSize, refreshGpuFontRendering, terminalId])
+    }, [
+        resolvedFontFamily,
+        customFontFamily,
+        terminalFontSize,
+        refreshGpuFontRendering,
+        terminalId,
+        gpuEnabledForTerminal,
+        applyLetterSpacing,
+        handleFontPreferenceChange,
+    ])
 
     useLayoutEffect(() => {
         if (previousTerminalId.current === terminalId) {

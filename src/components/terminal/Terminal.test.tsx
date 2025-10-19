@@ -68,7 +68,7 @@ type HarnessInstance = {
 }
 
 const terminalHarness = vi.hoisted(() => {
-  const instances: unknown[] = []
+  const instances: HarnessInstance[] = []
   let nextIsNew = true
 
   const createMockRaw = () => {
@@ -101,9 +101,11 @@ const terminalHarness = vi.hoisted(() => {
     }
   }
 
-  class MockXtermTerminal {
+  type RawTerminal = ReturnType<typeof createMockRaw>
+
+  class MockXtermTerminal implements HarnessInstance {
     static instances = instances
-    raw: ReturnType<typeof createMockRaw>
+    raw: RawTerminal
     fitAddon: HarnessInstance['fitAddon']
     searchAddon: HarnessInstance['searchAddon']
     attach = vi.fn()
@@ -121,7 +123,7 @@ const terminalHarness = vi.hoisted(() => {
       }
     })
     config: HarnessConfig
-    constructor(public readonly options: Record<string, unknown>) {
+    constructor(public readonly options: { config?: Partial<HarnessConfig> } = {}) {
       this.raw = createMockRaw()
       this.fitAddon = { fit: vi.fn() }
       this.searchAddon = { findNext: vi.fn(), findPrevious: vi.fn() }
@@ -269,9 +271,10 @@ vi.stubGlobal('cancelAnimationFrame', (id: number) => {
 beforeEach(() => {
   cleanup()
   const { NoopObserver } = observerMocks
-  global.ResizeObserver = NoopObserver as unknown as typeof ResizeObserver
-  global.IntersectionObserver = NoopObserver as unknown as typeof IntersectionObserver
-  global.MutationObserver = NoopObserver as unknown as typeof MutationObserver
+  const globalContext = globalThis as Record<string, unknown>
+  globalContext.ResizeObserver = NoopObserver
+  globalContext.IntersectionObserver = NoopObserver
+  globalContext.MutationObserver = NoopObserver
   terminalHarness.instances.length = 0
   terminalHarness.acquireMock.mockClear()
   terminalHarness.setNextIsNew(true)

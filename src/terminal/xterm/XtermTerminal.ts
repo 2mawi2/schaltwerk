@@ -15,35 +15,14 @@ export interface XtermTerminalConfig {
   minimumContrastRatio: number
 }
 
-interface TerminalThemeDefinition {
-  background: string
-  foreground: string
-  cursor: string
-  cursorAccent: string
-  black: string
-  red: string
-  green: string
-  yellow: string
-  blue: string
-  magenta: string
-  cyan: string
-  white: string
-  brightBlack: string
-  brightRed: string
-  brightGreen: string
-  brightYellow: string
-  brightBlue: string
-  brightMagenta: string
-  brightCyan: string
-  brightWhite: string
-}
-
 export interface XtermTerminalOptions {
   terminalId: string
   config: XtermTerminalConfig
 }
 
-function buildTheme(): TerminalThemeDefinition {
+type TerminalTheme = NonNullable<ITerminalOptions['theme']>
+
+function buildTheme(): TerminalTheme {
   return {
     background: theme.colors.background.secondary,
     foreground: theme.colors.text.primary,

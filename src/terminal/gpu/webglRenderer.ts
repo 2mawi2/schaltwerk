@@ -135,12 +135,19 @@ export class WebGLTerminalRenderer {
     }
 
     clearTextureAtlas(): void {
-        if (this.state.addon && this.state.type === 'webgl') {
-            try {
+        if (this.state.type !== 'webgl') {
+            return;
+        }
+
+        try {
+            const terminalClear = (this.terminal as unknown as { clearTextureAtlas?: () => void }).clearTextureAtlas;
+            if (typeof terminalClear === 'function') {
+                terminalClear.call(this.terminal);
+            } else if (this.state.addon && typeof this.state.addon.clearTextureAtlas === 'function') {
                 this.state.addon.clearTextureAtlas();
-            } catch (error) {
-                logger.debug(`[GPU] Error clearing texture atlas for terminal ${this.terminalId}:`, error);
             }
+        } catch (error) {
+            logger.debug(`[GPU] Error clearing texture atlas for terminal ${this.terminalId}:`, error);
         }
     }
 

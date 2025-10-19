@@ -35,6 +35,7 @@ interface UseTerminalGpuResult {
   applyLetterSpacing: (useRelaxedSpacing: boolean) => void;
   cancelGpuRefreshWork: () => void;
   ensureRenderer: () => Promise<void>;
+  handleFontPreferenceChange: () => Promise<void>;
 }
 
 export function useTerminalGpu({
@@ -293,6 +294,48 @@ export function useTerminalGpu({
     applyLetterSpacing(gpuEnabledForTerminal);
   }, [applyLetterSpacing, gpuEnabledForTerminal]);
 
+  const handleFontPreferenceChange = useCallback(async () => {
+    if (!gpuEnabledForTerminal) {
+      return;
+    }
+
+    const renderer = gpuRenderer.current;
+    if (!renderer) {
+      resetSuggestedRendererType();
+      try {
+        await ensureRenderer();
+      } catch (error) {
+        logger.warn(
+          `[Terminal ${terminalId}] Failed to initialize GPU renderer after font change`,
+          error,
+        );
+      }
+      return;
+    }
+
+    cancelGpuRefreshWork();
+
+    try {
+      renderer.disposeIfLoaded();
+      renderer.resetAttempt();
+    } catch (error) {
+      logger.debug(
+        `[Terminal ${terminalId}] Failed to recycle GPU renderer for font update`,
+        error,
+      );
+    }
+
+    try {
+      resetSuggestedRendererType();
+      await ensureRenderer();
+    } catch (error) {
+      logger.warn(
+        `[Terminal ${terminalId}] Failed to reinitialize GPU renderer after font change`,
+        error,
+      );
+    }
+  }, [cancelGpuRefreshWork, ensureRenderer, gpuEnabledForTerminal, terminalId]);
+
   return {
     gpuRenderer,
     gpuEnabledForTerminal,
@@ -300,5 +343,6 @@ export function useTerminalGpu({
     applyLetterSpacing,
     cancelGpuRefreshWork,
     ensureRenderer,
+    handleFontPreferenceChange,
   };
 }
