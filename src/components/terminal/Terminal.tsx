@@ -744,56 +744,26 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
         const atlasContrast = ATLAS_CONTRAST_BASE + computeAtlasContrastOffset(terminalId);
 
-        const { record } = acquireTerminalInstance(terminalId, () => new XtermTerminal({
+        const { record, isNew } = acquireTerminalInstance(terminalId, () => new XtermTerminal({
             terminalId,
-            xtermOptions: {
-                theme: {
-                    background: theme.colors.background.secondary,
-                    foreground: theme.colors.text.primary,
-                    cursor: theme.colors.text.primary,
-                    cursorAccent: theme.colors.background.secondary,
-                    black: theme.colors.background.elevated,
-                    red: theme.colors.accent.red.DEFAULT,
-                    green: theme.colors.accent.green.DEFAULT,
-                    yellow: theme.colors.accent.yellow.DEFAULT,
-                    blue: theme.colors.accent.blue.DEFAULT,
-                    magenta: theme.colors.accent.purple.DEFAULT,
-                    cyan: theme.colors.accent.cyan.DEFAULT,
-                    white: theme.colors.text.primary,
-                    brightBlack: theme.colors.background.hover,
-                    brightRed: theme.colors.accent.red.light,
-                    brightGreen: theme.colors.accent.green.light,
-                    brightYellow: theme.colors.accent.yellow.light,
-                    brightBlue: theme.colors.accent.blue.light,
-                    brightMagenta: theme.colors.accent.purple.light,
-                    brightCyan: theme.colors.accent.cyan.light,
-                    brightWhite: theme.colors.text.primary,
-                },
-                fontFamily: resolvedFontFamily || 'Menlo, Monaco, ui-monospace, SFMono-Regular, monospace',
-                fontSize: terminalFontSize,
-                cursorBlink: true,
-                cursorStyle: 'block',
-                cursorInactiveStyle: 'outline',
+            config: {
                 scrollback: scrollbackLines,
-                smoothScrollDuration: 0,
-                convertEol: false,
-                disableStdin: readOnly,
+                fontSize: terminalFontSize,
+                fontFamily: resolvedFontFamily || 'Menlo, Monaco, ui-monospace, SFMono-Regular, monospace',
+                readOnly,
                 minimumContrastRatio: atlasContrast,
-                customGlyphs: true,
-                drawBoldTextInBrightColors: false,
-                rescaleOverlappingGlyphs: false,
-                allowTransparency: false,
-                allowProposedApi: false,
-                fastScrollSensitivity: 8,
-                scrollSensitivity: 1.5,
-                scrollOnUserInput: true,
-                altClickMovesCursor: true,
-                rightClickSelectsWord: true,
-                tabStopWidth: 8,
-            }
+            },
         }));
-
         const instance = record.xterm;
+        if (!isNew) {
+            instance.applyConfig({
+                scrollback: scrollbackLines,
+                fontSize: terminalFontSize,
+                fontFamily: resolvedFontFamily || 'Menlo, Monaco, ui-monospace, SFMono-Regular, monospace',
+                readOnly,
+                minimumContrastRatio: atlasContrast,
+            });
+        }
         xtermWrapperRef.current = instance;
         terminal.current = instance.raw;
         fitAddon.current = instance.fitAddon;
@@ -836,18 +806,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         requestAnimationFrame(() => {
             terminal.current?.scrollToBottom();
         });
-        
-        // Add OSC handler to prevent color query responses from showing up in terminal
-        terminal.current.parser.registerOscHandler(10, () => true); // foreground color
-        terminal.current.parser.registerOscHandler(11, () => true); // background color
-        terminal.current.parser.registerOscHandler(12, () => true); // cursor color
-        terminal.current.parser.registerOscHandler(13, () => true); // mouse foreground color
-        terminal.current.parser.registerOscHandler(14, () => true); // mouse background color
-        terminal.current.parser.registerOscHandler(15, () => true); // Tek foreground color
-        terminal.current.parser.registerOscHandler(16, () => true); // Tek background color
-        terminal.current.parser.registerOscHandler(17, () => true); // highlight background color
-        terminal.current.parser.registerOscHandler(19, () => true); // highlight foreground color
-        
         let rendererInitialized = false;
         const initializeRenderer = async () => {
             if (rendererInitialized || cancelled || !terminal.current || !termRef.current) {
