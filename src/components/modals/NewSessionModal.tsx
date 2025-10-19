@@ -513,7 +513,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
             lastInitialIsDraftRef.current = undefined
             hasFocusedDuringOpenRef.current = false
         }
-    }, [open, initialIsDraft, isPrefillPending, hasPrefillData])
+    }, [open, initialIsDraft, isPrefillPending, hasPrefillData, createAsDraft, cachedPrompt])
 
     const ensureProjectFiles = projectFileIndex.ensureIndex
 
