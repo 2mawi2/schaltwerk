@@ -14,6 +14,10 @@ describe('calculateDropdownGeometry', () => {
       minWidth: 160
     })
 
+    expect(geometry.placement).toBe('below')
+    if (geometry.placement !== 'below') {
+      throw new Error('Expected dropdown to render below the anchor')
+    }
     expect(geometry.top).toBe(144)
     expect(geometry.left).toBe(100)
     expect(geometry.width).toBe(200)
@@ -30,7 +34,11 @@ describe('calculateDropdownGeometry', () => {
       minWidth: 160
     })
 
-    expect(geometry.top).toBe(8)
+    expect(geometry.placement).toBe('above')
+    if (geometry.placement !== 'above') {
+      throw new Error('Expected dropdown to flip above the anchor')
+    }
+    expect(geometry.bottom).toBe(84)
     expect(geometry.maxHeight).toBeGreaterThanOrEqual(160)
   })
 
@@ -44,6 +52,10 @@ describe('calculateDropdownGeometry', () => {
       minWidth: 160
     })
 
+    expect(geometry.placement).toBe('below')
+    if (geometry.placement !== 'below') {
+      throw new Error('Expected dropdown to stay below the anchor')
+    }
     expect(geometry.left).toBe(952)
     expect(geometry.width).toBe(240)
   })
@@ -58,6 +70,10 @@ describe('calculateDropdownGeometry', () => {
       minWidth: 180
     })
 
+    expect(geometry.placement).toBe('below')
+    if (geometry.placement !== 'below') {
+      throw new Error('Expected dropdown to stay below the anchor')
+    }
     expect(geometry.width).toBe(684)
     expect(geometry.left).toBe(8)
   })
@@ -73,6 +89,10 @@ describe('calculateDropdownGeometry', () => {
       minimumViewportHeight: 220
     })
 
+    expect(geometry.placement).toBe('above')
+    if (geometry.placement !== 'above') {
+      throw new Error('Expected dropdown to flip above the anchor')
+    }
     expect(geometry.maxHeight).toBeGreaterThanOrEqual(220)
   })
 })

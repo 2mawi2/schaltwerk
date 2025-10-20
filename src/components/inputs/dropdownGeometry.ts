@@ -15,12 +15,23 @@ export interface DropdownGeometryInput {
   minimumViewportHeight?: number
 }
 
-export interface DropdownGeometry {
-  top: number
+interface DropdownGeometryBase {
   left: number
   width: number
   maxHeight: number
 }
+
+export interface DropdownGeometryBelow extends DropdownGeometryBase {
+  placement: 'below'
+  top: number
+}
+
+export interface DropdownGeometryAbove extends DropdownGeometryBase {
+  placement: 'above'
+  bottom: number
+}
+
+export type DropdownGeometry = DropdownGeometryAbove | DropdownGeometryBelow
 
 const DEFAULT_VERTICAL_OFFSET = 4
 const DEFAULT_SAFE_PADDING = 8
@@ -45,28 +56,45 @@ export function calculateDropdownGeometry({
   let left = alignment === 'right' ? anchorRect.right - width : anchorRect.left
   left = clamp(left, safeViewportPadding, maxLeft)
 
-  let top = anchorRect.bottom + verticalOffset
-  let maxHeight = viewport.height - top - safeViewportPadding
+  const safeVerticalLimit = Math.max(viewport.height - safeViewportPadding * 2, 0)
+  const availableBelow = Math.max(
+    viewport.height - anchorRect.bottom - verticalOffset - safeViewportPadding,
+    0
+  )
+  const availableAbove = Math.max(anchorRect.top - verticalOffset - safeViewportPadding, 0)
 
-  if (maxHeight < minimumViewportHeight) {
-    const availableAbove = anchorRect.top - safeViewportPadding
-    if (availableAbove > maxHeight) {
-      maxHeight = Math.max(minimumViewportHeight, availableAbove)
-      top = Math.max(safeViewportPadding, anchorRect.top - maxHeight)
-    } else {
-      top = clamp(
-        top,
-        safeViewportPadding,
-        viewport.height - safeViewportPadding
-      )
-      maxHeight = Math.max(
-        minimumViewportHeight,
-        viewport.height - top - safeViewportPadding
-      )
-    }
+  const shouldFlipAbove =
+    (availableBelow < minimumViewportHeight && availableAbove > availableBelow) ||
+    (availableBelow === 0 && availableAbove > 0)
+
+  const placement: 'above' | 'below' = shouldFlipAbove ? 'above' : 'below'
+
+  if (placement === 'below') {
+    const top = clamp(
+      anchorRect.bottom + verticalOffset,
+      safeViewportPadding,
+      viewport.height - safeViewportPadding
+    )
+    const maxHeight = clamp(
+      Math.min(availableBelow, safeVerticalLimit),
+      0,
+      safeVerticalLimit
+    )
+    return { placement, top, left, width, maxHeight }
   }
 
-  return { top, left, width, maxHeight }
+  const bottom = clamp(
+    viewport.height - anchorRect.top + verticalOffset,
+    safeViewportPadding,
+    viewport.height - safeViewportPadding
+  )
+  const maxHeight = clamp(
+    Math.min(availableAbove, safeVerticalLimit),
+    0,
+    safeVerticalLimit
+  )
+
+  return { placement, bottom, left, width, maxHeight }
 }
 
 function clamp(value: number, min: number, max: number): number {
