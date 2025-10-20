@@ -291,7 +291,9 @@ export function BranchAutocomplete({
                         className="bg-slate-800 border border-slate-700 rounded-md shadow-lg overflow-auto"
                         style={{
                             position: 'fixed',
-                            top: menuGeometry.top,
+                            ...(menuGeometry.placement === 'above'
+                                ? { bottom: menuGeometry.bottom }
+                                : { top: menuGeometry.top }),
                             left: menuGeometry.left,
                             width: menuGeometry.width,
                             maxHeight: menuGeometry.maxHeight,
