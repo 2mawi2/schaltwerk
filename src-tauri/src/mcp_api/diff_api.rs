@@ -675,7 +675,7 @@ mod tests {
     use crate::diff_engine::{add_collapsible_sections, compute_unified_diff};
     use git2::{Oid, Repository};
     use schaltwerk::domains::sessions::entity::{SessionState, SessionStatus};
-    use std::process::Command;
+    use std::process::{Command, Stdio};
     use tempfile::TempDir;
 
     fn init_repo() -> TempDir {
@@ -717,6 +717,8 @@ mod tests {
         Command::new("git")
             .args(["checkout", "-B", branch, base])
             .current_dir(repo_path)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
             .status()
             .expect("create branch");
     }
@@ -766,11 +768,15 @@ mod tests {
         Command::new("git")
             .args(["add", relative])
             .current_dir(repo_path)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
             .status()
             .expect("git add");
         Command::new("git")
             .args(["commit", "-m", message])
             .current_dir(repo_path)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
             .status()
             .expect("git commit");
     }
