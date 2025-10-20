@@ -62,7 +62,7 @@ describe('CopyBundleBar', () => {
     countTokensMock.mockReset()
     countTokensMock.mockImplementation((text: string) => text.length)
 
-    mockInvoke.mockImplementation(async (cmd: string) => {
+    mockInvoke.mockImplementation(async (cmd: string, _args?: unknown) => {
       switch (cmd) {
         case TauriCommands.SchaltwerkCoreGetSessionAgentContent:
           return ['# Spec content', null]
@@ -80,6 +80,10 @@ describe('CopyBundleBar', () => {
           return ['old contents', 'new contents']
         case TauriCommands.ClipboardWriteText:
           return undefined
+        case TauriCommands.StartFileWatcher:
+          return undefined
+        case TauriCommands.StopFileWatcher:
+          return undefined
         default:
           return undefined
       }
@@ -91,21 +95,23 @@ describe('CopyBundleBar', () => {
   })
 
   it('renders checkboxes and defaults to spec only when available', async () => {
+    mockListenEvent.mockResolvedValue(() => {})
+    
     render(<CopyBundleBar sessionName="s1" />)
 
-    const specToggle = await screen.findByRole('checkbox', { name: /spec/i }, { timeout: 10000 })
-    const diffToggle = await screen.findByRole('checkbox', { name: /diff/i }, { timeout: 10000 })
-    const filesToggle = await screen.findByRole('checkbox', { name: /files/i }, { timeout: 10000 })
+    const specToggle = await screen.findByRole('checkbox', { name: /spec/i })
+    const diffToggle = await screen.findByRole('checkbox', { name: /diff/i })
+    const filesToggle = await screen.findByRole('checkbox', { name: /files/i })
 
     await waitFor(() => {
       expect(specToggle).toBeChecked()
       expect(diffToggle).not.toBeChecked()
       expect(filesToggle).not.toBeChecked()
-    }, { timeout: 10000 })
+    })
 
     await waitFor(() => {
       expect(screen.getByText(/Tokens:/i)).toBeInTheDocument()
-    }, { timeout: 10000 })
+    })
   })
 
   it('disables spec when not available while keeping diff/files enabled', async () => {

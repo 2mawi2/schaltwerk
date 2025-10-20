@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{get_core_read, get_core_write, PROJECT_MANAGER, SETTINGS_MANAGER};
 use schaltwerk::domains::settings::{
-    DiffViewPreferences, SessionPreferences, TerminalSettings, TerminalUIPreferences,
+    DiffViewPreferences, McpServerConfig, SessionPreferences, TerminalSettings, TerminalUIPreferences,
 };
 use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
 use schaltwerk::schaltwerk_core::db_project_config::{
@@ -628,6 +628,26 @@ pub async fn set_project_run_script(run_script: RunScript) -> Result<(), String>
 
     db.set_project_run_script(&project.path, &run_script)
         .map_err(|e| format!("Failed to set project run script: {e}"))
+}
+
+#[tauri::command]
+pub async fn get_amp_mcp_servers() -> Result<HashMap<String, McpServerConfig>, String> {
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+
+    let manager = settings_manager.lock().await;
+    Ok(manager.get_amp_mcp_servers())
+}
+
+#[tauri::command]
+pub async fn set_amp_mcp_servers(mcp_servers: HashMap<String, McpServerConfig>) -> Result<(), String> {
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+
+    let mut manager = settings_manager.lock().await;
+    manager.set_amp_mcp_servers(mcp_servers)
 }
 
 #[cfg(test)]

@@ -9,9 +9,12 @@ interface Props {
     open: boolean
     onClose: () => void
     onSwitch: (options: { agentType: AgentType; skipPermissions: boolean }) => void | Promise<void>
+    initialAgentType?: AgentType
+    initialSkipPermissions?: boolean
+    targetSessionId?: string | null
 }
 
-export function SwitchOrchestratorModal({ open, onClose, onSwitch }: Props) {
+export function SwitchOrchestratorModal({ open, onClose, onSwitch, initialAgentType, initialSkipPermissions, targetSessionId }: Props) {
     const [agentType, setAgentType] = useState<AgentType>('claude')
     const [skipPermissions, setSkipPermissions] = useState(false)
     const [switching, setSwitching] = useState(false)
@@ -21,6 +24,7 @@ export function SwitchOrchestratorModal({ open, onClose, onSwitch }: Props) {
         getOrchestratorSkipPermissions
     } = useClaudeSession()
     const switchRef = useRef<() => void>(() => {})
+    const switchingContext = targetSessionId ?? 'orchestrator'
     
     const handleSwitch = async () => {
         if (switching) return
@@ -38,18 +42,25 @@ export function SwitchOrchestratorModal({ open, onClose, onSwitch }: Props) {
     useEffect(() => {
         if (open) {
             setSwitching(false)
-            Promise.all([getOrchestratorAgentType(), getOrchestratorSkipPermissions()])
-                .then(([type, skip]) => {
-                    const normalized = AGENT_TYPES.includes(type as AgentType) ? (type as AgentType) : 'claude'
-                    setAgentType(normalized)
-                    const supports = AGENT_SUPPORTS_SKIP_PERMISSIONS[normalized]
-                    setSkipPermissions(supports ? Boolean(skip) : false)
-                })
-                .catch(error => {
-                    logger.warn('[SwitchOrchestratorModal] Failed to load agent configuration:', error)
-                })
+            if (initialAgentType !== undefined) {
+                const normalized = AGENT_TYPES.includes(initialAgentType) ? initialAgentType : 'claude'
+                setAgentType(normalized)
+                const supports = AGENT_SUPPORTS_SKIP_PERMISSIONS[normalized]
+                setSkipPermissions(supports ? Boolean(initialSkipPermissions) : false)
+            } else {
+                Promise.all([getOrchestratorAgentType(), getOrchestratorSkipPermissions()])
+                    .then(([type, skip]) => {
+                        const normalized = AGENT_TYPES.includes(type as AgentType) ? (type as AgentType) : 'claude'
+                        setAgentType(normalized)
+                        const supports = AGENT_SUPPORTS_SKIP_PERMISSIONS[normalized]
+                        setSkipPermissions(supports ? Boolean(skip) : false)
+                    })
+                    .catch(error => {
+                        logger.warn('[SwitchOrchestratorModal] Failed to load agent configuration:', error)
+                    })
+            }
         }
-    }, [open, getOrchestratorAgentType, getOrchestratorSkipPermissions])
+    }, [open, initialAgentType, initialSkipPermissions, getOrchestratorAgentType, getOrchestratorSkipPermissions])
     
     useEffect(() => {
         if (!open) return
@@ -76,9 +87,9 @@ export function SwitchOrchestratorModal({ open, onClose, onSwitch }: Props) {
     return (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
             <div className="w-[480px] max-w-[95vw] bg-slate-900 border border-slate-700 rounded-xl shadow-xl">
-                <div className="px-4 py-3 border-b border-slate-800 text-slate-200 font-medium">
-                    Switch Orchestrator Agent
-                </div>
+                <h2 className="px-4 py-3 border-b border-slate-800 text-slate-200 font-medium">
+                    {targetSessionId ? 'Switch Session Agent' : 'Switch Orchestrator Agent'}
+                </h2>
                 
                 <div className="p-4 space-y-4">
                     <div className="p-3 bg-amber-900/20 border border-amber-700/50 rounded-lg">
@@ -87,8 +98,8 @@ export function SwitchOrchestratorModal({ open, onClose, onSwitch }: Props) {
                             <div className="text-sm text-amber-200">
                                 <p className="font-medium mb-1">Warning</p>
                                 <p className="text-amber-300/90">
-                                    Switching the orchestrator agent will restart the terminal and clear the current session history. 
-                                    Any unsaved work in the orchestrator terminal will be lost.
+                                    Switching the {switchingContext} agent will restart the terminal and clear the current session history. 
+                                    Any unsaved work in that terminal will be lost.
                                 </p>
                             </div>
                         </div>

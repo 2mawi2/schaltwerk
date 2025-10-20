@@ -28,13 +28,14 @@ import { IconButton } from '../common/IconButton'
 import { clearTerminalStartedTracking } from '../terminal/Terminal'
 import { logger } from '../../utils/logger'
 import { UiEvent, emitUiEvent, listenUiEvent } from '../../common/uiEvents'
-import { EnrichedSession, SessionInfo } from '../../types/session'
+import { AGENT_TYPES, AgentType, EnrichedSession, SessionInfo } from '../../types/session'
 import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
 import { useRun } from '../../contexts/RunContext'
 import { useModal } from '../../contexts/ModalContext'
 import { useProject } from '../../contexts/ProjectContext'
 import { getSessionDisplayName } from '../../utils/sessionDisplayName'
 import { theme } from '../../common/theme'
+import { useClaudeSession } from '../../hooks/useClaudeSession'
 
 // Normalize backend states to UI categories
 function mapSessionUiState(info: SessionInfo): 'spec' | 'running' | 'reviewed' {
@@ -89,9 +90,17 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         isSessionMutating,
     } = useSessions()
     const { isResetting, resettingSelection, resetSession, switchModel } = useSessionManagement()
+    const { getOrchestratorAgentType, getOrchestratorSkipPermissions } = useClaudeSession()
 
     // Get dynamic shortcut for Orchestrator
     const orchestratorShortcut = useShortcutDisplay(KeyboardShortcutAction.SwitchToOrchestrator)
+
+    const normalizeAgentType = useCallback((value: string | AgentType | undefined | null): AgentType => {
+        if (value && AGENT_TYPES.includes(value as AgentType)) {
+            return value as AgentType
+        }
+        return 'claude'
+    }, [])
 
     // Removed: stuckTerminals; idle is computed from last edit timestamps
     const [sessionsWithNotifications, setSessionsWithNotifications] = useState<Set<string>>(new Set())
@@ -148,7 +157,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         }
     }, [])
     const [keyboardNavigatedFilter, setKeyboardNavigatedFilter] = useState<FilterMode | null>(null)
-    const [switchOrchestratorModal, setSwitchOrchestratorModal] = useState(false)
+    const [switchOrchestratorModal, setSwitchOrchestratorModal] = useState<{ open: boolean; initialAgentType?: AgentType; initialSkipPermissions?: boolean; targetSessionId?: string | null }>({ open: false })
     const [switchModelSessionId, setSwitchModelSessionId] = useState<string | null>(null)
     const orchestratorResetting = resettingSelection?.kind === 'orchestrator'
     const orchestratorRunning = isSessionRunning('orchestrator')
@@ -744,7 +753,14 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
 
         if (selection.kind === 'orchestrator') {
             setSwitchModelSessionId(null)
-            setSwitchOrchestratorModal(true)
+            void Promise.all([getOrchestratorAgentType(), getOrchestratorSkipPermissions()]).then(([initialAgentType, initialSkipPermissions]) => {
+                setSwitchOrchestratorModal({
+                    open: true,
+                    initialAgentType: normalizeAgentType(initialAgentType),
+                    initialSkipPermissions,
+                    targetSessionId: null
+                })
+            })
             return
         }
 
@@ -754,8 +770,21 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         if (state !== 'running') return
 
         setSwitchModelSessionId(selection.payload)
-        setSwitchOrchestratorModal(true)
-    }, [isAnyModalOpen, selection, getSelectedSessionState, setSwitchModelSessionId, setSwitchOrchestratorModal])
+        const session = sessions.find(s => s.info.session_id === selection.payload)
+        const initialAgentType = normalizeAgentType(session?.info.original_agent_type)
+        const initialSkipPermissions = Boolean(session?.info && (session.info as { original_skip_permissions?: boolean }).original_skip_permissions)
+        setSwitchOrchestratorModal({ open: true, initialAgentType, initialSkipPermissions, targetSessionId: selection.payload })
+    }, [
+        isAnyModalOpen,
+        selection,
+        getSelectedSessionState,
+        setSwitchModelSessionId,
+        setSwitchOrchestratorModal,
+        getOrchestratorAgentType,
+        getOrchestratorSkipPermissions,
+        sessions,
+        normalizeAgentType
+    ])
 
     const handleOpenMergeShortcut = useCallback(() => {
         if (isAnyModalOpen()) return
@@ -996,7 +1025,14 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                     icon={<VscCode />}
                                     onClick={() => {
                                         setSwitchModelSessionId(null)
-                                        setSwitchOrchestratorModal(true)
+                                        void Promise.all([getOrchestratorAgentType(), getOrchestratorSkipPermissions()]).then(([initialAgentType, initialSkipPermissions]) => {
+                                            setSwitchOrchestratorModal({
+                                                open: true,
+                                                initialAgentType: normalizeAgentType(initialAgentType),
+                                                initialSkipPermissions,
+                                                targetSessionId: null
+                                            })
+                                        })
                                     }}
                                     ariaLabel="Switch orchestrator model"
                                     tooltip="Switch model (⌘P)"
@@ -1299,7 +1335,10 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                     }}
                                     onSwitchModel={(sessionId) => {
                                         setSwitchModelSessionId(sessionId)
-                                        setSwitchOrchestratorModal(true)
+                                        const session = sessions.find(s => s.info.session_id === sessionId)
+                                        const initialAgentType = normalizeAgentType(session?.info.original_agent_type)
+                                        const initialSkipPermissions = Boolean(session?.info && (session.info as { original_skip_permissions?: boolean }).original_skip_permissions)
+                                        setSwitchOrchestratorModal({ open: true, initialAgentType, initialSkipPermissions, targetSessionId: sessionId })
                                     }}
                                     resettingSelection={resettingSelection}
                                     isSessionRunning={isSessionRunning}
@@ -1368,25 +1407,28 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 onToggleAutoCancel={(next) => { void updateAutoCancelAfterMerge(next) }}
             />
             <SwitchOrchestratorModal
-                open={switchOrchestratorModal}
+                open={switchOrchestratorModal.open}
                 onClose={() => {
-                    setSwitchOrchestratorModal(false)
+                    setSwitchOrchestratorModal({ open: false })
                     setSwitchModelSessionId(null)
                 }}
                 onSwitch={async ({ agentType, skipPermissions }) => {
                     // Determine which session/orchestrator to switch model for
-                    const targetSelection = switchModelSessionId 
+                    const targetSelection = switchModelSessionId
                         ? { kind: 'session' as const, payload: switchModelSessionId }
                         : selection
-                    
+
                     await switchModel(agentType, skipPermissions, targetSelection, terminals, clearTerminalTracking, clearTerminalStartedTracking)
-                    
+
                     // Reload sessions to show updated agent type
                     await reloadSessionsAndRefreshIdle()
-                    
-                    setSwitchOrchestratorModal(false)
+
+                    setSwitchOrchestratorModal({ open: false })
                     setSwitchModelSessionId(null)
                 }}
+                initialAgentType={switchOrchestratorModal.initialAgentType}
+                initialSkipPermissions={switchOrchestratorModal.initialSkipPermissions}
+                targetSessionId={switchOrchestratorModal.targetSessionId}
             />
         </div>
     )

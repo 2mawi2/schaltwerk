@@ -4,13 +4,14 @@ import { theme } from '../../common/theme'
 import { Dropdown } from './Dropdown'
 import { AgentType, AGENT_TYPES, AGENT_SUPPORTS_SKIP_PERMISSIONS } from '../../types/session'
 
-const MODEL_METADATA: Record<AgentType, { label: string; color: 'blue' | 'green' | 'orange' | 'red' | 'violet' | 'cyan' }> = {
+const MODEL_METADATA: Record<AgentType, { label: string; color: 'blue' | 'green' | 'orange' | 'red' | 'violet' | 'cyan' | 'yellow' }> = {
     claude: { label: 'Claude', color: 'blue' },
     opencode: { label: 'OpenCode', color: 'green' },
     gemini: { label: 'Gemini', color: 'orange' },
     codex: { label: 'Codex', color: 'red' },
     droid: { label: 'Droid', color: 'violet' },
     qwen: { label: 'Qwen', color: 'cyan' },
+    amp: { label: 'Amp', color: 'yellow' },
     terminal: { label: 'Terminal Only', color: 'green' }
 }
 
@@ -96,8 +97,10 @@ export function ModelSelector({
                                   backgroundColor: model.color === 'blue' ? theme.colors.accent.blue.DEFAULT :
                                                   model.color === 'green' ? theme.colors.accent.green.DEFAULT :
                                                   model.color === 'orange' ? theme.colors.accent.amber.DEFAULT :
+                                                  model.color === 'red' ? theme.colors.accent.red.DEFAULT :
                                                   model.color === 'violet' ? theme.colors.accent.violet.DEFAULT :
                                                   model.color === 'cyan' ? theme.colors.accent.cyan.DEFAULT :
+                                                  model.color === 'yellow' ? theme.colors.accent.yellow.DEFAULT :
                                                   theme.colors.accent.red.DEFAULT
                               }} />
                     )}

@@ -85,6 +85,8 @@ pub struct Session {
     pub session_state: SessionState,
     // Whether agent resume/continue is allowed (freshly false after Spec/Cancel until first start)
     pub resume_allowed: bool,
+    // Amp thread ID for resuming threads across Schaltwerk sessions
+    pub amp_thread_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

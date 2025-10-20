@@ -240,6 +240,11 @@ fn apply_sessions_migrations(conn: &rusqlite::Connection) -> anyhow::Result<()> 
         "ALTER TABLE sessions ADD COLUMN resume_allowed BOOLEAN DEFAULT TRUE",
         [],
     );
+    // Store Amp thread ID for resuming threads across sessions
+    let _ = conn.execute(
+        "ALTER TABLE sessions ADD COLUMN amp_thread_id TEXT",
+        [],
+    );
     Ok(())
 }
 

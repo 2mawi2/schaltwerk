@@ -9,7 +9,7 @@ interface MCPStatus {
   mcp_server_path: string
   is_embedded: boolean
   cli_available: boolean
-  client: 'claude' | 'codex'
+  client: 'claude' | 'codex' | 'opencode' | 'amp' | 'droid'
   is_configured: boolean
   setup_command: string
   project_path: string
@@ -17,7 +17,7 @@ interface MCPStatus {
 
 interface Props {
    projectPath: string
-   agent: 'claude' | 'codex' | 'opencode'
+   agent: 'claude' | 'codex' | 'opencode' | 'amp' | 'droid'
  }
 
 export function MCPConfigPanel({ projectPath, agent }: Props) {
@@ -55,15 +55,18 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
     try {
       const result = await invoke<string>(TauriCommands.ConfigureMcpForProject, { projectPath, client: agent })
       
-      // Add .mcp.json to gitignore if needed
-      try {
-        await invoke<string>(TauriCommands.EnsureMcpGitignored, { projectPath })
-      } catch (gitignoreError) {
-        logger.warn('Failed to update gitignore:', gitignoreError)
-        // Don't fail the whole operation if gitignore fails
+      // Add .mcp.json to gitignore if needed (Claude only, others use global config)
+      if (agent === 'claude') {
+        try {
+          await invoke<string>(TauriCommands.EnsureMcpGitignored, { projectPath })
+        } catch (gitignoreError) {
+          logger.warn('Failed to update gitignore:', gitignoreError)
+          // Don't fail the whole operation if gitignore fails
+        }
+        setSuccess(`${result}. Added .mcp.json to project and .gitignore.`)
+      } else {
+        setSuccess(result)
       }
-      
-      setSuccess(`${result}. Added .mcp.json to project and .gitignore.`)
       // Reload status
       await loadStatus()
     } catch (e) {
@@ -115,7 +118,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
               }}
             />
              <span className="text-xs text-slate-400">
-               {agent === 'codex' ? 'Enable MCP (global)' : agent === 'opencode' ? 'Enable MCP' : 'Enable MCP'}
+               {agent === 'codex' || agent === 'amp' || agent === 'droid' ? 'Enable MCP (global)' : 'Enable MCP'}
              </span>
           </label>
         </div>
@@ -124,13 +127,17 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
              ? 'Allow Claude Code to control Schaltwerk sessions in this project via MCP.'
              : agent === 'codex'
              ? 'Enable Codex to control Schaltwerk sessions via a global MCP entry in ~/.codex/config.toml. The server is project‑aware and routes by your current repo.'
-             : 'Enable OpenCode to control Schaltwerk sessions via MCP configuration. The server is project‑aware and routes by your current repo.'}
+             : agent === 'opencode'
+             ? 'Enable OpenCode to control Schaltwerk sessions via MCP configuration. The server is project‑aware and routes by your current repo.'
+             : agent === 'amp'
+             ? 'Enable Amp to control Schaltwerk sessions via a global MCP entry in ~/.config/amp/settings.json. The server is project‑aware and routes by your current repo.'
+             : 'Enable Droid to control Schaltwerk sessions via a global MCP entry in ~/.factory/mcp.json. The server is project‑aware and routes by your current repo.'}
          </p>
       </div>
 
        {!mcpEnabled && (
          <div className="p-3 bg-slate-800/30 border border-slate-700 rounded text-slate-400 text-xs">
-           Enable MCP configuration to allow {agent === 'claude' ? 'Claude Code' : agent === 'codex' ? 'Codex' : 'OpenCode'} to manage sessions in this project.
+           Enable MCP configuration to allow {agent === 'claude' ? 'Claude Code' : agent === 'codex' ? 'Codex' : agent === 'opencode' ? 'OpenCode' : agent === 'amp' ? 'Amp' : 'Droid'} to manage sessions in this project.
          </div>
        )}
 
@@ -166,9 +173,9 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                   </svg>
                   <div>
                      <div className="font-medium mb-1">Next Steps:</div>
-                     <div>• Restart {agent === 'claude' ? 'Claude Code' : agent === 'codex' ? 'Codex' : 'OpenCode'} to load the MCP server</div>
+                     <div>• Restart {agent === 'claude' ? 'Claude Code' : agent === 'codex' ? 'Codex' : agent === 'opencode' ? 'OpenCode' : agent === 'amp' ? 'Amp' : 'Droid'} to load the MCP server</div>
                      <div>• Or click the reset button (shown above) in the orchestrator terminal</div>
-                     <div>• The MCP server will then be available for all {agent === 'claude' ? 'Claude Code' : agent === 'codex' ? 'Codex' : 'OpenCode'} sessions in this project</div>
+                     <div>• The MCP server will then be available for all {agent === 'claude' ? 'Claude Code' : agent === 'codex' ? 'Codex' : agent === 'opencode' ? 'OpenCode' : agent === 'amp' ? 'Amp' : 'Droid'} sessions in this project</div>
                   </div>
                 </div>
               </div>
@@ -180,7 +187,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
               <div className="space-y-2 p-3 bg-slate-800/50 rounded border border-slate-700">
                  <div className="flex items-center justify-between text-xs">
                    <span className="text-slate-400">
-                     {agent === 'claude' ? 'Claude' : agent === 'codex' ? 'Codex' : 'OpenCode'} CLI:
+                     {agent === 'claude' ? 'Claude' : agent === 'codex' ? 'Codex' : agent === 'opencode' ? 'OpenCode' : agent === 'amp' ? 'Amp' : 'Droid'} CLI:
                    </span>
                    <span className={status.cli_available ? 'text-green-400' : 'text-amber-400'}>
                      {status.cli_available ? '✅ Available' : '⚠️ Not found'}
@@ -219,7 +226,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                        disabled={loading}
                        className="px-3 py-1 bg-green-800 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed border border-green-700 rounded text-sm transition-colors text-green-200"
                      >
-                       {agent === 'codex' ? 'Reconfigure MCP (global)' : agent === 'opencode' ? 'Reconfigure MCP' : 'Reconfigure MCP'}
+                       {agent === 'codex' || agent === 'amp' || agent === 'droid' ? 'Reconfigure MCP (global)' : 'Reconfigure MCP'}
                      </button>
                   ) : (
                      <button
@@ -238,7 +245,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                            e.currentTarget.style.backgroundColor = '#155e75'; // cyan-800
                          }}
                      >
-                       {agent === 'codex' ? 'Enable MCP (global)' : agent === 'opencode' ? 'Configure MCP' : 'Configure MCP for This Project'}
+                       {agent === 'codex' || agent === 'amp' || agent === 'droid' ? 'Enable MCP (global)' : 'Configure MCP for This Project'}
                      </button>
                   )
                 ) : (
@@ -267,7 +274,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                        <div className="px-3 py-1 bg-slate-800 border border-slate-700 rounded text-sm text-slate-300 inline-block">
                          Install Codex CLI first
                        </div>
-                     ) : (
+                     ) : agent === 'opencode' ? (
                         <a
                           href="https://opencode.ai"
                           target="_blank"
@@ -276,6 +283,14 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                        >
                          Install OpenCode First
                        </a>
+                     ) : agent === 'amp' ? (
+                       <div className="px-3 py-1 bg-slate-800 border border-slate-700 rounded text-sm text-slate-300 inline-block">
+                         Install Amp CLI first
+                       </div>
+                     ) : (
+                       <div className="px-3 py-1 bg-slate-800 border border-slate-700 rounded text-sm text-slate-300 inline-block">
+                         Install Droid CLI first
+                       </div>
                      )}
                   </>
                 )}
@@ -301,7 +316,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
               {showManualSetup && (
                 <div className="p-3 bg-slate-900 border border-slate-700 rounded">
                    <p className="text-xs text-slate-400 mb-2">
-                     {agent === 'codex' ? 'Add to ~/.codex/config.toml:' : agent === 'opencode' ? 'Add to opencode.json:' : 'Run from project directory:'}
+                     {agent === 'codex' ? 'Add to ~/.codex/config.toml:' : agent === 'opencode' ? 'Add to opencode.json:' : agent === 'amp' ? 'Add to ~/.config/amp/settings.json:' : agent === 'droid' ? 'Add to ~/.factory/mcp.json:' : 'Run from project directory:'}
                    </p>
                   
                   <div className="flex gap-2">
@@ -317,6 +332,14 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                              : agent === 'opencode'
                              ? (<>
                                  {`{\n  "mcp": {\n    "schaltwerk": {\n      "type": "local",\n      "command": ["node", "${status.mcp_server_path}"],\n      "enabled": true\n    }\n  }\n}`}
+                               </>)
+                             : agent === 'amp'
+                             ? (<>
+                                 {`"amp.mcpServers": {\n  "schaltwerk": {\n    "command": "node",\n    "args": ["${status.mcp_server_path}"]\n  }\n}`}
+                               </>)
+                             : agent === 'droid'
+                             ? (<>
+                                 {`{\n  "mcpServers": {\n    "schaltwerk": {\n      "type": "stdio",\n      "command": "node",\n      "args": ["${status.mcp_server_path}"]\n    }\n  }\n}`}
                                </>)
                              : (<>
                                  {agent} mcp add --transport stdio --scope project schaltwerk node "{status.mcp_server_path}"
@@ -339,6 +362,10 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                        ? 'This config is global. Codex will load it on next start.'
                        : agent === 'opencode'
                        ? 'This config can be project-specific (opencode.json) or global (~/.opencode/config.json).'
+                       : agent === 'amp'
+                       ? 'This config is global in ~/.config/amp/settings.json (Windows: %APPDATA%\\amp\\settings.json). Amp will load it on next start.'
+                       : agent === 'droid'
+                       ? 'This config is global in ~/.factory/mcp.json (Windows: %USERPROFILE%\\.factory\\mcp.json). Droid will load it on next start.'
                        : 'Tip: Scroll horizontally to see the full command'}
                    </p>
                 </div>

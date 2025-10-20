@@ -835,6 +835,9 @@ fn main() {
             get_terminal_buffer,
             get_terminal_activity_status,
             get_all_terminal_activity,
+            register_session_terminals,
+            suspend_session_terminals,
+            resume_session_terminals,
             // PTY plugin commands
             pty_spawn,
             pty_write,
@@ -999,7 +1002,9 @@ fn main() {
             get_mcp_status,
             configure_mcp_for_project,
             remove_mcp_for_project,
-            ensure_mcp_gitignored
+            ensure_mcp_gitignored,
+            get_amp_mcp_servers,
+            set_amp_mcp_servers
         ])
         .setup(move |app| {
             let project_manager = tauri::async_runtime::block_on(get_project_manager());
