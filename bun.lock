@@ -53,7 +53,7 @@
         "@vitest/ui": "^3.2.4",
         "eslint": "^9.37.0",
         "eslint-plugin-react-hooks": "^7.0.0",
-        "happy-dom": "^20.0.0",
+        "happy-dom": "^20.0.2",
         "npm-run-all2": "^8.0.0",
         "terser": "^5.44.0",
         "typescript": "~5.9.3",
@@ -657,7 +657,7 @@
 
     "graphemer": ["graphemer@1.4.0", "", {}, "sha512-EtKwoO6kxCL9WO5xipiHTZlSzBm7WLT627TqC/uVRd0HKmq8NXyebnNYxDoBi7wt8eTWrUrKXCOVaFq9x1kgag=="],
 
-    "happy-dom": ["happy-dom@20.0.0", "", { "dependencies": { "@types/node": "^20.0.0", "@types/whatwg-mimetype": "^3.0.2", "whatwg-mimetype": "^3.0.0" } }, "sha512-GkWnwIFxVGCf2raNrxImLo397RdGhLapj5cT3R2PT7FwL62Ze1DROhzmYW7+J3p9105DYMVenEejEbnq5wA37w=="],
+    "happy-dom": ["happy-dom@20.0.7", "", { "dependencies": { "@types/node": "^20.0.0", "@types/whatwg-mimetype": "^3.0.2", "whatwg-mimetype": "^3.0.0" } }, "sha512-CywLfzmYxP5OYpuAG0usFY0CpxJtwYR+w8Mms5J8W29Y2Pzf6rbfQS2M523tRZTb0oLA+URopPtnAQX2fupHZQ=="],
 
     "has-flag": ["has-flag@4.0.0", "", {}, "sha512-EykJT/Q1KjTWctppgIAgfSO0tKVuZUjhgMr17kqTumMl6Afv3EISleU7qZUzoXDFTAHTDC4NOoG/ZxU3EvlMPQ=="],
 
