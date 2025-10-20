@@ -16,7 +16,17 @@ const VERY_LARGE_SESSION_THRESHOLD: usize = 2000;
 static GIT_STATS_CALL_COUNT: OnceLock<AtomicUsize> = OnceLock::new();
 
 #[cfg(test)]
+static GIT_STATS_THREAD_FILTER: OnceLock<Mutex<Option<std::thread::ThreadId>>> = OnceLock::new();
+
+#[cfg(test)]
 fn increment_git_stats_call_count() {
+    let filter = GIT_STATS_THREAD_FILTER.get_or_init(|| Mutex::new(None));
+    if let Some(target_thread) = *filter.lock().unwrap() {
+        if std::thread::current().id() != target_thread {
+            return;
+        }
+    }
+
     GIT_STATS_CALL_COUNT
         .get_or_init(|| AtomicUsize::new(0))
         .fetch_add(1, Ordering::Relaxed);
@@ -34,6 +44,25 @@ pub fn get_git_stats_call_count() -> usize {
     GIT_STATS_CALL_COUNT
         .get_or_init(|| AtomicUsize::new(0))
         .load(Ordering::Relaxed)
+}
+
+#[cfg(test)]
+pub struct GitStatsThreadScope;
+
+#[cfg(test)]
+impl Drop for GitStatsThreadScope {
+    fn drop(&mut self) {
+        if let Some(filter) = GIT_STATS_THREAD_FILTER.get() {
+            *filter.lock().unwrap() = None;
+        }
+    }
+}
+
+#[cfg(test)]
+pub fn track_git_stats_on_current_thread() -> GitStatsThreadScope {
+    let filter = GIT_STATS_THREAD_FILTER.get_or_init(|| Mutex::new(None));
+    *filter.lock().unwrap() = Some(std::thread::current().id());
+    GitStatsThreadScope
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
