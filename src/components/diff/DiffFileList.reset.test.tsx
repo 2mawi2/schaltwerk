@@ -1,24 +1,18 @@
 import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { DiffFileList } from './DiffFileList'
-import { TauriCommands } from '../../common/tauriCommands'
 import { TestProviders } from '../../tests/test-utils'
 
 const invokeMock = vi.fn(async (cmd: string) => {
-  if (cmd === TauriCommands.GetChangedFilesFromMain) return [{ path: 'test.txt', change_type: 'added' }]
-  if (cmd === TauriCommands.GetCurrentBranchName) return 'schaltwerk/feature'
-  if (cmd === TauriCommands.GetBaseBranchName) return 'main'
-  if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc', 'def']
-  if (cmd === TauriCommands.SchaltwerkCoreResetSessionWorktree) return undefined
-  if (cmd === TauriCommands.StartFileWatcher) return undefined
-  if (cmd === TauriCommands.StopFileWatcher) return undefined
+  if (cmd === 'get_changed_files_from_main') return [{ path: 'test.txt', change_type: 'added' }]
+  if (cmd === 'get_current_branch_name') return 'schaltwerk/feature'
+  if (cmd === 'get_base_branch_name') return 'main'
+  if (cmd === 'get_commit_comparison_info') return ['abc', 'def']
+  if (cmd === 'schaltwerk_core_reset_session_worktree') return undefined
   return null
 })
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: (...args: unknown[]) => invokeMock(...args as [string]) }))
-vi.mock('@tauri-apps/api/event', () => ({
-  listen: vi.fn(async () => () => {})
-}))
 
 vi.mock('../../contexts/SelectionContext', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('../../contexts/SelectionContext')
@@ -39,7 +33,6 @@ describe('DiffFileList header reset button', () => {
   beforeEach(() => {
     // @ts-ignore
     global.confirm = vi.fn(() => true)
-    vi.clearAllMocks()
   })
 
   it('renders icon button for session and triggers unified confirm flow', async () => {
@@ -48,14 +41,12 @@ describe('DiffFileList header reset button', () => {
         <DiffFileList onFileSelect={() => {}} />
       </TestProviders>
     )
+    // Wait for header
     const btn = await screen.findByRole('button', { name: /reset session/i })
     expect(btn).toBeInTheDocument()
     fireEvent.click(btn)
-    // Wait for the confirmation dialog to appear, then find the Reset button in it
-    const confirmButtons = await screen.findAllByRole('button', { name: /^Reset$/ })
-    // The Reset button should be the last one (in the dialog, not the header)
-    const confirmButton = confirmButtons[confirmButtons.length - 1]
-    fireEvent.click(confirmButton)
-    expect(invokeMock).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreResetSessionWorktree, expect.any(Object))
+    const confirm = await screen.findByRole('button', { name: /^Reset$/ })
+    fireEvent.click(confirm)
+    expect(invokeMock).toHaveBeenCalledWith('schaltwerk_core_reset_session_worktree', expect.any(Object))
   })
 })

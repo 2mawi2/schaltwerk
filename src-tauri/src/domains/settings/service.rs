@@ -49,38 +49,36 @@ impl SettingsService {
     }
 
     pub fn get_agent_env_vars(&self, agent_type: &str) -> HashMap<String, String> {
-    match agent_type {
-    "claude" => self.settings.agent_env_vars.claude.clone(),
-    "opencode" => self.settings.agent_env_vars.opencode.clone(),
-    "gemini" => self.settings.agent_env_vars.gemini.clone(),
-    "codex" => self.settings.agent_env_vars.codex.clone(),
-    "droid" => self.settings.agent_env_vars.droid.clone(),
-    "qwen" => self.settings.agent_env_vars.qwen.clone(),
-    "amp" => self.settings.agent_env_vars.amp.clone(),
-    "terminal" => self.settings.agent_env_vars.terminal.clone(),
-        _ => HashMap::new(),
+        match agent_type {
+            "claude" => self.settings.agent_env_vars.claude.clone(),
+            "opencode" => self.settings.agent_env_vars.opencode.clone(),
+            "gemini" => self.settings.agent_env_vars.gemini.clone(),
+            "codex" => self.settings.agent_env_vars.codex.clone(),
+            "droid" => self.settings.agent_env_vars.droid.clone(),
+            "qwen" => self.settings.agent_env_vars.qwen.clone(),
+            "terminal" => self.settings.agent_env_vars.terminal.clone(),
+            _ => HashMap::new(),
         }
     }
 
     pub fn set_agent_env_vars(
-    &mut self,
-    agent_type: &str,
-    env_vars: HashMap<String, String>,
+        &mut self,
+        agent_type: &str,
+        env_vars: HashMap<String, String>,
     ) -> Result<(), SettingsServiceError> {
-    match agent_type {
-    "claude" => self.settings.agent_env_vars.claude = env_vars,
-    "opencode" => self.settings.agent_env_vars.opencode = env_vars,
-    "gemini" => self.settings.agent_env_vars.gemini = env_vars,
-    "codex" => self.settings.agent_env_vars.codex = env_vars,
-    "droid" => self.settings.agent_env_vars.droid = env_vars,
-    "qwen" => self.settings.agent_env_vars.qwen = env_vars,
-    "amp" => self.settings.agent_env_vars.amp = env_vars,
-    "terminal" => self.settings.agent_env_vars.terminal = env_vars,
-    _ => {
-    return Err(SettingsServiceError::UnknownAgentType(
-        agent_type.to_string(),
-        ))
-        }
+        match agent_type {
+            "claude" => self.settings.agent_env_vars.claude = env_vars,
+            "opencode" => self.settings.agent_env_vars.opencode = env_vars,
+            "gemini" => self.settings.agent_env_vars.gemini = env_vars,
+            "codex" => self.settings.agent_env_vars.codex = env_vars,
+            "droid" => self.settings.agent_env_vars.droid = env_vars,
+            "qwen" => self.settings.agent_env_vars.qwen = env_vars,
+            "terminal" => self.settings.agent_env_vars.terminal = env_vars,
+            _ => {
+                return Err(SettingsServiceError::UnknownAgentType(
+                    agent_type.to_string(),
+                ))
+            }
         }
 
         self.save()
@@ -107,19 +105,18 @@ impl SettingsService {
     }
 
     pub fn get_agent_cli_args(&self, agent_type: &str) -> String {
-    if agent_type == "terminal" {
-    return String::new();
-    }
+        if agent_type == "terminal" {
+            return String::new();
+        }
 
-    match agent_type {
-    "claude" => self.settings.agent_cli_args.claude.clone(),
-    "opencode" => self.settings.agent_cli_args.opencode.clone(),
-    "gemini" => self.settings.agent_cli_args.gemini.clone(),
-    "codex" => self.settings.agent_cli_args.codex.clone(),
-    "droid" => self.settings.agent_cli_args.droid.clone(),
-    "qwen" => self.settings.agent_cli_args.qwen.clone(),
-    "amp" => self.settings.agent_cli_args.amp.clone(),
-        _ => String::new(),
+        match agent_type {
+            "claude" => self.settings.agent_cli_args.claude.clone(),
+            "opencode" => self.settings.agent_cli_args.opencode.clone(),
+            "gemini" => self.settings.agent_cli_args.gemini.clone(),
+            "codex" => self.settings.agent_cli_args.codex.clone(),
+            "droid" => self.settings.agent_cli_args.droid.clone(),
+            "qwen" => self.settings.agent_cli_args.qwen.clone(),
+            _ => String::new(),
         }
     }
 
@@ -138,19 +135,18 @@ impl SettingsService {
         );
 
         match agent_type {
-        "claude" => self.settings.agent_cli_args.claude = cli_args.clone(),
-        "opencode" => self.settings.agent_cli_args.opencode = cli_args.clone(),
-        "gemini" => self.settings.agent_cli_args.gemini = cli_args.clone(),
-        "codex" => self.settings.agent_cli_args.codex = cli_args.clone(),
-        "droid" => self.settings.agent_cli_args.droid = cli_args.clone(),
-        "qwen" => self.settings.agent_cli_args.qwen = cli_args.clone(),
-        "amp" => self.settings.agent_cli_args.amp = cli_args.clone(),
-        _ => {
-        let error = format!("Unknown agent type: {agent_type}");
-        log::error!("Invalid agent type in set_agent_cli_args: {error}");
-        return Err(SettingsServiceError::UnknownAgentType(
-            agent_type.to_string(),
-            ));
+            "claude" => self.settings.agent_cli_args.claude = cli_args.clone(),
+            "opencode" => self.settings.agent_cli_args.opencode = cli_args.clone(),
+            "gemini" => self.settings.agent_cli_args.gemini = cli_args.clone(),
+            "codex" => self.settings.agent_cli_args.codex = cli_args.clone(),
+            "droid" => self.settings.agent_cli_args.droid = cli_args.clone(),
+            "qwen" => self.settings.agent_cli_args.qwen = cli_args.clone(),
+            _ => {
+                let error = format!("Unknown agent type: {agent_type}");
+                log::error!("Invalid agent type in set_agent_cli_args: {error}");
+                return Err(SettingsServiceError::UnknownAgentType(
+                    agent_type.to_string(),
+                ));
             }
         }
 
@@ -169,16 +165,15 @@ impl SettingsService {
     }
 
     pub fn get_agent_initial_command(&self, agent_type: &str) -> String {
-    match agent_type {
-    "claude" => self.settings.agent_initial_commands.claude.clone(),
-    "opencode" => self.settings.agent_initial_commands.opencode.clone(),
-    "gemini" => self.settings.agent_initial_commands.gemini.clone(),
-    "codex" => self.settings.agent_initial_commands.codex.clone(),
-    "droid" => self.settings.agent_initial_commands.droid.clone(),
-    "qwen" => self.settings.agent_initial_commands.qwen.clone(),
-    "amp" => self.settings.agent_initial_commands.amp.clone(),
-    "terminal" => String::new(),
-        _ => String::new(),
+        match agent_type {
+            "claude" => self.settings.agent_initial_commands.claude.clone(),
+            "opencode" => self.settings.agent_initial_commands.opencode.clone(),
+            "gemini" => self.settings.agent_initial_commands.gemini.clone(),
+            "codex" => self.settings.agent_initial_commands.codex.clone(),
+            "droid" => self.settings.agent_initial_commands.droid.clone(),
+            "qwen" => self.settings.agent_initial_commands.qwen.clone(),
+            "terminal" => String::new(),
+            _ => String::new(),
         }
     }
 
@@ -193,20 +188,19 @@ impl SettingsService {
         );
 
         match agent_type {
-        "claude" => self.settings.agent_initial_commands.claude = initial_command.clone(),
-        "opencode" => self.settings.agent_initial_commands.opencode = initial_command.clone(),
-        "gemini" => self.settings.agent_initial_commands.gemini = initial_command.clone(),
-        "codex" => self.settings.agent_initial_commands.codex = initial_command.clone(),
-        "droid" => self.settings.agent_initial_commands.droid = initial_command.clone(),
-        "qwen" => self.settings.agent_initial_commands.qwen = initial_command.clone(),
-        "amp" => self.settings.agent_initial_commands.amp = initial_command.clone(),
-        "terminal" => {}
-        _ => {
-        let error = format!("Unknown agent type: {agent_type}");
-        log::error!("Invalid agent type in set_agent_initial_command: {error}");
-        return Err(SettingsServiceError::UnknownAgentType(
-            agent_type.to_string(),
-            ));
+            "claude" => self.settings.agent_initial_commands.claude = initial_command.clone(),
+            "opencode" => self.settings.agent_initial_commands.opencode = initial_command.clone(),
+            "gemini" => self.settings.agent_initial_commands.gemini = initial_command.clone(),
+            "codex" => self.settings.agent_initial_commands.codex = initial_command.clone(),
+            "droid" => self.settings.agent_initial_commands.droid = initial_command.clone(),
+            "qwen" => self.settings.agent_initial_commands.qwen = initial_command.clone(),
+            "terminal" => {}
+            _ => {
+                let error = format!("Unknown agent type: {agent_type}");
+                log::error!("Invalid agent type in set_agent_initial_command: {error}");
+                return Err(SettingsServiceError::UnknownAgentType(
+                    agent_type.to_string(),
+                ));
             }
         }
 
@@ -303,16 +297,15 @@ impl SettingsService {
     }
 
     pub fn get_agent_binary_config(&self, agent_name: &str) -> Option<AgentBinaryConfig> {
-    match agent_name {
-    "claude" => self.settings.agent_binaries.claude.clone(),
-    "opencode" => self.settings.agent_binaries.opencode.clone(),
-    "gemini" => self.settings.agent_binaries.gemini.clone(),
-    "codex" => self.settings.agent_binaries.codex.clone(),
-    "droid" => self.settings.agent_binaries.droid.clone(),
-    "qwen" => self.settings.agent_binaries.qwen.clone(),
-    "amp" => self.settings.agent_binaries.amp.clone(),
-    "terminal" => None,
-        _ => None,
+        match agent_name {
+            "claude" => self.settings.agent_binaries.claude.clone(),
+            "opencode" => self.settings.agent_binaries.opencode.clone(),
+            "gemini" => self.settings.agent_binaries.gemini.clone(),
+            "codex" => self.settings.agent_binaries.codex.clone(),
+            "droid" => self.settings.agent_binaries.droid.clone(),
+            "qwen" => self.settings.agent_binaries.qwen.clone(),
+            "terminal" => None,
+            _ => None,
         }
     }
 
@@ -326,13 +319,12 @@ impl SettingsService {
         }
 
         match config.agent_name.as_str() {
-        "claude" => self.settings.agent_binaries.claude = Some(config),
-        "opencode" => self.settings.agent_binaries.opencode = Some(config),
-        "gemini" => self.settings.agent_binaries.gemini = Some(config),
-        "codex" => self.settings.agent_binaries.codex = Some(config),
-        "droid" => self.settings.agent_binaries.droid = Some(config),
-        "qwen" => self.settings.agent_binaries.qwen = Some(config),
-        "amp" => self.settings.agent_binaries.amp = Some(config),
+            "claude" => self.settings.agent_binaries.claude = Some(config),
+            "opencode" => self.settings.agent_binaries.opencode = Some(config),
+            "gemini" => self.settings.agent_binaries.gemini = Some(config),
+            "codex" => self.settings.agent_binaries.codex = Some(config),
+            "droid" => self.settings.agent_binaries.droid = Some(config),
+            "qwen" => self.settings.agent_binaries.qwen = Some(config),
             _ => return Err(SettingsServiceError::UnknownAgentType(config.agent_name)),
         }
         self.save()
@@ -380,18 +372,6 @@ impl SettingsService {
         }
 
         Ok(agent_name.to_string())
-    }
-
-    pub fn get_amp_mcp_servers(&self) -> HashMap<String, McpServerConfig> {
-        self.settings.amp_mcp_servers.clone()
-    }
-
-    pub fn set_amp_mcp_servers(
-        &mut self,
-        mcp_servers: HashMap<String, McpServerConfig>,
-    ) -> Result<(), SettingsServiceError> {
-        self.settings.amp_mcp_servers = mcp_servers;
-        self.save()
     }
 }
 
@@ -463,33 +443,17 @@ mod tests {
 
     #[test]
     fn set_agent_cli_args_supports_qwen() {
-    let repo = InMemoryRepository::default();
-    let repo_handle = repo.clone();
-    let mut service = SettingsService::new(Box::new(repo));
-
-    service
-    .set_agent_cli_args("qwen", "--project alpha".to_string())
-    .expect("should accept qwen CLI args");
-
-    assert_eq!(
-    repo_handle.snapshot().agent_cli_args.qwen,
-    "--project alpha"
-    );
-    }
-
-    #[test]
-    fn set_agent_cli_args_supports_amp() {
         let repo = InMemoryRepository::default();
         let repo_handle = repo.clone();
         let mut service = SettingsService::new(Box::new(repo));
 
         service
-            .set_agent_cli_args("amp", "--mode free".to_string())
-            .expect("should accept amp CLI args");
+            .set_agent_cli_args("qwen", "--project alpha".to_string())
+            .expect("should accept qwen CLI args");
 
         assert_eq!(
-            repo_handle.snapshot().agent_cli_args.amp,
-            "--mode free"
+            repo_handle.snapshot().agent_cli_args.qwen,
+            "--project alpha"
         );
     }
 

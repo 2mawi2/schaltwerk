@@ -25,9 +25,9 @@ vi.mock('../../hooks/useClaudeSession', () => ({
     startClaude: vi.fn(),
     getSkipPermissions: vi.fn(),
     setSkipPermissions: vi.fn(),
-    getOrchestratorAgentType: vi.fn().mockReturnValue('claude'),
+    getOrchestratorAgentType: vi.fn().mockResolvedValue('claude'),
     setOrchestratorAgentType: vi.fn(),
-    getOrchestratorSkipPermissions: vi.fn().mockReturnValue(false),
+    getOrchestratorSkipPermissions: vi.fn(),
     setOrchestratorSkipPermissions: vi.fn(),
   }),
 }))
@@ -255,10 +255,11 @@ describe('Sidebar navigation with arrow keys including orchestrator', () => {
   it('Cmd+P opens switch model modal for orchestrator', async () => {
     render(<TestProviders><Sidebar /></TestProviders>)
 
-    const switchButton = screen.getByLabelText('Switch orchestrator model')
-    fireEvent.click(switchButton)
+    pressKey('p', { metaKey: true })
 
-    await waitFor(() => screen.getByRole('heading', { name: 'Switch Orchestrator Agent' }))
+    await waitFor(() => {
+      expect(screen.getByText('Switch Orchestrator Agent')).toBeInTheDocument()
+    })
   })
 
   it('Cmd+P opens switch model modal for a session and confirms switch', async () => {
@@ -270,16 +271,18 @@ describe('Sidebar navigation with arrow keys including orchestrator', () => {
     pressKey('ArrowDown', { metaKey: true })
     await new Promise(resolve => setTimeout(resolve, 25))
 
-    const switchButtons = screen.getAllByLabelText('Switch model')
-    const switchButton = switchButtons[switchButtons.length - 1] // last one should be for the selected session
-    fireEvent.click(switchButton)
+    pressKey('p', { metaKey: true })
 
-    await waitFor(() => screen.getByRole('heading', { name: 'Switch Session Agent' }))
+    await waitFor(() => {
+      expect(screen.getByText('Switch Orchestrator Agent')).toBeInTheDocument()
+    })
 
     const switchBtn = await screen.findByRole('button', { name: /switch agent/i })
     fireEvent.click(switchBtn)
 
-    expect(mockSwitchModel).toHaveBeenCalled()
+    await waitFor(() => {
+      expect(mockSwitchModel).toHaveBeenCalled()
+    })
 
     const [agentType] = mockSwitchModel.mock.calls[0]
     expect(typeof agentType).toBe('string')

@@ -751,7 +751,6 @@ mod tests {
             spec_content: None,
             session_state: SessionState::Running,
             resume_allowed: true,
-            amp_thread_id: None,
         }
     }
 

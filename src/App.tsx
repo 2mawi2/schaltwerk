@@ -305,9 +305,6 @@ function AppContent() {
   const lastAutoUpdateVersionRef = useRef<string | null>(null)
   const { config: keyboardShortcutConfig } = useKeyboardShortcutsConfig()
   const platform = useMemo(() => detectPlatformSafe(), [])
-  const isMac = platform === 'mac'
-  const startShortcut = shortcuts[KeyboardShortcutAction.NewSession] || (isMac ? '⌘N' : 'Ctrl + N')
-  const specShortcut = shortcuts[KeyboardShortcutAction.NewSpec] || (isMac ? '⇧⌘N' : 'Ctrl + Shift + N')
   const preserveSelection = useSelectionPreserver()
 
   const rightPanelStorageKey = selection
@@ -1315,68 +1312,52 @@ function AppContent() {
                       />
                       </SessionErrorBoundary>
                     </div>
-                    <div
-                      className="p-2 border-t flex flex-col gap-3"
-                      style={{ borderTopColor: theme.colors.border.default }}
-                    >
-                      <button
-                        onClick={() => {
-                          previousFocusRef.current = document.activeElement
-                          setNewSessionOpen(true)
-                        }}
-                        className="w-full text-sm px-3 py-2 rounded group transition-colors flex items-center justify-between border"
-                        style={{
-                          backgroundColor: `${theme.colors.background.elevated}99`,
-                          color: theme.colors.text.primary,
-                          borderColor: theme.colors.border.subtle
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = `${theme.colors.background.hover}99`}
-                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = `${theme.colors.background.elevated}99`}
-                        title={`Start agent (${shortcuts[KeyboardShortcutAction.NewSession] || '⌘N'})`}
-                      >
-                        <span>Start Agent</span>
-                        <span
-                          className="text-xs px-2 py-0.5 rounded"
-                          style={{
-                            backgroundColor: theme.colors.background.secondary,
-                            color: theme.colors.text.secondary
-                          }}
-                        >
-                          {startShortcut}
-                        </span>
-                      </button>
-                      <button
-                        onClick={() => {
-                          previousFocusRef.current = document.activeElement
-                          setOpenAsSpec(true)
-                          setNewSessionOpen(true)
-                        }}
-                        className="w-full text-sm px-3 py-2 rounded group border transition-colors flex items-center justify-between"
-                        style={{
-                          backgroundColor: theme.colors.accent.amber.bg,
-                          borderColor: theme.colors.accent.amber.border,
-                          color: theme.colors.text.primary
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = `${theme.colors.accent.amber.DEFAULT}33`
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = theme.colors.accent.amber.bg
-                        }}
-                        title={`Create spec (${shortcuts[KeyboardShortcutAction.NewSpec] || '⇧⌘N'})`}
-                      >
-                        <span>Create Spec</span>
-                        <span
-                          className="text-xs px-2 py-0.5 rounded"
-                          style={{
-                            backgroundColor: 'rgba(245, 158, 11, 0.15)',
-                            color: theme.colors.accent.amber.light
-                          }}
-                        >
-                          {specShortcut}
-                        </span>
-                      </button>
-                    </div>
+                    <div className="p-2 border-t grid grid-cols-2 gap-2" style={{ borderTopColor: theme.colors.border.default }}>
+                  <button
+                    onClick={() => {
+                      previousFocusRef.current = document.activeElement
+                      setNewSessionOpen(true)
+                    }}
+                    className="w-full text-sm px-3 py-1.5 rounded group flex items-center justify-between transition-colors"
+                    style={{
+                      backgroundColor: `${theme.colors.background.elevated}99`,
+                      color: theme.colors.text.primary
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = `${theme.colors.background.hover}99`}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = `${theme.colors.background.elevated}99`}
+                    title={`Start agent (${shortcuts[KeyboardShortcutAction.NewSession] || '⌘N'})`}
+                  >
+                    <span>Start Agent</span>
+                    <span className="text-xs opacity-60 group-hover:opacity-100 transition-opacity">
+                      {shortcuts[KeyboardShortcutAction.NewSession] || '⌘N'}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      previousFocusRef.current = document.activeElement
+                      setOpenAsSpec(true)
+                      setNewSessionOpen(true)
+                    }}
+                    className="w-full text-sm px-3 py-1.5 rounded group flex items-center justify-between border transition-colors"
+                    style={{
+                      backgroundColor: theme.colors.accent.amber.bg,
+                      borderColor: theme.colors.accent.amber.border,
+                      color: theme.colors.text.primary
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = `${theme.colors.accent.amber.DEFAULT}33`
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = theme.colors.accent.amber.bg
+                    }}
+                    title={`Create spec (${shortcuts[KeyboardShortcutAction.NewSpec] || '⇧⌘N'})`}
+                  >
+                    <span>Create Spec</span>
+                    <span className="text-xs opacity-60 group-hover:opacity-100 transition-opacity">
+                      {shortcuts[KeyboardShortcutAction.NewSpec] || '⇧⌘N'}
+                    </span>
+                  </button>
+                </div>
               </div>
                 </div>
 

@@ -174,33 +174,6 @@ fn test_parse_agent_command_cwd_with_spaces() {
     assert_eq!(args, vec!["--version"]);
 }
 
-    #[test]
-fn test_parse_agent_command_amp_with_dangerously_allow_all() {
-    let cmd = r#"cd /tmp/work && amp --dangerously-allow-all <<< 'implement feature'"#;
-    let (cwd, agent, args) = parse_agent_command(cmd).unwrap();
-    assert_eq!(cwd, "/tmp/work");
-    assert_eq!(agent, "amp");
-    assert_eq!(args, vec!["--dangerously-allow-all", "<<<", "implement feature"]);
-}
-
-#[test]
-fn test_parse_agent_command_amp_with_pipeline_prompt() {
-    let cmd = r#"cd /tmp/work && echo "implement feature X" | amp --dangerously-allow-all"#;
-    let (cwd, agent, args) = parse_agent_command(cmd).unwrap();
-    assert_eq!(cwd, "/tmp/work");
-    assert_eq!(agent, "amp");
-    assert_eq!(args, vec!["--dangerously-allow-all"]);
-}
-
-#[test]
-fn test_parse_agent_command_amp_with_full_path_pipeline() {
-    let cmd = r#"cd /tmp/work && echo "test prompt" | /usr/local/bin/amp"#;
-    let (cwd, agent, args) = parse_agent_command(cmd).unwrap();
-    assert_eq!(cwd, "/tmp/work");
-    assert_eq!(agent, "/usr/local/bin/amp");
-    assert_eq!(args, Vec::<String>::new());
-}
-
 #[test]
 fn test_normalize_cwd_strips_double_quotes() {
     let result = normalize_cwd("\"/path with spaces\"");

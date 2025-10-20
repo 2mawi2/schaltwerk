@@ -442,7 +442,6 @@ mod tests {
             spec_content: content.map(|c| c.to_string()),
             session_state: SessionState::Spec,
             resume_allowed: false,
-            amp_thread_id: None,
         }
     }
 

@@ -1,5 +1,4 @@
 use super::adapter::{AgentAdapter, AgentLaunchContext, DefaultAdapter};
-use super::amp;
 use super::droid;
 use super::format_binary_invocation;
 use super::launch_spec::AgentLaunchSpec;
@@ -203,32 +202,6 @@ impl AgentAdapter for QwenAdapter {
     }
 }
 
-pub struct AmpAdapter;
-
-impl AgentAdapter for AmpAdapter {
-    fn find_session(&self, path: &Path) -> Option<String> {
-        amp::find_amp_session(path)
-    }
-
-    fn build_launch_spec(&self, ctx: AgentLaunchContext) -> AgentLaunchSpec {
-        let config = amp::AmpConfig {
-            binary_path: Some(
-                ctx.binary_override
-                    .unwrap_or(&ctx.manifest.default_binary_path)
-                    .to_string(),
-            ),
-        };
-        let command = amp::build_amp_command_with_config(
-            ctx.worktree_path,
-            ctx.session_id,
-            ctx.initial_prompt,
-            ctx.skip_permissions,
-            Some(&config),
-        );
-        AgentLaunchSpec::new(command, ctx.worktree_path.to_path_buf())
-    }
-}
-
 pub struct TerminalAdapter;
 
 impl AgentAdapter for TerminalAdapter {
@@ -251,7 +224,6 @@ impl AgentRegistry {
         adapters.insert("opencode".to_string(), Box::new(OpenCodeAdapter));
         adapters.insert("droid".to_string(), Box::new(DroidAdapter));
         adapters.insert("qwen".to_string(), Box::new(QwenAdapter));
-        adapters.insert("amp".to_string(), Box::new(AmpAdapter));
         adapters.insert("terminal".to_string(), Box::new(TerminalAdapter));
 
         for agent_id in AgentManifest::supported_agents() {
@@ -310,29 +282,27 @@ mod tests {
 
     #[test]
     fn test_registry_has_all_agents() {
-    let registry = AgentRegistry::new();
-    assert!(registry.get("claude").is_some());
-    assert!(registry.get("codex").is_some());
-    assert!(registry.get("gemini").is_some());
-    assert!(registry.get("opencode").is_some());
-    assert!(registry.get("droid").is_some());
-    assert!(registry.get("qwen").is_some());
-    assert!(registry.get("amp").is_some());
+        let registry = AgentRegistry::new();
+        assert!(registry.get("claude").is_some());
+        assert!(registry.get("codex").is_some());
+        assert!(registry.get("gemini").is_some());
+        assert!(registry.get("opencode").is_some());
+        assert!(registry.get("droid").is_some());
+        assert!(registry.get("qwen").is_some());
         assert!(registry.get("terminal").is_some());
     }
 
     #[test]
     fn test_registry_supported_agents() {
-    let registry = AgentRegistry::new();
-    let supported = registry.supported_agents();
-    assert!(supported.len() >= 8);
-    assert!(supported.contains(&"claude".to_string()));
-    assert!(supported.contains(&"codex".to_string()));
-    assert!(supported.contains(&"droid".to_string()));
-    assert!(supported.contains(&"gemini".to_string()));
-    assert!(supported.contains(&"opencode".to_string()));
-    assert!(supported.contains(&"qwen".to_string()));
-    assert!(supported.contains(&"amp".to_string()));
+        let registry = AgentRegistry::new();
+        let supported = registry.supported_agents();
+        assert!(supported.len() >= 7);
+        assert!(supported.contains(&"claude".to_string()));
+        assert!(supported.contains(&"codex".to_string()));
+        assert!(supported.contains(&"droid".to_string()));
+        assert!(supported.contains(&"gemini".to_string()));
+        assert!(supported.contains(&"opencode".to_string()));
+        assert!(supported.contains(&"qwen".to_string()));
         assert!(supported.contains(&"terminal".to_string()));
     }
 
@@ -583,50 +553,26 @@ mod tests {
     }
 
     mod qwen_tests {
-    use super::*;
-
-    #[test]
-    fn test_qwen_adapter_basic() {
-    let adapter = QwenAdapter;
-    let manifest = AgentManifest::get("qwen").unwrap();
-
-    let ctx = AgentLaunchContext {
-    worktree_path: Path::new("/test/path"),
-    session_id: None,
-    initial_prompt: Some("test prompt"),
-    skip_permissions: true,
-    binary_override: Some("qwen"),
-    manifest,
-    };
-
-    let spec = adapter.build_launch_spec(ctx);
-    assert!(spec.shell_command.contains("qwen"));
-    assert!(spec.shell_command.contains("--yolo"));
-    assert!(spec.shell_command.contains("--prompt-interactive"));
-    assert!(spec.shell_command.contains("test prompt"));
-    }
-    }
-
-    mod amp_tests {
         use super::*;
 
         #[test]
-        fn test_amp_adapter_basic() {
-            let adapter = AmpAdapter;
-            let manifest = AgentManifest::get("amp").unwrap();
+        fn test_qwen_adapter_basic() {
+            let adapter = QwenAdapter;
+            let manifest = AgentManifest::get("qwen").unwrap();
 
             let ctx = AgentLaunchContext {
                 worktree_path: Path::new("/test/path"),
                 session_id: None,
                 initial_prompt: Some("test prompt"),
                 skip_permissions: true,
-                binary_override: Some("amp"),
+                binary_override: Some("qwen"),
                 manifest,
             };
 
             let spec = adapter.build_launch_spec(ctx);
-            assert!(spec.shell_command.contains("amp"));
-            assert!(spec.shell_command.contains("--dangerously-allow-all"));
+            assert!(spec.shell_command.contains("qwen"));
+            assert!(spec.shell_command.contains("--yolo"));
+            assert!(spec.shell_command.contains("--prompt-interactive"));
             assert!(spec.shell_command.contains("test prompt"));
         }
     }

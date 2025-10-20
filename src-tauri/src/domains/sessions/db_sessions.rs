@@ -44,7 +44,6 @@ pub trait SessionMethods {
     ) -> Result<()>;
     fn clear_session_run_state(&self, session_id: &str) -> Result<()>;
     fn set_session_resume_allowed(&self, id: &str, allowed: bool) -> Result<()>;
-    fn set_session_amp_thread_id(&self, id: &str, thread_id: &str) -> Result<()>;
     fn rename_draft_session(&self, repo_path: &Path, old_name: &str, new_name: &str) -> Result<()>;
     fn set_session_version_info(
         &self,
@@ -79,7 +78,6 @@ struct SessionSummaryRow {
     was_auto_generated: bool,
     session_state: SessionState,
     resume_allowed: bool,
-    amp_thread_id: Option<String>,
 }
 
 impl Database {
@@ -134,7 +132,6 @@ impl Database {
                     spec_content,
                     session_state: summary.session_state,
                     resume_allowed: summary.resume_allowed,
-                    amp_thread_id: summary.amp_thread_id,
                 }
             })
             .collect())
@@ -184,8 +181,8 @@ impl SessionMethods for Database {
                 branch, parent_branch, worktree_path,
                 status, created_at, updated_at, last_activity, initial_prompt, ready_to_merge,
                 original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
-                spec_content, session_state, resume_allowed, amp_thread_id
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24)",
+                spec_content, session_state, resume_allowed
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23)",
             params![
                 session.id,
                 session.name,
@@ -210,7 +207,6 @@ impl SessionMethods for Database {
                 session.spec_content,
                 session.session_state.as_str(),
                 session.resume_allowed,
-                session.amp_thread_id,
             ],
         )?;
 
@@ -225,7 +221,7 @@ impl SessionMethods for Database {
                     branch, parent_branch, worktree_path,
                     status, created_at, updated_at, last_activity, initial_prompt, ready_to_merge,
                     original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
-                    spec_content, session_state, resume_allowed, amp_thread_id
+                    spec_content, session_state, resume_allowed
              FROM sessions
              WHERE repository_path = ?1 AND name = ?2"
         )?;
@@ -264,7 +260,6 @@ impl SessionMethods for Database {
                     .and_then(|s| s.parse().ok())
                     .unwrap_or(SessionState::Running),
                 resume_allowed: row.get(22).unwrap_or(true),
-                amp_thread_id: row.get(23).ok(),
             })
         })?;
 
@@ -279,7 +274,7 @@ impl SessionMethods for Database {
                     branch, parent_branch, worktree_path,
                     status, created_at, updated_at, last_activity, initial_prompt, ready_to_merge,
                     original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
-                    spec_content, session_state, resume_allowed, amp_thread_id
+                    spec_content, session_state, resume_allowed
              FROM sessions
              WHERE id = ?1"
         )?;
@@ -318,7 +313,6 @@ impl SessionMethods for Database {
                     .and_then(|s| s.parse().ok())
                     .unwrap_or(SessionState::Running),
                 resume_allowed: row.get(22).unwrap_or(true),
-                amp_thread_id: row.get(23).ok(),
             })
         })?;
 
@@ -359,7 +353,7 @@ impl SessionMethods for Database {
                         branch, parent_branch, worktree_path,
                         status, created_at, updated_at, last_activity, ready_to_merge,
                         original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
-                        session_state, resume_allowed, amp_thread_id
+                        session_state, resume_allowed
                  FROM sessions
                  WHERE repository_path = ?1
                  ORDER BY ready_to_merge ASC, last_activity DESC",
@@ -397,7 +391,6 @@ impl SessionMethods for Database {
                         .and_then(|s| s.parse().ok())
                         .unwrap_or(SessionState::Running),
                     resume_allowed: row.get(20).unwrap_or(true),
-                    amp_thread_id: row.get(21).ok(),
                 })
             })?;
             rows.collect::<SqlResult<Vec<_>>>()?
@@ -427,7 +420,7 @@ impl SessionMethods for Database {
                         branch, parent_branch, worktree_path,
                         status, created_at, updated_at, last_activity, ready_to_merge,
                         original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
-                        session_state, resume_allowed, amp_thread_id
+                        session_state, resume_allowed
                  FROM sessions
                  WHERE status = 'active'
                  ORDER BY ready_to_merge ASC, last_activity DESC",
@@ -465,7 +458,6 @@ impl SessionMethods for Database {
                         .and_then(|s| s.parse().ok())
                         .unwrap_or(SessionState::Running),
                     resume_allowed: row.get(20).unwrap_or(true),
-                    amp_thread_id: row.get(21).ok(),
                 })
             })?;
             rows.collect::<SqlResult<Vec<_>>>()?
@@ -574,7 +566,7 @@ impl SessionMethods for Database {
                         branch, parent_branch, worktree_path,
                         status, created_at, updated_at, last_activity, ready_to_merge,
                         original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
-                        session_state, resume_allowed, amp_thread_id
+                        session_state, resume_allowed
                  FROM sessions
                  WHERE repository_path = ?1 AND session_state = ?2
                  ORDER BY ready_to_merge ASC, last_activity DESC",
@@ -614,7 +606,6 @@ impl SessionMethods for Database {
                             .and_then(|s| s.parse().ok())
                             .unwrap_or(SessionState::Running),
                         resume_allowed: row.get(20).unwrap_or(true),
-                        amp_thread_id: row.get(21).ok(),
                     })
                 },
             )?;
@@ -740,15 +731,6 @@ impl SessionMethods for Database {
         conn.execute(
             "UPDATE sessions SET resume_allowed = ?1, updated_at = ?2 WHERE id = ?3",
             params![allowed, Utc::now().timestamp(), id],
-        )?;
-        Ok(())
-    }
-
-    fn set_session_amp_thread_id(&self, id: &str, thread_id: &str) -> Result<()> {
-        let conn = self.get_conn()?;
-        conn.execute(
-            "UPDATE sessions SET amp_thread_id = ?1, updated_at = ?2 WHERE id = ?3",
-            params![thread_id, Utc::now().timestamp(), id],
         )?;
         Ok(())
     }
