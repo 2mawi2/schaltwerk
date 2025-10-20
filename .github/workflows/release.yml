@@ -114,7 +114,7 @@ jobs:
       - name: Install dependencies
         run: |
           node scripts/package-manager.mjs cache-clean || true
-          rm -rf node_modules package-lock.json
+          rm -rf node_modules
           node scripts/package-manager.mjs install
           node scripts/package-manager.mjs install --frozen-lockfile
 
