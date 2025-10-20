@@ -20,7 +20,7 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     env:
-      SCHALTWERK_PM: npm
+      SCHALTWERK_PM: bun
     # For GitHub Actions, use their runner image
     # For act local testing, use our custom image via actrc config
     
@@ -46,7 +46,6 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: '20'
-          cache: 'npm'
 
       - name: Setup Bun
         if: ${{ !env.ACT }}

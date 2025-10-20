@@ -21,7 +21,7 @@ jobs:
     # Only run for tag pushes, not manual workflow dispatch
     if: startsWith(github.ref, 'refs/tags/')
     env:
-      SCHALTWERK_PM: npm
+      SCHALTWERK_PM: bun
     
     steps:
       - name: Checkout code
@@ -77,7 +77,7 @@ jobs:
     needs: [test]
     if: always() && (needs.test.result == 'success' || needs.test.result == 'skipped')
     env:
-      SCHALTWERK_PM: npm
+      SCHALTWERK_PM: bun
     
     steps:
       - name: Checkout code
