@@ -31,6 +31,7 @@ import { stableSessionTerminalId } from '../../common/terminalIdentity'
 import { ReviewCommentThread, ReviewComment } from '../../types/review'
 import { theme } from '../../common/theme'
 import { ResizableModal } from '../shared/ResizableModal'
+import { computeRenderOrder } from './virtualization'
 
 // ChangedFile type now imported from DiffFileExplorer
 
@@ -56,6 +57,9 @@ interface DiffViewPreferences {
   compact_diffs: boolean
   sidebar_width?: number
 }
+
+const RECENTLY_RENDERED_LIMIT = 8
+const LOCKED_RENDER_LIMIT = RECENTLY_RENDERED_LIMIT * 2
 
 // FileDiffData type moved to loadDiffs
 
@@ -121,6 +125,8 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
   const pendingVisibilityUpdatesRef = useRef<Map<string, boolean>>(new Map())
   const visibilityFrameRef = useRef<number | NodeJS.Timeout | null>(null)
   const recentlyVisibleRef = useRef<string[]>([])
+  const [isVirtualizationLocked, setIsVirtualizationLocked] = useState(false)
+  const virtualizationUnlockTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const historyPrefetchQueueRef = useRef<string[]>([])
   const historyPrefetchActiveRef = useRef<Set<string>>(new Set())
   const activeSelectionFileRef = useRef<string | null>(null)
@@ -716,6 +722,49 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
     }, 250)
   }, [mode, historyContext, setHistoryPrefetchVersion, isLargeDiffMode, files, sessionName, allFileDiffs])
 
+  useEffect(() => {
+    if (!isOpen || isLargeDiffMode) {
+      setIsVirtualizationLocked(false)
+      if (virtualizationUnlockTimeoutRef.current) {
+        clearTimeout(virtualizationUnlockTimeoutRef.current)
+        virtualizationUnlockTimeoutRef.current = null
+      }
+      return
+    }
+
+    const container = scrollContainerRef.current
+    if (!container) {
+      return
+    }
+
+    const releaseLock = () => {
+      virtualizationUnlockTimeoutRef.current = null
+      setIsVirtualizationLocked(false)
+    }
+
+    const scheduleUnlock = () => {
+      if (virtualizationUnlockTimeoutRef.current) {
+        clearTimeout(virtualizationUnlockTimeoutRef.current)
+      }
+      virtualizationUnlockTimeoutRef.current = setTimeout(releaseLock, 180)
+    }
+
+    const handleScroll = () => {
+      setIsVirtualizationLocked(prev => (prev ? prev : true))
+      scheduleUnlock()
+    }
+
+    container.addEventListener('scroll', handleScroll, { passive: true })
+
+    return () => {
+      container.removeEventListener('scroll', handleScroll)
+      if (virtualizationUnlockTimeoutRef.current) {
+        clearTimeout(virtualizationUnlockTimeoutRef.current)
+        virtualizationUnlockTimeoutRef.current = null
+      }
+    }
+  }, [isOpen, isLargeDiffMode])
+
   // Set up Intersection Observer for virtual scrolling in continuous mode
   useEffect(() => {
     const pendingUpdates = pendingVisibilityUpdatesRef.current
@@ -811,17 +860,29 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
   }, [isOpen, isLargeDiffMode, files])
 
   useEffect(() => {
-    if (visibleFileSet.size === 0) {
+    if (isLargeDiffMode || !isOpen) {
       return
     }
 
-    const maxRecent = 4
-    const visibleList = Array.from(visibleFileSet)
-    const historical = recentlyVisibleRef.current.filter(path => !visibleFileSet.has(path))
-    const combined = [...visibleList, ...historical].slice(0, maxRecent)
-    recentlyVisibleRef.current = combined
-    setRenderedFileSet(new Set(combined))
-  }, [visibleFileSet])
+    const previousList = recentlyVisibleRef.current
+    const previousSet = new Set(previousList)
+    const visibleArray = Array.from(visibleFileSet)
+    const newEntries = visibleArray.filter(path => !previousSet.has(path))
+    const existingEntries = visibleArray.filter(path => previousSet.has(path))
+    const prioritizedVisible = [...newEntries, ...existingEntries]
+    const baseLimit = isVirtualizationLocked ? LOCKED_RENDER_LIMIT : RECENTLY_RENDERED_LIMIT
+    const effectiveLimit = Math.max(visibleArray.length, baseLimit)
+    const nextList = computeRenderOrder(previousList, prioritizedVisible, effectiveLimit)
+
+    recentlyVisibleRef.current = nextList
+
+    if (isVirtualizationLocked) {
+      return
+    }
+
+    const nextSet = new Set(nextList)
+    setRenderedFileSet(prev => setsEqual(prev, nextSet) ? prev : nextSet)
+  }, [visibleFileSet, isVirtualizationLocked, isLargeDiffMode, isOpen])
 
   // Load diffs for visible files with buffer zones
   useEffect(() => {
@@ -2045,6 +2106,21 @@ function CommentForm({ onSubmit, onCancel, keyboardShortcutConfig, platform }: {
       </div>
     </>
   )
+}
+
+function setsEqual(a: Set<string>, b: Set<string>): boolean {
+  if (a === b) {
+    return true
+  }
+  if (a.size !== b.size) {
+    return false
+  }
+  for (const value of a) {
+    if (!b.has(value)) {
+      return false
+    }
+  }
+  return true
 }
 
 export function computeHistorySeedWindow(files: ChangedFile[], centerIndex: number, radius = 2): Set<string> {
