@@ -44,17 +44,8 @@ const lastEffectiveRefInit = { cols: 80, rows: 24 }
 
 const RESIZE_PIXEL_EPSILON = 0.75
 
-const ATLAS_CONTRAST_BASE = 1;
-const ATLAS_CONTRAST_BUCKETS = 30;
-
-function computeAtlasContrastOffset(terminalId: string): number {
-    let hash = 0;
-    for (let i = 0; i < terminalId.length; i++) {
-        hash = (hash * 31 + terminalId.charCodeAt(i)) >>> 0;
-    }
-    const bucket = (hash % ATLAS_CONTRAST_BUCKETS) + 1; // 1..30
-    return bucket / 100;
-}
+// Xterm/WebGL rounds minimumContrastRatio to one decimal place; use a single shared value
+const ATLAS_CONTRAST_BASE = 1.1;
 
 // Global guard to avoid starting Claude multiple times for the same terminal id across remounts
 const startedGlobal = new Set<string>();
@@ -161,6 +152,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const rendererReadyRef = useRef<boolean>(false); // Canvas renderer readiness flag
     const [resolvedFontFamily, setResolvedFontFamily] = useState<string | null>(null);
     const [customFontFamily, setCustomFontFamily] = useState<string | null>(null);
+    const [fontsFullyLoaded, setFontsFullyLoaded] = useState(false);
+    const fontsLoadedRef = useRef(false);
     // Agent conversation terminal detection reused across sizing logic and scrollback config
     const isAgentTopTerminal = useMemo(() => (
         terminalId.endsWith('-top') && (terminalId.startsWith('session-') || terminalId.startsWith('orchestrator-'))
@@ -812,7 +805,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             scrollbackLines = AGENT_SCROLLBACK_LINES; // Deep history for agent conversation terminals
         }
 
-        const atlasContrast = ATLAS_CONTRAST_BASE + computeAtlasContrastOffset(terminalId);
+        const atlasContrast = ATLAS_CONTRAST_BASE;
 
         const { record, isNew } = acquireTerminalInstance(terminalId, () => new XtermTerminal({
             terminalId,
@@ -1104,10 +1097,14 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 xtermWrapperRef.current?.updateOptions({ fontSize: newTerminalFontSize });
             }
 
-            applyLetterSpacing(gpuEnabledForTerminal);
-            refreshGpuFontRendering();
-            if (gpuEnabledForTerminal) {
-                void handleFontPreferenceChange();
+            if (fontsLoadedRef.current) {
+                applyLetterSpacing(gpuEnabledForTerminal);
+                refreshGpuFontRendering();
+                if (gpuEnabledForTerminal) {
+                    void handleFontPreferenceChange();
+                }
+            } else {
+                applyLetterSpacing(false);
             }
 
             if (fontSizeRafPending) return;
@@ -1464,7 +1461,13 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
      }, [agentType, hydrated, terminalId, isCommander, sessionName, isAnyModalOpen, agentStopped]);
 
     useEffect(() => {
-        if (!terminal.current || !resolvedFontFamily) return
+        if (!terminal.current || !resolvedFontFamily) {
+            return
+        }
+
+        if (!fontsFullyLoaded) {
+            return;
+        }
         try {
             if (terminal.current.options.fontFamily !== resolvedFontFamily) {
                 xtermWrapperRef.current?.updateOptions({ fontFamily: resolvedFontFamily })
@@ -1477,20 +1480,31 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         } catch (e) {
             logger.warn(`[Terminal ${terminalId}] Failed to apply font family`, e)
         }
-    }, [resolvedFontFamily, terminalId, requestResize, refreshGpuFontRendering])
+    }, [resolvedFontFamily, terminalId, requestResize, refreshGpuFontRendering, fontsFullyLoaded])
 
     useEffect(() => {
         if (!resolvedFontFamily) {
-            return
+            fontsLoadedRef.current = false;
+            setFontsFullyLoaded(false);
+            applyLetterSpacing(false);
+            return;
         }
 
+        fontsLoadedRef.current = false;
+        setFontsFullyLoaded(false);
+        applyLetterSpacing(false);
+
         const finalizeFontUpdate = () => {
-            applyLetterSpacing(gpuEnabledForTerminal)
-            refreshGpuFontRendering()
-            if (gpuEnabledForTerminal) {
-                void handleFontPreferenceChange()
+            fontsLoadedRef.current = true;
+            setFontsFullyLoaded(true);
+            applyLetterSpacing(gpuEnabledForTerminal);
+            if (fontsLoadedRef.current) {
+                refreshGpuFontRendering();
+                if (gpuEnabledForTerminal) {
+                    void handleFontPreferenceChange();
+                }
             }
-        }
+        };
 
         if (typeof document === 'undefined' || typeof (document as { fonts?: FontFaceSet }).fonts === 'undefined') {
             finalizeFontUpdate()

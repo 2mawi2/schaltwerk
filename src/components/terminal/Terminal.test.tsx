@@ -2,17 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, waitFor, cleanup } from '@testing-library/react'
 import { Terminal } from './Terminal'
 
-const ATLAS_CONTRAST_BASE = 1
-const ATLAS_CONTRAST_BUCKETS = 30
-
-function computeAtlasContrastOffset(terminalId: string): number {
-  let hash = 0
-  for (let i = 0; i < terminalId.length; i += 1) {
-    hash = (hash * 31 + terminalId.charCodeAt(i)) >>> 0
-  }
-  const bucket = (hash % ATLAS_CONTRAST_BUCKETS) + 1
-  return bucket / 100
-}
+const ATLAS_CONTRAST_BASE = 1.1
 
 const raf = vi.hoisted(() => vi.fn((cb: FrameRequestCallback) => {
   cb(performance.now())
@@ -74,7 +64,7 @@ const terminalHarness = vi.hoisted(() => {
   const createMockRaw = () => {
     const disposable = () => ({ dispose: vi.fn() })
     return {
-      options: { fontFamily: 'Menlo, Monaco, ui-monospace, SFMono-Regular, monospace' },
+      options: { fontFamily: 'Menlo, Monaco, ui-monospace, SFMono-Regular, monospace', minimumContrastRatio: ATLAS_CONTRAST_BASE },
       cols: 80,
       rows: 24,
       buffer: {
@@ -127,7 +117,7 @@ const terminalHarness = vi.hoisted(() => {
       this.raw = createMockRaw()
       this.fitAddon = { fit: vi.fn() }
       this.searchAddon = { findNext: vi.fn(), findPrevious: vi.fn() }
-      this.config = { scrollback: 0, fontSize: 0, fontFamily: '', minimumContrastRatio: 0, ...(options?.config ?? {}) } as HarnessConfig
+      this.config = { scrollback: 0, fontSize: 0, fontFamily: '', minimumContrastRatio: ATLAS_CONTRAST_BASE, ...(options?.config ?? {}) } as HarnessConfig
       instances.push(this)
     }
   }
@@ -303,12 +293,11 @@ describe('Terminal', () => {
     })
 
     const instance = terminalHarness.instances[0] as HarnessInstance
-    const expectedContrast = ATLAS_CONTRAST_BASE + computeAtlasContrastOffset('session-123-bottom')
     expect(instance.applyConfig).not.toHaveBeenCalled()
     expect(instance.config.scrollback).toBe(10000)
     expect(instance.config.fontSize).toBe(13)
     expect(instance.config.fontFamily).toBe('Menlo, Monaco, ui-monospace, SFMono-Regular, monospace')
-    expect(instance.config.minimumContrastRatio).toBeCloseTo(expectedContrast)
+    expect(instance.config.minimumContrastRatio).toBeCloseTo(ATLAS_CONTRAST_BASE)
   })
 
   it('uses reduced scrollback for background terminals', async () => {
@@ -320,11 +309,10 @@ describe('Terminal', () => {
     })
 
     const instance = terminalHarness.instances[0] as HarnessInstance
-    const expectedContrast = ATLAS_CONTRAST_BASE + computeAtlasContrastOffset('background-1')
     expect(instance.applyConfig).not.toHaveBeenCalled()
     expect(instance.config.scrollback).toBe(5000)
     expect(instance.config.fontFamily).toBe('Menlo, Monaco, ui-monospace, SFMono-Regular, monospace')
-    expect(instance.config.minimumContrastRatio).toBeCloseTo(expectedContrast)
+    expect(instance.config.minimumContrastRatio).toBeCloseTo(ATLAS_CONTRAST_BASE)
   })
 
   it('applies deep scrollback for agent top terminals', async () => {
@@ -336,11 +324,10 @@ describe('Terminal', () => {
     })
 
     const instance = terminalHarness.instances[0] as HarnessInstance
-    const expectedContrast = ATLAS_CONTRAST_BASE + computeAtlasContrastOffset('session-example-top')
     expect(instance.applyConfig).not.toHaveBeenCalled()
     expect(instance.config.scrollback).toBe(20000)
     expect(instance.config.fontFamily).toBe('Menlo, Monaco, ui-monospace, SFMono-Regular, monospace')
-    expect(instance.config.minimumContrastRatio).toBeCloseTo(expectedContrast)
+    expect(instance.config.minimumContrastRatio).toBeCloseTo(ATLAS_CONTRAST_BASE)
   })
 
   it('reapplies configuration when reusing an existing terminal instance', async () => {

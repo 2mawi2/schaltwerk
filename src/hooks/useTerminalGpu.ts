@@ -51,6 +51,7 @@ export function useTerminalGpu({
     queued: false,
     redrawId: null,
   });
+  const lastRendererTypeRef = useRef<'none' | 'canvas' | 'webgl'>('none');
   const [webglEnabled, setWebglEnabled] = useState<boolean>(true);
   const letterSpacingIssueLogged = useRef<'missing' | 'failure' | null>(null);
 
@@ -93,11 +94,6 @@ export function useTerminalGpu({
       }
 
       const rendererState = activeRenderer.getState();
-      try {
-        activeRenderer.clearTextureAtlas();
-      } catch (error) {
-        logger.debug(`[Terminal ${terminalId}] Failed to clear WebGL texture atlas:`, error);
-      }
 
       if (rendererState.type !== 'webgl') {
         // WebGL not ready yet; keep the refresh queued so ensureRenderer can retry once the addon loads.
@@ -164,7 +160,7 @@ export function useTerminalGpu({
         }
       }
     },
-    [refreshGpuFontRendering, terminalId, terminalRef],
+    [refreshGpuFontRendering, terminalId, terminalRef, gpuRenderer],
   );
 
   const handleContextLost = useCallback(() => {
@@ -211,8 +207,16 @@ export function useTerminalGpu({
     });
 
     const state = await renderer.ensureLoaded();
+    const previousRendererType = lastRendererTypeRef.current;
+    lastRendererTypeRef.current = state.type;
     if (state.type === 'webgl') {
-      refreshGpuFontRendering();
+      if (!gpuRefreshState.current.refreshing && !gpuRefreshState.current.queued) {
+        // Keep xterm.js' WebGL atlas intact on renderer reuse; only refresh when transitioning
+        // from a non-WebGL renderer (mirrors VS Code's behaviour and prevents atlas corruption).
+        if (previousRendererType !== 'webgl') {
+          refreshGpuFontRendering();
+        }
+      }
       applyLetterSpacing(true);
     } else {
       if (preference !== 'off') {

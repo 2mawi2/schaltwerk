@@ -225,4 +225,35 @@ describe('useTerminalGpu', () => {
     expect(disposeGpuRendererMock).not.toHaveBeenCalled()
     expect(rendererStore.size).toBe(0)
   })
+
+  it('does not clear the WebGL texture atlas when reusing the renderer', async () => {
+    shouldAttemptWebglMock.mockReturnValue(true)
+    setRendererStateType('webgl')
+
+    const { result } = renderHook(() =>
+      useTerminalGpu({
+        terminalId: 'reuse-terminal',
+        terminalRef,
+        fitAddonRef,
+        isBackground: false,
+        applySizeUpdate: vi.fn(() => true),
+      })
+    )
+
+    await act(async () => {
+      await result.current.ensureRenderer()
+    })
+
+    const renderer = getLastRenderer()
+    expect(renderer).not.toBeNull()
+    if (!renderer) throw new Error('renderer not created')
+
+    renderer.clearTextureAtlas.mockClear()
+
+    await act(async () => {
+      await result.current.ensureRenderer()
+    })
+
+    expect(renderer.clearTextureAtlas).not.toHaveBeenCalled()
+  })
 })
