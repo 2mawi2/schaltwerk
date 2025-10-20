@@ -128,7 +128,6 @@ mod service_unified_tests {
             spec_content: None,
             session_state: SessionState::Running,
             resume_allowed: true,
-            amp_thread_id: None,
         }
     }
 
@@ -221,7 +220,7 @@ mod service_unified_tests {
 
         // First start should be FRESH (no --continue / no -r)
         let cmd1 = manager
-            .start_claude_in_session_with_restart_and_binary(spec_name, false, &HashMap::new(), None)
+            .start_claude_in_session_with_restart_and_binary(spec_name, false, &HashMap::new())
             .unwrap();
         let shell1 = &cmd1.shell_command;
         assert!(shell1.contains(" claude"));
@@ -230,7 +229,7 @@ mod service_unified_tests {
 
         // Second start should allow resume now (resume_allowed flipped true)
         let cmd2 = manager
-            .start_claude_in_session_with_restart_and_binary(spec_name, false, &HashMap::new(), None)
+            .start_claude_in_session_with_restart_and_binary(spec_name, false, &HashMap::new())
             .unwrap();
         let shell2 = &cmd2.shell_command;
         assert!(
@@ -269,7 +268,6 @@ mod service_unified_tests {
                 &session.name,
                 false,
                 &binary_paths,
-                None,
             );
 
             // Should succeed for all supported agents
@@ -303,7 +301,6 @@ mod service_unified_tests {
             &session.name,
             false,
             &binary_paths,
-            None,
         );
 
         assert!(result.is_ok());
@@ -322,7 +319,6 @@ mod service_unified_tests {
             &session.name,
             false,
             &binary_paths,
-            None,
         );
 
         assert!(result.is_ok());
@@ -398,7 +394,7 @@ mod service_unified_tests {
         setup_opencode_session_history(home_dir.path(), &session.worktree_path, "oc-session", 3);
 
         let cmd = manager
-            .start_claude_in_session_with_restart_and_binary(&session.name, false, &HashMap::new(), None)
+            .start_claude_in_session_with_restart_and_binary(&session.name, false, &HashMap::new())
             .expect("expected OpenCode command");
         let shell_command = &cmd.shell_command;
 
@@ -442,7 +438,7 @@ mod service_unified_tests {
         setup_opencode_session_history(home_dir.path(), &session.worktree_path, "oc-gate", 4);
 
         let cmd_first = manager
-            .start_claude_in_session_with_restart_and_binary(&session.name, false, &HashMap::new(), None)
+            .start_claude_in_session_with_restart_and_binary(&session.name, false, &HashMap::new())
             .expect("expected OpenCode command");
         let first_shell = &cmd_first.shell_command;
 
@@ -465,7 +461,7 @@ mod service_unified_tests {
         );
 
         let cmd_second = manager
-            .start_claude_in_session_with_restart_and_binary(&session.name, false, &HashMap::new(), None)
+            .start_claude_in_session_with_restart_and_binary(&session.name, false, &HashMap::new())
             .expect("expected OpenCode command");
         let second_shell = &cmd_second.shell_command;
 
@@ -859,7 +855,6 @@ mod service_unified_tests {
             &session.name,
             false,
             &binary_paths,
-            None,
         );
 
         // Should return an error with supported agent types listed
@@ -1451,7 +1446,6 @@ impl SessionManager {
             spec_content: None,
             session_state: SessionState::Running,
             resume_allowed: true,
-            amp_thread_id: None,
         };
 
         let repo_was_empty = !git::repository_has_commits(&self.repo_path).unwrap_or(true);
@@ -2167,7 +2161,6 @@ impl SessionManager {
             session_name,
             force_restart,
             &HashMap::new(),
-            None,
         )
     }
 
@@ -2176,7 +2169,7 @@ impl SessionManager {
         session_name: &str,
         binary_paths: &HashMap<String, String>,
     ) -> Result<AgentLaunchSpec> {
-        self.start_claude_in_session_with_restart_and_binary(session_name, false, binary_paths, None)
+        self.start_claude_in_session_with_restart_and_binary(session_name, false, binary_paths)
     }
 
     pub fn start_claude_in_session_with_args(
@@ -2193,7 +2186,7 @@ impl SessionManager {
         _cli_args: Option<&str>,
         binary_paths: &HashMap<String, String>,
     ) -> Result<AgentLaunchSpec> {
-        self.start_claude_in_session_with_restart_and_binary(session_name, false, binary_paths, None)
+        self.start_claude_in_session_with_restart_and_binary(session_name, false, binary_paths)
     }
 
     pub fn start_claude_in_session_with_restart_and_binary(
@@ -2201,7 +2194,6 @@ impl SessionManager {
         session_name: &str,
         force_restart: bool,
         binary_paths: &HashMap<String, String>,
-        _amp_mcp_servers: Option<&HashMap<String, crate::domains::settings::McpServerConfig>>,
     ) -> Result<AgentLaunchSpec> {
         let session = self.db_manager.get_session_by_name(session_name)?;
         let skip_permissions = session
@@ -2503,35 +2495,6 @@ impl SessionManager {
             ) {
                 return Ok(spec);
             }
-        }
-
-        // Special handling for Amp with MCP servers
-        if agent_type == "amp" {
-            self.cache_manager
-                .mark_session_prompted(&session.worktree_path);
-            let prompt_to_use = session.initial_prompt.as_deref();
-
-            let binary_path = self.utils.get_effective_binary_path_with_override(
-                &agent_type,
-                binary_paths.get(&agent_type).map(|s| s.as_str()),
-            );
-
-            let config = crate::domains::agents::amp::AmpConfig {
-                binary_path: Some(binary_path.clone()),
-            };
-
-            let command = crate::domains::agents::amp::build_amp_command_with_config(
-                &session.worktree_path,
-                None,
-                prompt_to_use,
-                skip_permissions,
-                Some(&config),
-            );
-
-            return Ok(crate::domains::agents::AgentLaunchSpec::new(
-                command,
-                session.worktree_path.clone(),
-            ));
         }
 
         // For all other agents, use the registry directly
@@ -2931,7 +2894,6 @@ impl SessionManager {
             spec_content: Some(spec_content.to_string()),
             session_state: SessionState::Spec,
             resume_allowed: true,
-            amp_thread_id: None,
         };
 
         self.db_manager.create_session(&session)?;
@@ -3000,7 +2962,6 @@ impl SessionManager {
             spec_content: Some(spec_content.to_string()),
             session_state: SessionState::Spec,
             resume_allowed: true,
-            amp_thread_id: None,
         };
 
         if let Err(e) = self.db_manager.create_session(&session) {
@@ -3299,51 +3260,6 @@ impl SessionManager {
     pub fn update_session_state(&self, session_name: &str, state: SessionState) -> Result<()> {
         let session = self.db_manager.get_session_by_name(session_name)?;
         self.db_manager.update_session_state(&session.id, state)?;
-        Ok(())
-    }
-
-    pub fn spawn_amp_thread_watcher(&self, session_name: &str) -> Result<()> {
-        let session = self.db_manager.get_session_by_name(session_name)?;
-
-        if session.original_agent_type.as_deref() != Some("amp") {
-            return Ok(());
-        }
-
-        if session.amp_thread_id.is_some() {
-            log::debug!(
-                "Session '{session_name}' already has amp_thread_id stored; skipping watcher"
-            );
-            return Ok(());
-        }
-
-        let session_id = session.id.clone();
-        let session_name = session_name.to_string();
-        let db_manager = self.db_manager.clone();
-
-        tokio::spawn(async move {
-            log::info!(
-                "Amp thread watcher spawned for session '{session_name}' (id: {session_id})"
-            );
-
-            if let Some(thread_id) =
-                crate::domains::agents::amp::watch_amp_thread_creation(30).await
-            {
-                log::info!(
-                    "Amp thread watcher: Detected thread '{thread_id}' for session '{session_name}'"
-                );
-
-                if let Err(e) = db_manager.set_session_amp_thread_id(&session_id, &thread_id) {
-                    log::error!(
-                        "Failed to store amp_thread_id '{thread_id}' for session '{session_name}': {e}"
-                    );
-                }
-            } else {
-                log::warn!(
-                    "Amp thread watcher timeout for session '{session_name}': no new thread detected"
-                );
-            }
-        });
-
         Ok(())
     }
 

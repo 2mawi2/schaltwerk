@@ -27,7 +27,6 @@ describe('useSettings', () => {
         codex: [],
         droid: [{ key: 'WELCOME_PROMPT', value: 'ready' }],
         qwen: [{ key: 'PROJECT_ID', value: 'test-id' }],
-        amp: [{ key: 'AMP_API_KEY', value: 'amp-key' }],
         terminal: []
       }
 
@@ -38,7 +37,6 @@ describe('useSettings', () => {
         codex: '',
         droid: '--log-level debug',
         qwen: '--project test',
-        amp: '--mode free',
         terminal: ''
       }
 
@@ -78,15 +76,7 @@ describe('useSettings', () => {
         agentType: 'droid',
         cliArgs: '--log-level debug'
       })
-      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetAgentEnvVars, {
-        agentType: 'amp',
-        envVars: { AMP_API_KEY: 'amp-key' }
-      })
-      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetAgentCliArgs, {
-        agentType: 'amp',
-        cliArgs: '--mode free'
-      })
-      expect(mockInvoke).toHaveBeenCalledTimes(16)
+      expect(mockInvoke).toHaveBeenCalledTimes(14)
     })
 
     it('filters out empty environment variable keys', async () => {
@@ -103,7 +93,6 @@ describe('useSettings', () => {
         codex: [],
         droid: [],
         qwen: [],
-        amp: [],
         terminal: []
       }
 
@@ -114,7 +103,6 @@ describe('useSettings', () => {
         codex: '',
         droid: '',
         qwen: '',
-        amp: '',
         terminal: ''
       }
 
@@ -240,7 +228,7 @@ describe('useSettings', () => {
   describe('saveAllSettings', () => {
     it('saves all settings and returns success result', async () => {
       const { result } = renderHook(() => useSettings())
-
+      
       const envVars: Record<AgentType, Array<{key: string, value: string}>> = {
         claude: [],
         opencode: [],
@@ -248,7 +236,6 @@ describe('useSettings', () => {
         codex: [],
         droid: [],
         qwen: [],
-        amp: [],
         terminal: []
       }
 
@@ -259,7 +246,6 @@ describe('useSettings', () => {
         codex: '',
         droid: '',
         qwen: '',
-        amp: '',
         terminal: ''
       }
       
@@ -308,7 +294,7 @@ describe('useSettings', () => {
 
     it('handles partial failures gracefully', async () => {
       const { result } = renderHook(() => useSettings())
-
+      
       mockInvoke.mockImplementation((command: string) => {
         if (command === TauriCommands.SetAgentEnvVars) {
           return Promise.reject(new Error('Agent settings failed'))
@@ -323,7 +309,6 @@ describe('useSettings', () => {
         codex: [],
         droid: [],
         qwen: [],
-        amp: [],
         terminal: []
       }
 
@@ -334,7 +319,6 @@ describe('useSettings', () => {
         codex: '',
         droid: '',
         qwen: '',
-        amp: '',
         terminal: ''
       }
       
@@ -393,7 +377,6 @@ describe('useSettings', () => {
         codex: [],
         droid: [],
         qwen: [],
-        amp: [],
         terminal: []
       }
 
@@ -404,7 +387,6 @@ describe('useSettings', () => {
         codex: '',
         droid: '',
         qwen: '',
-        amp: '',
         terminal: ''
       }
 
@@ -512,7 +494,6 @@ describe('useSettings', () => {
         codex: [],
         droid: [],
         qwen: [],
-        amp: [],
         terminal: []
       })
       expect(result.current.loading).toBe(false)
@@ -534,7 +515,6 @@ describe('useSettings', () => {
         codex: [],
         droid: [],
         qwen: [],
-        amp: [],
         terminal: []
       })
     })
@@ -569,7 +549,6 @@ describe('useSettings', () => {
         codex: '',
         droid: '',
         qwen: '',
-        amp: '',
         terminal: ''
       })
     })
@@ -590,7 +569,6 @@ describe('useSettings', () => {
         codex: '',
         droid: '',
         qwen: '',
-        amp: '',
         terminal: ''
       })
     })

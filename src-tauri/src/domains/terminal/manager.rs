@@ -124,40 +124,6 @@ impl TerminalManager {
         self.register_terminal_session(terminal_id, key).await;
     }
 
-    async fn session_terminals(&self, session: &SessionKey) -> Vec<String> {
-        let index = self.session_index.read().await;
-        index
-            .get(session)
-            .map(|ids| ids.iter().cloned().collect())
-            .unwrap_or_default()
-    }
-
-    pub async fn suspend_session_terminals(
-        &self,
-        project_id: &str,
-        session_id: Option<&str>,
-    ) -> Result<(), String> {
-        let key = Self::build_session_key(project_id, session_id);
-        let ids = self.session_terminals(&key).await;
-        for id in ids {
-            self.backend.suspend(&id).await?;
-        }
-        Ok(())
-    }
-
-    pub async fn resume_session_terminals(
-        &self,
-        project_id: &str,
-        session_id: Option<&str>,
-    ) -> Result<(), String> {
-        let key = Self::build_session_key(project_id, session_id);
-        let ids = self.session_terminals(&key).await;
-        for id in ids {
-            self.backend.resume(&id).await?;
-        }
-        Ok(())
-    }
-
     pub async fn create_terminal(&self, id: String, cwd: String) -> Result<(), String> {
         let start = std::time::Instant::now();
         let result = self.create_terminal_with_env(id.clone(), cwd, vec![]).await;

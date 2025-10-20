@@ -7,7 +7,7 @@ use super::visible::VisibleScreen;
 use super::{CreateParams, TerminalBackend, TerminalSnapshot};
 use crate::infrastructure::events::{emit_event, SchaltEvent};
 use crate::shared::terminal_id::is_session_top_terminal_id;
-use log::{debug, error, info, trace, warn};
+use log::{debug, error, info, warn};
 use portable_pty::{Child, MasterPty, NativePtySystem, PtySize, PtySystem};
 use std::collections::{HashMap, HashSet};
 use std::io::{Read, Write};
@@ -514,12 +514,11 @@ impl LocalPtyAdapter {
 
                             if !sanitized_data.is_empty() {
                                 if let Some(seq) = current_seq {
-                                    if output_event_sender_clone.receiver_count() > 0
-                                        && output_event_sender_clone
-                                            .send((id_clone.clone(), seq))
-                                            .is_err()
+                                    if output_event_sender_clone
+                                        .send((id_clone.clone(), seq))
+                                        .is_err()
                                     {
-                                        trace!(
+                                        debug!(
                                             "[Terminal {id_clone}] Output listener closed; skipping notification"
                                         );
                                     }

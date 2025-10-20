@@ -3,7 +3,7 @@ import { AGENT_TYPES, createAgentRecord } from './session'
 
 describe('session agent constants', () => {
   it('exposes the supported agents in a stable order', () => {
-    expect(AGENT_TYPES).toEqual(['claude', 'opencode', 'gemini', 'codex', 'droid', 'qwen', 'amp', 'terminal'])
+    expect(AGENT_TYPES).toEqual(['claude', 'opencode', 'gemini', 'codex', 'droid', 'qwen', 'terminal'])
   })
 
   it('createAgentRecord maps every agent type', () => {

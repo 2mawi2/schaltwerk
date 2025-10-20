@@ -1109,7 +1109,7 @@ pub async fn schaltwerk_core_start_claude_with_restart(
         let mut paths = std::collections::HashMap::new();
 
         // Get resolved binary paths for all agents
-        for agent in ["claude", "codex", "opencode", "gemini", "droid", "qwen", "amp"] {
+        for agent in ["claude", "codex", "opencode", "gemini", "droid"] {
             match settings.get_effective_binary_path(agent) {
                 Ok(path) => {
                     log::debug!("Cached binary path for {agent}: {path}");
@@ -1123,28 +1123,15 @@ pub async fn schaltwerk_core_start_claude_with_restart(
         std::collections::HashMap::new()
     };
 
-    // Get MCP servers for Amp
-    let amp_mcp_servers = if agent_type == "amp" {
-        if let Some(settings_manager) = SETTINGS_MANAGER.get() {
-            let settings = settings_manager.lock().await;
-            Some(settings.get_amp_mcp_servers())
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-
     let spec = manager
         .start_claude_in_session_with_restart_and_binary(
             &session_name,
             force_restart,
             &binary_paths,
-            amp_mcp_servers.as_ref(),
         )
         .map_err(|e| {
-            log::error!("Failed to build {agent_type} command for session {session_name}: {e}");
-            format!("Failed to start {agent_type} in session: {e}")
+            log::error!("Failed to build Claude command for session {session_name}: {e}");
+            format!("Failed to start Claude in session: {e}")
         })?;
 
     let command = spec.shell_command.clone();
@@ -1189,17 +1176,6 @@ pub async fn schaltwerk_core_start_claude_with_restart(
     let mut use_shell_chain = false;
     let mut shell_cmd: Option<String> = None;
     let marker_rel = ".schaltwerk/setup.done";
-    
-    // For Amp commands with pipes (containing " | amp"), use shell chain to preserve the pipe
-    let has_pipe = command.contains(" | amp") || (command.contains(" | ") && agent_name.ends_with("/amp"));
-    if has_pipe {
-        log::info!("Detected Amp command with pipe, using shell chain to preserve it: {command}");
-        // Extract the actual command part (after " && ")
-        if let Some(cmd_part) = command.split(" && ").nth(1) {
-            shell_cmd = Some(cmd_part.to_string());
-            use_shell_chain = true;
-        }
-    }
     if let Ok(Some(setup)) = core.db.get_project_setup_script(&core.repo_path) {
         if !setup.trim().is_empty() {
             // Persist setup script to a temp file for reliable execution
@@ -1212,6 +1188,7 @@ pub async fn schaltwerk_core_start_claude_with_restart(
             if let Err(e) = std::fs::write(&script_path, setup) {
                 log::warn!("Failed to write setup script to temp file: {e}");
             } else {
+                // Build: set -e; if [ ! -f marker ]; then sh '<tmp>'; rm -f '<tmp>'; mkdir -p .schaltwerk; touch marker; fi; exec <agent> <args...>
                 let marker_q = sh_quote_string(marker_rel);
                 let script_q = sh_quote_string(&script_path.display().to_string());
                 let script_command = format!("sh {script_q}");
@@ -1224,31 +1201,14 @@ pub async fn schaltwerk_core_start_claude_with_restart(
                 );
                 let run_setup_command = shell_invocation_to_posix(&login_invocation);
 
-                // If we already have a shell_cmd (e.g., from Amp with pipe), wrap it with setup
-                let is_piped_cmd = use_shell_chain && shell_cmd.is_some();
-                let exec_cmd = if is_piped_cmd {
-                    // Amp with pipe: wrap the piped command with setup (no exec prefix needed)
-                    shell_cmd.take().unwrap()
-                } else {
-                    // Regular agent: build exec command from agent_name and args
-                    let mut exec_cmd = String::new();
-                    exec_cmd.push_str(&sh_quote_string(&agent_name));
-                    for a in &agent_args {
-                        exec_cmd.push(' ');
-                        exec_cmd.push_str(&sh_quote_string(a));
-                    }
-                    exec_cmd
-                };
-
-                // For piped commands, exec is already in the command (or not needed)
-                // For regular agents, use exec to replace the shell
-                let exec_prefix = if is_piped_cmd {
-                    ""
-                } else {
-                    "exec "
-                };
+                let mut exec_cmd = String::new();
+                exec_cmd.push_str(&sh_quote_string(&agent_name));
+                for a in &agent_args {
+                    exec_cmd.push(' ');
+                    exec_cmd.push_str(&sh_quote_string(a));
+                }
                 let chained = format!(
-                        "set -e; if [ ! -f {marker_q} ]; then {run_setup_command}; rm -f {script_q}; mkdir -p .schaltwerk; : > {marker_q}; fi; {exec_prefix}{exec_cmd}"
+                        "set -e; if [ ! -f {marker_q} ]; then {run_setup_command}; rm -f {script_q}; mkdir -p .schaltwerk; : > {marker_q}; fi; exec {exec_cmd}"
                     );
                 shell_cmd = Some(chained);
                 use_shell_chain = true;
@@ -1394,7 +1354,7 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
         let mut paths = std::collections::HashMap::new();
 
         // Get resolved binary paths for all agents
-        for agent in ["claude", "codex", "opencode", "gemini", "droid", "qwen", "amp"] {
+        for agent in ["claude", "codex", "opencode", "gemini", "droid"] {
             match settings.get_effective_binary_path(agent) {
                 Ok(path) => {
                     log::debug!("Cached binary path for {agent}: {path}");
@@ -1876,11 +1836,6 @@ pub async fn schaltwerk_core_create_and_start_spec_session(
         )
         .map_err(|e| format!("Failed to create and start spec session: {e}"))?;
 
-    // Spawn thread watcher for Amp sessions to capture thread ID on first run
-    if let Err(e) = manager.spawn_amp_thread_watcher(&name) {
-        log::warn!("Failed to spawn amp thread watcher for session '{name}': {e}");
-    }
-
     // Emit event with actual sessions list
     log::info!("Queueing sessions refresh after creating and starting spec session");
     events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SpecSync);
@@ -1917,10 +1872,12 @@ pub async fn schaltwerk_core_start_spec_session(
         )
         .map_err(|e| format!("Failed to start spec session: {e}"))?;
 
-    // Spawn thread watcher for Amp sessions to capture thread ID on first run
-    if let Err(e) = manager.spawn_amp_thread_watcher(&name) {
-        log::warn!("Failed to spawn amp thread watcher for session '{name}': {e}");
-    }
+    // Emit selection event for consistent focus on the started session
+    events::emit_selection_running(&app, &name);
+
+    // Invalidate cache before emitting refreshed event
+    log::info!("Queueing sessions refresh after starting spec session");
+    events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SpecSync);
 
     // Check if AI renaming should be triggered for spec-derived sessions
     // First, get the session info to check if it has auto-generation potential
@@ -1938,9 +1895,6 @@ pub async fn schaltwerk_core_start_spec_session(
     if has_display_name {
         log::info!("Spec session '{name}' already has display name, skipping regeneration");
         drop(core);
-        // Emit refresh since name generation won't happen
-        log::info!("Queueing sessions refresh after starting spec session (no name generation needed)");
-        events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SpecSync);
         return Ok(());
     }
 
@@ -2115,39 +2069,17 @@ pub async fn schaltwerk_core_start_spec_session(
                         &app_handle,
                         events::SessionsRefreshReason::SpecSync,
                     );
-                    // Emit selection event after sessions refresh so auto-start runs first
-                    events::emit_selection_running(&app_handle, &session_name_clone);
                 }
                 Ok(None) => {
                     log::warn!("Name generation returned None for spec-started session '{session_name_clone}'");
                     let _ = db_clone.set_pending_name_generation(&session_id, false);
-                    log::info!("Queueing sessions refresh after spec-session name generation (None)");
-                    events::request_sessions_refreshed(
-                        &app_handle,
-                        events::SessionsRefreshReason::SpecSync,
-                    );
-                    // Emit selection event after sessions refresh so auto-start runs first
-                    events::emit_selection_running(&app_handle, &session_name_clone);
                 }
                 Err(e) => {
                     log::error!("Failed to generate display name for spec-started session '{session_name_clone}': {e}");
                     let _ = db_clone.set_pending_name_generation(&session_id, false);
-                    log::info!("Queueing sessions refresh after spec-session name generation (Err)");
-                    events::request_sessions_refreshed(
-                        &app_handle,
-                        events::SessionsRefreshReason::SpecSync,
-                    );
-                    // Emit selection event after sessions refresh so auto-start runs first
-                    events::emit_selection_running(&app_handle, &session_name_clone);
                 }
             }
         });
-    } else {
-        // Name generation won't be triggered, so emit refresh to trigger auto-start
-        log::info!("Queueing sessions refresh after starting spec session (name generation not needed)");
-        events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SpecSync);
-        // Emit selection event after sessions refresh so auto-start runs first
-        events::emit_selection_running(&app, &name);
     }
 
     Ok(())
@@ -2294,7 +2226,7 @@ pub async fn schaltwerk_core_start_fresh_orchestrator(
         let mut paths = std::collections::HashMap::new();
 
         // Get resolved binary paths for all agents
-        for agent in ["claude", "codex", "opencode", "gemini", "droid", "qwen", "amp"] {
+        for agent in ["claude", "codex", "opencode", "gemini", "droid"] {
             match settings.get_effective_binary_path(agent) {
                 Ok(path) => {
                     log::debug!("Cached binary path for {agent}: {path}");

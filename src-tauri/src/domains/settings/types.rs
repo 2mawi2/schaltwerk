@@ -2,23 +2,6 @@ use crate::binary_detector::DetectedBinary;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(untagged)]
-pub enum McpServerConfig {
-    Local {
-        command: String,
-        #[serde(default)]
-        args: Vec<String>,
-        #[serde(default)]
-        env: HashMap<String, String>,
-    },
-    Remote {
-        url: String,
-        #[serde(default)]
-        headers: HashMap<String, String>,
-    },
-}
-
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct AgentCliArgs {
     pub claude: String,
@@ -27,8 +10,6 @@ pub struct AgentCliArgs {
     pub codex: String,
     pub droid: String,
     pub qwen: String,
-    #[serde(default)]
-    pub amp: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -39,8 +20,6 @@ pub struct AgentInitialCommands {
     pub codex: String,
     pub droid: String,
     pub qwen: String,
-    #[serde(default)]
-    pub amp: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -51,8 +30,6 @@ pub struct AgentEnvVars {
     pub codex: HashMap<String, String>,
     pub droid: HashMap<String, String>,
     pub qwen: HashMap<String, String>,
-    #[serde(default)]
-    pub amp: HashMap<String, String>,
     pub terminal: HashMap<String, String>,
 }
 
@@ -149,8 +126,6 @@ pub struct AgentBinaryConfigs {
     pub codex: Option<AgentBinaryConfig>,
     pub droid: Option<AgentBinaryConfig>,
     pub qwen: Option<AgentBinaryConfig>,
-    #[serde(default)]
-    pub amp: Option<AgentBinaryConfig>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -170,6 +145,4 @@ pub struct Settings {
     pub keyboard_shortcuts: HashMap<String, Vec<String>>,
     #[serde(default)]
     pub tutorial_completed: bool,
-    #[serde(default)]
-    pub amp_mcp_servers: HashMap<String, McpServerConfig>,
 }
