@@ -228,6 +228,28 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
     if (!targetSession) return false
     return mapSessionUiState(targetSession.info) === 'running'
   }, [targetSession])
+  const handleOpenFile = useCallback(async (filePath: string): Promise<string | undefined> => {
+    if (mode === 'history') {
+      return undefined
+    }
+
+    try {
+      if (selection.kind === 'orchestrator') {
+        const repoPath = await invoke<string | null>(TauriCommands.GetActiveProjectPath)
+        return repoPath ? `${repoPath}/${filePath}` : undefined
+      } else if (sessionName) {
+        const sessionData = await invoke<{ worktree_path?: string }>(TauriCommands.SchaltwerkCoreGetSession, { name: sessionName })
+        const worktreePath = sessionData?.worktree_path
+        if (worktreePath) {
+          return `${worktreePath}/${filePath}`
+        }
+      }
+    } catch (err) {
+      logger.error('Failed to resolve file path for opening:', err)
+    }
+    return undefined
+  }, [mode, selection.kind, sessionName])
+  const openFileHandler = mode === 'history' ? undefined : handleOpenFile
 
   // Helper to check if a line has comments
   const getThreadsForFile = useCallback((filePath: string) => {
@@ -1704,6 +1726,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
               onCopyCode={handleCopyCodeFromContext}
               onCopyFilePath={handleCopyFilePath}
               onStartCommentFromContext={handleStartCommentFromContext}
+              onOpenFile={openFileHandler}
             />
             <SearchBox
               targetRef={scrollContainerRef}
@@ -1856,6 +1879,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
                 onCopyFilePath={handleCopyFilePath}
                 onDiscardFile={handleDiscardFile}
                 onStartCommentFromContext={handleStartCommentFromContext}
+                onOpenFile={openFileHandler}
               />
 
               <SearchBox

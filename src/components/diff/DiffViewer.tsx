@@ -9,6 +9,7 @@ import { AnimatedText } from '../common/AnimatedText'
 import { ReviewCommentThread } from '../../types/review'
 import { LineSelection } from '../../hooks/useLineSelection'
 import { theme } from '../../common/theme'
+import { OpenInSplitButton, type OpenApp } from '../OpenInSplitButton'
 
 type ContextMenuState =
   | {
@@ -157,6 +158,7 @@ export interface DiffViewerProps {
   onCopyFilePath?: (filePath: string) => void
   onDiscardFile?: (filePath: string) => void
   onStartCommentFromContext?: (payload: { filePath: string; lineNumber: number; side: 'old' | 'new' }) => void
+  onOpenFile?: (filePath: string) => Promise<string | undefined>
 }
 
 export function DiffViewer({
@@ -187,10 +189,12 @@ export function DiffViewer({
   onCopyCode,
   onCopyFilePath,
   onDiscardFile,
-  onStartCommentFromContext
+  onStartCommentFromContext,
+  onOpenFile
 }: DiffViewerProps) {
   const resizeObserversRef = useRef<Map<string, ResizeObserver>>(new Map())
   const bodyRefCallbacksRef = useRef<Map<string, (node: HTMLDivElement | null) => void>>(new Map())
+  const editorFilter = useCallback((app: OpenApp) => app.kind === 'editor', [])
 
   useEffect(() => {
     const observers = resizeObserversRef.current
@@ -505,36 +509,42 @@ export function DiffViewer({
               >
                 {/* File header */}
                 <div
-                  className={clsx(
-                    "sticky top-0 z-10 bg-slate-950 border-b border-slate-700 px-4 py-3 flex items-center justify-between",
-                    isCurrentFile && "bg-slate-900"
+                className={clsx(
+                  "sticky top-0 z-10 bg-slate-950 border-b border-slate-700 px-4 py-3 flex items-center justify-between",
+                  isCurrentFile && "bg-slate-900"
+                )}
+                onContextMenu={(event) => handleFileContextMenu(event, file.path)}
+              >
+                <div className="flex items-center gap-3">
+                  {getFileIcon(file.change_type, file.path)}
+                  <div>
+                    <div className="font-medium text-sm text-slate-100">{file.path}</div>
+                    <div className="text-xs text-slate-400">
+                      {file.change_type === 'added' && 'New file'}
+                      {file.change_type === 'deleted' && 'Deleted file'}
+                      {file.change_type === 'modified' && 'Modified'}
+                      {file.change_type === 'renamed' && 'Renamed'}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {commentCount > 0 && (
+                    <div
+                      className="flex items-center gap-1 text-xs font-medium"
+                      style={{ color: theme.colors.accent.blue.light }}
+                    >
+                      <VscComment />
+                      <span>{commentCount} comment{commentCount > 1 ? 's' : ''}</span>
+                    </div>
                   )}
-                  onContextMenu={(event) => handleFileContextMenu(event, file.path)}
-                >
-                  <div className="flex items-center gap-3">
-                    {getFileIcon(file.change_type, file.path)}
-                     <div>
-                       <div className="font-medium text-sm text-slate-100">{file.path}</div>
-                       <div className="text-xs text-slate-400">
-                         {file.change_type === 'added' && 'New file'}
-                         {file.change_type === 'deleted' && 'Deleted file'}
-                         {file.change_type === 'modified' && 'Modified'}
-                         {file.change_type === 'renamed' && 'Renamed'}
-                       </div>
-                     </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {commentCount > 0 && (
-                        <div
-                          className="flex items-center gap-1 text-xs font-medium"
-                          style={{ color: theme.colors.accent.blue.light }}
-                        >
-                          <VscComment />
-                          <span>{commentCount} comment{commentCount > 1 ? 's' : ''}</span>
-                        </div>
-                      )}
-                    </div>
-                 </div>
+                  {onOpenFile && (
+                    <OpenInSplitButton
+                      resolvePath={() => onOpenFile(file.path)}
+                      filter={editorFilter}
+                    />
+                  )}
+                </div>
+              </div>
 
                  {/* File diff content or loading placeholder */}
                 {!fileDiff ? (
@@ -654,36 +664,42 @@ export function DiffViewer({
               >
                 {/* File header */}
                 <div
-                  className={clsx(
-                    "sticky top-0 z-10 bg-slate-950 border-b border-slate-700 px-4 py-3 flex items-center justify-between",
-                    isCurrentFile && "bg-slate-900"
-                  )}
-                  onContextMenu={(event) => handleFileContextMenu(event, file.path)}
-                >
-                  <div className="flex items-center gap-3">
-                    {getFileIcon(file.change_type, file.path)}
-                    <div>
-                      <div className="font-medium text-sm text-slate-100">{file.path}</div>
-                      <div className="text-xs text-slate-400">
-                        {file.change_type === 'added' && 'New file'}
-                        {file.change_type === 'deleted' && 'Deleted file'}
-                        {file.change_type === 'modified' && 'Modified'}
-                         {file.change_type === 'renamed' && 'Renamed'}
-                       </div>
-                     </div>
-                   </div>
-                    <div className="flex items-center gap-2">
-                      {commentCount > 0 && (
-                        <div
-                          className="flex items-center gap-1 text-xs font-medium"
-                          style={{ color: theme.colors.accent.blue.light }}
-                        >
-                          <VscComment />
-                          <span>{commentCount} comment{commentCount > 1 ? 's' : ''}</span>
-                        </div>
-                      )}
+                className={clsx(
+                  "sticky top-0 z-10 bg-slate-950 border-b border-slate-700 px-4 py-3 flex items-center justify-between",
+                  isCurrentFile && "bg-slate-900"
+                )}
+                onContextMenu={(event) => handleFileContextMenu(event, file.path)}
+              >
+                <div className="flex items-center gap-3">
+                  {getFileIcon(file.change_type, file.path)}
+                  <div>
+                    <div className="font-medium text-sm text-slate-100">{file.path}</div>
+                    <div className="text-xs text-slate-400">
+                      {file.change_type === 'added' && 'New file'}
+                      {file.change_type === 'deleted' && 'Deleted file'}
+                      {file.change_type === 'modified' && 'Modified'}
+                      {file.change_type === 'renamed' && 'Renamed'}
                     </div>
-                 </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {commentCount > 0 && (
+                    <div
+                      className="flex items-center gap-1 text-xs font-medium"
+                      style={{ color: theme.colors.accent.blue.light }}
+                    >
+                      <VscComment />
+                      <span>{commentCount} comment{commentCount > 1 ? 's' : ''}</span>
+                    </div>
+                  )}
+                  {onOpenFile && (
+                    <OpenInSplitButton
+                      resolvePath={() => onOpenFile(file.path)}
+                      filter={editorFilter}
+                    />
+                  )}
+                </div>
+              </div>
 
                  {/* File diff content with virtualization */}
                 {!fileDiff ? (
