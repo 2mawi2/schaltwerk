@@ -1,5 +1,7 @@
 #[cfg(test)]
-use crate::domains::git::stats::{get_git_stats_call_count, reset_git_stats_call_count};
+use crate::domains::git::stats::{
+    get_git_stats_call_count, reset_git_stats_call_count, track_git_stats_on_current_thread,
+};
 #[cfg(test)]
 use crate::domains::sessions::entity::SessionStatus;
 #[cfg(test)]
@@ -472,6 +474,7 @@ fn test_list_enriched_sessions_skips_spec_git_stats() {
     let env = TestEnvironment::new().unwrap();
     let manager = env.get_session_manager().unwrap();
 
+    let _scope = track_git_stats_on_current_thread();
     reset_git_stats_call_count();
 
     manager

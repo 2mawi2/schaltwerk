@@ -126,10 +126,12 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
   }, [runTerminalId, runStateKey, onRunningStateChange, isRunning])
 
   useEffect(() => {
+    let cancelled = false
     let unlisten: (() => void) | null = null
+
     const setup = async () => {
       try {
-        unlisten = await listenEvent(SchaltEvent.TerminalClosed, payload => {
+        const dispose = await listenEvent(SchaltEvent.TerminalClosed, payload => {
           if (payload.terminal_id === runTerminalId) {
             logger.info('[RunTerminal] TerminalClosed for run terminal; marking stopped')
             runningRef.current = false
@@ -138,12 +140,34 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
             startPendingRef.current = false
           }
         })
+
+        if (cancelled) {
+          try {
+            dispose()
+          } catch (error) {
+            logger.debug('[RunTerminal] Cleaned up TerminalClosed listener after cancellation', error)
+          }
+          return
+        }
+
+        unlisten = dispose
       } catch (err) {
         logger.error('[RunTerminal] Failed to listen for TerminalClosed:', err)
       }
     }
+
     setup()
-    return () => { unlisten?.() }
+
+    return () => {
+      cancelled = true
+      if (unlisten) {
+        try {
+          unlisten()
+        } catch (error) {
+          logger.debug('[RunTerminal] TerminalClosed listener cleanup failed', error)
+        }
+      }
+    }
   }, [runTerminalId, onRunningStateChange])
 
   useEffect(() => {
