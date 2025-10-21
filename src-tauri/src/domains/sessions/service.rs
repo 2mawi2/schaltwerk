@@ -1009,6 +1009,54 @@ mod service_unified_tests {
     }
 
     #[test]
+    fn session_creation_bootstraps_requested_base_branch_in_empty_repo() {
+        let (manager, temp_dir) = create_test_session_manager();
+        let repo_root = temp_dir.path().join("repo");
+
+        std::process::Command::new("git")
+            .args(["init"])
+            .current_dir(&repo_root)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.email", "test@example.com"])
+            .current_dir(&repo_root)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.name", "Test User"])
+            .current_dir(&repo_root)
+            .output()
+            .unwrap();
+        let params = SessionCreationParams {
+            name: "bootstrap-empty-repo",
+            prompt: None,
+            base_branch: Some("main"),
+            custom_branch: None,
+            was_auto_generated: false,
+            version_group_id: None,
+            version_number: None,
+            agent_type: None,
+            skip_permissions: None,
+        };
+
+        assert!(
+            !git::repository_has_commits(&repo_root).unwrap(),
+            "precondition: repo should have no commits"
+        );
+
+        let session = manager
+            .create_session_with_agent(params)
+            .expect("session creation should succeed for empty repo");
+
+        assert_eq!(session.parent_branch, "main");
+        assert!(
+            git::branch_exists(&repo_root, "main").unwrap(),
+            "expected bootstrap process to create 'main' branch"
+        );
+    }
+
+    #[test]
     fn session_creation_persists_selected_agent_settings() {
         let (manager, temp_dir) = create_test_session_manager();
         let repo_root = temp_dir.path().join("repo");
@@ -1457,6 +1505,13 @@ impl SessionManager {
             git::create_initial_commit(&self.repo_path).map_err(|e| {
                 self.cache_manager.unreserve_name(&unique_name);
                 anyhow!("Failed to create initial commit: {e}")
+            })?;
+            log::info!(
+                "Ensuring requested base branch '{parent_branch}' exists after initial commit"
+            );
+            git::ensure_branch_at_head(&self.repo_path, &parent_branch).map_err(|e| {
+                self.cache_manager.unreserve_name(&unique_name);
+                anyhow!("Failed to bootstrap base branch '{parent_branch}': {e}")
             })?;
         }
 

@@ -1,5 +1,6 @@
-use super::repository::{get_unborn_head_branch, repository_has_commits};
+use super::repository::{get_current_branch, get_unborn_head_branch, repository_has_commits};
 use anyhow::{anyhow, Result};
+use git2::build::CheckoutBuilder;
 use git2::{BranchType, Repository};
 use std::path::Path;
 
@@ -84,6 +85,45 @@ pub fn branch_exists(repo_path: &Path, branch_name: &str) -> Result<bool> {
     result
 }
 
+pub fn ensure_branch_at_head(repo_path: &Path, branch_name: &str) -> Result<()> {
+    let repo = Repository::open(repo_path)?;
+
+    let current_branch = get_current_branch(repo_path).unwrap_or_else(|_| "HEAD".to_string());
+
+    if repo.find_branch(branch_name, BranchType::Local).is_ok() {
+        log::info!("Branch '{branch_name}' already exists, checking out");
+        checkout_branch(&repo, branch_name)?;
+        return Ok(());
+    }
+
+    if current_branch != "HEAD" {
+        if let Ok(mut existing) = repo.find_branch(&current_branch, BranchType::Local) {
+            log::info!(
+                "Renaming current branch '{current_branch}' to requested base '{branch_name}'"
+            );
+            existing
+                .rename(branch_name, false)
+                .map_err(|e| anyhow!("Failed to rename branch '{current_branch}' to '{branch_name}': {e}"))?;
+            checkout_branch(&repo, branch_name)?;
+            return Ok(());
+        }
+    }
+
+    let head_obj = repo
+        .revparse_single("HEAD")
+        .map_err(|e| anyhow!("Cannot resolve HEAD commit to create branch '{branch_name}': {e}"))?;
+    let head_commit = head_obj
+        .peel_to_commit()
+        .map_err(|e| anyhow!("HEAD is not pointing to a commit: {e}"))?;
+
+    repo.branch(branch_name, &head_commit, false)
+        .map_err(|e| anyhow!("Failed to create branch '{branch_name}': {e}"))?;
+    checkout_branch(&repo, branch_name)?;
+
+    log::info!("Bootstrapped branch '{branch_name}' from initial HEAD commit");
+    Ok(())
+}
+
 pub fn rename_branch(repo_path: &Path, old_branch: &str, new_branch: &str) -> Result<()> {
     if !branch_exists(repo_path, old_branch)? {
         return Err(anyhow!("Branch '{old_branch}' does not exist"));
@@ -106,4 +146,70 @@ pub fn rename_branch(repo_path: &Path, old_branch: &str, new_branch: &str) -> Re
         .map_err(|e| anyhow!("Failed to rename branch: {e}"))?;
 
     Ok(())
+}
+
+fn checkout_branch(repo: &Repository, branch_name: &str) -> Result<()> {
+    repo.set_head(&format!("refs/heads/{branch_name}"))
+        .map_err(|e| anyhow!("Failed to update HEAD to '{branch_name}': {e}"))?;
+
+    let mut checkout = CheckoutBuilder::new();
+    checkout.force();
+    repo.checkout_head(Some(&mut checkout))
+        .map_err(|e| anyhow!("Failed to checkout branch '{branch_name}': {e}"))?;
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::process::Command;
+    use tempfile::TempDir;
+
+    #[test]
+    fn ensure_branch_at_head_renames_current_branch_when_missing() {
+        let temp = TempDir::new().unwrap();
+        let repo_path = temp.path();
+
+        let init = Command::new("git")
+            .args(["init", "--initial-branch=master"])
+            .current_dir(repo_path)
+            .output()
+            .unwrap();
+        assert!(
+            init.status.success(),
+            "git init failed: {}",
+            String::from_utf8_lossy(&init.stderr)
+        );
+        Command::new("git")
+            .args(["config", "user.email", "test@example.com"])
+            .current_dir(repo_path)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.name", "Test User"])
+            .current_dir(repo_path)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "--allow-empty", "-m", "bootstrap"])
+            .current_dir(repo_path)
+            .output()
+            .unwrap();
+
+        ensure_branch_at_head(repo_path, "main").expect("should bootstrap base branch");
+
+        assert!(
+            branch_exists(repo_path, "main").unwrap(),
+            "expected main branch to be created"
+        );
+        assert!(
+            !branch_exists(repo_path, "master").unwrap(),
+            "master branch should be renamed away"
+        );
+
+        let repo = Repository::open(repo_path).unwrap();
+        let head = repo.head().unwrap();
+        assert_eq!(head.shorthand(), Some("main"));
+    }
 }
