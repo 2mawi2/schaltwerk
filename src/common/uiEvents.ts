@@ -23,6 +23,7 @@ export enum UiEvent {
   OpenDiffFile = 'schaltwerk:open-diff-file',
   TerminalFontUpdated = 'schaltwerk:terminal-font-updated',
   TerminalRendererUpdated = 'schaltwerk:terminal-renderer-updated',
+  InsertTerminalText = 'insertTerminalText',
   FontSizeChanged = 'font-size-changed',
   GlobalNewSessionShortcut = 'global-new-session-shortcut',
   GlobalMarkReadyShortcut = 'global-mark-ready-shortcut',
@@ -146,6 +147,10 @@ export interface TerminalDimensionRefreshDetail {
   reason: 'webgl-load' | 'webgl-unload' | 'font-change'
 }
 
+export interface InsertTerminalTextDetail {
+  text: string
+}
+
 export type UiEventPayloads = {
   [UiEvent.PermissionError]: { error: string }
   [UiEvent.BackgroundStartMarked]: { terminalId: string }
@@ -184,6 +189,7 @@ export type UiEventPayloads = {
   [UiEvent.OpenSpecInOrchestrator]: OpenSpecInOrchestratorDetail
   [UiEvent.ProjectSwitchComplete]: ProjectSwitchCompleteDetail
   [UiEvent.TerminalDimensionRefresh]: TerminalDimensionRefreshDetail
+  [UiEvent.InsertTerminalText]: InsertTerminalTextDetail
 }
 
 type UiEventArgs<T extends UiEvent> = undefined extends UiEventPayloads[T]

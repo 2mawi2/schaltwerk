@@ -1,8 +1,21 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, waitFor, act } from '@testing-library/react'
+import { render, waitFor, act, screen } from '@testing-library/react'
 import { TauriCommands } from '../../common/tauriCommands'
+import * as uiEvents from '../../common/uiEvents'
 
 const mockFocusEnd = vi.fn()
+
+interface SpecContentMock {
+  content: string
+  displayName: string | null
+  hasData: boolean
+}
+
+let specContentMock: SpecContentMock = {
+  content: 'Test spec content',
+  displayName: 'test-spec',
+  hasData: true
+}
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(), UnlistenFn: vi.fn() }))
@@ -19,11 +32,7 @@ vi.mock('../../hooks/useProjectFileIndex', () => ({
 }))
 
 vi.mock('../../hooks/useSpecContent', () => ({
-  useSpecContent: () => ({
-    content: 'Test spec content',
-    displayName: 'test-spec',
-    hasData: true
-  })
+  useSpecContent: () => specContentMock
 }))
 
 vi.mock('./MarkdownEditor', async () => {
@@ -59,6 +68,11 @@ async function pressKey(key: string, opts: KeyboardEventInit = {}) {
 describe('SpecEditor keyboard shortcuts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    specContentMock = {
+      content: 'Test spec content',
+      displayName: 'test-spec',
+      hasData: true
+    }
     Object.defineProperty(navigator, 'userAgent', { value: 'Mozilla/5.0 (Macintosh)', configurable: true })
 
     vi.mocked(invoke).mockImplementation(async (cmd) => {
@@ -78,6 +92,29 @@ describe('SpecEditor keyboard shortcuts', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  it('emits refine event when clicking refine button', async () => {
+    const emitSpy = vi.spyOn(uiEvents, 'emitUiEvent')
+    specContentMock.displayName = 'Auth System'
+
+    render(
+      <TestProviders>
+        <SpecEditor sessionName="refine-session" />
+      </TestProviders>
+    )
+
+    const refineButton = await screen.findByRole('button', { name: 'Refine' })
+    expect(refineButton).toHaveAttribute('title', 'Refine spec: Auth System (refine-session)')
+
+    await act(async () => {
+      refineButton.click()
+    })
+
+    expect(emitSpy).toHaveBeenCalledWith(uiEvents.UiEvent.OpenSpecInOrchestrator, { sessionName: 'refine-session' })
+    expect(emitSpy).toHaveBeenCalledWith(uiEvents.UiEvent.InsertTerminalText, {
+      text: 'Refine spec: Auth System (refine-session)'
+    })
   })
 
   it('switches from preview to edit mode and focuses editor when Cmd+T is pressed', async () => {
