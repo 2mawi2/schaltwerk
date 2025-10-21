@@ -1166,9 +1166,17 @@ pub async fn schaltwerk_core_start_claude_with_restart(
         }
     }
 
-    let (env_vars, cli_args) =
+    let (mut env_vars, cli_args) =
         agent_ctx::collect_agent_env_and_cli(&agent_kind, &core.repo_path, &core.db).await;
     log::info!("Creating terminal with {agent_name} directly: {terminal_id} with {} env vars and CLI args: '{cli_args}'", env_vars.len());
+
+    std::env::set_var("SCHALTWERK_SESSION", &session_name);
+    if !env_vars
+        .iter()
+        .any(|(key, _)| key == "SCHALTWERK_SESSION")
+    {
+        env_vars.push(("SCHALTWERK_SESSION".to_string(), session_name.clone()));
+    }
 
     // If a project setup script exists, run it ONCE inside this terminal before exec'ing the agent.
     // This streams all setup output to the agent terminal and avoids blocking session creation.

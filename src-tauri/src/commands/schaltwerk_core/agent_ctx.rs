@@ -75,6 +75,50 @@ pub async fn collect_agent_env_and_cli(
     (env_vars, cli_args)
 }
 
+fn harness_manages_codex_sandbox() -> bool {
+    std::env::var_os("SCHALTWERK_SESSION").is_some()
+}
+
+fn strip_codex_sandbox_overrides(args: &mut Vec<String>) -> Option<Vec<String>> {
+    let mut removed = Vec::new();
+    let mut i = 0;
+    while i < args.len() {
+        if let Some(value) = args[i].strip_prefix("--sandbox=") {
+            removed.push(format!("--sandbox={value}"));
+            args.remove(i);
+            continue;
+        }
+
+        if args[i] == "--sandbox" {
+            args.remove(i);
+            let value = if i < args.len() {
+                let next = &args[i];
+                if next.starts_with('-') {
+                    None
+                } else {
+                    Some(args.remove(i))
+                }
+            } else {
+                None
+            };
+
+            match value {
+                Some(v) => removed.push(format!("--sandbox {v}")),
+                None => removed.push("--sandbox".to_string()),
+            }
+            continue;
+        }
+
+        i += 1;
+    }
+
+    if removed.is_empty() {
+        None
+    } else {
+        Some(removed)
+    }
+}
+
 pub fn build_final_args(
     agent_kind: &AgentKind,
     mut parsed_agent_args: Vec<String>,
@@ -94,6 +138,14 @@ pub fn build_final_args(
             let extracted_prompt = extract_codex_prompt_if_present(&mut parsed_agent_args);
             fix_codex_single_dash_long_flags(&mut additional);
             reorder_codex_model_after_profile(&mut additional);
+            if harness_manages_codex_sandbox() {
+                if let Some(removed) = strip_codex_sandbox_overrides(&mut additional) {
+                    let removed_joined = removed.join(", ");
+                    log::warn!(
+                        "Ignoring Codex CLI sandbox override because Schaltwerk manages sandbox mode: {removed_joined}"
+                    );
+                }
+            }
             parsed_agent_args.extend(additional);
             if let Some(p) = extracted_prompt {
                 parsed_agent_args.push(p);
@@ -110,6 +162,30 @@ pub fn build_final_args(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
+
+    struct EnvVarGuard {
+        key: &'static str,
+        original: Option<String>,
+    }
+
+    impl EnvVarGuard {
+        fn set(key: &'static str, value: &str) -> Self {
+            let original = std::env::var(key).ok();
+            std::env::set_var(key, value);
+            Self { key, original }
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            if let Some(ref original) = self.original {
+                std::env::set_var(self.key, original);
+            } else {
+                std::env::remove_var(self.key);
+            }
+        }
+    }
 
     #[test]
     fn test_infer_agent_kind() {
@@ -170,5 +246,58 @@ mod tests {
         assert_eq!(AgentKind::Gemini.manifest_key(), "gemini");
         assert_eq!(AgentKind::Droid.manifest_key(), "droid");
         assert_eq!(AgentKind::Fallback.manifest_key(), "claude");
+    }
+
+    #[test]
+    #[serial]
+    fn codex_harness_strips_duplicate_sandbox_flag() {
+        let _guard = EnvVarGuard::set("SCHALTWERK_SESSION", "session-123");
+        let args = build_final_args(
+            &AgentKind::Codex,
+            vec!["--sandbox".into(), "workspace-write".into()],
+            "--sandbox danger-full-access --model gpt-4",
+        );
+
+        assert_eq!(
+            args,
+            vec!["--sandbox", "workspace-write", "--model", "gpt-4"]
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn codex_harness_strips_duplicate_sandbox_flag_equals_form() {
+        let _guard = EnvVarGuard::set("SCHALTWERK_SESSION", "session-abc");
+        let args = build_final_args(
+            &AgentKind::Codex,
+            vec!["--sandbox".into(), "workspace-write".into()],
+            "--sandbox=danger-full-access --profile work",
+        );
+
+        assert_eq!(
+            args,
+            vec!["--sandbox", "workspace-write", "--profile", "work"]
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn codex_standalone_keeps_duplicate_sandbox_flag() {
+        std::env::remove_var("SCHALTWERK_SESSION");
+        let args = build_final_args(
+            &AgentKind::Codex,
+            vec!["--sandbox".into(), "workspace-write".into()],
+            "--sandbox danger-full-access",
+        );
+
+        assert_eq!(
+            args,
+            vec![
+                "--sandbox",
+                "workspace-write",
+                "--sandbox",
+                "danger-full-access"
+            ]
+        );
     }
 }
