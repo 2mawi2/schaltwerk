@@ -512,27 +512,53 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
         : await fetchSessionChangedFiles()
       setFiles(changedFiles)
 
-      let initialIndex = 0
-      let initialPath: string | null = filePath || null
+      let nextSelectedPath: string | null = null
+      let nextSelectedIndex = 0
+
       if (changedFiles.length > 0) {
-        if (!initialPath) initialPath = changedFiles[0].path
-        const found = changedFiles.findIndex(f => f.path === initialPath)
-        initialIndex = found >= 0 ? found : 0
+        const requestedPath = filePath || null
+        if (requestedPath) {
+          const foundIndex = changedFiles.findIndex(f => f.path === requestedPath)
+          if (foundIndex >= 0) {
+            nextSelectedPath = changedFiles[foundIndex].path
+            nextSelectedIndex = foundIndex
+          } else {
+            nextSelectedPath = changedFiles[0].path
+            nextSelectedIndex = 0
+          }
+        } else {
+          nextSelectedPath = changedFiles[0].path
+          nextSelectedIndex = 0
+        }
+      } else {
+        setSelectedFile(null)
+        setSelectedFileIndex(0)
+        setVisibleFilePath(null)
+        setAllFileDiffs(new Map())
+        setRenderedFileSet(new Set())
+        setVisibleFileSet(new Set())
+        setLoadingFiles(new Set())
+        setFileError(null)
       }
 
-      if (initialPath) {
-        setSelectedFile(initialPath)
-        setSelectedFileIndex(initialIndex)
-        try {
-          const primary = await loadFileDiff(sessionName, changedFiles[initialIndex], 'unified')
-          setAllFileDiffs(prev => {
-            const merged = new Map(prev)
-            merged.set(initialPath, primary)
-            return merged
-          })
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e)
-          setFileError(msg)
+      if (nextSelectedPath) {
+        setSelectedFile(nextSelectedPath)
+        setSelectedFileIndex(nextSelectedIndex)
+        setVisibleFilePath(nextSelectedPath)
+        setFileError(null)
+        const targetFile = changedFiles[nextSelectedIndex]
+        if (targetFile) {
+          try {
+            const primary = await loadFileDiff(sessionName, targetFile, 'unified')
+            setAllFileDiffs(prev => {
+              const merged = new Map(prev)
+              merged.set(nextSelectedPath!, primary)
+              return merged
+            })
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e)
+            setFileError(msg)
+          }
         }
       }
 
