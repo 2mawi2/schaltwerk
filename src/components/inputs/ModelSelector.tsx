@@ -22,6 +22,7 @@ interface ModelSelectorProps {
     onSkipPermissionsChange?: (value: boolean) => void
     onDropdownOpenChange?: (open: boolean) => void
     showShortcutHint?: boolean
+    allowedAgents?: readonly AgentType[]
 }
 
 export function ModelSelector({
@@ -31,12 +32,21 @@ export function ModelSelector({
     skipPermissions,
     onSkipPermissionsChange,
     onDropdownOpenChange,
-    showShortcutHint = false
+    showShortcutHint = false,
+    allowedAgents
 }: ModelSelectorProps) {
     const [isOpen, setIsOpen] = useState(false)
     const { isAvailable, getRecommendedPath, getInstallationMethod, loading } = useAgentAvailability()
 
-    const models = useMemo(() => AGENT_TYPES.map(value => ({ value, ...MODEL_METADATA[value] })), [])
+    const allowedList = useMemo(
+        () => (allowedAgents && allowedAgents.length > 0 ? allowedAgents : AGENT_TYPES),
+        [allowedAgents]
+    )
+
+    const models = useMemo(
+        () => allowedList.map(value => ({ value, ...MODEL_METADATA[value] })),
+        [allowedList]
+    )
 
     const selectedModel = models.find(m => m.value === value) || models[0]
     const selectedSupportsPermissions = AGENT_SUPPORTS_SKIP_PERMISSIONS[selectedModel.value]

@@ -1376,6 +1376,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             />
             <SwitchOrchestratorModal
                 open={switchOrchestratorModal}
+                scope={switchModelSessionId ? 'session' : 'orchestrator'}
                 onClose={() => {
                     setSwitchOrchestratorModal(false)
                     setSwitchModelSessionId(null)
