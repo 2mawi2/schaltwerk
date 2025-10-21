@@ -28,6 +28,7 @@ import { IconButton } from '../common/IconButton'
 import { clearTerminalStartedTracking } from '../terminal/Terminal'
 import { logger } from '../../utils/logger'
 import { UiEvent, emitUiEvent, listenUiEvent } from '../../common/uiEvents'
+import { emitSpecRefine } from '../../utils/specRefine'
 import { EnrichedSession, SessionInfo } from '../../types/session'
 import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
 import { useRun } from '../../contexts/RunContext'
@@ -780,7 +781,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         if (selection.kind !== 'session' || !selection.payload) return
         const session = sessions.find(s => s.info.session_id === selection.payload)
         if (!session || !isSpec(session.info)) return
-        emitUiEvent(UiEvent.OpenSpecInOrchestrator, { sessionName: selection.payload })
+        emitSpecRefine(selection.payload, getSessionDisplayName(session.info))
     }, [isAnyModalOpen, selection, sessions])
 
     useKeyboardShortcuts({
@@ -1276,7 +1277,9 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                         }
                                     }}
                                     onRefineSpec={(sessionId) => {
-                                        emitUiEvent(UiEvent.OpenSpecInOrchestrator, { sessionName: sessionId })
+                                        const target = sessions.find(s => s.info.session_id === sessionId)
+                                        const displayName = target ? getSessionDisplayName(target.info) : undefined
+                                        emitSpecRefine(sessionId, displayName)
                                     }}
                                     onDeleteSpec={async (sessionId) => {
                                         beginSessionMutation(sessionId, 'remove')
