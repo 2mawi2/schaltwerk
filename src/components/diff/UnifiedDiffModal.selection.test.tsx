@@ -91,10 +91,26 @@ vi.mock('./loadDiffs', async () => {
 })
 
 async function renderModal() {
+  setupInvokeMock([{ path: sampleDiff.file.path, change_type: sampleDiff.file.change_type }])
+
+  const utils = render(
+    <TestProviders>
+      <UnifiedDiffModal filePath={sampleDiff.file.path} isOpen={true} onClose={() => {}} />
+    </TestProviders>
+  )
+
+  await waitFor(() => {
+    expect(loadFileDiffMock).toHaveBeenCalled()
+  })
+
+  return utils
+}
+
+function setupInvokeMock(changedFiles: Array<{ path: string; change_type: string }>) {
   invokeMock.mockImplementation(async (cmd: string) => {
     switch (cmd) {
       case TauriCommands.GetChangedFilesFromMain:
-        return [{ path: sampleDiff.file.path, change_type: sampleDiff.file.change_type }]
+        return changedFiles
       case TauriCommands.GetCurrentBranchName:
         return 'feature/demo'
       case TauriCommands.GetBaseBranchName:
@@ -115,18 +131,6 @@ async function renderModal() {
         return null
     }
   })
-
-  const utils = render(
-    <TestProviders>
-      <UnifiedDiffModal filePath={sampleDiff.file.path} isOpen={true} onClose={() => {}} />
-    </TestProviders>
-  )
-
-  await waitFor(() => {
-    expect(loadFileDiffMock).toHaveBeenCalled()
-  })
-
-  return utils
 }
 
 beforeEach(() => {
@@ -196,5 +200,26 @@ describe('UnifiedDiffModal line selection behaviour', () => {
     await waitFor(() => {
       expect(document.body.classList.contains('sw-no-text-select')).toBe(false)
     })
+  })
+
+  it('skips diff loading when requested file is missing from changed files', async () => {
+    setupInvokeMock([])
+
+    const result = render(
+      <TestProviders>
+        <UnifiedDiffModal filePath="stale/file.tsx" isOpen={true} onClose={() => {}} />
+      </TestProviders>
+    )
+
+    // Wait for initial async effects (preferences, branch info, etc.) to settle
+    await waitFor(() => {
+      expect(invokeMock).toHaveBeenCalledWith(TauriCommands.GetChangedFilesFromMain, { sessionName: 'demo' })
+    })
+
+    await waitFor(() => {
+      expect(loadFileDiffMock).not.toHaveBeenCalled()
+    })
+
+    expect(result.getByText('Changed Files')).toBeTruthy()
   })
 })
