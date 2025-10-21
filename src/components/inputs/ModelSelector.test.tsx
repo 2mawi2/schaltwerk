@@ -31,12 +31,14 @@ function setup(options: {
   disabled?: boolean
   skipPermissions?: boolean
   onSkipPermissionsChange?: (skip: boolean) => void
+  allowedAgents?: AgentType[]
 } = {}) {
   const {
     initial = 'claude',
     disabled = false,
     skipPermissions,
     onSkipPermissionsChange,
+    allowedAgents,
   } = options
   const onChange = vi.fn()
 
@@ -64,6 +66,7 @@ function setup(options: {
         onChange={handleChange}
         disabled={disabled}
         skipPermissions={skip}
+        allowedAgents={allowedAgents}
         onSkipPermissionsChange={
           typeof skip === 'boolean' || onSkipPermissionsChange
             ? handleSkipChange
@@ -202,6 +205,18 @@ describe('ModelSelector', () => {
     await user.keyboard('{Enter}')
 
     expect(onChange).toHaveBeenCalledWith('opencode')
+  })
+
+  test('filters available options when allowedAgents is provided', async () => {
+    const user = userEvent.setup()
+    setup({ allowedAgents: ['claude', 'opencode'] })
+
+    const toggle = screen.getByRole('button', { name: /Claude/i })
+    await user.click(toggle)
+
+    expect(screen.getAllByRole('button', { name: 'OpenCode' })).toHaveLength(1)
+    expect(screen.queryByRole('button', { name: 'Terminal Only' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Gemini' })).not.toBeInTheDocument()
   })
 
   test('keyboard navigation: ArrowUp moves focus to previous option', async () => {

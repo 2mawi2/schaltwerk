@@ -5,6 +5,8 @@ import { SwitchOrchestratorModal } from './SwitchOrchestratorModal'
 
 const mockGetOrchestratorAgentType = vi.fn().mockResolvedValue('opencode')
 const mockGetOrchestratorSkipPermissions = vi.fn().mockResolvedValue(false)
+const mockGetAgentType = vi.fn().mockResolvedValue('claude')
+const mockGetSkipPermissions = vi.fn().mockResolvedValue(false)
 
 // Mock useClaudeSession to control behavior and avoid tauri calls
 vi.mock('../../hooks/useClaudeSession', () => {
@@ -12,6 +14,8 @@ vi.mock('../../hooks/useClaudeSession', () => {
     useClaudeSession: () => ({
       getOrchestratorAgentType: mockGetOrchestratorAgentType,
       getOrchestratorSkipPermissions: mockGetOrchestratorSkipPermissions,
+      getAgentType: mockGetAgentType,
+      getSkipPermissions: mockGetSkipPermissions,
     }),
   }
 })
@@ -66,12 +70,16 @@ describe('SwitchOrchestratorModal', () => {
     vi.useRealTimers()
     mockGetOrchestratorAgentType.mockResolvedValue('opencode')
     mockGetOrchestratorSkipPermissions.mockResolvedValue(false)
+    mockGetAgentType.mockResolvedValue('claude')
+    mockGetSkipPermissions.mockResolvedValue(false)
   })
 
   afterEach(() => {
     cleanup()
     mockGetOrchestratorAgentType.mockClear()
     mockGetOrchestratorSkipPermissions.mockClear()
+    mockGetAgentType.mockClear()
+    mockGetSkipPermissions.mockClear()
   })
 
   it('renders nothing when closed, shows content when open', async () => {
@@ -96,7 +104,7 @@ describe('SwitchOrchestratorModal', () => {
     const { onSwitch } = openModal()
 
     // Wait for agent type to load to "OpenCode"
-    await waitFor(() => screen.getByRole('button', { name: /opencode/i }))
+    await waitFor(() => screen.getByRole('button', { name: /claude/i }))
 
     // Click Switch Agent -> should call with 'opencode'
     fireEvent.click(screen.getByRole('button', { name: /switch agent/i }))
@@ -196,6 +204,29 @@ describe('SwitchOrchestratorModal', () => {
     } finally {
       window.removeEventListener('unhandledrejection', handler)
     }
+  })
+
+  it('does not offer the terminal-only agent for orchestrator', async () => {
+    openModal()
+    await waitFor(() => screen.getByRole('button', { name: /opencode/i }))
+    await userEvent.click(screen.getByRole('button', { name: /opencode/i }))
+
+    expect(screen.queryByRole('button', { name: /Terminal Only/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /terminal/i })).not.toBeInTheDocument()
+  })
+
+  it('uses session-specific configuration when scope=session', async () => {
+    mockGetAgentType.mockResolvedValue('opencode')
+    const { onSwitch } = openModal({ scope: 'session' })
+
+    await waitFor(() => expect(mockGetAgentType).toHaveBeenCalled())
+    await waitFor(() => screen.getByRole('button', { name: /opencode/i }))
+
+    expect(screen.getByText('Switch Session Agent')).toBeInTheDocument()
+
+    expect(screen.queryByRole('button', { name: /terminal/i })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /switch agent/i }))
+    await waitFor(() => expect(onSwitch).toHaveBeenCalledWith({ agentType: 'opencode', skipPermissions: false }))
   })
 
   it('keyboard: Escape closes modal, Enter triggers switch, and respects open dropdown', async () => {
