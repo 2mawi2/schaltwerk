@@ -1323,6 +1323,7 @@ function AppContent() {
                       backgroundColor: `${theme.colors.background.elevated}99`,
                       color: theme.colors.text.primary
                     }}
+                    data-onboarding="start-agent-button"
                     onMouseEnter={(e) => e.currentTarget.style.backgroundColor = `${theme.colors.background.hover}99`}
                     onMouseLeave={(e) => e.currentTarget.style.backgroundColor = `${theme.colors.background.elevated}99`}
                     title={`Start agent (${shortcuts[KeyboardShortcutAction.NewSession] || '⌘N'})`}
@@ -1344,6 +1345,7 @@ function AppContent() {
                       borderColor: theme.colors.accent.amber.border,
                       color: theme.colors.text.primary
                     }}
+                    data-onboarding="create-spec-button"
                     onMouseEnter={(e) => {
                       e.currentTarget.style.backgroundColor = `${theme.colors.accent.amber.DEFAULT}33`
                     }}

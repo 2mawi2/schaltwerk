@@ -972,6 +972,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                             'ring-2 ring-pink-500/50 shadow-lg shadow-pink-500/20 bg-pink-950/20'
                     )}
                     aria-label="Select orchestrator (⌘1)"
+                    data-onboarding="orchestrator-entry"
                 >
                     <div className="flex items-center justify-between">
                         <div className="font-medium text-slate-100 flex items-center gap-2">
@@ -1023,7 +1024,10 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 </button>
             </div>
 
-            <div className="h-8 px-3 border-t border-b border-slate-800 text-xs text-slate-300 flex items-center">
+            <div
+                className="h-8 px-3 border-t border-b border-slate-800 text-xs text-slate-300 flex items-center"
+                data-onboarding="session-filter-row"
+            >
                 <div className="flex items-center gap-2 w-full">
                     <div className="flex items-center gap-1 ml-auto flex-nowrap overflow-x-auto" style={{ scrollbarGutter: 'stable both-edges' }}>
                         {/* Search Icon */}
@@ -1184,7 +1188,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                     </div>
                 </div>
             )}
-            <div className="flex-1 min-h-0 overflow-y-auto px-2 pt-2" data-testid="session-scroll-container">
+            <div className="flex-1 min-h-0 overflow-y-auto px-2 pt-2" data-testid="session-scroll-container" data-onboarding="session-list">
                 {sessions.length === 0 && !loading ? (
                     <div className="text-center text-slate-500 py-4">No active agents</div>
                 ) : (

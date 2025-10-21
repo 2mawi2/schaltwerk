@@ -316,7 +316,7 @@ const RightPanelTabsComponent = ({ onFileSelect, onOpenHistoryDiff, selectionOve
             <button
               onClick={() => setUserSelectedTab('agent')}
               className={clsx(
-                'h-full flex-1 px-3 text-xs font-medium flex items center justify-center gap-1.5',
+                'h-full flex-1 px-3 text-xs font-medium flex items-center justify-center gap-1.5',
                 activeTab === 'agent'
                   ? localFocus
                     ? 'text-cyan-200 bg-cyan-800/30'
@@ -326,6 +326,7 @@ const RightPanelTabsComponent = ({ onFileSelect, onOpenHistoryDiff, selectionOve
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
               )}
               data-active={activeTab === 'agent' || undefined}
+              data-onboarding="specs-workspace-tab"
               title="Spec"
             >
               <VscNotebook className="text-sm" />
@@ -366,6 +367,7 @@ const RightPanelTabsComponent = ({ onFileSelect, onOpenHistoryDiff, selectionOve
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
               )}
               data-active={activeTab === 'specs' || undefined}
+              data-onboarding="specs-workspace-tab"
               title="Specs Workspace"
             >
               <VscNotebook className="text-sm" />
