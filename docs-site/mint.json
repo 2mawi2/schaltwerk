@@ -54,6 +54,7 @@
         "guides/multi-project",
         "guides/orchestrator",
         "guides/agent-setup",
+        "guides/sandboxing",
         "guides/keyboard-shortcuts",
         "guides/troubleshooting",
         "guides/use-cases"
