@@ -879,6 +879,7 @@ const TerminalGridComponent = () => {
                         boxShadow: localFocus === 'claude' ? `0 10px 15px -3px ${theme.colors.accent.blue.DEFAULT}33, 0 4px 6px -2px ${theme.colors.accent.blue.DEFAULT}33` : undefined,
                     }}
                     className={`bg-panel rounded overflow-hidden min-h-0 flex flex-col border-2 ${localFocus === 'claude' ? 'shadow-lg' : ''}`}
+                    data-onboarding="agent-terminal"
                 >
                     <div
                         style={{
@@ -1162,6 +1163,7 @@ const TerminalGridComponent = () => {
                             style={{ display: !hasRunScripts || !runModeActive || terminalTabsState.activeTab !== -1 ? 'block' : 'none' }}
                             className="h-full"
                             onTransitionEnd={handlePanelTransitionEnd}
+                            data-onboarding="user-terminal"
                         >
                             <TerminalErrorBoundary terminalId={terminals.bottomBase}>
                                 <TerminalTabs
