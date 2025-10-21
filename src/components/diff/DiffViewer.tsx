@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
-import { VscComment } from 'react-icons/vsc'
+import { VscComment, VscDiscard } from 'react-icons/vsc'
 import { getFileIcon } from '../../utils/fileIcons'
 import { DiffLineRow } from './DiffLineRow'
 import { ChangedFile } from './DiffFileExplorer'
@@ -10,6 +10,7 @@ import { ReviewCommentThread } from '../../types/review'
 import { LineSelection } from '../../hooks/useLineSelection'
 import { theme } from '../../common/theme'
 import { OpenInSplitButton, type OpenApp } from '../OpenInSplitButton'
+import { ConfirmDiscardDialog } from '../common/ConfirmDiscardDialog'
 
 type ContextMenuState =
   | {
@@ -195,6 +196,9 @@ export function DiffViewer({
   const resizeObserversRef = useRef<Map<string, ResizeObserver>>(new Map())
   const bodyRefCallbacksRef = useRef<Map<string, (node: HTMLDivElement | null) => void>>(new Map())
   const editorFilter = useCallback((app: OpenApp) => app.kind === 'editor', [])
+  const [discardOpen, setDiscardOpen] = useState(false)
+  const [discardBusy, setDiscardBusy] = useState(false)
+  const [pendingDiscardFile, setPendingDiscardFile] = useState<string | null>(null)
 
   useEffect(() => {
     const observers = resizeObserversRef.current
@@ -537,6 +541,20 @@ export function DiffViewer({
                       <span>{commentCount} comment{commentCount > 1 ? 's' : ''}</span>
                     </div>
                   )}
+                  {onDiscardFile && (
+                    <button
+                      title="Discard changes for this file"
+                      aria-label={`Discard ${file.path}`}
+                      className="p-1 rounded hover:bg-slate-800 text-slate-300"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setPendingDiscardFile(file.path)
+                        setDiscardOpen(true)
+                      }}
+                    >
+                      <VscDiscard className="text-base" />
+                    </button>
+                  )}
                   {onOpenFile && (
                     <OpenInSplitButton
                       resolvePath={() => onOpenFile(file.path)}
@@ -692,6 +710,20 @@ export function DiffViewer({
                       <span>{commentCount} comment{commentCount > 1 ? 's' : ''}</span>
                     </div>
                   )}
+                  {onDiscardFile && (
+                    <button
+                      title="Discard changes for this file"
+                      aria-label={`Discard ${file.path}`}
+                      className="p-1 rounded hover:bg-slate-800 text-slate-300"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setPendingDiscardFile(file.path)
+                        setDiscardOpen(true)
+                      }}
+                    >
+                      <VscDiscard className="text-base" />
+                    </button>
+                  )}
                   {onOpenFile && (
                     <OpenInSplitButton
                       resolvePath={() => onOpenFile(file.path)}
@@ -808,6 +840,26 @@ export function DiffViewer({
         )}
       </div>
       {renderContextMenu()}
+      <ConfirmDiscardDialog
+        open={discardOpen}
+        filePath={pendingDiscardFile}
+        isBusy={discardBusy}
+        onCancel={() => {
+          setDiscardOpen(false)
+          setPendingDiscardFile(null)
+        }}
+        onConfirm={async () => {
+          if (!pendingDiscardFile || !onDiscardFile) return
+          try {
+            setDiscardBusy(true)
+            await onDiscardFile(pendingDiscardFile)
+          } finally {
+            setDiscardBusy(false)
+            setDiscardOpen(false)
+            setPendingDiscardFile(null)
+          }
+        }}
+      />
     </>
   )
 }
