@@ -330,6 +330,29 @@ mod service_unified_tests {
         assert!(command.shell_command.contains("--sandbox workspace-write"));
     }
 
+    #[test]
+    fn amp_session_uses_stored_thread_id_for_resume() {
+        let (manager, temp_dir) = create_test_session_manager();
+        let mut session = create_test_session(&temp_dir, "amp", "resume");
+        session.amp_thread_id = Some("thread-42".to_string());
+        session.original_skip_permissions = Some(false);
+        manager.db_manager.create_session(&session).unwrap();
+
+        let spec = manager
+            .start_claude_in_session_with_restart_and_binary(
+                &session.name,
+                false,
+                &HashMap::new(),
+                None,
+            )
+            .expect("Amp launch spec should build");
+
+        assert!(
+            spec.shell_command.contains("threads continue thread-42"),
+            "Amp launch command should resume stored thread id"
+        );
+    }
+
     fn sanitize_path_for_opencode(path: &Path) -> String {
         let path_str = path.to_string_lossy();
         let without_leading_slash = path_str.trim_start_matches('/');
@@ -2588,7 +2611,7 @@ impl SessionManager {
 
             let command = crate::domains::agents::amp::build_amp_command_with_config(
                 &session.worktree_path,
-                None,
+                session.amp_thread_id.as_deref(),
                 prompt_to_use,
                 skip_permissions,
                 Some(&config),
