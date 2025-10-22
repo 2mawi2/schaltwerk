@@ -1226,11 +1226,6 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                         engageMarkReadyCooldown('unmark-ready-click')
                                         try {
                                             await invoke(TauriCommands.SchaltwerkCoreUnmarkSessionReady, { name: sessionId })
-                                            // Reload both regular and spec sessions to avoid dropping specs
-                                            await Promise.all([
-                                                invoke<EnrichedSession[]>(TauriCommands.SchaltwerkCoreListEnrichedSessions),
-                                                invoke<SessionInfo[]>(TauriCommands.SchaltwerkCoreListSessionsByState, { state: 'spec' })
-                                            ])
                                             await reloadSessionsAndRefreshIdle()
                                         } catch (err) {
                                             logger.error('Failed to unmark reviewed session:', err)
@@ -1285,11 +1280,6 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                         beginSessionMutation(sessionId, 'remove')
                                         try {
                                             await invoke(TauriCommands.SchaltwerkCoreCancelSession, { name: sessionId })
-                                            // Reload both regular and spec sessions to ensure remaining specs persist
-                                            await Promise.all([
-                                                invoke<EnrichedSession[]>(TauriCommands.SchaltwerkCoreListEnrichedSessions),
-                                                invoke<SessionInfo[]>(TauriCommands.SchaltwerkCoreListSessionsByState, { state: 'spec' })
-                                            ])
                                             await reloadSessionsAndRefreshIdle()
                                         } catch (err) {
                                             logger.error('Failed to delete spec:', err)
