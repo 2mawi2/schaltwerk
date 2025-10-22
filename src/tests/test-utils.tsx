@@ -14,6 +14,7 @@ import { ToastProvider } from '../common/toast/ToastProvider'
 import { GithubIntegrationContext } from '../contexts/GithubIntegrationContext'
 import type { GithubIntegrationValue } from '../hooks/useGithubIntegration'
 import { SpecEditorStateProvider } from '../contexts/SpecEditorStateContext'
+import type { ChangedFile } from '../common/events'
 
 type GithubOverrides = Partial<GithubIntegrationValue>
 
@@ -141,4 +142,19 @@ export function TestProviders({
       {children}
     </ProviderTree>
   )
+}
+
+export function createChangedFile(
+  file: Partial<ChangedFile> & { path: string }
+): ChangedFile {
+  const additions = file.additions ?? 0
+  const deletions = file.deletions ?? 0
+  return {
+    path: file.path,
+    change_type: file.change_type ?? 'modified',
+    additions,
+    deletions,
+    changes: file.changes ?? additions + deletions,
+    is_binary: file.is_binary,
+  }
 }

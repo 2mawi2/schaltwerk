@@ -12,17 +12,21 @@ import { UiEvent, emitUiEvent } from '../../common/uiEvents'
 import { AnimatedText } from '../common/AnimatedText'
 import { ConfirmResetDialog } from '../common/ConfirmResetDialog'
 import { ConfirmDiscardDialog } from '../common/ConfirmDiscardDialog'
-
-
-interface ChangedFile {
-  path: string
-  change_type: 'modified' | 'added' | 'deleted' | 'renamed' | 'copied' | 'unknown'
-}
+import type { ChangedFile } from '../../common/events'
+import { DiffChangeBadges } from './DiffChangeBadges'
 
 interface DiffFileListProps {
   onFileSelect: (filePath: string) => void
   sessionNameOverride?: string
   isCommander?: boolean
+}
+
+const serializeChangedFileSignature = (file: ChangedFile) => {
+  const additions = file.additions ?? 0
+  const deletions = file.deletions ?? 0
+  const changes = file.changes ?? additions + deletions
+  const isBinary = file.is_binary ? '1' : '0'
+  return `${file.path}:${file.change_type}:${additions}:${deletions}:${changes}:${isBinary}`
 }
 
 export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }: DiffFileListProps) {
@@ -110,7 +114,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
         ])
 
         // Check if results actually changed to avoid unnecessary re-renders
-        const resultSignature = `orchestrator-${changedFiles.length}-${changedFiles.map(f => `${f.path}:${f.change_type}`).join(',')}-${currentBranch}`
+        const resultSignature = `orchestrator-${changedFiles.length}-${changedFiles.map(serializeChangedFileSignature).join(',')}-${currentBranch}`
         const cachedPayload = {
           files: changedFiles,
           branchInfo: {
@@ -154,7 +158,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
       
       // Check if results actually changed to avoid unnecessary re-renders
       // Include session name in signature to ensure different sessions don't share cached results
-      const resultSignature = `session-${currentSession}-${changedFiles.length}-${changedFiles.map(f => `${f.path}:${f.change_type}`).join(',')}-${currentBranch}-${baseBranch}`
+      const resultSignature = `session-${currentSession}-${changedFiles.length}-${changedFiles.map(serializeChangedFileSignature).join(',')}-${currentBranch}-${baseBranch}`
 
       const cachedPayload = {
         files: changedFiles,
@@ -466,48 +470,63 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
       ) : files.length > 0 ? (
         <div className="flex-1 overflow-y-auto">
           <div className="p-2">
-            {files.map(file => (
-              <div
-                key={file.path}
-                className={clsx(
-                  "flex items-center gap-2 px-2 py-2 rounded cursor-pointer",
-                  "hover:bg-slate-800/50",
-                  selectedFile === file.path && "bg-slate-800/30"
-                )}
-                onClick={() => handleFileClick(file)}
-              >
-                {getFileIcon(file.change_type, file.path)}
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm truncate font-medium">
-                    {file.path.split('/').pop()}
-                  </div>
-                  {file.path.includes('/') && (
-                    <div className="text-xs text-slate-500 truncate">
-                      {file.path.substring(0, file.path.lastIndexOf('/'))}
-                    </div>
+            {files.map(file => {
+              const additions = file.additions ?? 0
+              const deletions = file.deletions ?? 0
+              const totalChanges = file.changes ?? additions + deletions
+              const isBinary = file.is_binary ?? (file.change_type !== 'deleted' && isBinaryFileByExtension(file.path))
+              const fileName = file.path.split('/').pop() ?? file.path
+              const directory = file.path.includes('/')
+                ? file.path.substring(0, file.path.lastIndexOf('/'))
+                : ''
+
+              return (
+                <div
+                  key={file.path}
+                  className={clsx(
+                    'flex items-start gap-3 px-2 py-2 rounded cursor-pointer',
+                    'hover:bg-slate-800/50',
+                    selectedFile === file.path && 'bg-slate-800/30'
                   )}
-                </div>
-                <div className="text-xs text-slate-400 uppercase">
-                  {file.change_type === 'modified' ? 'M' : 
-                   file.change_type === 'added' ? 'A' :
-                   file.change_type === 'deleted' ? 'D' : 
-                   file.change_type[0].toUpperCase()}
-                </div>
-                {/* Discard single-file button */}
-                <button
-                  title="Discard changes for this file"
-                  aria-label={`Discard ${file.path}`}
-                  className="ml-2 p-1 rounded hover:bg-slate-800 text-slate-300"
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    setPendingDiscardFile(file.path)
-                    setDiscardOpen(true)
-                  }}
+                  onClick={() => handleFileClick(file)}
+                  data-selected={selectedFile === file.path}
+                  data-file-path={file.path}
                 >
-                  <VscDiscard className="text-base" />
-                </button>
-              </div>
-            ))}
+                  {getFileIcon(file.change_type, file.path)}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start gap-2 justify-between">
+                      <div className="min-w-0">
+                        <div className="text-sm truncate font-medium">{fileName}</div>
+                        {directory && (
+                          <div className="text-xs text-slate-500 truncate">{directory}</div>
+                        )}
+                      </div>
+                      <DiffChangeBadges
+                        additions={additions}
+                        deletions={deletions}
+                        changes={totalChanges}
+                        isBinary={isBinary}
+                        className="flex-shrink-0"
+                        layout="column"
+                        size="compact"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    title="Discard changes for this file"
+                    aria-label={`Discard ${file.path}`}
+                    className="ml-2 p-1 rounded hover:bg-slate-800 text-slate-300"
+                    onClick={async (e) => {
+                      e.stopPropagation()
+                      setPendingDiscardFile(file.path)
+                      setDiscardOpen(true)
+                    }}
+                  >
+                    <VscDiscard className="text-base" />
+                  </button>
+                </div>
+              )
+            })}
           </div>
         </div>
       ) : (

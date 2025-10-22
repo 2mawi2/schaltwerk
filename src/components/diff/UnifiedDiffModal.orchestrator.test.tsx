@@ -3,7 +3,7 @@ import React from 'react'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { UnifiedDiffModal } from './UnifiedDiffModal'
 import { useReview } from '../../contexts/ReviewContext'
-import { TestProviders } from '../../tests/test-utils'
+import { TestProviders, createChangedFile } from '../../tests/test-utils'
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
 
@@ -39,7 +39,7 @@ describe('UnifiedDiffModal orchestrator review submit', () => {
     vi.mocked(invoke).mockImplementation(async (cmd: string, _args?: unknown) => {
       switch (cmd) {
         case TauriCommands.GetOrchestratorWorkingChanges:
-          return [{ path: 'main.rs', change_type: 'modified' }]
+          return [createChangedFile({ path: 'main.rs', change_type: 'modified', additions: 4, deletions: 2 })]
         case TauriCommands.ComputeUnifiedDiffBackend:
           return { lines: [], stats: { additions: 0, deletions: 0 }, fileInfo: { sizeBytes: 0 }, isLargeFile: false }
         case TauriCommands.GetCurrentBranchName:

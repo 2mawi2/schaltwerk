@@ -2,11 +2,14 @@ import { describe, it, expect, vi } from 'vitest'
 import { TauriCommands } from '../../common/tauriCommands'
 import { loadAllFileDiffs, FileDiffData } from './loadDiffs'
 import { invoke } from '@tauri-apps/api/core'
+import { createChangedFile } from '../../tests/test-utils'
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 
 function mkFiles(n: number) {
-  return Array.from({ length: n }, (_, i) => ({ path: `file-${i}.txt`, change_type: 'modified' as const }))
+  return Array.from({ length: n }, (_, i) =>
+    createChangedFile({ path: `file-${i}.txt`, change_type: 'modified', additions: 0, deletions: 0, changes: 0 })
+  )
 }
 
 describe('loadDiffs concurrency and single-view compute', () => {

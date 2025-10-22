@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import React from 'react'
 import { DiffViewer, DiffViewerProps } from './DiffViewer'
+import { createChangedFile } from '../../tests/test-utils'
 
 const mockFileDiff = {
   diffResult: [
@@ -12,13 +13,13 @@ const mockFileDiff = {
   ],
   fileInfo: { language: 'typescript', sizeBytes: 1024 },
   isBinary: false,
-  file: { path: 'src/file1.ts', change_type: 'modified' as const },
+  file: createChangedFile({ path: 'src/file1.ts', change_type: 'modified', additions: 1, deletions: 1 }),
   changedLinesCount: 2
 }
 
 const mockFiles = [
-  { path: 'src/file1.ts', change_type: 'modified' as const },
-  { path: 'src/file2.tsx', change_type: 'added' as const },
+  createChangedFile({ path: 'src/file1.ts', change_type: 'modified', additions: 1, deletions: 1 }),
+  createChangedFile({ path: 'src/file2.tsx', change_type: 'added', additions: 3 }),
 ]
 
 const mockProps: Partial<DiffViewerProps> = {
@@ -107,7 +108,7 @@ describe('DiffViewer', () => {
     const props = {
       ...mockProps,
       allFileDiffs: new Map(), // No diff loaded
-      files: [{ path: 'src/file1.ts', change_type: 'modified' as const }]
+      files: [createChangedFile({ path: 'src/file1.ts', change_type: 'modified' })]
     }
     
     render(<DiffViewer {...props as DiffViewerProps} />)
@@ -170,7 +171,7 @@ describe('DiffViewer', () => {
     const props = {
       ...mockProps,
       allFileDiffs: new Map(),
-      files: [{ path: 'src/file1.ts', change_type: 'modified' as const }]
+      files: [createChangedFile({ path: 'src/file1.ts', change_type: 'modified' })],
     }
     
     render(<DiffViewer {...props as DiffViewerProps} />)
@@ -204,7 +205,7 @@ describe('DiffViewer', () => {
   it('renders a placeholder for non-visible diffs in continuous mode', () => {
     const file2Diff = {
       ...mockFileDiff,
-      file: { path: 'src/file2.tsx', change_type: 'modified' as const }
+      file: createChangedFile({ path: 'src/file2.tsx', change_type: 'modified', additions: 2, deletions: 1 })
     }
     const props = {
       ...mockProps,
@@ -230,7 +231,7 @@ describe('DiffViewer', () => {
     const props = {
       ...mockProps,
       isLargeDiffMode: false,
-      files: [{ path: 'src/file1.ts', change_type: 'modified' as const }],
+      files: [createChangedFile({ path: 'src/file1.ts', change_type: 'modified' })],
       selectedFile: null,
       visibleFileSet: new Set<string>(),
       renderedFileSet: new Set<string>(['src/file1.ts']),

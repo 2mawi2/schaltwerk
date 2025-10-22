@@ -70,6 +70,10 @@ export interface PtyDataPayload {
 export interface ChangedFile {
   path: string
   change_type: 'modified' | 'added' | 'deleted' | 'renamed' | 'copied' | 'unknown'
+  additions: number
+  deletions: number
+  changes: number
+  is_binary?: boolean
 }
 
 export interface BranchInfo {

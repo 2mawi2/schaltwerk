@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, within } from '@testing-library/react'
 import React from 'react'
 import { DiffViewer, DiffViewerProps } from './DiffViewer'
+import { createChangedFile } from '../../tests/test-utils'
 
 const mockFileDiff = {
   diffResult: [
@@ -10,12 +11,12 @@ const mockFileDiff = {
   ],
   fileInfo: { language: 'typescript', sizeBytes: 128 },
   isBinary: false,
-  file: { path: 'src/file.ts', change_type: 'modified' as const },
+  file: createChangedFile({ path: 'src/file.ts', change_type: 'modified', additions: 1, deletions: 0 }),
   changedLinesCount: 1
 }
 
 const baseProps: Partial<DiffViewerProps> = {
-  files: [{ path: 'src/file.ts', change_type: 'modified' as const }],
+  files: [createChangedFile({ path: 'src/file.ts', change_type: 'modified', additions: 1, deletions: 0 })],
   selectedFile: 'src/file.ts',
   allFileDiffs: new Map([['src/file.ts', mockFileDiff]]),
   fileError: null,

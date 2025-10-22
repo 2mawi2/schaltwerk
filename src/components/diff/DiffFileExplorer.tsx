@@ -6,11 +6,11 @@ import { ReviewCommentsList } from './ReviewCommentsList'
 import { ReviewComment } from '../../types/review'
 import { theme } from '../../common/theme'
 import { ConfirmModal } from '../modals/ConfirmModal'
+import type { ChangedFile as EventsChangedFile } from '../../common/events'
+import { DiffChangeBadges } from './DiffChangeBadges'
+import { isBinaryFileByExtension } from '../../utils/binaryDetection'
 
-export interface ChangedFile {
-  path: string
-  change_type: 'modified' | 'added' | 'deleted' | 'renamed' | 'copied' | 'unknown'
-}
+export type ChangedFile = EventsChangedFile
 
 export interface DiffFileExplorerProps {
   files: ChangedFile[]
@@ -57,29 +57,55 @@ export function DiffFileExplorer({
         {files.map((file, index) => {
           const commentCount = getCommentsForFile(file.path).length
           const isLeftSelected = (visibleFilePath ?? selectedFile) === file.path
+          const additions = file.additions ?? 0
+          const deletions = file.deletions ?? 0
+          const changes = file.changes ?? additions + deletions
+          const isBinary = file.is_binary ?? (file.change_type !== 'deleted' && isBinaryFileByExtension(file.path))
+          const fileName = file.path.split('/').pop() ?? file.path
+          const directory = file.path.includes('/')
+            ? file.path.substring(0, file.path.lastIndexOf('/'))
+            : ''
+
           return (
             <div
               key={file.path}
               className={clsx(
-                "px-3 py-2 cursor-pointer hover:bg-slate-800/50",
-                "flex items-center gap-2",
+                'px-3 py-2 cursor-pointer hover:bg-slate-800/50',
+                'flex items-start gap-3',
                 isLeftSelected && "bg-slate-800"
               )}
               onClick={() => onFileSelect(file.path, index)}
             >
               {getFileIcon(file.change_type, file.path)}
               <div className="flex-1 min-w-0">
-                <div className="text-sm truncate">{file.path.split('/').pop()}</div>
-                <div className="text-xs text-slate-500 truncate">
-                  {file.path.substring(0, file.path.lastIndexOf('/')) || ''}
+                <div className="flex items-start gap-2 justify-between">
+                  <div className="min-w-0">
+                    <div className="text-sm truncate text-slate-100">{fileName}</div>
+                    {directory && (
+                      <div className="text-xs text-slate-500 truncate">{directory}</div>
+                    )}
+                  </div>
+                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                    <DiffChangeBadges
+                      additions={additions}
+                      deletions={deletions}
+                      changes={changes}
+                      isBinary={isBinary}
+                      layout="column"
+                      size="compact"
+                    />
+                    {commentCount > 0 && (
+                      <div
+                        className="flex items-center gap-1 text-xs font-medium"
+                        style={{ color: theme.colors.accent.blue.light }}
+                      >
+                        <VscComment />
+                        <span>{commentCount}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-               {commentCount > 0 && (
-                 <div className={`flex items-center gap-1 text-xs ${theme.colors.accent.blue.DEFAULT}`}>
-                   <VscComment />
-                   <span>{commentCount}</span>
-                 </div>
-               )}
             </div>
           )
         })}

@@ -502,7 +502,6 @@ export function DiffViewer({
             const commentCount = commentThreads.reduce((sum, thread) => sum + thread.comments.length, 0)
             const isCurrentFile = true
             const expandedSet = expandedSectionsByFile.get(file.path)
-
             return (
               <div
                 key={file.path}
@@ -513,30 +512,32 @@ export function DiffViewer({
               >
                 {/* File header */}
                 <div
-                className={clsx(
-                  "sticky top-0 z-10 bg-slate-950 border-b border-slate-700 px-4 py-3 flex items-center justify-between",
-                  isCurrentFile && "bg-slate-900"
-                )}
-                onContextMenu={(event) => handleFileContextMenu(event, file.path)}
-              >
-                <div className="flex items-center gap-3">
-                  {getFileIcon(file.change_type, file.path)}
-                  <div>
-                    <div className="font-medium text-sm text-slate-100">{file.path}</div>
-                    <div className="text-xs text-slate-400">
-                      {file.change_type === 'added' && 'New file'}
-                      {file.change_type === 'deleted' && 'Deleted file'}
-                      {file.change_type === 'modified' && 'Modified'}
-                      {file.change_type === 'renamed' && 'Renamed'}
+                  className={clsx(
+                    'sticky top-0 z-10 bg-slate-950 border-b border-slate-700 px-4 py-3 flex items-center justify-between gap-4',
+                    isCurrentFile && 'bg-slate-900'
+                  )}
+                  onContextMenu={(event) => handleFileContextMenu(event, file.path)}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    {getFileIcon(file.change_type, file.path)}
+                    <div className="min-w-0">
+                      <div className="font-medium text-sm text-slate-100 truncate">{file.path}</div>
+                      <div className="text-xs text-slate-400">
+                        {file.change_type === 'added' && 'New file'}
+                        {file.change_type === 'deleted' && 'Deleted file'}
+                        {file.change_type === 'modified' && 'Modified'}
+                        {file.change_type === 'renamed' && 'Renamed'}
+                        {file.change_type === 'copied' && 'Copied'}
+                        {file.change_type === 'unknown' && 'Changed'}
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {commentCount > 0 && (
-                    <div
-                      className="flex items-center gap-1 text-xs font-medium"
-                      style={{ color: theme.colors.accent.blue.light }}
-                    >
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    {commentCount > 0 && (
+                      <div
+                        className="flex items-center gap-1 text-xs font-medium"
+                        style={{ color: theme.colors.accent.blue.light }}
+                      >
                       <VscComment />
                       <span>{commentCount} comment{commentCount > 1 ? 's' : ''}</span>
                     </div>
@@ -682,25 +683,27 @@ export function DiffViewer({
               >
                 {/* File header */}
                 <div
-                className={clsx(
-                  "sticky top-0 z-10 bg-slate-950 border-b border-slate-700 px-4 py-3 flex items-center justify-between",
-                  isCurrentFile && "bg-slate-900"
-                )}
-                onContextMenu={(event) => handleFileContextMenu(event, file.path)}
-              >
-                <div className="flex items-center gap-3">
-                  {getFileIcon(file.change_type, file.path)}
-                  <div>
-                    <div className="font-medium text-sm text-slate-100">{file.path}</div>
-                    <div className="text-xs text-slate-400">
-                      {file.change_type === 'added' && 'New file'}
-                      {file.change_type === 'deleted' && 'Deleted file'}
-                      {file.change_type === 'modified' && 'Modified'}
-                      {file.change_type === 'renamed' && 'Renamed'}
+                  className={clsx(
+                    'sticky top-0 z-10 bg-slate-950 border-b border-slate-700 px-4 py-3 flex items-center justify-between gap-4',
+                    isCurrentFile && 'bg-slate-900'
+                  )}
+                  onContextMenu={(event) => handleFileContextMenu(event, file.path)}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    {getFileIcon(file.change_type, file.path)}
+                    <div className="min-w-0">
+                      <div className="font-medium text-sm text-slate-100 truncate">{file.path}</div>
+                      <div className="text-xs text-slate-400">
+                        {file.change_type === 'added' && 'New file'}
+                        {file.change_type === 'deleted' && 'Deleted file'}
+                        {file.change_type === 'modified' && 'Modified'}
+                        {file.change_type === 'renamed' && 'Renamed'}
+                        {file.change_type === 'copied' && 'Copied'}
+                        {file.change_type === 'unknown' && 'Changed'}
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3 flex-shrink-0">
                   {commentCount > 0 && (
                     <div
                       className="flex items-center gap-1 text-xs font-medium"
@@ -759,9 +762,9 @@ export function DiffViewer({
                           const lineNum = line.oldLineNumber || line.newLineNumber
                           const side: 'old' | 'new' = line.type === 'removed' ? 'old' : 'new'
 
-                          if (line.isCollapsible) {
-                            const rows = []
-                            rows.push(
+                      if (line.isCollapsible) {
+                        const rows = []
+                        rows.push(
                           <DiffLineRow
                             key={globalIdx}
                             line={line}
@@ -787,8 +790,8 @@ export function DiffViewer({
                                 key={`${globalIdx}-expanded-${collapsedIdx}`}
                                 line={collapsedLine}
                                 index={`${globalIdx}-${collapsedIdx}`}
-                                    isSelected={collapsedLineNum ? lineSelection.isLineSelected(file.path, collapsedLineNum, collapsedSide) : false}
-                                    filePath={file.path}
+                                isSelected={collapsedLineNum ? lineSelection.isLineSelected(file.path, collapsedLineNum, collapsedSide) : false}
+                                filePath={file.path}
                                 onLineMouseDown={handleLineMouseDown}
                                 onLineMouseEnter={handleLineMouseEnter}
                                 onLineMouseLeave={handleLineMouseLeave}
@@ -798,27 +801,27 @@ export function DiffViewer({
                                 onCodeContextMenu={(payload) => handleCodeContextMenu(file.path, payload)}
                               />
                             )
-                              })
-                            }
+                          })
+                        }
 
-                            return rows
-                          }
-                          return (
-                            <DiffLineRow
-                              key={globalIdx}
-                              line={line}
-                              index={globalIdx}
-                              isSelected={lineNum ? lineSelection.isLineSelected(file.path, lineNum ?? 0, side) : false}
-                              filePath={file.path}
-                              onLineMouseDown={handleLineMouseDown}
-                              onLineMouseEnter={handleLineMouseEnter}
-                              onLineMouseLeave={handleLineMouseLeave}
-                              onLineMouseUp={handleLineMouseUp}
-                              highlightedContent={line.content !== undefined ? highlightCode(file.path, globalIdx, line.content) : undefined}
-                              onLineNumberContextMenu={(payload) => handleLineNumberContextMenu(file.path, payload)}
-                              onCodeContextMenu={(payload) => handleCodeContextMenu(file.path, payload)}
-                            />
-                          )
+                        return rows
+                      }
+                      return (
+                        <DiffLineRow
+                          key={globalIdx}
+                          line={line}
+                          index={globalIdx}
+                          isSelected={lineNum ? lineSelection.isLineSelected(file.path, lineNum ?? 0, side) : false}
+                          filePath={file.path}
+                          onLineMouseDown={handleLineMouseDown}
+                          onLineMouseEnter={handleLineMouseEnter}
+                          onLineMouseLeave={handleLineMouseLeave}
+                          onLineMouseUp={handleLineMouseUp}
+                          highlightedContent={line.content !== undefined ? highlightCode(file.path, globalIdx, line.content) : undefined}
+                          onLineNumberContextMenu={(payload) => handleLineNumberContextMenu(file.path, payload)}
+                          onCodeContextMenu={(payload) => handleCodeContextMenu(file.path, payload)}
+                        />
+                      )
                     })}
                       </tbody>
                     </table>
