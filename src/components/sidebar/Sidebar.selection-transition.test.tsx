@@ -92,22 +92,25 @@ describe('Sidebar selection transitions', () => {
     Object.keys(rawSessions).forEach(key => delete rawSessions[key])
     terminalIds.clear()
 
-    mockInvoke.mockImplementation((command: string, args?: Record<string, unknown>) => {
+    mockInvoke.mockImplementation((command: string, args?: Record<string, unknown> | number[] | ArrayBuffer | Uint8Array) => {
+      const isRecord = (a: typeof args): a is Record<string, unknown> => {
+        return a != null && typeof a === 'object' && !Array.isArray(a) && !(a instanceof ArrayBuffer) && !(a instanceof Uint8Array)
+      }
       switch (command) {
         case TauriCommands.GetCurrentDirectory:
           return Promise.resolve('/test/project')
         case TauriCommands.TerminalExists: {
-          const id = args?.id as string | undefined
+          const id = isRecord(args) ? args.id as string | undefined : undefined
           return Promise.resolve(id ? terminalIds.has(id) : false)
         }
         case TauriCommands.CreateTerminal:
         case TauriCommands.CreateTerminalWithSize: {
-          const id = args?.id as string | undefined
+          const id = isRecord(args) ? args.id as string | undefined : undefined
           if (id) terminalIds.add(id)
           return Promise.resolve()
         }
         case TauriCommands.CloseTerminal: {
-          const id = args?.id as string | undefined
+          const id = isRecord(args) ? args.id as string | undefined : undefined
           if (id) terminalIds.delete(id)
           return Promise.resolve()
         }
@@ -119,7 +122,7 @@ describe('Sidebar selection transitions', () => {
         case TauriCommands.SchaltwerkCoreListSessionsByState:
           return Promise.resolve([])
         case TauriCommands.SchaltwerkCoreGetSession: {
-          const name = args?.name as string | undefined
+          const name = isRecord(args) ? args.name as string | undefined : undefined
           if (name && rawSessions[name]) {
             return Promise.resolve(rawSessions[name])
           }
