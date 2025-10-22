@@ -6,7 +6,7 @@ import { listenEvent, SchaltEvent } from '../common/eventSystem'
 import { useProject } from './ProjectContext'
 import { SortMode, FilterMode, getDefaultSortMode, getDefaultFilterMode, isValidSortMode, isValidFilterMode } from '../types/sessionFilters'
 import { mapSessionUiState, searchSessions as searchSessionsUtil } from '../utils/sessionFilters'
-import { EnrichedSession, SessionInfo, SessionState, RawSession } from '../types/session'
+import { EnrichedSession, SessionInfo, SessionState, RawSession, AgentType, AGENT_TYPES } from '../types/session'
 import { logger } from '../utils/logger'
 import { useOptionalToast } from '../common/toast/ToastProvider'
 import { hasBackgroundStart, emitUiEvent, UiEvent } from '../common/uiEvents'
@@ -41,6 +41,17 @@ interface MergeDialogState {
 }
 
 type SessionMutationKind = 'merge' | 'remove'
+
+const PENDING_STARTUP_TTL_MS = 10_000
+
+interface PendingStartup {
+    agentType?: AgentType
+    expiresAt: number
+}
+
+function isAgentType(value: string | null | undefined): value is AgentType {
+    return typeof value === 'string' && (AGENT_TYPES as readonly string[]).includes(value)
+}
 
 export function applySessionMutationState(
     previous: Map<string, Set<SessionMutationKind>>,
@@ -154,6 +165,7 @@ interface SessionsContextValue {
     optimisticallyConvertSessionToSpec: (sessionId: string) => void
     updateSessionStatus: (sessionId: string, newStatus: string) => Promise<void>
     createDraft: (name: string, content: string) => Promise<void>
+    enqueuePendingStartup: (sessionId: string, agentType?: string | null) => Promise<void>
     mergeDialogState: MergeDialogState
     openMergeDialog: (sessionId: string) => Promise<void>
     closeMergeDialog: () => void
@@ -551,6 +563,9 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         allSessionsRef.current = allSessions
     }, [allSessions])
 
+    const pendingStartupsRef = useRef<Map<string, PendingStartup>>(new Map())
+    const suppressedAutoStartRef = useRef<Set<string>>(new Set())
+
     const releaseRemovedSessions = useCallback((nextSessions: EnrichedSession[] | null | undefined) => {
         const nextList = Array.isArray(nextSessions) ? nextSessions : []
         const previousIds = new Set(allSessionsRef.current.map(session => session.info.session_id))
@@ -558,12 +573,31 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             return
         }
         const nextIds = new Set(nextList.map(session => session.info.session_id))
+        const removedIds: string[] = []
         for (const id of previousIds) {
             if (!nextIds.has(id)) {
+                removedIds.push(id)
                 releaseSessionTerminals(id)
+                pendingStartupsRef.current.delete(id)
+                suppressedAutoStartRef.current.delete(id)
             }
         }
+        if (removedIds.length > 0) {
+            logger.debug(
+                `[SessionsContext] releaseRemovedSessions removed ${removedIds.length} session terminals (previous=${previousIds.size}, next=${nextIds.size}): ${removedIds.join(', ')}`
+            )
+        }
     }, [allSessionsRef])
+
+    const enqueuePendingStartup = useCallback(async (sessionId: string, agentType?: string | null) => {
+        const normalizedAgentType = isAgentType(agentType) ? agentType : undefined
+        const expiresAt = Date.now() + PENDING_STARTUP_TTL_MS
+        pendingStartupsRef.current.set(sessionId, { agentType: normalizedAgentType, expiresAt })
+        suppressedAutoStartRef.current.delete(sessionId)
+        logger.info(
+            `[AGENT_LAUNCH_TRACE] pending startup enqueued for ${sessionId} (agentType=${normalizedAgentType ?? 'default'}, ttl=${PENDING_STARTUP_TTL_MS}ms)`
+        )
+    }, [])
 
     const reloadInFlightRef = useRef<Promise<void> | null>(null)
     const reloadDirtyRef = useRef(false)
@@ -576,6 +610,14 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         const previousStates = options?.previousStates ?? prevStatesRef.current
         const reason = options?.reason ?? 'sessions-refresh'
 
+        const now = Date.now()
+        for (const [sessionId, pending] of Array.from(pendingStartupsRef.current.entries())) {
+            if (pending.expiresAt <= now) {
+                pendingStartupsRef.current.delete(sessionId)
+                logger.warn(`[AGENT_LAUNCH_TRACE] pending startup expired for ${sessionId} (ttl=${PENDING_STARTUP_TTL_MS}ms)`)
+            }
+        }
+
         logger.info(`[AGENT_LAUNCH_TRACE] autoStartRunningSessions called: reason=${reason}, sessionCount=${sessions.length}`)
 
         for (const session of sessions) {
@@ -585,7 +627,63 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             }
 
             const nextState = mapSessionUiState(session.info)
+            const pending = pendingStartupsRef.current.get(sessionId)
+
+            if (pending && nextState !== 'running') {
+                if (nextState === 'spec') {
+                    pendingStartupsRef.current.delete(sessionId)
+                    suppressedAutoStartRef.current.add(sessionId)
+                    logger.info(`[AGENT_LAUNCH_TRACE] pending startup cancelled for ${sessionId}; session state=${nextState}`)
+                }
+                continue
+            }
+
+            if (pending && nextState === 'running') {
+                const topId = stableSessionTerminalId(sessionId, 'top')
+
+                if (hasBackgroundStart(topId) || hasInflight(topId)) {
+                    logger.info(`[AGENT_LAUNCH_TRACE] pending startup skipping ${sessionId}; background mark or inflight present`)
+                    pendingStartupsRef.current.delete(sessionId)
+                    suppressedAutoStartRef.current.add(sessionId)
+                    continue
+                }
+
+                pendingStartupsRef.current.delete(sessionId)
+                suppressedAutoStartRef.current.delete(sessionId)
+
+                logger.info(`[AGENT_LAUNCH_TRACE] pending startup starting ${sessionId}`)
+                const launch = async () => {
+                    try {
+                        const projectOrchestratorId = computeProjectOrchestratorId(projectPath)
+                        const fallbackAgent = session.info.original_agent_type ?? undefined
+                        await startSessionTop({
+                            sessionName: sessionId,
+                            topId,
+                            projectOrchestratorId,
+                            agentType: pending.agentType ?? fallbackAgent,
+                        })
+                        logger.info(`[SessionsContext] Started agent for ${sessionId} (pending-start).`)
+                    } catch (error) {
+                        const message = getErrorMessage(error)
+                        if (message.includes('Permission required for folder:')) {
+                            emitUiEvent(UiEvent.PermissionError, { error: message })
+                        } else {
+                            logger.warn(`[SessionsContext] Pending start failed for ${sessionId}:`, error)
+                        }
+                    }
+                }
+
+                void launch()
+                continue
+            }
+
             if (nextState !== 'running') {
+                suppressedAutoStartRef.current.delete(sessionId)
+                continue
+            }
+
+            if (suppressedAutoStartRef.current.has(sessionId)) {
+                logger.debug(`[AGENT_LAUNCH_TRACE] autoStartRunningSessions - skipping ${sessionId}: suppressed`)
                 continue
             }
 
@@ -607,7 +705,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             const launch = async () => {
                 try {
                     const projectOrchestratorId = computeProjectOrchestratorId(projectPath)
-                    const agentType = (session.info.original_agent_type as string | undefined) ?? undefined
+                    const agentType = session.info.original_agent_type ?? undefined
                     await startSessionTop({ sessionName: sessionId, topId, projectOrchestratorId, agentType })
                     logger.info(`[SessionsContext] Started agent for ${sessionId} (${reason}).`)
                 } catch (error) {
@@ -1291,6 +1389,13 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
 
             logger.info(`[AGENT_LAUNCH_TRACE] SessionAdded event received: session_name=${session_name}`)
 
+            const pendingStartup = pendingStartupsRef.current.get(session_name) ?? null
+            if (pendingStartup) {
+                logger.info(
+                    `[AGENT_LAUNCH_TRACE] SessionAdded handler - using pending startup details for ${session_name} (agentType=${pendingStartup.agentType ?? 'default'})`
+                )
+            }
+
             setAllSessions(prev => {
                 if (prev.some(s => s.info.session_id === session_name)) return prev
 
@@ -1312,6 +1417,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                     current_task: undefined,
                     todo_percentage: undefined,
                     is_blocked: undefined,
+                    original_agent_type: pendingStartup?.agentType,
                     diff_stats: undefined,
                     ready_to_merge: false,
                 }
@@ -1333,8 +1439,25 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
 
                 try {
                     const projectOrchestratorId = computeProjectOrchestratorId(projectPath)
-                    await startSessionTop({ sessionName: session_name, topId, projectOrchestratorId })
-                    logger.info(`[SessionsContext] Started agent for ${session_name} (auto-start).`)
+                    const activePending = pendingStartupsRef.current.get(session_name) ?? null
+                    const requestedAgentType = activePending?.agentType
+
+                    await startSessionTop({
+                        sessionName: session_name,
+                        topId,
+                        projectOrchestratorId,
+                        agentType: requestedAgentType ?? undefined,
+                    })
+
+                    if (activePending) {
+                        pendingStartupsRef.current.delete(session_name)
+                        suppressedAutoStartRef.current.delete(session_name)
+                        logger.info(
+                            `[SessionsContext] Started agent for ${session_name} (session-added, agent=${requestedAgentType ?? 'default'}).`
+                        )
+                    } else {
+                        logger.info(`[SessionsContext] Started agent for ${session_name} (auto-start).`)
+                    }
                 } catch (error) {
                     const message = String(error)
                     if (message.includes('Permission required for folder:')) {
@@ -1560,6 +1683,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             optimisticallyConvertSessionToSpec,
             updateSessionStatus,
             createDraft,
+            enqueuePendingStartup,
             mergeDialogState,
             openMergeDialog,
             closeMergeDialog,

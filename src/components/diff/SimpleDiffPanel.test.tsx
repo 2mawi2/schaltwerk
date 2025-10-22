@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { TauriCommands } from '../../common/tauriCommands'
 import userEvent from '@testing-library/user-event'
 import { vi } from 'vitest'
+import { createChangedFile } from '../../tests/test-utils'
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 
@@ -77,8 +78,8 @@ describe('SimpleDiffPanel', () => {
     currentSelection = { kind: 'session', payload: 's1' }
 
     const files = [
-      { path: 'src/a/file1.txt', change_type: 'modified' },
-      { path: 'src/b/file2.ts', change_type: 'added' },
+      createChangedFile({ path: 'src/a/file1.txt', change_type: 'modified', additions: 2, deletions: 1 }),
+      createChangedFile({ path: 'src/b/file2.ts', change_type: 'added', additions: 4 }),
     ]
     invoke.mockImplementation(async (cmd: string) => {
       if (cmd === TauriCommands.GetChangedFilesFromMain) return files

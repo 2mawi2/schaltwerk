@@ -13,9 +13,10 @@ export type OpenApp = {
 interface OpenInSplitButtonProps {
   resolvePath: () => Promise<string | undefined>
   onOpenReady?: (openHandler: () => Promise<void>) => void
+  filter?: (app: OpenApp) => boolean
 }
 
-export function OpenInSplitButton({ resolvePath, onOpenReady }: OpenInSplitButtonProps) {
+export function OpenInSplitButton({ resolvePath, onOpenReady, filter }: OpenInSplitButtonProps) {
   const [apps, setApps] = useState<OpenApp[]>([])
   const [defaultApp, setDefaultApp] = useState<OpenApp['id']>('finder')
   const [open, setOpen] = useState(false)
@@ -55,10 +56,23 @@ export function OpenInSplitButton({ resolvePath, onOpenReady }: OpenInSplitButto
     return () => document.removeEventListener('mousedown', onDocClick)
   }, [open])
 
+  const filteredApps = useMemo(() => {
+    if (!filter) return apps
+    return apps.filter(app => filter(app))
+  }, [apps, filter])
+
+  const effectiveDefaultApp = useMemo<OpenApp['id']>(() => {
+    if (filteredApps.length === 0) return defaultApp
+    return filteredApps.some(app => app.id === defaultApp) ? defaultApp : filteredApps[0].id
+  }, [filteredApps, defaultApp])
+  const hasVisibleApps = filteredApps.length > 0 || !filter
+
   const defaultAppLabel = useMemo(() => {
-    const a = apps?.find?.(a => a.id === defaultApp)
+    const searchPool = filteredApps.length > 0 ? filteredApps : apps
+    const targetId = filteredApps.length > 0 ? effectiveDefaultApp : defaultApp
+    const a = searchPool?.find?.(candidate => candidate.id === targetId)
     return a?.name ?? 'Open'
-  }, [apps, defaultApp])
+  }, [apps, filteredApps, effectiveDefaultApp, defaultApp])
 
   const openWithApp = useCallback(async (appId: OpenApp['id'], showError = true) => {
     const path = await resolvePath()
@@ -79,14 +93,14 @@ export function OpenInSplitButton({ resolvePath, onOpenReady }: OpenInSplitButto
   }, [resolvePath])
 
   const handleMainClick = useCallback(async () => {
-    await openWithApp(defaultApp, true)
-  }, [defaultApp, openWithApp])
+    await openWithApp(effectiveDefaultApp, true)
+  }, [effectiveDefaultApp, openWithApp])
 
   useEffect(() => {
-    if (onOpenReady) {
-      onOpenReady(handleMainClick)
-    }
-  }, [onOpenReady, handleMainClick])
+    if (!onOpenReady) return
+    if (!hasVisibleApps) return
+    onOpenReady(handleMainClick)
+  }, [onOpenReady, handleMainClick, hasVisibleApps])
 
   const handleSelectApp = async (app: OpenApp) => {
     setOpen(false)
@@ -121,6 +135,10 @@ export function OpenInSplitButton({ resolvePath, onOpenReady }: OpenInSplitButto
     return <VscTerminal className="text-[14px]" />
   }
 
+  if (filter && filteredApps.length === 0) {
+    return null
+  }
+
   return (
     <div className="relative" ref={menuRef}>
       <div className="flex rounded overflow-hidden border border-slate-700/60 bg-slate-800/50 h-[22px]">
@@ -150,7 +168,7 @@ export function OpenInSplitButton({ resolvePath, onOpenReady }: OpenInSplitButto
           role="menu"
           className="absolute right-0 mt-2 min-w-[200px] z-20 rounded-xl border border-slate-700/60 bg-slate-900 shadow-xl p-1"
         >
-          {apps.map(app => (
+          {filteredApps.map(app => (
             <button
               key={app.id}
               onClick={() => void handleSelectApp(app)}
@@ -160,7 +178,7 @@ export function OpenInSplitButton({ resolvePath, onOpenReady }: OpenInSplitButto
             >
               <span className="w-4 inline-flex items-center justify-center">{iconFor(app.id)}</span>
               <span className="flex-1">{app.name}</span>
-              {app.id === defaultApp ? (
+              {app.id === effectiveDefaultApp ? (
                 <VscCheck className="text-[14px] text-slate-400" />
               ) : (
                 <VscChevronRight className="text-[14px] text-slate-500 opacity-60" />

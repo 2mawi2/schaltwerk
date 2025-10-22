@@ -2,14 +2,9 @@ import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
 import { DiffResponse, SplitDiffResponse, LineInfo, SplitDiffResult, FileInfo } from '../../types/diff'
 import type { CommitFileChange } from '../git-graph/types'
+import type { ChangedFile } from '../../common/events'
 
 export type ChangeType = 'modified' | 'added' | 'deleted' | 'renamed' | 'copied' | 'unknown'
-
-export interface ChangedFile {
-  path: string
-  change_type: ChangeType
-  previous_path?: string
-}
 
 export type ViewMode = 'unified' | 'split'
 
@@ -70,6 +65,9 @@ export async function loadCommitFileDiff(request: CommitDiffRequest): Promise<Fi
       path: file.path,
       change_type: normalizeCommitChangeType(file.changeType),
       previous_path: file.oldPath,
+      additions: diffResponse.stats.additions,
+      deletions: diffResponse.stats.deletions,
+      changes: changedLinesCount,
     },
     diffResult: diffResponse.lines,
     changedLinesCount,

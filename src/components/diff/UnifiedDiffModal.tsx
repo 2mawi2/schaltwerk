@@ -31,6 +31,7 @@ import { stableSessionTerminalId } from '../../common/terminalIdentity'
 import { ReviewCommentThread, ReviewComment } from '../../types/review'
 import { theme } from '../../common/theme'
 import { ResizableModal } from '../shared/ResizableModal'
+import { computeRenderOrder } from './virtualization'
 
 // ChangedFile type now imported from DiffFileExplorer
 
@@ -56,6 +57,9 @@ interface DiffViewPreferences {
   compact_diffs: boolean
   sidebar_width?: number
 }
+
+const RECENTLY_RENDERED_LIMIT = 8
+const LOCKED_RENDER_LIMIT = RECENTLY_RENDERED_LIMIT * 2
 
 // FileDiffData type moved to loadDiffs
 
@@ -121,6 +125,8 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
   const pendingVisibilityUpdatesRef = useRef<Map<string, boolean>>(new Map())
   const visibilityFrameRef = useRef<number | NodeJS.Timeout | null>(null)
   const recentlyVisibleRef = useRef<string[]>([])
+  const [isVirtualizationLocked, setIsVirtualizationLocked] = useState(false)
+  const virtualizationUnlockTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const historyPrefetchQueueRef = useRef<string[]>([])
   const historyPrefetchActiveRef = useRef<Set<string>>(new Set())
   const activeSelectionFileRef = useRef<string | null>(null)
@@ -135,6 +141,9 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
       path: file.path,
       change_type: normalizeCommitChangeType(file.changeType),
       previous_path: file.oldPath,
+      additions: 0,
+      deletions: 0,
+      changes: 0,
     }))
   }, [mode, historyContext])
   const historyInitialFile = useMemo(() => {
@@ -228,6 +237,28 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
     if (!targetSession) return false
     return mapSessionUiState(targetSession.info) === 'running'
   }, [targetSession])
+  const handleOpenFile = useCallback(async (filePath: string): Promise<string | undefined> => {
+    if (mode === 'history') {
+      return undefined
+    }
+
+    try {
+      if (selection.kind === 'orchestrator') {
+        const repoPath = await invoke<string | null>(TauriCommands.GetActiveProjectPath)
+        return repoPath ? `${repoPath}/${filePath}` : undefined
+      } else if (sessionName) {
+        const sessionData = await invoke<{ worktree_path?: string }>(TauriCommands.SchaltwerkCoreGetSession, { name: sessionName })
+        const worktreePath = sessionData?.worktree_path
+        if (worktreePath) {
+          return `${worktreePath}/${filePath}`
+        }
+      }
+    } catch (err) {
+      logger.error('Failed to resolve file path for opening:', err)
+    }
+    return undefined
+  }, [mode, selection.kind, sessionName])
+  const openFileHandler = mode === 'history' ? undefined : handleOpenFile
 
   // Helper to check if a line has comments
   const getThreadsForFile = useCallback((filePath: string) => {
@@ -484,27 +515,53 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
         : await fetchSessionChangedFiles()
       setFiles(changedFiles)
 
-      let initialIndex = 0
-      let initialPath: string | null = filePath || null
+      let nextSelectedPath: string | null = null
+      let nextSelectedIndex = 0
+
       if (changedFiles.length > 0) {
-        if (!initialPath) initialPath = changedFiles[0].path
-        const found = changedFiles.findIndex(f => f.path === initialPath)
-        initialIndex = found >= 0 ? found : 0
+        const requestedPath = filePath || null
+        if (requestedPath) {
+          const foundIndex = changedFiles.findIndex(f => f.path === requestedPath)
+          if (foundIndex >= 0) {
+            nextSelectedPath = changedFiles[foundIndex].path
+            nextSelectedIndex = foundIndex
+          } else {
+            nextSelectedPath = changedFiles[0].path
+            nextSelectedIndex = 0
+          }
+        } else {
+          nextSelectedPath = changedFiles[0].path
+          nextSelectedIndex = 0
+        }
+      } else {
+        setSelectedFile(null)
+        setSelectedFileIndex(0)
+        setVisibleFilePath(null)
+        setAllFileDiffs(new Map())
+        setRenderedFileSet(new Set())
+        setVisibleFileSet(new Set())
+        setLoadingFiles(new Set())
+        setFileError(null)
       }
 
-      if (initialPath) {
-        setSelectedFile(initialPath)
-        setSelectedFileIndex(initialIndex)
-        try {
-          const primary = await loadFileDiff(sessionName, changedFiles[initialIndex], 'unified')
-          setAllFileDiffs(prev => {
-            const merged = new Map(prev)
-            merged.set(initialPath, primary)
-            return merged
-          })
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e)
-          setFileError(msg)
+      if (nextSelectedPath) {
+        setSelectedFile(nextSelectedPath)
+        setSelectedFileIndex(nextSelectedIndex)
+        setVisibleFilePath(nextSelectedPath)
+        setFileError(null)
+        const targetFile = changedFiles[nextSelectedIndex]
+        if (targetFile) {
+          try {
+            const primary = await loadFileDiff(sessionName, targetFile, 'unified')
+            setAllFileDiffs(prev => {
+              const merged = new Map(prev)
+              merged.set(nextSelectedPath!, primary)
+              return merged
+            })
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e)
+            setFileError(msg)
+          }
         }
       }
 
@@ -694,6 +751,49 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
     }, 250)
   }, [mode, historyContext, setHistoryPrefetchVersion, isLargeDiffMode, files, sessionName, allFileDiffs])
 
+  useEffect(() => {
+    if (!isOpen || isLargeDiffMode) {
+      setIsVirtualizationLocked(false)
+      if (virtualizationUnlockTimeoutRef.current) {
+        clearTimeout(virtualizationUnlockTimeoutRef.current)
+        virtualizationUnlockTimeoutRef.current = null
+      }
+      return
+    }
+
+    const container = scrollContainerRef.current
+    if (!container) {
+      return
+    }
+
+    const releaseLock = () => {
+      virtualizationUnlockTimeoutRef.current = null
+      setIsVirtualizationLocked(false)
+    }
+
+    const scheduleUnlock = () => {
+      if (virtualizationUnlockTimeoutRef.current) {
+        clearTimeout(virtualizationUnlockTimeoutRef.current)
+      }
+      virtualizationUnlockTimeoutRef.current = setTimeout(releaseLock, 180)
+    }
+
+    const handleScroll = () => {
+      setIsVirtualizationLocked(prev => (prev ? prev : true))
+      scheduleUnlock()
+    }
+
+    container.addEventListener('scroll', handleScroll, { passive: true })
+
+    return () => {
+      container.removeEventListener('scroll', handleScroll)
+      if (virtualizationUnlockTimeoutRef.current) {
+        clearTimeout(virtualizationUnlockTimeoutRef.current)
+        virtualizationUnlockTimeoutRef.current = null
+      }
+    }
+  }, [isOpen, isLargeDiffMode])
+
   // Set up Intersection Observer for virtual scrolling in continuous mode
   useEffect(() => {
     const pendingUpdates = pendingVisibilityUpdatesRef.current
@@ -789,17 +889,29 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
   }, [isOpen, isLargeDiffMode, files])
 
   useEffect(() => {
-    if (visibleFileSet.size === 0) {
+    if (isLargeDiffMode || !isOpen) {
       return
     }
 
-    const maxRecent = 4
-    const visibleList = Array.from(visibleFileSet)
-    const historical = recentlyVisibleRef.current.filter(path => !visibleFileSet.has(path))
-    const combined = [...visibleList, ...historical].slice(0, maxRecent)
-    recentlyVisibleRef.current = combined
-    setRenderedFileSet(new Set(combined))
-  }, [visibleFileSet])
+    const previousList = recentlyVisibleRef.current
+    const previousSet = new Set(previousList)
+    const visibleArray = Array.from(visibleFileSet)
+    const newEntries = visibleArray.filter(path => !previousSet.has(path))
+    const existingEntries = visibleArray.filter(path => previousSet.has(path))
+    const prioritizedVisible = [...newEntries, ...existingEntries]
+    const baseLimit = isVirtualizationLocked ? LOCKED_RENDER_LIMIT : RECENTLY_RENDERED_LIMIT
+    const effectiveLimit = Math.max(visibleArray.length, baseLimit)
+    const nextList = computeRenderOrder(previousList, prioritizedVisible, effectiveLimit)
+
+    recentlyVisibleRef.current = nextList
+
+    if (isVirtualizationLocked) {
+      return
+    }
+
+    const nextSet = new Set(nextList)
+    setRenderedFileSet(prev => setsEqual(prev, nextSet) ? prev : nextSet)
+  }, [visibleFileSet, isVirtualizationLocked, isLargeDiffMode, isOpen])
 
   // Load diffs for visible files with buffer zones
   useEffect(() => {
@@ -1704,6 +1816,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
               onCopyCode={handleCopyCodeFromContext}
               onCopyFilePath={handleCopyFilePath}
               onStartCommentFromContext={handleStartCommentFromContext}
+              onOpenFile={openFileHandler}
             />
             <SearchBox
               targetRef={scrollContainerRef}
@@ -1856,6 +1969,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
                 onCopyFilePath={handleCopyFilePath}
                 onDiscardFile={handleDiscardFile}
                 onStartCommentFromContext={handleStartCommentFromContext}
+                onOpenFile={openFileHandler}
               />
 
               <SearchBox
@@ -2021,6 +2135,21 @@ function CommentForm({ onSubmit, onCancel, keyboardShortcutConfig, platform }: {
       </div>
     </>
   )
+}
+
+function setsEqual(a: Set<string>, b: Set<string>): boolean {
+  if (a === b) {
+    return true
+  }
+  if (a.size !== b.size) {
+    return false
+  }
+  for (const value of a) {
+    if (!b.has(value)) {
+      return false
+    }
+  }
+  return true
 }
 
 export function computeHistorySeedWindow(files: ChangedFile[], centerIndex: number, radius = 2): Set<string> {

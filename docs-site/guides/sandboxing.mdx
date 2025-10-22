@@ -1,0 +1,64 @@
+---
+title: Agent Sandboxing
+description: 'Configure sandboxing for Claude Code and Codex to control filesystem and network access'
+---
+
+Both Claude Code and Codex support OS-level sandboxing to protect your system. This guide shows how to configure sandboxing in Schaltwerk.
+
+<Info>
+  Schaltwerk runs agents in isolated worktrees, which provides an additional layer of isolation beyond agent sandboxing.
+</Info>
+
+## Claude Code Sandboxing
+
+### Configuration in Schaltwerk
+
+In **Settings → Agent Configuration → Claude Code**, add to CLI Arguments:
+
+```bash
+-sb
+```
+
+This enables OS-level sandboxing (macOS Seatbelt, Linux Bubblewrap).
+
+For detailed sandboxing configuration options, see the [official Claude Code sandboxing documentation](https://docs.claude.com/en/docs/claude-code/sandboxing).
+
+## Codex Sandboxing
+
+### Configuration in Schaltwerk
+
+Codex offers three sandbox modes. Configure in **Settings → Agent Configuration → Codex**, add to CLI Arguments:
+
+**Workspace-Write Mode (Recommended):**
+```bash
+--sandbox workspace-write
+```
+
+**Read-Only Mode:**
+```bash
+--sandbox read-only
+```
+
+**Full Auto Mode:**
+```bash
+--full-auto
+```
+
+<Info>
+  `--full-auto` is equivalent to `--sandbox workspace-write --ask-for-approval on-failure`
+</Info>
+
+For detailed information about sandbox modes, configuration options, and platform-specific details, see the [official Codex sandboxing documentation](https://github.com/openai/codex/blob/main/docs/sandbox.md).
+
+## Additional Resources
+
+<CardGroup cols={2}>
+  <Card title="Claude Code Sandboxing" icon="box" href="https://docs.claude.com/en/docs/claude-code/sandboxing">
+    Official Claude Code sandboxing documentation
+  </Card>
+
+  <Card title="Codex Sandboxing" icon="code" href="https://github.com/openai/codex/blob/main/docs/sandbox.md">
+    Official Codex sandboxing documentation
+  </Card>
+</CardGroup>
+

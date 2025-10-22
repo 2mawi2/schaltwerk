@@ -28,6 +28,7 @@ import { useModal } from '../../contexts/ModalContext'
 import { safeTerminalFocus } from '../../utils/safeFocus'
 import { UiEvent, emitUiEvent, listenUiEvent, TerminalResetDetail } from '../../common/uiEvents'
 import { beginSplitDrag, endSplitDrag } from '../../utils/splitDragCoordinator'
+import { useToast } from '../../common/toast/ToastProvider'
 
 type TerminalTabDescriptor = { index: number; terminalId: string; label: string }
 type TerminalTabsUiState = {
@@ -57,6 +58,7 @@ const TerminalGridComponent = () => {
     const { actionButtons } = useActionButtons()
     const { sessions } = useSessions()
     const { isAnyModalOpen } = useModal()
+    const { pushToast } = useToast()
 
     // Get dynamic shortcut for Focus Claude
     const focusClaudeShortcut = useShortcutDisplay(KeyboardShortcutAction.FocusClaude)
@@ -106,6 +108,7 @@ const TerminalGridComponent = () => {
     const [isBottomCollapsed, setIsBottomCollapsed] = useState<boolean>(initialIsCollapsed)
     const [lastExpandedBottomPercent, setLastExpandedBottomPercent] = useState<number>(initialExpanded)
     const isDraggingRef = useRef(false)
+    const pendingInsertTextRef = useRef<string | null>(null)
     const [sizes, setSizes] = useState<number[]>(() => {
         const raw = sessionStorage.getItem(`schaltwerk:terminal-grid:sizes:${initialPersistKey}`)
         let base: number[] = [70, 30]
@@ -805,6 +808,73 @@ const TerminalGridComponent = () => {
     const hasProjectScopedIds = terminals.top && !terminals.top.includes('orchestrator-default')
     const shouldRenderTerminals = isReady || hasProjectScopedIds
 
+    const applyPendingInsert = useCallback(async () => {
+        const pendingText = pendingInsertTextRef.current
+        if (!pendingText) {
+            return
+        }
+        if (selection.kind !== 'orchestrator') {
+            return
+        }
+        if (!shouldRenderTerminals) {
+            return
+        }
+        const terminalId = terminals.top
+        if (!terminalId) {
+            return
+        }
+
+        try {
+            const exists = await invoke<boolean>(TauriCommands.TerminalExists, { id: terminalId })
+            if (!exists) {
+                pendingInsertTextRef.current = null
+                logger.warn('[TerminalGrid] Orchestrator terminal not available for refine insert')
+                pushToast({
+                    tone: 'error',
+                    title: 'Orchestrator terminal unavailable',
+                    description: 'Select the orchestrator to start its terminal, then try refining again.'
+                })
+                return
+            }
+
+            try {
+                await invoke(TauriCommands.WriteTerminal, { id: terminalId, data: '\u0015' })
+            } catch (err) {
+                logger.debug('[TerminalGrid] Failed to clear existing terminal input before refine insert', err)
+            }
+            await invoke(TauriCommands.WriteTerminal, { id: terminalId, data: `${pendingText} ` })
+            pendingInsertTextRef.current = null
+            setFocusForSession('orchestrator', 'claude')
+            setLocalFocus('claude')
+            safeTerminalFocus(() => {
+                claudeTerminalRef.current?.focus()
+            }, isAnyModalOpen)
+        } catch (error) {
+            pendingInsertTextRef.current = null
+            logger.error('[TerminalGrid] Failed to insert text into orchestrator terminal', error)
+            pushToast({
+                tone: 'error',
+                title: 'Failed to insert text',
+                description: 'Unable to insert refined spec reference into the orchestrator terminal.'
+            })
+        }
+    }, [selection.kind, shouldRenderTerminals, terminals.top, pushToast, setFocusForSession, setLocalFocus, isAnyModalOpen])
+
+    useEffect(() => {
+        const cleanup = listenUiEvent(UiEvent.InsertTerminalText, (detail) => {
+            if (!detail?.text) {
+                return
+            }
+            pendingInsertTextRef.current = detail.text
+            void applyPendingInsert()
+        })
+        return cleanup
+    }, [applyPendingInsert])
+
+    useEffect(() => {
+        void applyPendingInsert()
+    }, [applyPendingInsert])
+
     // When collapsed, adjust sizes to show just the terminal header
     const effectiveSizes = isBottomCollapsed 
         ? [100 - collapsedPercent, collapsedPercent]
@@ -879,6 +949,7 @@ const TerminalGridComponent = () => {
                         boxShadow: localFocus === 'claude' ? `0 10px 15px -3px ${theme.colors.accent.blue.DEFAULT}33, 0 4px 6px -2px ${theme.colors.accent.blue.DEFAULT}33` : undefined,
                     }}
                     className={`bg-panel rounded overflow-hidden min-h-0 flex flex-col border-2 ${localFocus === 'claude' ? 'shadow-lg' : ''}`}
+                    data-onboarding="agent-terminal"
                 >
                     <div
                         style={{
@@ -1162,6 +1233,7 @@ const TerminalGridComponent = () => {
                             style={{ display: !hasRunScripts || !runModeActive || terminalTabsState.activeTab !== -1 ? 'block' : 'none' }}
                             className="h-full"
                             onTransitionEnd={handlePanelTransitionEnd}
+                            data-onboarding="user-terminal"
                         >
                             <TerminalErrorBoundary terminalId={terminals.bottomBase}>
                                 <TerminalTabs

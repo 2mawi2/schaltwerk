@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
-import { VscComment } from 'react-icons/vsc'
+import { VscComment, VscDiscard } from 'react-icons/vsc'
 import { getFileIcon } from '../../utils/fileIcons'
 import { DiffLineRow } from './DiffLineRow'
 import { ChangedFile } from './DiffFileExplorer'
@@ -9,6 +9,8 @@ import { AnimatedText } from '../common/AnimatedText'
 import { ReviewCommentThread } from '../../types/review'
 import { LineSelection } from '../../hooks/useLineSelection'
 import { theme } from '../../common/theme'
+import { OpenInSplitButton, type OpenApp } from '../OpenInSplitButton'
+import { ConfirmDiscardDialog } from '../common/ConfirmDiscardDialog'
 
 type ContextMenuState =
   | {
@@ -157,6 +159,7 @@ export interface DiffViewerProps {
   onCopyFilePath?: (filePath: string) => void
   onDiscardFile?: (filePath: string) => void
   onStartCommentFromContext?: (payload: { filePath: string; lineNumber: number; side: 'old' | 'new' }) => void
+  onOpenFile?: (filePath: string) => Promise<string | undefined>
 }
 
 export function DiffViewer({
@@ -187,10 +190,15 @@ export function DiffViewer({
   onCopyCode,
   onCopyFilePath,
   onDiscardFile,
-  onStartCommentFromContext
+  onStartCommentFromContext,
+  onOpenFile
 }: DiffViewerProps) {
   const resizeObserversRef = useRef<Map<string, ResizeObserver>>(new Map())
   const bodyRefCallbacksRef = useRef<Map<string, (node: HTMLDivElement | null) => void>>(new Map())
+  const editorFilter = useCallback((app: OpenApp) => app.kind === 'editor', [])
+  const [discardOpen, setDiscardOpen] = useState(false)
+  const [discardBusy, setDiscardBusy] = useState(false)
+  const [pendingDiscardFile, setPendingDiscardFile] = useState<string | null>(null)
 
   useEffect(() => {
     const observers = resizeObserversRef.current
@@ -494,7 +502,6 @@ export function DiffViewer({
             const commentCount = commentThreads.reduce((sum, thread) => sum + thread.comments.length, 0)
             const isCurrentFile = true
             const expandedSet = expandedSectionsByFile.get(file.path)
-
             return (
               <div
                 key={file.path}
@@ -506,35 +513,57 @@ export function DiffViewer({
                 {/* File header */}
                 <div
                   className={clsx(
-                    "sticky top-0 z-10 bg-slate-950 border-b border-slate-700 px-4 py-3 flex items-center justify-between",
-                    isCurrentFile && "bg-slate-900"
+                    'sticky top-0 z-10 bg-slate-950 border-b border-slate-700 px-4 py-3 flex items-center justify-between gap-4',
+                    isCurrentFile && 'bg-slate-900'
                   )}
                   onContextMenu={(event) => handleFileContextMenu(event, file.path)}
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
                     {getFileIcon(file.change_type, file.path)}
-                     <div>
-                       <div className="font-medium text-sm text-slate-100">{file.path}</div>
-                       <div className="text-xs text-slate-400">
-                         {file.change_type === 'added' && 'New file'}
-                         {file.change_type === 'deleted' && 'Deleted file'}
-                         {file.change_type === 'modified' && 'Modified'}
-                         {file.change_type === 'renamed' && 'Renamed'}
-                       </div>
-                     </div>
+                    <div className="min-w-0">
+                      <div className="font-medium text-sm text-slate-100 truncate">{file.path}</div>
+                      <div className="text-xs text-slate-400">
+                        {file.change_type === 'added' && 'New file'}
+                        {file.change_type === 'deleted' && 'Deleted file'}
+                        {file.change_type === 'modified' && 'Modified'}
+                        {file.change_type === 'renamed' && 'Renamed'}
+                        {file.change_type === 'copied' && 'Copied'}
+                        {file.change_type === 'unknown' && 'Changed'}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {commentCount > 0 && (
-                        <div
-                          className="flex items-center gap-1 text-xs font-medium"
-                          style={{ color: theme.colors.accent.blue.light }}
-                        >
-                          <VscComment />
-                          <span>{commentCount} comment{commentCount > 1 ? 's' : ''}</span>
-                        </div>
-                      )}
+                  </div>
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    {commentCount > 0 && (
+                      <div
+                        className="flex items-center gap-1 text-xs font-medium"
+                        style={{ color: theme.colors.accent.blue.light }}
+                      >
+                      <VscComment />
+                      <span>{commentCount} comment{commentCount > 1 ? 's' : ''}</span>
                     </div>
-                 </div>
+                  )}
+                  {onDiscardFile && (
+                    <button
+                      title="Discard changes for this file"
+                      aria-label={`Discard ${file.path}`}
+                      className="p-1 rounded hover:bg-slate-800 text-slate-300"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setPendingDiscardFile(file.path)
+                        setDiscardOpen(true)
+                      }}
+                    >
+                      <VscDiscard className="text-base" />
+                    </button>
+                  )}
+                  {onOpenFile && (
+                    <OpenInSplitButton
+                      resolvePath={() => onOpenFile(file.path)}
+                      filter={editorFilter}
+                    />
+                  )}
+                </div>
+              </div>
 
                  {/* File diff content or loading placeholder */}
                 {!fileDiff ? (
@@ -655,35 +684,57 @@ export function DiffViewer({
                 {/* File header */}
                 <div
                   className={clsx(
-                    "sticky top-0 z-10 bg-slate-950 border-b border-slate-700 px-4 py-3 flex items-center justify-between",
-                    isCurrentFile && "bg-slate-900"
+                    'sticky top-0 z-10 bg-slate-950 border-b border-slate-700 px-4 py-3 flex items-center justify-between gap-4',
+                    isCurrentFile && 'bg-slate-900'
                   )}
                   onContextMenu={(event) => handleFileContextMenu(event, file.path)}
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
                     {getFileIcon(file.change_type, file.path)}
-                    <div>
-                      <div className="font-medium text-sm text-slate-100">{file.path}</div>
+                    <div className="min-w-0">
+                      <div className="font-medium text-sm text-slate-100 truncate">{file.path}</div>
                       <div className="text-xs text-slate-400">
                         {file.change_type === 'added' && 'New file'}
                         {file.change_type === 'deleted' && 'Deleted file'}
                         {file.change_type === 'modified' && 'Modified'}
-                         {file.change_type === 'renamed' && 'Renamed'}
-                       </div>
-                     </div>
-                   </div>
-                    <div className="flex items-center gap-2">
-                      {commentCount > 0 && (
-                        <div
-                          className="flex items-center gap-1 text-xs font-medium"
-                          style={{ color: theme.colors.accent.blue.light }}
-                        >
-                          <VscComment />
-                          <span>{commentCount} comment{commentCount > 1 ? 's' : ''}</span>
-                        </div>
-                      )}
+                        {file.change_type === 'renamed' && 'Renamed'}
+                        {file.change_type === 'copied' && 'Copied'}
+                        {file.change_type === 'unknown' && 'Changed'}
+                      </div>
                     </div>
-                 </div>
+                  </div>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  {commentCount > 0 && (
+                    <div
+                      className="flex items-center gap-1 text-xs font-medium"
+                      style={{ color: theme.colors.accent.blue.light }}
+                    >
+                      <VscComment />
+                      <span>{commentCount} comment{commentCount > 1 ? 's' : ''}</span>
+                    </div>
+                  )}
+                  {onDiscardFile && (
+                    <button
+                      title="Discard changes for this file"
+                      aria-label={`Discard ${file.path}`}
+                      className="p-1 rounded hover:bg-slate-800 text-slate-300"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setPendingDiscardFile(file.path)
+                        setDiscardOpen(true)
+                      }}
+                    >
+                      <VscDiscard className="text-base" />
+                    </button>
+                  )}
+                  {onOpenFile && (
+                    <OpenInSplitButton
+                      resolvePath={() => onOpenFile(file.path)}
+                      filter={editorFilter}
+                    />
+                  )}
+                </div>
+              </div>
 
                  {/* File diff content with virtualization */}
                 {!fileDiff ? (
@@ -711,9 +762,9 @@ export function DiffViewer({
                           const lineNum = line.oldLineNumber || line.newLineNumber
                           const side: 'old' | 'new' = line.type === 'removed' ? 'old' : 'new'
 
-                          if (line.isCollapsible) {
-                            const rows = []
-                            rows.push(
+                      if (line.isCollapsible) {
+                        const rows = []
+                        rows.push(
                           <DiffLineRow
                             key={globalIdx}
                             line={line}
@@ -739,8 +790,8 @@ export function DiffViewer({
                                 key={`${globalIdx}-expanded-${collapsedIdx}`}
                                 line={collapsedLine}
                                 index={`${globalIdx}-${collapsedIdx}`}
-                                    isSelected={collapsedLineNum ? lineSelection.isLineSelected(file.path, collapsedLineNum, collapsedSide) : false}
-                                    filePath={file.path}
+                                isSelected={collapsedLineNum ? lineSelection.isLineSelected(file.path, collapsedLineNum, collapsedSide) : false}
+                                filePath={file.path}
                                 onLineMouseDown={handleLineMouseDown}
                                 onLineMouseEnter={handleLineMouseEnter}
                                 onLineMouseLeave={handleLineMouseLeave}
@@ -750,27 +801,27 @@ export function DiffViewer({
                                 onCodeContextMenu={(payload) => handleCodeContextMenu(file.path, payload)}
                               />
                             )
-                              })
-                            }
+                          })
+                        }
 
-                            return rows
-                          }
-                          return (
-                            <DiffLineRow
-                              key={globalIdx}
-                              line={line}
-                              index={globalIdx}
-                              isSelected={lineNum ? lineSelection.isLineSelected(file.path, lineNum ?? 0, side) : false}
-                              filePath={file.path}
-                              onLineMouseDown={handleLineMouseDown}
-                              onLineMouseEnter={handleLineMouseEnter}
-                              onLineMouseLeave={handleLineMouseLeave}
-                              onLineMouseUp={handleLineMouseUp}
-                              highlightedContent={line.content !== undefined ? highlightCode(file.path, globalIdx, line.content) : undefined}
-                              onLineNumberContextMenu={(payload) => handleLineNumberContextMenu(file.path, payload)}
-                              onCodeContextMenu={(payload) => handleCodeContextMenu(file.path, payload)}
-                            />
-                          )
+                        return rows
+                      }
+                      return (
+                        <DiffLineRow
+                          key={globalIdx}
+                          line={line}
+                          index={globalIdx}
+                          isSelected={lineNum ? lineSelection.isLineSelected(file.path, lineNum ?? 0, side) : false}
+                          filePath={file.path}
+                          onLineMouseDown={handleLineMouseDown}
+                          onLineMouseEnter={handleLineMouseEnter}
+                          onLineMouseLeave={handleLineMouseLeave}
+                          onLineMouseUp={handleLineMouseUp}
+                          highlightedContent={line.content !== undefined ? highlightCode(file.path, globalIdx, line.content) : undefined}
+                          onLineNumberContextMenu={(payload) => handleLineNumberContextMenu(file.path, payload)}
+                          onCodeContextMenu={(payload) => handleCodeContextMenu(file.path, payload)}
+                        />
+                      )
                     })}
                       </tbody>
                     </table>
@@ -792,6 +843,26 @@ export function DiffViewer({
         )}
       </div>
       {renderContextMenu()}
+      <ConfirmDiscardDialog
+        open={discardOpen}
+        filePath={pendingDiscardFile}
+        isBusy={discardBusy}
+        onCancel={() => {
+          setDiscardOpen(false)
+          setPendingDiscardFile(null)
+        }}
+        onConfirm={async () => {
+          if (!pendingDiscardFile || !onDiscardFile) return
+          try {
+            setDiscardBusy(true)
+            await onDiscardFile(pendingDiscardFile)
+          } finally {
+            setDiscardBusy(false)
+            setDiscardOpen(false)
+            setPendingDiscardFile(null)
+          }
+        }}
+      />
     </>
   )
 }

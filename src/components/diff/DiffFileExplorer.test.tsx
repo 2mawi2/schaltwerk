@@ -1,11 +1,25 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { DiffFileExplorer } from './DiffFileExplorer'
+import type { ChangedFile } from '../../common/events'
+
+const makeChangedFile = (file: Partial<ChangedFile> & { path: string }): ChangedFile => {
+  const additions = file.additions ?? 0
+  const deletions = file.deletions ?? 0
+  return {
+    path: file.path,
+    change_type: file.change_type ?? 'modified',
+    additions,
+    deletions,
+    changes: file.changes ?? additions + deletions,
+    is_binary: file.is_binary,
+  }
+}
 
 const mockFiles = [
-  { path: 'src/file1.ts', change_type: 'modified' as const },
-  { path: 'src/file2.tsx', change_type: 'added' as const },
-  { path: 'src/file3.js', change_type: 'deleted' as const },
+  makeChangedFile({ path: 'src/file1.ts', change_type: 'modified', additions: 3, deletions: 1 }),
+  makeChangedFile({ path: 'src/file2.tsx', change_type: 'added', additions: 5 }),
+  makeChangedFile({ path: 'src/file3.js', change_type: 'deleted', deletions: 2 }),
 ]
 
 const mockProps = {
@@ -38,6 +52,15 @@ describe('DiffFileExplorer', () => {
     expect(screen.getByText('file1.ts')).toBeInTheDocument()
     expect(screen.getByText('file2.tsx')).toBeInTheDocument()
     expect(screen.getByText('file3.js')).toBeInTheDocument()
+  })
+
+  it('renders stat badges for additions, deletions, and totals', () => {
+    render(<DiffFileExplorer {...mockProps} />)
+
+    expect(screen.getAllByText('+3')[0]).toBeInTheDocument()
+    expect(screen.getByText('-1')).toBeInTheDocument()
+    expect(screen.queryByText('Σ4')).toBeNull()
+    expect(screen.getByText('-2')).toBeInTheDocument()
   })
 
   it('shows file paths in subdirectory display', () => {
@@ -75,6 +98,17 @@ describe('DiffFileExplorer', () => {
     render(<DiffFileExplorer {...mockProps} getCommentsForFile={getCommentsForFile} />)
     
     expect(screen.getByText('2')).toBeInTheDocument()
+  })
+
+  it('shows binary label when file is marked binary', () => {
+    const files = [
+      ...mockFiles,
+      makeChangedFile({ path: 'src/logo.png', change_type: 'modified', is_binary: true })
+    ]
+
+    render(<DiffFileExplorer {...mockProps} files={files} />)
+
+    expect(screen.getByText('Binary')).toBeInTheDocument()
   })
 
   it('does not show review section when no review exists', () => {

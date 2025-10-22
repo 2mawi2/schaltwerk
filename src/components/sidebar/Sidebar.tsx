@@ -28,6 +28,7 @@ import { IconButton } from '../common/IconButton'
 import { clearTerminalStartedTracking } from '../terminal/Terminal'
 import { logger } from '../../utils/logger'
 import { UiEvent, emitUiEvent, listenUiEvent } from '../../common/uiEvents'
+import { emitSpecRefine } from '../../utils/specRefine'
 import { AGENT_TYPES, AgentType, EnrichedSession, SessionInfo } from '../../types/session'
 import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
 import { useRun } from '../../contexts/RunContext'
@@ -256,7 +257,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
 
         const { previousSessions } = captureSelectionSnapshot(entry, visibleSessions)
 
-        const removalCandidate = lastRemovedSessionRef.current
+        const removalCandidateFromEvent = lastRemovedSessionRef.current
         const mergedCandidate = lastMergedReviewedSessionRef.current
 
         const mergedSessionInfo = mergedCandidate
@@ -274,9 +275,9 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             lastMergedReviewedSessionRef.current = null
         }
 
-        const wasReviewedSession = removalCandidate ?
-            allSessions.find(s => s.info.session_id === removalCandidate)?.info.ready_to_merge : false
-        const shouldPreserveForReviewedRemoval = Boolean(wasReviewedSession && removalCandidate && filterMode !== FilterMode.Reviewed)
+        const wasReviewedSession = removalCandidateFromEvent ?
+            allSessions.find(s => s.info.session_id === removalCandidateFromEvent)?.info.ready_to_merge : false
+        const shouldPreserveForReviewedRemoval = Boolean(wasReviewedSession && removalCandidateFromEvent && filterMode !== FilterMode.Reviewed)
 
         const filterModeChanged = previousFilterModeRef.current !== filterMode
         previousFilterModeRef.current = filterMode
@@ -289,13 +290,13 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             filterMode === FilterMode.Running
         )
 
-        if (currentSessionMovedToReviewed) {
-            return
-        }
+        const effectiveRemovalCandidate = currentSessionMovedToReviewed && currentSelectionId
+            ? currentSelectionId
+            : removalCandidateFromEvent
 
         if (selection.kind === 'orchestrator') {
             entry.lastSelection = null
-            if (!removalCandidate && !shouldAdvanceFromMerged) {
+            if (!effectiveRemovalCandidate && !shouldAdvanceFromMerged) {
                 return
             }
         }
@@ -303,7 +304,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         if (visibleSessions.length === 0) {
             entry.lastSelection = null
             void setSelection({ kind: 'orchestrator' }, false, false)
-            if (lastRemovedSessionRef.current) {
+            if (removalCandidateFromEvent) {
                 lastRemovedSessionRef.current = null
             }
             if (shouldAdvanceFromMerged) {
@@ -326,7 +327,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             visibleSessions,
             previousSessions,
             rememberedId,
-            removalCandidate,
+            removalCandidate: effectiveRemovalCandidate,
             mergedCandidate,
             shouldAdvanceFromMerged,
             shouldPreserveForReviewedRemoval,
@@ -352,7 +353,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             void setSelection({ kind: 'orchestrator' }, false, false)
         }
 
-        if (removalCandidate) {
+        if (removalCandidateFromEvent) {
             lastRemovedSessionRef.current = null
         }
         if (shouldAdvanceFromMerged) {
@@ -809,7 +810,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         if (selection.kind !== 'session' || !selection.payload) return
         const session = sessions.find(s => s.info.session_id === selection.payload)
         if (!session || !isSpec(session.info)) return
-        emitUiEvent(UiEvent.OpenSpecInOrchestrator, { sessionName: selection.payload })
+        emitSpecRefine(selection.payload, getSessionDisplayName(session.info))
     }, [isAnyModalOpen, selection, sessions])
 
     useKeyboardShortcuts({
@@ -1001,6 +1002,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                             'ring-2 ring-pink-500/50 shadow-lg shadow-pink-500/20 bg-pink-950/20'
                     )}
                     aria-label="Select orchestrator (⌘1)"
+                    data-onboarding="orchestrator-entry"
                 >
                     <div className="flex items-center justify-between">
                         <div className="font-medium text-slate-100 flex items-center gap-2">
@@ -1059,7 +1061,10 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 </button>
             </div>
 
-            <div className="h-8 px-3 border-t border-b border-slate-800 text-xs text-slate-300 flex items-center">
+            <div
+                className="h-8 px-3 border-t border-b border-slate-800 text-xs text-slate-300 flex items-center"
+                data-onboarding="session-filter-row"
+            >
                 <div className="flex items-center gap-2 w-full">
                     <div className="flex items-center gap-1 ml-auto flex-nowrap overflow-x-auto" style={{ scrollbarGutter: 'stable both-edges' }}>
                         {/* Search Icon */}
@@ -1220,7 +1225,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                     </div>
                 </div>
             )}
-            <div className="flex-1 min-h-0 overflow-y-auto px-2 pt-2" data-testid="session-scroll-container">
+            <div className="flex-1 min-h-0 overflow-y-auto px-2 pt-2" data-testid="session-scroll-container" data-onboarding="session-list">
                 {sessions.length === 0 && !loading ? (
                     <div className="text-center text-slate-500 py-4">No active agents</div>
                 ) : (
@@ -1257,11 +1262,6 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                         engageMarkReadyCooldown('unmark-ready-click')
                                         try {
                                             await invoke(TauriCommands.SchaltwerkCoreUnmarkSessionReady, { name: sessionId })
-                                            // Reload both regular and spec sessions to avoid dropping specs
-                                            await Promise.all([
-                                                invoke<EnrichedSession[]>(TauriCommands.SchaltwerkCoreListEnrichedSessions),
-                                                invoke<SessionInfo[]>(TauriCommands.SchaltwerkCoreListSessionsByState, { state: 'spec' })
-                                            ])
                                             await reloadSessionsAndRefreshIdle()
                                         } catch (err) {
                                             logger.error('Failed to unmark reviewed session:', err)
@@ -1308,17 +1308,14 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                         }
                                     }}
                                     onRefineSpec={(sessionId) => {
-                                        emitUiEvent(UiEvent.OpenSpecInOrchestrator, { sessionName: sessionId })
+                                        const target = sessions.find(s => s.info.session_id === sessionId)
+                                        const displayName = target ? getSessionDisplayName(target.info) : undefined
+                                        emitSpecRefine(sessionId, displayName)
                                     }}
                                     onDeleteSpec={async (sessionId) => {
                                         beginSessionMutation(sessionId, 'remove')
                                         try {
                                             await invoke(TauriCommands.SchaltwerkCoreCancelSession, { name: sessionId })
-                                            // Reload both regular and spec sessions to ensure remaining specs persist
-                                            await Promise.all([
-                                                invoke<EnrichedSession[]>(TauriCommands.SchaltwerkCoreListEnrichedSessions),
-                                                invoke<SessionInfo[]>(TauriCommands.SchaltwerkCoreListSessionsByState, { state: 'spec' })
-                                            ])
                                             await reloadSessionsAndRefreshIdle()
                                         } catch (err) {
                                             logger.error('Failed to delete spec:', err)
@@ -1408,6 +1405,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             />
             <SwitchOrchestratorModal
                 open={switchOrchestratorModal.open}
+                scope={switchOrchestratorModal.targetSessionId ? 'session' : 'orchestrator'}
                 onClose={() => {
                     setSwitchOrchestratorModal({ open: false })
                     setSwitchModelSessionId(null)

@@ -1,10 +1,11 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
-import { render, waitFor, fireEvent } from '@testing-library/react'
+import { render, waitFor, fireEvent, screen } from '@testing-library/react'
 import { UnifiedDiffModal } from './UnifiedDiffModal'
-import { TestProviders } from '../../tests/test-utils'
+import { TestProviders, createChangedFile } from '../../tests/test-utils'
 import { TauriCommands } from '../../common/tauriCommands'
 import type { LineSelection } from '../../hooks/useLineSelection'
 import type { FileDiffData } from './loadDiffs'
+import type { ChangedFile } from '../../common/events'
 
 const selectionState: { current: LineSelection | null } = { current: null }
 
@@ -70,7 +71,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 }))
 
 const sampleDiff: FileDiffData = {
-  file: { path: 'src/App.tsx', change_type: 'modified' },
+  file: createChangedFile({ path: 'src/App.tsx', change_type: 'modified', additions: 1 }),
   diffResult: [
     { type: 'unchanged', oldLineNumber: 1, newLineNumber: 1, content: 'const a = 1' },
     { type: 'added', newLineNumber: 2, content: 'const b = 2' },
@@ -91,10 +92,26 @@ vi.mock('./loadDiffs', async () => {
 })
 
 async function renderModal() {
+  setupInvokeMock([sampleDiff.file])
+
+  const utils = render(
+    <TestProviders>
+      <UnifiedDiffModal filePath={sampleDiff.file.path} isOpen={true} onClose={() => {}} />
+    </TestProviders>
+  )
+
+  await waitFor(() => {
+    expect(loadFileDiffMock).toHaveBeenCalled()
+  })
+
+  return utils
+}
+
+function setupInvokeMock(changedFiles: ChangedFile[]) {
   invokeMock.mockImplementation(async (cmd: string) => {
     switch (cmd) {
       case TauriCommands.GetChangedFilesFromMain:
-        return [{ path: sampleDiff.file.path, change_type: sampleDiff.file.change_type }]
+        return changedFiles
       case TauriCommands.GetCurrentBranchName:
         return 'feature/demo'
       case TauriCommands.GetBaseBranchName:
@@ -115,18 +132,6 @@ async function renderModal() {
         return null
     }
   })
-
-  const utils = render(
-    <TestProviders>
-      <UnifiedDiffModal filePath={sampleDiff.file.path} isOpen={true} onClose={() => {}} />
-    </TestProviders>
-  )
-
-  await waitFor(() => {
-    expect(loadFileDiffMock).toHaveBeenCalled()
-  })
-
-  return utils
 }
 
 beforeEach(() => {
@@ -146,6 +151,16 @@ afterEach(() => {
 })
 
 describe('UnifiedDiffModal line selection behaviour', () => {
+  it('shows stat badges in the file header once diff loads', async () => {
+    await renderModal()
+
+    await waitFor(() => {
+      expect(screen.getAllByText('+1').length).toBeGreaterThan(0)
+      expect(screen.getAllByText('-0').length).toBeGreaterThan(0)
+      expect(screen.queryByText('Σ1')).toBeNull()
+    })
+  })
+
   it('calls selection handlers with file path when dragging across rows', async () => {
     const { container } = await renderModal()
 
@@ -196,5 +211,26 @@ describe('UnifiedDiffModal line selection behaviour', () => {
     await waitFor(() => {
       expect(document.body.classList.contains('sw-no-text-select')).toBe(false)
     })
+  })
+
+  it('skips diff loading when requested file is missing from changed files', async () => {
+    setupInvokeMock([])
+
+    const result = render(
+      <TestProviders>
+        <UnifiedDiffModal filePath="stale/file.tsx" isOpen={true} onClose={() => {}} />
+      </TestProviders>
+    )
+
+    // Wait for initial async effects (preferences, branch info, etc.) to settle
+    await waitFor(() => {
+      expect(invokeMock).toHaveBeenCalledWith(TauriCommands.GetChangedFilesFromMain, { sessionName: 'demo' })
+    })
+
+    await waitFor(() => {
+      expect(loadFileDiffMock).not.toHaveBeenCalled()
+    })
+
+    expect(result.getByText('Changed Files')).toBeTruthy()
   })
 })

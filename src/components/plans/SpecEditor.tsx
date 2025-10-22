@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
-import { VscCopy, VscPlay, VscEye, VscEdit } from 'react-icons/vsc'
+import { VscCopy, VscPlay, VscEye, VscEdit, VscBeaker } from 'react-icons/vsc'
 import { AnimatedText } from '../common/AnimatedText'
 import { logger } from '../../utils/logger'
 import { MarkdownEditor, type MarkdownEditorRef } from './MarkdownEditor'
@@ -12,6 +12,9 @@ import { detectPlatformSafe, isShortcutForAction } from '../../keyboardShortcuts
 import { useSpecContent } from '../../hooks/useSpecContent'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { useSpecEditorState } from '../../contexts/SpecEditorStateContext'
+import { useSelection } from '../../contexts/SelectionContext'
+import { emitSpecRefine, buildSpecRefineReference } from '../../utils/specRefine'
+import { theme } from '../../common/theme'
 
 interface Props {
   sessionName: string
@@ -37,6 +40,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
 
   const { content: cachedContent, displayName: cachedDisplayName, hasData: hasCachedData } = useSpecContent(sessionName)
   const { getViewMode, setViewMode } = useSpecEditorState()
+  const { setSelection } = useSelection()
 
   const viewMode = getViewMode(sessionName)
 
@@ -171,6 +175,16 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
     }
   }, [onStart])
 
+  const handleRefine = useCallback(async () => {
+    try {
+      await setSelection({ kind: 'orchestrator' }, false, true)
+    } catch (err) {
+      logger.warn('[SpecEditor] Failed to switch to orchestrator for refine', err)
+    } finally {
+      emitSpecRefine(sessionName, displayName)
+    }
+  }, [displayName, sessionName, setSelection])
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!starting && isShortcutForAction(e, KeyboardShortcutAction.RunSpecAgent, keyboardShortcutConfig, { platform })) {
@@ -215,6 +229,18 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
           )}
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={handleRefine}
+            className="px-2 py-1 text-xs rounded flex items-center gap-1 hover:opacity-90"
+            style={{
+              backgroundColor: theme.colors.accent.blue.DEFAULT,
+              color: theme.colors.text.inverse
+            }}
+            title={buildSpecRefineReference(sessionName, displayName)}
+          >
+            <VscBeaker />
+            Refine
+          </button>
           <button
             onClick={() => setViewMode(sessionName, viewMode === 'edit' ? 'preview' : 'edit')}
             className="px-2 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600 text-white flex items-center gap-1"

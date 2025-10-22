@@ -2134,13 +2134,6 @@ fi`}
 
     return (
         <>
-            {selectedSpec && (
-                <SpecContentModal
-                    specName={selectedSpec.name}
-                    content={selectedSpec.content}
-                    onClose={() => setSelectedSpec(null)}
-                />
-            )}
             {notification.visible && (
                  <div className={`fixed top-4 right-4 z-[60] px-4 py-3 rounded-lg shadow-lg transition-opacity duration-300 ${
                      notification.type === 'error' ? 'bg-red-900' :
@@ -2291,6 +2284,14 @@ fi`}
                 )}
             </div>
         </div>
+
+            {selectedSpec && (
+                <SpecContentModal
+                    specName={selectedSpec.name}
+                    content={selectedSpec.content}
+                    onClose={() => setSelectedSpec(null)}
+                />
+            )}
         </>
     )
 }

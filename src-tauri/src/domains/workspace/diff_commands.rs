@@ -167,10 +167,7 @@ pub async fn get_orchestrator_working_changes() -> Result<Vec<ChangedFile>, Stri
             continue; // Skip if no relevant changes
         };
         
-        changed_files.push(ChangedFile {
-            path: path.to_string(),
-            change_type: change_type.to_string(),
-        });
+        changed_files.push(ChangedFile::new(path.to_string(), change_type.to_string()));
     }
     
     // Sort files alphabetically by path for consistent ordering
@@ -253,16 +250,16 @@ mod tests {
             .filter(|(path, _)| {
                 !path.starts_with(".schaltwerk/") && path != ".schaltwerk"
             })
-            .map(|(path, status)| ChangedFile {
-                path,
-                change_type: match status.as_str() {
+            .map(|(path, status)| {
+                let change_type = match status.as_str() {
                     "M" => "modified".to_string(),
                     "A" => "added".to_string(),
                     "D" => "deleted".to_string(),
                     "R" => "renamed".to_string(),
                     "C" => "copied".to_string(),
                     _ => "unknown".to_string(),
-                },
+                };
+                ChangedFile::new(path, change_type)
             })
             .collect();
 
@@ -290,16 +287,16 @@ mod tests {
             .filter(|(path, _)| {
                 !path.starts_with(".schaltwerk/") && path != ".schaltwerk"
             })
-            .map(|(path, status)| ChangedFile {
-                path,
-                change_type: match status.as_str() {
+            .map(|(path, status)| {
+                let change_type = match status.as_str() {
                     "M" => "modified".to_string(),
                     "A" => "added".to_string(),
                     "D" => "deleted".to_string(),
                     "R" => "renamed".to_string(),
                     "C" => "copied".to_string(),
                     _ => "unknown".to_string(),
-                },
+                };
+                ChangedFile::new(path, change_type)
             })
             .collect();
 
@@ -331,16 +328,16 @@ mod tests {
 
             let changed_files: Vec<ChangedFile> = file_map
                 .into_iter()
-                .map(|(path, status)| ChangedFile {
-                    path,
-                    change_type: match status.as_str() {
+                .map(|(path, status)| {
+                    let change_type = match status.as_str() {
                         "M" => "modified".to_string(),
                         "A" => "added".to_string(),
                         "D" => "deleted".to_string(),
                         "R" => "renamed".to_string(),
                         "C" => "copied".to_string(),
                         _ => "unknown".to_string(),
-                    },
+                    };
+                    ChangedFile::new(path, change_type)
                 })
                 .collect();
 
@@ -358,16 +355,16 @@ mod tests {
             .filter(|(path, _)| {
                 !path.starts_with(".schaltwerk/") && path != ".schaltwerk"
             })
-            .map(|(path, status)| ChangedFile {
-                path,
-                change_type: match status.as_str() {
+            .map(|(path, status)| {
+                let change_type = match status.as_str() {
                     "M" => "modified".to_string(),
                     "A" => "added".to_string(),
                     "D" => "deleted".to_string(),
                     "R" => "renamed".to_string(),
                     "C" => "copied".to_string(),
                     _ => "unknown".to_string(),
-                },
+                };
+                ChangedFile::new(path, change_type)
             })
             .collect();
 
@@ -393,16 +390,16 @@ mod tests {
             .filter(|(path, _)| {
                 !path.starts_with(".schaltwerk/") && path != ".schaltwerk"
             })
-            .map(|(path, status)| ChangedFile {
-                path,
-                change_type: match status.as_str() {
+            .map(|(path, status)| {
+                let change_type = match status.as_str() {
                     "M" => "modified".to_string(),
                     "A" => "added".to_string(),
                     "D" => "deleted".to_string(),
                     "R" => "renamed".to_string(),
                     "C" => "copied".to_string(),
                     _ => "unknown".to_string(),
-                },
+                };
+                ChangedFile::new(path, change_type)
             })
             .collect();
 

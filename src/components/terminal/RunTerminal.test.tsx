@@ -188,6 +188,45 @@ function Wrapper({ onRunningStateChange = () => {} }: { onRunningStateChange?: (
 }
 
 describe('RunTerminal', () => {
+  it('cleans up TerminalClosed listener even if registration resolves after unmount', async () => {
+    const { listen } = await import('@tauri-apps/api/event')
+    const listenMock = vi.mocked(listen)
+    let resolveRegistration: ((unlistenFn: () => void) => void) | undefined
+    const unlistenSpy = vi.fn()
+
+    listenMock.mockImplementationOnce(((event: string, handler: unknown) => {
+      const normalized = normalizeEventName(event)
+      eventHandlers[normalized] = handler as (payload: unknown) => void
+
+      return new Promise<() => void>(resolve => {
+        resolveRegistration = (unlistenFn: () => void) => {
+          resolve(() => {
+            try {
+              unlistenFn()
+            } finally {
+              const closedEvent = normalizeEventName('schaltwerk:terminal-closed')
+              eventHandlers[closedEvent] = null
+              unlistenSpy()
+            }
+          })
+        }
+      })
+    }) as typeof listen)
+
+    const { unmount } = render(<Wrapper />)
+
+    await act(async () => { await Promise.resolve() })
+
+    unmount()
+
+    expect(resolveRegistration).toBeDefined()
+    resolveRegistration?.(() => {})
+
+    await act(async () => { await Promise.resolve() })
+
+    expect(unlistenSpy).toHaveBeenCalledTimes(1)
+  })
+
   it('shows [process has ended] after TerminalClosed', async () => {
     const { invoke } = await import('@tauri-apps/api/core')
     const mockInvoke = vi.mocked(invoke)

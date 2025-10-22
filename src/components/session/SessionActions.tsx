@@ -150,7 +150,7 @@ export function SessionActions({
   }, [isReadyToMerge, sessionId, handleCreateGithubPr])
 
   return (
-    <div className={`flex items-center ${spacing}`}>
+    <div className={`flex items-center ${spacing}`} data-onboarding="session-actions">
       {/* Spec state actions */}
       {sessionState === 'spec' && (
         <>

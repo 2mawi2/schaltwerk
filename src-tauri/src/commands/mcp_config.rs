@@ -2,8 +2,13 @@ use serde::{Deserialize, Serialize};
 use serde_json;
 use std::path::PathBuf;
 use std::process::Command;
+use which::which;
 
 const MCP_SERVER_PATH: &str = "mcp-server/build/schaltwerk-mcp-server.js";
+
+fn resolve_node_command_path() -> Option<PathBuf> {
+    which("node").ok()
+}
 
 // Client-specific configuration logic (Claude, Codex)
 mod client {
@@ -41,6 +46,12 @@ mod client {
                 Self::Droid => "droid",
             }
         }
+    }
+
+    fn resolved_node_command() -> String {
+        super::resolve_node_command_path()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|| "node".to_string())
     }
 
     fn select_cli_path(
@@ -293,8 +304,10 @@ mod client {
             }
             content.replace_range(start..end, "");
         }
+        let node_command = resolved_node_command();
         let snippet = format!(
-            "[mcp_servers.schaltwerk]\ncommand = \"node\"\nargs = [\"{}\"]\n\n",
+            "[mcp_servers.schaltwerk]\ncommand = \"{}\"\nargs = [\"{}\"]\n\n",
+            node_command.replace('"', "\\\""),
             mcp_server_path.replace('"', "\\\"")
         );
         content.push_str(&snippet);
@@ -372,10 +385,14 @@ mod client {
     pub fn generate_setup_command(client: McpClient, mcp_server_path: &str) -> String {
         match client {
             McpClient::Claude => format!("{} mcp add --transport stdio --scope project schaltwerk node \"{mcp_server_path}\"", client.as_str()),
-            McpClient::Codex => format!(
-                "Add to ~/.codex/config.toml:\n[mcp_servers.schaltwerk]\ncommand = \"node\"\nargs = [\"{}\"]",
-                mcp_server_path.replace('"', "\\\"")
-            ),
+            McpClient::Codex => {
+                let command = resolved_node_command();
+                format!(
+                    "Add to ~/.codex/config.toml:\n[mcp_servers.schaltwerk]\ncommand = \"{}\"\nargs = [\"{}\"]",
+                    command.replace('"', "\\\""),
+                    mcp_server_path.replace('"', "\\\"")
+                )
+            }
             McpClient::OpenCode => format!(
                 "Add to opencode.json:\n{{\n  \"mcp\": {{\n    \"schaltwerk\": {{\n      \"type\": \"local\",\n      \"command\": [\"node\", \"{}\"],\n      \"enabled\": true\n    }}\n  }}\n}}",
                 mcp_server_path.replace('"', "\\\"")
@@ -896,14 +913,16 @@ fn check_mcp_configuration_status(project_path: &str, client: client::McpClient)
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct MCPStatus {
-    pub mcp_server_path: String,
-    pub is_embedded: bool,
-    pub cli_available: bool,
-    pub client: String,
-    pub is_configured: bool,
-    pub setup_command: String,
-    pub project_path: String,
+    pub struct MCPStatus {
+        pub mcp_server_path: String,
+        pub is_embedded: bool,
+        pub cli_available: bool,
+        pub node_available: bool,
+        pub node_command: String,
+        pub client: String,
+        pub is_configured: bool,
+        pub setup_command: String,
+        pub project_path: String,
 }
 
 #[tauri::command]
@@ -923,6 +942,14 @@ pub async fn get_mcp_status(
     let cli_available = client::check_cli_availability(client).await;
     log::debug!("{} CLI available: {}", client.as_str(), cli_available);
 
+    let node_command_path = resolve_node_command_path();
+    let node_available = node_command_path.is_some();
+    let node_command = node_command_path
+        .as_ref()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|| "node".to_string());
+    log::debug!("Node.js available: {node_available}");
+
     // Check if MCP is already configured (per-client logic)
     let is_configured = check_mcp_configuration_status(&project_path, client);
     log::debug!("MCP configured for project: {is_configured}");
@@ -934,6 +961,8 @@ pub async fn get_mcp_status(
         mcp_server_path: mcp_path.to_string_lossy().to_string(),
         is_embedded,
         cli_available,
+        node_available,
+        node_command,
         client: client.as_str().to_string(),
         is_configured,
         setup_command,

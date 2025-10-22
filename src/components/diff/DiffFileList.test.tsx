@@ -6,8 +6,29 @@ import { DiffFileList } from './DiffFileList'
 import { useSelection } from '../../contexts/SelectionContext'
 import { useProject } from '../../contexts/ProjectContext'
 import { TestProviders } from '../../tests/test-utils'
+import { UiEvent, emitUiEvent } from '../../common/uiEvents'
 
-type MockChangedFile = { path: string; change_type: 'modified' | 'added' | 'deleted' | 'renamed' | 'copied' | 'unknown' }
+type MockChangedFile = {
+  path: string
+  change_type: 'modified' | 'added' | 'deleted' | 'renamed' | 'copied' | 'unknown'
+  additions: number
+  deletions: number
+  changes: number
+  is_binary?: boolean
+}
+
+const createMockChangedFile = (file: Partial<MockChangedFile> & { path: string }): MockChangedFile => {
+  const additions = file.additions ?? 0
+  const deletions = file.deletions ?? 0
+  return {
+    path: file.path,
+    change_type: file.change_type ?? 'modified',
+    additions,
+    deletions,
+    changes: file.changes ?? additions + deletions,
+    is_binary: file.is_binary,
+  }
+}
 
 // Mock Tauri invoke
 vi.mock('@tauri-apps/api/core', () => ({
@@ -17,10 +38,11 @@ vi.mock('@tauri-apps/api/core', () => ({
     }
     if (cmd === TauriCommands.GetChangedFilesFromMain) {
       return [
-        { path: 'src/a.ts', change_type: 'modified' },
-        { path: 'src/b.ts', change_type: 'added' },
-        { path: 'src/c.ts', change_type: 'deleted' },
-        { path: 'readme.md', change_type: 'unknown' },
+        createMockChangedFile({ path: 'src/a.ts', change_type: 'modified', additions: 3, deletions: 1 }),
+        createMockChangedFile({ path: 'src/b.ts', change_type: 'added', additions: 5 }),
+        createMockChangedFile({ path: 'src/c.ts', change_type: 'deleted', deletions: 2 }),
+        createMockChangedFile({ path: 'readme.md', change_type: 'unknown' }),
+        createMockChangedFile({ path: 'assets/logo.png', change_type: 'modified', is_binary: true }),
       ]
     }
     if (cmd === TauriCommands.GetCurrentBranchName) return 'feature/x'
@@ -90,15 +112,19 @@ describe('DiffFileList', () => {
     expect(await screen.findByText('a.ts')).toBeInTheDocument()
     expect(screen.getByText('b.ts')).toBeInTheDocument()
     expect(screen.getByText('c.ts')).toBeInTheDocument()
-
-    // badge letters for change types
-    expect(screen.getAllByText('M')[0]).toBeInTheDocument()
-    expect(screen.getAllByText('A')[0]).toBeInTheDocument()
-    expect(screen.getAllByText('D')[0]).toBeInTheDocument()
-    expect(screen.getAllByText('U')[0]).toBeInTheDocument()
+    expect(screen.getByText('logo.png')).toBeInTheDocument()
 
     // header shows number of files
-    expect(screen.getByText('4 files changed')).toBeInTheDocument()
+    expect(screen.getByText('5 files changed')).toBeInTheDocument()
+
+    // stats show additions, deletions, totals, and binary label
+    expect(screen.getAllByText('+3')[0]).toBeInTheDocument()
+    expect(screen.getByText('-1')).toBeInTheDocument()
+    expect(screen.queryByText('Σ4')).toBeNull()
+    expect(screen.getByText('+5')).toBeInTheDocument()
+    expect(screen.getAllByText('-0').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Σ5')).toBeNull()
+    expect(screen.getByText('Binary')).toBeInTheDocument()
   })
 
   it('invokes onFileSelect and highlights selection when clicking an item', async () => {
@@ -116,9 +142,9 @@ describe('DiffFileList', () => {
 
     // The selected row gets the bg class; the row is the grandparent container of the filename div
     await waitFor(() => {
-      const row = (fileEntry.parentElement?.parentElement) as HTMLElement | null
+      const row = fileEntry.closest('[data-file-path]') as HTMLElement | null
       expect(row).toBeTruthy()
-      expect(row!.className.includes('bg-slate-800/30')).toBe(true)
+      expect(row?.dataset.selected).toBe('true')
     })
   })
 
@@ -166,8 +192,8 @@ describe('DiffFileList', () => {
     mockInvoke.mockImplementation(async (cmd: string, _args?: Record<string, unknown>) => {
       if (cmd === TauriCommands.GetOrchestratorWorkingChanges) {
         return [
-          { path: 'src/orchestrator.ts', change_type: 'modified' },
-          { path: 'config.json', change_type: 'added' },
+          createMockChangedFile({ path: 'src/orchestrator.ts', change_type: 'modified' }),
+          createMockChangedFile({ path: 'config.json', change_type: 'added' }),
         ]
       }
       if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
@@ -218,7 +244,7 @@ describe('DiffFileList', () => {
       if (cmd === TauriCommands.GetOrchestratorWorkingChanges) {
         // Backend should filter these out, but test that they don't appear
         return [
-          { path: 'src/main.ts', change_type: 'modified' },
+          createMockChangedFile({ path: 'src/main.ts', change_type: 'modified' }),
           // .schaltwerk files should be filtered by backend
         ]
       }
@@ -256,7 +282,7 @@ describe('DiffFileList', () => {
       callEndTimes.set(cmd, Date.now())
 
       if (cmd === TauriCommands.GetOrchestratorWorkingChanges) {
-        return [{ path: 'test.ts', change_type: 'modified' }]
+        return [createMockChangedFile({ path: 'test.ts', change_type: 'modified' })]
       }
       if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
       return undefined
@@ -285,7 +311,7 @@ describe('DiffFileList', () => {
       if (cmd === TauriCommands.GetOrchestratorWorkingChanges) {
         callCount++
         return await new Promise(resolve => {
-          pendingResolves.push(() => resolve([{ path: 'test.ts', change_type: 'modified' }]))
+          pendingResolves.push(() => resolve([createMockChangedFile({ path: 'test.ts', change_type: 'modified' })]))
         })
       }
       if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
@@ -339,9 +365,9 @@ describe('DiffFileList', () => {
 
           // Return different files for different sessions
           if (sessionName === 'session1') {
-            return [{ path: 'session1-file.ts', change_type: 'modified' }]
+            return [createMockChangedFile({ path: 'session1-file.ts', change_type: 'modified' })]
           } else if (sessionName === 'session2') {
-            return [{ path: 'session2-file.ts', change_type: 'modified' }]
+            return [createMockChangedFile({ path: 'session2-file.ts', change_type: 'modified' })]
           }
           return []
         }
@@ -388,9 +414,9 @@ describe('DiffFileList', () => {
           await new Promise(resolve => setTimeout(resolve, 10))
           
           if (sessionName === 'clear-session1') {
-            return [{ path: 'clear-file1.ts', change_type: 'modified' }]
+            return [createMockChangedFile({ path: 'clear-file1.ts', change_type: 'modified' })]
           } else if (sessionName === 'clear-session2') {
-            return [{ path: 'clear-file2.ts', change_type: 'modified' }]
+            return [createMockChangedFile({ path: 'clear-file2.ts', change_type: 'modified' })]
           }
           return []
         }
@@ -434,7 +460,7 @@ describe('DiffFileList', () => {
         if (cmd === TauriCommands.GetChangedFilesFromMain) {
           apiCallCount++
           // Both sessions return identical files - this tests that session name is included in cache key
-          return [{ path: 'identical-file.ts', change_type: 'modified' }]
+          return [createMockChangedFile({ path: 'identical-file.ts', change_type: 'modified' })]
         }
         if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
         if (cmd === TauriCommands.GetBaseBranchName) return 'main'  
@@ -472,10 +498,10 @@ describe('DiffFileList', () => {
         if (cmd === TauriCommands.GetChangedFilesFromMain) {
           const sessionName = args?.sessionName
           if (sessionName === 'latest') {
-            return [{ path: 'latest-only.ts', change_type: 'modified' }]
+            return [createMockChangedFile({ path: 'latest-only.ts', change_type: 'modified' })]
           }
           if (sessionName === 'test') {
-            return [{ path: 'test-only.ts', change_type: 'modified' }]
+            return [createMockChangedFile({ path: 'test-only.ts', change_type: 'modified' })]
           }
           return []
         }
@@ -525,14 +551,14 @@ describe('DiffFileList', () => {
           if (sessionName === 'alpha') {
             sessionOneCalls++
             if (sessionOneCalls === 1) {
-              return [{ path: 'alpha-file.ts', change_type: 'modified' }]
+              return [createMockChangedFile({ path: 'alpha-file.ts', change_type: 'modified' })]
             }
             if (sessionOneCalls === 2) {
               return secondSessionOneLoad.promise
             }
           }
           if (sessionName === 'beta') {
-            return [{ path: 'beta-file.ts', change_type: 'modified' }]
+            return [createMockChangedFile({ path: 'beta-file.ts', change_type: 'modified' })]
           }
           return []
         }
@@ -565,7 +591,7 @@ describe('DiffFileList', () => {
       expect(sessionOneCalls).toBe(2)
 
       // Verify the deferred promise is still pending by resolving now and waiting for stabilization
-      secondSessionOneLoad.resolve([{ path: 'alpha-file.ts', change_type: 'modified' }])
+      secondSessionOneLoad.resolve([createMockChangedFile({ path: 'alpha-file.ts', change_type: 'modified' })])
       await screen.findByText('alpha-file.ts')
     })
 
@@ -590,7 +616,7 @@ describe('DiffFileList', () => {
             return alphaDeferred.promise
           }
           if (sessionName === 'beta') {
-            return [{ path: 'beta-live.ts', change_type: 'modified' }]
+            return [createMockChangedFile({ path: 'beta-live.ts', change_type: 'modified' })]
           }
           return []
         }
@@ -611,7 +637,7 @@ describe('DiffFileList', () => {
       rerender(<TestWrapper sessionName="beta" />)
       await screen.findByText('beta-live.ts')
 
-      alphaDeferred.resolve([{ path: 'alpha-late.ts', change_type: 'modified' }])
+      alphaDeferred.resolve([createMockChangedFile({ path: 'alpha-late.ts', change_type: 'modified' })])
 
       await waitFor(() => {
         expect(screen.queryByText('alpha-late.ts')).not.toBeInTheDocument()
@@ -640,7 +666,7 @@ describe('DiffFileList', () => {
             return alphaDeferred.promise
           }
           if (sessionName === 'beta') {
-            return [{ path: 'beta-stable.ts', change_type: 'modified' }]
+            return [createMockChangedFile({ path: 'beta-stable.ts', change_type: 'modified' })]
           }
           return []
         }
@@ -667,6 +693,49 @@ describe('DiffFileList', () => {
         expect(screen.getByText('beta-stable.ts')).toBeInTheDocument()
         expect(screen.queryByText('session not found')).not.toBeInTheDocument()
       })
+    })
+  })
+
+  describe('Project switching', () => {
+    it('reloads orchestrator changes when project switch completes', async () => {
+      const { invoke } = await import('@tauri-apps/api/core')
+      const mockInvoke = invoke as ReturnType<typeof vi.fn>
+
+      let currentProject = 'alpha'
+      mockInvoke.mockImplementation(async (cmd: string) => {
+        if (cmd === TauriCommands.GetOrchestratorWorkingChanges) {
+          if (currentProject === 'alpha') {
+            return [{ path: 'src/a-alpha.ts', change_type: 'modified' }]
+          }
+          return [{ path: 'src/b-beta.ts', change_type: 'modified' }]
+        }
+        if (cmd === TauriCommands.GetCurrentBranchName) {
+          return currentProject === 'alpha' ? 'alpha-main' : 'beta-main'
+        }
+        if (cmd === TauriCommands.GetBaseBranchName) return 'main'
+        if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc', 'def']
+        return undefined
+      })
+
+      render(
+        <Wrapper>
+          <DiffFileList onFileSelect={() => {}} isCommander={true} />
+        </Wrapper>
+      )
+
+      expect(await screen.findByText('a-alpha.ts')).toBeInTheDocument()
+
+      currentProject = 'beta'
+
+      await act(async () => {
+        emitUiEvent(UiEvent.ProjectSwitchComplete, { projectPath: '/projects/beta' })
+      })
+
+      await waitFor(() => {
+        expect(screen.queryByText('a-alpha.ts')).not.toBeInTheDocument()
+      })
+
+      expect(await screen.findByText('b-beta.ts')).toBeInTheDocument()
     })
   })
 })

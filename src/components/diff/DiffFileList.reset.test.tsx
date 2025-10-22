@@ -2,10 +2,20 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { DiffFileList } from './DiffFileList'
 import { TauriCommands } from '../../common/tauriCommands'
-import { TestProviders } from '../../tests/test-utils'
+import { TestProviders, createChangedFile } from '../../tests/test-utils'
 
 const invokeMock = vi.fn(async (cmd: string) => {
-  if (cmd === TauriCommands.GetChangedFilesFromMain) return [{ path: 'test.txt', change_type: 'added' }]
+  if (cmd === TauriCommands.GetChangedFilesFromMain) {
+    return [
+      createChangedFile({
+        path: 'test.txt',
+        change_type: 'added',
+        additions: 1,
+        deletions: 0,
+        changes: 1,
+      }),
+    ]
+  }
   if (cmd === TauriCommands.GetCurrentBranchName) return 'schaltwerk/feature'
   if (cmd === TauriCommands.GetBaseBranchName) return 'main'
   if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc', 'def']

@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { shouldBypassHighlighting, computeHistorySeedWindow, computeLargeDiffVisibleSet } from './UnifiedDiffModal'
 import type { FileDiffData } from './loadDiffs'
 import type { ChangedFile } from './DiffFileExplorer'
+import { createChangedFile } from '../../tests/test-utils'
 
 function createDiff(changedLinesCount: number): FileDiffData {
   return {
-    file: { path: 'example.ts', change_type: 'modified' },
+    file: createChangedFile({ path: 'example.ts', change_type: 'modified', additions: changedLinesCount, deletions: 0 }),
     diffResult: [],
     changedLinesCount,
     fileInfo: { sizeBytes: 0, language: 'typescript' }
@@ -30,7 +31,7 @@ describe('shouldBypassHighlighting', () => {
 
 describe('history diff helpers', () => {
   const makeFiles = (paths: string[]): ChangedFile[] =>
-    paths.map(path => ({ path, change_type: 'modified' }))
+    paths.map(path => createChangedFile({ path, change_type: 'modified' }))
 
   it('computes seed window around selected file', () => {
     const files = makeFiles(['a', 'b', 'c', 'd', 'e'])

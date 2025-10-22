@@ -523,6 +523,7 @@ impl LocalPtyAdapter {
                                             "[Terminal {id_clone}] Output listener closed; skipping notification"
                                         );
                                     }
+                                    
                                 }
 
                                 handle_coalesced_output(

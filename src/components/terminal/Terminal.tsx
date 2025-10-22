@@ -33,11 +33,11 @@ import { XtermTerminal } from '../../terminal/xterm/XtermTerminal'
 import { useTerminalGpu } from '../../hooks/useTerminalGpu'
 import { terminalOutputManager } from '../../terminal/stream/terminalOutputManager'
 import { TerminalResizeCoordinator } from './resize/TerminalResizeCoordinator'
+import { calculateEffectiveColumns, MIN_TERMINAL_COLUMNS } from './terminalSizing'
 
 const DEFAULT_SCROLLBACK_LINES = 10000
 const BACKGROUND_SCROLLBACK_LINES = 5000
 const AGENT_SCROLLBACK_LINES = 20000
-const RIGHT_EDGE_GUARD_COLUMNS = 2
 const CLAUDE_SHIFT_ENTER_SEQUENCE = '\\'
 // Track last effective size we told the PTY (after guard), for SIGWINCH nudging
 const lastEffectiveRefInit = { cols: 80, rows: 24 }
@@ -198,7 +198,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
      }, [isAgentTopTerminal, terminalId]);
 
     const applySizeUpdate = useCallback((cols: number, rows: number, reason: string, force = false) => {
-        const MIN_DIMENSION = 2;
+        const MIN_DIMENSION = MIN_TERMINAL_COLUMNS;
         if (!terminal.current) return false;
         // Step 1: only apply resize thrash suppression (no right-edge margin yet)
         if (cols < MIN_DIMENSION || rows < MIN_DIMENSION) {
@@ -225,7 +225,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             if (dCols + dRows < 2) return false;
         }
 
-        const effectiveCols = Math.max(cols - RIGHT_EDGE_GUARD_COLUMNS, MIN_DIMENSION);
+        const effectiveCols = calculateEffectiveColumns(cols);
 
         const measuredChanged = (cols !== lastSize.current.cols) || (rows !== lastSize.current.rows);
         lastSize.current = { cols, rows };
@@ -435,8 +435,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                  try {
                      if (fitAddon.current && terminal.current) {
                          fitAddon.current.fit();
-                         const MIN_DIM = 2;
-                         const mCols = Math.max(terminal.current.cols - RIGHT_EDGE_GUARD_COLUMNS, MIN_DIM);
+                         const mCols = calculateEffectiveColumns(terminal.current.cols);
                          measured = { cols: mCols, rows: terminal.current.rows };
                      }
                  } catch (e) {
@@ -1337,8 +1336,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                             try {
                                 if (fitAddon.current && terminal.current) {
                                     fitAddon.current.fit();
-                                    const MIN_DIM = 2;
-                                    const mCols = Math.max(terminal.current.cols - RIGHT_EDGE_GUARD_COLUMNS, MIN_DIM);
+                                    const mCols = calculateEffectiveColumns(terminal.current.cols);
                                     measured = { cols: mCols, rows: terminal.current.rows };
                                 }
                             } catch (e) {
@@ -1399,8 +1397,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                            try {
                                if (fitAddon.current && terminal.current) {
                                    fitAddon.current.fit();
-                                   const MIN_DIM = 2;
-                                   const mCols = Math.max(terminal.current.cols - RIGHT_EDGE_GUARD_COLUMNS, MIN_DIM);
+                                   const mCols = calculateEffectiveColumns(terminal.current.cols);
                                    measured = { cols: mCols, rows: terminal.current.rows };
                                }
                            } catch (e) {

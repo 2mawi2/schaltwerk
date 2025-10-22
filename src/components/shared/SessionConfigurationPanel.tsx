@@ -302,7 +302,7 @@ export function SessionConfigurationPanel({
     return (
         <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-3">
-                <div>
+                <div data-onboarding="base-branch-selector">
                     <label className="block text-sm mb-1" style={{ color: theme.colors.text.secondary }}>
                         Base branch
                     </label>

@@ -304,11 +304,11 @@ pub fn compute_diff_chunk(
             })
         );
 
+        let mut file = ChangedFile::new(path_str, change_type);
+        file.is_binary = Some(true);
+
         return Ok(DiffChunkResponse {
-            file: ChangedFile {
-                path: path_str,
-                change_type,
-            },
+            file,
             branch_info,
             stats: DiffStatsSummary {
                 additions: 0,
@@ -348,11 +348,13 @@ pub fn compute_diff_chunk(
     };
     let paged_lines = line_entries[start_index..end_index].to_vec();
 
+    let mut file = ChangedFile::new(path_str.clone(), change_type);
+    file.additions = stats_raw.additions as u32;
+    file.deletions = stats_raw.deletions as u32;
+    file.changes = file.additions + file.deletions;
+
     let response = DiffChunkResponse {
-        file: ChangedFile {
-            path: path_str.clone(),
-            change_type,
-        },
+        file,
         branch_info,
         stats: DiffStatsSummary {
             additions: stats_raw.additions as u32,
@@ -675,7 +677,7 @@ mod tests {
     use crate::diff_engine::{add_collapsible_sections, compute_unified_diff};
     use git2::{Oid, Repository};
     use schaltwerk::domains::sessions::entity::{SessionState, SessionStatus};
-    use std::process::Command;
+    use std::process::{Command, Stdio};
     use tempfile::TempDir;
 
     fn init_repo() -> TempDir {
@@ -717,6 +719,8 @@ mod tests {
         Command::new("git")
             .args(["checkout", "-B", branch, base])
             .current_dir(repo_path)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
             .status()
             .expect("create branch");
     }
@@ -767,11 +771,15 @@ mod tests {
         Command::new("git")
             .args(["add", relative])
             .current_dir(repo_path)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
             .status()
             .expect("git add");
         Command::new("git")
             .args(["commit", "-m", message])
             .current_dir(repo_path)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
             .status()
             .expect("git commit");
     }
@@ -1015,10 +1023,7 @@ mod tests {
                 head_short: "def5678".into(),
             },
             has_spec: true,
-            files: vec![ChangedFile {
-                path: "src/lib.rs".into(),
-                change_type: "modified".into(),
-            }],
+            files: vec![ChangedFile::new("src/lib.rs".into(), "modified".into())],
             paging: PagingInfo {
                 next_cursor: Some("next".into()),
                 total_files: 1,
@@ -1028,11 +1033,13 @@ mod tests {
         assert!(summary.has_spec);
         assert_eq!(summary.files[0].path, "src/lib.rs");
 
+        let mut file = ChangedFile::new("src/lib.rs".into(), "modified".into());
+        file.additions = 5;
+        file.deletions = 2;
+        file.changes = 7;
+
         let chunk = DiffChunkResponse {
-            file: ChangedFile {
-                path: "src/lib.rs".into(),
-                change_type: "modified".into(),
-            },
+            file,
             branch_info: summary.branch_info.clone(),
             stats: DiffStatsSummary {
                 additions: 5,

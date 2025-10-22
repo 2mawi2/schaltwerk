@@ -179,7 +179,11 @@ export function TopBar({
 
         {/* Open in IDE button - only show when a tab is active */}
         {activeTabPath && (
-          <div className="mr-2" data-testid="topbar-open-button">
+          <div
+            className="mr-2"
+            data-testid="topbar-open-button"
+            data-onboarding="open-worktree-button"
+          >
             <OpenInSplitButton
               resolvePath={resolveOpenPath ?? (async () => activeTabPath)}
               onOpenReady={handleOpenReady}

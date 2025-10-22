@@ -19,19 +19,22 @@ interface GitGraphPanelProps {
     files: CommitFileChange[]
     initialFilePath?: string
   }) => void
+  repoPath?: string | null
+  sessionName?: string | null
 }
 
 const HISTORY_PAGE_SIZE = 400
 
-export const GitGraphPanel = memo(({ onOpenCommitDiff }: GitGraphPanelProps = {}) => {
+export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverride, sessionName }: GitGraphPanelProps = {}) => {
   const { projectPath } = useProject()
+  const repoPath = repoPathOverride ?? projectPath
   const { pushToast } = useToast()
   const [snapshot, setSnapshot] = useState<HistoryProviderSnapshot | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null)
-  const activeProjectRef = useRef<string | null>(projectPath ?? null)
+  const activeRepoRef = useRef<string | null>(repoPath ?? null)
   const [selectedCommitId, setSelectedCommitId] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; commit: HistoryItem } | null>(null)
   const [commitDetails, setCommitDetails] = useState<Record<string, CommitDetailState>>({})
@@ -43,8 +46,8 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff }: GitGraphPanelProps = {}
   const activeRefreshHeadRef = useRef<string | null>(null)
 
   useEffect(() => {
-    activeProjectRef.current = projectPath ?? null
-  }, [projectPath])
+    activeRepoRef.current = repoPath ?? null
+  }, [repoPath])
 
   const mergeSnapshot = useCallback(
     (incoming: HistoryProviderSnapshot, append: boolean) => {
@@ -81,7 +84,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff }: GitGraphPanelProps = {}
 
   const loadHistory = useCallback(
     async (options?: { cursor?: string; mode?: 'initial' | 'append' | 'refresh' }) => {
-      if (!projectPath) {
+      if (!repoPath) {
         return
       }
 
@@ -102,7 +105,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff }: GitGraphPanelProps = {}
 
       try {
         const result = await invoke<HistoryProviderSnapshot>(TauriCommands.GetGitGraphHistory, {
-          repoPath: projectPath,
+          repoPath,
           limit: HISTORY_PAGE_SIZE,
           cursor,
         })
@@ -115,7 +118,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff }: GitGraphPanelProps = {}
           nextCursor: result.nextCursor,
         })
 
-        if (activeProjectRef.current !== projectPath) {
+        if (activeRepoRef.current !== repoPath) {
           return
         }
 
@@ -130,7 +133,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff }: GitGraphPanelProps = {}
           hasLoadedRef.current = true
         }
       } catch (err) {
-        if (activeProjectRef.current !== projectPath) {
+        if (activeRepoRef.current !== repoPath) {
           return
         }
         const errorMsg = err instanceof Error ? err.message : String(err)
@@ -144,7 +147,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff }: GitGraphPanelProps = {}
           setError(errorMsg)
         }
       } finally {
-        if (activeProjectRef.current === projectPath) {
+        if (activeRepoRef.current === repoPath) {
           if (append) {
             setIsLoadingMore(false)
           } else if (!refresh) {
@@ -153,7 +156,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff }: GitGraphPanelProps = {}
         }
       }
     },
-    [projectPath, mergeSnapshot]
+    [repoPath, mergeSnapshot]
   )
 
   useEffect(() => {
@@ -163,7 +166,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff }: GitGraphPanelProps = {}
     hasLoadedRef.current = false
     latestHeadRef.current = null
 
-    if (!projectPath) {
+    if (!repoPath) {
       setSnapshot(null)
       setIsLoading(false)
       setIsLoadingMore(false)
@@ -181,7 +184,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff }: GitGraphPanelProps = {}
     setCommitDetails({})
     commitDetailsRef.current = {}
     void loadHistory({ mode: 'initial' })
-  }, [projectPath, loadHistory])
+  }, [repoPath, loadHistory])
 
   const historyItems = useMemo(() => {
     return snapshot ? toViewModel(snapshot) : []
@@ -232,7 +235,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff }: GitGraphPanelProps = {}
   }, [contextMenu, pushToast])
 
   const handleOpenCommitDiffInternal = useCallback(async (commit: HistoryItem, filePath?: string) => {
-    if (!onOpenCommitDiff || !projectPath) {
+    if (!onOpenCommitDiff || !repoPath) {
       return
     }
 
@@ -242,7 +245,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff }: GitGraphPanelProps = {}
     if (!files || files.length === 0) {
       try {
         files = await invoke<CommitFileChange[]>(TauriCommands.GetGitGraphCommitFiles, {
-          repoPath: projectPath,
+          repoPath,
           commitHash,
         })
       } catch (error) {
@@ -257,8 +260,8 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff }: GitGraphPanelProps = {}
       return
     }
 
-    onOpenCommitDiff({ repoPath: projectPath, commit, files, initialFilePath: filePath })
-  }, [onOpenCommitDiff, projectPath, pushToast])
+    onOpenCommitDiff({ repoPath, commit, files, initialFilePath: filePath })
+  }, [onOpenCommitDiff, repoPath, pushToast])
 
   useEffect(() => {
     commitDetailsRef.current = commitDetails
@@ -266,7 +269,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff }: GitGraphPanelProps = {}
 
   const processRefreshQueue = useCallback(
     async () => {
-      if (refreshProcessingRef.current || !projectPath) {
+      if (refreshProcessingRef.current || !repoPath) {
         return
       }
 
@@ -291,12 +294,12 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff }: GitGraphPanelProps = {}
         }
       }
     },
-    [projectPath, loadHistory]
+    [repoPath, loadHistory]
   )
 
   const enqueueRefreshHead = useCallback(
     (head: string) => {
-      if (!projectPath) {
+      if (!repoPath) {
         return
       }
 
@@ -310,12 +313,16 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff }: GitGraphPanelProps = {}
       }
       void processRefreshQueue()
     },
-    [projectPath, processRefreshQueue]
+    [repoPath, processRefreshQueue]
   )
 
   const handleFileChanges = useCallback(
     (payload: EventPayloadMap[SchaltEvent.FileChanges]) => {
-      if (!projectPath || !hasLoadedRef.current) {
+      if (!repoPath || !hasLoadedRef.current) {
+        return
+      }
+
+      if (sessionName && payload?.session_name !== sessionName) {
         return
       }
 
@@ -330,7 +337,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff }: GitGraphPanelProps = {}
 
       enqueueRefreshHead(nextHead)
     },
-    [projectPath, enqueueRefreshHead]
+    [repoPath, enqueueRefreshHead, sessionName]
   )
 
   useEffect(() => {
@@ -362,7 +369,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff }: GitGraphPanelProps = {}
   }, [handleFileChanges])
 
   const handleToggleCommitDetails = useCallback((viewModel: HistoryItemViewModel) => {
-    if (!projectPath) {
+    if (!repoPath) {
       return
     }
 
@@ -406,11 +413,11 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff }: GitGraphPanelProps = {}
 
     logger.debug('[GitGraphPanel] fetching commit files', { commitId })
     invoke<CommitFileChange[]>(TauriCommands.GetGitGraphCommitFiles, {
-      repoPath: projectPath,
+      repoPath,
       commitHash,
     })
       .then(files => {
-        if (activeProjectRef.current !== projectPath) {
+        if (activeRepoRef.current !== repoPath) {
           return
         }
         setCommitDetails(prev => ({
@@ -424,7 +431,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff }: GitGraphPanelProps = {}
         }))
       })
       .catch(err => {
-        if (activeProjectRef.current !== projectPath) {
+        if (activeRepoRef.current !== repoPath) {
           return
         }
         const message = err instanceof Error ? err.message : String(err)
@@ -439,7 +446,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff }: GitGraphPanelProps = {}
           },
         }))
       })
-  }, [projectPath])
+  }, [repoPath])
 
   useEffect(() => {
     if (!contextMenu) return
@@ -454,10 +461,10 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff }: GitGraphPanelProps = {}
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [contextMenu])
 
-  if (!projectPath) {
+  if (!repoPath) {
     return (
       <div className="flex items-center justify-center h-full text-slate-400 text-xs">
-        No project selected
+        No repository selected
       </div>
     )
   }

@@ -40,7 +40,6 @@ import {
   emitUiEvent,
   clearBackgroundStarts,
   clearBackgroundStartsByPrefix,
-  markBackgroundStart,
   SessionActionDetail,
   StartAgentFromSpecDetail,
   AgentLifecycleDetail,
@@ -50,12 +49,12 @@ import { installSmartDashGuards } from './utils/normalizeCliText'
 import { useKeyboardShortcutsConfig } from './contexts/KeyboardShortcutsContext'
 import { detectPlatformSafe, isShortcutForAction } from './keyboardShortcuts/helpers'
 import { useSelectionPreserver } from './hooks/useSelectionPreserver'
-import { startSessionTop, computeProjectOrchestratorId, AGENT_START_TIMEOUT_MESSAGE } from './common/agentSpawn'
+import { AGENT_START_TIMEOUT_MESSAGE } from './common/agentSpawn'
 import { createTerminalBackend } from './terminal/transport/backend'
 import { beginSplitDrag, endSplitDrag } from './utils/splitDragCoordinator'
 import { useOptionalToast } from './common/toast/ToastProvider'
 import { AppUpdateResultPayload } from './common/events'
-import { RawSession, EnrichedSession } from './types/session'
+import { RawSession } from './types/session'
 import { stableSessionTerminalId } from './common/terminalIdentity'
 
 
@@ -73,7 +72,7 @@ function AppContent() {
   const { fetchSessionForPrefill } = useSessionPrefill()
   const github = useGithubIntegrationContext()
   const toast = useOptionalToast()
-  const { beginSessionMutation, endSessionMutation } = useSessions()
+  const { beginSessionMutation, endSessionMutation, enqueuePendingStartup } = useSessions()
   const agentLifecycleStateRef = useRef(new Map<string, { state: 'spawned' | 'ready'; timestamp: number }>())
 
   useEffect(() => {
@@ -760,7 +759,6 @@ function AppContent() {
     }
   }
 
-  const versionGroupHandlerRef = useRef<(() => void) | null>(null)
 
   const handleCreateSession = async (data: {
     name: string
@@ -903,6 +901,14 @@ function AppContent() {
               arrayValue: data.agentTypes?.[i - 1]
             })
 
+            if (!data.isSpec) {
+              try {
+                await enqueuePendingStartup(versionName, agentTypeForVersion ?? undefined)
+              } catch (enqueueError) {
+                logger.warn('[App] Failed to enqueue pending startup before creation:', enqueueError)
+              }
+            }
+
             // For single sessions, use userEditedName flag as provided
             // For multiple versions, don't mark as user-edited so they can be renamed as a group
             const createdSession = await invoke<RawSession | null>(TauriCommands.SchaltwerkCoreCreateSession, {
@@ -919,6 +925,14 @@ function AppContent() {
 
             const actualSessionName = createdSession?.name ?? versionName
             createdSessions.push({ name: actualSessionName, agentType: agentTypeForVersion })
+
+            if (!data.isSpec && actualSessionName !== versionName) {
+              try {
+                await enqueuePendingStartup(actualSessionName, agentTypeForVersion ?? undefined)
+              } catch (enqueueError) {
+                logger.warn('[App] Failed to enqueue pending startup after name normalization:', enqueueError)
+              }
+            }
           }
 
           const actualNamesForLog = createdSessions.map(session => session.name)
@@ -953,75 +967,9 @@ function AppContent() {
           const firstCreatedName = createdSessions[0]?.name ?? data.name
           emitUiEvent(UiEvent.SessionCreated, { name: firstCreatedName })
 
-          // For regular (non-spec) sessions: proactively start each version once with its intended agent type.
-          // This prevents later starters from falling back to a global default.
-          if (!data.isSpec) {
-            for (const createdSession of createdSessions) {
-              const topId = stableSessionTerminalId(createdSession.name, 'top')
-              markBackgroundStart(topId)
-            }
-            logger.info(`[AGENT_LAUNCH_TRACE] Version group handler - marked ${createdSessions.length} sessions for background start`)
-
-            logger.info(`[AGENT_LAUNCH_TRACE] Version group handler - waiting for SessionsRefreshed for ${createdSessions.length} sessions`)
-            const refreshedSessions = await (async function() {
-              if (versionGroupHandlerRef.current) {
-                logger.info('[AGENT_LAUNCH_TRACE] Cleaning up previous version group handler before creating new one')
-                versionGroupHandlerRef.current()
-                versionGroupHandlerRef.current = null
-              }
-
-              let resolveFn: ((sessions: EnrichedSession[]) => void) | undefined
-              const promise = new Promise<EnrichedSession[]>((resolve) => {
-                resolveFn = resolve
-              })
-
-              const unlisten = await listenEvent(SchaltEvent.SessionsRefreshed, (sessions: EnrichedSession[]) => {
-                logger.info(`[AGENT_LAUNCH_TRACE] Version group handler - SessionsRefreshed received with ${sessions.length} sessions`)
-                if (resolveFn) resolveFn(sessions)
-              })
-
-              versionGroupHandlerRef.current = unlisten
-
-              const result = await promise
-              unlisten()
-              versionGroupHandlerRef.current = null
-              return result
-            })()
-
-            const refreshedSessionNames = new Set(refreshedSessions.map(s => s.info.session_id))
-            const validSessions = createdSessions.filter(s => refreshedSessionNames.has(s.name))
-            const skippedSessions = createdSessions.filter(s => !refreshedSessionNames.has(s.name))
-
-            if (skippedSessions.length > 0) {
-              logger.warn(`[AGENT_LAUNCH_TRACE] Version group handler - skipping ${skippedSessions.length} cancelled sessions: ${skippedSessions.map(s => s.name).join(', ')}`)
-            }
-
-            logger.info(`[AGENT_LAUNCH_TRACE] Version group handler - starting agents for ${validSessions.length} sessions: ${validSessions.map(s => s.name).join(', ')}`)
-            const projectOrchestratorId = computeProjectOrchestratorId(projectPath)
-            for (const createdSession of validSessions) {
-              const sessionName = createdSession.name
-              const agentTypeForVersion = createdSession.agentType ?? undefined
-              const topId = stableSessionTerminalId(sessionName, 'top')
-              try {
-                await startSessionTop({
-                  sessionName,
-                  topId,
-                  projectOrchestratorId,
-                  agentType: agentTypeForVersion
-                })
-              } catch (e) {
-                logger.warn(`[App] Failed to start agent for ${sessionName}:`, e)
-              }
-            }
-          }
         }
       })
     } catch (error) {
-      if (versionGroupHandlerRef.current) {
-        logger.info('[AGENT_LAUNCH_TRACE] Cleaning up version group handler due to error')
-        versionGroupHandlerRef.current()
-        versionGroupHandlerRef.current = null
-      }
       logger.error('Failed to create session:', error)
       alert(`Failed to create session: ${error}`)
     }
@@ -1316,7 +1264,7 @@ function AppContent() {
                       </SessionErrorBoundary>
                     </div>
                     <div
-                      className="p-2 border-t flex flex-col gap-3"
+                      className="p-2 border-t grid grid-cols-2 gap-2"
                       style={{ borderTopColor: theme.colors.border.default }}
                     >
                       <button
@@ -1330,13 +1278,18 @@ function AppContent() {
                           color: theme.colors.text.primary,
                           borderColor: theme.colors.border.subtle
                         }}
-                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = `${theme.colors.background.hover}99`}
-                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = `${theme.colors.background.elevated}99`}
-                        title={`Start agent (${shortcuts[KeyboardShortcutAction.NewSession] || '⌘N'})`}
+                        data-onboarding="start-agent-button"
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = `${theme.colors.background.hover}99`
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = `${theme.colors.background.elevated}99`
+                        }}
+                        title={`Start agent (${startShortcut})`}
                       >
                         <span>Start Agent</span>
                         <span
-                          className="text-xs px-2 py-0.5 rounded"
+                          className="text-xs px-2 py-0.5 rounded transition-opacity group-hover:opacity-100"
                           style={{
                             backgroundColor: theme.colors.background.secondary,
                             color: theme.colors.text.secondary
@@ -1357,17 +1310,18 @@ function AppContent() {
                           borderColor: theme.colors.accent.amber.border,
                           color: theme.colors.text.primary
                         }}
+                        data-onboarding="create-spec-button"
                         onMouseEnter={(e) => {
                           e.currentTarget.style.backgroundColor = `${theme.colors.accent.amber.DEFAULT}33`
                         }}
                         onMouseLeave={(e) => {
                           e.currentTarget.style.backgroundColor = theme.colors.accent.amber.bg
                         }}
-                        title={`Create spec (${shortcuts[KeyboardShortcutAction.NewSpec] || '⇧⌘N'})`}
+                        title={`Create spec (${specShortcut})`}
                       >
                         <span>Create Spec</span>
                         <span
-                          className="text-xs px-2 py-0.5 rounded"
+                          className="text-xs px-2 py-0.5 rounded transition-opacity group-hover:opacity-100"
                           style={{
                             backgroundColor: 'rgba(245, 158, 11, 0.15)',
                             color: theme.colors.accent.amber.light

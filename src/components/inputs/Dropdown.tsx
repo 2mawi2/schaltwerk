@@ -130,7 +130,9 @@ export function Dropdown({ open, onOpenChange, items, selectedKey, onSelect, ali
             className="rounded shadow-lg overflow-auto"
             style={{
               position: 'fixed',
-              top: menuGeometry.top,
+              ...(menuGeometry.placement === 'above'
+                ? { bottom: menuGeometry.bottom }
+                : { top: menuGeometry.top }),
               left: menuGeometry.left,
               width: menuGeometry.width,
               maxHeight: menuGeometry.maxHeight,

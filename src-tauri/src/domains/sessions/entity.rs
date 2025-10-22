@@ -49,6 +49,23 @@ impl FromStr for FilterMode {
 pub struct ChangedFile {
     pub path: String,
     pub change_type: String,
+    pub additions: u32,
+    pub deletions: u32,
+    pub changes: u32,
+    pub is_binary: Option<bool>,
+}
+
+impl ChangedFile {
+    pub fn new(path: String, change_type: String) -> Self {
+        Self {
+            path,
+            change_type,
+            additions: 0,
+            deletions: 0,
+            changes: 0,
+            is_binary: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

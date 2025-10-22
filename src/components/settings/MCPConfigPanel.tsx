@@ -9,6 +9,8 @@ interface MCPStatus {
   mcp_server_path: string
   is_embedded: boolean
   cli_available: boolean
+  node_available?: boolean
+  node_command?: string
   client: 'claude' | 'codex' | 'opencode' | 'amp' | 'droid'
   is_configured: boolean
   setup_command: string
@@ -20,6 +22,53 @@ interface Props {
    agent: 'claude' | 'codex' | 'opencode' | 'amp' | 'droid'
  }
 
+function getAgentDisplayName(agent: Props['agent']): string {
+  switch (agent) {
+    case 'claude':
+      return 'Claude Code'
+    case 'codex':
+      return 'Codex'
+    case 'opencode':
+      return 'OpenCode'
+    case 'amp':
+      return 'Amp'
+    case 'droid':
+      return 'Droid'
+    default:
+      return agent
+  }
+}
+
+function NodeRequiredNotice({ agent }: { agent: Props['agent'] }) {
+  return (
+    <div
+      className="p-3 border rounded text-xs space-y-2"
+      style={{
+        backgroundColor: theme.colors.accent.amber.bg,
+        borderColor: theme.colors.accent.amber.border,
+        color: theme.colors.text.primary,
+      }}
+    >
+      <div className="font-medium" style={{ color: theme.colors.accent.amber.light }}>
+        Node.js required
+      </div>
+      <div>Node.js is required to run the Schaltwerk MCP server.</div>
+      <div>
+        Install Node.js and restart {getAgentDisplayName(agent)} to enable MCP tools.
+      </div>
+      <a
+        href="https://nodejs.org/en/download"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-block underline"
+        style={{ color: theme.colors.accent.amber.light }}
+      >
+        Download Node.js
+      </a>
+    </div>
+  )
+}
+
 export function MCPConfigPanel({ projectPath, agent }: Props) {
   const [status, setStatus] = useState<MCPStatus | null>(null)
   const [loading, setLoading] = useState(false)
@@ -27,6 +76,10 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
   const [success, setSuccess] = useState<string | null>(null)
   const [showManualSetup, setShowManualSetup] = useState(false)
   const [mcpEnabled, setMcpEnabled] = useState(false)
+  const agentLabel = getAgentDisplayName(agent)
+  const nodeAvailable = status?.node_available ?? true
+  const nodeCommand = status?.node_command ?? 'node'
+  const requiresGlobalConfig = agent === 'codex' || agent === 'amp' || agent === 'droid'
 
   const loadStatus = useCallback(async () => {
     try {
@@ -102,7 +155,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
       <div>
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-medium text-slate-200">MCP Server Configuration</h3>
-          <label className="flex items-center gap-2">
+         <label className="flex items-center gap-2">
             <input
               type="checkbox"
               checked={mcpEnabled}
@@ -118,26 +171,26 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
               }}
             />
              <span className="text-xs text-slate-400">
-               {agent === 'codex' || agent === 'amp' || agent === 'droid' ? 'Enable MCP (global)' : 'Enable MCP'}
+               {requiresGlobalConfig ? 'Enable MCP (global)' : 'Enable MCP'}
              </span>
           </label>
         </div>
          <p className="text-xs text-slate-400">
            {agent === 'claude'
-             ? 'Allow Claude Code to control Schaltwerk sessions in this project via MCP.'
+             ? `Allow ${agentLabel} to control Schaltwerk sessions in this project via MCP.`
              : agent === 'codex'
-             ? 'Enable Codex to control Schaltwerk sessions via a global MCP entry in ~/.codex/config.toml. The server is project‑aware and routes by your current repo.'
+             ? `Enable ${agentLabel} to control Schaltwerk sessions via a global MCP entry in ~/.codex/config.toml. The server is project-aware and routes by your current repo.`
              : agent === 'opencode'
-             ? 'Enable OpenCode to control Schaltwerk sessions via MCP configuration. The server is project‑aware and routes by your current repo.'
+             ? `Enable ${agentLabel} to control Schaltwerk sessions via MCP configuration. The server is project-aware and routes by your current repo.`
              : agent === 'amp'
-             ? 'Enable Amp to control Schaltwerk sessions via a global MCP entry in ~/.config/amp/settings.json. The server is project‑aware and routes by your current repo.'
-             : 'Enable Droid to control Schaltwerk sessions via a global MCP entry in ~/.factory/mcp.json. The server is project‑aware and routes by your current repo.'}
+             ? `Enable ${agentLabel} to control Schaltwerk sessions via a global MCP entry in ~/.config/amp/settings.json. The server is project-aware and routes by your current repo.`
+             : `Enable ${agentLabel} to control Schaltwerk sessions via a global MCP entry in ~/.factory/mcp.json. The server is project-aware and routes by your current repo.`}
          </p>
       </div>
 
        {!mcpEnabled && (
          <div className="p-3 bg-slate-800/30 border border-slate-700 rounded text-slate-400 text-xs">
-           Enable MCP configuration to allow {agent === 'claude' ? 'Claude Code' : agent === 'codex' ? 'Codex' : agent === 'opencode' ? 'OpenCode' : agent === 'amp' ? 'Amp' : 'Droid'} to manage sessions in this project.
+           Enable MCP configuration to allow {agentLabel} to manage sessions in this project.
          </div>
        )}
 
@@ -171,24 +224,26 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                   <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
-                  <div>
-                     <div className="font-medium mb-1">Next Steps:</div>
-                     <div>• Restart {agent === 'claude' ? 'Claude Code' : agent === 'codex' ? 'Codex' : agent === 'opencode' ? 'OpenCode' : agent === 'amp' ? 'Amp' : 'Droid'} to load the MCP server</div>
-                     <div>• Or click the reset button (shown above) in the orchestrator terminal</div>
-                     <div>• The MCP server will then be available for all {agent === 'claude' ? 'Claude Code' : agent === 'codex' ? 'Codex' : agent === 'opencode' ? 'OpenCode' : agent === 'amp' ? 'Amp' : 'Droid'} sessions in this project</div>
+                 <div>
+                    <div className="font-medium mb-1">Next Steps:</div>
+                    <div>• Restart {agentLabel} to load the MCP server</div>
+                    <div>• Or click the reset button (shown above) in the orchestrator terminal</div>
+                    <div>• The MCP server will then be available for all {agentLabel} sessions in this project</div>
                   </div>
                 </div>
               </div>
             </div>
           )}
 
+          {status && !nodeAvailable && (
+            <NodeRequiredNotice agent={agent} />
+          )}
+
           {status && (
             <>
               <div className="space-y-2 p-3 bg-slate-800/50 rounded border border-slate-700">
                  <div className="flex items-center justify-between text-xs">
-                   <span className="text-slate-400">
-                     {agent === 'claude' ? 'Claude' : agent === 'codex' ? 'Codex' : agent === 'opencode' ? 'OpenCode' : agent === 'amp' ? 'Amp' : 'Droid'} CLI:
-                   </span>
+                   <span className="text-slate-400">{agentLabel} CLI:</span>
                    <span className={status.cli_available ? 'text-green-400' : 'text-amber-400'}>
                      {status.cli_available ? '✅ Available' : '⚠️ Not found'}
                    </span>
@@ -198,6 +253,13 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                   <span className="text-slate-400">MCP Server:</span>
                   <span className="text-slate-300">
                     {status.is_embedded ? '📦 Embedded' : '🔧 Development'}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-400">Node.js Runtime:</span>
+                  <span className={nodeAvailable ? 'text-green-400' : 'text-amber-400'}>
+                    {nodeAvailable ? '✅ Available' : '⚠️ Not found'}
                   </span>
                 </div>
             
@@ -226,7 +288,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                        disabled={loading}
                        className="px-3 py-1 bg-green-800 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed border border-green-700 rounded text-sm transition-colors text-green-200"
                      >
-                       {agent === 'codex' || agent === 'amp' || agent === 'droid' ? 'Reconfigure MCP (global)' : 'Reconfigure MCP'}
+                       {requiresGlobalConfig ? 'Reconfigure MCP (global)' : 'Reconfigure MCP'}
                      </button>
                   ) : (
                      <button
@@ -326,7 +388,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                            {agent === 'codex'
                              ? (<>
                                  [mcp_servers.schaltwerk]
-                                 <br />command = "node"
+                                 <br />command = "{nodeCommand}"
                                  <br />args = ["{status.mcp_server_path}"]
                                </>)
                              : agent === 'opencode'
