@@ -3577,7 +3577,11 @@ impl SessionManager {
         }
 
         let path = std::path::Path::new(rel_file_path);
-        crate::domains::git::worktrees::discard_path_in_worktree(&session.worktree_path, path)
+        crate::domains::git::worktrees::discard_path_in_worktree(
+            &session.worktree_path,
+            path,
+            Some(&session.parent_branch),
+        )
     }
 
     pub fn mark_session_prompted(&self, worktree_path: &std::path::Path) {
