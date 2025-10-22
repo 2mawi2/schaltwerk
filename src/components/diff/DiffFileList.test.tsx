@@ -6,6 +6,7 @@ import { DiffFileList } from './DiffFileList'
 import { useSelection } from '../../contexts/SelectionContext'
 import { useProject } from '../../contexts/ProjectContext'
 import { TestProviders } from '../../tests/test-utils'
+import { UiEvent, emitUiEvent } from '../../common/uiEvents'
 
 type MockChangedFile = {
   path: string
@@ -697,6 +698,49 @@ describe('DiffFileList', () => {
         expect(screen.getByText('beta-stable.ts')).toBeInTheDocument()
         expect(screen.queryByText('session not found')).not.toBeInTheDocument()
       })
+    })
+  })
+
+  describe('Project switching', () => {
+    it('reloads orchestrator changes when project switch completes', async () => {
+      const { invoke } = await import('@tauri-apps/api/core')
+      const mockInvoke = invoke as ReturnType<typeof vi.fn>
+
+      let currentProject = 'alpha'
+      mockInvoke.mockImplementation(async (cmd: string) => {
+        if (cmd === TauriCommands.GetOrchestratorWorkingChanges) {
+          if (currentProject === 'alpha') {
+            return [{ path: 'src/a-alpha.ts', change_type: 'modified' }]
+          }
+          return [{ path: 'src/b-beta.ts', change_type: 'modified' }]
+        }
+        if (cmd === TauriCommands.GetCurrentBranchName) {
+          return currentProject === 'alpha' ? 'alpha-main' : 'beta-main'
+        }
+        if (cmd === TauriCommands.GetBaseBranchName) return 'main'
+        if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc', 'def']
+        return undefined
+      })
+
+      render(
+        <Wrapper>
+          <DiffFileList onFileSelect={() => {}} isCommander={true} />
+        </Wrapper>
+      )
+
+      expect(await screen.findByText('a-alpha.ts')).toBeInTheDocument()
+
+      currentProject = 'beta'
+
+      await act(async () => {
+        emitUiEvent(UiEvent.ProjectSwitchComplete, { projectPath: '/projects/beta' })
+      })
+
+      await waitFor(() => {
+        expect(screen.queryByText('a-alpha.ts')).not.toBeInTheDocument()
+      })
+
+      expect(await screen.findByText('b-beta.ts')).toBeInTheDocument()
     })
   })
 })

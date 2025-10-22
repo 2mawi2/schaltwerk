@@ -8,7 +8,7 @@ import { VscFile, VscDiffAdded, VscDiffModified, VscDiffRemoved, VscFileBinary, 
 import clsx from 'clsx'
 import { isBinaryFileByExtension } from '../../utils/binaryDetection'
 import { logger } from '../../utils/logger'
-import { UiEvent, emitUiEvent } from '../../common/uiEvents'
+import { UiEvent, emitUiEvent, listenUiEvent } from '../../common/uiEvents'
 import { AnimatedText } from '../common/AnimatedText'
 import { ConfirmResetDialog } from '../common/ConfirmResetDialog'
 import { ConfirmDiscardDialog } from '../common/ConfirmDiscardDialog'
@@ -370,6 +370,25 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
       }
     }
   }, [sessionNameOverride, selection, isCommander, loadChangedFiles])
+
+  useEffect(() => {
+    const unlisten = listenUiEvent(UiEvent.ProjectSwitchComplete, () => {
+      loadTokenRef.current += 1
+      inFlightSessionKeyRef.current = null
+      sessionDataCacheRef.current.clear()
+      cancelledSessionsRef.current.clear()
+      lastResultRef.current = ''
+      lastSessionKeyRef.current = null
+      setFiles([])
+      setBranchInfo(null)
+      setIsLoading(false)
+      void loadChangedFiles()
+    })
+
+    return () => {
+      unlisten()
+    }
+  }, [loadChangedFiles])
   
   const handleFileClick = (file: ChangedFile) => {
     setSelectedFile(file.path)
