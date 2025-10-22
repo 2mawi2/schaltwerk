@@ -248,7 +248,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
 
         const { previousSessions } = captureSelectionSnapshot(entry, visibleSessions)
 
-        const removalCandidate = lastRemovedSessionRef.current
+        const removalCandidateFromEvent = lastRemovedSessionRef.current
         const mergedCandidate = lastMergedReviewedSessionRef.current
 
         const mergedSessionInfo = mergedCandidate
@@ -266,9 +266,9 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             lastMergedReviewedSessionRef.current = null
         }
 
-        const wasReviewedSession = removalCandidate ?
-            allSessions.find(s => s.info.session_id === removalCandidate)?.info.ready_to_merge : false
-        const shouldPreserveForReviewedRemoval = Boolean(wasReviewedSession && removalCandidate && filterMode !== FilterMode.Reviewed)
+        const wasReviewedSession = removalCandidateFromEvent ?
+            allSessions.find(s => s.info.session_id === removalCandidateFromEvent)?.info.ready_to_merge : false
+        const shouldPreserveForReviewedRemoval = Boolean(wasReviewedSession && removalCandidateFromEvent && filterMode !== FilterMode.Reviewed)
 
         const filterModeChanged = previousFilterModeRef.current !== filterMode
         previousFilterModeRef.current = filterMode
@@ -281,13 +281,13 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             filterMode === FilterMode.Running
         )
 
-        if (currentSessionMovedToReviewed) {
-            return
-        }
+        const effectiveRemovalCandidate = currentSessionMovedToReviewed && currentSelectionId
+            ? currentSelectionId
+            : removalCandidateFromEvent
 
         if (selection.kind === 'orchestrator') {
             entry.lastSelection = null
-            if (!removalCandidate && !shouldAdvanceFromMerged) {
+            if (!effectiveRemovalCandidate && !shouldAdvanceFromMerged) {
                 return
             }
         }
@@ -295,7 +295,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         if (visibleSessions.length === 0) {
             entry.lastSelection = null
             void setSelection({ kind: 'orchestrator' }, false, false)
-            if (lastRemovedSessionRef.current) {
+            if (removalCandidateFromEvent) {
                 lastRemovedSessionRef.current = null
             }
             if (shouldAdvanceFromMerged) {
@@ -318,7 +318,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             visibleSessions,
             previousSessions,
             rememberedId,
-            removalCandidate,
+            removalCandidate: effectiveRemovalCandidate,
             mergedCandidate,
             shouldAdvanceFromMerged,
             shouldPreserveForReviewedRemoval,
@@ -344,7 +344,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             void setSelection({ kind: 'orchestrator' }, false, false)
         }
 
-        if (removalCandidate) {
+        if (removalCandidateFromEvent) {
             lastRemovedSessionRef.current = null
         }
         if (shouldAdvanceFromMerged) {
