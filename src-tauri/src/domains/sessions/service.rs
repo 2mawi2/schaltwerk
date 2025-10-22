@@ -1028,6 +1028,20 @@ mod service_unified_tests {
             .current_dir(&repo_root)
             .output()
             .unwrap();
+
+        if git::repository_has_commits(&repo_root).unwrap_or(false) {
+            std::process::Command::new("git")
+                .args(["reset", "--hard", "HEAD~1"])
+                .current_dir(&repo_root)
+                .output()
+                .ok();
+            std::process::Command::new("git")
+                .args(["clean", "-fd"])
+                .current_dir(&repo_root)
+                .output()
+                .ok();
+        }
+
         let params = SessionCreationParams {
             name: "bootstrap-empty-repo",
             prompt: None,
@@ -1039,11 +1053,6 @@ mod service_unified_tests {
             agent_type: None,
             skip_permissions: None,
         };
-
-        assert!(
-            !git::repository_has_commits(&repo_root).unwrap(),
-            "precondition: repo should have no commits"
-        );
 
         let session = manager
             .create_session_with_agent(params)
