@@ -306,6 +306,15 @@ RUST_LOG=trace bun run tauri:dev             # Maximum verbosity
 ### Location
 macOS: `~/Library/Application Support/schaltwerk/logs/schaltwerk-{timestamp}.log`
 
+### Quick Access
+- Each backend launch prints the log path; grab the latest file with:
+  ```bash
+  LOG_FILE=$(ls -t ~/Library/Application\ Support/schaltwerk/logs/schaltwerk-*.log | head -1)
+  tail -n 200 "$LOG_FILE"
+  ```
+- Works from main or any session worktree—no repo navigation required.
+- Frontend calls log through `src/utils/logger.ts`; entries show up with a `[Frontend]` prefix in the same file.
+
 ### Best Practices
 - Include context (IDs, sizes, durations)
 - Log at boundaries and slow operations
