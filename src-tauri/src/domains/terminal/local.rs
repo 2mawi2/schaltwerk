@@ -514,14 +514,7 @@ impl LocalPtyAdapter {
 
                             if !sanitized_data.is_empty() {
                                 if let Some(seq) = current_seq {
-                                    if output_event_sender_clone
-                                        .send((id_clone.clone(), seq))
-                                        .is_err()
-                                    {
-                                        debug!(
-                                            "[Terminal {id_clone}] Output listener closed; skipping notification"
-                                        );
-                                    }
+                                    let _ = output_event_sender_clone.send((id_clone.clone(), seq));
                                 }
 
                                 handle_coalesced_output(

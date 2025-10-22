@@ -83,6 +83,20 @@ type StartSessionTopParams = {
   agentType?: string | null
 }
 
+type OnCreatePayload = {
+  name: string
+  prompt?: string
+  baseBranch: string
+  versionCount?: number
+  agentType?: string
+  isSpec?: boolean
+  userEditedName?: boolean
+  skipPermissions?: boolean
+  agentTypes?: string[]
+}
+
+type OnCreateFn = (data: OnCreatePayload) => Promise<void>
+
 const startSessionTopMock = vi.hoisted(() =>
   vi.fn(async (_params: StartSessionTopParams) => {})
 ) as unknown as MockInstance<(params: StartSessionTopParams) => Promise<void>>
@@ -367,18 +381,6 @@ describe('validatePanelPercentage', () => {
 
     const modalCall = newSessionModalMock.mock.calls.at(-1)
     expect(modalCall).toBeTruthy()
-    type OnCreatePayload = {
-      name: string
-      prompt?: string
-      baseBranch: string
-      versionCount?: number
-      agentType?: string
-      isSpec?: boolean
-      userEditedName?: boolean
-      skipPermissions?: boolean
-      agentTypes?: string[]
-    }
-    type OnCreateFn = (data: OnCreatePayload) => Promise<void>
     const modalProps = modalCall![0] as { onCreate: OnCreateFn }
     expect(typeof modalProps.onCreate).toBe('function')
 
@@ -448,6 +450,89 @@ describe('validatePanelPercentage', () => {
     expect(thirdCall!.sessionName).toBe('feature-unique_v3')
     expect([firstCall!.sessionName, secondCall!.sessionName, thirdCall!.sessionName]).not.toContain('feature')
 
+    expect(firstCall!.agentType).toBe('claude')
+    expect(secondCall!.agentType).toBe('claude')
+    expect(thirdCall!.agentType).toBe('claude')
+
+    invokeMock.mockImplementation(defaultInvokeImpl)
+  })
+
+  it('respects requested agent type even if creation resolves after SessionsRefreshed', async () => {
+    renderApp()
+
+    fireEvent.click(await screen.findByTestId('open-project'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('sidebar-mock')).toBeInTheDocument()
+    })
+
+    const modalCall = newSessionModalMock.mock.calls.at(-1)
+    expect(modalCall).toBeTruthy()
+    const modalProps = modalCall![0] as { onCreate: OnCreateFn }
+
+    const { invoke } = await import('@tauri-apps/api/core')
+    const invokeMock = invoke as unknown as ReturnType<typeof vi.fn>
+
+    const pendingResolvers: Array<() => void> = []
+    invokeMock.mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
+      if (cmd === TauriCommands.SchaltwerkCoreCreateSession) {
+        return await new Promise(resolve => {
+          pendingResolvers.push(() => resolve({
+            name: String(args?.name ?? 'feature'),
+            branch: `${args?.baseBranch ?? 'main'}/${args?.name ?? 'feature'}`,
+            parent_branch: args?.baseBranch ?? 'main',
+            worktree_path: `/tmp/${args?.name ?? 'feature'}`,
+            version_number: 1,
+          }))
+        })
+      }
+      return defaultInvokeImpl(cmd, args)
+    })
+
+    const createPromise = modalProps.onCreate({
+      name: 'feature',
+      prompt: undefined,
+      baseBranch: 'main',
+      versionCount: 1,
+      agentType: 'codex',
+      isSpec: false,
+      userEditedName: true,
+    })
+
+    await waitFor(() => {
+      const hasHandler = listenEventHandlers.some(entry => String(entry.event) === String(SchaltEvent.SessionsRefreshed))
+      expect(hasHandler).toBe(true)
+    })
+
+    const sessionsRefreshedHandlers = listenEventHandlers
+      .filter(entry => String(entry.event) === String(SchaltEvent.SessionsRefreshed))
+      .map(entry => entry.handler)
+
+    startSessionTopMock.mockClear()
+
+    for (const handler of sessionsRefreshedHandlers) {
+      handler([
+        {
+          info: {
+            session_id: 'feature',
+            status: 'Active',
+            session_state: 'Running',
+          }
+        }
+      ])
+    }
+
+    await waitFor(() => {
+      expect(startSessionTopMock).toHaveBeenCalledTimes(1)
+    })
+
+    const [{ agentType }] = startSessionTopMock.mock.calls[0] as [StartSessionTopParams]
+    expect(agentType).toBe('codex')
+
+    pendingResolvers.forEach(resolve => resolve())
+    await createPromise
+
+    listenEventHandlers.length = 0
     invokeMock.mockImplementation(defaultInvokeImpl)
   })
 
@@ -462,18 +547,6 @@ describe('validatePanelPercentage', () => {
 
     const modalCall = newSessionModalMock.mock.calls.at(-1)
     expect(modalCall).toBeTruthy()
-    type OnCreatePayload = {
-      name: string
-      prompt?: string
-      baseBranch: string
-      versionCount?: number
-      agentType?: string
-      isSpec?: boolean
-      userEditedName?: boolean
-      skipPermissions?: boolean
-      agentTypes?: string[]
-    }
-    type OnCreateFn = (data: OnCreatePayload) => Promise<void>
     const modalProps = modalCall![0] as { onCreate: OnCreateFn }
     expect(typeof modalProps.onCreate).toBe('function')
 
