@@ -101,9 +101,9 @@ pub fn ensure_branch_at_head(repo_path: &Path, branch_name: &str) -> Result<()> 
             log::info!(
                 "Renaming current branch '{current_branch}' to requested base '{branch_name}'"
             );
-            existing
-                .rename(branch_name, false)
-                .map_err(|e| anyhow!("Failed to rename branch '{current_branch}' to '{branch_name}': {e}"))?;
+            existing.rename(branch_name, false).map_err(|e| {
+                anyhow!("Failed to rename branch '{current_branch}' to '{branch_name}': {e}")
+            })?;
             checkout_branch(&repo, branch_name)?;
             return Ok(());
         }

@@ -1,8 +1,8 @@
 use super::repository::get_commit_hash;
-use anyhow::{anyhow, Result};
-use git2::ResetType;
+use anyhow::{anyhow, Context, Result};
 use git2::{
-    build::CheckoutBuilder, BranchType, Repository, WorktreeAddOptions, WorktreePruneOptions,
+    build::CheckoutBuilder, BranchType, ErrorCode, Oid, Repository, ResetType, WorktreeAddOptions,
+    WorktreePruneOptions,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -10,17 +10,19 @@ use std::path::{Path, PathBuf};
 /// Discard changes for a single path inside a worktree.
 ///
 /// Behavior:
-/// - If the file is modified or deleted: restore content from HEAD for that path.
-/// - If the file is newly added and untracked: remove the working copy (path-specific clean).
-/// - If the file is staged: reset index entry for that path to HEAD.
+/// - If a base reference is provided and contains the path, restore the file from that reference.
+/// - If the base reference omits the path, remove it from the worktree (optionally backing up untracked content).
+/// - Otherwise, fall back to HEAD: restore tracked content or remove untracked files.
 ///
 /// Defensive guarantees:
 /// - Ensures `file_path` resolves inside `worktree_path`.
 /// - Never touches refs/other files; operates only on the provided pathspec.
-pub fn discard_path_in_worktree(worktree_path: &Path, file_path: &Path) -> Result<()> {
+pub fn discard_path_in_worktree(
+    worktree_path: &Path,
+    file_path: &Path,
+    base_reference: Option<&str>,
+) -> Result<()> {
     let repo = Repository::open(worktree_path)?;
-
-    // Accept both the main working directory and proper git worktrees
 
     // Build absolute path and ensure it resides within the worktree
     let abs_worktree = worktree_path
@@ -42,62 +44,157 @@ pub fn discard_path_in_worktree(worktree_path: &Path, file_path: &Path) -> Resul
         .map_err(|_| anyhow!("Failed to compute relative path"))?;
     let rel_str = rel.to_string_lossy().to_string();
 
-    // Determine HEAD tree (may be unborn on empty repo)
     let head_tree = match repo.head() {
-        Ok(h) => {
-            if let Some(oid) = h.target() {
-                Some(repo.find_commit(oid)?.tree()?)
-            } else {
-                None
-            }
-        }
+        Ok(head) => head
+            .target()
+            .map(|oid| repo.find_commit(oid))
+            .transpose()?
+            .map(|commit| commit.tree())
+            .transpose()?,
         Err(_) => None,
     };
 
-    // If path is untracked and not in HEAD, deleting the file is the correct discard.
-    let is_tracked_in_head = if let Some(tree) = &head_tree {
-        tree.get_path(rel).is_ok()
+    let (base_commit, base_tree) = if let Some(branch) = base_reference {
+        validate_branch_name(branch)?;
+        let commit = resolve_branch_commit_oid(&repo, branch)?
+            .map(|oid| repo.find_commit(oid))
+            .transpose()?;
+        let tree = commit.as_ref().map(|c| c.tree()).transpose()?;
+        (commit, tree)
     } else {
-        false
+        (None, None)
     };
 
-    // Reset index/working tree for exactly this path.
-    let mut builder = git2::build::CheckoutBuilder::new();
-    builder.force().path(&rel_str);
-    // Do not instruct checkout to delete untracked; we handle untracked safely below
+    let tracked_in_head = head_tree
+        .as_ref()
+        .map(|tree| tree.get_path(rel).is_ok())
+        .unwrap_or(false);
+    let tracked_in_base = base_tree
+        .as_ref()
+        .map(|tree| tree.get_path(rel).is_ok())
+        .unwrap_or(false);
 
-    match head_tree {
-        Some(_) => {
-            // Reset only the given path in the index (None => HEAD)
-            repo.reset_default(None, [rel_str.as_str()])?;
-            // Restore the file content from HEAD for that path
-            repo.checkout_head(Some(&mut builder))?;
+    // Prefer restoring from the provided base reference when available.
+    if let Some(commit) = base_commit.as_ref() {
+        if tracked_in_base {
+            repo.reset_default(Some(commit.as_object()), [rel_str.as_str()])
+                .with_context(|| {
+                    format!("Failed to reset index for {rel_str} to base reference")
+                })?;
+
+            if let Some(tree) = base_tree.as_ref() {
+                let mut builder = CheckoutBuilder::new();
+                builder.force().path(&rel_str).update_index(true);
+                repo.checkout_tree(tree.as_object(), Some(&mut builder))
+                    .with_context(|| format!("Failed to restore {rel_str} from base reference"))?;
+            }
+
+            return Ok(());
         }
-        None => {
-            // No HEAD yet (rare). Just clear any staged entry
-            let mut index = repo.index()?;
-            index.remove_path(rel).ok();
-            index.write()?;
+
+        // Base reference does not contain this path: remove it (with optional backups).
+        remove_from_index(&repo, rel)?;
+        remove_path_with_optional_backup(
+            &abs_worktree,
+            &abs_candidate,
+            rel,
+            !tracked_in_head && !tracked_in_base,
+        )?;
+        return Ok(());
+    }
+
+    // Reset the index entry for this path back to HEAD, tolerating files that were removed in HEAD.
+    if let Err(err) = repo.reset_default(None, [rel_str.as_str()]) {
+        if err.code() != ErrorCode::NotFound {
+            return Err(anyhow!(
+                "Failed to reset index for {}: {}",
+                rel_str,
+                err.message()
+            ));
         }
     }
 
-    // Safely handle untracked additions: move to backup rather than hard-delete
-    if !is_tracked_in_head && abs_candidate.exists() && abs_candidate.is_file() {
+    // Fall back to HEAD behaviour when no base reference is available.
+    if tracked_in_head {
+        let mut builder = CheckoutBuilder::new();
+        builder.force().path(&rel_str);
+        repo.checkout_head(Some(&mut builder))
+            .with_context(|| format!("Failed to restore {rel_str} from HEAD"))?;
+    } else {
+        remove_from_index(&repo, rel)?;
+        remove_path_with_optional_backup(
+            &abs_worktree,
+            &abs_candidate,
+            rel,
+            !tracked_in_head && !tracked_in_base,
+        )?;
+    }
+
+    Ok(())
+}
+
+fn remove_path_with_optional_backup(
+    abs_worktree: &Path,
+    abs_candidate: &Path,
+    rel: &Path,
+    should_backup: bool,
+) -> Result<()> {
+    if !abs_candidate.exists() {
+        return Ok(());
+    }
+
+    if should_backup && abs_candidate.is_file() {
         let ts = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
         let backup_root = abs_worktree.join(".schaltwerk").join("discarded").join(ts);
         let backup_path = backup_root.join(rel);
         if let Some(parent) = backup_path.parent() {
             std::fs::create_dir_all(parent).ok();
         }
-        // Best-effort move; if rename fails, try copy+remove
-        if fs::rename(&abs_candidate, &backup_path).is_err()
-            && std::fs::copy(&abs_candidate, &backup_path).is_ok()
+        if fs::rename(abs_candidate, &backup_path).is_err()
+            && std::fs::copy(abs_candidate, &backup_path).is_ok()
         {
-            let _ = fs::remove_file(&abs_candidate);
+            let _ = fs::remove_file(abs_candidate);
         }
+        return Ok(());
+    }
+
+    if abs_candidate.is_dir() {
+        fs::remove_dir_all(abs_candidate)
+            .with_context(|| format!("Failed to remove directory {}", abs_candidate.display()))?;
+    } else {
+        fs::remove_file(abs_candidate)
+            .with_context(|| format!("Failed to remove file {}", abs_candidate.display()))?;
     }
 
     Ok(())
+}
+
+fn remove_from_index(repo: &Repository, rel: &Path) -> Result<()> {
+    let mut index = repo
+        .index()
+        .map_err(|e| anyhow!("Failed to open repository index: {e}"))?;
+    index.remove_path(rel).ok();
+    index
+        .write()
+        .map_err(|e| anyhow!("Failed to write repository index: {e}"))?;
+    Ok(())
+}
+
+fn resolve_branch_commit_oid(repo: &Repository, branch: &str) -> Result<Option<Oid>> {
+    let candidates = [
+        format!("refs/heads/{branch}"),
+        format!("refs/remotes/origin/{branch}"),
+    ];
+
+    for reference_name in candidates {
+        if let Ok(reference) = repo.find_reference(&reference_name) {
+            if let Ok(commit) = reference.peel_to_commit() {
+                return Ok(Some(commit.id()));
+            }
+        }
+    }
+
+    Ok(None)
 }
 
 pub fn create_worktree_from_base(
@@ -437,7 +534,7 @@ mod unit_logic_tests {
 #[cfg(test)]
 mod discard_path_tests {
     use super::*;
-    use git2::Repository;
+    use git2::{build::CheckoutBuilder, Repository};
     use tempfile::TempDir;
 
     fn init_repo(dir: &Path) -> Repository {
@@ -478,7 +575,7 @@ mod discard_path_tests {
 
         // modify to v2 (unstaged)
         std::fs::write(tmp.path().join("a.txt"), "v2").unwrap();
-        discard_path_in_worktree(tmp.path(), Path::new("a.txt")).unwrap();
+        discard_path_in_worktree(tmp.path(), Path::new("a.txt"), None).unwrap();
         let content = std::fs::read_to_string(tmp.path().join("a.txt")).unwrap();
         assert_eq!(content, "v1");
     }
@@ -490,7 +587,7 @@ mod discard_path_tests {
         let p = tmp.path().join("new.txt");
         std::fs::write(&p, "temp").unwrap();
         assert!(p.exists());
-        discard_path_in_worktree(tmp.path(), Path::new("new.txt")).unwrap();
+        discard_path_in_worktree(tmp.path(), Path::new("new.txt"), None).unwrap();
         assert!(!p.exists());
         // Verify it was moved under .schaltwerk/discarded/
         let disc_dir = tmp.path().join(".schaltwerk/discarded");
@@ -524,9 +621,75 @@ mod discard_path_tests {
             .unwrap();
         // delete from workdir
         std::fs::remove_file(tmp.path().join("b.txt")).unwrap();
-        discard_path_in_worktree(tmp.path(), Path::new("b.txt")).unwrap();
+        discard_path_in_worktree(tmp.path(), Path::new("b.txt"), None).unwrap();
         let content = std::fs::read_to_string(tmp.path().join("b.txt")).unwrap();
         assert_eq!(content, "keep");
+    }
+
+    #[test]
+    fn discard_committed_change_restores_base_branch_version() {
+        let tmp = TempDir::new().unwrap();
+        let repo = init_repo(tmp.path());
+
+        let base_branch = repo.head().unwrap().shorthand().unwrap().to_string();
+
+        std::fs::write(tmp.path().join("tracked.txt"), "base").unwrap();
+        let mut idx = repo.index().unwrap();
+        idx.add_path(Path::new("tracked.txt")).unwrap();
+        idx.write().unwrap();
+        let tree_id = idx.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        let sig = repo.signature().unwrap();
+        let parent = repo.head().unwrap().peel_to_commit().unwrap();
+        repo.commit(Some("HEAD"), &sig, &sig, "add tracked", &tree, &[&parent])
+            .unwrap();
+
+        let base_tree = repo.head().unwrap().peel_to_tree().unwrap();
+        let base_blob_id = base_tree.get_path(Path::new("tracked.txt")).unwrap().id();
+
+        let base_commit = repo.head().unwrap().peel_to_commit().unwrap();
+        repo.branch("feature/session", &base_commit, false).unwrap();
+        repo.set_head("refs/heads/feature/session").unwrap();
+        repo.checkout_head(Some(CheckoutBuilder::new().force()))
+            .unwrap();
+
+        std::fs::write(tmp.path().join("tracked.txt"), "branch-change").unwrap();
+        let mut idx = repo.index().unwrap();
+        idx.add_path(Path::new("tracked.txt")).unwrap();
+        idx.write().unwrap();
+        let tree_id = idx.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        let sig = repo.signature().unwrap();
+        let parent = repo.head().unwrap().peel_to_commit().unwrap();
+        repo.commit(
+            Some("HEAD"),
+            &sig,
+            &sig,
+            "update tracked",
+            &tree,
+            &[&parent],
+        )
+        .unwrap();
+
+        discard_path_in_worktree(
+            tmp.path(),
+            Path::new("tracked.txt"),
+            Some(base_branch.as_str()),
+        )
+        .unwrap();
+
+        let content = std::fs::read_to_string(tmp.path().join("tracked.txt")).unwrap();
+        assert_eq!(content, "base");
+
+        let repo_after = Repository::open(tmp.path()).unwrap();
+        let index = repo_after.index().unwrap();
+        let entry = index
+            .get_path(Path::new("tracked.txt"), 0)
+            .expect("tracked.txt should remain in the index");
+        assert_eq!(
+            entry.id, base_blob_id,
+            "tracked.txt index entry should match the base branch blob"
+        );
     }
 }
 
