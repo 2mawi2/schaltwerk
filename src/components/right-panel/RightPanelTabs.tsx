@@ -1,11 +1,9 @@
 import { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react'
 import { SimpleDiffPanel } from '../diff/SimpleDiffPanel'
-import { useSelection } from '../../contexts/SelectionContext'
+import { useSelection, type Selection } from '../../contexts/SelectionContext'
 import { useProject } from '../../contexts/ProjectContext'
 import { useFocus } from '../../contexts/FocusContext'
 import { useSessions } from '../../contexts/SessionsContext'
-import { VscDiff, VscNotebook, VscInfo, VscGitCommit } from 'react-icons/vsc'
-import clsx from 'clsx'
 import { SpecContentView as SpecContentView } from '../plans/SpecContentView'
 import { SpecInfoPanel as SpecInfoPanel } from '../plans/SpecInfoPanel'
 import { SpecMetadataPanel as SpecMetadataPanel } from '../plans/SpecMetadataPanel'
@@ -24,11 +22,13 @@ import { FilterMode } from '../../types/sessionFilters'
 import { useKeyboardShortcutsConfig } from '../../contexts/KeyboardShortcutsContext'
 import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
 import { detectPlatformSafe, isShortcutForAction } from '../../keyboardShortcuts/helpers'
+import { RightPanelTabsHeader } from './RightPanelTabsHeader'
+import type { TabKey } from './RightPanelTabs.types'
 
 interface RightPanelTabsProps {
   onFileSelect: (filePath: string) => void
   onOpenHistoryDiff?: (payload: { repoPath: string; commit: HistoryItem; files: CommitFileChange[]; initialFilePath?: string | null }) => void
-  selectionOverride?: { kind: 'session' | 'orchestrator'; payload?: string | null }
+  selectionOverride?: Selection
   isSpecOverride?: boolean
   isDragging?: boolean
 }
@@ -38,7 +38,7 @@ const RightPanelTabsComponent = ({ onFileSelect, onOpenHistoryDiff, selectionOve
   const { projectPath } = useProject()
   const { setFocusForSession, currentFocus } = useFocus()
   const { allSessions } = useSessions()
-  const [userSelectedTab, setUserSelectedTab] = useState<'changes' | 'agent' | 'info' | 'history' | 'specs' | null>(null)
+  const [userSelectedTab, setUserSelectedTabRaw] = useState<TabKey | null>(null)
   const [localFocus, setLocalFocus] = useState<boolean>(false)
   const [showSpecPicker, setShowSpecPicker] = useState(false)
   const [pendingSpecToOpen, setPendingSpecToOpen] = useState<string | null>(null)
@@ -61,6 +61,36 @@ const RightPanelTabsComponent = ({ onFileSelect, onOpenHistoryDiff, selectionOve
     ? allSessions.find(s => s.info.session_id === effectiveSelection.payload || s.info.branch === effectiveSelection.payload)
     : null
   const sessionState = currentSession?.info.session_state as ('spec' | 'running' | 'reviewed') | undefined
+  const sessionWorktreePath = effectiveSelection.kind === 'session'
+    ? effectiveSelection.worktreePath ?? currentSession?.info.worktree_path ?? null
+    : null
+  const historyRepoPath = sessionWorktreePath ?? projectPath ?? null
+  const historySessionName = effectiveSelection.kind === 'session'
+    ? currentSession?.info.session_id ?? (typeof effectiveSelection.payload === 'string' ? effectiveSelection.payload : null)
+    : null
+
+  const selectionKey = useMemo(() => {
+    if (effectiveSelection.kind === 'orchestrator') {
+      return 'orchestrator'
+    }
+    if (effectiveSelection.kind === 'session') {
+      const id = typeof effectiveSelection.payload === 'string' ? effectiveSelection.payload : null
+      if (id) return `session:${id}`
+    }
+    return null
+  }, [effectiveSelection])
+
+  const tabSelectionCacheRef = useRef<Map<string, TabKey>>(new Map())
+
+  const setUserSelectedTab = useCallback((next: TabKey | null) => {
+    setUserSelectedTabRaw(next)
+    if (!selectionKey) return
+    if (next) {
+      tabSelectionCacheRef.current.set(selectionKey, next)
+    } else {
+      tabSelectionCacheRef.current.delete(selectionKey)
+    }
+  }, [selectionKey])
 
     // Drag handlers for internal split
     const internalSplitActiveRef = useRef(false)
@@ -120,10 +150,53 @@ const RightPanelTabsComponent = ({ onFileSelect, onOpenHistoryDiff, selectionOve
     )
   )
 
-  // Reset state when project changes
+  // Reset cached selections when project changes
   useEffect(() => {
-    setUserSelectedTab(null)
+    tabSelectionCacheRef.current.clear()
+    setUserSelectedTabRaw(null)
   }, [projectPath])
+
+  const lastSessionSelectionRef = useRef<{ id: string | null; isSpec: boolean } | null>(null)
+
+  // Reset tab selection when switching between sessions or spec/running states
+  useEffect(() => {
+    if (effectiveSelection.kind !== 'session') {
+      lastSessionSelectionRef.current = null
+      return
+    }
+
+    const sessionId = typeof effectiveSelection.payload === 'string' ? effectiveSelection.payload : null
+    const previous = lastSessionSelectionRef.current
+    const hasSessionChanged = previous?.id !== sessionId
+    const hasSpecStateChanged = previous?.isSpec !== effectiveIsSpec
+
+    if (hasSessionChanged || hasSpecStateChanged) {
+      if (!effectiveIsSpec && sessionId) {
+        const cached = tabSelectionCacheRef.current.get(`session:${sessionId}`)
+        if (cached) {
+          setUserSelectedTabRaw(cached)
+        } else {
+          setUserSelectedTabRaw(null)
+        }
+      } else {
+        setUserSelectedTabRaw(null)
+      }
+    }
+
+    lastSessionSelectionRef.current = { id: sessionId, isSpec: effectiveIsSpec }
+  }, [effectiveSelection, effectiveIsSpec])
+
+  // Restore cached tab for orchestrator when switching back
+  useEffect(() => {
+    if (effectiveSelection.kind === 'orchestrator') {
+      const cached = selectionKey ? tabSelectionCacheRef.current.get(selectionKey) : null
+      if (cached) {
+        setUserSelectedTabRaw(cached)
+      } else {
+        setUserSelectedTabRaw(null)
+      }
+    }
+  }, [effectiveSelection.kind, selectionKey])
 
   // Get spec sessions for workspace
   const specSessions = allSessions.filter(session => isSpecSession(session.info))
@@ -150,7 +223,7 @@ const RightPanelTabsComponent = ({ onFileSelect, onOpenHistoryDiff, selectionOve
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [effectiveSelection, activeTab, keyboardShortcutConfig, platform])
+  }, [effectiveSelection, activeTab, keyboardShortcutConfig, platform, setUserSelectedTab])
 
   // Track previous specs to detect creation/modification via MCP API
   const previousSpecsRef = useRef<Map<string, string>>(new Map())
@@ -221,7 +294,7 @@ const RightPanelTabsComponent = ({ onFileSelect, onOpenHistoryDiff, selectionOve
     return () => {
       cleanupSpecCreated()
     }
-  }, [effectiveSelection.kind, openSpecInWorkspace, openTabs])
+  }, [effectiveSelection.kind, openSpecInWorkspace, openTabs, setUserSelectedTab])
 
   // Listen for OpenSpecInOrchestrator events
   useEffect(() => {
@@ -234,7 +307,7 @@ const RightPanelTabsComponent = ({ onFileSelect, onOpenHistoryDiff, selectionOve
     })
 
     return cleanup
-  }, [])
+  }, [setUserSelectedTab])
 
   // When selection becomes orchestrator and we have a pending spec, open it
   useEffect(() => {
@@ -255,126 +328,33 @@ const RightPanelTabsComponent = ({ onFileSelect, onOpenHistoryDiff, selectionOve
 
   // Unified header with tabs
   const isCommander = effectiveSelection.kind === 'orchestrator'
-  const showChangesTab = (effectiveSelection.kind === 'session' && !effectiveIsSpec) || isCommander
+  const isRunningSession = effectiveSelection.kind === 'session' && !effectiveIsSpec
+  const showChangesTab = isCommander || isRunningSession
   const showInfoTab = effectiveSelection.kind === 'session' && effectiveIsSpec
-  const showSpecTab = effectiveSelection.kind === 'session' && !effectiveIsSpec
-  const showHistoryTab = isCommander
+  const showSpecTab = isRunningSession
+  const showHistoryTab = isCommander || isRunningSession || (effectiveSelection.kind === 'session' && effectiveIsSpec)
   const showSpecsTab = isCommander
-
-  // Enable split mode for normal running sessions: Changes (top) + Requirements (bottom)
-  const useSplitMode = effectiveSelection.kind === 'session' && !effectiveIsSpec
+  const tabsPresent = showChangesTab || showInfoTab || showSpecTab || showHistoryTab || showSpecsTab
+  // Enable split mode when viewing Changes for normal running sessions
+  const useSplitMode = isRunningSession && activeTab === 'changes'
 
   return (
     <div 
       className={`h-full flex flex-col bg-panel border-2 rounded ${localFocus ? 'border-cyan-400/60 shadow-lg shadow-cyan-400/20' : 'border-slate-800/50'}`}
       onClick={handlePanelClick}
     >
-      {/* Header: hide tabs when split mode is active */}
-      {!useSplitMode && (
-        <div className="h-8 flex items-center border-b border-slate-800">
-          {showChangesTab && (
-            <button
-              onClick={() => setUserSelectedTab('changes')}
-              className={clsx(
-                'h-full flex-1 px-3 text-xs font-medium flex items-center justify-center gap-1.5',
-                activeTab === 'changes' 
-                  ? localFocus 
-                    ? 'text-blue-200 bg-blue-800/30' 
-                    : 'text-slate-200 bg-slate-800/50'
-                  : localFocus
-                    ? 'text-blue-300 hover:text-blue-200 hover:bg-blue-800/20'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
-              )}
-              data-active={activeTab === 'changes' || undefined}
-              title="Changes"
-            >
-              <VscDiff className="text-sm" />
-              <span>Changes</span>
-            </button>
-          )}
-          {showInfoTab && (
-            <button
-              onClick={() => setUserSelectedTab('info')}
-              className={clsx(
-                'h-full flex-1 px-3 text-xs font-medium flex items-center justify-center gap-1.5',
-                activeTab === 'info'
-                  ? localFocus
-                    ? 'text-cyan-200 bg-cyan-800/30'
-                    : 'text-slate-200 bg-slate-800/50'
-                  : localFocus
-                    ? 'text-cyan-300 hover:text-cyan-200 hover:bg-cyan-800/20'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
-              )}
-              data-active={activeTab === 'info' || undefined}
-              title="Spec Info"
-            >
-              <VscInfo className="text-sm" />
-              <span>Info</span>
-            </button>
-          )}
-          {showSpecTab && (
-            <button
-              onClick={() => setUserSelectedTab('agent')}
-              className={clsx(
-                'h-full flex-1 px-3 text-xs font-medium flex items-center justify-center gap-1.5',
-                activeTab === 'agent'
-                  ? localFocus
-                    ? 'text-cyan-200 bg-cyan-800/30'
-                    : 'text-slate-200 bg-slate-800/50'
-                  : localFocus
-                    ? 'text-cyan-300 hover:text-cyan-200 hover:bg-cyan-800/20'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
-              )}
-              data-active={activeTab === 'agent' || undefined}
-              data-onboarding="specs-workspace-tab"
-              title="Spec"
-            >
-              <VscNotebook className="text-sm" />
-              <span>Spec</span>
-            </button>
-          )}
-          {showHistoryTab && (
-            <button
-              onClick={() => setUserSelectedTab('history')}
-              className={clsx(
-                'h-full flex-1 px-3 text-xs font-medium flex items-center justify-center gap-1.5',
-                activeTab === 'history'
-                  ? localFocus
-                    ? 'text-cyan-200 bg-cyan-800/30'
-                    : 'text-slate-200 bg-slate-800/50'
-                  : localFocus
-                    ? 'text-cyan-300 hover:text-cyan-200 hover:bg-cyan-800/20'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
-              )}
-              data-active={activeTab === 'history' || undefined}
-              title="Git History"
-            >
-              <VscGitCommit className="text-sm" />
-              <span>History</span>
-            </button>
-          )}
-          {showSpecsTab && (
-            <button
-              onClick={() => setUserSelectedTab('specs')}
-              className={clsx(
-                'h-full flex-1 px-3 text-xs font-medium flex items-center justify-center gap-1.5',
-                activeTab === 'specs'
-                  ? localFocus
-                    ? 'text-cyan-200 bg-cyan-800/30'
-                    : 'text-slate-200 bg-slate-800/50'
-                  : localFocus
-                    ? 'text-cyan-300 hover:text-cyan-200 hover:bg-cyan-800/20'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
-              )}
-              data-active={activeTab === 'specs' || undefined}
-              data-onboarding="specs-workspace-tab"
-              title="Specs Workspace"
-            >
-              <VscNotebook className="text-sm" />
-              <span>Specs</span>
-            </button>
-          )}
-        </div>
+      {/* Header */}
+      {tabsPresent && (
+        <RightPanelTabsHeader
+          activeTab={activeTab}
+          localFocus={localFocus}
+          showChangesTab={showChangesTab}
+          showHistoryTab={showHistoryTab}
+          showInfoTab={showInfoTab}
+          showSpecTab={showSpecTab}
+          showSpecsTab={showSpecsTab}
+          onSelectTab={tab => setUserSelectedTab(tab)}
+        />
       )}
 
       <div className={`h-[2px] flex-shrink-0 ${
@@ -432,7 +412,11 @@ const RightPanelTabsComponent = ({ onFileSelect, onOpenHistoryDiff, selectionOve
                 <SpecMetadataPanel sessionName={effectiveSelection.payload!} />
               ) : null
             ) : activeTab === 'history' ? (
-              <GitGraphPanel onOpenCommitDiff={onOpenHistoryDiff} />
+              <GitGraphPanel
+                onOpenCommitDiff={onOpenHistoryDiff}
+                repoPath={historyRepoPath}
+                sessionName={historySessionName}
+              />
             ) : activeTab === 'specs' ? (
               <SpecWorkspacePanel
                 specs={specSessions}
@@ -449,6 +433,15 @@ const RightPanelTabsComponent = ({ onFileSelect, onOpenHistoryDiff, selectionOve
                   emitUiEvent(UiEvent.StartAgentFromSpec, { name: specId })
                 }}
               />
+            ) : activeTab === 'agent' ? (
+              effectiveSelection.kind === 'session' ? (
+                <SpecContentView
+                  sessionName={effectiveSelection.payload!}
+                  editable={false}
+                  debounceMs={1000}
+                  sessionState={sessionState}
+                />
+              ) : null
             ) : (
               effectiveSelection.kind === 'session' ? (
                 effectiveIsSpec ? (

@@ -272,4 +272,102 @@ describe('GitGraphPanel commit details', () => {
 
     expect(mockedInvoke).toHaveBeenCalledTimes(2)
   })
+
+  it('uses session-specific repo path and filters file change events by session', async () => {
+    const historyResponse = {
+      items: [
+        {
+          id: 'abc1234',
+          parentIds: [],
+          subject: 'Initial commit',
+          author: 'Alice',
+          timestamp: 1720000000000,
+          references: [],
+          fullHash: 'abc1234fffffffabc1234fffffffabc1234fffffff',
+        },
+      ],
+      hasMore: false,
+      nextCursor: null,
+    }
+
+    mockedInvoke.mockImplementation(async (command, payload) => {
+      if (command === TauriCommands.GetGitGraphHistory) {
+        expect(payload).toMatchObject({ repoPath: '/sessions/test-session' })
+        return historyResponse as unknown
+      }
+      if (command === TauriCommands.GetGitGraphCommitFiles) {
+        return []
+      }
+      throw new Error(`Unexpected command ${String(command)}`)
+    })
+
+    render(<GitGraphPanel repoPath="/sessions/test-session" sessionName="session-1" />)
+
+    await screen.findByText('Initial commit')
+
+    const handler = fileChangeHandlers[SchaltEvent.FileChanges]
+    expect(handler).toBeDefined()
+
+    mockedInvoke.mockClear()
+
+    await act(async () => {
+      await handler?.({
+        session_name: 'session-2',
+        changed_files: [],
+        branch_info: {
+          current_branch: 'feature/other',
+          base_branch: 'main',
+          base_commit: 'abc0000',
+          head_commit: 'def9999',
+        },
+      })
+    })
+
+    expect(mockedInvoke).not.toHaveBeenCalled()
+
+    mockedInvoke.mockImplementationOnce(async (command, payload) => {
+      if (command === TauriCommands.GetGitGraphHistory) {
+        expect(payload).toMatchObject({ repoPath: '/sessions/test-session' })
+        return {
+          ...historyResponse,
+          items: [
+            {
+              id: 'def5678',
+              parentIds: ['abc1234'],
+              subject: 'Session commit',
+              author: 'Bob',
+              timestamp: 1720000200000,
+              references: [],
+              fullHash: 'def5678abc1234def5678abc1234def5678abc1234',
+            },
+            ...historyResponse.items,
+          ],
+        } as unknown
+      }
+      if (command === TauriCommands.GetGitGraphCommitFiles) {
+        return []
+      }
+      throw new Error(`Unexpected command ${String(command)}`)
+    })
+
+    await act(async () => {
+      await handler?.({
+        session_name: 'session-1',
+        changed_files: [],
+        branch_info: {
+          current_branch: 'feature/session',
+          base_branch: 'main',
+          base_commit: 'abc0000',
+          head_commit: 'def5678',
+        },
+      })
+    })
+
+    await waitFor(() => {
+      expect(mockedInvoke).toHaveBeenCalledWith(
+        TauriCommands.GetGitGraphHistory,
+        expect.objectContaining({ repoPath: '/sessions/test-session' })
+      )
+    })
+  })
 })
