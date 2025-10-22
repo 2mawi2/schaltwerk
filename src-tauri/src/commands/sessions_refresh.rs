@@ -167,3 +167,251 @@ impl RefreshHub {
 pub fn request_sessions_refresh(app: &AppHandle, reason: SessionsRefreshReason) {
     RefreshHub::request(app, reason);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sessions_refresh_reason_as_str_unknown() {
+        let reason = SessionsRefreshReason::Unknown;
+        assert_eq!(reason.as_str(), "unknown");
+    }
+
+    #[test]
+    fn test_sessions_refresh_reason_as_str_session_lifecycle() {
+        let reason = SessionsRefreshReason::SessionLifecycle;
+        assert_eq!(reason.as_str(), "session-lifecycle");
+    }
+
+    #[test]
+    fn test_sessions_refresh_reason_as_str_git_update() {
+        let reason = SessionsRefreshReason::GitUpdate;
+        assert_eq!(reason.as_str(), "git-update");
+    }
+
+    #[test]
+    fn test_sessions_refresh_reason_as_str_agent_activity() {
+        let reason = SessionsRefreshReason::AgentActivity;
+        assert_eq!(reason.as_str(), "agent-activity");
+    }
+
+    #[test]
+    fn test_sessions_refresh_reason_as_str_merge_workflow() {
+        let reason = SessionsRefreshReason::MergeWorkflow;
+        assert_eq!(reason.as_str(), "merge-workflow");
+    }
+
+    #[test]
+    fn test_sessions_refresh_reason_as_str_spec_sync() {
+        let reason = SessionsRefreshReason::SpecSync;
+        assert_eq!(reason.as_str(), "spec-sync");
+    }
+
+    #[test]
+    fn test_sessions_refresh_reason_default() {
+        let reason: SessionsRefreshReason = Default::default();
+        assert_eq!(reason.as_str(), "unknown");
+    }
+
+    #[test]
+    fn test_hub_state_default() {
+        let state = HubState::default();
+        assert!(!state.in_flight);
+        assert!(!state.dirty);
+        assert_eq!(state.last_reason.as_str(), "unknown");
+        assert_eq!(state.last_emit, None);
+    }
+
+    #[tokio::test]
+    async fn test_hub_state_in_flight_initial_state() {
+        let state = HubState {
+            in_flight: false,
+            dirty: false,
+            last_reason: SessionsRefreshReason::Unknown,
+            last_emit: None,
+        };
+        assert!(!state.in_flight);
+        assert!(!state.dirty);
+    }
+
+    #[tokio::test]
+    async fn test_hub_state_with_in_flight_true() {
+        let state = HubState {
+            in_flight: true,
+            dirty: false,
+            last_reason: SessionsRefreshReason::SessionLifecycle,
+            last_emit: None,
+        };
+        assert!(state.in_flight);
+        assert!(!state.dirty);
+        assert_eq!(state.last_reason.as_str(), "session-lifecycle");
+    }
+
+    #[tokio::test]
+    async fn test_hub_state_with_dirty_and_reason() {
+        let state = HubState {
+            in_flight: true,
+            dirty: true,
+            last_reason: SessionsRefreshReason::GitUpdate,
+            last_emit: None,
+        };
+        assert!(state.in_flight);
+        assert!(state.dirty);
+        assert_eq!(state.last_reason.as_str(), "git-update");
+    }
+
+    #[tokio::test]
+    async fn test_hub_state_with_last_emit() {
+        let now = Instant::now();
+        let state = HubState {
+            in_flight: false,
+            dirty: false,
+            last_reason: SessionsRefreshReason::Unknown,
+            last_emit: Some(now),
+        };
+        assert_eq!(state.last_emit, Some(now));
+    }
+
+    #[tokio::test]
+    async fn test_hub_state_mutable_transitions() {
+        let mut state = HubState::default();
+
+        assert!(!state.in_flight);
+        state.in_flight = true;
+        assert!(state.in_flight);
+
+        assert!(!state.dirty);
+        state.dirty = true;
+        assert!(state.dirty);
+
+        state.last_reason = SessionsRefreshReason::AgentActivity;
+        assert_eq!(state.last_reason.as_str(), "agent-activity");
+
+        let now = Instant::now();
+        state.last_emit = Some(now);
+        assert_eq!(state.last_emit, Some(now));
+    }
+
+    #[tokio::test]
+    async fn test_hub_state_coalesce_scenario() {
+        let mut state = HubState {
+            in_flight: true,
+            dirty: false,
+            last_reason: SessionsRefreshReason::Unknown,
+            last_emit: None,
+        };
+
+        state.dirty = true;
+        state.last_reason = SessionsRefreshReason::GitUpdate;
+
+        assert!(state.in_flight);
+        assert!(state.dirty);
+        assert_eq!(state.last_reason.as_str(), "git-update");
+    }
+
+    #[tokio::test]
+    async fn test_hub_state_multiple_coalesces() {
+        let mut state = HubState {
+            in_flight: true,
+            dirty: false,
+            last_reason: SessionsRefreshReason::Unknown,
+            last_emit: None,
+        };
+
+        state.dirty = true;
+        state.last_reason = SessionsRefreshReason::SessionLifecycle;
+        assert_eq!(state.last_reason.as_str(), "session-lifecycle");
+
+        state.dirty = true;
+        state.last_reason = SessionsRefreshReason::MergeWorkflow;
+        assert_eq!(
+            state.last_reason.as_str(),
+            "merge-workflow",
+            "Last coalesced reason should be merge-workflow"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_hub_state_refresh_completion() {
+        let now = Instant::now();
+        let mut state = HubState {
+            in_flight: true,
+            dirty: true,
+            last_reason: SessionsRefreshReason::SpecSync,
+            last_emit: Some(now),
+        };
+
+        state.dirty = false;
+        state.in_flight = false;
+
+        assert!(!state.in_flight);
+        assert!(!state.dirty);
+        assert_eq!(state.last_emit, Some(now));
+        assert_eq!(state.last_reason.as_str(), "spec-sync");
+    }
+
+    #[test]
+    fn test_constants_are_correct() {
+        assert_eq!(DEFAULT_COOLDOWN, Duration::from_millis(125));
+        assert_eq!(MIN_INTERVAL_BETWEEN_SNAPSHOTS, Duration::from_millis(250));
+    }
+
+    #[test]
+    fn test_cooldown_is_less_than_min_interval() {
+        assert!(DEFAULT_COOLDOWN < MIN_INTERVAL_BETWEEN_SNAPSHOTS);
+    }
+
+    #[test]
+    fn test_min_interval_duration_calculation_recent() {
+        let elapsed = Duration::from_millis(50);
+        let remaining = MIN_INTERVAL_BETWEEN_SNAPSHOTS - elapsed;
+        let delay = DEFAULT_COOLDOWN.max(remaining);
+
+        assert!(delay >= DEFAULT_COOLDOWN);
+        assert!(delay >= remaining);
+    }
+
+    #[test]
+    fn test_min_interval_duration_calculation_old() {
+        let elapsed = Duration::from_millis(300);
+        let should_use_cooldown = elapsed >= MIN_INTERVAL_BETWEEN_SNAPSHOTS;
+        assert!(should_use_cooldown);
+    }
+
+    #[test]
+    fn test_refresh_reason_variants_cover_all_cases() {
+        let reasons = [
+            SessionsRefreshReason::Unknown,
+            SessionsRefreshReason::SessionLifecycle,
+            SessionsRefreshReason::GitUpdate,
+            SessionsRefreshReason::AgentActivity,
+            SessionsRefreshReason::MergeWorkflow,
+            SessionsRefreshReason::SpecSync,
+        ];
+
+        for reason in &reasons {
+            let s = reason.as_str();
+            assert!(!s.is_empty(), "Reason string should not be empty");
+        }
+    }
+
+    #[test]
+    fn test_refresh_reason_strings_are_unique() {
+        let reasons = [
+            SessionsRefreshReason::Unknown,
+            SessionsRefreshReason::SessionLifecycle,
+            SessionsRefreshReason::GitUpdate,
+            SessionsRefreshReason::AgentActivity,
+            SessionsRefreshReason::MergeWorkflow,
+            SessionsRefreshReason::SpecSync,
+        ];
+
+        let strings: Vec<&str> = reasons.iter().map(|r| r.as_str()).collect();
+        let unique_count = strings.iter().collect::<std::collections::HashSet<_>>().len();
+        assert_eq!(
+            unique_count, 6,
+            "All reason strings should be unique"
+        );
+    }
+}
