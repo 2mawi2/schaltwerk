@@ -7,9 +7,10 @@ use crate::diff_engine::{
 };
 use crate::file_utils;
 use crate::get_core_read;
-use git2::{Delta, DiffFindOptions, DiffOptions, ObjectType, Oid, Repository, Sort, Status, Tree};
+use git2::{Delta, DiffFindOptions, DiffOptions, ObjectType, Oid, Repository, Sort, Tree};
 use schaltwerk::binary_detection::{get_unsupported_reason, is_binary_file_by_extension};
 use schaltwerk::domains::git;
+use schaltwerk::domains::git::stats::build_changed_files_from_diff;
 use schaltwerk::domains::sessions::entity::ChangedFile;
 use serde::Serialize;
 
@@ -23,59 +24,36 @@ pub async fn get_changed_files_from_main(
         .map_err(|e| format!("Failed to compute changed files: {e}"))
 }
 
+fn collect_working_directory_changes(repo: &Repository) -> anyhow::Result<Vec<ChangedFile>> {
+    let mut opts = DiffOptions::new();
+    opts.include_untracked(true)
+        .recurse_untracked_dirs(true)
+        .show_untracked_content(true)
+        .show_binary(true)
+        .ignore_submodules(true);
+
+    let head_tree = repo.head().ok().and_then(|head| head.peel_to_tree().ok());
+
+    let mut diff = match head_tree {
+        Some(tree) => repo.diff_tree_to_workdir_with_index(Some(&tree), Some(&mut opts))?,
+        None => repo.diff_tree_to_workdir_with_index(None, Some(&mut opts))?,
+    };
+
+    let mut find_opts = DiffFindOptions::new();
+    diff.find_similar(Some(&mut find_opts))?;
+
+    build_changed_files_from_diff(&diff)
+}
+
 #[tauri::command]
 pub async fn get_orchestrator_working_changes() -> Result<Vec<ChangedFile>, String> {
     let repo_path = get_repo_path(None).await?;
 
-    // Use libgit2 to get status
     let repo =
         Repository::open(&repo_path).map_err(|e| format!("Failed to open repository: {e}"))?;
 
-    let statuses = repo
-        .statuses(None)
-        .map_err(|e| format!("Failed to get repository status: {e}"))?;
-
-    let mut changed_files = Vec::new();
-
-    for entry in statuses.iter() {
-        let path = entry
-            .path()
-            .ok_or_else(|| "Invalid path in status entry".to_string())?;
-
-        // Filter out .schaltwerk directory and its contents
-        if path.starts_with(".schaltwerk/") || path == ".schaltwerk" {
-            continue;
-        }
-
-        let status = entry.status();
-
-        // Determine the change type based on git status flags
-        let change_type = if status.contains(Status::INDEX_NEW) || status.contains(Status::WT_NEW) {
-            "added"
-        } else if status.contains(Status::INDEX_DELETED) || status.contains(Status::WT_DELETED) {
-            "deleted"
-        } else if status.contains(Status::INDEX_RENAMED) || status.contains(Status::WT_RENAMED) {
-            "renamed"
-        } else if status.contains(Status::INDEX_MODIFIED)
-            || status.contains(Status::WT_MODIFIED)
-            || status.contains(Status::INDEX_TYPECHANGE)
-            || status.contains(Status::WT_TYPECHANGE)
-        {
-            "modified"
-        } else {
-            continue; // Skip if no relevant changes
-        };
-
-        changed_files.push(ChangedFile {
-            path: path.to_string(),
-            change_type: change_type.to_string(),
-        });
-    }
-
-    // Sort files alphabetically by path for consistent ordering
-    changed_files.sort_by(|a, b| a.path.cmp(&b.path));
-
-    Ok(changed_files)
+    collect_working_directory_changes(&repo)
+        .map_err(|e| format!("Failed to compute changed files: {e}"))
 }
 
 #[cfg(test)]
@@ -129,6 +107,107 @@ mod tests {
     }
 
     #[test]
+    fn collect_working_directory_changes_returns_stats_for_varied_files() {
+        let temp_dir = setup_test_git_repo();
+        let repo_path = temp_dir.path();
+
+        // Create an additional tracked file so we can observe deletions later
+        fs::write(repo_path.join("tracked.txt"), "tracked\n").unwrap();
+        StdCommand::new("git")
+            .args(["add", "tracked.txt"])
+            .current_dir(repo_path)
+            .output()
+            .unwrap();
+        StdCommand::new("git")
+            .args(["commit", "-m", "add tracked file"])
+            .current_dir(repo_path)
+            .output()
+            .unwrap();
+
+        // Modify README to ensure both additions and deletions in the diff
+        fs::write(repo_path.join("README.md"), "updated\n").unwrap();
+
+        // Add a new file with multiple lines (untracked)
+        fs::write(repo_path.join("added.txt"), "line1\nline2\nline3\n").unwrap();
+
+        // Delete the tracked file to exercise the deleted path
+        fs::remove_file(repo_path.join("tracked.txt")).unwrap();
+
+        // Create a binary file containing null bytes
+        fs::write(repo_path.join("binary.bin"), [0u8, 1, 2, 3, 4, 5]).unwrap();
+
+        let repo = Repository::open(repo_path).unwrap();
+        let files = collect_working_directory_changes(&repo).expect("collect changes");
+
+        let map: HashMap<_, _> = files.into_iter().map(|f| (f.path.clone(), f)).collect();
+
+        let modified = map.get("README.md").expect("modified stats");
+        assert_eq!(modified.change_type, "modified");
+        assert_eq!(modified.additions, 1);
+        assert_eq!(modified.deletions, 1);
+        assert_eq!(modified.changes, 2);
+
+        let added = map.get("added.txt").expect("added file stats");
+        assert_eq!(added.change_type, "added");
+        assert!(added.additions >= 3);
+        assert_eq!(added.deletions, 0);
+        assert_eq!(added.changes, added.additions);
+
+        let deleted = map.get("tracked.txt").expect("deleted stats");
+        assert_eq!(deleted.change_type, "deleted");
+        assert_eq!(deleted.additions, 0);
+        assert!(deleted.deletions > 0);
+        assert_eq!(deleted.changes, deleted.deletions);
+
+        let binary = map.get("binary.bin").expect("binary stats");
+        assert_eq!(binary.change_type, "added");
+        assert_eq!(binary.additions, 0);
+        assert_eq!(binary.deletions, 0);
+        assert_eq!(binary.changes, 0);
+        assert_eq!(binary.is_binary, Some(true));
+    }
+
+    #[test]
+    fn collect_working_directory_changes_detects_renames() {
+        let temp_dir = setup_test_git_repo();
+        let repo_path = temp_dir.path();
+
+        fs::write(repo_path.join("tracked.txt"), "original\n").unwrap();
+        StdCommand::new("git")
+            .args(["add", "tracked.txt"])
+            .current_dir(repo_path)
+            .output()
+            .unwrap();
+        StdCommand::new("git")
+            .args(["commit", "-m", "add tracked"])
+            .current_dir(repo_path)
+            .output()
+            .unwrap();
+
+        StdCommand::new("git")
+            .args(["mv", "tracked.txt", "renamed.txt"])
+            .current_dir(repo_path)
+            .output()
+            .unwrap();
+
+        let repo = Repository::open(repo_path).unwrap();
+        let files = collect_working_directory_changes(&repo).expect("collect changes");
+        let map: HashMap<_, _> = files.into_iter().map(|f| (f.path.clone(), f)).collect();
+
+        let renamed = map
+            .get("renamed.txt")
+            .expect("renamed entry should be present");
+        assert_eq!(renamed.change_type, "renamed");
+        assert_eq!(renamed.additions, 0);
+        assert_eq!(renamed.deletions, 0);
+
+        assert!(
+            !map.contains_key("tracked.txt"),
+            "old path should not be reported separately"
+        );
+    }
+
+    #[test]
     fn test_orchestrator_working_changes_filters_schaltwerk() {
         let temp_dir = setup_test_git_repo();
         let repo_path = temp_dir.path();
@@ -159,16 +238,16 @@ mod tests {
         let mut changed_files: Vec<ChangedFile> = file_map
             .into_iter()
             .filter(|(path, _)| !path.starts_with(".schaltwerk/") && path != ".schaltwerk")
-            .map(|(path, status)| ChangedFile {
-                path,
-                change_type: match status.as_str() {
+            .map(|(path, status)| {
+                let change_type = match status.as_str() {
                     "M" => "modified".to_string(),
                     "A" => "added".to_string(),
                     "D" => "deleted".to_string(),
                     "R" => "renamed".to_string(),
                     "C" => "copied".to_string(),
                     _ => "unknown".to_string(),
-                },
+                };
+                ChangedFile::new(path, change_type)
             })
             .collect();
 
@@ -311,16 +390,16 @@ mod tests {
         let mut changed_files: Vec<ChangedFile> = file_map
             .into_iter()
             .filter(|(path, _)| !path.starts_with(".schaltwerk/") && path != ".schaltwerk")
-            .map(|(path, status)| ChangedFile {
-                path,
-                change_type: match status.as_str() {
+            .map(|(path, status)| {
+                let change_type = match status.as_str() {
                     "M" => "modified".to_string(),
                     "A" => "added".to_string(),
                     "D" => "deleted".to_string(),
                     "R" => "renamed".to_string(),
                     "C" => "copied".to_string(),
                     _ => "unknown".to_string(),
-                },
+                };
+                ChangedFile::new(path, change_type)
             })
             .collect();
 
@@ -352,16 +431,16 @@ mod tests {
 
             let changed_files: Vec<ChangedFile> = file_map
                 .into_iter()
-                .map(|(path, status)| ChangedFile {
-                    path,
-                    change_type: match status.as_str() {
+                .map(|(path, status)| {
+                    let change_type = match status.as_str() {
                         "M" => "modified".to_string(),
                         "A" => "added".to_string(),
                         "D" => "deleted".to_string(),
                         "R" => "renamed".to_string(),
                         "C" => "copied".to_string(),
                         _ => "unknown".to_string(),
-                    },
+                    };
+                    ChangedFile::new(path, change_type)
                 })
                 .collect();
 
@@ -377,16 +456,16 @@ mod tests {
         let mut changed_files: Vec<ChangedFile> = file_map
             .into_iter()
             .filter(|(path, _)| !path.starts_with(".schaltwerk/") && path != ".schaltwerk")
-            .map(|(path, status)| ChangedFile {
-                path,
-                change_type: match status.as_str() {
+            .map(|(path, status)| {
+                let change_type = match status.as_str() {
                     "M" => "modified".to_string(),
                     "A" => "added".to_string(),
                     "D" => "deleted".to_string(),
                     "R" => "renamed".to_string(),
                     "C" => "copied".to_string(),
                     _ => "unknown".to_string(),
-                },
+                };
+                ChangedFile::new(path, change_type)
             })
             .collect();
 
@@ -413,16 +492,16 @@ mod tests {
         let mut changed_files: Vec<ChangedFile> = file_map
             .into_iter()
             .filter(|(path, _)| !path.starts_with(".schaltwerk/") && path != ".schaltwerk")
-            .map(|(path, status)| ChangedFile {
-                path,
-                change_type: match status.as_str() {
+            .map(|(path, status)| {
+                let change_type = match status.as_str() {
                     "M" => "modified".to_string(),
                     "A" => "added".to_string(),
                     "D" => "deleted".to_string(),
                     "R" => "renamed".to_string(),
                     "C" => "copied".to_string(),
                     _ => "unknown".to_string(),
-                },
+                };
+                ChangedFile::new(path, change_type)
             })
             .collect();
 

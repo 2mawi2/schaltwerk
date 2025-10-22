@@ -1,8 +1,9 @@
+use crate::binary_detection::is_binary_file_by_extension;
 use crate::domains::sessions::entity::{ChangedFile, GitStats};
 use anyhow::Result;
 use chrono::Utc;
-use git2::{DiffOptions, Oid, Repository, StatusOptions};
-use std::collections::{HashMap, HashSet};
+use git2::{Diff, DiffFindOptions, DiffFormat, DiffOptions, Oid, Repository, StatusOptions};
+use std::collections::{hash_map::Entry, HashMap, HashSet};
 use std::fs;
 use std::path::Path;
 #[cfg(test)]
@@ -37,6 +38,105 @@ pub fn reset_git_stats_call_count() {
     if let Some(counter) = GIT_STATS_CALL_COUNT.get() {
         counter.store(0, Ordering::Relaxed);
     }
+}
+
+#[derive(Default, Debug, Clone, Copy)]
+struct FileDiffStat {
+    additions: u32,
+    deletions: u32,
+    is_binary: bool,
+}
+
+pub fn build_changed_files_from_diff(diff: &Diff) -> Result<Vec<ChangedFile>> {
+    let mut files: Vec<ChangedFile> = Vec::new();
+    let mut index_map: HashMap<String, usize> = HashMap::new();
+    let mut stats_map: HashMap<String, FileDiffStat> = HashMap::new();
+
+    for delta in diff.deltas() {
+        let path = delta
+            .new_file()
+            .path()
+            .or_else(|| delta.old_file().path())
+            .and_then(|p| p.to_str());
+
+        let Some(path_str) = path else { continue };
+        if path_str.starts_with(".schaltwerk/") || path_str == ".schaltwerk" {
+            continue;
+        }
+
+        let change_type = match delta.status() {
+            git2::Delta::Added | git2::Delta::Untracked => "added",
+            git2::Delta::Deleted => "deleted",
+            git2::Delta::Modified | git2::Delta::Typechange => "modified",
+            git2::Delta::Renamed => "renamed",
+            git2::Delta::Copied => "copied",
+            _ => "modified",
+        };
+
+        let is_binary = delta.new_file().is_binary() || delta.old_file().is_binary();
+
+        let entry_index = match index_map.entry(path_str.to_string()) {
+            Entry::Occupied(existing) => *existing.get(),
+            Entry::Vacant(vacant) => {
+                let idx = files.len();
+                vacant.insert(idx);
+                files.push(ChangedFile::new(path_str.to_string(), change_type.to_string()));
+                idx
+            }
+        };
+
+        if is_binary {
+            files[entry_index].is_binary = Some(true);
+        }
+
+        let stat_entry = stats_map.entry(path_str.to_string()).or_default();
+        if is_binary {
+            stat_entry.is_binary = true;
+        }
+    }
+
+    diff.print(DiffFormat::Patch, |delta, _hunk, line| {
+        let path = delta
+            .new_file()
+            .path()
+            .or_else(|| delta.old_file().path())
+            .and_then(|p| p.to_str());
+
+        if let Some(path_str) = path {
+            if path_str.starts_with(".schaltwerk/") || path_str == ".schaltwerk" {
+                return true;
+            }
+
+            let entry = stats_map.entry(path_str.to_string()).or_default();
+            match line.origin() {
+                '+' => entry.additions += 1,
+                '-' => entry.deletions += 1,
+                _ => {}
+            }
+        }
+
+        true
+    })?;
+
+    for file in &mut files {
+        if let Some(stat) = stats_map.get(&file.path) {
+            file.additions = stat.additions;
+            file.deletions = stat.deletions;
+            file.changes = stat.additions + stat.deletions;
+            if stat.is_binary {
+                file.is_binary = Some(true);
+            }
+        } else {
+            file.changes = file.additions + file.deletions;
+        }
+
+        if file.is_binary.is_none() && file.changes == 0 && is_binary_file_by_extension(&file.path) {
+            file.is_binary = Some(true);
+        }
+    }
+
+    files.sort_by(|a, b| a.path.cmp(&b.path));
+    Ok(files)
 }
 
 #[cfg(test)]
@@ -324,7 +424,9 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
     opts.include_untracked(true).recurse_untracked_dirs(true);
 
     if let Some(ref bt) = base_tree {
-        if let Ok(diff) = repo.diff_tree_to_workdir_with_index(Some(bt), Some(&mut opts)) {
+        if let Ok(mut diff) = repo.diff_tree_to_workdir_with_index(Some(bt), Some(&mut opts)) {
+            let mut find_opts = DiffFindOptions::new();
+            diff.find_similar(Some(&mut find_opts)).ok();
             for delta in diff.deltas() {
                 if let Some(path) = delta.new_file().path().or_else(|| delta.old_file().path()) {
                     if let Some(path_str) = path.to_str() {
@@ -481,47 +583,21 @@ pub fn get_changed_files(worktree_path: &Path, parent_branch: &str) -> Result<Ve
         _ => None,
     };
 
-    let mut files = Vec::new();
-
     if let Some(base_tree) = baseline_tree {
         let mut opts = DiffOptions::new();
         opts.include_untracked(true)
             .recurse_untracked_dirs(true)
+            .show_untracked_content(true)
+            .show_binary(true)
             .ignore_submodules(true);
 
-        let diff = repo.diff_tree_to_workdir_with_index(Some(&base_tree), Some(&mut opts))?;
-
-        for delta in diff.deltas() {
-            if let Some(path) = delta
-                .new_file()
-                .path()
-                .or_else(|| delta.old_file().path())
-                .and_then(|p| p.to_str())
-            {
-                // Skip .schaltwerk directory
-                if path.starts_with(".schaltwerk/") || path == ".schaltwerk" {
-                    continue;
-                }
-
-                let change_type = match delta.status() {
-                    git2::Delta::Added | git2::Delta::Untracked => "added",
-                    git2::Delta::Deleted => "deleted",
-                    git2::Delta::Modified | git2::Delta::Typechange => "modified",
-                    git2::Delta::Renamed => "renamed",
-                    git2::Delta::Copied => "copied",
-                    _ => "modified",
-                };
-
-                files.push(ChangedFile {
-                    path: path.to_string(),
-                    change_type: change_type.to_string(),
-                });
-            }
-        }
+        let mut diff = repo.diff_tree_to_workdir_with_index(Some(&base_tree), Some(&mut opts))?;
+        let mut find_opts = DiffFindOptions::new();
+        diff.find_similar(Some(&mut find_opts))?;
+        build_changed_files_from_diff(&diff)
+    } else {
+        Ok(Vec::new())
     }
-
-    files.sort_by(|a, b| a.path.cmp(&b.path));
-    Ok(files)
 }
 
 #[cfg(test)]
@@ -701,5 +777,79 @@ mod tests {
             !paths.contains("only_main.txt"),
             "should not include changes that exist only on parent branch"
         );
+    }
+
+    #[test]
+    fn changed_files_include_line_stats_and_binary_flag() {
+        let repo = init_repo();
+        let p = repo.path();
+
+        // Add an extra file on main so we can later delete it in the feature branch
+        fs::write(p.join("to_delete.txt"), "keep me\n").unwrap();
+        StdCommand::new("git")
+            .args(["add", "to_delete.txt"])
+            .current_dir(p)
+            .output()
+            .unwrap();
+        StdCommand::new("git")
+            .args(["commit", "-m", "add deletable file"])
+            .current_dir(p)
+            .output()
+            .unwrap();
+
+        // Work on a feature branch
+        StdCommand::new("git")
+            .args(["checkout", "-b", "feature"])
+            .current_dir(p)
+            .output()
+            .unwrap();
+
+        // Modify README so we have both additions and deletions
+        fs::write(p.join("README.md"), "feature\n").unwrap();
+
+        // Create a new text file with two lines
+        fs::write(p.join("new_file.txt"), "line1\nline2\n").unwrap();
+
+        // Delete the file we added on main
+        fs::remove_file(p.join("to_delete.txt")).unwrap();
+
+        // Create a binary file containing null bytes
+        let binary_content: Vec<u8> = (0u8..=255).collect();
+        fs::write(p.join("binary.png"), &binary_content).unwrap();
+        StdCommand::new("git")
+            .args(["add", "binary.png"])
+            .current_dir(p)
+            .output()
+            .unwrap();
+
+        let changed = get_changed_files(p, "main").expect("changed files");
+        let map: std::collections::HashMap<_, _> =
+            changed.into_iter().map(|f| (f.path.clone(), f)).collect();
+
+        let readme = map.get("README.md").expect("readme diff");
+        assert_eq!(readme.change_type, "modified");
+        assert_eq!(readme.additions, 1);
+        assert_eq!(readme.deletions, 1);
+        assert_eq!(readme.changes, 2);
+        assert_eq!(readme.is_binary, None);
+
+        let new_file = map.get("new_file.txt").expect("new file diff");
+        assert_eq!(new_file.change_type, "added");
+        assert_eq!(new_file.additions, 2);
+        assert_eq!(new_file.deletions, 0);
+        assert_eq!(new_file.changes, 2);
+
+        let deleted = map.get("to_delete.txt").expect("deleted diff");
+        assert_eq!(deleted.change_type, "deleted");
+        assert_eq!(deleted.additions, 0);
+        assert!(deleted.deletions >= 1);
+        assert_eq!(deleted.changes, deleted.deletions);
+
+        let binary = map.get("binary.png").expect("binary diff");
+        assert_eq!(binary.change_type, "added");
+        assert_eq!(binary.additions, 0);
+        assert_eq!(binary.deletions, 0);
+        assert_eq!(binary.changes, 0);
+        assert_eq!(binary.is_binary, Some(true));
     }
 }

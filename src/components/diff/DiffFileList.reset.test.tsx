@@ -1,10 +1,12 @@
 import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { DiffFileList } from './DiffFileList'
-import { TestProviders } from '../../tests/test-utils'
+import { TestProviders, createChangedFile } from '../../tests/test-utils'
 
 const invokeMock = vi.fn(async (cmd: string) => {
-  if (cmd === 'get_changed_files_from_main') return [{ path: 'test.txt', change_type: 'added' }]
+  if (cmd === 'get_changed_files_from_main') {
+    return [createChangedFile({ path: 'test.txt', change_type: 'added', additions: 1, deletions: 0, changes: 1 })]
+  }
   if (cmd === 'get_current_branch_name') return 'schaltwerk/feature'
   if (cmd === 'get_base_branch_name') return 'main'
   if (cmd === 'get_commit_comparison_info') return ['abc', 'def']

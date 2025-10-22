@@ -809,14 +809,8 @@ mod tests {
         let event = FileChangeEvent {
             session_name: "test-session".to_string(),
             changed_files: vec![
-                ChangedFile {
-                    path: "src/main.rs".to_string(),
-                    change_type: "modified".to_string(),
-                },
-                ChangedFile {
-                    path: "Cargo.toml".to_string(),
-                    change_type: "added".to_string(),
-                },
+                ChangedFile::new("src/main.rs".to_string(), "modified".to_string()),
+                ChangedFile::new("Cargo.toml".to_string(), "added".to_string()),
             ],
             change_summary: ChangeSummary {
                 files_changed: 2,
@@ -1030,10 +1024,7 @@ mod tests {
             .output()
             .expect("Failed to stage file");
 
-        let changed_files = vec![ChangedFile {
-            path: "staged.txt".to_string(),
-            change_type: "added".to_string(),
-        }];
+        let changed_files = vec![ChangedFile::new("staged.txt".to_string(), "added".to_string())];
 
         let result = FileWatcher::compute_change_summary(&changed_files, &repo_path, "HEAD").await;
         assert!(
@@ -1066,10 +1057,8 @@ mod tests {
         )
         .unwrap();
 
-        let changed_files = vec![ChangedFile {
-            path: "initial.txt".to_string(),
-            change_type: "modified".to_string(),
-        }];
+        let changed_files =
+            vec![ChangedFile::new("initial.txt".to_string(), "modified".to_string())];
 
         let result = FileWatcher::compute_change_summary(&changed_files, &repo_path, "HEAD").await;
         assert!(
@@ -1103,14 +1092,8 @@ mod tests {
         fs::write(repo_path.join("initial.txt"), "unstaged modification").unwrap();
 
         let changed_files = vec![
-            ChangedFile {
-                path: "staged.txt".to_string(),
-                change_type: "added".to_string(),
-            },
-            ChangedFile {
-                path: "initial.txt".to_string(),
-                change_type: "modified".to_string(),
-            },
+            ChangedFile::new("staged.txt".to_string(), "added".to_string()),
+            ChangedFile::new("initial.txt".to_string(), "modified".to_string()),
         ];
 
         let result = FileWatcher::compute_change_summary(&changed_files, &repo_path, "HEAD").await;
@@ -1132,10 +1115,8 @@ mod tests {
         let non_repo_path = temp_dir.path().join("not-a-repo");
         fs::create_dir(&non_repo_path).unwrap();
 
-        let changed_files = vec![ChangedFile {
-            path: "test.txt".to_string(),
-            change_type: "modified".to_string(),
-        }];
+        let changed_files =
+            vec![ChangedFile::new("test.txt".to_string(), "modified".to_string())];
 
         let result =
             FileWatcher::compute_change_summary(&changed_files, &non_repo_path, "main").await;
@@ -1208,10 +1189,7 @@ mod tests {
         let event_with_files = FileChangeEvent {
             session_name: "large-session".to_string(),
             changed_files: (0..100)
-                .map(|i| ChangedFile {
-                    path: format!("file{}.txt", i),
-                    change_type: "modified".to_string(),
-                })
+                .map(|i| ChangedFile::new(format!("file{}.txt", i), "modified".to_string()))
                 .collect(),
             change_summary: ChangeSummary {
                 files_changed: 100,
@@ -1298,10 +1276,8 @@ mod tests {
             .output()
             .expect("Failed to stage deletion");
 
-        let changed_files = vec![ChangedFile {
-            path: "initial.txt".to_string(),
-            change_type: "deleted".to_string(),
-        }];
+        let changed_files =
+            vec![ChangedFile::new("initial.txt".to_string(), "deleted".to_string())];
 
         let result = FileWatcher::compute_change_summary(&changed_files, &repo_path, "HEAD").await;
         assert!(
@@ -1331,14 +1307,8 @@ mod tests {
             .expect("Failed to rename file");
 
         let changed_files = vec![
-            ChangedFile {
-                path: "initial.txt".to_string(),
-                change_type: "deleted".to_string(),
-            },
-            ChangedFile {
-                path: "renamed.txt".to_string(),
-                change_type: "added".to_string(),
-            },
+            ChangedFile::new("initial.txt".to_string(), "deleted".to_string()),
+            ChangedFile::new("renamed.txt".to_string(), "added".to_string()),
         ];
 
         let result = FileWatcher::compute_change_summary(&changed_files, &repo_path, "HEAD").await;
@@ -1385,13 +1355,13 @@ mod tests {
     #[test]
     fn test_file_change_event_with_many_files() {
         let changed_files: Vec<ChangedFile> = (0..1000)
-            .map(|i| ChangedFile {
-                path: format!("file{}.rs", i),
-                change_type: if i % 2 == 0 {
+            .map(|i| {
+                let change_type = if i % 2 == 0 {
                     "modified".to_string()
                 } else {
                     "added".to_string()
-                },
+                };
+                ChangedFile::new(format!("file{}.rs", i), change_type)
             })
             .collect();
 
@@ -1450,10 +1420,8 @@ mod tests {
             .output()
             .expect("Failed to stage binary file");
 
-        let changed_files = vec![ChangedFile {
-            path: "binary.bin".to_string(),
-            change_type: "added".to_string(),
-        }];
+        let changed_files =
+            vec![ChangedFile::new("binary.bin".to_string(), "added".to_string())];
 
         let result = FileWatcher::compute_change_summary(&changed_files, &repo_path, "HEAD").await;
         assert!(

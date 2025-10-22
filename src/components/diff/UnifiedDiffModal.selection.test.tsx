@@ -1,7 +1,7 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
-import { render, waitFor, fireEvent } from '@testing-library/react'
+import { render, waitFor, fireEvent, screen } from '@testing-library/react'
 import { UnifiedDiffModal } from './UnifiedDiffModal'
-import { TestProviders } from '../../tests/test-utils'
+import { TestProviders, createChangedFile } from '../../tests/test-utils'
 import { TauriCommands } from '../../common/tauriCommands'
 import type { LineSelection } from '../../hooks/useLineSelection'
 import type { FileDiffData } from './loadDiffs'
@@ -70,7 +70,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 }))
 
 const sampleDiff: FileDiffData = {
-  file: { path: 'src/App.tsx', change_type: 'modified' },
+  file: createChangedFile({ path: 'src/App.tsx', change_type: 'modified', additions: 1 }),
   diffResult: [
     { type: 'unchanged', oldLineNumber: 1, newLineNumber: 1, content: 'const a = 1' },
     { type: 'added', newLineNumber: 2, content: 'const b = 2' },
@@ -91,7 +91,7 @@ vi.mock('./loadDiffs', async () => {
 })
 
 async function renderModal() {
-  setupInvokeMock([{ path: sampleDiff.file.path, change_type: sampleDiff.file.change_type }])
+  setupInvokeMock([sampleDiff.file])
 
   const utils = render(
     <TestProviders>
@@ -106,7 +106,7 @@ async function renderModal() {
   return utils
 }
 
-function setupInvokeMock(changedFiles: Array<{ path: string; change_type: string }>) {
+function setupInvokeMock(changedFiles: ChangedFile[]) {
   invokeMock.mockImplementation(async (cmd: string) => {
     switch (cmd) {
       case TauriCommands.GetChangedFilesFromMain:
@@ -150,6 +150,16 @@ afterEach(() => {
 })
 
 describe('UnifiedDiffModal line selection behaviour', () => {
+  it('shows stat badges in the file header once diff loads', async () => {
+    await renderModal()
+
+    await waitFor(() => {
+      expect(screen.getAllByText('+1').length).toBeGreaterThan(0)
+      expect(screen.getAllByText('-0').length).toBeGreaterThan(0)
+      expect(screen.queryByText('Σ1')).toBeNull()
+    })
+  })
+
   it('calls selection handlers with file path when dragging across rows', async () => {
     const { container } = await renderModal()
 

@@ -11,6 +11,19 @@ import {
 import type { ChangedFile } from '../../common/events'
 import type { LineInfo } from '../../types/diff'
 
+const makeChangedFile = (file: Partial<ChangedFile> & { path: string }): ChangedFile => {
+  const additions = file.additions ?? 0
+  const deletions = file.deletions ?? 0
+  return {
+    path: file.path,
+    change_type: file.change_type ?? 'modified',
+    additions,
+    deletions,
+    changes: file.changes ?? additions + deletions,
+    is_binary: file.is_binary,
+  }
+}
+
 describe('bundleUtils', () => {
   describe('wrapBlock', () => {
     it('wraps content with header and no fence', () => {
@@ -31,32 +44,32 @@ describe('bundleUtils', () => {
 
   describe('describeChange', () => {
     it('describes added files', () => {
-      const change: ChangedFile = { path: 'file.txt', change_type: 'added' }
+      const change = makeChangedFile({ path: 'file.txt', change_type: 'added' })
       expect(describeChange(change)).toBe('file.txt (added)')
     })
 
     it('describes deleted files', () => {
-      const change: ChangedFile = { path: 'file.txt', change_type: 'deleted' }
+      const change = makeChangedFile({ path: 'file.txt', change_type: 'deleted' })
       expect(describeChange(change)).toBe('file.txt (deleted)')
     })
 
     it('describes renamed files', () => {
-      const change: ChangedFile = { path: 'file.txt', change_type: 'renamed' }
+      const change = makeChangedFile({ path: 'file.txt', change_type: 'renamed' })
       expect(describeChange(change)).toBe('file.txt (renamed)')
     })
 
     it('describes copied files', () => {
-      const change: ChangedFile = { path: 'file.txt', change_type: 'copied' }
+      const change = makeChangedFile({ path: 'file.txt', change_type: 'copied' })
       expect(describeChange(change)).toBe('file.txt (copied)')
     })
 
     it('describes unknown changes', () => {
-      const change: ChangedFile = { path: 'file.txt', change_type: 'unknown' }
+      const change = makeChangedFile({ path: 'file.txt', change_type: 'unknown' })
       expect(describeChange(change)).toBe('file.txt (changed)')
     })
 
     it('returns path for unrecognized change types', () => {
-      const change: ChangedFile = { path: 'file.txt', change_type: 'unknown' as const }
+      const change = makeChangedFile({ path: 'file.txt', change_type: 'unknown' as const })
       expect(describeChange(change)).toBe('file.txt (changed)')
     })
   })
@@ -128,7 +141,7 @@ describe('bundleUtils', () => {
   describe('buildDiffSections', () => {
     it('builds diff sections for regular files', async () => {
       const changedFiles: ChangedFile[] = [
-        { path: 'file1.txt', change_type: 'modified' }
+        makeChangedFile({ path: 'file1.txt', change_type: 'modified' })
       ]
 
       const mockFetchDiff = vi.fn().mockResolvedValue({
@@ -150,7 +163,7 @@ describe('bundleUtils', () => {
 
     it('handles binary files', async () => {
       const changedFiles: ChangedFile[] = [
-        { path: 'image.png', change_type: 'added' }
+        makeChangedFile({ path: 'image.png', change_type: 'added' })
       ]
 
       const mockFetchDiff = vi.fn().mockResolvedValue({
@@ -168,7 +181,7 @@ describe('bundleUtils', () => {
 
     it('handles fetch errors', async () => {
       const changedFiles: ChangedFile[] = [
-        { path: 'file.txt', change_type: 'modified' }
+        makeChangedFile({ path: 'file.txt', change_type: 'modified' })
       ]
 
       const mockFetchDiff = vi.fn().mockRejectedValue(new Error('fetch failed'))
@@ -185,7 +198,7 @@ describe('bundleUtils', () => {
   describe('buildFileSections', () => {
     it('builds file sections for modified files', async () => {
       const changedFiles: ChangedFile[] = [
-        { path: 'file1.txt', change_type: 'modified' }
+        makeChangedFile({ path: 'file1.txt', change_type: 'modified' })
       ]
 
       const mockFetchContents = vi.fn().mockResolvedValue({
@@ -204,7 +217,7 @@ describe('bundleUtils', () => {
 
     it('handles deleted files', async () => {
       const changedFiles: ChangedFile[] = [
-        { path: 'deleted.txt', change_type: 'deleted' }
+        makeChangedFile({ path: 'deleted.txt', change_type: 'deleted' })
       ]
 
       const mockFetchContents = vi.fn().mockResolvedValue({
@@ -222,7 +235,7 @@ describe('bundleUtils', () => {
 
     it('handles empty content', async () => {
       const changedFiles: ChangedFile[] = [
-        { path: 'empty.txt', change_type: 'added' }
+        makeChangedFile({ path: 'empty.txt', change_type: 'added' })
       ]
 
       const mockFetchContents = vi.fn().mockResolvedValue({
@@ -240,7 +253,7 @@ describe('bundleUtils', () => {
 
     it('handles fetch errors', async () => {
       const changedFiles: ChangedFile[] = [
-        { path: 'file.txt', change_type: 'modified' }
+        makeChangedFile({ path: 'file.txt', change_type: 'modified' })
       ]
 
       const mockFetchContents = vi.fn().mockRejectedValue(new Error('fetch failed'))

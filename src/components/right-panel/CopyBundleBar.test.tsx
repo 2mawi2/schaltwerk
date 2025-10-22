@@ -5,6 +5,7 @@ import { CopyBundleBar } from './CopyBundleBar'
 import { invoke } from '@tauri-apps/api/core'
 import { listenEvent } from '../../common/eventSystem'
 import { TauriCommands } from '../../common/tauriCommands'
+import type { ChangedFile } from '../../common/events'
 
 const countTokensMock = vi.hoisted(() => vi.fn<(text: string) => number>())
 
@@ -37,6 +38,19 @@ const mockInvoke = vi.mocked(invoke)
 const mockListenEvent = vi.mocked(listenEvent)
 const user = userEvent.setup()
 
+const makeChangedFile = (file: Partial<ChangedFile> & { path: string }): ChangedFile => {
+  const additions = file.additions ?? 0
+  const deletions = file.deletions ?? 0
+  return {
+    path: file.path,
+    change_type: file.change_type ?? 'modified',
+    additions,
+    deletions,
+    changes: file.changes ?? additions + deletions,
+    is_binary: file.is_binary,
+  }
+}
+
 function mockClipboard() {
   if (!navigator.clipboard || !('writeText' in navigator.clipboard)) {
     Object.defineProperty(navigator, 'clipboard', {
@@ -67,7 +81,7 @@ describe('CopyBundleBar', () => {
         case TauriCommands.SchaltwerkCoreGetSessionAgentContent:
           return ['# Spec content', null]
         case TauriCommands.GetChangedFilesFromMain:
-          return [{ path: 'file1.txt', change_type: 'modified' }]
+          return [makeChangedFile({ path: 'file1.txt', change_type: 'modified' })]
         case TauriCommands.ComputeUnifiedDiffBackend:
           return {
             lines: [
@@ -114,7 +128,7 @@ describe('CopyBundleBar', () => {
         return [null, null]
       }
       if (cmd === TauriCommands.GetChangedFilesFromMain) {
-        return [{ path: 'file.txt', change_type: 'modified' }]
+        return [makeChangedFile({ path: 'file.txt', change_type: 'modified' })]
       }
       if (cmd === TauriCommands.ComputeUnifiedDiffBackend) {
         return { lines: [], isBinary: false }
@@ -184,7 +198,7 @@ describe('CopyBundleBar', () => {
         case TauriCommands.SchaltwerkCoreGetSessionAgentContent:
           return ['# Spec content', null]
         case TauriCommands.GetChangedFilesFromMain:
-          return [{ path: 'file1.txt', change_type: 'modified' }]
+          return [makeChangedFile({ path: 'file1.txt', change_type: 'modified' })]
         case TauriCommands.ComputeUnifiedDiffBackend:
           return {
             lines: [
