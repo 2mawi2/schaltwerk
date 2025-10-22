@@ -141,6 +141,9 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
       path: file.path,
       change_type: normalizeCommitChangeType(file.changeType),
       previous_path: file.oldPath,
+      additions: 0,
+      deletions: 0,
+      changes: 0,
     }))
   }, [mode, historyContext])
   const historyInitialFile = useMemo(() => {

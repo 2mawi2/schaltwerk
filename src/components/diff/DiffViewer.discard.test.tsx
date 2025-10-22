@@ -13,13 +13,13 @@ const mockFileDiff = {
   ],
   fileInfo: { language: 'typescript', sizeBytes: 1024 },
   isBinary: false,
-  file: { path: 'src/file1.ts', change_type: 'modified' as const },
+  file: { path: 'src/file1.ts', change_type: 'modified' as const, additions: 1, deletions: 1, changes: 2 },
   changedLinesCount: 2
 }
 
 const mockFiles = [
-  { path: 'src/file1.ts', change_type: 'modified' as const },
-  { path: 'src/file2.tsx', change_type: 'added' as const },
+  { path: 'src/file1.ts', change_type: 'modified' as const, additions: 1, deletions: 0, changes: 1 },
+  { path: 'src/file2.tsx', change_type: 'added' as const, additions: 1, deletions: 0, changes: 1 },
 ]
 
 const createMockProps = (overrides?: Partial<DiffViewerProps>): DiffViewerProps => ({
@@ -170,7 +170,7 @@ describe('DiffViewer - Discard File Button', () => {
     const onDiscardFile = vi.fn().mockResolvedValue(undefined)
     const file2Diff = {
       ...mockFileDiff,
-      file: { path: 'src/file2.tsx', change_type: 'modified' as const }
+      file: { path: 'src/file2.tsx', change_type: 'modified' as const, additions: 1, deletions: 0, changes: 1 }
     }
     const props = createMockProps({
       onDiscardFile,
