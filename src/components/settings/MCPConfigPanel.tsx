@@ -9,6 +9,8 @@ interface MCPStatus {
   mcp_server_path: string
   is_embedded: boolean
   cli_available: boolean
+  node_available: boolean
+  node_command: string
   client: 'claude' | 'codex'
   is_configured: boolean
   setup_command: string
@@ -19,6 +21,36 @@ interface Props {
    projectPath: string
    agent: 'claude' | 'codex' | 'opencode'
  }
+
+function NodeRequiredNotice({ agent }: { agent: Props['agent'] }) {
+  return (
+    <div
+      className="p-3 border rounded text-xs space-y-2"
+      style={{
+        backgroundColor: theme.colors.accent.amber.bg,
+        borderColor: theme.colors.accent.amber.border,
+        color: theme.colors.text.primary,
+      }}
+    >
+      <div className="font-medium" style={{ color: theme.colors.accent.amber.light }}>
+        Node.js required
+      </div>
+      <div>Node.js is required to run the Schaltwerk MCP server.</div>
+      <div>
+        Install Node.js and restart {agent === 'claude' ? 'Claude Code' : agent === 'codex' ? 'Codex' : 'OpenCode'} to enable MCP tools.
+      </div>
+      <a
+        href="https://nodejs.org/en/download"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-block underline"
+        style={{ color: theme.colors.accent.amber.light }}
+      >
+        Download Node.js
+      </a>
+    </div>
+  )
+}
 
 export function MCPConfigPanel({ projectPath, agent }: Props) {
   const [status, setStatus] = useState<MCPStatus | null>(null)
@@ -175,6 +207,10 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
             </div>
           )}
 
+          {status && !status.node_available && (
+            <NodeRequiredNotice agent={agent} />
+          )}
+
           {status && (
             <>
               <div className="space-y-2 p-3 bg-slate-800/50 rounded border border-slate-700">
@@ -191,6 +227,13 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                   <span className="text-slate-400">MCP Server:</span>
                   <span className="text-slate-300">
                     {status.is_embedded ? '📦 Embedded' : '🔧 Development'}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-400">Node.js Runtime:</span>
+                  <span className={status.node_available ? 'text-green-400' : 'text-amber-400'}>
+                    {status.node_available ? '✅ Available' : '⚠️ Not found'}
                   </span>
                 </div>
             
@@ -311,7 +354,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                            {agent === 'codex'
                              ? (<>
                                  [mcp_servers.schaltwerk]
-                                 <br />command = "node"
+                                 <br />command = "{status.node_command}"
                                  <br />args = ["{status.mcp_server_path}"]
                                </>)
                              : agent === 'opencode'
