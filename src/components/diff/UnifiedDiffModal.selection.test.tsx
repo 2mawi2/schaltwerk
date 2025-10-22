@@ -5,6 +5,7 @@ import { TestProviders, createChangedFile } from '../../tests/test-utils'
 import { TauriCommands } from '../../common/tauriCommands'
 import type { LineSelection } from '../../hooks/useLineSelection'
 import type { FileDiffData } from './loadDiffs'
+import type { ChangedFile } from '../../common/events'
 
 const selectionState: { current: LineSelection | null } = { current: null }
 

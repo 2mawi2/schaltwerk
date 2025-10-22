@@ -1,3 +1,4 @@
+import React from 'react'
 import clsx from 'clsx'
 import { VscDiff, VscGitCommit, VscInfo, VscNotebook } from 'react-icons/vsc'
 import type { TabKey } from './RightPanelTabs.types'
@@ -33,7 +34,7 @@ interface TabDescriptor {
   key: TabKey
   label: string
   title: string
-  icon: JSX.Element
+  icon: React.JSX.Element
   dataAttrs?: Record<string, string>
 }
 

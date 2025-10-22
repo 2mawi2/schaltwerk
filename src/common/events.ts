@@ -74,6 +74,7 @@ export interface ChangedFile {
   deletions: number
   changes: number
   is_binary?: boolean
+  previous_path?: string
 }
 
 export interface BranchInfo {
