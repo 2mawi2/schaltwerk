@@ -2022,8 +2022,10 @@ impl SessionManager {
 
             if !worktree_exists && !cfg!(test) {
                 log::warn!(
-                    "Skipping session '{}' - worktree missing: {}",
+                    "list_enriched_sessions: skipping session '{}' (status={:?}, state={:?}) - worktree missing: {}",
                     session.name,
+                    session.status,
+                    session.session_state,
                     session.worktree_path.display()
                 );
                 continue;

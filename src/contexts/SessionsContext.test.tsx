@@ -1103,6 +1103,280 @@ describe('SessionsContext', () => {
 
     })
 
+    it('starts pending startup sessions when they appear running', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+        const { startSessionTop } = await import('../common/agentSpawn')
+        const { clearBackgroundStarts, __debug_getBackgroundStartIds } = await import('../common/uiEvents')
+
+        vi.mocked(invoke).mockImplementation(async (cmd: string, _args?: unknown) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
+            if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
+            if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+            if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
+            return undefined
+        })
+
+        clearBackgroundStarts(__debug_getBackgroundStartIds())
+
+        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+        await waitFor(() => expect(result.current.loading).toBe(false))
+
+        const pendingSessionId = 'queued-session'
+        await act(async () => {
+            await result.current.enqueuePendingStartup(pendingSessionId, 'codex')
+        })
+
+        const { listen } = await import('@tauri-apps/api/event')
+        await waitFor(() => {
+            expect(vi.mocked(listen).mock.calls.some(call => call[0] === SchaltEvent.SessionsRefreshed)).toBe(true)
+        })
+
+        const sessionsRefreshedHandler = vi
+            .mocked(listen)
+            .mock.calls
+            .reverse()
+            .find(call => call[0] === SchaltEvent.SessionsRefreshed)?.[1]
+
+        expect(typeof sessionsRefreshedHandler).toBe('function')
+
+        vi.mocked(startSessionTop).mockClear()
+
+        const runningPayload = [
+            {
+                info: {
+                    session_id: pendingSessionId,
+                    display_name: 'Queued Session',
+                    branch: 'feature/queued-session',
+                    worktree_path: '/tmp/queued-session',
+                    base_branch: 'main',
+                    parent_branch: 'main',
+                    status: 'running',
+                    session_state: 'running',
+                    created_at: '2025-10-21T19:36:55.000Z',
+                    last_modified: '2025-10-21T19:36:55.000Z',
+                    ready_to_merge: false,
+                    has_uncommitted_changes: false,
+                    has_conflicts: false,
+                },
+                terminals: []
+            }
+        ]
+
+        await act(async () => {
+            await sessionsRefreshedHandler?.({
+                event: SchaltEvent.SessionsRefreshed,
+                id: 3001,
+                payload: runningPayload
+            } as Event<typeof runningPayload>)
+        })
+
+        await waitFor(() => {
+            expect(startSessionTop).toHaveBeenCalledWith(expect.objectContaining({
+                sessionName: pendingSessionId,
+                agentType: 'codex',
+            }))
+        })
+
+        vi.mocked(startSessionTop).mockClear()
+
+        await act(async () => {
+            await sessionsRefreshedHandler?.({
+                event: SchaltEvent.SessionsRefreshed,
+                id: 3002,
+                payload: runningPayload
+            } as Event<typeof runningPayload>)
+        })
+
+        expect(startSessionTop).not.toHaveBeenCalled()
+    })
+
+    it('drops pending startups when the session returns as spec before running', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+        const { startSessionTop } = await import('../common/agentSpawn')
+        const { clearBackgroundStarts, __debug_getBackgroundStartIds } = await import('../common/uiEvents')
+
+        vi.mocked(invoke).mockImplementation(async (cmd: string, _args?: unknown) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
+            if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
+            if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+            if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
+            return undefined
+        })
+
+        clearBackgroundStarts(__debug_getBackgroundStartIds())
+
+        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+        await waitFor(() => expect(result.current.loading).toBe(false))
+
+        const pendingSessionId = 'spec-first'
+        await act(async () => {
+            await result.current.enqueuePendingStartup(pendingSessionId, 'claude')
+        })
+
+        const { listen } = await import('@tauri-apps/api/event')
+        await waitFor(() => {
+            expect(vi.mocked(listen).mock.calls.some(call => call[0] === SchaltEvent.SessionsRefreshed)).toBe(true)
+        })
+
+        const sessionsRefreshedHandler = vi
+            .mocked(listen)
+            .mock.calls
+            .reverse()
+            .find(call => call[0] === SchaltEvent.SessionsRefreshed)?.[1]
+
+        expect(typeof sessionsRefreshedHandler).toBe('function')
+
+        vi.mocked(startSessionTop).mockClear()
+
+        const specPayload = [
+            {
+                info: {
+                    session_id: pendingSessionId,
+                    display_name: 'Spec First',
+                    branch: 'specs/spec-first',
+                    worktree_path: '',
+                    base_branch: 'main',
+                    parent_branch: 'main',
+                    status: 'spec',
+                    session_state: 'spec',
+                    created_at: '2025-10-21T19:36:55.000Z',
+                    last_modified: '2025-10-21T19:36:55.000Z',
+                    ready_to_merge: false,
+                    has_uncommitted_changes: false,
+                    has_conflicts: false,
+                },
+                terminals: []
+            }
+        ]
+
+        await act(async () => {
+            await sessionsRefreshedHandler?.({
+                event: SchaltEvent.SessionsRefreshed,
+                id: 3101,
+                payload: specPayload
+            } as Event<typeof specPayload>)
+        })
+
+        expect(startSessionTop).not.toHaveBeenCalled()
+
+        const runningPayload = [
+            {
+                info: {
+                    session_id: pendingSessionId,
+                    display_name: 'Spec First',
+                    branch: 'feature/spec-first',
+                    worktree_path: '/tmp/spec-first',
+                    base_branch: 'main',
+                    parent_branch: 'main',
+                    status: 'running',
+                    session_state: 'running',
+                    created_at: '2025-10-21T19:36:55.000Z',
+                    last_modified: '2025-10-21T19:36:55.000Z',
+                    ready_to_merge: false,
+                    has_uncommitted_changes: false,
+                    has_conflicts: false,
+                },
+                terminals: []
+            }
+        ]
+
+        await act(async () => {
+            await sessionsRefreshedHandler?.({
+                event: SchaltEvent.SessionsRefreshed,
+                id: 3102,
+                payload: runningPayload
+            } as Event<typeof runningPayload>)
+        })
+
+        expect(startSessionTop).not.toHaveBeenCalled()
+    })
+
+    it('auto-starts via fallback when pending TTL expires before session becomes running', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+        const { startSessionTop } = await import('../common/agentSpawn')
+        const { clearBackgroundStarts, __debug_getBackgroundStartIds } = await import('../common/uiEvents')
+
+        const realNow = Date.now()
+        let currentNow = realNow
+        const dateSpy = vi.spyOn(Date, 'now').mockImplementation(() => currentNow)
+
+        try {
+            vi.mocked(invoke).mockImplementation(async (cmd: string, _args?: unknown) => {
+                if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
+                if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
+                if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+                if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
+                return undefined
+            })
+
+        clearBackgroundStarts(__debug_getBackgroundStartIds())
+
+        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+        await waitFor(() => expect(result.current.loading).toBe(false))
+
+        const pendingSessionId = 'slow-start'
+        await act(async () => {
+            await result.current.enqueuePendingStartup(pendingSessionId, 'codex')
+        })
+
+        currentNow = realNow + 11_000
+
+        const { listen } = await import('@tauri-apps/api/event')
+        await waitFor(() => {
+            expect(vi.mocked(listen).mock.calls.some(call => call[0] === SchaltEvent.SessionsRefreshed)).toBe(true)
+        })
+
+            const sessionsRefreshedHandler = vi
+                .mocked(listen)
+                .mock.calls
+                .reverse()
+                .find(call => call[0] === SchaltEvent.SessionsRefreshed)?.[1]
+
+            expect(typeof sessionsRefreshedHandler).toBe('function')
+
+            vi.mocked(startSessionTop).mockClear()
+
+            const payload = [
+                {
+                    info: {
+                        session_id: pendingSessionId,
+                        display_name: 'Slow Start',
+                        branch: 'feature/slow-start',
+                        worktree_path: '/tmp/slow-start',
+                        base_branch: 'main',
+                        parent_branch: 'main',
+                        status: 'running',
+                        session_state: 'running',
+                        created_at: '2025-10-21T19:36:55.000Z',
+                        last_modified: '2025-10-21T19:36:55.000Z',
+                        ready_to_merge: false,
+                        has_uncommitted_changes: false,
+                        has_conflicts: false,
+                        original_agent_type: 'gemini',
+                    },
+                    terminals: []
+                }
+            ]
+
+            await act(async () => {
+                await sessionsRefreshedHandler?.({
+                    event: SchaltEvent.SessionsRefreshed,
+                    id: 3201,
+                    payload,
+                } as Event<typeof payload>)
+            })
+
+            await waitFor(() => {
+                expect(startSessionTop).toHaveBeenCalledTimes(1)
+            })
+
+        const pendingStartCall = vi.mocked(startSessionTop).mock.calls[0]?.[0]
+        expect(pendingStartCall?.agentType).toBe('gemini')
+        } finally {
+            dateSpy.mockRestore()
+        }
+    })
+
     it('auto-starts running sessions after sessions reload', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
         const { startSessionTop } = await import('../common/agentSpawn')
