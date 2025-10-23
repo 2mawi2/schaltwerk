@@ -40,11 +40,9 @@ describe('useTerminalTabs', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    addEventSpy = vi.spyOn(window, 'addEventListener')
-    removeEventSpy = vi.spyOn(window, 'removeEventListener')
+    addEventSpy = vi.spyOn(window, 'addEventListener') as unknown as ReturnType<typeof vi.spyOn>
+    removeEventSpy = vi.spyOn(window, 'removeEventListener') as unknown as ReturnType<typeof vi.spyOn>
     mockInvoke.mockImplementation((command: string, args?: MockTauriInvokeArgs) => defaultInvokeImplementation(command, args))
-    // Clear global state between tests by directly accessing the module's global variables
-    // This is a workaround since we can't easily reset the module-level state
   })
 
   afterEach(() => {

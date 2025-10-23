@@ -63,12 +63,12 @@ class MockWorker {
 
 describe('useHighlightWorker', () => {
   const originalWorker = globalThis.Worker
-  let loggerErrorSpy: ReturnType<typeof vi.spyOn>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let loggerErrorSpy: any
 
   beforeEach(() => {
     MockWorker.lastInstance = null
-    // @ts-expect-error override for test environment
-    globalThis.Worker = MockWorker
+    globalThis.Worker = MockWorker as unknown as typeof Worker
     loggerErrorSpy = vi.spyOn(logger, 'error').mockImplementation(() => {})
   })
 
