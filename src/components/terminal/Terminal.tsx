@@ -34,6 +34,7 @@ import { useTerminalGpu } from '../../hooks/useTerminalGpu'
 import { terminalOutputManager } from '../../terminal/stream/terminalOutputManager'
 import { TerminalResizeCoordinator } from './resize/TerminalResizeCoordinator'
 import { calculateEffectiveColumns, MIN_TERMINAL_COLUMNS } from './terminalSizing'
+import { shouldEmitControlPaste, shouldEmitControlNewline } from './terminalKeybindings'
 
 const DEFAULT_SCROLLBACK_LINES = 10000
 const BACKGROUND_SCROLLBACK_LINES = 5000
@@ -987,6 +988,18 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
         // Intercept global shortcuts before xterm.js processes them
         terminal.current.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+            if (!readOnly && shouldEmitControlPaste(event)) {
+                event.preventDefault()
+                writeTerminalBackend(terminalId, '\x16').catch(err => logger.debug('[Terminal] ctrl+v ignored (backend not ready yet)', err))
+                return false
+            }
+
+            if (!readOnly && shouldEmitControlNewline(event)) {
+                event.preventDefault()
+                writeTerminalBackend(terminalId, '\n').catch(err => logger.debug('[Terminal] ctrl+j ignored (backend not ready yet)', err))
+                return false
+            }
+
             const isMac = navigator.userAgent.includes('Mac')
             const modifierKey = isMac ? event.metaKey : event.ctrlKey
             const shouldHandleClaudeShiftEnter = (
