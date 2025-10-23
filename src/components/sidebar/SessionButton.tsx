@@ -143,13 +143,14 @@ export const SessionButton = memo<SessionButtonProps>(({
     const agentKey = (agentType || '').toLowerCase()
     const agentLabel = agentKey
 
-    const getAgentColor = (agent: string): 'blue' | 'green' | 'orange' | 'violet' | 'red' => {
+    const getAgentColor = (agent: string): 'blue' | 'green' | 'orange' | 'violet' | 'red' | 'yellow' => {
         switch (agent) {
             case 'claude': return 'blue'
             case 'opencode': return 'green'
             case 'gemini': return 'orange'
             case 'droid': return 'violet'
             case 'codex': return 'red'
+            case 'amp': return 'yellow'
             default: return 'red'
         }
     }
@@ -404,16 +405,19 @@ export const SessionButton = memo<SessionButtonProps>(({
                                                agentColor === 'green' ? theme.colors.accent.green.bg :
                                                agentColor === 'orange' ? theme.colors.accent.amber.bg :
                                                agentColor === 'violet' ? theme.colors.accent.violet.bg :
+                                               agentColor === 'yellow' ? theme.colors.accent.yellow.bg :
                                                theme.colors.accent.red.bg,
                                color: agentColor === 'blue' ? theme.colors.accent.blue.light :
                                      agentColor === 'green' ? theme.colors.accent.green.light :
                                      agentColor === 'orange' ? theme.colors.accent.amber.light :
                                      agentColor === 'violet' ? theme.colors.accent.violet.light :
+                                     agentColor === 'yellow' ? theme.colors.accent.yellow.light :
                                      theme.colors.accent.red.light,
                                borderColor: agentColor === 'blue' ? theme.colors.accent.blue.border :
                                            agentColor === 'green' ? theme.colors.accent.green.border :
                                            agentColor === 'orange' ? theme.colors.accent.amber.border :
                                            agentColor === 'violet' ? theme.colors.accent.violet.border :
+                                           agentColor === 'yellow' ? theme.colors.accent.yellow.border :
                                            theme.colors.accent.red.border
                              }}
                             title={`Agent: ${agentLabel}`}
@@ -424,6 +428,7 @@ export const SessionButton = memo<SessionButtonProps>(({
                                                  agentColor === 'green' ? theme.colors.accent.green.DEFAULT :
                                                  agentColor === 'orange' ? theme.colors.accent.amber.DEFAULT :
                                                  agentColor === 'violet' ? theme.colors.accent.violet.DEFAULT :
+                                                 agentColor === 'yellow' ? theme.colors.accent.yellow.DEFAULT :
                                                  theme.colors.accent.red.DEFAULT
                                }} />
                             {agentLabel}

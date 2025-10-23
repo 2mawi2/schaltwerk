@@ -194,6 +194,7 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
                                agentType === 'opencode' ? 'green' :
                                agentType === 'gemini' ? 'orange' :
                                agentType === 'codex' ? 'red' :
+                               agentType === 'amp' ? 'yellow' :
                                agentType === 'mixed' ? 'violet' : 'gray'
 
               return (
@@ -209,16 +210,19 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
                                           agentColor === 'green' ? theme.colors.accent.green.bg :
                                           agentColor === 'orange' ? theme.colors.accent.amber.bg :
                                           agentColor === 'violet' ? theme.colors.accent.violet.bg :
+                                          agentColor === 'yellow' ? theme.colors.accent.yellow.bg :
                                           theme.colors.accent.red.bg,
                           color: agentColor === 'blue' ? theme.colors.accent.blue.light :
                                 agentColor === 'green' ? theme.colors.accent.green.light :
                                 agentColor === 'orange' ? theme.colors.accent.amber.light :
                                 agentColor === 'violet' ? theme.colors.accent.violet.light :
+                                agentColor === 'yellow' ? theme.colors.accent.yellow.light :
                                 theme.colors.accent.red.light,
                           borderColor: agentColor === 'blue' ? theme.colors.accent.blue.border :
                                      agentColor === 'green' ? theme.colors.accent.green.border :
                                      agentColor === 'orange' ? theme.colors.accent.amber.border :
                                      agentColor === 'violet' ? theme.colors.accent.violet.border :
+                                     agentColor === 'yellow' ? theme.colors.accent.yellow.border :
                                      theme.colors.accent.red.border
                         }}
                         title={isMixedAgents ? `Agents: ${uniqueAgents.join(', ')}` : `Agent: ${agentType}`}
@@ -229,6 +233,7 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
                                                 agentColor === 'green' ? theme.colors.accent.green.DEFAULT :
                                                 agentColor === 'orange' ? theme.colors.accent.amber.DEFAULT :
                                                 agentColor === 'violet' ? theme.colors.accent.violet.DEFAULT :
+                                                agentColor === 'yellow' ? theme.colors.accent.yellow.DEFAULT :
                                                 theme.colors.accent.red.DEFAULT
                               }} />
                         {isMixedAgents ? `${uniqueAgents.length} agents` : agentType}
