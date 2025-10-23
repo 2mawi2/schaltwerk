@@ -1,5 +1,4 @@
 import { useRef, forwardRef, useImperativeHandle, memo } from 'react'
-import { VscAdd } from 'react-icons/vsc'
 import { Terminal, TerminalHandle } from './Terminal'
 import { useTerminalTabs } from '../../hooks/useTerminalTabs'
 import { UnifiedTab } from '../UnifiedTab'
@@ -7,6 +6,7 @@ import { theme } from '../../common/theme'
 import { useModal } from '../../contexts/ModalContext'
 import { safeTerminalFocus, safeTerminalFocusImmediate } from '../../utils/safeFocus'
 import { TabInfo } from '../../types/terminalTabs'
+import { AddTerminalButton } from './AddTerminalButton'
 
 interface TerminalTabsProps {
   baseTerminalId: string
@@ -162,26 +162,12 @@ const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(
         ))}
         
         {canAddTab && (
-          <button
+          <AddTerminalButton
             onClick={addTab}
-            className="h-6 w-6 inline-flex items-center justify-center rounded ml-1 transition-colors"
-            style={{
-              color: theme.colors.text.tertiary,
-              backgroundColor: 'transparent'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = theme.colors.text.secondary
-              e.currentTarget.style.backgroundColor = `${theme.colors.background.elevated}80`
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = theme.colors.text.tertiary
-              e.currentTarget.style.backgroundColor = 'transparent'
-            }}
             title="Add new terminal"
-            aria-label="Add new terminal"
-          >
-            <VscAdd className="text-[14px]" />
-          </button>
+            ariaLabel="Add new terminal"
+            className="ml-2 h-7 w-7"
+          />
         )}
       </div>
 
