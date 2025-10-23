@@ -62,6 +62,22 @@ pub trait TerminalsBackend: Send + Sync {
     ) -> Result<TerminalSnapshot, String>;
     async fn get_terminal_activity_status(&self, id: String) -> Result<(bool, u64), String>;
     async fn get_all_terminal_activity(&self) -> Result<Vec<(String, u64)>, String>;
+    async fn register_session_terminals(
+        &self,
+        project_id: String,
+        session_id: Option<String>,
+        terminal_ids: Vec<String>,
+    ) -> Result<(), String>;
+    async fn suspend_session_terminals(
+        &self,
+        project_id: String,
+        session_id: Option<String>,
+    ) -> Result<(), String>;
+    async fn resume_session_terminals(
+        &self,
+        project_id: String,
+        session_id: Option<String>,
+    ) -> Result<(), String>;
 }
 
 #[async_trait]
@@ -93,6 +109,22 @@ pub trait TerminalsService: Send + Sync {
     ) -> Result<TerminalSnapshot, String>;
     async fn get_terminal_activity_status(&self, id: String) -> Result<(bool, u64), String>;
     async fn get_all_terminal_activity(&self) -> Result<Vec<(String, u64)>, String>;
+    async fn register_session_terminals(
+        &self,
+        project_id: String,
+        session_id: Option<String>,
+        terminal_ids: Vec<String>,
+    ) -> Result<(), String>;
+    async fn suspend_session_terminals(
+        &self,
+        project_id: String,
+        session_id: Option<String>,
+    ) -> Result<(), String>;
+    async fn resume_session_terminals(
+        &self,
+        project_id: String,
+        session_id: Option<String>,
+    ) -> Result<(), String>;
 }
 
 pub struct TerminalsServiceImpl<B: TerminalsBackend> {
@@ -217,6 +249,47 @@ impl<B: TerminalsBackend> TerminalsServiceImpl<B> {
             .await
             .map_err(|err| Self::map_err("Failed to list terminal activity", err))
     }
+
+    pub async fn register_session_terminals(
+        &self,
+        project_id: String,
+        session_id: Option<String>,
+        terminal_ids: Vec<String>,
+    ) -> Result<(), String> {
+        let context = format!(
+            "Failed to register session terminals for project {project_id} session {session_id:?}"
+        );
+        self.backend
+            .register_session_terminals(project_id, session_id, terminal_ids)
+            .await
+            .map_err(|err| Self::map_err(&context, err))
+    }
+
+    pub async fn suspend_session_terminals(
+        &self,
+        project_id: String,
+        session_id: Option<String>,
+    ) -> Result<(), String> {
+        let context =
+            format!("Failed to suspend terminals for project {project_id} session {session_id:?}");
+        self.backend
+            .suspend_session_terminals(project_id, session_id)
+            .await
+            .map_err(|err| Self::map_err(&context, err))
+    }
+
+    pub async fn resume_session_terminals(
+        &self,
+        project_id: String,
+        session_id: Option<String>,
+    ) -> Result<(), String> {
+        let context =
+            format!("Failed to resume terminals for project {project_id} session {session_id:?}");
+        self.backend
+            .resume_session_terminals(project_id, session_id)
+            .await
+            .map_err(|err| Self::map_err(&context, err))
+    }
 }
 
 #[async_trait]
@@ -285,6 +358,32 @@ where
 
     async fn get_all_terminal_activity(&self) -> Result<Vec<(String, u64)>, String> {
         TerminalsServiceImpl::get_all_terminal_activity(self).await
+    }
+
+    async fn register_session_terminals(
+        &self,
+        project_id: String,
+        session_id: Option<String>,
+        terminal_ids: Vec<String>,
+    ) -> Result<(), String> {
+        TerminalsServiceImpl::register_session_terminals(self, project_id, session_id, terminal_ids)
+            .await
+    }
+
+    async fn suspend_session_terminals(
+        &self,
+        project_id: String,
+        session_id: Option<String>,
+    ) -> Result<(), String> {
+        TerminalsServiceImpl::suspend_session_terminals(self, project_id, session_id).await
+    }
+
+    async fn resume_session_terminals(
+        &self,
+        project_id: String,
+        session_id: Option<String>,
+    ) -> Result<(), String> {
+        TerminalsServiceImpl::resume_session_terminals(self, project_id, session_id).await
     }
 }
 
@@ -506,6 +605,43 @@ impl TerminalsBackend for TerminalManagerBackend {
         let manager = self.terminal_manager().await?;
         Ok(manager.get_all_terminal_activity().await)
     }
+
+    async fn register_session_terminals(
+        &self,
+        project_id: String,
+        session_id: Option<String>,
+        terminal_ids: Vec<String>,
+    ) -> Result<(), String> {
+        let manager = self.terminal_manager().await?;
+        for id in terminal_ids {
+            manager
+                .register_terminal(&project_id, session_id.as_deref(), &id)
+                .await;
+        }
+        Ok(())
+    }
+
+    async fn suspend_session_terminals(
+        &self,
+        project_id: String,
+        session_id: Option<String>,
+    ) -> Result<(), String> {
+        let manager = self.terminal_manager().await?;
+        manager
+            .suspend_session_terminals(&project_id, session_id.as_deref())
+            .await
+    }
+
+    async fn resume_session_terminals(
+        &self,
+        project_id: String,
+        session_id: Option<String>,
+    ) -> Result<(), String> {
+        let manager = self.terminal_manager().await?;
+        manager
+            .resume_session_terminals(&project_id, session_id.as_deref())
+            .await
+    }
 }
 
 #[cfg(test)]
@@ -587,6 +723,31 @@ mod tests {
         async fn get_all_terminal_activity(&self) -> Result<Vec<(String, u64)>, String> {
             panic!("unused in test backend");
         }
+
+        async fn register_session_terminals(
+            &self,
+            _project_id: String,
+            _session_id: Option<String>,
+            _terminal_ids: Vec<String>,
+        ) -> Result<(), String> {
+            Ok(())
+        }
+
+        async fn suspend_session_terminals(
+            &self,
+            _project_id: String,
+            _session_id: Option<String>,
+        ) -> Result<(), String> {
+            Ok(())
+        }
+
+        async fn resume_session_terminals(
+            &self,
+            _project_id: String,
+            _session_id: Option<String>,
+        ) -> Result<(), String> {
+            Ok(())
+        }
     }
 
     struct ErrorBackend;
@@ -657,6 +818,31 @@ mod tests {
 
         async fn get_all_terminal_activity(&self) -> Result<Vec<(String, u64)>, String> {
             panic!("unused in test backend");
+        }
+
+        async fn register_session_terminals(
+            &self,
+            _project_id: String,
+            _session_id: Option<String>,
+            _terminal_ids: Vec<String>,
+        ) -> Result<(), String> {
+            Ok(())
+        }
+
+        async fn suspend_session_terminals(
+            &self,
+            _project_id: String,
+            _session_id: Option<String>,
+        ) -> Result<(), String> {
+            Ok(())
+        }
+
+        async fn resume_session_terminals(
+            &self,
+            _project_id: String,
+            _session_id: Option<String>,
+        ) -> Result<(), String> {
+            Ok(())
         }
     }
 
@@ -732,6 +918,31 @@ mod tests {
         async fn get_all_terminal_activity(&self) -> Result<Vec<(String, u64)>, String> {
             panic!("unused in test backend");
         }
+
+        async fn register_session_terminals(
+            &self,
+            _project_id: String,
+            _session_id: Option<String>,
+            _terminal_ids: Vec<String>,
+        ) -> Result<(), String> {
+            Ok(())
+        }
+
+        async fn suspend_session_terminals(
+            &self,
+            _project_id: String,
+            _session_id: Option<String>,
+        ) -> Result<(), String> {
+            Ok(())
+        }
+
+        async fn resume_session_terminals(
+            &self,
+            _project_id: String,
+            _session_id: Option<String>,
+        ) -> Result<(), String> {
+            Ok(())
+        }
     }
 
     struct WriteErrorBackend;
@@ -802,6 +1013,31 @@ mod tests {
 
         async fn get_all_terminal_activity(&self) -> Result<Vec<(String, u64)>, String> {
             panic!("unused in test backend");
+        }
+
+        async fn register_session_terminals(
+            &self,
+            _project_id: String,
+            _session_id: Option<String>,
+            _terminal_ids: Vec<String>,
+        ) -> Result<(), String> {
+            Ok(())
+        }
+
+        async fn suspend_session_terminals(
+            &self,
+            _project_id: String,
+            _session_id: Option<String>,
+        ) -> Result<(), String> {
+            Ok(())
+        }
+
+        async fn resume_session_terminals(
+            &self,
+            _project_id: String,
+            _session_id: Option<String>,
+        ) -> Result<(), String> {
+            Ok(())
         }
     }
 
