@@ -1,6 +1,6 @@
 use crate::{
     commands::session_lookup_cache::global_session_lookup_cache, get_core_read, get_core_write,
-    get_file_watcher_manager, get_terminal_manager, SETTINGS_MANAGER,
+    get_file_watcher_manager, get_terminal_manager, PROJECT_MANAGER, SETTINGS_MANAGER,
 };
 use schaltwerk::domains::agents::{manifest::AgentManifest, naming, parse_agent_command};
 use schaltwerk::domains::git::repository;
@@ -1647,10 +1647,50 @@ pub async fn schaltwerk_core_get_orchestrator_agent_type() -> Result<String, Str
 
 #[tauri::command]
 pub async fn schaltwerk_core_get_font_sizes() -> Result<(i32, i32), String> {
-    let core = get_core_read().await?;
-    core.db
-        .get_font_sizes()
-        .map_err(|e| format!("Failed to get font sizes: {e}"))
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .cloned()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+
+    let (mut terminal, mut ui) = {
+        let manager = settings_manager.lock().await;
+        manager.get_font_sizes()
+    };
+
+    let should_attempt_migration = if let Some(project_manager) = PROJECT_MANAGER.get() {
+        project_manager.current_project_path().await.is_some()
+    } else {
+        false
+    };
+
+    if should_attempt_migration {
+        match get_core_read().await {
+            Ok(core) => {
+                let db_result = core.db.get_font_sizes();
+                drop(core);
+
+                if let Ok((db_terminal, db_ui)) = db_result {
+                    if (db_terminal, db_ui) != (terminal, ui) {
+                        {
+                            let mut manager = settings_manager.lock().await;
+                            if let Err(err) = manager.set_font_sizes(db_terminal, db_ui) {
+                                log::warn!("Failed to migrate font sizes to settings: {err}");
+                            }
+                        }
+                        terminal = db_terminal;
+                        ui = db_ui;
+                    }
+                }
+            }
+            Err(err) => {
+                if !err.contains("No active project") {
+                    log::warn!("Failed to read font sizes from project database: {err}");
+                }
+            }
+        }
+    }
+
+    Ok((terminal, ui))
 }
 
 #[tauri::command]
@@ -1658,10 +1698,42 @@ pub async fn schaltwerk_core_set_font_sizes(
     terminal_font_size: i32,
     ui_font_size: i32,
 ) -> Result<(), String> {
-    let core = get_core_write().await?;
-    core.db
-        .set_font_sizes(terminal_font_size, ui_font_size)
-        .map_err(|e| format!("Failed to set font sizes: {e}"))
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .cloned()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+
+    {
+        let mut manager = settings_manager.lock().await;
+        manager
+            .set_font_sizes(terminal_font_size, ui_font_size)
+            .map_err(|e| format!("Failed to save font sizes: {e}"))?;
+    }
+
+    let should_attempt_db_update = if let Some(project_manager) = PROJECT_MANAGER.get() {
+        project_manager.current_project_path().await.is_some()
+    } else {
+        false
+    };
+
+    if should_attempt_db_update {
+        match get_core_write().await {
+            Ok(core) => {
+                core.db
+                    .set_font_sizes(terminal_font_size, ui_font_size)
+                    .map_err(|e| format!("Failed to set font sizes: {e}"))?;
+            }
+            Err(err) => {
+                if err.contains("No active project") {
+                    log::debug!("Skipping project font size update: {err}");
+                } else {
+                    return Err(err);
+                }
+            }
+        }
+    }
+
+    Ok(())
 }
 
 #[tauri::command]

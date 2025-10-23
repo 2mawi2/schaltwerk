@@ -109,6 +109,20 @@ impl SettingsManager {
             .map_err(|e| e.to_string())
     }
 
+    pub fn get_font_sizes(&self) -> (i32, i32) {
+        self.service.get_font_sizes()
+    }
+
+    pub fn set_font_sizes(
+        &mut self,
+        terminal_font_size: i32,
+        ui_font_size: i32,
+    ) -> Result<(), String> {
+        self.service
+            .set_font_sizes(terminal_font_size, ui_font_size)
+            .map_err(|e| e.to_string())
+    }
+
     pub fn get_agent_cli_args(&self, agent_type: &str) -> String {
         self.service.get_agent_cli_args(agent_type)
     }
