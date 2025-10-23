@@ -82,3 +82,27 @@ pub fn get_environment_variable(name: String) -> Result<Option<String>, String> 
 
     Ok(std::env::var(&name).ok())
 }
+
+#[tauri::command]
+pub async fn open_external_url(url: String) -> Result<(), String> {
+    let target = url.clone();
+    tokio::task::spawn_blocking(move || {
+        log::info!("Opening external URL: {target}");
+        let status = std::process::Command::new("open")
+            .arg(&target)
+            .status()
+            .map_err(|error| {
+                log::error!("Failed to spawn macOS open command for {target}: {error}");
+                format!("Failed to launch default handler for URL: {error}")
+            })?;
+
+        if status.success() {
+            Ok(())
+        } else {
+            log::error!("macOS open command exited with status {status} for {target}");
+            Err(format!("Failed to launch default handler for URL: exit status {status}"))
+        }
+    })
+    .await
+    .map_err(|error| format!("Failed to execute open command for URL: {error}"))?
+}
