@@ -214,18 +214,6 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
     return !effectiveContinuousScroll
   }, [effectiveContinuousScroll])
 
-  // Removed virtualization to prevent jumping when diffs load
-
-  // Removed unused variable - was used for virtualization but no longer needed
-  // const allFilesTotalHeight = useMemo(() => {
-  //   let total = 0
-  //   const map = fileHeightsRef.current
-  //   for (const f of files) {
-  //     const h = map.get(f.path) ?? DEFAULT_FILE_HEIGHT
-  //     total += h
-  //   }
-  //   return total
-  // }, [files, allFileDiffs, viewMode])
 
   const isCommanderView = useCallback(() => selection.kind === 'orchestrator', [selection.kind])
   const sessionName: string | null = selection.kind === 'session' ? (selection.payload as string) : null
