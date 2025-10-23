@@ -7,6 +7,8 @@ import { useSelection } from '../../contexts/SelectionContext'
 import { useProject } from '../../contexts/ProjectContext'
 import { TestProviders } from '../../tests/test-utils'
 import { UiEvent, emitUiEvent } from '../../common/uiEvents'
+import type { SessionGitStatsUpdated } from '../../common/events'
+import * as eventSystemModule from '../../common/eventSystem'
 
 type MockChangedFile = {
   path: string
@@ -30,33 +32,35 @@ const createMockChangedFile = (file: Partial<MockChangedFile> & { path: string }
   }
 }
 
+async function defaultInvokeImplementation(cmd: string, args?: Record<string, unknown>) {
+  if (cmd === TauriCommands.SchaltwerkCoreGetSession) {
+    return { worktree_path: '/tmp/worktree/' + (args?.name || 'default') }
+  }
+  if (cmd === TauriCommands.GetChangedFilesFromMain) {
+    return [
+      createMockChangedFile({ path: 'src/a.ts', change_type: 'modified', additions: 3, deletions: 1 }),
+      createMockChangedFile({ path: 'src/b.ts', change_type: 'added', additions: 5 }),
+      createMockChangedFile({ path: 'src/c.ts', change_type: 'deleted', deletions: 2 }),
+      createMockChangedFile({ path: 'readme.md', change_type: 'unknown' }),
+      createMockChangedFile({ path: 'assets/logo.png', change_type: 'modified', is_binary: true }),
+    ]
+  }
+  if (cmd === TauriCommands.GetCurrentBranchName) return 'feature/x'
+  if (cmd === TauriCommands.GetBaseBranchName) return 'main'
+  if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc', 'def']
+  if (cmd === TauriCommands.GetCurrentDirectory) return '/test/project'
+  if (cmd === TauriCommands.TerminalExists) return false
+  if (cmd === TauriCommands.CreateTerminal) return undefined
+  if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return []
+  if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
+  if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+  if (cmd === TauriCommands.SchaltwerkCoreGetFontSizes) return [13, 14]
+  return undefined
+}
+
 // Mock Tauri invoke
 vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(async (cmd: string, args?: Record<string, unknown>) => {
-    if (cmd === TauriCommands.SchaltwerkCoreGetSession) {
-      return { worktree_path: '/tmp/worktree/' + (args?.name || 'default') }
-    }
-    if (cmd === TauriCommands.GetChangedFilesFromMain) {
-      return [
-        createMockChangedFile({ path: 'src/a.ts', change_type: 'modified', additions: 3, deletions: 1 }),
-        createMockChangedFile({ path: 'src/b.ts', change_type: 'added', additions: 5 }),
-        createMockChangedFile({ path: 'src/c.ts', change_type: 'deleted', deletions: 2 }),
-        createMockChangedFile({ path: 'readme.md', change_type: 'unknown' }),
-        createMockChangedFile({ path: 'assets/logo.png', change_type: 'modified', is_binary: true }),
-      ]
-    }
-    if (cmd === TauriCommands.GetCurrentBranchName) return 'feature/x'
-    if (cmd === TauriCommands.GetBaseBranchName) return 'main'
-    if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc', 'def']
-    if (cmd === TauriCommands.GetCurrentDirectory) return '/test/project'
-    if (cmd === TauriCommands.TerminalExists) return false
-    if (cmd === TauriCommands.CreateTerminal) return undefined
-    if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return []
-    if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
-    if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
-    if (cmd === TauriCommands.SchaltwerkCoreGetFontSizes) return [13, 14]
-    return undefined
-  }),
+  invoke: vi.fn(defaultInvokeImplementation),
 }))
 
 vi.mock('@tauri-apps/api/event', () => ({
@@ -264,6 +268,131 @@ describe('DiffFileList', () => {
     // Should NOT show .schaltwerk files (they should be filtered by backend)
     expect(screen.queryByText('.schaltwerk')).not.toBeInTheDocument()
     expect(screen.queryByText('session.db')).not.toBeInTheDocument()
+  })
+
+  it('updates orchestrator changes when FileChanges event arrives', async () => {
+    const { invoke } = await import('@tauri-apps/api/core')
+    const mockInvoke = invoke as ReturnType<typeof vi.fn>
+    mockInvoke.mockImplementation(async (cmd: string, _args?: Record<string, unknown>) => {
+      if (cmd === TauriCommands.GetOrchestratorWorkingChanges) {
+        return [
+          createMockChangedFile({ path: 'initial.ts', change_type: 'modified' }),
+        ]
+      }
+      if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
+      return defaultInvokeImplementation(cmd, _args)
+    })
+
+    type FileChangesPayload = {
+      session_name: string
+      changed_files: MockChangedFile[]
+      branch_info: {
+        current_branch: string
+        base_branch: string
+        base_commit: string
+        head_commit: string
+      }
+    }
+
+    let fileChangesHandler: ((payload: FileChangesPayload) => void) | null = null
+
+    const listenSpy = vi.spyOn(eventSystemModule, 'listenEvent').mockImplementation(async (event, handler) => {
+      if (event === eventSystemModule.SchaltEvent.FileChanges) {
+        fileChangesHandler = handler as (payload: FileChangesPayload) => void
+      }
+      return () => {}
+    })
+
+    render(
+      <Wrapper>
+        <DiffFileList onFileSelect={() => {}} isCommander={true} />
+      </Wrapper>
+    )
+
+    // Initial load from invoke
+    expect(await screen.findByText('initial.ts')).toBeInTheDocument()
+    expect(fileChangesHandler).toBeTruthy()
+
+    await act(async () => {
+      fileChangesHandler?.({
+        session_name: 'orchestrator',
+        changed_files: [
+          createMockChangedFile({ path: 'updated.ts', change_type: 'modified', additions: 1 }),
+        ],
+        branch_info: {
+          current_branch: 'main',
+          base_branch: 'Working Directory',
+          base_commit: 'HEAD',
+          head_commit: 'Working',
+        },
+      })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('updated.ts')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('initial.ts')).not.toBeInTheDocument()
+
+    listenSpy.mockRestore()
+    mockInvoke.mockImplementation(defaultInvokeImplementation)
+  })
+
+  it('reloads orchestrator changes when SessionGitStats event arrives', async () => {
+    const { invoke } = await import('@tauri-apps/api/core')
+    const mockInvoke = invoke as ReturnType<typeof vi.fn>
+    let orchestratorCalls = 0
+    mockInvoke.mockImplementation(async (cmd: string, _args?: Record<string, unknown>) => {
+      if (cmd === TauriCommands.GetOrchestratorWorkingChanges) {
+        orchestratorCalls += 1
+        if (orchestratorCalls === 1) {
+          return [
+            createMockChangedFile({ path: 'initial.ts', change_type: 'modified' }),
+          ]
+        }
+        return [
+          createMockChangedFile({ path: 'updated.ts', change_type: 'modified' }),
+        ]
+      }
+      if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
+      return defaultInvokeImplementation(cmd, _args)
+    })
+
+    let sessionGitStatsHandler: ((payload: SessionGitStatsUpdated) => void) | null = null
+
+    const listenSpy = vi.spyOn(eventSystemModule, 'listenEvent').mockImplementation(async (event, handler) => {
+      if (event === eventSystemModule.SchaltEvent.SessionGitStats) {
+        sessionGitStatsHandler = handler as (payload: SessionGitStatsUpdated) => void
+      }
+      return () => {}
+    })
+
+    render(
+      <Wrapper>
+        <DiffFileList onFileSelect={() => {}} isCommander={true} />
+      </Wrapper>
+    )
+
+    expect(await screen.findByText('initial.ts')).toBeInTheDocument()
+    expect(sessionGitStatsHandler).toBeTruthy()
+
+    await act(async () => {
+      sessionGitStatsHandler?.({
+        session_id: 'orchestrator',
+        session_name: 'orchestrator',
+        files_changed: 1,
+        lines_added: 1,
+        lines_removed: 0,
+        has_uncommitted: true,
+      })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('updated.ts')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('initial.ts')).not.toBeInTheDocument()
+
+    listenSpy.mockRestore()
+    mockInvoke.mockImplementation(defaultInvokeImplementation)
   })
 
   it('uses Promise.all for parallel orchestrator calls', async () => {
