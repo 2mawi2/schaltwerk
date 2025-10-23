@@ -1,6 +1,7 @@
 const FNV_OFFSET_BASIS: u32 = 0x811c9dc5;
 const FNV_PRIME: u32 = 0x0100_0193;
-const HASH_SLICE: usize = 6;
+const HASH_SLICE_CURRENT: usize = 8;
+const HASH_SLICE_V1: usize = 6;
 
 pub fn sanitize_session_name(name: &str) -> String {
     let sanitized: String = name
@@ -31,7 +32,12 @@ pub fn session_terminal_hash(name: &str) -> u32 {
 
 pub fn session_terminal_hash_fragment(name: &str) -> String {
     let hash_hex = format!("{:08x}", session_terminal_hash(name));
-    hash_hex[..HASH_SLICE].to_string()
+    hash_hex[..HASH_SLICE_CURRENT].to_string()
+}
+
+fn session_terminal_hash_fragment_v1(name: &str) -> String {
+    let hash_hex = format!("{:08x}", session_terminal_hash(name));
+    hash_hex[..HASH_SLICE_V1].to_string()
 }
 
 pub fn session_terminal_base(name: &str) -> String {
@@ -40,12 +46,37 @@ pub fn session_terminal_base(name: &str) -> String {
     format!("session-{sanitized}~{fragment}")
 }
 
+pub fn session_terminal_base_v1(name: &str) -> String {
+    let sanitized = sanitize_session_name(name);
+    let fragment = session_terminal_hash_fragment_v1(name);
+    format!("session-{sanitized}~{fragment}")
+}
+
+pub fn session_terminal_base_legacy_hashed(name: &str) -> String {
+    let sanitized = sanitize_session_name(name);
+    let fragment = session_terminal_hash_fragment_v1(name);
+    format!("session-{sanitized}-{fragment}")
+}
+
+pub fn session_terminal_base_legacy(name: &str) -> String {
+    let sanitized = sanitize_session_name(name);
+    format!("session-{sanitized}")
+}
+
 pub fn terminal_id_for_session_top(name: &str) -> String {
     format!("{}-top", session_terminal_base(name))
 }
 
 pub fn terminal_id_for_session_bottom(name: &str) -> String {
     format!("{}-bottom", session_terminal_base(name))
+}
+
+pub fn previous_tilde_hashed_terminal_id_for_session_top(name: &str) -> String {
+    format!("{}-top", session_terminal_base_v1(name))
+}
+
+pub fn previous_tilde_hashed_terminal_id_for_session_bottom(name: &str) -> String {
+    format!("{}-bottom", session_terminal_base_v1(name))
 }
 
 fn strip_numeric_suffix(id: &str) -> &str {
@@ -67,23 +98,19 @@ pub fn is_session_top_terminal_id(id: &str) -> bool {
 }
 
 pub fn legacy_terminal_id_for_session_top(name: &str) -> String {
-    format!("session-{}-top", sanitize_session_name(name))
+    format!("{}-top", session_terminal_base_legacy(name))
 }
 
 pub fn legacy_terminal_id_for_session_bottom(name: &str) -> String {
-    format!("session-{}-bottom", sanitize_session_name(name))
+    format!("{}-bottom", session_terminal_base_legacy(name))
 }
 
 pub fn previous_hashed_terminal_id_for_session_top(name: &str) -> String {
-    let sanitized = sanitize_session_name(name);
-    let fragment = session_terminal_hash_fragment(name);
-    format!("session-{sanitized}-{fragment}-top")
+    format!("{}-top", session_terminal_base_legacy_hashed(name))
 }
 
 pub fn previous_hashed_terminal_id_for_session_bottom(name: &str) -> String {
-    let sanitized = sanitize_session_name(name);
-    let fragment = session_terminal_hash_fragment(name);
-    format!("session-{sanitized}-{fragment}-bottom")
+    format!("{}-bottom", session_terminal_base_legacy_hashed(name))
 }
 
 #[cfg(test)]
@@ -107,7 +134,11 @@ mod tests {
     #[test]
     fn base_and_terminal_ids_include_tilde_hash() {
         let base = session_terminal_base("alpha beta");
-        assert!(base.starts_with("session-alpha_beta~"));
+        assert_eq!(base, "session-alpha_beta~47c052e3");
+        assert_eq!(
+            session_terminal_base_v1("alpha beta"),
+            "session-alpha_beta~47c052"
+        );
         let top = terminal_id_for_session_top("alpha beta");
         assert_eq!(format!("{base}-top"), top);
         let bottom = terminal_id_for_session_bottom("alpha beta");
@@ -130,6 +161,10 @@ mod tests {
         assert!(legacy_terminal_id_for_session_top("alpha beta").starts_with("session-alpha_beta-"));
         assert!(previous_hashed_terminal_id_for_session_top("alpha beta")
             .starts_with("session-alpha_beta-"));
+        assert!(
+            previous_tilde_hashed_terminal_id_for_session_top("alpha beta")
+                .starts_with("session-alpha_beta~")
+        );
     }
 
     #[test]

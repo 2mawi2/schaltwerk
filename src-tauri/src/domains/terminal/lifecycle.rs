@@ -43,11 +43,23 @@ pub(crate) fn extract_session_name(terminal_id: &str) -> Option<String> {
     if terminal_id.starts_with("session-") && terminal_id.ends_with("-top") {
         let without_prefix = terminal_id.strip_prefix("session-")?;
         let without_suffix = without_prefix.strip_suffix("-top")?;
+
         if let Some((name_part, hash_part)) = without_suffix.rsplit_once('~') {
-            if hash_part.len() == 6 && hash_part.chars().all(|c| c.is_ascii_hexdigit()) {
+            if (hash_part.len() == 8 || hash_part.len() == 6)
+                && hash_part.chars().all(|c| c.is_ascii_hexdigit())
+            {
                 return Some(name_part.to_string());
             }
         }
+
+        if let Some((name_part, hash_part)) = without_suffix.rsplit_once('-') {
+            if (hash_part.len() == 8 || hash_part.len() == 6)
+                && hash_part.chars().all(|c| c.is_ascii_hexdigit())
+            {
+                return Some(name_part.to_string());
+            }
+        }
+
         Some(without_suffix.to_string())
     } else if terminal_id.starts_with("orchestrator-") && terminal_id.ends_with("-top") {
         let without_prefix = terminal_id.strip_prefix("orchestrator-")?;

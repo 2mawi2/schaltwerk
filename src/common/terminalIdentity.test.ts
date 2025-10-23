@@ -3,6 +3,7 @@ import {
   sanitizeSessionName,
   sessionTerminalHash,
   sessionTerminalBase,
+  sessionTerminalBaseVariants,
   stableSessionTerminalId,
   sessionTerminalGroup,
   isTopTerminalId
@@ -37,6 +38,22 @@ describe('terminalIdentity helpers', () => {
     const first = stableSessionTerminalId('alpha beta', 'top')
     const second = stableSessionTerminalId('alpha?beta', 'top')
     expect(first).not.toBe(second)
+  })
+
+  it('does not reuse terminal bases for punctuation variants that sanitize identically', () => {
+    const firstBase = sessionTerminalBase('@??$!')
+    const secondBase = sessionTerminalBase('@?#?_')
+    expect(firstBase).not.toBe(secondBase)
+  })
+
+  it('includes legacy base variants for cleanup compatibility', () => {
+    const name = 'alpha beta'
+    const variants = sessionTerminalBaseVariants(name)
+    const hashFull = sessionTerminalHash(name)
+    expect(variants).toContain(`session-alpha_beta~${hashFull.slice(0, 8)}`)
+    expect(variants).toContain(`session-alpha_beta~${hashFull.slice(0, 6)}`)
+    expect(variants).toContain(`session-alpha_beta-${hashFull.slice(0, 6)}`)
+    expect(variants).toContain('session-alpha_beta')
   })
 
   it('returns consistent terminal group identifiers', () => {

@@ -30,7 +30,7 @@ use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
 use schaltwerk::services::ServiceHandles;
 use schaltwerk::shared::terminal_id::{
     legacy_terminal_id_for_session_top, previous_hashed_terminal_id_for_session_top,
-    terminal_id_for_session_top,
+    previous_tilde_hashed_terminal_id_for_session_top, terminal_id_for_session_top,
 };
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -552,6 +552,7 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                             let mut candidate_ids = Vec::new();
                             for candidate in [
                                 primary_terminal_id.clone(),
+                                previous_tilde_hashed_terminal_id_for_session_top(session_name),
                                 previous_hashed_terminal_id_for_session_top(session_name),
                                 legacy_terminal_id_for_session_top(session_name),
                             ] {

@@ -1,6 +1,7 @@
 const NON_ALPHANUMERIC = /[^a-zA-Z0-9_-]/g
 const SESSION_PREFIX = 'session'
-const HASH_SLICE = 6
+const HASH_SLICE_CURRENT = 8
+const HASH_SLICE_V1 = 6
 const FNV_OFFSET_BASIS = 0x811c9dc5
 const FNV_PRIME = 0x01000193
 
@@ -27,8 +28,41 @@ export function sessionTerminalHash(name?: string | null): string {
 
 export function sessionTerminalBase(name?: string | null): string {
   const sanitized = sanitizeSessionName(name)
-  const hash = sessionTerminalHash(name).slice(0, HASH_SLICE)
+  const hash = sessionTerminalHash(name).slice(0, HASH_SLICE_CURRENT)
   return `${SESSION_PREFIX}-${sanitized}~${hash}`
+}
+
+export function sessionTerminalBaseV1(name?: string | null): string {
+  const sanitized = sanitizeSessionName(name)
+  const hash = sessionTerminalHash(name).slice(0, HASH_SLICE_V1)
+  return `${SESSION_PREFIX}-${sanitized}~${hash}`
+}
+
+export function sessionTerminalBaseLegacyHashed(name?: string | null): string {
+  const sanitized = sanitizeSessionName(name)
+  const hash = sessionTerminalHash(name).slice(0, HASH_SLICE_V1)
+  return `${SESSION_PREFIX}-${sanitized}-${hash}`
+}
+
+export function sessionTerminalBaseLegacy(name?: string | null): string {
+  const sanitized = sanitizeSessionName(name)
+  return `${SESSION_PREFIX}-${sanitized}`
+}
+
+export function sessionTerminalBaseVariants(name?: string | null): string[] {
+  const variants = [
+    sessionTerminalBase(name),
+    sessionTerminalBaseV1(name),
+    sessionTerminalBaseLegacyHashed(name),
+    sessionTerminalBaseLegacy(name),
+  ]
+  const unique: string[] = []
+  for (const base of variants) {
+    if (!unique.includes(base)) {
+      unique.push(base)
+    }
+  }
+  return unique
 }
 
 export function stableSessionTerminalId(name: string | null | undefined, suffix: string): string {

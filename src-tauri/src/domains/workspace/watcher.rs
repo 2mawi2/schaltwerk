@@ -1024,7 +1024,10 @@ mod tests {
             .output()
             .expect("Failed to stage file");
 
-        let changed_files = vec![ChangedFile::new("staged.txt".to_string(), "added".to_string())];
+        let changed_files = vec![ChangedFile::new(
+            "staged.txt".to_string(),
+            "added".to_string(),
+        )];
 
         let result = FileWatcher::compute_change_summary(&changed_files, &repo_path, "HEAD").await;
         assert!(
@@ -1057,8 +1060,10 @@ mod tests {
         )
         .unwrap();
 
-        let changed_files =
-            vec![ChangedFile::new("initial.txt".to_string(), "modified".to_string())];
+        let changed_files = vec![ChangedFile::new(
+            "initial.txt".to_string(),
+            "modified".to_string(),
+        )];
 
         let result = FileWatcher::compute_change_summary(&changed_files, &repo_path, "HEAD").await;
         assert!(
@@ -1115,8 +1120,10 @@ mod tests {
         let non_repo_path = temp_dir.path().join("not-a-repo");
         fs::create_dir(&non_repo_path).unwrap();
 
-        let changed_files =
-            vec![ChangedFile::new("test.txt".to_string(), "modified".to_string())];
+        let changed_files = vec![ChangedFile::new(
+            "test.txt".to_string(),
+            "modified".to_string(),
+        )];
 
         let result =
             FileWatcher::compute_change_summary(&changed_files, &non_repo_path, "main").await;
@@ -1276,8 +1283,10 @@ mod tests {
             .output()
             .expect("Failed to stage deletion");
 
-        let changed_files =
-            vec![ChangedFile::new("initial.txt".to_string(), "deleted".to_string())];
+        let changed_files = vec![ChangedFile::new(
+            "initial.txt".to_string(),
+            "deleted".to_string(),
+        )];
 
         let result = FileWatcher::compute_change_summary(&changed_files, &repo_path, "HEAD").await;
         assert!(
@@ -1420,8 +1429,10 @@ mod tests {
             .output()
             .expect("Failed to stage binary file");
 
-        let changed_files =
-            vec![ChangedFile::new("binary.bin".to_string(), "added".to_string())];
+        let changed_files = vec![ChangedFile::new(
+            "binary.bin".to_string(),
+            "added".to_string(),
+        )];
 
         let result = FileWatcher::compute_change_summary(&changed_files, &repo_path, "HEAD").await;
         assert!(

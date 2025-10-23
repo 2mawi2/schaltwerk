@@ -658,16 +658,16 @@ fn check_mcp_configuration_status(project_path: &str, client: client::McpClient)
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-    pub struct MCPStatus {
-        pub mcp_server_path: String,
-        pub is_embedded: bool,
-        pub cli_available: bool,
-        pub node_available: bool,
-        pub node_command: String,
-        pub client: String,
-        pub is_configured: bool,
-        pub setup_command: String,
-        pub project_path: String,
+pub struct MCPStatus {
+    pub mcp_server_path: String,
+    pub is_embedded: bool,
+    pub cli_available: bool,
+    pub node_available: bool,
+    pub node_command: String,
+    pub client: String,
+    pub is_configured: bool,
+    pub setup_command: String,
+    pub project_path: String,
 }
 
 #[tauri::command]
