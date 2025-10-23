@@ -106,6 +106,21 @@ impl SettingsService {
         self.save()
     }
 
+    pub fn get_font_sizes(&self) -> (i32, i32) {
+        let sizes = self.settings.font_sizes;
+        (sizes.terminal, sizes.ui)
+    }
+
+    pub fn set_font_sizes(
+        &mut self,
+        terminal: i32,
+        ui: i32,
+    ) -> Result<(), SettingsServiceError> {
+        self.settings.font_sizes.terminal = terminal;
+        self.settings.font_sizes.ui = ui;
+        self.save()
+    }
+
     pub fn get_agent_cli_args(&self, agent_type: &str) -> String {
     if agent_type == "terminal" {
     return String::new();
@@ -519,6 +534,29 @@ mod tests {
             repo_handle.snapshot().agent_initial_commands.droid,
             "build project"
         );
+    }
+
+    #[test]
+    fn font_sizes_default_values() {
+        let repo = InMemoryRepository::default();
+        let service = SettingsService::new(Box::new(repo));
+
+        assert_eq!(service.get_font_sizes(), (13, 12));
+    }
+
+    #[test]
+    fn set_font_sizes_persists_values() {
+        let repo = InMemoryRepository::default();
+        let repo_handle = repo.clone();
+        let mut service = SettingsService::new(Box::new(repo));
+
+        service
+            .set_font_sizes(16, 15)
+            .expect("should persist font sizes");
+
+        assert_eq!(service.get_font_sizes(), (16, 15));
+        assert_eq!(repo_handle.snapshot().font_sizes.terminal, 16);
+        assert_eq!(repo_handle.snapshot().font_sizes.ui, 15);
     }
 
     #[test]

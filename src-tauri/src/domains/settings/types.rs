@@ -133,6 +133,32 @@ impl Default for TerminalSettings {
     }
 }
 
+fn default_terminal_font_size() -> i32 {
+    13
+}
+
+fn default_ui_font_size() -> i32 {
+    12
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct FontSizes {
+    #[serde(default = "default_terminal_font_size")]
+    pub terminal: i32,
+    #[serde(default = "default_ui_font_size")]
+    pub ui: i32,
+}
+
+impl Default for FontSizes {
+    fn default() -> Self {
+        Self {
+            terminal: default_terminal_font_size(),
+            ui: default_ui_font_size(),
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct AgentBinaryConfig {
     pub agent_name: String,
@@ -161,6 +187,8 @@ pub struct Settings {
     pub agent_initial_commands: AgentInitialCommands,
     pub terminal_ui: TerminalUIPreferences,
     pub terminal: TerminalSettings,
+    #[serde(default)]
+    pub font_sizes: FontSizes,
     pub agent_binaries: AgentBinaryConfigs,
     pub diff_view: DiffViewPreferences,
     pub session: SessionPreferences,
