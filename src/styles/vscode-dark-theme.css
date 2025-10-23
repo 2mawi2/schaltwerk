@@ -10,6 +10,10 @@
   tab-size: 4;
 }
 
+.diff-line-code.hljs {
+  white-space: pre-wrap !important;
+}
+
 /* General - Comments in Green */
 .hljs-comment,
 .hljs-quote {

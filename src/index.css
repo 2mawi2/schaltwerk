@@ -372,6 +372,11 @@ code {
   tab-size: 4;
 }
 
+.diff-line-code {
+  white-space: pre-wrap !important;
+  overflow-wrap: anywhere;
+}
+
 /* Animation classes */
 @keyframes fadeIn {
   from {
