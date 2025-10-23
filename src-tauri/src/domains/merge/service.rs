@@ -868,7 +868,6 @@ mod tests {
             ],
         )
         .unwrap();
-        // Ensure repositories created for tests use the "main" branch so merge code paths align with production defaults.
         run_git(
             path,
             vec![

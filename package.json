@@ -28,7 +28,7 @@
     "test:frontend:coverage": "ROLLUP_SKIP_NODEJS_NATIVE_ADDON=1 vitest run --coverage",
     "test:frontend:watch": "ROLLUP_SKIP_NODEJS_NATIVE_ADDON=1 vitest",
     "deps:rust": "cd src-tauri && cargo shear",
-    "test:rust": "cd src-tauri && CARGO_TERM_COLOR=never RUST_LOG=warn cargo nextest run --all-features",
+    "test:rust": "cd src-tauri && CARGO_TERM_COLOR=never RUST_LOG=warn cargo nextest run --all-features --status-level fail --failure-output immediate",
     "test:mcp": "cd mcp-server && bun test",
     "test": "run-s lint lint:ts lint:mcp lint:rust deps:rust test:frontend test:mcp test:rust build:rust",
     "test:fast": "run-p lint lint:ts test:frontend && run-s lint:rust test:rust build:rust",
