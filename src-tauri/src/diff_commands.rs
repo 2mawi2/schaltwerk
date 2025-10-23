@@ -1,11 +1,11 @@
 use std::path::Path;
 // no serde derives used in this module
 use crate::commands::session_lookup_cache::{current_repo_cache_key, global_session_lookup_cache};
-use crate::diff_engine::{
+use schaltwerk::domains::workspace::diff_engine::{
     add_collapsible_sections, calculate_diff_stats, calculate_split_diff_stats, compute_split_diff,
     compute_unified_diff, get_file_language, DiffResponse, FileInfo, SplitDiffResponse,
 };
-use crate::file_utils;
+use schaltwerk::domains::workspace::file_utils;
 use crate::get_core_read;
 use git2::{Delta, DiffFindOptions, DiffOptions, ObjectType, Oid, Repository, Sort, Tree};
 use schaltwerk::binary_detection::{get_unsupported_reason, is_binary_file_by_extension};
