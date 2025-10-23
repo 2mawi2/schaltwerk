@@ -1534,7 +1534,18 @@ impl SessionManager {
             amp_thread_id: None,
         };
 
-        let repo_was_empty = !git::repository_has_commits(&self.repo_path).unwrap_or(true);
+        let existing_branches_list =
+            git::list_branches(&self.repo_path).unwrap_or_else(|_| Vec::new());
+        let repo_was_empty =
+            !git::repository_has_commits(&self.repo_path).unwrap_or(false)
+                || existing_branches_list.is_empty();
+        log::info!(
+            "Session bootstrap state before worktree creation: repo_was_empty={}, base_branch='{}', repo='{}', branches=[{}]",
+            repo_was_empty,
+            parent_branch,
+            self.repo_path.display(),
+            existing_branches_list.join(", ")
+        );
         if repo_was_empty {
             log::info!(
                 "Repository has no commits, creating initial commit: '{}'",
@@ -1551,6 +1562,37 @@ impl SessionManager {
                 self.cache_manager.unreserve_name(&unique_name);
                 anyhow!("Failed to bootstrap base branch '{parent_branch}': {e}")
             })?;
+        }
+
+        match git::branch_exists(&self.repo_path, &parent_branch) {
+            Ok(true) => {}
+            Ok(false) => {
+                log::info!(
+                    "Base branch '{}' missing before worktree creation. Available branches: [{}]",
+                    parent_branch,
+                    existing_branches_list.join(", ")
+                );
+                if repo_was_empty {
+                    log::info!(
+                        "Base branch '{parent_branch}' missing after bootstrap, retrying creation"
+                    );
+                    git::ensure_branch_at_head(&self.repo_path, &parent_branch).map_err(|e| {
+                        self.cache_manager.unreserve_name(&unique_name);
+                        anyhow!("Failed to finalize base branch '{parent_branch}': {e}")
+                    })?;
+                } else {
+                    self.cache_manager.unreserve_name(&unique_name);
+                    return Err(anyhow!(
+                        "Base branch '{parent_branch}' does not exist in the repository"
+                    ));
+                }
+            }
+            Err(err) => {
+                self.cache_manager.unreserve_name(&unique_name);
+                return Err(anyhow!(
+                    "Failed to validate base branch '{parent_branch}': {err}"
+                ));
+            }
         }
 
         let create_result = git::create_worktree_from_base(
