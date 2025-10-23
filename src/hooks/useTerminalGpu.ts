@@ -36,6 +36,7 @@ interface UseTerminalGpuResult {
   cancelGpuRefreshWork: () => void;
   ensureRenderer: () => Promise<void>;
   handleFontPreferenceChange: () => Promise<void>;
+  webglRendererActive: boolean;
 }
 
 export function useTerminalGpu({
@@ -53,7 +54,13 @@ export function useTerminalGpu({
   });
   const lastRendererTypeRef = useRef<'none' | 'canvas' | 'webgl'>('none');
   const [webglEnabled, setWebglEnabled] = useState<boolean>(true);
+  const [webglRendererActive, setWebglRendererActive] = useState<boolean>(false);
   const letterSpacingIssueLogged = useRef<'missing' | 'failure' | null>(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => () => {
+    mountedRef.current = false;
+  }, []);
 
   const gpuEnabledForTerminal = useMemo(
     () => !isBackground && webglEnabled,
@@ -168,6 +175,9 @@ export function useTerminalGpu({
     logger.info(`[Terminal ${terminalId}] WebGL context lost, falling back to DOM renderer globally`);
     disposeRegisteredGpuRenderer(terminalId, 'context-loss');
     gpuRenderer.current = null;
+    if (mountedRef.current) {
+      setWebglRendererActive(false);
+    }
     applyLetterSpacing(false);
     try {
       fitAddonRef.current?.fit();
@@ -209,6 +219,10 @@ export function useTerminalGpu({
     const state = await renderer.ensureLoaded();
     const previousRendererType = lastRendererTypeRef.current;
     lastRendererTypeRef.current = state.type;
+    const isWebgl = state.type === 'webgl';
+    if (mountedRef.current) {
+      setWebglRendererActive(isWebgl);
+    }
     if (state.type === 'webgl') {
       if (!gpuRefreshState.current.refreshing && !gpuRefreshState.current.queued) {
         // Keep xterm.js' WebGL atlas intact on renderer reuse; only refresh when transitioning
@@ -279,6 +293,9 @@ export function useTerminalGpu({
       } else {
         disposeRegisteredGpuRenderer(terminalId, 'while toggling WebGL');
         gpuRenderer.current = null;
+        if (mountedRef.current) {
+          setWebglRendererActive(false);
+        }
         applyLetterSpacing(false);
       }
     });
@@ -291,12 +308,15 @@ export function useTerminalGpu({
       disposeRegisteredGpuRenderer(terminalId, 'feature-toggle');
       gpuRenderer.current = null;
       cancelGpuRefreshWork();
+      if (mountedRef.current) {
+        setWebglRendererActive(false);
+      }
     }
   }, [gpuEnabledForTerminal, terminalId, cancelGpuRefreshWork]);
 
   useEffect(() => {
-    applyLetterSpacing(gpuEnabledForTerminal);
-  }, [applyLetterSpacing, gpuEnabledForTerminal]);
+    applyLetterSpacing(webglRendererActive);
+  }, [applyLetterSpacing, webglRendererActive]);
 
   const handleFontPreferenceChange = useCallback(async () => {
     if (!gpuEnabledForTerminal) {
@@ -348,5 +368,6 @@ export function useTerminalGpu({
     cancelGpuRefreshWork,
     ensureRenderer,
     handleFontPreferenceChange,
+    webglRendererActive,
   };
 }
