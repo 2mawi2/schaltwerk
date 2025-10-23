@@ -64,6 +64,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
+      - name: Install cargo-nextest and cargo-shear
+        run: |
+          if ! command -v cargo-nextest >/dev/null 2>&1; then
+            cargo install cargo-nextest --locked
+          fi
+          if ! command -v cargo-shear >/dev/null 2>&1; then
+            cargo install cargo-shear
+          fi
+
       - name: Install dependencies
         run: node scripts/package-manager.mjs install --frozen-lockfile
 
