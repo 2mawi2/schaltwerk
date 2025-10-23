@@ -1,5 +1,4 @@
 use std::path::Path;
-// no serde derives used in this module
 use crate::commands::session_lookup_cache::{current_repo_cache_key, global_session_lookup_cache};
 use schaltwerk::domains::workspace::diff_engine::{
     add_collapsible_sections, calculate_diff_stats, calculate_split_diff_stats, compute_split_diff,
