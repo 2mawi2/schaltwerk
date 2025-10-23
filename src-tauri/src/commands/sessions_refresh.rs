@@ -408,10 +408,10 @@ mod tests {
         ];
 
         let strings: Vec<&str> = reasons.iter().map(|r| r.as_str()).collect();
-        let unique_count = strings.iter().collect::<std::collections::HashSet<_>>().len();
-        assert_eq!(
-            unique_count, 6,
-            "All reason strings should be unique"
-        );
+        let unique_count = strings
+            .iter()
+            .collect::<std::collections::HashSet<_>>()
+            .len();
+        assert_eq!(unique_count, 6, "All reason strings should be unique");
     }
 }

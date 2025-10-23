@@ -1,7 +1,7 @@
 import { logger } from '../../utils/logger';
 import { XtermTerminal } from '../xterm/XtermTerminal';
 import { disposeGpuRenderer } from '../gpu/gpuRendererRegistry';
-import { sessionTerminalGroup } from '../../common/terminalIdentity';
+import { sessionTerminalBaseVariants } from '../../common/terminalIdentity';
 import { terminalOutputManager } from '../stream/terminalOutputManager';
 
 export interface TerminalInstanceRecord {
@@ -236,6 +236,13 @@ export function releaseTerminalFamilyByPrefix(prefix: string): void {
 }
 
 export function releaseSessionTerminals(sessionName: string): void {
-  const group = sessionTerminalGroup(sessionName);
-  registry.releaseByPredicate((id) => id === group.base || id.startsWith(`${group.base}-`));
+  const bases = sessionTerminalBaseVariants(sessionName);
+  registry.releaseByPredicate(id => {
+    for (const base of bases) {
+      if (id === base || id.startsWith(`${base}-`)) {
+        return true;
+      }
+    }
+    return false;
+  });
 }

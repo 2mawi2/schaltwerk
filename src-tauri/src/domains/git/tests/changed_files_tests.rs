@@ -52,7 +52,9 @@ fn init_test_repo() -> TempDir {
         .current_dir(p)
         .output()
         .unwrap();
-    let current_branch = String::from_utf8_lossy(&branch_output.stdout).trim().to_string();
+    let current_branch = String::from_utf8_lossy(&branch_output.stdout)
+        .trim()
+        .to_string();
     if current_branch != "main" && !current_branch.is_empty() {
         StdCommand::new("git")
             .args(["branch", "-m", &current_branch, "main"])
@@ -532,8 +534,11 @@ fn test_changed_files_multiple_status_types() {
         files.iter().map(|f| f.change_type.as_str()).collect();
 
     // Should have at least some change types represented
-    assert!(change_types.contains(&"added") || change_types.contains(&"deleted")
-        || change_types.contains(&"modified"));
+    assert!(
+        change_types.contains(&"added")
+            || change_types.contains(&"deleted")
+            || change_types.contains(&"modified")
+    );
 }
 
 // ============================================================================
@@ -602,7 +607,11 @@ fn test_deeply_nested_file_paths() {
 
     // Create deeply nested structure
     fs::create_dir_all(p.join("src/components/forms/validation")).unwrap();
-    fs::write(p.join("src/components/forms/validation/email.rs"), "fn validate() {}").unwrap();
+    fs::write(
+        p.join("src/components/forms/validation/email.rs"),
+        "fn validate() {}",
+    )
+    .unwrap();
 
     StdCommand::new("git")
         .args(["add", "."])
