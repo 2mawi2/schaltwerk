@@ -75,6 +75,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
+      - name: Install cargo-nextest and cargo-shear
+        run: |
+          if ! command -v cargo-nextest >/dev/null 2>&1; then
+            cargo install cargo-nextest --locked
+          fi
+          if ! command -v cargo-shear >/dev/null 2>&1; then
+            cargo install cargo-shear
+          fi
+
       - name: Install dependencies
         run: |
           rm -rf node_modules
@@ -88,5 +97,5 @@ jobs:
             cd ..
           fi
 
-      - name: Run full test suite (lint, TS, MCP, clippy, frontend, MCP tests, Rust, build)
+      - name: Run full test suite (lint, shear, nextest, build)
         run: node scripts/package-manager.mjs run test
