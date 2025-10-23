@@ -25,13 +25,3 @@ export function disposeGpuRenderer(id: string, reason: string): void {
   }
 }
 
-export function clearGpuRendererRegistry(): void {
-  for (const [id, renderer] of gpuRenderers) {
-    try {
-      renderer.dispose();
-    } catch (error) {
-      logger.debug(`[GPU] Failed to dispose renderer during clear (${id})`, error);
-    }
-  }
-  gpuRenderers.clear();
-}

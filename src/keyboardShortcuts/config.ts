@@ -129,7 +129,3 @@ export const normalizeShortcutConfig = (
   config: PartialKeyboardShortcutConfig,
 ): KeyboardShortcutConfig => mergeShortcutConfig(config)
 
-export const getShortcutBindings = (
-  config: KeyboardShortcutConfig,
-  action: KeyboardShortcutAction,
-): string[] => config[action] ?? []

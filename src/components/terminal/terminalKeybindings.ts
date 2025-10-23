@@ -1,13 +1,5 @@
 import { detectPlatformSafe } from '../../keyboardShortcuts/helpers';
 
-export interface KeyBinding {
-    key: string;
-    ctrlKey?: boolean;
-    metaKey?: boolean;
-    shiftKey?: boolean;
-    altKey?: boolean;
-}
-
 export interface KeyBindingMatch {
     matches: boolean;
     commandId?: string;

@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
 import { TauriCommands } from '../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
-import type { HeaderActionConfig } from '../components/ActionButton'
+import type { HeaderActionConfig } from '../types/actionButton'
 import { useProject } from './ProjectContext'
 import { logger } from '../utils/logger'
 

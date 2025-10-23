@@ -2,7 +2,6 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../common/tauriCommands'
 import {
-  KeyboardShortcutAction,
   KeyboardShortcutConfig,
   PartialKeyboardShortcutConfig,
   defaultShortcutConfig,
@@ -89,6 +88,3 @@ export const useKeyboardShortcutsConfig = (): KeyboardShortcutContextValue => {
   return ctx
 }
 
-export const listKeyboardShortcutActions = (): KeyboardShortcutAction[] => {
-  return Object.values(KeyboardShortcutAction)
-}
