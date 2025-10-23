@@ -2,7 +2,6 @@ import { memo, useState } from 'react'
 import { VscAdd, VscChevronDown, VscChevronRight } from 'react-icons/vsc'
 import clsx from 'clsx'
 import { LineInfo } from '../../types/diff'
-import { theme } from '../../common/theme'
 
 interface DiffLineRowProps {
   line: LineInfo
@@ -133,36 +132,17 @@ function DiffLineRowComponent({
       onMouseUp={(event) => onLineMouseUp?.({ event, filePath })}
     >
       {/* Selection button */}
-      <td className="w-10 text-center select-none">
+      <td className="w-7 pr-0.5 text-right select-none">
         {lineNum && onLineMouseDown && (
           <button
             onMouseDown={(e) => onLineMouseDown({ lineNum, side, filePath, event: e })}
-            onMouseEnter={(e) => {
-              onLineMouseEnter?.({ lineNum, side, filePath })
-              if (!isSelected) {
-                e.currentTarget.style.color = 'rgb(203, 213, 225)'; // slate-300
-                e.currentTarget.style.backgroundColor = 'rgb(30, 41, 59)'; // slate-800
-              }
-            }}
+            onMouseEnter={() => onLineMouseEnter?.({ lineNum, side, filePath })}
             onMouseUp={(e) => onLineMouseUp?.({ event: e, filePath })}
-            className="p-1 rounded opacity-0 group-hover:opacity-100"
-            style={isSelected ? {
-              color: theme.colors.accent.blue.light,
-              backgroundColor: theme.colors.accent.blue.bg,
-              opacity: 1,
-            } : {
-              color: 'rgb(71, 85, 105)', // slate-600
-            }}
-            onMouseLeave={(e) => {
-              if (!isSelected) {
-                e.currentTarget.style.color = 'rgb(71, 85, 105)'; // slate-600
-                e.currentTarget.style.backgroundColor = 'transparent';
-              }
-            }}
+            className={`p-1 rounded bg-[#21D3EE] text-white opacity-0 group-hover:opacity-100 ${isSelected ? '!opacity-100' : ''}`}
             aria-label={`Select line ${lineNum}`}
             title="Click to select line, drag to select range"
           >
-            <VscAdd className="text-xs" />
+            <VscAdd className="text-sm" />
           </button>
         )}
       </td>
