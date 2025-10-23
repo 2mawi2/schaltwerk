@@ -20,6 +20,14 @@ select {
   line-height: inherit;
 }
 
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
 /* Ensure text selection works in diff viewer */
 .select-text {
   user-select: text !important;
