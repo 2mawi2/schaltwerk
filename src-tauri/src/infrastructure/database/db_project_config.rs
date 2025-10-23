@@ -259,8 +259,23 @@ impl ProjectConfigMethods for Database {
             std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
 
         conn.execute(
-            "INSERT INTO project_config (repository_path, setup_script, created_at, updated_at)
-                VALUES (?1, ?2, ?3, ?4)
+            "INSERT INTO project_config (
+                    repository_path,
+                    auto_cancel_after_merge,
+                    setup_script,
+                    created_at,
+                    updated_at
+                )
+                VALUES (
+                    ?1,
+                    COALESCE(
+                        (SELECT auto_cancel_after_merge FROM project_config WHERE repository_path = ?1),
+                        1
+                    ),
+                    ?2,
+                    ?3,
+                    ?4
+                )
                 ON CONFLICT(repository_path) DO UPDATE SET
                     setup_script = excluded.setup_script,
                     updated_at = excluded.updated_at",
@@ -309,9 +324,25 @@ impl ProjectConfigMethods for Database {
             std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
 
         conn.execute(
-            "INSERT INTO project_config (repository_path, sessions_filter_mode, sessions_sort_mode,
-                                            created_at, updated_at)
-                VALUES (?1, ?2, ?3, ?4, ?5)
+            "INSERT INTO project_config (
+                    repository_path,
+                    auto_cancel_after_merge,
+                    sessions_filter_mode,
+                    sessions_sort_mode,
+                    created_at,
+                    updated_at
+                )
+                VALUES (
+                    ?1,
+                    COALESCE(
+                        (SELECT auto_cancel_after_merge FROM project_config WHERE repository_path = ?1),
+                        1
+                    ),
+                    ?2,
+                    ?3,
+                    ?4,
+                    ?5
+                )
                 ON CONFLICT(repository_path) DO UPDATE SET
                     sessions_filter_mode = excluded.sessions_filter_mode,
                     sessions_sort_mode   = excluded.sessions_sort_mode,
@@ -359,8 +390,23 @@ impl ProjectConfigMethods for Database {
         let normalized = normalize_branch_prefix(branch_prefix);
 
         conn.execute(
-            "INSERT INTO project_config (repository_path, branch_prefix, created_at, updated_at)
-                VALUES (?1, ?2, ?3, ?4)
+            "INSERT INTO project_config (
+                    repository_path,
+                    auto_cancel_after_merge,
+                    branch_prefix,
+                    created_at,
+                    updated_at
+                )
+                VALUES (
+                    ?1,
+                    COALESCE(
+                        (SELECT auto_cancel_after_merge FROM project_config WHERE repository_path = ?1),
+                        1
+                    ),
+                    ?2,
+                    ?3,
+                    ?4
+                )
                 ON CONFLICT(repository_path) DO UPDATE SET
                     branch_prefix = excluded.branch_prefix,
                     updated_at    = excluded.updated_at",
@@ -411,9 +457,23 @@ impl ProjectConfigMethods for Database {
         let json_str = serde_json::to_string(env_vars)?;
 
         conn.execute(
-            "INSERT INTO project_config (repository_path, environment_variables,
-                                            created_at, updated_at)
-                VALUES (?1, ?2, ?3, ?4)
+            "INSERT INTO project_config (
+                    repository_path,
+                    auto_cancel_after_merge,
+                    environment_variables,
+                    created_at,
+                    updated_at
+                )
+                VALUES (
+                    ?1,
+                    COALESCE(
+                        (SELECT auto_cancel_after_merge FROM project_config WHERE repository_path = ?1),
+                        1
+                    ),
+                    ?2,
+                    ?3,
+                    ?4
+                )
                 ON CONFLICT(repository_path) DO UPDATE SET
                     environment_variables = excluded.environment_variables,
                     updated_at            = excluded.updated_at",
@@ -513,8 +573,23 @@ impl ProjectConfigMethods for Database {
         let json_str = serde_json::to_string(actions)?;
 
         conn.execute(
-            "INSERT INTO project_config (repository_path, action_buttons, created_at, updated_at)
-                VALUES (?1, ?2, ?3, ?4)
+            "INSERT INTO project_config (
+                    repository_path,
+                    auto_cancel_after_merge,
+                    action_buttons,
+                    created_at,
+                    updated_at
+                )
+                VALUES (
+                    ?1,
+                    COALESCE(
+                        (SELECT auto_cancel_after_merge FROM project_config WHERE repository_path = ?1),
+                        1
+                    ),
+                    ?2,
+                    ?3,
+                    ?4
+                )
                 ON CONFLICT(repository_path) DO UPDATE SET
                     action_buttons = excluded.action_buttons,
                     updated_at = excluded.updated_at",
@@ -556,8 +631,23 @@ impl ProjectConfigMethods for Database {
         let json_str = serde_json::to_string(run_script)?;
 
         conn.execute(
-            "INSERT INTO project_config (repository_path, run_script, created_at, updated_at)
-                VALUES (?1, ?2, ?3, ?4)
+            "INSERT INTO project_config (
+                    repository_path,
+                    auto_cancel_after_merge,
+                    run_script,
+                    created_at,
+                    updated_at
+                )
+                VALUES (
+                    ?1,
+                    COALESCE(
+                        (SELECT auto_cancel_after_merge FROM project_config WHERE repository_path = ?1),
+                        1
+                    ),
+                    ?2,
+                    ?3,
+                    ?4
+                )
                 ON CONFLICT(repository_path) DO UPDATE SET
                     run_script = excluded.run_script,
                     updated_at = excluded.updated_at",
@@ -618,11 +708,23 @@ impl ProjectConfigMethods for Database {
         conn.execute(
             "INSERT INTO project_config (
                     repository_path,
+                    auto_cancel_after_merge,
                     github_repository,
                     github_default_branch,
                     created_at,
                     updated_at
-                ) VALUES (?1, ?2, ?3, ?4, ?4)
+                )
+                VALUES (
+                    ?1,
+                    COALESCE(
+                        (SELECT auto_cancel_after_merge FROM project_config WHERE repository_path = ?1),
+                        1
+                    ),
+                    ?2,
+                    ?3,
+                    ?4,
+                    ?4
+                )
                 ON CONFLICT(repository_path) DO UPDATE SET
                     github_repository = excluded.github_repository,
                     github_default_branch = excluded.github_default_branch,
@@ -648,11 +750,23 @@ impl ProjectConfigMethods for Database {
         conn.execute(
             "INSERT INTO project_config (
                     repository_path,
+                    auto_cancel_after_merge,
                     github_repository,
                     github_default_branch,
                     created_at,
                     updated_at
-                ) VALUES (?1, NULL, NULL, ?2, ?2)
+                )
+                VALUES (
+                    ?1,
+                    COALESCE(
+                        (SELECT auto_cancel_after_merge FROM project_config WHERE repository_path = ?1),
+                        1
+                    ),
+                    NULL,
+                    NULL,
+                    ?2,
+                    ?2
+                )
                 ON CONFLICT(repository_path) DO UPDATE SET
                     github_repository = NULL,
                     github_default_branch = NULL,
@@ -747,5 +861,24 @@ mod tests {
             .expect("load config");
 
         assert!(loaded.is_none());
+    }
+
+    #[test]
+    fn defaults_auto_cancel_true_for_new_project_rows() {
+        let db = Database::new_in_memory().expect("db");
+        let (_tmp, repo_path) = create_temp_repo_path();
+
+        // Trigger an insert via another settings path to simulate real initialization order
+        db.set_project_branch_prefix(&repo_path, "schaltwerk")
+            .expect("store branch prefix");
+
+        let preferences = db
+            .get_project_merge_preferences(&repo_path)
+            .expect("load merge preferences");
+
+        assert!(
+            preferences.auto_cancel_after_merge,
+            "expected auto-cancel-after-merge to default to true for new projects"
+        );
     }
 }
