@@ -77,3 +77,23 @@ export function shouldHandleClaudeShiftEnter(
         !readOnly
     );
 }
+
+const isControlOnly = (event: KeyboardEvent): boolean => {
+    return event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey;
+};
+
+const isKey = (event: KeyboardEvent, expected: string): boolean => {
+    return event.key?.toLowerCase() === expected.toLowerCase();
+};
+
+export function shouldEmitControlPaste(event: KeyboardEvent): boolean {
+    const platform = detectPlatformSafe();
+    if (platform !== 'mac') return false;
+    if (event.type !== 'keydown') return false;
+    return isControlOnly(event) && isKey(event, 'v');
+}
+
+export function shouldEmitControlNewline(event: KeyboardEvent): boolean {
+    if (event.type !== 'keydown') return false;
+    return isControlOnly(event) && isKey(event, 'j');
+}

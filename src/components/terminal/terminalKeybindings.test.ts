@@ -1,5 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
-import { matchKeybinding, shouldSkipShell, shouldHandleClaudeShiftEnter, TerminalCommand } from './terminalKeybindings';
+import { detectPlatformSafe } from '../../keyboardShortcuts/helpers';
+import {
+    matchKeybinding,
+    shouldSkipShell,
+    shouldHandleClaudeShiftEnter,
+    TerminalCommand,
+    shouldEmitControlPaste,
+    shouldEmitControlNewline,
+} from './terminalKeybindings';
 
 vi.mock('../../keyboardShortcuts/helpers', () => ({
     detectPlatformSafe: vi.fn(() => 'mac'),
@@ -86,6 +94,45 @@ describe('terminalKeybindings', () => {
             const result = matchKeybinding(event);
             expect(result.matches).toBe(false);
             expect(result.commandId).toBeUndefined();
+        });
+    });
+
+    describe('codex control shortcuts', () => {
+        beforeEach(() => {
+            vi.mocked(detectPlatformSafe).mockReturnValue('mac');
+        });
+
+        it('should emit control paste sequence for Ctrl+V on macOS', () => {
+            const event = new KeyboardEvent('keydown', {
+                key: 'v',
+                ctrlKey: true,
+            });
+            expect(shouldEmitControlPaste(event)).toBe(true);
+        });
+
+        it('should not emit control paste when Command key is used', () => {
+            const event = new KeyboardEvent('keydown', {
+                key: 'v',
+                metaKey: true,
+            });
+            expect(shouldEmitControlPaste(event)).toBe(false);
+        });
+
+        it('should emit newline control sequence for Ctrl+J on macOS', () => {
+            const event = new KeyboardEvent('keydown', {
+                key: 'j',
+                ctrlKey: true,
+            });
+            expect(shouldEmitControlNewline(event)).toBe(true);
+        });
+
+        it('should ignore Ctrl+J when additional modifiers are present', () => {
+            const event = new KeyboardEvent('keydown', {
+                key: 'j',
+                ctrlKey: true,
+                shiftKey: true,
+            });
+            expect(shouldEmitControlNewline(event)).toBe(false);
         });
     });
 
