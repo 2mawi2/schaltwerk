@@ -150,7 +150,11 @@ pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
                                 b"\x1b]11;rgb:1e/1e/1e\x07".to_vec(),
                             ));
                             i = term_idx + terminator_len;
+                        } else if text.starts_with("8;") {
+                            data.extend_from_slice(&input[i..=term_idx + terminator_len - 1]);
+                            i = term_idx + terminator_len;
                         } else {
+                            log::trace!("Passing through OSC sequence {text:?}");
                             data.extend_from_slice(&input[i..=term_idx + terminator_len - 1]);
                             i = term_idx + terminator_len;
                         }
@@ -267,6 +271,36 @@ mod tests {
         assert_eq!(
             result.data,
             b"pre\x1b]8;;https://example.com\x07link\x1b]8;;\x07post"
+        );
+        assert!(result.remainder.is_none());
+        assert!(result.cursor_query_offsets.is_empty());
+        assert!(result.responses.is_empty());
+    }
+
+    #[test]
+    fn passes_through_osc_8_hyperlinks_with_bel_terminator() {
+        let result = sanitize_control_sequences(
+            b"pre\x1b]8;;https://example.com\x07linktext\x1b]8;;\x07post",
+        );
+
+        assert_eq!(
+            result.data,
+            b"pre\x1b]8;;https://example.com\x07linktext\x1b]8;;\x07post"
+        );
+        assert!(result.remainder.is_none());
+        assert!(result.cursor_query_offsets.is_empty());
+        assert!(result.responses.is_empty());
+    }
+
+    #[test]
+    fn passes_through_osc_8_hyperlinks_with_st_terminator() {
+        let result = sanitize_control_sequences(
+            b"pre\x1b]8;id=123;https://example.com\x1b\\linktext\x1b]8;;\x1b\\post",
+        );
+
+        assert_eq!(
+            result.data,
+            b"pre\x1b]8;id=123;https://example.com\x1b\\linktext\x1b]8;;\x1b\\post"
         );
         assert!(result.remainder.is_none());
         assert!(result.cursor_query_offsets.is_empty());

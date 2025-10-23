@@ -51,6 +51,14 @@ default_binary_path = "qwen"
 auto_send_initial_command = false
 supports_resume = false
 
+[agents.amp]
+id = "amp"
+display_name = "Amp"
+binary_name = "amp"
+default_binary_path = "amp"
+auto_send_initial_command = false
+supports_resume = false
+
 [agents.terminal]
 id = "terminal"
 display_name = "Terminal Only"

@@ -159,6 +159,43 @@ pub async fn get_all_terminal_activity(
     services.terminals.get_all_terminal_activity().await
 }
 
+#[tauri::command]
+pub async fn register_session_terminals(
+    services: State<'_, ServiceHandles>,
+    project_id: String,
+    session_id: Option<String>,
+    terminal_ids: Vec<String>,
+) -> Result<(), String> {
+    services
+        .terminals
+        .register_session_terminals(project_id, session_id, terminal_ids)
+        .await
+}
+
+#[tauri::command]
+pub async fn suspend_session_terminals(
+    services: State<'_, ServiceHandles>,
+    project_id: String,
+    session_id: Option<String>,
+) -> Result<(), String> {
+    services
+        .terminals
+        .suspend_session_terminals(project_id, session_id)
+        .await
+}
+
+#[tauri::command]
+pub async fn resume_session_terminals(
+    services: State<'_, ServiceHandles>,
+    project_id: String,
+    session_id: Option<String>,
+) -> Result<(), String> {
+    services
+        .terminals
+        .resume_session_terminals(project_id, session_id)
+        .await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -180,6 +217,9 @@ mod tests {
         buffer_calls: Arc<Mutex<Vec<(String, Option<u64>)>>>,
         activity_status_calls: Arc<Mutex<Vec<String>>>,
         activity_all_calls: Arc<Mutex<usize>>,
+        register_calls: Arc<Mutex<Vec<(String, Option<String>, Vec<String>)>>>,
+        suspend_calls: Arc<Mutex<Vec<(String, Option<String>)>>>,
+        resume_calls: Arc<Mutex<Vec<(String, Option<String>)>>>,
         should_error: bool,
     }
 
@@ -198,6 +238,9 @@ mod tests {
                 buffer_calls: Arc::new(Mutex::new(Vec::new())),
                 activity_status_calls: Arc::new(Mutex::new(Vec::new())),
                 activity_all_calls: Arc::new(Mutex::new(0)),
+                register_calls: Arc::new(Mutex::new(Vec::new())),
+                suspend_calls: Arc::new(Mutex::new(Vec::new())),
+                resume_calls: Arc::new(Mutex::new(Vec::new())),
                 should_error: false,
             }
         }
@@ -340,6 +383,55 @@ mod tests {
                 Err("activity all failed".to_string())
             } else {
                 Ok(vec![("term-1".to_string(), 10), ("term-2".to_string(), 20)])
+            }
+        }
+
+        async fn register_session_terminals(
+            &self,
+            project_id: String,
+            session_id: Option<String>,
+            terminal_ids: Vec<String>,
+        ) -> Result<(), String> {
+            self.register_calls
+                .lock()
+                .unwrap()
+                .push((project_id, session_id.clone(), terminal_ids.clone()));
+            if self.should_error {
+                Err("register failed".to_string())
+            } else {
+                Ok(())
+            }
+        }
+
+        async fn suspend_session_terminals(
+            &self,
+            project_id: String,
+            session_id: Option<String>,
+        ) -> Result<(), String> {
+            self.suspend_calls
+                .lock()
+                .unwrap()
+                .push((project_id, session_id.clone()));
+            if self.should_error {
+                Err("suspend failed".to_string())
+            } else {
+                Ok(())
+            }
+        }
+
+        async fn resume_session_terminals(
+            &self,
+            project_id: String,
+            session_id: Option<String>,
+        ) -> Result<(), String> {
+            self.resume_calls
+                .lock()
+                .unwrap()
+                .push((project_id, session_id.clone()));
+            if self.should_error {
+                Err("resume failed".to_string())
+            } else {
+                Ok(())
             }
         }
     }
