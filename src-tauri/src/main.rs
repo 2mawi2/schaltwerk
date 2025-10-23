@@ -38,6 +38,12 @@ use tokio::sync::{Mutex, OnceCell, OwnedRwLockReadGuard, OwnedRwLockWriteGuard, 
 
 const UPDATER_PUBLIC_KEY: &str = include_str!("../updater-public.pem");
 
+#[derive(Debug, Clone, Serialize)]
+struct DevBackendErrorPayload {
+    message: String,
+    source: Option<String>,
+}
+
 #[cfg(target_os = "macos")]
 fn extend_process_path() {
     use std::collections::HashSet;
@@ -256,8 +262,14 @@ pub async fn get_schaltwerk_core(
 ) -> Result<Arc<RwLock<schaltwerk::schaltwerk_core::SchaltwerkCore>>, String> {
     let manager = get_project_manager().await;
     manager.current_schaltwerk_core().await.map_err(|e| {
-        log::error!("Failed to get Schaltwerk core: {e}");
-        format!("Failed to get Schaltwerk core: {e}")
+        let detail = e.to_string();
+        let message = format!("Failed to get Schaltwerk core: {detail}");
+        if detail.contains("No active project") {
+            log::warn!("{message}");
+        } else {
+            log::error!("{message}");
+        }
+        message
     })
 }
 
@@ -725,6 +737,8 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
 }
 
 use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
+use schaltwerk::infrastructure::logging::register_dev_error_hook;
+use serde::Serialize;
 use tauri::Manager;
 
 fn main() {
@@ -967,8 +981,10 @@ fn main() {
             set_session_preferences,
             get_auto_commit_on_review,
             get_auto_update_enabled,
+            get_dev_error_toasts_enabled,
             set_auto_commit_on_review,
             set_auto_update_enabled,
+            set_dev_error_toasts_enabled,
             get_keyboard_shortcuts,
             set_keyboard_shortcuts,
             get_project_settings,
@@ -1008,6 +1024,21 @@ fn main() {
             set_amp_mcp_servers
         ])
         .setup(move |app| {
+            #[cfg(debug_assertions)]
+            {
+                let backend_error_handle = app.handle().clone();
+                register_dev_error_hook(move |message, source| {
+                    let payload = DevBackendErrorPayload {
+                        message: message.to_string(),
+                        source: source.map(|value| value.to_string()),
+                    };
+
+                    if let Err(err) = emit_event(&backend_error_handle, SchaltEvent::DevBackendError, &payload) {
+                        eprintln!("Failed to emit dev backend error event: {err}");
+                    }
+                });
+            }
+
             let project_manager = tauri::async_runtime::block_on(get_project_manager());
             let services = ServiceHandles::new(Arc::clone(&project_manager), app.handle().clone());
             app.manage(services);

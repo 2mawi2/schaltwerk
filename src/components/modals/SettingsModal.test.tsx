@@ -29,6 +29,10 @@ const baseInvokeImplementation = async (command: string, _args?: unknown) => {
       return true
     case TauriCommands.SetAutoUpdateEnabled:
       return null
+    case TauriCommands.GetDevErrorToastsEnabled:
+      return false
+    case TauriCommands.SetDevErrorToastsEnabled:
+      return null
     case TauriCommands.CheckForUpdatesNow:
       return {
         status: 'upToDate',
@@ -164,7 +168,9 @@ vi.mock('../../contexts/SessionsContext', () => ({
 describe('SettingsModal loading indicators', () => {
   beforeEach(() => {
     useSettingsMock.mockReset()
+    useSettingsMock.mockReturnValue(createDefaultUseSettingsValue())
     useSessionsMock.mockReset()
+    useSessionsMock.mockReturnValue(createDefaultUseSessionsValue())
     invokeMock.mockClear()
     invokeMock.mockImplementation(baseInvokeImplementation)
   })
@@ -278,7 +284,9 @@ describe('SettingsModal initial tab handling', () => {
 describe('SettingsModal version settings', () => {
   beforeEach(() => {
     useSettingsMock.mockReset()
-   useSessionsMock.mockReset()
+    useSettingsMock.mockReturnValue(createDefaultUseSettingsValue())
+    useSessionsMock.mockReset()
+    useSessionsMock.mockReturnValue(createDefaultUseSessionsValue())
     invokeMock.mockClear()
     invokeMock.mockImplementation(baseInvokeImplementation)
   })
@@ -327,10 +335,63 @@ describe('SettingsModal version settings', () => {
   })
 })
 
+describe('SettingsModal appearance settings', () => {
+  beforeEach(() => {
+    useSettingsMock.mockReset()
+    useSettingsMock.mockReturnValue(createDefaultUseSettingsValue())
+    useSessionsMock.mockReset()
+    useSessionsMock.mockReturnValue(createDefaultUseSessionsValue())
+    invokeMock.mockClear()
+    invokeMock.mockImplementation(baseInvokeImplementation)
+  })
+
+  it('loads dev error toast preference on mount', async () => {
+    render(
+      <SettingsModal
+        open={true}
+        onClose={() => {}}
+      />
+    )
+
+    await waitFor(() => {
+      expect(invokeMock).toHaveBeenCalledWith(TauriCommands.GetDevErrorToastsEnabled)
+    })
+  })
+
+  it('persists dev error toast preference changes', async () => {
+    render(
+      <SettingsModal
+        open={true}
+        onClose={() => {}}
+      />
+    )
+
+    await waitFor(() => {
+      expect(invokeMock).toHaveBeenCalledWith(TauriCommands.GetDevErrorToastsEnabled)
+    })
+
+    await screen.findByRole('checkbox', { name: /Show error toasts automatically during dev runs/i })
+    await userEvent.click(screen.getByRole('checkbox', { name: /Show error toasts automatically during dev runs/i }))
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      const didInvoke = invokeMock.mock.calls.some(([command, args]) => {
+        if (command !== TauriCommands.SetDevErrorToastsEnabled) return false
+        const payload = args as { enabled?: boolean } | undefined
+        return payload?.enabled === true
+      })
+      expect(didInvoke).toBe(true)
+    })
+  })
+})
+
 describe('SettingsModal project settings navigation', () => {
   beforeEach(() => {
     useSettingsMock.mockReset()
+    useSettingsMock.mockReturnValue(createDefaultUseSettingsValue())
     useSessionsMock.mockReset()
+    useSessionsMock.mockReturnValue(createDefaultUseSessionsValue())
     invokeMock.mockClear()
     invokeMock.mockImplementation(baseInvokeImplementation)
   })

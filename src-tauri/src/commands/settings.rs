@@ -264,7 +264,6 @@ pub async fn set_project_settings(settings: ProjectSettings) -> Result<(), Strin
         .map_err(|e| format!("Failed to set project setup script: {e}"))?;
     db.set_project_branch_prefix(&project.path, &settings.branch_prefix)
         .map_err(|e| format!("Failed to set project branch prefix: {e}"))?;
-
     Ok(())
 }
 
@@ -475,6 +474,26 @@ pub async fn set_auto_update_enabled(enabled: bool) -> Result<(), String> {
 
     let mut manager = settings_manager.lock().await;
     manager.set_auto_update_enabled(enabled)
+}
+
+#[tauri::command]
+pub async fn get_dev_error_toasts_enabled() -> Result<bool, String> {
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+
+    let manager = settings_manager.lock().await;
+    Ok(manager.get_dev_error_toasts_enabled())
+}
+
+#[tauri::command]
+pub async fn set_dev_error_toasts_enabled(enabled: bool) -> Result<(), String> {
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+
+    let mut manager = settings_manager.lock().await;
+    manager.set_dev_error_toasts_enabled(enabled)
 }
 
 #[tauri::command]
@@ -1163,6 +1182,24 @@ mod tests {
     #[tokio::test]
     async fn test_set_tutorial_completed_uninitialized_core() {
         let result = set_tutorial_completed(true).await;
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .contains("Settings manager not initialized"));
+    }
+
+    #[tokio::test]
+    async fn test_get_dev_error_toasts_enabled_uninitialized_manager() {
+        let result = get_dev_error_toasts_enabled().await;
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .contains("Settings manager not initialized"));
+    }
+
+    #[tokio::test]
+    async fn test_set_dev_error_toasts_enabled_uninitialized_manager() {
+        let result = set_dev_error_toasts_enabled(true).await;
         assert!(result.is_err());
         assert!(result
             .unwrap_err()

@@ -147,7 +147,10 @@ describe('useSettings', () => {
       })
 
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetProjectSettings, {
-        settings: { setupScript: 'bun install && bun run build', branchPrefix: 'feature' }
+        settings: {
+          setupScript: 'bun install && bun run build',
+          branchPrefix: 'feature',
+        }
       })
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetProjectEnvironmentVariables, {
         envVars: {
@@ -266,7 +269,7 @@ describe('useSettings', () => {
       const projectSettings = {
         setupScript: '',
         environmentVariables: [],
-        branchPrefix: 'feature'
+        branchPrefix: 'feature',
       }
       
       const terminalSettings = {
@@ -341,7 +344,7 @@ describe('useSettings', () => {
       const projectSettings = {
         setupScript: '',
         environmentVariables: [],
-        branchPrefix: 'feature'
+        branchPrefix: 'feature',
       }
       
       const terminalSettings = {
@@ -411,7 +414,7 @@ describe('useSettings', () => {
       const projectSettings = {
         setupScript: '',
         environmentVariables: [],
-        branchPrefix: 'feature'
+        branchPrefix: 'feature',
       }
 
       const terminalSettings = {

@@ -249,6 +249,8 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
     const [mergePreferences, setMergePreferences] = useState<ProjectMergePreferences>({
         autoCancelAfterMerge: true
     })
+    const [devErrorToastsEnabled, setDevErrorToastsEnabled] = useState(false)
+    const [initialDevErrorToastsEnabled, setInitialDevErrorToastsEnabled] = useState(false)
     const platform = useMemo(() => detectPlatformSafe(), [])
 
     const [keyboardShortcutsState, setKeyboardShortcutsState] = useState<KeyboardShortcutConfig>(() => mergeShortcutConfig(defaultShortcutConfig))
@@ -567,6 +569,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
         let loadedTerminalSettings: TerminalSettings = { shell: null, shellArgs: [], fontFamily: null, webglEnabled: true }
         let loadedRunScript: RunScript = { command: '', workingDirectory: '', environmentVariables: {} }
         let loadedMergePreferences: ProjectMergePreferences = { autoCancelAfterMerge: true }
+        let loadedDevErrorToasts = true
         
         try {
             const results = await Promise.allSettled([
@@ -592,6 +595,13 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
             // Project settings not available (likely no project open) - use defaults
             logger.info('Project settings not available (no active project):', error)
         }
+
+        try {
+            const enabled = await invoke<boolean | null | undefined>(TauriCommands.GetDevErrorToastsEnabled)
+            loadedDevErrorToasts = typeof enabled === 'boolean' ? enabled : true
+        } catch (error) {
+            logger.info('Dev error toast preference not available:', error)
+        }
         
         setEnvVars(loadedEnvVars)
         setCliArgs(loadedCliArgs)
@@ -600,6 +610,8 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
         setSessionPreferences(loadedSessionPreferences)
         setMergePreferences(loadedMergePreferences)
         setRunScript(loadedRunScript)
+        setDevErrorToastsEnabled(loadedDevErrorToasts)
+        setInitialDevErrorToastsEnabled(loadedDevErrorToasts)
         const normalizedShortcuts = mergeShortcutConfig(loadedShortcuts)
         setKeyboardShortcutsState(normalizedShortcuts)
         setEditableKeyboardShortcuts(normalizedShortcuts)
@@ -812,6 +824,18 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
 
     const handleSave = async () => {
         const result = await saveAllSettings(envVars, cliArgs, projectSettings, terminalSettings, sessionPreferences, mergePreferences)
+
+        if (devErrorToastsEnabled !== initialDevErrorToastsEnabled) {
+            try {
+                await invoke(TauriCommands.SetDevErrorToastsEnabled, { enabled: devErrorToastsEnabled })
+                emitUiEvent(UiEvent.DevErrorToastPreferenceChanged, { enabled: devErrorToastsEnabled })
+                result.savedSettings.push('development error toasts')
+                setInitialDevErrorToastsEnabled(devErrorToastsEnabled)
+            } catch (error) {
+                logger.error('Failed to save development error toast preference:', error)
+                result.failedSettings.push('development error toasts')
+            }
+        }
         
         // Save run script
         try {
@@ -897,6 +921,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
                             onChange={(e) => {
                                 const sanitized = e.target.value.replace(/\s+/g, '-')
                                 setProjectSettings(prev => ({ ...prev, branchPrefix: sanitized }))
+                                setHasUnsavedChanges(true)
                             }}
                             placeholder="schaltwerk"
                             className={`w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 text-body focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
@@ -1772,6 +1797,24 @@ fi`}
                             <div className="mt-2 text-caption text-slate-500">
                                 Uses hardware acceleration for better performance with multiple terminals. Automatically falls back to Canvas if WebGL is unavailable.
                             </div>
+                        </div>
+
+                        <div className="mt-6">
+                            <h3 className="text-body font-medium text-slate-200 mb-2">Development Diagnostics</h3>
+                            <div className="text-body text-slate-400 mb-3">
+                                Surface popup toasts whenever frontend or backend errors occur while running Schaltwerk in development mode. Release builds ignore this toggle.
+                            </div>
+                            <label className="flex items-center gap-3 text-sm text-slate-200">
+                                <input
+                                    type="checkbox"
+                                    checked={devErrorToastsEnabled}
+                                    onChange={(event) => {
+                                        setDevErrorToastsEnabled(event.target.checked)
+                                    }}
+                                    className="rounded border-slate-600 bg-slate-800 text-cyan-400 focus:ring-cyan-400"
+                                />
+                                <span>Show error toasts automatically during dev runs</span>
+                            </label>
                         </div>
 
                         <div className="mt-6 p-3 bg-slate-800/50 border border-slate-700 rounded">

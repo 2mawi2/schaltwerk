@@ -5,15 +5,19 @@ use std::env;
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
 
 static LOG_PATH: Mutex<Option<PathBuf>> = Mutex::new(None);
 static LOG_FILE_WRITER: Mutex<Option<BufWriter<File>>> = Mutex::new(None);
 static LOGGER_INITIALIZED: Mutex<bool> = Mutex::new(false);
+static DEV_ERROR_DISPATCH: Mutex<Option<Arc<DevErrorCallback>>> =
+    Mutex::new(None);
 
 const DEFAULT_RETENTION_HOURS: u64 = 72;
 const SECONDS_PER_HOUR: u64 = 3_600;
+
+type DevErrorCallback = dyn Fn(&str, Option<&str>) + Send + Sync;
 
 #[derive(Debug)]
 struct LoggingConfig {
@@ -21,6 +25,17 @@ struct LoggingConfig {
     retention: Duration,
     log_dir: PathBuf,
     deferred_warnings: Vec<String>,
+}
+
+/// Register a callback that will receive error-level log entries in development builds.
+/// The most recent registration wins; passing a new hook replaces the previous one.
+pub fn register_dev_error_hook<F>(hook: F)
+where
+    F: Fn(&str, Option<&str>) + Send + Sync + 'static,
+{
+    if let Ok(mut guard) = DEV_ERROR_DISPATCH.lock() {
+        *guard = Some(Arc::new(hook));
+    }
 }
 
 /// Get the application's log directory
@@ -144,13 +159,29 @@ pub fn init_logging() {
             log::Level::Trace => "TRACE",
         };
 
+        let message_text = format!("{}", record.args());
         let log_line = format!(
             "[{} {} {}] {}",
             Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
             level_str,
             record.target(),
-            record.args()
+            message_text.as_str()
         );
+
+        if record.level() == log::Level::Error && cfg!(debug_assertions) {
+            let target = record.target();
+            let hook = {
+                DEV_ERROR_DISPATCH
+                    .lock()
+                    .ok()
+                    .and_then(|guard| guard.as_ref().map(Arc::clone))
+            };
+
+            if let Some(callback) = hook {
+                let source = if target.is_empty() { None } else { Some(target) };
+                callback(&message_text, source);
+            }
+        }
 
         // Write to the buffer (stderr via env_logger)
         writeln!(buf, "{log_line}")?;
@@ -304,6 +335,7 @@ mod tests {
     use filetime::{set_file_mtime, FileTime};
     use serial_test::serial;
     use std::env;
+    use std::sync::Arc;
     use std::time::{Duration, SystemTime};
     use tempfile::TempDir;
 
@@ -396,5 +428,28 @@ mod tests {
         } else {
             env::remove_var("HOME");
         }
+    }
+
+    #[test]
+    #[serial]
+    fn test_dev_error_hook_receives_error_logs() {
+        init_logging();
+
+        let captured: Arc<Mutex<Vec<(String, Option<String>)>>> =
+            Arc::new(Mutex::new(Vec::new()));
+        let captured_clone = Arc::clone(&captured);
+
+        register_dev_error_hook(move |message, source| {
+            let mut guard = captured_clone.lock().unwrap();
+            guard.push((message.to_string(), source.map(str::to_string)));
+        });
+
+        log::error!("dev error hook smoke test");
+
+        let guard = captured.lock().unwrap();
+        assert!(
+            guard.iter().any(|(message, _)| message.contains("dev error hook smoke test")),
+            "expected captured messages to include the emitted error log"
+        );
     }
 }
