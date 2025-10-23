@@ -152,7 +152,6 @@ jobs:
         run: |
           node scripts/package-manager.mjs cache-clean || true
           rm -rf node_modules
-          node scripts/package-manager.mjs install
           node scripts/package-manager.mjs install --frozen-lockfile
 
       # Tests run in separate workflow - releases depend on successful test runs
