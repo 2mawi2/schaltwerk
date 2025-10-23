@@ -1,5 +1,4 @@
 pub mod agent_binaries;
-pub mod clipboard;
 pub mod git;
 pub mod github;
 pub mod mcp;
