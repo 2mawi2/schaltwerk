@@ -78,10 +78,19 @@ pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
                     };
 
                 let params_start = cursor;
-                while cursor < input.len()
-                    && (input[cursor].is_ascii_digit() || input[cursor] == b';')
-                {
-                    cursor += 1;
+                while cursor < input.len() {
+                    let byte = input[cursor];
+                    // Parameter bytes per ANSI spec: 0x30-0x3F (includes 0-9:;<=>?)
+                    if (0x30..=0x3F).contains(&byte) {
+                        cursor += 1;
+                        continue;
+                    }
+                    // Intermediate bytes: 0x20-0x2F (spaces/punctuation)
+                    if (0x20..=0x2F).contains(&byte) {
+                        cursor += 1;
+                        continue;
+                    }
+                    break;
                 }
 
                 if cursor >= input.len() {
@@ -219,6 +228,28 @@ mod tests {
     fn passes_through_unknown_sequences() {
         let result = sanitize_control_sequences(b"pre\x1b[123Xpost");
         assert_eq!(result.data, b"pre\x1b[123Xpost");
+        assert!(result.remainder.is_none());
+        assert!(result.cursor_query_offsets.is_empty());
+        assert!(result.responses.is_empty());
+    }
+
+    #[test]
+    fn preserves_sgr_mouse_sequences() {
+        let sequence = b"\x1b[<35;85;40M";
+        let result = sanitize_control_sequences(sequence);
+
+        assert_eq!(result.data, sequence);
+        assert!(result.remainder.is_none());
+        assert!(result.cursor_query_offsets.is_empty());
+        assert!(result.responses.is_empty());
+    }
+
+    #[test]
+    fn preserves_sgr_mouse_release_sequences() {
+        let sequence = b"\x1b[<0;12;24m";
+        let result = sanitize_control_sequences(sequence);
+
+        assert_eq!(result.data, sequence);
         assert!(result.remainder.is_none());
         assert!(result.cursor_query_offsets.is_empty());
         assert!(result.responses.is_empty());
