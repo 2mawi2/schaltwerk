@@ -31,7 +31,7 @@ Steps to perform:
   - IMPORTANT: First merge main INTO the session branch to resolve conflicts
   - Check if session branch exists and has valid changes (not regressions)
   - Switch to session branch (or use worktree if exists)
-  - Check if there are any uncommited changes and commit them if needed (ensure to not commit any development artifacts like debug scripts etc that should not be in the changeset of the session)
+  - Check if there are any uncommitted changes and commit them if needed (ensure to not commit any development artifacts like debug scripts etc that should not be in the changeset of the session)
   - Run git merge main to bring branch up to date with latest changes
   - Resolve any merge conflicts that occur
   - Switch back to main branch
