@@ -1,4 +1,4 @@
-use super::repository::get_commit_hash;
+use super::{branches::ensure_branch_at_head, repository::get_commit_hash};
 use anyhow::{anyhow, Context, Result};
 use git2::{
     build::CheckoutBuilder, BranchType, ErrorCode, Oid, Repository, ResetType, WorktreeAddOptions,
@@ -203,9 +203,18 @@ pub fn create_worktree_from_base(
     worktree_path: &Path,
     base_branch: &str,
 ) -> Result<()> {
-    let base_commit_hash = get_commit_hash(repo_path, base_branch).map_err(|e| {
-        anyhow!("Base branch '{base_branch}' does not exist in the repository: {e}")
-    })?;
+    let base_commit_hash = match get_commit_hash(repo_path, base_branch) {
+        Ok(hash) => hash,
+        Err(err) => {
+            log::warn!(
+                "Base branch '{base_branch}' missing when creating worktree: {err}. Attempting to bootstrap from HEAD."
+            );
+            ensure_branch_at_head(repo_path, base_branch)?;
+            get_commit_hash(repo_path, base_branch).map_err(|e| {
+                anyhow!("Base branch '{base_branch}' does not exist in the repository after bootstrap attempt: {e}")
+            })?
+        }
+    };
 
     log::info!("Creating worktree from commit {base_commit_hash} ({base_branch})");
 

@@ -219,6 +219,70 @@ pub async fn merge_session_with_events(
             } else {
                 summary.clone()
             };
+
+            if conflict {
+                let manager = service.session_manager();
+                if let Ok(session) = manager.get_session(name) {
+                    if session.worktree_path.exists() {
+                        if let Ok(stats) =
+                            schaltwerk::domains::git::service::calculate_git_stats_fast(
+                                &session.worktree_path,
+                                &session.parent_branch,
+                            )
+                        {
+                            let worktree_size_bytes = get_cached_worktree_size(
+                                &session.worktree_path,
+                                StdDuration::from_secs(0),
+                            )
+                            .map(|snapshot| snapshot.size_bytes)
+                            .or_else(|| {
+                                let computed = compute_worktree_size_bytes(&session.worktree_path);
+                                if let Some(bytes) = computed {
+                                    cache_worktree_size(&session.worktree_path, bytes);
+                                }
+                                computed
+                            });
+
+                            let has_conflicts =
+                                schaltwerk::domains::git::operations::has_conflicts(
+                                    &session.worktree_path,
+                                )
+                                .unwrap_or(false);
+
+                            let mut merge_snapshot =
+                                MergeStateSnapshot::from_preview(Some(&preview));
+                            merge_snapshot.merge_has_conflicts = Some(true);
+
+                            let payload =
+                                schaltwerk::domains::sessions::activity::SessionGitStatsUpdated {
+                                    session_id: session.id.clone(),
+                                    session_name: session.name.clone(),
+                                    files_changed: stats.files_changed,
+                                    lines_added: stats.lines_added,
+                                    lines_removed: stats.lines_removed,
+                                    has_uncommitted: stats.has_uncommitted,
+                                    has_conflicts,
+                                    top_uncommitted_paths: None,
+                                    merge_has_conflicts: merge_snapshot.merge_has_conflicts,
+                                    merge_conflicting_paths: merge_snapshot.merge_conflicting_paths,
+                                    merge_is_up_to_date: merge_snapshot.merge_is_up_to_date,
+                                    worktree_size_bytes,
+                                };
+
+                            if let Err(err) =
+                                emit_event(app, SchaltEvent::SessionGitStats, &payload)
+                            {
+                                log::debug!(
+                                    "Failed to emit SessionGitStats after merge failure for {}: {}",
+                                    session.name,
+                                    err
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+
             events::emit_git_operation_failed(
                 app,
                 name,
@@ -1113,7 +1177,9 @@ pub async fn schaltwerk_core_start_claude_with_restart(
         let mut paths = std::collections::HashMap::new();
 
         // Get resolved binary paths for all agents
-        for agent in ["claude", "codex", "opencode", "gemini", "droid", "qwen", "amp"] {
+        for agent in [
+            "claude", "codex", "opencode", "gemini", "droid", "qwen", "amp",
+        ] {
             match settings.get_effective_binary_path(agent) {
                 Ok(path) => {
                     log::debug!("Cached binary path for {agent}: {path}");
@@ -1158,9 +1224,7 @@ pub async fn schaltwerk_core_start_claude_with_restart(
 
     if agent_type == "amp" {
         if let Err(e) = manager.spawn_amp_thread_watcher(&session_name) {
-            log::warn!(
-                "Failed to spawn amp thread watcher for session '{session_name}': {e}"
-            );
+            log::warn!("Failed to spawn amp thread watcher for session '{session_name}': {e}");
         }
     }
 
@@ -1206,9 +1270,10 @@ pub async fn schaltwerk_core_start_claude_with_restart(
     let mut use_shell_chain = false;
     let mut shell_cmd: Option<String> = None;
     let marker_rel = ".schaltwerk/setup.done";
-    
+
     // For Amp commands with pipes (containing " | amp"), use shell chain to preserve the pipe
-    let has_pipe = command.contains(" | amp") || (command.contains(" | ") && agent_name.ends_with("/amp"));
+    let has_pipe =
+        command.contains(" | amp") || (command.contains(" | ") && agent_name.ends_with("/amp"));
     if has_pipe {
         log::info!("Detected Amp command with pipe, using shell chain to preserve it: {command}");
         // Extract the actual command part (after " && ")
@@ -1259,11 +1324,7 @@ pub async fn schaltwerk_core_start_claude_with_restart(
 
                 // For piped commands, exec is already in the command (or not needed)
                 // For regular agents, use exec to replace the shell
-                let exec_prefix = if is_piped_cmd {
-                    ""
-                } else {
-                    "exec "
-                };
+                let exec_prefix = if is_piped_cmd { "" } else { "exec " };
                 let chained = format!(
                         "set -e; if [ ! -f {marker_q} ]; then {run_setup_command}; rm -f {script_q}; mkdir -p .schaltwerk; : > {marker_q}; fi; {exec_prefix}{exec_cmd}"
                     );
@@ -1412,7 +1473,9 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
         let mut paths = std::collections::HashMap::new();
 
         // Get resolved binary paths for all agents
-        for agent in ["claude", "codex", "opencode", "gemini", "droid", "qwen", "amp"] {
+        for agent in [
+            "claude", "codex", "opencode", "gemini", "droid", "qwen", "amp",
+        ] {
             match settings.get_effective_binary_path(agent) {
                 Ok(path) => {
                     log::debug!("Cached binary path for {agent}: {path}");
@@ -1957,7 +2020,9 @@ pub async fn schaltwerk_core_start_spec_session(
         log::info!("Spec session '{name}' already has display name, skipping regeneration");
         drop(core);
         // Emit refresh since name generation won't happen
-        log::info!("Queueing sessions refresh after starting spec session (no name generation needed)");
+        log::info!(
+            "Queueing sessions refresh after starting spec session (no name generation needed)"
+        );
         events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SpecSync);
         return Ok(());
     }
@@ -2139,7 +2204,9 @@ pub async fn schaltwerk_core_start_spec_session(
                 Ok(None) => {
                     log::warn!("Name generation returned None for spec-started session '{session_name_clone}'");
                     let _ = db_clone.set_pending_name_generation(&session_id, false);
-                    log::info!("Queueing sessions refresh after spec-session name generation (None)");
+                    log::info!(
+                        "Queueing sessions refresh after spec-session name generation (None)"
+                    );
                     events::request_sessions_refreshed(
                         &app_handle,
                         events::SessionsRefreshReason::SpecSync,
@@ -2150,7 +2217,9 @@ pub async fn schaltwerk_core_start_spec_session(
                 Err(e) => {
                     log::error!("Failed to generate display name for spec-started session '{session_name_clone}': {e}");
                     let _ = db_clone.set_pending_name_generation(&session_id, false);
-                    log::info!("Queueing sessions refresh after spec-session name generation (Err)");
+                    log::info!(
+                        "Queueing sessions refresh after spec-session name generation (Err)"
+                    );
                     events::request_sessions_refreshed(
                         &app_handle,
                         events::SessionsRefreshReason::SpecSync,
@@ -2162,7 +2231,9 @@ pub async fn schaltwerk_core_start_spec_session(
         });
     } else {
         // Name generation won't be triggered, so emit refresh to trigger auto-start
-        log::info!("Queueing sessions refresh after starting spec session (name generation not needed)");
+        log::info!(
+            "Queueing sessions refresh after starting spec session (name generation not needed)"
+        );
         events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SpecSync);
         // Emit selection event after sessions refresh so auto-start runs first
         events::emit_selection_running(&app, &name);
@@ -2312,7 +2383,9 @@ pub async fn schaltwerk_core_start_fresh_orchestrator(
         let mut paths = std::collections::HashMap::new();
 
         // Get resolved binary paths for all agents
-        for agent in ["claude", "codex", "opencode", "gemini", "droid", "qwen", "amp"] {
+        for agent in [
+            "claude", "codex", "opencode", "gemini", "droid", "qwen", "amp",
+        ] {
             match settings.get_effective_binary_path(agent) {
                 Ok(path) => {
                     log::debug!("Cached binary path for {agent}: {path}");

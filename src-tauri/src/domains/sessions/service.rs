@@ -84,6 +84,7 @@ mod service_unified_tests {
     use crate::domains::sessions::entity::{Session, SessionState, SessionStatus};
     use crate::schaltwerk_core::database::Database;
     use chrono::Utc;
+    use serial_test::serial;
     use std::collections::HashMap;
     use tempfile::TempDir;
     use uuid::Uuid;
@@ -1037,24 +1038,21 @@ mod service_unified_tests {
     }
 
     #[test]
+    #[serial]
     fn session_creation_bootstraps_requested_base_branch_in_empty_repo() {
         let (manager, temp_dir) = create_test_session_manager();
         let repo_root = temp_dir.path().join("repo");
 
-        std::process::Command::new("git")
-            .args(["init"])
-            .current_dir(&repo_root)
-            .output()
-            .unwrap();
+        git::init_repository(&repo_root).unwrap();
         std::process::Command::new("git")
             .args(["config", "user.email", "test@example.com"])
             .current_dir(&repo_root)
-            .output()
+            .status()
             .unwrap();
         std::process::Command::new("git")
             .args(["config", "user.name", "Test User"])
             .current_dir(&repo_root)
-            .output()
+            .status()
             .unwrap();
 
         if git::repository_has_commits(&repo_root).unwrap_or(false) {
