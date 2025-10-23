@@ -176,43 +176,62 @@ describe('NewSessionModal', () => {
   })
 
   it('keeps caret position while typing in cached prompt', async () => {
-    function ControlledModal() {
-      const [prompt, setPrompt] = useState('Initial cached prompt')
-      const handleClose = () => {}
-      const handleCreate = () => {}
-      return (
-        <ModalProvider>
-          <NewSessionModal
-            open={true}
-            cachedPrompt={prompt}
-            onPromptChange={setPrompt}
-            onClose={handleClose}
-            onCreate={handleCreate}
-          />
-        </ModalProvider>
-      )
+    const timeoutSpy = vi.spyOn(globalThis, 'setTimeout')
+
+    try {
+      function ControlledModal() {
+        const [prompt, setPrompt] = useState('Initial cached prompt')
+        const handleClose = () => {}
+        const handleCreate = () => {}
+        return (
+          <ModalProvider>
+            <NewSessionModal
+              open={true}
+              cachedPrompt={prompt}
+              onPromptChange={setPrompt}
+              onClose={handleClose}
+              onCreate={handleCreate}
+            />
+          </ModalProvider>
+        )
+      }
+
+      render(<ControlledModal />)
+
+      const editorContainer = await screen.findByTestId('mock-markdown-editor') as HTMLDivElement
+      const textarea = editorContainer.querySelector('textarea') as HTMLTextAreaElement
+
+      expect(textarea).toBeTruthy()
+
+      await waitFor(() => {
+        expect(timeoutSpy).toHaveBeenCalled()
+      })
+
+      const focusTimerIndex = timeoutSpy.mock.calls.findIndex(([handler]) => typeof handler === 'function')
+      if (focusTimerIndex !== -1) {
+        const [handler, , ...args] = timeoutSpy.mock.calls[focusTimerIndex]
+        const timerId = timeoutSpy.mock.results[focusTimerIndex]?.value as ReturnType<typeof setTimeout>
+        if (timerId !== undefined) {
+          clearTimeout(timerId)
+        }
+        if (typeof handler === 'function') {
+          const callback = handler as (...cbArgs: unknown[]) => void
+          callback(...(args as unknown[]))
+        }
+      }
+
+      fireEvent.change(textarea, { target: { value: 'Updated cached prompt' } })
+
+      await waitFor(() => {
+        expect(textarea.value).toBe('Updated cached prompt')
+      })
+
+      await waitFor(() => {
+        expect(markdownFocus.focusEnd).toHaveBeenCalledTimes(1)
+      })
+    } finally {
+      timeoutSpy.mockRestore()
     }
-
-    render(<ControlledModal />)
-
-    const editorContainer = await screen.findByTestId('mock-markdown-editor') as HTMLDivElement
-    const textarea = editorContainer.querySelector('textarea') as HTMLTextAreaElement
-
-    expect(textarea).toBeTruthy()
-
-    await waitFor(() => {
-      expect(markdownFocus.focusEnd).toHaveBeenCalledTimes(1)
-    })
-
-    fireEvent.change(textarea, { target: { value: 'Updated cached prompt' } })
-
-    await waitFor(() => {
-      expect(textarea.value).toBe('Updated cached prompt')
-    })
-
-    await new Promise(resolve => setTimeout(resolve, 150))
-
-    expect(markdownFocus.focusEnd).toHaveBeenCalledTimes(1)
   })
 
   it('initializes and can create a session', async () => {
