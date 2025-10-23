@@ -14,6 +14,7 @@ import { ConfirmResetDialog } from '../common/ConfirmResetDialog'
 import { ConfirmDiscardDialog } from '../common/ConfirmDiscardDialog'
 import type { ChangedFile } from '../../common/events'
 import { DiffChangeBadges } from './DiffChangeBadges'
+import { ORCHESTRATOR_SESSION_NAME } from '../../constants/sessions'
 
 interface DiffFileListProps {
   onFileSelect: (filePath: string) => void
@@ -71,7 +72,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
   const cancelledSessionsRef = useRef<Set<string>>(new Set())
   
   const getSessionKey = (session: string | null | undefined, commander: boolean | undefined) => {
-    if (commander && !session) return 'orchestrator'
+    if (commander && !session) return ORCHESTRATOR_SESSION_NAME
     if (!session) return 'no-session'
     return `session:${session}`
   }
@@ -255,6 +256,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
 
     let pollInterval: NodeJS.Timeout | null = null
     let eventUnlisten: (() => void) | null = null
+    let gitStatsUnlisten: (() => void) | null = null
     let sessionCancellingUnlisten: (() => void) | null = null
     let isCancelled = false
 
@@ -291,62 +293,81 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
             loadChangedFiles()
           }
         }, 5000) // Poll every 5 seconds for orchestrator
-        return
-      }
-      
-      // Try to start file watcher for session mode
-      try {
-        await invoke(TauriCommands.StartFileWatcher, { sessionName: currentSession })
-        logger.info(`File watcher started for session: ${currentSession}`)
-      } catch (error) {
-        logger.error('Failed to start file watcher, falling back to polling:', error)
-        // Fallback to polling if file watcher fails
-        pollInterval = setInterval(() => {
-          if (!isCancelled) {
-            loadChangedFiles()
-          }
-        }, 3000)
+      } else {
+        // Try to start file watcher for session mode
+        try {
+          await invoke(TauriCommands.StartFileWatcher, { sessionName: currentSession })
+          logger.info(`File watcher started for session: ${currentSession}`)
+        } catch (error) {
+          logger.error('Failed to start file watcher, falling back to polling:', error)
+          // Fallback to polling if file watcher fails
+          pollInterval = setInterval(() => {
+            if (!isCancelled) {
+              loadChangedFiles()
+            }
+          }, 3000)
+        }
       }
 
       // Always set up event listener (even if watcher failed, in case it recovers)
       try {
         eventUnlisten = await listenEvent(SchaltEvent.FileChanges, (event) => {
           // CRITICAL: Only update if this event is for the currently selected session
-          const { sessionNameOverride: currentOverride, selection: currentSelection } = currentPropsRef.current
+          const { sessionNameOverride: currentOverride, selection: currentSelection, isCommander: currentCommander } = currentPropsRef.current
           const currentlySelectedSession = currentOverride ?? (currentSelection.kind === 'session' ? currentSelection.payload : null)
-          if (event.session_name === currentlySelectedSession) {
-            setFiles(event.changed_files)
-            setBranchInfo({
-              currentBranch: event.branch_info.current_branch,
-              baseBranch: event.branch_info.base_branch,
-              baseCommit: event.branch_info.base_commit,
-              headCommit: event.branch_info.head_commit
-            })
+          const commanderSelected = currentCommander && currentSelection.kind === 'orchestrator'
+          const isSessionMatch = Boolean(currentlySelectedSession) && event.session_name === currentlySelectedSession
+          const isCommanderMatch = commanderSelected && event.session_name === ORCHESTRATOR_SESSION_NAME
+          if (!isSessionMatch && !isCommanderMatch) {
+            return
+          }
 
-            // Update signature to match current session
-            lastResultRef.current = `session-${currentlySelectedSession}-${event.changed_files.length}-${event.changed_files.map((f: ChangedFile) => `${f.path}:${f.change_type}`).join(',')}-${event.branch_info.current_branch}-${event.branch_info.base_branch}`
-            const key = getSessionKey(currentlySelectedSession, false)
-            lastSessionKeyRef.current = key
-            sessionDataCacheRef.current.set(key, {
-              files: event.changed_files,
-              branchInfo: {
-                currentBranch: event.branch_info.current_branch,
-                baseBranch: event.branch_info.base_branch,
-                baseCommit: event.branch_info.base_commit,
-                headCommit: event.branch_info.head_commit
-              },
-              signature: lastResultRef.current
-            })
+          const branchInfoPayload = {
+            currentBranch: event.branch_info.current_branch,
+            baseBranch: event.branch_info.base_branch,
+            baseCommit: event.branch_info.base_commit,
+            headCommit: event.branch_info.head_commit
+          }
 
-            // If we receive events, we can stop polling
-            if (pollInterval) {
-              clearInterval(pollInterval)
-              pollInterval = null
-            }
+          const signature = isCommanderMatch
+            ? `${ORCHESTRATOR_SESSION_NAME}-${event.changed_files.length}-${event.changed_files.map(serializeChangedFileSignature).join(',')}-${event.branch_info.current_branch}`
+            : `session-${currentlySelectedSession}-${event.changed_files.length}-${event.changed_files.map(serializeChangedFileSignature).join(',')}-${event.branch_info.current_branch}-${event.branch_info.base_branch}`
+
+          const cacheKey = isCommanderMatch
+            ? getSessionKey(null, true)
+            : getSessionKey(currentlySelectedSession, false)
+
+          setFiles(event.changed_files)
+          setBranchInfo(branchInfoPayload)
+
+          lastResultRef.current = signature
+          lastSessionKeyRef.current = cacheKey
+          sessionDataCacheRef.current.set(cacheKey, {
+            files: event.changed_files,
+            branchInfo: branchInfoPayload,
+            signature
+          })
+
+          // If we receive events, we can stop polling
+          if (pollInterval) {
+            clearInterval(pollInterval)
+            pollInterval = null
           }
         })
       } catch (error) {
         logger.error('Failed to set up event listener:', error)
+      }
+
+      try {
+        gitStatsUnlisten = await listenEvent(SchaltEvent.SessionGitStats, (event) => {
+          if (event.session_name !== ORCHESTRATOR_SESSION_NAME) return
+          const { selection: currentSelection, isCommander: currentCommander } = currentPropsRef.current
+          const commanderSelected = currentCommander && currentSelection.kind === 'orchestrator'
+          if (!commanderSelected) return
+          void loadChangedFiles()
+        })
+      } catch (error) {
+        logger.error('Failed to set up git stats listener:', error)
       }
     }
 
@@ -360,6 +381,9 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
       // Clean up event listeners
       if (eventUnlisten) {
         eventUnlisten()
+      }
+      if (gitStatsUnlisten) {
+        gitStatsUnlisten()
       }
       if (sessionCancellingUnlisten) {
         sessionCancellingUnlisten()

@@ -16,6 +16,7 @@ import {
     closeTerminalBackend,
 } from '../terminal/transport/backend'
 import { sessionTerminalGroup } from '../common/terminalIdentity'
+import { ORCHESTRATOR_SESSION_NAME } from '../constants/sessions'
 
 type NormalizedSessionState = 'spec' | 'running' | 'reviewed'
 
@@ -143,7 +144,6 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     // Tracks user-intent selections to avoid auto-restore overriding explicit user actions
     const lastIntentionalRef = useRef(0)
     const suppressAutoRestoreRef = useRef(false)
-    const ORCHESTRATOR_SESSION_ID = 'orchestrator'
     // Track active file watcher session to switch watchers on selection change
     const lastWatchedSessionRef = useRef<string | null>(null)
     const orchestratorWatcherActiveRef = useRef(false)
@@ -786,7 +786,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             try {
                 if (selection.kind === 'session' && selection.payload && !isSpec) {
                     if (orchestratorWatcherActiveRef.current) {
-                        try { await invoke(TauriCommands.StopFileWatcher, { sessionName: ORCHESTRATOR_SESSION_ID }) }
+                        try { await invoke(TauriCommands.StopFileWatcher, { sessionName: ORCHESTRATOR_SESSION_NAME }) }
                         catch (e) { logger.warn('[SelectionContext] Failed to stop project watcher before switching to session', e) }
                         orchestratorWatcherActiveRef.current = false
                     }
@@ -810,14 +810,14 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                     if (selection.kind === 'orchestrator') {
                         if (!orchestratorWatcherActiveRef.current) {
                             try {
-                                await invoke(TauriCommands.StartFileWatcher, { sessionName: ORCHESTRATOR_SESSION_ID })
+                                await invoke(TauriCommands.StartFileWatcher, { sessionName: ORCHESTRATOR_SESSION_NAME })
                                 orchestratorWatcherActiveRef.current = true
                             } catch (e) {
                                 logger.warn('[SelectionContext] Failed to start project watcher', e)
                             }
                         }
                     } else if (orchestratorWatcherActiveRef.current) {
-                        try { await invoke(TauriCommands.StopFileWatcher, { sessionName: ORCHESTRATOR_SESSION_ID }) }
+                        try { await invoke(TauriCommands.StopFileWatcher, { sessionName: ORCHESTRATOR_SESSION_NAME }) }
                         catch (e) { logger.warn('[SelectionContext] Failed to stop project watcher', e) }
                         orchestratorWatcherActiveRef.current = false
                     }
@@ -842,7 +842,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             }
             if (orchestratorWatcherActiveRef.current) {
                 try {
-                    const stopResult = invoke(TauriCommands.StopFileWatcher, { sessionName: ORCHESTRATOR_SESSION_ID })
+                    const stopResult = invoke(TauriCommands.StopFileWatcher, { sessionName: ORCHESTRATOR_SESSION_NAME })
                     Promise.resolve(stopResult).catch((e) => {
                         logger.warn('[SelectionContext] Failed to stop project watcher on unmount', e)
                     })
