@@ -29,6 +29,7 @@ import { theme } from '../../common/theme'
 import { emitUiEvent, UiEvent } from '../../common/uiEvents'
 import { useOptionalToast } from '../../common/toast/ToastProvider'
 import { AppUpdateResultPayload } from '../../common/events'
+import type { SettingsCategory } from '../../types/settings'
 
 const shortcutArraysEqual = (a: string[] = [], b: string[] = []) => {
     if (a.length !== b.length) return false
@@ -59,6 +60,7 @@ interface Props {
     open: boolean
     onClose: () => void
     onOpenTutorial?: () => void
+    initialTab?: SettingsCategory
 }
 
 type NotificationType = 'success' | 'error' | 'info'
@@ -68,18 +70,6 @@ interface NotificationState {
     type: NotificationType
     visible: boolean
 }
-
-type SettingsCategory =
-    | 'projectGeneral'
-    | 'projectRun'
-    | 'projectActions'
-    | 'archives'
-    | 'appearance'
-    | 'keyboard'
-    | 'environment'
-    | 'terminal'
-    | 'sessions'
-    | 'version'
 
 interface DetectedBinary {
     path: string
@@ -208,6 +198,7 @@ const CATEGORIES: CategoryConfig[] = [
 ]
 
 const PROJECT_CATEGORY_ORDER: SettingsCategory[] = ['projectGeneral', 'projectRun', 'projectActions', 'archives']
+const PROJECT_CATEGORY_SET = new Set<SettingsCategory>(PROJECT_CATEGORY_ORDER)
 
 interface ProjectSettings {
     setupScript: string
@@ -233,10 +224,10 @@ interface SessionPreferences {
     skip_confirmation_modals: boolean
 }
 
-export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
+export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Props) {
     const { terminalFontSize, uiFontSize, setTerminalFontSize, setUiFontSize } = useFontSize()
     const { applyOverrides: applyShortcutOverrides } = useKeyboardShortcutsConfig()
-    const [activeCategory, setActiveCategory] = useState<SettingsCategory>('appearance')
+    const [activeCategory, setActiveCategory] = useState<SettingsCategory>(initialTab || 'appearance')
     const [activeAgentTab, setActiveAgentTab] = useState<AgentType>('claude')
     const [projectPath, setProjectPath] = useState<string>('')
     const [projectAvailable, setProjectAvailable] = useState<boolean>(false)
@@ -264,6 +255,20 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
     const [editableKeyboardShortcuts, setEditableKeyboardShortcuts] = useState<KeyboardShortcutConfig>(() => mergeShortcutConfig(defaultShortcutConfig))
     const [shortcutRecording, setShortcutRecording] = useState<KeyboardShortcutAction | null>(null)
     const [shortcutsDirty, setShortcutsDirty] = useState(false)
+
+    useEffect(() => {
+        if (initialTab) {
+            const isProjectCategory = PROJECT_CATEGORY_SET.has(initialTab)
+            if (!isProjectCategory || projectAvailable) {
+                setActiveCategory(initialTab)
+                return
+            }
+        }
+
+        if (!open) {
+            setActiveCategory('appearance')
+        }
+    }, [initialTab, open, projectAvailable])
     const recordingLabel = useMemo(() => {
         if (!shortcutRecording) return ''
         for (const section of KEYBOARD_SHORTCUT_SECTIONS) {
@@ -618,7 +623,9 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                     setProjectPath(path)
                     setProjectAvailable(true)
                     if (!hasAutoSelectedProject.current) {
-                        setActiveCategory('projectGeneral')
+                        if (!initialTab) {
+                            setActiveCategory('projectGeneral')
+                        }
                         hasAutoSelectedProject.current = true
                     }
                 } else {
@@ -638,7 +645,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         return () => {
             cancelled = true
         }
-    }, [open, loadAllSettings])
+    }, [open, loadAllSettings, initialTab])
 
     useEffect(() => {
         if (!open) {
@@ -651,6 +658,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
             setActiveCategory('appearance')
         }
     }, [projectAvailable, activeCategory])
+
 
     useEffect(() => {
         if (!hasUnsavedChanges) {

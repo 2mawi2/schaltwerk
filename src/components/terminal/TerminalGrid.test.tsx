@@ -420,6 +420,14 @@ function renderGrid() {
   )
 }
 
+async function waitForGridReady() {
+  vi.useRealTimers()
+  await waitFor(() => {
+    expect(bridge).toBeDefined()
+    expect(bridge?.isReady).toBe(true)
+  }, { timeout: 3000 })
+}
+
 describe('TerminalGrid', () => {
   it('renders dual-terminal layout with correct headers and ids (orchestrator)', async () => {
     renderGrid()
@@ -463,6 +471,26 @@ describe('TerminalGrid', () => {
     const minsizeAttr = split.getAttribute('data-minsize') || ''
     expect(minsizeAttr === '120' || minsizeAttr === '120,24' || minsizeAttr === '[120,24]').toBe(true)
     expect(split.getAttribute('data-gutter')).toBe('8')
+  })
+
+  describe('Run tab visibility', () => {
+    it('always shows the Run tab even without configured scripts', async () => {
+      renderGrid()
+      await waitForGridReady()
+
+      const runTab = await screen.findByTitle('Run')
+      expect(runTab).toBeInTheDocument()
+    })
+
+    it('positions the Run tab before user terminals', async () => {
+      renderGrid()
+      await waitForGridReady()
+
+      const runTab = await screen.findByTitle('Run')
+      const container = runTab.parentElement
+      expect(container).not.toBeNull()
+      expect(container?.children[0]).toBe(runTab)
+    })
   })
 
   // Helper to find the orchestrator header regardless of dash style
@@ -1159,7 +1187,7 @@ describe('TerminalGrid', () => {
 
       const initialCallCount = loadRunScriptConfigurationMock.mock.calls.length
 
-      expect(screen.queryByTitle('Run')).toBeNull()
+      expect(screen.queryByRole('button', { name: /Run\s+⌘E/i })).toBeNull()
 
       loadRunScriptConfigurationMock.mockResolvedValueOnce({
         hasRunScripts: true,
@@ -1180,9 +1208,59 @@ describe('TerminalGrid', () => {
         expect(loadRunScriptConfigurationMock).toHaveBeenCalledTimes(initialCallCount + 1)
       })
 
-      await waitFor(() => {
-        expect(screen.getByTitle('Run')).toBeInTheDocument()
+      expect(await screen.findByRole('button', { name: /Run\s+⌘E/i })).toBeInTheDocument()
+    })
+  })
+
+  describe('Cmd+E with no run script', () => {
+    it('activates the Run tab without executing a run command', async () => {
+      renderGrid()
+      await waitForGridReady()
+
+      await act(async () => {
+        fireEvent.keyDown(document, { key: 'e', metaKey: true })
       })
+
+      await waitFor(() => {
+        expect(sessionStorage.getItem('schaltwerk:active-tab:orchestrator')).toBe(String(-1))
+      })
+      expect(sessionStorage.getItem('schaltwerk:run-mode:orchestrator')).toBe('true')
+      await waitFor(() => {
+        expect(runTerminalRefs.get('orchestrator')).toBeDefined()
+      })
+      expect(runTerminalStates.get('orchestrator') ?? false).toBe(false)
+    })
+
+    it('does not toggle the run terminal when no script is configured', async () => {
+      renderGrid()
+      await waitForGridReady()
+
+      await act(async () => {
+        fireEvent.keyDown(document, { key: 'e', metaKey: true })
+      })
+
+      await waitFor(() => {
+        expect(runTerminalRefs.get('orchestrator')).toBeDefined()
+      })
+
+      const runHandle = runTerminalRefs.get('orchestrator')
+      expect(runHandle?.toggleRun).toHaveBeenCalledTimes(0)
+    })
+
+    it('expands the collapsed terminal panel when Cmd+E is pressed', async () => {
+      renderGrid()
+      await waitForGridReady()
+
+      const collapseButton = await screen.findByLabelText('Collapse terminal panel')
+      fireEvent.click(collapseButton)
+      expect(await screen.findByLabelText('Expand terminal panel')).toBeInTheDocument()
+
+      await act(async () => {
+        fireEvent.keyDown(document, { key: 'e', metaKey: true })
+      })
+
+      expect(await screen.findByLabelText('Collapse terminal panel')).toBeInTheDocument()
+      expect(sessionStorage.getItem('schaltwerk:run-mode:orchestrator')).toBe('true')
     })
   })
 

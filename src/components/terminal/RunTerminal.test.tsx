@@ -1,7 +1,7 @@
  import { TauriCommands } from '../../common/tauriCommands'
  import { useRef } from 'react'
  import { vi, beforeEach } from 'vitest'
- import { render, screen, act, waitFor } from '@testing-library/react'
+import { render, screen, act, waitFor, fireEvent } from '@testing-library/react'
 import { RunTerminal, type RunTerminalHandle } from './RunTerminal'
 
 const RUN_EXIT_PRINTF_PATTERN = '__SCHALTWERK_RUN_EXIT__='
@@ -396,11 +396,79 @@ describe('RunTerminal', () => {
 
     await screen.findByText('Running:')
 
-    await act(async () => {
-      terminalOutputHarness.emit('run-terminal-test', '__SCHALTWERK_RUN_EXIT__=0\r')
+  await act(async () => {
+    terminalOutputHarness.emit('run-terminal-test', '__SCHALTWERK_RUN_EXIT__=0\r')
+  })
+
+  await screen.findByText('Ready to run:')
+  expect(onRunningStateChange).toHaveBeenLastCalledWith(false)
+  })
+
+  describe('placeholder rendering', () => {
+    it('renders the placeholder when no run script is configured', async () => {
+      const { invoke } = await import('@tauri-apps/api/core')
+      const mockInvoke = vi.mocked(invoke)
+      const originalImpl = mockInvoke.getMockImplementation()
+
+      mockInvoke.mockImplementationOnce(async (cmd: string, args?: unknown) => {
+        if (cmd === TauriCommands.GetProjectRunScript) {
+          return null
+        }
+        return originalImpl ? originalImpl(cmd as never, args as never) : undefined
+      })
+
+      render(<RunTerminal className="h-40" sessionName="test" />)
+
+      expect(await screen.findByText('No Run Configuration')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Add run script' })).toBeInTheDocument()
     })
 
-    await screen.findByText('Ready to run:')
-    expect(onRunningStateChange).toHaveBeenLastCalledWith(false)
+    it('renders the placeholder when loading the run script fails', async () => {
+      const { invoke } = await import('@tauri-apps/api/core')
+      const mockInvoke = vi.mocked(invoke)
+      const originalImpl = mockInvoke.getMockImplementation()
+
+      mockInvoke.mockImplementationOnce(async (cmd: string, args?: unknown) => {
+        if (cmd === TauriCommands.GetProjectRunScript) {
+          throw new Error('failed to load')
+        }
+        return originalImpl ? originalImpl(cmd as never, args as never) : undefined
+      })
+
+      render(<RunTerminal className="h-40" sessionName="test" />)
+
+      expect(await screen.findByText('No Run Configuration')).toBeInTheDocument()
+    })
+
+    it('emits an OpenSettings event when the placeholder button is clicked', async () => {
+      const { invoke } = await import('@tauri-apps/api/core')
+      const mockInvoke = vi.mocked(invoke)
+      const originalImpl = mockInvoke.getMockImplementation()
+
+      mockInvoke.mockImplementationOnce(async (cmd: string, args?: unknown) => {
+        if (cmd === TauriCommands.GetProjectRunScript) {
+          return null
+        }
+        return originalImpl ? originalImpl(cmd as never, args as never) : undefined
+      })
+
+      const uiEvents = await import('../../common/uiEvents')
+      const emitSpy = vi.spyOn(uiEvents, 'emitUiEvent')
+
+      render(<RunTerminal className="h-40" sessionName="test" />)
+
+      const button = await screen.findByRole('button', { name: 'Add run script' })
+      fireEvent.click(button)
+
+      expect(emitSpy).toHaveBeenCalledWith(uiEvents.UiEvent.OpenSettings, { tab: 'projectRun' })
+      emitSpy.mockRestore()
+    })
+
+    it('does not render the placeholder when a run script exists', async () => {
+      render(<RunTerminal className="h-40" sessionName="test" />)
+
+      expect(await screen.findByText('Ready to run:')).toBeInTheDocument()
+      expect(screen.queryByText('No Run Configuration')).toBeNull()
+    })
   })
 })

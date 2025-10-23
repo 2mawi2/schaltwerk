@@ -199,9 +199,9 @@ pub async fn resume_session_terminals(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use schaltwerk::services::terminals::{TerminalsBackend, TerminalsServiceImpl};
-    use schaltwerk::domains::terminal::TerminalSnapshot;
     use async_trait::async_trait;
+    use schaltwerk::domains::terminal::TerminalSnapshot;
+    use schaltwerk::services::terminals::{TerminalsBackend, TerminalsServiceImpl};
     use std::sync::{Arc, Mutex};
 
     struct MockTerminalsBackend {
@@ -278,7 +278,10 @@ mod tests {
             &self,
             request: CreateTerminalWithSizeRequest,
         ) -> Result<String, String> {
-            self.create_sized_calls.lock().unwrap().push(request.clone());
+            self.create_sized_calls
+                .lock()
+                .unwrap()
+                .push(request.clone());
             if self.should_error {
                 Err("create sized failed".to_string())
             } else {
@@ -379,10 +382,7 @@ mod tests {
             if self.should_error {
                 Err("activity all failed".to_string())
             } else {
-                Ok(vec![
-                    ("term-1".to_string(), 10),
-                    ("term-2".to_string(), 20),
-                ])
+                Ok(vec![("term-1".to_string(), 10), ("term-2".to_string(), 20)])
             }
         }
 
@@ -929,9 +929,7 @@ mod tests {
         let backend = MockTerminalsBackend::new();
         let service = TerminalsServiceImpl::new(backend);
 
-        let ids: Vec<String> = (0..100)
-            .map(|i| format!("term-{}", i))
-            .collect();
+        let ids: Vec<String> = (0..100).map(|i| format!("term-{}", i)).collect();
 
         let result = service.terminals_exist_bulk(ids.clone()).await;
 

@@ -577,7 +577,7 @@ export function DiffViewer({
                       activeHorizontalRegionRef.current = element
                     }}
                   >
-                    <table className="w-full min-w-max">
+                    <table className="w-full min-w-full table-fixed">
                       <tbody>
                     {('diffResult' in fileDiff ? fileDiff.diffResult : []).flatMap((line, idx) => {
                       const globalIdx = `${file.path}-${idx}`
@@ -754,7 +754,7 @@ export function DiffViewer({
                       activeHorizontalRegionRef.current = element
                     }}
                   >
-                    <table className="w-full min-w-max">
+                    <table className="w-full min-w-full table-fixed">
                       <tbody>
                         {('diffResult' in fileDiff ? fileDiff.diffResult : []).flatMap((line, idx) => {
                           const globalIdx = `${file.path}-${idx}`

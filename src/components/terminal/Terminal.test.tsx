@@ -167,10 +167,12 @@ vi.mock('../../hooks/useTerminalGpu', () => ({
   useTerminalGpu: () => ({
     gpuRenderer: { current: null },
     gpuEnabledForTerminal: false,
+    webglRendererActive: false,
     refreshGpuFontRendering: vi.fn(),
     applyLetterSpacing: vi.fn(),
     cancelGpuRefreshWork: vi.fn(),
     ensureRenderer: vi.fn(async () => {}),
+    handleFontPreferenceChange: vi.fn(async () => {}),
   }),
 }))
 
