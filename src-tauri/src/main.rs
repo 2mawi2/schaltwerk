@@ -869,6 +869,7 @@ fn main() {
             get_app_version,
             check_for_updates_now,
             schaltwerk_core_log_frontend_message,
+            open_external_url,
             // MCP commands
             start_mcp_server,
             // Para core commands

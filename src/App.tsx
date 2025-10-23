@@ -58,6 +58,7 @@ import { RawSession } from './types/session'
 import { stableSessionTerminalId } from './common/terminalIdentity'
 import { registerDevErrorListeners } from './dev/registerDevErrorListeners'
 import type { SettingsCategory } from './types/settings'
+import { useFeedback } from './domains/feedback'
 
 
 
@@ -77,6 +78,7 @@ function AppContent() {
   const { beginSessionMutation, endSessionMutation, enqueuePendingStartup } = useSessions()
   const agentLifecycleStateRef = useRef(new Map<string, { state: 'spawned' | 'ready'; timestamp: number }>())
   const [devErrorToastsEnabled, setDevErrorToastsEnabled] = useState(false)
+  const { openFeedback } = useFeedback({ selection })
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -1290,6 +1292,7 @@ function AppContent() {
             setSettingsInitialTab(undefined)
             setSettingsOpen(true)
           }}
+          onOpenFeedback={openFeedback}
         />
         <div className="pt-[32px] h-full">
           <HomeScreen onOpenProject={handleOpenProject} />
@@ -1319,6 +1322,7 @@ function AppContent() {
           setSettingsInitialTab(undefined)
           setSettingsOpen(true)
         }}
+        onOpenFeedback={openFeedback}
         onOpenProjectSelector={() => setProjectSelectorOpen(true)}
         resolveOpenPath={async () => resolveOpenPathForOpenButton({
           selection,
