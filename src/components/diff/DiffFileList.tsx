@@ -3,8 +3,7 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import { useSelection } from '../../contexts/SelectionContext'
-import { VscFile, VscDiffAdded, VscDiffModified, VscDiffRemoved, VscFileBinary, VscDiscard } from 'react-icons/vsc'
-// Open button moved to global top bar
+import { VscFile, VscDiffAdded, VscDiffModified, VscDiffRemoved, VscFileBinary, VscDiscard, VscFolder } from 'react-icons/vsc'
 import clsx from 'clsx'
 import { isBinaryFileByExtension } from '../../utils/binaryDetection'
 import { logger } from '../../utils/logger'
@@ -15,6 +14,7 @@ import { ConfirmDiscardDialog } from '../common/ConfirmDiscardDialog'
 import type { ChangedFile } from '../../common/events'
 import { DiffChangeBadges } from './DiffChangeBadges'
 import { ORCHESTRATOR_SESSION_NAME } from '../../constants/sessions'
+import { theme } from '../../common/theme'
 
 interface DiffFileListProps {
   onFileSelect: (filePath: string) => void
@@ -451,6 +451,30 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
       setConfirmOpen(false)
     }
   }, [sessionName, isCommander])
+
+  const handleOpenFile = useCallback(async (filePath: string) => {
+    try {
+      let basePath: string
+
+      if (isCommander && !sessionName) {
+        basePath = await invoke<string>(TauriCommands.GetActiveProjectPath)
+      } else if (sessionName) {
+        const sessionData = await invoke<{ worktree_path: string }>(TauriCommands.SchaltwerkCoreGetSession, { name: sessionName })
+        basePath = sessionData.worktree_path
+      } else {
+        logger.warn('Cannot open file: no session or orchestrator context')
+        return
+      }
+
+      const fullPath = `${basePath}/${filePath}`
+      const defaultAppId = await invoke<string>(TauriCommands.GetDefaultOpenApp)
+      await invoke(TauriCommands.OpenInApp, { appId: defaultAppId, worktreePath: fullPath })
+    } catch (e) {
+      logger.error('Failed to open file:', filePath, e)
+      const errorMessage = typeof e === 'string' ? e : ((e as Error)?.message || String(e) || 'Unknown error')
+      alert(errorMessage)
+    }
+  }, [sessionName, isCommander])
   
   return (
     <>
@@ -556,9 +580,27 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
                     </div>
                   </div>
                   <button
+                    title="Open file in editor"
+                    aria-label={`Open ${file.path}`}
+                    className="ml-2 p-1 rounded hover:bg-slate-800"
+                    style={{ color: theme.colors.text.secondary }}
+                    onClick={async (e) => {
+                      e.stopPropagation()
+                      await handleOpenFile(file.path)
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = theme.colors.text.primary
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = theme.colors.text.secondary
+                    }}
+                  >
+                    <VscFolder className="text-base" />
+                  </button>
+                  <button
                     title="Discard changes for this file"
                     aria-label={`Discard ${file.path}`}
-                    className="ml-2 p-1 rounded hover:bg-slate-800 text-slate-300"
+                    className="p-1 rounded hover:bg-slate-800 text-slate-300"
                     onClick={async (e) => {
                       e.stopPropagation()
                       setPendingDiscardFile(file.path)

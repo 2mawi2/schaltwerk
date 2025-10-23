@@ -55,6 +55,11 @@ async function defaultInvokeImplementation(cmd: string, args?: Record<string, un
   if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
   if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
   if (cmd === TauriCommands.SchaltwerkCoreGetFontSizes) return [13, 14]
+  if (cmd === TauriCommands.GetDefaultOpenApp) return 'vscode'
+  if (cmd === TauriCommands.GetActiveProjectPath) return '/test/project'
+  if (cmd === TauriCommands.OpenInApp) return undefined
+  if (cmd === TauriCommands.StartFileWatcher) return undefined
+  if (cmd === TauriCommands.StopFileWatcher) return undefined
   return undefined
 }
 
@@ -865,6 +870,114 @@ describe('DiffFileList', () => {
       })
 
       expect(await screen.findByText('b-beta.ts')).toBeInTheDocument()
+    })
+  })
+
+  describe('Open file functionality', () => {
+    it('renders open button for each file', async () => {
+      const { invoke } = await import('@tauri-apps/api/core')
+      const mockInvoke = invoke as ReturnType<typeof vi.fn>
+      mockInvoke.mockImplementation(defaultInvokeImplementation)
+
+      render(
+        <Wrapper sessionName="demo">
+          <DiffFileList onFileSelect={() => {}} />
+        </Wrapper>
+      )
+
+      expect(await screen.findByText('a.ts')).toBeInTheDocument()
+
+      const openButtons = screen.getAllByLabelText(/Open .+/)
+      expect(openButtons.length).toBeGreaterThan(0)
+    })
+
+    it('opens file in default editor when open button is clicked (session mode)', async () => {
+      const { invoke } = await import('@tauri-apps/api/core')
+      const mockInvoke = invoke as ReturnType<typeof vi.fn>
+
+      mockInvoke.mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
+        if (cmd === TauriCommands.SchaltwerkCoreGetSession) {
+          return { worktree_path: '/tmp/worktree/demo' }
+        }
+        if (cmd === TauriCommands.GetDefaultOpenApp) {
+          return 'vscode'
+        }
+        if (cmd === TauriCommands.OpenInApp) {
+          return undefined
+        }
+        return defaultInvokeImplementation(cmd, args)
+      })
+
+      render(
+        <Wrapper sessionName="demo">
+          <DiffFileList onFileSelect={() => {}} />
+        </Wrapper>
+      )
+
+      const openButton = await screen.findByLabelText('Open src/a.ts')
+      fireEvent.click(openButton)
+
+      await waitFor(() => {
+        expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.OpenInApp, {
+          appId: 'vscode',
+          worktreePath: '/tmp/worktree/demo/src/a.ts'
+        })
+      })
+    })
+
+    it('opens file in default editor when open button is clicked (orchestrator mode)', async () => {
+      const { invoke } = await import('@tauri-apps/api/core')
+      const mockInvoke = invoke as ReturnType<typeof vi.fn>
+
+      mockInvoke.mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
+        if (cmd === TauriCommands.GetOrchestratorWorkingChanges) {
+          return [
+            createMockChangedFile({ path: 'src/test.ts', change_type: 'modified' }),
+          ]
+        }
+        if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
+        if (cmd === TauriCommands.GetActiveProjectPath) {
+          return '/test/project'
+        }
+        if (cmd === TauriCommands.GetDefaultOpenApp) {
+          return 'cursor'
+        }
+        if (cmd === TauriCommands.OpenInApp) {
+          return undefined
+        }
+        return defaultInvokeImplementation(cmd, args)
+      })
+
+      render(
+        <Wrapper>
+          <DiffFileList onFileSelect={() => {}} isCommander={true} />
+        </Wrapper>
+      )
+
+      const openButton = await screen.findByLabelText('Open src/test.ts')
+      fireEvent.click(openButton)
+
+      await waitFor(() => {
+        expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.OpenInApp, {
+          appId: 'cursor',
+          worktreePath: '/test/project/src/test.ts'
+        })
+      })
+    })
+
+    it('does not trigger row selection when open button is clicked', async () => {
+      const onFileSelect = vi.fn()
+
+      render(
+        <Wrapper sessionName="demo">
+          <DiffFileList onFileSelect={onFileSelect} />
+        </Wrapper>
+      )
+
+      const openButton = await screen.findByLabelText('Open src/a.ts')
+      fireEvent.click(openButton)
+
+      expect(onFileSelect).not.toHaveBeenCalled()
     })
   })
 })
