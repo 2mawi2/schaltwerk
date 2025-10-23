@@ -11,6 +11,7 @@ pub enum AgentKind {
     Codex,
     OpenCode,
     Gemini,
+    Amp,
     Droid,
     Fallback,
 }
@@ -24,6 +25,8 @@ pub fn infer_agent_kind(agent_name: &str) -> AgentKind {
         AgentKind::OpenCode
     } else if agent_name.contains("gemini") {
         AgentKind::Gemini
+    } else if agent_name.ends_with("/amp") || agent_name == "amp" {
+        AgentKind::Amp
     } else if agent_name.ends_with("/droid") || agent_name == "droid" {
         AgentKind::Droid
     } else {
@@ -38,6 +41,7 @@ impl AgentKind {
             AgentKind::Codex => "codex",
             AgentKind::OpenCode => "opencode",
             AgentKind::Gemini => "gemini",
+            AgentKind::Amp => "amp",
             AgentKind::Droid => "droid",
             AgentKind::Fallback => "claude",
         }
@@ -54,6 +58,7 @@ pub async fn collect_agent_env_and_cli(
         AgentKind::Codex => "codex",
         AgentKind::OpenCode => "opencode",
         AgentKind::Gemini => "gemini",
+        AgentKind::Amp => "amp",
         AgentKind::Droid => "droid",
         AgentKind::Fallback => "claude",
     };
@@ -203,6 +208,11 @@ mod tests {
             infer_agent_kind("gcloud-gemini"),
             AgentKind::Gemini
         ));
+        assert!(matches!(infer_agent_kind("amp"), AgentKind::Amp));
+        assert!(matches!(
+            infer_agent_kind("/opt/homebrew/bin/amp"),
+            AgentKind::Amp
+        ));
         assert!(matches!(infer_agent_kind("droid"), AgentKind::Droid));
         assert!(matches!(
             infer_agent_kind("/Users/test/.local/bin/droid"),
@@ -244,6 +254,7 @@ mod tests {
         assert_eq!(AgentKind::Codex.manifest_key(), "codex");
         assert_eq!(AgentKind::OpenCode.manifest_key(), "opencode");
         assert_eq!(AgentKind::Gemini.manifest_key(), "gemini");
+        assert_eq!(AgentKind::Amp.manifest_key(), "amp");
         assert_eq!(AgentKind::Droid.manifest_key(), "droid");
         assert_eq!(AgentKind::Fallback.manifest_key(), "claude");
     }

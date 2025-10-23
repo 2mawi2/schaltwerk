@@ -1272,6 +1272,7 @@ pub async fn schaltwerk_core_start_claude_with_restart(
         agent_ctx::AgentKind::Codex => "codex",
         agent_ctx::AgentKind::OpenCode => "opencode",
         agent_ctx::AgentKind::Gemini => "gemini",
+        agent_ctx::AgentKind::Amp => "amp",
         agent_ctx::AgentKind::Droid => "droid",
         agent_ctx::AgentKind::Fallback => "claude",
     };
