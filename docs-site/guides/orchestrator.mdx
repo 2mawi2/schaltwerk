@@ -55,7 +55,12 @@ Draft multiple specs for complex features:
   </Step>
 
   <Step title="Refine specs">
-    Press `⌘⇧R` on a spec to open it in orchestrator for refinement
+    Press `⌘⇧R` on a spec to enter **Refine Mode**:
+
+    - Switches to the orchestrator session
+    - Opens the spec in the right panel for live preview
+    - Inserts spec reference in agent terminal (requires MCP enabled)
+    - Agent can read and update the spec iteratively
 
     Add context, constraints, examples before launching agents
   </Step>
@@ -66,6 +71,45 @@ Draft multiple specs for complex features:
     Plan parallel work streams
   </Step>
 </Steps>
+
+### Refine Mode: Iterative Spec Development
+
+<Info>
+  **Requires MCP:** The orchestrator agent must be able to call `schaltwerk_current_spec_update` to edit specs. Enable MCP in **Settings → Agent Configuration** for your agent (Claude Code, Codex, OpenCode, or Gemini).
+</Info>
+
+Refine Mode enables iterative spec development by switching to the orchestrator while keeping the spec visible for live updates:
+
+<Steps>
+  <Step title="Enter Refine Mode">
+    Select a spec in the sidebar and press `⌘⇧R`
+
+    **What happens:**
+    - Session switches to the orchestrator
+    - Spec opens in the right panel (live preview)
+    - Agent terminal receives spec reference (e.g., "Refine spec: my-feature (abc123)")
+  </Step>
+
+  <Step title="Iterative refinement">
+    The agent can now:
+    - Read the current spec content via MCP
+    - Ask clarifying questions
+    - Update the spec with `schaltwerk_current_spec_update`
+    - Preview changes in real-time on the right panel
+
+    You watch the spec evolve in the right panel while collaborating with the agent in the terminal.
+  </Step>
+
+  <Step title="Exit Refine Mode">
+    Press `Esc` or switch to another session when done
+
+    The refined spec is ready to start with `⌘N`
+  </Step>
+</Steps>
+
+<Warning>
+  Without MCP enabled, the agent terminal receives the spec reference text but cannot read or update the spec. The agent will need manual copy-paste of spec content.
+</Warning>
 
 ### 2. Launch Agents in Parallel
 
