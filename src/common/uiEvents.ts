@@ -1,3 +1,5 @@
+import type { SettingsCategory } from '../types/settings'
+
 export enum UiEvent {
   PermissionError = 'schaltwerk:permission-error',
   BackgroundStartMarked = 'schaltwerk:terminal-background-started',
@@ -37,6 +39,7 @@ export enum UiEvent {
   OpenSpecInOrchestrator = 'schaltwerk:open-spec-in-orchestrator',
   ProjectSwitchComplete = 'schaltwerk:project-switch-complete',
   TerminalDimensionRefresh = 'schaltwerk:terminal-dimension-refresh',
+  OpenSettings = 'schaltwerk:open-settings',
 }
 
 export interface TerminalResizeRequestDetail {
@@ -147,6 +150,10 @@ export interface TerminalDimensionRefreshDetail {
   reason: 'webgl-load' | 'webgl-unload' | 'font-change'
 }
 
+export interface OpenSettingsDetail {
+  tab?: SettingsCategory
+}
+
 export interface InsertTerminalTextDetail {
   text: string
 }
@@ -190,6 +197,7 @@ export type UiEventPayloads = {
   [UiEvent.ProjectSwitchComplete]: ProjectSwitchCompleteDetail
   [UiEvent.TerminalDimensionRefresh]: TerminalDimensionRefreshDetail
   [UiEvent.InsertTerminalText]: InsertTerminalTextDetail
+  [UiEvent.OpenSettings]: OpenSettingsDetail | undefined
 }
 
 type UiEventArgs<T extends UiEvent> = undefined extends UiEventPayloads[T]
