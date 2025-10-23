@@ -442,7 +442,15 @@ test:
         echo "   Supported: Linux, macOS"
         exit 1
     fi
-    {{pm}} run test
+    {{pm}} run lint
+    {{pm}} run lint:ts
+    {{pm}} run lint:mcp
+    {{pm}} run lint:rust
+    {{pm}} run deps:rust
+    {{pm}} run test:frontend
+    {{pm}} run test:mcp
+    {{pm}} run test:rust
+    {{pm}} run build:rust
 
 
 # Run only frontend tests (TypeScript, linting, unit tests)

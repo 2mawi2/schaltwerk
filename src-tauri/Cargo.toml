@@ -36,7 +36,6 @@ async-trait = "0.1"
 log = "0.4"
 env_logger = "0.11"
 chrono = { version = "0.4", features = ["serde"] }
-memchr = "2.7"
 dirs = "6.0"
 which = "8.0"
 rusqlite = { version = "0.37", features = ["bundled", "chrono"] }
@@ -78,8 +77,6 @@ tauri-plugin-updater = "2"
 tauri-plugin-os = "2"
 
 [dev-dependencies]
-tokio-test = "0.4"
-mockall = "0.13"
 tempfile = "3.23"
 serial_test = "3.1"
 filetime = "0.2"

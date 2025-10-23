@@ -74,8 +74,9 @@ just test          # Run ALL validations: TypeScript, Rust lints, tests, and bui
 ```
 **Why:** Ensures code quality and prevents broken commits. This command runs:
 - TypeScript linting (`bun run lint`)
-- Rust clippy checks (`cargo clippy`)
-- Rust tests (`cargo test`)
+- Rust clippy checks (`cargo clippy --all-features -- -D warnings`)
+- Rust dependency hygiene (`cargo shear`)
+- Rust tests (`cargo nextest run --all-features`)
 - Rust build verification (`cargo build`)
 
 ### Autonomy for Tests (MANDATORY)
@@ -92,7 +93,8 @@ RUST_LOG=schaltwerk=debug bun run tauri:dev  # With debug logging
 just test               # Full validation suite (ALWAYS run before commits)
 bun run lint            # TypeScript linting only
 bun run lint:rust       # Rust linting only (cargo clippy)
-bun run test:rust       # Rust tests only
+bun run deps:rust       # Rust dependency hygiene (cargo shear)
+bun run test:rust       # Rust tests only (cargo nextest)
 
 # Running the App
 just run                # Start app (ONLY when user requests testing)
