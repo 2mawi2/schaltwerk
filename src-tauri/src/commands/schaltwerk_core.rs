@@ -1152,6 +1152,14 @@ pub async fn schaltwerk_core_start_claude_with_restart(
 
     log::info!("Claude command for session {session_name}: {command}");
 
+    if agent_type == "amp" {
+        if let Err(e) = manager.spawn_amp_thread_watcher(&session_name) {
+            log::warn!(
+                "Failed to spawn amp thread watcher for session '{session_name}': {e}"
+            );
+        }
+    }
+
     let (cwd, agent_name, agent_args) = parse_agent_command(&command)?;
     let agent_kind = agent_ctx::infer_agent_kind(&agent_name);
     let (auto_send_initial_command, ready_marker) = AgentManifest::get(agent_kind.manifest_key())
