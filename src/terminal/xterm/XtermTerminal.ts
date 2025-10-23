@@ -62,7 +62,7 @@ function buildTerminalOptions(config: XtermTerminalConfig): ITerminalOptions {
     minimumContrastRatio: config.minimumContrastRatio,
     customGlyphs: true,
     drawBoldTextInBrightColors: false,
-    rescaleOverlappingGlyphs: false,
+    rescaleOverlappingGlyphs: true,
     allowTransparency: false,
     allowProposedApi: false,
     fastScrollSensitivity: 8,
