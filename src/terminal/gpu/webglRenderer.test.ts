@@ -34,7 +34,10 @@ describe('WebGLTerminalRenderer', () => {
     let mockTerminal: XTerm
     let renderer: WebGLTerminalRenderer
 
-    beforeEach(() => {
+    beforeEach(async () => {
+        const { isWebGLSupported } = await import('./webglCapability')
+        vi.mocked(isWebGLSupported).mockReturnValue(true)
+
         mockTerminal = {
             loadAddon: vi.fn(),
             element: document.createElement('div')
