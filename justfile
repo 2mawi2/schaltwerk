@@ -68,11 +68,24 @@ release version="patch":
         sed -i "s/^version = \"$CURRENT_VERSION\"/version = \"$NEW_VERSION\"/" src-tauri/Cargo.toml
     fi
 
+    # Update version in package.json
+    NEW_VERSION="$NEW_VERSION" node <<'NODE'
+    const fs = require('fs');
+    const path = 'package.json';
+    const version = process.env.NEW_VERSION;
+    if (!version) {
+        throw new Error('Missing NEW_VERSION environment variable');
+    }
+    const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+    pkg.version = version;
+    fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
+    NODE
+
     # Update Cargo.lock
     cd src-tauri && cargo update -p schaltwerk && cd ..
 
     # Commit version bump
-    git add src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock
+    git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock
     git commit -m "chore: bump version to $NEW_VERSION"
 
     # Create and push tag

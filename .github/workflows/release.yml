@@ -15,8 +15,36 @@ permissions:
   contents: write
 
 jobs:
+  tag-check:
+    name: Validate Release Tag
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Validate tag
+        run: |
+          set -euo pipefail
+          tag_ver="${GITHUB_REF_NAME#v}"
+          pkg_ver=$(jq -r '.version' package.json)
+          if [[ -z "$pkg_ver" || "$pkg_ver" == "null" ]]; then
+            echo "❌ Failed to read version from package.json"
+            exit 1
+          fi
+          if [[ "$tag_ver" != "$pkg_ver" ]]; then
+            echo "❌ Tag $tag_ver ≠ package.json $pkg_ver"
+            exit 1
+          fi
+          echo "✅ Tag matches package.json ($tag_ver)"
+
   test:
     name: Run Full Test Suite
+    needs: tag-check
     runs-on: ubuntu-latest
     # Only run for tag pushes, not manual workflow dispatch
     if: startsWith(github.ref, 'refs/tags/')
