@@ -349,6 +349,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         cancelGpuRefreshWork,
         ensureRenderer,
         handleFontPreferenceChange,
+        webglRendererActive,
     } = useTerminalGpu({
         terminalId,
         terminalRef: terminal,
@@ -834,7 +835,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         if (termRef.current) {
             instance.attach(termRef.current);
         }
-        applyLetterSpacing(gpuEnabledForTerminal);
+        applyLetterSpacing(webglRendererActive);
         // Allow streaming immediately; proper fits will still run later
         rendererReadyRef.current = true;
 
@@ -1097,7 +1098,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             }
 
             if (fontsLoadedRef.current) {
-                applyLetterSpacing(gpuEnabledForTerminal);
+                applyLetterSpacing(webglRendererActive);
                 refreshGpuFontRendering();
                 if (gpuEnabledForTerminal) {
                     void handleFontPreferenceChange();
@@ -1296,6 +1297,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         applyLetterSpacing,
         gpuRenderer,
         handleFontPreferenceChange,
+        webglRendererActive,
     ]);
 
 
@@ -1494,7 +1496,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         const finalizeFontUpdate = () => {
             fontsLoadedRef.current = true;
             setFontsFullyLoaded(true);
-            applyLetterSpacing(gpuEnabledForTerminal);
+            applyLetterSpacing(webglRendererActive);
             if (fontsLoadedRef.current) {
                 refreshGpuFontRendering();
                 if (gpuEnabledForTerminal) {
@@ -1554,6 +1556,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         gpuEnabledForTerminal,
         applyLetterSpacing,
         handleFontPreferenceChange,
+        webglRendererActive,
     ])
 
     useLayoutEffect(() => {
