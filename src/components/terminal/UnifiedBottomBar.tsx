@@ -12,6 +12,7 @@ import {
 } from './UnifiedBottomBar.logic'
 import { useMultipleShortcutDisplays } from '../../keyboardShortcuts/useShortcutDisplay'
 import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
+import { AddTerminalButton } from './AddTerminalButton'
 
 export interface UnifiedBottomBarProps {
   isCollapsed: boolean
@@ -107,41 +108,15 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
             })}
             
             {canAddTab && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
+              <AddTerminalButton
+                onClick={(event) => {
+                  event.stopPropagation()
                   onTabAdd()
                 }}
-                className="flex items-center justify-center w-12 h-full"
-                style={{
-                  color: theme.colors.text.tertiary,
-                  borderRight: `1px solid ${theme.colors.border.subtle}`,
-                  borderTop: `3px solid transparent`,
-                  fontSize: '16px',
-                  backgroundColor: 'transparent',
-                  fontWeight: '600',
-                  paddingLeft: '0',
-                  paddingRight: '0',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.color = theme.colors.accent.blue.light
-                  e.currentTarget.style.backgroundColor = theme.colors.accent.blue.bg
-                  e.currentTarget.style.borderTopColor = theme.colors.accent.blue.DEFAULT
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.color = theme.colors.text.tertiary
-                  e.currentTarget.style.backgroundColor = 'transparent'
-                  e.currentTarget.style.borderTopColor = 'transparent'
-                }}
                 title="Add new terminal"
-              >
-                <span
-                  className="text-base font-bold"
-                  style={{ lineHeight: theme.lineHeight.heading }}
-                >
-                  +
-                </span>
-              </button>
+                ariaLabel="Add new terminal"
+                className="self-center ml-2 h-7 w-7"
+              />
             )}
           </div>
         </div>
