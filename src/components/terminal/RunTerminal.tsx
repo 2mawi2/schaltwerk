@@ -6,6 +6,7 @@ import { AnimatedText } from '../common/AnimatedText'
 import { logger } from '../../utils/logger'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import { theme } from '../../common/theme'
+import { emitUiEvent, UiEvent, listenUiEvent } from '../../common/uiEvents'
 import { bestBootstrapSize } from '../../common/terminalSizeCache'
 import {
   createRunTerminalBackend,
@@ -83,27 +84,36 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
     sessionStorage.setItem(runStateKey, String(isRunning))
   }, [isRunning, runStateKey])
 
-  useEffect(() => {
-    const loadRunScript = async () => {
-      try {
-        setIsLoading(true)
-        const script = await invoke<RunScript | null>(TauriCommands.GetProjectRunScript)
-        if (script && script.command) {
-          setRunScript(script)
-          setError(null)
-        } else {
-          setError('No run script configured')
-        }
-      } catch (err) {
-        logger.error('[RunTerminal] Failed to load run script:', err)
-        setError('Failed to load run script configuration')
-      } finally {
-        setIsLoading(false)
+  const loadRunScript = useCallback(async () => {
+    try {
+      setIsLoading(true)
+      const script = await invoke<RunScript | null>(TauriCommands.GetProjectRunScript)
+      if (script && script.command) {
+        setRunScript(script)
+        setError(null)
+      } else {
+        setRunScript(null)
+        setError('No run script configured')
       }
+    } catch (err) {
+      logger.error('[RunTerminal] Failed to load run script:', err)
+      setRunScript(null)
+      setError('Failed to load run script configuration')
+    } finally {
+      setIsLoading(false)
     }
-
-    loadRunScript()
   }, [])
+
+  useEffect(() => {
+    void loadRunScript()
+  }, [loadRunScript])
+
+  useEffect(() => {
+    const cleanup = listenUiEvent(UiEvent.RunScriptUpdated, () => {
+      void loadRunScript()
+    })
+    return cleanup
+  }, [loadRunScript])
 
   useEffect(() => {
     const checkExistingTerminal = async () => {
@@ -325,16 +335,38 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
 
   if (error || !runScript) {
     return (
-      <div className={`${className} flex items-center justify-center`} style={{ backgroundColor: theme.colors.background.primary }}>
-        <div className="text-center p-8 max-w-md">
-          <div className="text-slate-600 text-5xl mb-4">⚡</div>
-          <div className="text-slate-400 font-medium text-lg mb-2">No Run Script Configured</div>
-          <div className="text-sm text-slate-500 mb-4">
-            {error || 'Configure a run script to execute commands in this project'}
+      <div
+        className={`${className} flex items-center justify-center`}
+        style={{ backgroundColor: theme.colors.background.primary }}
+      >
+        <div
+          className="text-center p-8 max-w-md border-2 border-dashed rounded-lg"
+          style={{ borderColor: theme.colors.border.subtle }}
+        >
+          <div
+            className="text-lg font-medium mb-2"
+            style={{ color: theme.colors.text.primary }}
+          >
+            No Run Configuration
           </div>
-          <div className="text-xs text-slate-600">
-            Go to Settings → Run Scripts to set up your run command
+          <div
+            className="text-sm mb-6"
+            style={{ color: theme.colors.text.secondary }}
+          >
+            Run tests or a development server to test changes in this workspace
           </div>
+          <button
+            onClick={() => {
+              emitUiEvent(UiEvent.OpenSettings, { tab: 'projectRun' })
+            }}
+            className="px-4 py-2 rounded font-medium transition-transform transform hover:-translate-y-0.5 hover:scale-105 cursor-pointer"
+            style={{
+              backgroundColor: theme.colors.accent.blue.DEFAULT,
+              color: theme.colors.text.primary
+            }}
+          >
+            Add run script
+          </button>
         </div>
       </div>
     )

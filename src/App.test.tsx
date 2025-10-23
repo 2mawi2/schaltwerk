@@ -1,6 +1,6 @@
 import React from 'react'
 import { TauriCommands } from './common/tauriCommands'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { TestProviders } from './tests/test-utils'
 import App from './App'
 import { validatePanelPercentage } from './utils/panel'
@@ -24,11 +24,18 @@ vi.mock('./components/right-panel/RightPanelTabs', () => ({
   RightPanelTabs: () => <div data-testid="right-panel-tabs" />,
 }))
 const newSessionModalMock = vi.fn((props: unknown) => props)
+const settingsModalMock = vi.fn((props: unknown) => props)
 
 vi.mock('./components/modals/NewSessionModal', () => ({
   NewSessionModal: (props: unknown) => {
     newSessionModalMock(props)
     return null
+  },
+}))
+vi.mock('./components/modals/SettingsModal', () => ({
+  SettingsModal: (props: unknown) => {
+    settingsModalMock(props)
+    return <div data-testid="settings-modal" />
   },
 }))
 vi.mock('./components/modals/CancelConfirmation', () => ({
@@ -171,6 +178,7 @@ describe('App.tsx', () => {
     const { invoke } = await import('@tauri-apps/api/core')
     ;(invoke as unknown as ReturnType<typeof vi.fn>).mockImplementation(defaultInvokeImpl)
     newSessionModalMock.mockClear()
+    settingsModalMock.mockClear()
     startSessionTopMock.mockClear()
     listenEventHandlers.length = 0
     mockState.isGitRepo = false
@@ -314,6 +322,69 @@ describe('App.tsx', () => {
       // Verify the app renders and would have set up the event listeners
       // The actual functionality is tested through integration with the real modal
       expect(screen.getByTestId('home-screen')).toBeInTheDocument()
+    })
+  })
+
+  it('opens the Settings modal when the OpenSettings event is emitted', async () => {
+    renderApp()
+    settingsModalMock.mockClear()
+
+    await act(async () => {
+      emitUiEvent(UiEvent.OpenSettings)
+    })
+
+    await waitFor(() => {
+      expect(settingsModalMock).toHaveBeenCalled()
+      const props = settingsModalMock.mock.calls.at(-1)?.[0] as { open: boolean }
+      expect(props.open).toBe(true)
+    })
+  })
+
+  it('passes the requested settings tab when handling OpenSettings', async () => {
+    renderApp()
+    settingsModalMock.mockClear()
+
+    await act(async () => {
+      emitUiEvent(UiEvent.OpenSettings, { tab: 'projectRun' })
+    })
+
+    await waitFor(() => {
+      expect(settingsModalMock).toHaveBeenCalled()
+      const props = settingsModalMock.mock.calls.at(-1)?.[0] as { open: boolean; initialTab?: string }
+      expect(props.open).toBe(true)
+      expect(props.initialTab).toBe('projectRun')
+    })
+  })
+
+  it('clears the initial settings tab once the modal closes', async () => {
+    renderApp()
+    settingsModalMock.mockClear()
+
+    await act(async () => {
+      emitUiEvent(UiEvent.OpenSettings, { tab: 'projectRun' })
+    })
+
+    let latest: { open: boolean; initialTab?: string; onClose: () => void } | undefined
+
+    await waitFor(() => {
+      expect(settingsModalMock).toHaveBeenCalled()
+      latest = settingsModalMock.mock.calls.at(-1)?.[0] as { open: boolean; initialTab?: string; onClose: () => void }
+      expect(latest.open).toBe(true)
+      expect(latest.initialTab).toBe('projectRun')
+    })
+
+    if (!latest) {
+      throw new Error('Settings modal props were not captured')
+    }
+
+    await act(async () => {
+      latest?.onClose()
+    })
+
+    await waitFor(() => {
+      const finalProps = settingsModalMock.mock.calls.at(-1)?.[0] as { open: boolean; initialTab?: string }
+      expect(finalProps.open).toBe(false)
+      expect(finalProps.initialTab).toBeUndefined()
     })
   })
 
