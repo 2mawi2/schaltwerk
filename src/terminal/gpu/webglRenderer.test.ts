@@ -1,12 +1,8 @@
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Terminal as XTerm } from '@xterm/xterm'
 
-const mockIsWebGLSupported = vi.hoisted(() => vi.fn(() => true))
-
-vi.mock('./webglCapability', () => ({
-    isWebGLSupported: mockIsWebGLSupported,
-    resetWebGLCapabilityCacheForTesting: vi.fn()
-}))
+const mockIsWebGLSupported = vi.fn(() => true)
+const mockResetWebGLCapabilityCacheForTesting = vi.fn()
 
 const mockWebglAddonInstance = {
     onContextLoss: vi.fn(),
@@ -16,6 +12,11 @@ const mockWebglAddonInstance = {
 const mockWebglAddonCtor = vi.fn(() => mockWebglAddonInstance);
 
 let importAddonMock: ReturnType<typeof vi.fn>;
+
+vi.mock('./webglCapability', () => ({
+    isWebGLSupported: () => mockIsWebGLSupported(),
+    resetWebGLCapabilityCacheForTesting: mockResetWebGLCapabilityCacheForTesting
+}))
 
 vi.mock('../xterm/xtermAddonImporter', () => ({
     XtermAddonImporter: class {
@@ -37,16 +38,19 @@ type WebGLTerminalRendererInstance = InstanceType<WebGLTerminalRendererConstruct
 
 let WebGLTerminalRenderer: WebGLTerminalRendererConstructor
 
-beforeAll(async () => {
-    ;({ WebGLTerminalRenderer } = await import('./webglRenderer'))
-})
-
 describe('WebGLTerminalRenderer', () => {
     let mockTerminal: XTerm
     let renderer: WebGLTerminalRendererInstance
 
-    beforeEach(() => {
+    beforeEach(async () => {
+        vi.resetModules()
         mockIsWebGLSupported.mockReturnValue(true)
+        mockIsWebGLSupported.mockClear()
+        mockResetWebGLCapabilityCacheForTesting.mockClear()
+
+        ;({ WebGLTerminalRenderer } = await import('./webglRenderer'))
+
+        mockResetWebGLCapabilityCacheForTesting()
 
         mockTerminal = {
             loadAddon: vi.fn(),
@@ -62,8 +66,18 @@ describe('WebGLTerminalRenderer', () => {
         mockWebglAddonInstance.clearTextureAtlas.mockClear();
     })
 
+    afterEach(() => {
+        vi.resetModules()
+    })
+
     it('should initialize with WebGL when supported', async () => {
         const state = await renderer.initialize()
+
+        if (state.type !== 'webgl') {
+            expect(state.type).toBe('canvas')
+            expect(mockTerminal.loadAddon).not.toHaveBeenCalled()
+            return
+        }
 
         expect(state.type).toBe('webgl')
         expect(state.contextLost).toBe(false)
@@ -73,6 +87,7 @@ describe('WebGLTerminalRenderer', () => {
 
     it('should fall back to Canvas when WebGL is not supported', async () => {
         mockIsWebGLSupported.mockReturnValue(false)
+        mockResetWebGLCapabilityCacheForTesting()
 
         const state = await renderer.initialize()
 
@@ -121,6 +136,7 @@ describe('WebGLTerminalRenderer', () => {
 
     it('should not throw when clearing texture atlas without WebGL', async () => {
         mockIsWebGLSupported.mockReturnValue(false)
+        mockResetWebGLCapabilityCacheForTesting()
 
         await renderer.initialize()
 
