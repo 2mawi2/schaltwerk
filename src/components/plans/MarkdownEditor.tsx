@@ -1,4 +1,14 @@
-import { useMemo, useCallback, memo, useRef, useEffect, useState, forwardRef, useImperativeHandle } from 'react'
+import {
+  useMemo,
+  useCallback,
+  memo,
+  useRef,
+  useEffect,
+  useState,
+  forwardRef,
+  useImperativeHandle,
+  type CSSProperties,
+} from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { markdown } from '@codemirror/lang-markdown'
 import { EditorView } from '@codemirror/view'
@@ -6,6 +16,9 @@ import { EditorState, type Extension } from '@codemirror/state'
 import { theme } from '../../common/theme'
 import type { ProjectFileIndexApi } from '../../hooks/useProjectFileIndex'
 import { createFileReferenceAutocomplete } from './fileReferenceAutocomplete'
+import { useOptionalToast } from '../../common/toast/ToastProvider'
+import { logger } from '../../utils/logger'
+import type { ToastOptions } from '../../common/toast/ToastProvider'
 
 interface MarkdownEditorProps {
   value: string
@@ -19,6 +32,33 @@ interface MarkdownEditorProps {
 export interface MarkdownEditorRef {
   focus: () => void
   focusEnd: () => void
+}
+
+export const MARKDOWN_PASTE_CHARACTER_LIMIT = 200_000
+
+type OptionalToastApi = { pushToast: (options: ToastOptions) => void } | undefined
+
+export function handleMarkdownPaste(event: ClipboardEvent, toast: OptionalToastApi): boolean {
+  const text = event.clipboardData?.getData('text/plain') ?? ''
+  if (!text || text.length <= MARKDOWN_PASTE_CHARACTER_LIMIT) {
+    return false
+  }
+
+  event.preventDefault()
+  event.stopPropagation()
+
+  logger.warn('[MarkdownEditor] Blocked paste exceeding limit', {
+    length: text.length,
+    limit: MARKDOWN_PASTE_CHARACTER_LIMIT,
+  })
+
+  toast?.pushToast({
+    tone: 'warning',
+    title: 'Paste too large',
+    description: `Paste size is limited to ${MARKDOWN_PASTE_CHARACTER_LIMIT.toLocaleString()} characters. Shorten the content before pasting.`,
+  })
+
+  return true
 }
 
 const editorColors = theme.colors.editor
@@ -164,7 +204,7 @@ const syntaxHighlighting = EditorView.theme({
   },
 }, { dark: true })
 
-const scrollableContainerStyles: React.CSSProperties = {
+const scrollableContainerStyles: CSSProperties = {
   height: '100%',
   width: '100%',
   display: 'flex',
@@ -173,7 +213,7 @@ const scrollableContainerStyles: React.CSSProperties = {
   minHeight: 0,
 }
 
-const scrollableInnerStyles: React.CSSProperties = {
+const scrollableInnerStyles: CSSProperties = {
   flex: 1,
   minHeight: 0,
   overflowY: 'auto',
@@ -194,6 +234,7 @@ export const MarkdownEditor = memo(forwardRef<MarkdownEditorRef, MarkdownEditorP
   const lastValueRef = useRef(value)
   const [internalValue, setInternalValue] = useState(value)
   const editorViewRef = useRef<EditorView | null>(null)
+  const toast = useOptionalToast()
 
   const fileReferenceExtensions = useMemo<Extension[]>(() => {
     if (!fileReferenceProvider) {
@@ -202,14 +243,22 @@ export const MarkdownEditor = memo(forwardRef<MarkdownEditorRef, MarkdownEditorP
     return [createFileReferenceAutocomplete(fileReferenceProvider)]
   }, [fileReferenceProvider])
 
+  const pasteGuardExtension = useMemo<Extension>(() => EditorView.domEventHandlers({
+    paste: (event) => {
+      const clipboardEvent = event as ClipboardEvent
+      return handleMarkdownPaste(clipboardEvent, toast)
+    },
+  }), [toast])
+
   const extensions = useMemo(() => [
     markdown(),
     customTheme,
     syntaxHighlighting,
     EditorView.lineWrapping,
     editorConfig,
+    pasteGuardExtension,
     ...fileReferenceExtensions,
-  ], [editorConfig, fileReferenceExtensions])
+  ], [editorConfig, fileReferenceExtensions, pasteGuardExtension])
 
   // Only update internal value if the prop value actually changed
   useEffect(() => {
@@ -245,7 +294,10 @@ export const MarkdownEditor = memo(forwardRef<MarkdownEditorRef, MarkdownEditorP
 
   return (
     <div className={`markdown-editor-container ${className}`} style={scrollableContainerStyles}>
-      <div className="markdown-editor-scroll" style={scrollableInnerStyles}>
+      <div
+        className="markdown-editor-scroll"
+        style={scrollableInnerStyles}
+      >
         <CodeMirror
           value={internalValue}
           onChange={handleChange}
