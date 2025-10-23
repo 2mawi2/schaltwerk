@@ -37,6 +37,7 @@ import { useProject } from '../../contexts/ProjectContext'
 import { getSessionDisplayName } from '../../utils/sessionDisplayName'
 import { theme } from '../../common/theme'
 import { useClaudeSession } from '../../hooks/useClaudeSession'
+import { ORCHESTRATOR_SESSION_NAME } from '../../constants/sessions'
 
 // Normalize backend states to UI categories
 function mapSessionUiState(info: SessionInfo): 'spec' | 'running' | 'reviewed' {
@@ -370,21 +371,35 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     }, [selection, fetchOrchestratorBranch])
 
     useEffect(() => {
-        let unlisten: UnlistenFn | null = null
+        let unlistenProjectReady: UnlistenFn | null = null
+        let unlistenFileChanges: UnlistenFn | null = null
 
         const attach = async () => {
             try {
-                unlisten = await listenEvent(SchaltEvent.ProjectReady, () => { void fetchOrchestratorBranch() })
+                unlistenProjectReady = await listenEvent(SchaltEvent.ProjectReady, () => { void fetchOrchestratorBranch() })
             } catch (error) {
                 logger.warn('Failed to listen for project ready events:', error)
+            }
+
+            try {
+                unlistenFileChanges = await listenEvent(SchaltEvent.FileChanges, event => {
+                    if (event.session_name === ORCHESTRATOR_SESSION_NAME) {
+                        setOrchestratorBranch(event.branch_info.current_branch || 'HEAD')
+                    }
+                })
+            } catch (error) {
+                logger.warn('Failed to listen for orchestrator file changes:', error)
             }
         }
 
         void attach()
 
         return () => {
-            if (unlisten) {
-                unlisten()
+            if (unlistenProjectReady) {
+                unlistenProjectReady()
+            }
+            if (unlistenFileChanges) {
+                unlistenFileChanges()
             }
         }
     }, [fetchOrchestratorBranch])
