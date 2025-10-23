@@ -214,7 +214,6 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
     return !effectiveContinuousScroll
   }, [effectiveContinuousScroll])
 
-
   const isCommanderView = useCallback(() => selection.kind === 'orchestrator', [selection.kind])
   const sessionName: string | null = selection.kind === 'session' ? (selection.payload as string) : null
   const targetSession = useMemo(() => {

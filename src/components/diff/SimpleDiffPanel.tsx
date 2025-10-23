@@ -1,5 +1,4 @@
 import { DiffFileList } from './DiffFileList'
-import { useSelection } from '../../contexts/SelectionContext'
 
 interface SimpleDiffPanelProps {
   onFileSelect: (filePath: string) => void
@@ -8,9 +7,6 @@ interface SimpleDiffPanelProps {
 }
 
 export function SimpleDiffPanel({ onFileSelect, sessionNameOverride, isCommander }: SimpleDiffPanelProps) {
-  // selection not needed after removing prompt dock
-  useSelection()
-  // Test hook data-testid for App.test.tsx
   const testProps: { 'data-testid': string } = { 'data-testid': 'diff-panel' }
 
   // Prompt dock and related functionality removed
