@@ -14,25 +14,6 @@ export type MockFn = {
   mockRejectedValue?: (value: unknown) => MockFn
 }
 
-export interface MockTauriAPI {
-  invoke: MockFn
-  listen: MockFn
-  emit: MockFn
-}
-
-export interface MockEventSystem {
-  listenEvent: MockFn
-  listenTerminalOutput: MockFn
-  clearListeners: MockFn
-}
-
-export interface MockLogger {
-  info: MockFn
-  warn: MockFn
-  error: MockFn
-  debug: MockFn
-}
-
 export interface MockXTerm {
   __instances: MockXTerm[]
   options: Record<string, unknown>
@@ -99,37 +80,3 @@ export interface MockEnrichedSession {
   }
 }
 
-export interface MockGlobalState {
-  sessions: MockEnrichedSession[]
-  selection: MockSelection | null
-  isLoading: boolean
-  error: string | null
-}
-
-export interface MockTerminalData {
-  id: string
-  output: string
-  isActive: boolean
-}
-
-export interface MockModalProps {
-  open: boolean
-  onClose: MockFn
-  onSubmit?: MockFn
-  initialData?: Record<string, unknown>
-}
-
-export interface MockContextValue<T = unknown> {
-  value: T
-  setValue: MockFn
-  loading: boolean
-  error: string | null
-}
-
-export interface MockTestUtils {
-  render: MockFn
-  fireEvent: MockFn
-  waitFor: MockFn
-  screen: Record<string, MockFn>
-  userEvent: Record<string, MockFn>
-}

@@ -46,16 +46,6 @@ function selectLabelColor(historyItem: HistoryItem, colorMap: Map<string, string
   return undefined
 }
 
-function findLastIndex(nodes: HistoryGraphNode[], id: string): number {
-  for (let i = nodes.length - 1; i >= 0; i--) {
-    if (nodes[i].id === id) {
-      return i
-    }
-  }
-
-  return -1
-}
-
 function compareRefs(
   ref1: HistoryItemRef,
   ref2: HistoryItemRef,
@@ -176,39 +166,6 @@ export function toViewModel(snapshot: HistoryProviderSnapshot): HistoryItemViewM
   }
 
   return viewModels
-}
-
-export function findGraphWidth(nodes: HistoryGraphNode[]): number {
-  return nodes.length + 1
-}
-
-export function graphPlaceholder(columns: HistoryGraphNode[], highlight?: number): HistoryGraphNode[] {
-  const col = [...columns]
-  if (highlight !== undefined && highlight >= 0 && highlight < col.length) {
-    col[highlight] = { ...col[highlight] }
-  }
-  return col
-}
-
-export function findSwimlaneIndex(viewModel: HistoryItemViewModel): number {
-  const { historyItem, inputSwimlanes } = viewModel
-  const index = inputSwimlanes.findIndex(node => node.id === historyItem.id)
-  return index !== -1 ? index : inputSwimlanes.length
-}
-
-export function findExtraParents(viewModel: HistoryItemViewModel): HistoryGraphNode[] {
-  const { historyItem, outputSwimlanes } = viewModel
-  const extras: HistoryGraphNode[] = []
-
-  for (let i = 1; i < historyItem.parentIds.length; i++) {
-    const parentId = historyItem.parentIds[i]
-    const idx = findLastIndex(outputSwimlanes, parentId)
-    if (idx !== -1) {
-      extras.push(outputSwimlanes[idx])
-    }
-  }
-
-  return extras
 }
 
 export function findNodeColor(viewModel: HistoryItemViewModel): string {

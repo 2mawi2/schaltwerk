@@ -199,40 +199,8 @@ export function releaseTerminalInstance(id: string): void {
   registry.release(id);
 }
 
-export function attachTerminalInstance(id: string, container: HTMLElement): void {
-  registry.attach(id, container);
-}
-
 export function detachTerminalInstance(id: string): void {
   registry.detach(id);
-}
-
-export function updateTerminalInstanceLastSeq(id: string, seq: number | null): void {
-  registry.updateLastSeq(id, seq);
-}
-
-export function getTerminalInstanceLastSeq(id: string): number | null {
-  return registry.getLastSeq(id);
-}
-
-export function markTerminalInstanceInitialized(id: string): void {
-  registry.markInitialized(id);
-}
-
-export function isTerminalInstanceInitialized(id: string): boolean {
-  return registry.isInitialized(id);
-}
-
-export function hasTerminalInstance(id: string): boolean {
-  return registry.has(id);
-}
-
-export function clearTerminalRegistry(): void {
-  registry.clear();
-}
-
-export function releaseTerminalFamilyByPrefix(prefix: string): void {
-  registry.releaseByPredicate((id) => id === prefix || id.startsWith(`${prefix}-`));
 }
 
 export function releaseSessionTerminals(sessionName: string): void {

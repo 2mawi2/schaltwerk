@@ -32,12 +32,3 @@ export function determineRunModeState(sessionKey: string): RunModeState {
     }
 }
 
-export function saveRunModeState(sessionKey: string, isActive: boolean): void {
-    const runModeKey = `schaltwerk:run-mode:${sessionKey}`
-    sessionStorage.setItem(runModeKey, String(isActive))
-}
-
-export function saveActiveTab(sessionKey: string, tabIndex: number): void {
-    const activeTabKey = `schaltwerk:active-tab:${sessionKey}`
-    sessionStorage.setItem(activeTabKey, String(tabIndex))
-}
