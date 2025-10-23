@@ -2,8 +2,11 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { WebGLTerminalRenderer } from './webglRenderer'
 import type { Terminal as XTerm } from '@xterm/xterm'
 
+const mockIsWebGLSupported = vi.hoisted(() => vi.fn(() => true))
+
 vi.mock('./webglCapability', () => ({
-    isWebGLSupported: vi.fn(() => true)
+    isWebGLSupported: mockIsWebGLSupported,
+    resetWebGLCapabilityCacheForTesting: vi.fn()
 }))
 
 const mockWebglAddonInstance = {
@@ -34,9 +37,8 @@ describe('WebGLTerminalRenderer', () => {
     let mockTerminal: XTerm
     let renderer: WebGLTerminalRenderer
 
-    beforeEach(async () => {
-        const { isWebGLSupported } = await import('./webglCapability')
-        vi.mocked(isWebGLSupported).mockReturnValue(true)
+    beforeEach(() => {
+        mockIsWebGLSupported.mockReturnValue(true)
 
         mockTerminal = {
             loadAddon: vi.fn(),
@@ -62,8 +64,7 @@ describe('WebGLTerminalRenderer', () => {
     })
 
     it('should fall back to Canvas when WebGL is not supported', async () => {
-        const { isWebGLSupported } = await import('./webglCapability')
-        vi.mocked(isWebGLSupported).mockReturnValue(false)
+        mockIsWebGLSupported.mockReturnValue(false)
 
         const state = await renderer.initialize()
 
@@ -111,8 +112,7 @@ describe('WebGLTerminalRenderer', () => {
     })
 
     it('should not throw when clearing texture atlas without WebGL', async () => {
-        const { isWebGLSupported } = await import('./webglCapability')
-        vi.mocked(isWebGLSupported).mockReturnValue(false)
+        mockIsWebGLSupported.mockReturnValue(false)
 
         await renderer.initialize()
 
