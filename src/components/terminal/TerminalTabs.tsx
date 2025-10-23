@@ -6,6 +6,7 @@ import { UnifiedTab } from '../UnifiedTab'
 import { theme } from '../../common/theme'
 import { useModal } from '../../contexts/ModalContext'
 import { safeTerminalFocus, safeTerminalFocusImmediate } from '../../utils/safeFocus'
+import { TabInfo } from '../../types/terminalTabs'
 
 interface TerminalTabsProps {
   baseTerminalId: string
@@ -33,12 +34,6 @@ export interface TerminalTabsHandle {
      closeTab: (index: number) => void
      setActiveTab: (index: number) => void
    }
-}
-
-export interface TabInfo {
-  index: number
-  terminalId: string
-  label: string
 }
 
 const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(({

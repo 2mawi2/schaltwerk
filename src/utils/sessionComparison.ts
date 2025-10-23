@@ -1,6 +1,4 @@
-import { SessionInfo } from '../types/session'
-
-type DiffStats = { files_changed: number; additions: number; deletions: number; insertions: number }
+import { SessionInfo, DiffStats } from '../types/session'
 
 const SESSION_INFO_KEYS: ReadonlyArray<keyof SessionInfo> = [
     'session_id',
