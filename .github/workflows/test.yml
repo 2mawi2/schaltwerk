@@ -28,6 +28,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
+      - name: Restore system package cache
+        if: ${{ !env.ACT }}
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: ${{ runner.os }}-apt-${{ hashFiles('.github/workflows/system-packages.txt') }}
+
       - name: Install system dependencies (GitHub Actions)
         # Only run on GitHub Actions, not in act (which uses pre-built image)
         if: ${{ !env.ACT }}
