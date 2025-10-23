@@ -36,6 +36,7 @@ use tokio::sync::{Mutex, OnceCell, OwnedRwLockReadGuard, OwnedRwLockWriteGuard, 
 
 const UPDATER_PUBLIC_KEY: &str = include_str!("../updater-public.pem");
 
+#[cfg(debug_assertions)]
 #[derive(Debug, Clone, Serialize)]
 struct DevBackendErrorPayload {
     message: String,
@@ -735,7 +736,9 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
 }
 
 use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
+#[cfg(debug_assertions)]
 use schaltwerk::infrastructure::logging::register_dev_error_hook;
+#[cfg(debug_assertions)]
 use serde::Serialize;
 use tauri::Manager;
 
