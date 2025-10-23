@@ -67,9 +67,10 @@ jobs:
         with:
           components: clippy
 
-      - name: Cache Rust dependencies
-        uses: actions/cache@v4
+      - name: Restore cargo home cache
+        id: cache_cargo_home_restore
         if: ${{ !env.ACT }}
+        uses: actions/cache/restore@v4
         with:
           # Skip caching src-tauri/target because the debug artifacts exceed 2 GB and
           # the post-job tar archive started timing out after the objc2 upgrade.
@@ -78,9 +79,7 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
+          key: cargo-home-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install cargo-nextest and cargo-shear
         run: |
@@ -106,3 +105,15 @@ jobs:
 
       - name: Run full test suite (lint, shear, nextest, build)
         run: node scripts/package-manager.mjs run test
+
+      - name: Save cargo home cache
+        if: always() && !cancelled() && steps.cache_cargo_home_restore.outputs.cache-hit != 'true' && !env.ACT
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: cargo-home-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
