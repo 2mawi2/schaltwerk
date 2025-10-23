@@ -192,7 +192,7 @@ function DiffLineRowComponent({
       
       {/* Code content */}
       <td
-        className="px-2 py-0.5 font-mono text-sm relative whitespace-pre"
+        className="px-2 py-0.5 font-mono text-sm relative align-top"
         onContextMenu={handleCodeContextMenu}
       >
         {line.type === 'added' && (
@@ -203,11 +203,13 @@ function DiffLineRowComponent({
         )}
         {highlightedContent ? (
           <code
-            className="hljs inline-block whitespace-pre"
+            className="hljs block max-w-full whitespace-pre-wrap break-words diff-line-code"
             dangerouslySetInnerHTML={{ __html: highlightedContent }}
           />
         ) : (
-          <code className="text-slate-200 inline-block whitespace-pre">{contentForCopy}</code>
+          <code className="text-slate-200 block max-w-full whitespace-pre-wrap break-words diff-line-code">
+            {contentForCopy}
+          </code>
         )}
       </td>
     </tr>
