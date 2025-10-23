@@ -3,7 +3,7 @@ import { WebGLTerminalRenderer } from '../terminal/gpu/webglRenderer';
 import { logger } from './logger';
 
 export const DEFAULT_LETTER_SPACING = 0;
-export const GPU_LETTER_SPACING = 0.6;
+export const GPU_LETTER_SPACING = 0;
 
 interface ApplyOptions {
     terminal: XTerm | null;
