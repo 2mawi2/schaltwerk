@@ -56,6 +56,7 @@ import { useOptionalToast } from './common/toast/ToastProvider'
 import { AppUpdateResultPayload } from './common/events'
 import { RawSession } from './types/session'
 import { stableSessionTerminalId } from './common/terminalIdentity'
+import type { SettingsCategory } from './types/settings'
 
 
 
@@ -281,6 +282,7 @@ function AppContent() {
 
   const [newSessionOpen, setNewSessionOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsCategory | undefined>(undefined)
   const [projectSelectorOpen, setProjectSelectorOpen] = useState(false)
   const [cancelModalOpen, setCancelModalOpen] = useState(false)
   const [deleteSpecModalOpen, setDeleteSpecModalOpen] = useState(false)
@@ -648,6 +650,14 @@ function AppContent() {
       previousFocusRef.current = document.activeElement
        setOpenAsSpec(false)
       setNewSessionOpen(true)
+    })
+    return cleanup
+  }, [])
+
+  useEffect(() => {
+    const cleanup = listenUiEvent(UiEvent.OpenSettings, detail => {
+      setSettingsInitialTab(detail?.tab)
+      setSettingsOpen(true)
     })
     return cleanup
   }, [])
@@ -1198,14 +1208,21 @@ function AppContent() {
           onGoHome={() => {}}
           onSelectTab={() => {}}
           onCloseTab={() => {}}
-          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenSettings={() => {
+            setSettingsInitialTab(undefined)
+            setSettingsOpen(true)
+          }}
         />
         <div className="pt-[32px] h-full">
           <HomeScreen onOpenProject={handleOpenProject} />
         </div>
         <SettingsModal
           open={settingsOpen}
-          onClose={() => setSettingsOpen(false)}
+          initialTab={settingsInitialTab}
+          onClose={() => {
+            setSettingsOpen(false)
+            setSettingsInitialTab(undefined)
+          }}
         />
       </>
     )
@@ -1220,7 +1237,10 @@ function AppContent() {
         onGoHome={handleGoHome}
         onSelectTab={handleSelectTab}
         onCloseTab={handleCloseTab}
-        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenSettings={() => {
+          setSettingsInitialTab(undefined)
+          setSettingsOpen(true)
+        }}
         onOpenProjectSelector={() => setProjectSelectorOpen(true)}
         resolveOpenPath={async () => resolveOpenPathForOpenButton({
           selection,
@@ -1412,7 +1432,11 @@ function AppContent() {
           {/* Settings Modal */}
           <SettingsModal
             open={settingsOpen}
-            onClose={() => setSettingsOpen(false)}
+            initialTab={settingsInitialTab}
+            onClose={() => {
+              setSettingsOpen(false)
+              setSettingsInitialTab(undefined)
+            }}
             onOpenTutorial={openOnboarding}
           />
 

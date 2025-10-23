@@ -1,0 +1,11 @@
+export type SettingsCategory =
+  | 'projectGeneral'
+  | 'projectRun'
+  | 'projectActions'
+  | 'archives'
+  | 'appearance'
+  | 'keyboard'
+  | 'environment'
+  | 'terminal'
+  | 'sessions'
+  | 'version'

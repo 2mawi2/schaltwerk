@@ -157,31 +157,17 @@ const TerminalGridComponent = () => {
 
     // Computed tabs that include Run tab when active
     const computedTabs = useMemo(() => {
-        const showRunTab = hasRunScripts && runModeActive
-        const baseTabs = [...terminalTabsState.tabs]
-        
-        if (showRunTab) {
-            // Add Run tab at index 0
-            const runTab = { index: 0, terminalId: 'run-terminal', label: 'Run' }
-            // Shift existing terminal tabs by +1
-            const shiftedTabs = baseTabs.map(tab => ({ ...tab, index: tab.index + 1 }))
-            return [runTab, ...shiftedTabs]
-        }
-        
-        return baseTabs
-    }, [hasRunScripts, runModeActive, terminalTabsState.tabs])
+        const runTab = { index: 0, terminalId: 'run-terminal', label: 'Run' }
+        const shiftedTabs = terminalTabsState.tabs.map(tab => ({ ...tab, index: tab.index + 1 }))
+        return [runTab, ...shiftedTabs]
+    }, [terminalTabsState.tabs])
 
     const computedActiveTab = useMemo(() => {
-        const showRunTab = hasRunScripts && runModeActive
-        if (showRunTab) {
-            // If activeTab is RUN_TAB_INDEX, it means Run tab is selected
-            if (terminalTabsState.activeTab === RUN_TAB_INDEX) {
-                return 0 // Run tab is at index 0
-            }
-            return terminalTabsState.activeTab + 1 // Shift by +1 for Run tab
+        if (terminalTabsState.activeTab === RUN_TAB_INDEX) {
+            return 0
         }
-        return terminalTabsState.activeTab
-    }, [hasRunScripts, runModeActive, terminalTabsState.activeTab, RUN_TAB_INDEX])
+        return terminalTabsState.activeTab + 1
+    }, [terminalTabsState.activeTab, RUN_TAB_INDEX])
 
     const toggleTerminalCollapsed = () => {
         const newCollapsed = !isBottomCollapsed
@@ -358,6 +344,53 @@ const TerminalGridComponent = () => {
         void refreshRunScriptConfiguration()
     }, [selection, refreshRunScriptConfiguration])
 
+    const handleRunButtonClick = useCallback(() => {
+        if (!hasRunScripts) {
+            return
+        }
+
+        const sessionId = getSessionKey()
+        const isRunTabActive = terminalTabsState.activeTab === RUN_TAB_INDEX
+
+        if (runModeActive && isRunTabActive) {
+            const runTerminalRef = runTerminalRefs.current.get(sessionId)
+            runTerminalRef?.toggleRun()
+            return
+        }
+
+        persistRunModeState(sessionId, true)
+        applyTabsState(prev => {
+            if (prev.activeTab === RUN_TAB_INDEX) {
+                return prev
+            }
+            const next = { ...prev, activeTab: RUN_TAB_INDEX }
+            sessionStorage.setItem(activeTabKey, String(RUN_TAB_INDEX))
+            return next
+        })
+
+        if (isBottomCollapsed) {
+            const expandedSize = lastExpandedBottomPercent || 28
+            setSizes([100 - expandedSize, expandedSize])
+            setIsBottomCollapsed(false)
+        }
+
+        setPendingRunToggle(true)
+    }, [
+        hasRunScripts,
+        getSessionKey,
+        terminalTabsState.activeTab,
+        runModeActive,
+        persistRunModeState,
+        applyTabsState,
+        activeTabKey,
+        RUN_TAB_INDEX,
+        isBottomCollapsed,
+        lastExpandedBottomPercent,
+        setSizes,
+        setIsBottomCollapsed,
+        setPendingRunToggle
+    ])
+
     useEffect(() => {
         const cleanup = listenUiEvent(UiEvent.RunScriptUpdated, detail => {
             const hasScript = detail?.hasRunScript ?? false
@@ -460,38 +493,50 @@ const TerminalGridComponent = () => {
 
             // Cmd+E for Run Mode Toggle (Mac only)
             if (event.metaKey && event.key === 'e') {
-                // Only handle if run scripts are available
-                if (hasRunScripts) {
-                    event.preventDefault()
-                    
-                    const sessionId = getSessionKey()
-                    const runTerminalRef = runTerminalRefs.current.get(sessionId)
-                    
-                    // If already on Run tab, just toggle
-                    if (runModeActive && terminalTabsState.activeTab === RUN_TAB_INDEX) {
-                        runTerminalRef?.toggleRun()
-                    } else {
-                        // Switch to Run tab and set pending toggle
-                        const runModeKey = `schaltwerk:run-mode:${sessionId}`
-                        sessionStorage.setItem(runModeKey, 'true')
-                        setRunModeActive(true)
-                        applyTabsState(prev => {
-                            const next = { ...prev, activeTab: RUN_TAB_INDEX }
-                            sessionStorage.setItem(activeTabKey, String(RUN_TAB_INDEX))
-                            return next
-                        })
-                        
-                        // Expand terminal panel if collapsed
-                        if (isBottomCollapsed) {
-                            const expandedSize = lastExpandedBottomPercent || 28
-                            setSizes([100 - expandedSize, expandedSize])
-                            setIsBottomCollapsed(false)
-                        }
-                        
-                        // Set flag to toggle run after RunTerminal mounts
-                        setPendingRunToggle(true)
+                event.preventDefault()
+                
+                const sessionId = getSessionKey()
+                
+                // When no run scripts exist, simply focus the Run tab to show the placeholder
+                if (!hasRunScripts) {
+                    persistRunModeState(sessionId, true)
+                    applyTabsState(prev => {
+                        const next = { ...prev, activeTab: RUN_TAB_INDEX }
+                        sessionStorage.setItem(activeTabKey, String(RUN_TAB_INDEX))
+                        return next
+                    })
+                    if (isBottomCollapsed) {
+                        const expandedSize = lastExpandedBottomPercent || 28
+                        setSizes([100 - expandedSize, expandedSize])
+                        setIsBottomCollapsed(false)
                     }
+                    setPendingRunToggle(false)
+                    return
                 }
+
+                const runTerminalRef = runTerminalRefs.current.get(sessionId)
+                
+                // If already on Run tab, toggle the run command
+                if (runModeActive && terminalTabsState.activeTab === RUN_TAB_INDEX) {
+                    runTerminalRef?.toggleRun()
+                    return
+                }
+
+                // Otherwise, activate run mode and switch to the Run tab
+                persistRunModeState(sessionId, true)
+                applyTabsState(prev => {
+                    const next = { ...prev, activeTab: RUN_TAB_INDEX }
+                    sessionStorage.setItem(activeTabKey, String(RUN_TAB_INDEX))
+                    return next
+                })
+                
+                if (isBottomCollapsed) {
+                    const expandedSize = lastExpandedBottomPercent || 28
+                    setSizes([100 - expandedSize, expandedSize])
+                    setIsBottomCollapsed(false)
+                }
+                
+                setPendingRunToggle(true)
             }
             
             // Cmd+/ for Terminal Focus (Mac only)
@@ -506,6 +551,7 @@ const TerminalGridComponent = () => {
                 
                 if (isOnRunTab) {
                     // Switch from run tab to first terminal tab
+                    persistRunModeState(sessionKey, false)
                     applyTabsState(prev => {
                         const next = { ...prev, activeTab: 0 }
                         sessionStorage.setItem(activeTabKey, String(0))
@@ -560,7 +606,7 @@ const TerminalGridComponent = () => {
         return () => {
             document.removeEventListener('keydown', handleKeyDown)
         }
-    }, [hasRunScripts, isBottomCollapsed, lastExpandedBottomPercent, runModeActive, terminalTabsState.activeTab, sessionKey, getFocusForSession, setFocusForSession, isAnyModalOpen, activeTabKey, RUN_TAB_INDEX, getSessionKey, applyTabsState])
+    }, [hasRunScripts, isBottomCollapsed, lastExpandedBottomPercent, runModeActive, terminalTabsState.activeTab, sessionKey, getFocusForSession, setFocusForSession, isAnyModalOpen, activeTabKey, RUN_TAB_INDEX, getSessionKey, applyTabsState, persistRunModeState])
 
     // Handle pending run toggle after RunTerminal mounts with proper timing
     useEffect(() => {
@@ -1069,48 +1115,64 @@ const TerminalGridComponent = () => {
                         activeTab={computedActiveTab}
                         isRunning={activeRunSessions.has(getSessionKey())}
                         onTabSelect={(index) => {
-                            const showRunTab = hasRunScripts && runModeActive
-                            if (showRunTab && index === 0) {
-                                // Run tab selected - just update state to show Run tab as active
-                                // The Run terminal component will be rendered instead
+                            const sessionId = getSessionKey()
+                            if (index === 0) {
+                                persistRunModeState(sessionId, true)
                                 applyTabsState(prev => {
                                     const next = { ...prev, activeTab: RUN_TAB_INDEX }
                                     sessionStorage.setItem(activeTabKey, String(RUN_TAB_INDEX))
                                     return next
-                                }) // Use -1 to indicate Run tab
-                            } else {
-                                // Terminal tab selected - adjust index if Run tab is present
-                                const terminalIndex = showRunTab ? index - 1 : index
-                                terminalTabsRef.current?.getTabFunctions().setActiveTab(terminalIndex)
-                                applyTabsState(prev => {
-                                    const next = { ...prev, activeTab: terminalIndex }
-                                    sessionStorage.setItem(activeTabKey, String(terminalIndex))
-                                    return next
                                 })
-                                safeTerminalFocus(() => {
-                                    terminalTabsRef.current?.focus()
-                                }, isAnyModalOpen)
+                                return
                             }
+
+                            const terminalIndex = index - 1
+                            persistRunModeState(sessionId, false)
+                            terminalTabsRef.current?.getTabFunctions().setActiveTab(terminalIndex)
+                            applyTabsState(prev => {
+                                const next = { ...prev, activeTab: terminalIndex }
+                                sessionStorage.setItem(activeTabKey, String(terminalIndex))
+                                return next
+                            })
+                            safeTerminalFocus(() => {
+                                terminalTabsRef.current?.focus()
+                            }, isAnyModalOpen)
                         }}
                         onTabClose={(index) => {
-                            const showRunTab = hasRunScripts && runModeActive
-                            // Adjust index if Run tab is present (Run tab is at index 0)
-                            const terminalIndex = showRunTab ? index - 1 : index
-                            
-                            // Only close if it's not the Run tab (Run tab would be index 0 when present)
-                            if (!(showRunTab && index === 0)) {
-                                terminalTabsRef.current?.getTabFunctions().closeTab(terminalIndex)
-                                // Update state to reflect the change
-                                applyTabsState(prev => {
-                                    const newTabs = prev.tabs.filter(tab => tab.index !== terminalIndex)
-                                    return {
-                                        ...prev,
-                                        tabs: newTabs,
-                                        activeTab: Math.max(0, prev.activeTab - (terminalIndex < prev.activeTab ? 1 : 0)),
-                                        canAddTab: newTabs.length < 6 // Recalculate canAddTab based on remaining tabs
-                                    }
-                                })
+                            if (index === 0) {
+                                return
                             }
+                            const terminalIndex = index - 1
+                            
+                            terminalTabsRef.current?.getTabFunctions().closeTab(terminalIndex)
+                            applyTabsState(prev => {
+                                const filtered = prev.tabs
+                                    .filter(tab => tab.index !== terminalIndex)
+                                    .map((tab, idx) => ({ ...tab, index: idx }))
+
+                                if (filtered.length === prev.tabs.length) {
+                                    return prev
+                                }
+
+                                let nextActive = prev.activeTab
+                                if (nextActive !== RUN_TAB_INDEX) {
+                                    if (nextActive > terminalIndex) {
+                                        nextActive = nextActive - 1
+                                    }
+                                    if (nextActive >= filtered.length) {
+                                        nextActive = filtered.length - 1
+                                    }
+                                    nextActive = Math.max(0, nextActive)
+                                }
+
+                                sessionStorage.setItem(activeTabKey, String(nextActive))
+                                return {
+                                    ...prev,
+                                    tabs: filtered,
+                                    activeTab: nextActive,
+                                    canAddTab: filtered.length < 6
+                                }
+                            })
                         }}
                         onTabAdd={() => {
                             terminalTabsRef.current?.getTabFunctions().addTab()
@@ -1126,35 +1188,7 @@ const TerminalGridComponent = () => {
                         isFocused={localFocus === 'terminal'}
                         onBarClick={handleTerminalClick}
                         hasRunScripts={hasRunScripts}
-                        onRunScript={() => {
-                            // Toggle run script - same as Cmd+E
-                            if (hasRunScripts) {
-                                // If Run tab is active, toggle the run
-                                if (runModeActive && terminalTabsState.activeTab === RUN_TAB_INDEX) {
-                                    const sessionId = getSessionKey()
-                                    const runTerminalRef = runTerminalRefs.current.get(sessionId)
-                                    runTerminalRef?.toggleRun()
-                                } else {
-                                    // Otherwise, activate run mode and switch to Run tab
-                                    const sessionKey = getSessionKey()
-                                    const runModeKey = `schaltwerk:run-mode:${sessionKey}`
-                                    sessionStorage.setItem(runModeKey, 'true')
-                                    setRunModeActive(true)
-                                    applyTabsState(prev => ({ ...prev, activeTab: RUN_TAB_INDEX }))
-                                    
-                                    // Expand terminal if collapsed
-                                    if (isBottomCollapsed) {
-                                        const expandedSize = lastExpandedBottomPercent || 28
-                                        setSizes([100 - expandedSize, expandedSize])
-                                        setIsBottomCollapsed(false)
-                                    }
-                                    
-                                    // Start the run after switching
-                                    // Use pendingRunToggle to trigger after RunTerminal mounts
-                                    setPendingRunToggle(true)
-                                }
-                            }
-                        }}
+                        onRunScript={handleRunButtonClick}
                     />
                     <div
                         style={{
@@ -1166,10 +1200,10 @@ const TerminalGridComponent = () => {
                     />
                     <div className={`flex-1 min-h-0 overflow-hidden ${isBottomCollapsed ? 'hidden' : ''}`}>
                         {/* Render only the active RunTerminal; never mount for specs */}
-                        {hasRunScripts && (
+                        {runModeActive && terminalTabsState.activeTab === RUN_TAB_INDEX && (
                             <>
                                 {/* Orchestrator run terminal */}
-                                {runModeActive && terminalTabsState.activeTab === RUN_TAB_INDEX && selection.kind === 'orchestrator' && (
+                                {selection.kind === 'orchestrator' && (
                                     <div className="h-full w-full">
                                         <RunTerminal
                                             ref={(ref) => { if (ref) runTerminalRefs.current.set('orchestrator', ref) }}
@@ -1195,7 +1229,7 @@ const TerminalGridComponent = () => {
                                 )}
 
                                 {/* Active session run terminal (skip specs) */}
-                                {runModeActive && terminalTabsState.activeTab === RUN_TAB_INDEX && selection.kind === 'session' && (() => {
+                                {selection.kind === 'session' && (() => {
                                     const active = sessions.find(s => s.info.session_id === selection.payload)
                                     if (!active) return null
                                     if (mapSessionUiState(active.info) === 'spec') return null
@@ -1230,7 +1264,7 @@ const TerminalGridComponent = () => {
                         {/* Regular terminal tabs - only show when not in run mode */}
                         {shouldRenderTerminals && (
                         <div
-                            style={{ display: !hasRunScripts || !runModeActive || terminalTabsState.activeTab !== -1 ? 'block' : 'none' }}
+                            style={{ display: terminalTabsState.activeTab === RUN_TAB_INDEX ? 'none' : 'block' }}
                             className="h-full"
                             onTransitionEnd={handlePanelTransitionEnd}
                             data-onboarding="user-terminal"

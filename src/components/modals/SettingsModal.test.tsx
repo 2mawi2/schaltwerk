@@ -200,6 +200,81 @@ describe('SettingsModal loading indicators', () => {
   })
 })
 
+describe('SettingsModal initial tab handling', () => {
+  beforeEach(() => {
+    useSettingsMock.mockReset()
+    useSessionsMock.mockReset()
+    invokeMock.mockClear()
+    invokeMock.mockImplementation(async (command: string, args?: unknown) => {
+      if (command === TauriCommands.GetActiveProjectPath) {
+        return '/Users/test/project'
+      }
+      return baseInvokeImplementation(command, args)
+    })
+  })
+
+  it('opens the specified initial tab when provided', async () => {
+    render(
+      <SettingsModal
+        open={true}
+        initialTab="projectRun"
+        onClose={() => {}}
+      />
+    )
+
+    const runButton = await screen.findByRole('button', { name: 'Run & Environment' })
+    await waitFor(() => {
+      expect(runButton).toHaveClass('bg-slate-800')
+      expect(runButton).toHaveClass('text-slate-200')
+    })
+  })
+
+  it('defaults to the project settings tab when no initial tab is provided', async () => {
+    render(
+      <SettingsModal
+        open={true}
+        onClose={() => {}}
+      />
+    )
+
+    const projectSettingsButton = await screen.findByRole('button', { name: 'Project Settings' })
+    await waitFor(() => {
+      expect(projectSettingsButton).toHaveClass('bg-slate-800')
+      expect(projectSettingsButton).toHaveClass('text-slate-200')
+    })
+  })
+
+  it('responds to changes in the initialTab prop', async () => {
+    const { rerender } = render(
+      <SettingsModal
+        open={true}
+        initialTab="appearance"
+        onClose={() => {}}
+      />
+    )
+
+    const appearanceButton = await screen.findByRole('button', { name: 'Appearance' })
+    await waitFor(() => {
+      expect(appearanceButton).toHaveClass('bg-slate-800')
+    })
+
+    rerender(
+      <SettingsModal
+        open={true}
+        initialTab="projectRun"
+        onClose={() => {}}
+      />
+    )
+
+    const runButton = await screen.findByRole('button', { name: 'Run & Environment' })
+    await waitFor(() => {
+      expect(runButton).toHaveClass('bg-slate-800')
+      expect(appearanceButton).not.toHaveClass('bg-slate-800')
+    })
+  })
+
+}) 
+
 describe('SettingsModal version settings', () => {
   beforeEach(() => {
     useSettingsMock.mockReset()
