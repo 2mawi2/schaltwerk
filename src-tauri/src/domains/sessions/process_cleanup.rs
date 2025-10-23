@@ -327,21 +327,28 @@ mod tests {
             .spawn()
             .expect("spawn sleep");
 
-        // Ensure the process is running before attempting to terminate it
-        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        let child_pid = child.id().expect("child id") as i32;
+
+        for attempt in 0..100 {
+            if let Ok(None) = child.try_wait() {
+                break;
+            }
+            if attempt == 99 {
+                panic!("Process failed to start after 100 checks");
+            }
+            tokio::task::yield_now().await;
+        }
 
         let killed = terminate_processes_with_cwd(temp_dir.path())
             .await
             .expect("terminate processes");
 
-        let child_pid = child.id().expect("child id") as i32;
         assert!(
             killed.contains(&child_pid),
             "expected spawned process {child_pid} to be terminated, got {:?}",
             killed
         );
 
-        // Child should exit promptly once termination runs
         let status = child
             .wait()
             .await

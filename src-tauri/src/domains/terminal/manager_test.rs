@@ -30,6 +30,22 @@ mod tests {
         String::from_utf8_lossy(&snapshot.data).to_string()
     }
 
+    async fn wait_for_buffer_content(
+        manager: &TerminalManager,
+        id: String,
+        expected: &str,
+        max_attempts: usize,
+    ) -> bool {
+        for _ in 0..max_attempts {
+            let buffer = read_buffer(manager, id.clone()).await;
+            if buffer.contains(expected) {
+                return true;
+            }
+            tokio::task::yield_now().await;
+        }
+        false
+    }
+
     #[tokio::test]
     async fn test_paste_and_submit_terminal_executes() {
         let manager = TerminalManager::new();
@@ -46,13 +62,8 @@ mod tests {
             .await
             .unwrap();
 
-        sleep(Duration::from_millis(100)).await;
-
-        let buffer = read_buffer(&manager, id.clone()).await;
-        assert!(
-            buffer.contains("echo"),
-            "Buffer should contain the echoed command"
-        );
+        let found = wait_for_buffer_content(&manager, id.clone(), "echo", 1000).await;
+        assert!(found, "Buffer should contain the echoed command");
 
         safe_close(&manager, &id).await;
     }
@@ -73,13 +84,8 @@ mod tests {
             .await
             .unwrap();
 
-        sleep(Duration::from_millis(200)).await;
-
-        let buffer = read_buffer(&manager, id.clone()).await;
-        assert!(
-            buffer.contains("multi"),
-            "Should contain multi-line content"
-        );
+        let found = wait_for_buffer_content(&manager, id.clone(), "multi", 1000).await;
+        assert!(found, "Should contain multi-line content");
 
         safe_close(&manager, &id).await;
     }
@@ -128,7 +134,6 @@ mod tests {
                     .create_terminal(id.clone(), "/tmp".to_string())
                     .await
                     .unwrap();
-                sleep(Duration::from_millis(10)).await;
                 assert!(manager_clone.terminal_exists(&id).await.unwrap());
                 id
             });
@@ -341,11 +346,9 @@ mod tests {
             let race_id_clone = race_id.clone();
             let create_handle = tokio::spawn(async move {
                 for _ in 0..5 {
-                    // Reduced from 10 to 5 iterations
                     let _ = manager1
                         .create_terminal(race_id_clone.clone(), "/tmp".to_string())
                         .await;
-                    sleep(Duration::from_millis(5)).await; // Reduced delay
                     let _ = manager1.close_terminal(race_id_clone.clone()).await;
                 }
             });
@@ -354,9 +357,7 @@ mod tests {
             let race_id_clone2 = race_id.clone();
             let check_handle = tokio::spawn(async move {
                 for _ in 0..10 {
-                    // Reduced from 20 to 10 checks
                     let _ = manager2.terminal_exists(&race_id_clone2).await;
-                    sleep(Duration::from_millis(2)).await; // Reduced delay
                 }
             });
 
