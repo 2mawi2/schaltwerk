@@ -1,5 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { WebGLTerminalRenderer } from './webglRenderer'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Terminal as XTerm } from '@xterm/xterm'
 
 const mockIsWebGLSupported = vi.hoisted(() => vi.fn(() => true))
@@ -33,9 +32,18 @@ importAddonMock = vi.fn(async (name: string) => {
     throw new Error(`Unexpected addon request: ${name}`);
 });
 
+type WebGLTerminalRendererConstructor = typeof import('./webglRenderer').WebGLTerminalRenderer
+type WebGLTerminalRendererInstance = InstanceType<WebGLTerminalRendererConstructor>
+
+let WebGLTerminalRenderer: WebGLTerminalRendererConstructor
+
+beforeAll(async () => {
+    ;({ WebGLTerminalRenderer } = await import('./webglRenderer'))
+})
+
 describe('WebGLTerminalRenderer', () => {
     let mockTerminal: XTerm
-    let renderer: WebGLTerminalRenderer
+    let renderer: WebGLTerminalRendererInstance
 
     beforeEach(() => {
         mockIsWebGLSupported.mockReturnValue(true)
