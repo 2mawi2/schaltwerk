@@ -80,7 +80,10 @@ pub fn build_changed_files_from_diff(diff: &Diff) -> Result<Vec<ChangedFile>> {
             Entry::Vacant(vacant) => {
                 let idx = files.len();
                 vacant.insert(idx);
-                files.push(ChangedFile::new(path_str.to_string(), change_type.to_string()));
+                files.push(ChangedFile::new(
+                    path_str.to_string(),
+                    change_type.to_string(),
+                ));
                 idx
             }
         };
@@ -130,7 +133,8 @@ pub fn build_changed_files_from_diff(diff: &Diff) -> Result<Vec<ChangedFile>> {
             file.changes = file.additions + file.deletions;
         }
 
-        if file.is_binary.is_none() && file.changes == 0 && is_binary_file_by_extension(&file.path) {
+        if file.is_binary.is_none() && file.changes == 0 && is_binary_file_by_extension(&file.path)
+        {
             file.is_binary = Some(true);
         }
     }
