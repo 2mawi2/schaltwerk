@@ -10,6 +10,7 @@ export enum UiEvent {
   FocusTerminal = 'schaltwerk:focus-terminal',
   TerminalReady = 'schaltwerk:terminal-ready',
   RunScriptUpdated = 'schaltwerk:run-script-updated',
+  DevErrorToastPreferenceChanged = 'schaltwerk:dev-error-toast-preference-changed',
   SessionAction = 'schaltwerk:session-action',
   StartAgentFromSpec = 'schaltwerk:start-agent-from-spec',
   NewSessionPrefill = 'schaltwerk:new-session:prefill',
@@ -116,6 +117,10 @@ export interface RunScriptUpdatedDetail {
   hasRunScript: boolean
 }
 
+export interface DevErrorToastPreferenceDetail {
+  enabled: boolean
+}
+
 export interface ModalsChangedDetail {
   openCount: number
 }
@@ -168,6 +173,7 @@ export type UiEventPayloads = {
   [UiEvent.FocusTerminal]: FocusTerminalDetail | undefined
   [UiEvent.TerminalReady]: { terminalId: string }
   [UiEvent.RunScriptUpdated]: RunScriptUpdatedDetail
+  [UiEvent.DevErrorToastPreferenceChanged]: DevErrorToastPreferenceDetail
   [UiEvent.SessionAction]: SessionActionDetail
   [UiEvent.StartAgentFromSpec]: StartAgentFromSpecDetail | undefined
   [UiEvent.NewSessionPrefill]: NewSessionPrefillDetail | undefined

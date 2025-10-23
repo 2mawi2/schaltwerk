@@ -172,4 +172,6 @@ pub struct Settings {
     pub tutorial_completed: bool,
     #[serde(default)]
     pub amp_mcp_servers: HashMap<String, McpServerConfig>,
+    #[serde(default = "default_true")]
+    pub dev_error_toasts_enabled: bool,
 }

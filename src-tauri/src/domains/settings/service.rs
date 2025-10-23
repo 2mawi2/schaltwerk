@@ -302,6 +302,18 @@ impl SettingsService {
         self.save()
     }
 
+    pub fn get_dev_error_toasts_enabled(&self) -> bool {
+        self.settings.dev_error_toasts_enabled
+    }
+
+    pub fn set_dev_error_toasts_enabled(
+        &mut self,
+        enabled: bool,
+    ) -> Result<(), SettingsServiceError> {
+        self.settings.dev_error_toasts_enabled = enabled;
+        self.save()
+    }
+
     pub fn get_agent_binary_config(&self, agent_name: &str) -> Option<AgentBinaryConfig> {
     match agent_name {
     "claude" => self.settings.agent_binaries.claude.clone(),

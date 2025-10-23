@@ -29,6 +29,7 @@ pub enum SchaltEvent {
     GitOperationFailed,
     ProjectFilesUpdated,
     GitHubStatusChanged,
+    DevBackendError,
 }
 
 impl SchaltEvent {
@@ -60,6 +61,7 @@ impl SchaltEvent {
             SchaltEvent::GitOperationFailed => "schaltwerk:git-operation-failed",
             SchaltEvent::ProjectFilesUpdated => "schaltwerk:project-files-updated",
             SchaltEvent::GitHubStatusChanged => "schaltwerk:github-status-changed",
+            SchaltEvent::DevBackendError => "schaltwerk:dev-backend-error",
         }
     }
 }
@@ -105,6 +107,10 @@ mod tests {
         assert_eq!(
             SchaltEvent::GitHubStatusChanged.as_str(),
             "schaltwerk:github-status-changed"
+        );
+        assert_eq!(
+            SchaltEvent::DevBackendError.as_str(),
+            "schaltwerk:dev-backend-error"
         );
     }
 }

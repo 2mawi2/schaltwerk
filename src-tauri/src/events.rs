@@ -27,6 +27,7 @@ pub enum SchaltEvent {
     ProjectFilesUpdated,
     GitHubStatusChanged,
     AppUpdateResult,
+    DevBackendError,
 }
 
 impl SchaltEvent {
@@ -56,6 +57,7 @@ impl SchaltEvent {
             SchaltEvent::ProjectFilesUpdated => "schaltwerk:project-files-updated",
             SchaltEvent::GitHubStatusChanged => "schaltwerk:github-status-changed",
             SchaltEvent::AppUpdateResult => "schaltwerk:app-update-result",
+            SchaltEvent::DevBackendError => "schaltwerk:dev-backend-error",
         }
     }
 }

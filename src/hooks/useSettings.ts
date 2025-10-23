@@ -98,8 +98,12 @@ export const useSettings = () => {
         const withoutWhitespace = trimmed.replace(/\s+/g, '-')
         const normalized = withoutWhitespace.replace(/^\/+|\/+$/g, '')
         const branchPrefix = normalized || DEFAULT_BRANCH_PREFIX
-
-        await invoke(TauriCommands.SetProjectSettings, { settings: { setupScript: projectSettings.setupScript, branchPrefix } })
+        await invoke(TauriCommands.SetProjectSettings, {
+            settings: {
+                setupScript: projectSettings.setupScript,
+                branchPrefix,
+            }
+        })
         
         const projectEnvVarsObject = projectSettings.environmentVariables.reduce((acc, { key, value }) => {
             if (key) acc[key] = value
@@ -239,7 +243,7 @@ export const useSettings = () => {
             return {
                 setupScript: settings?.setupScript || '',
                 branchPrefix: settings?.branchPrefix || DEFAULT_BRANCH_PREFIX,
-                environmentVariables: envVarArray
+                environmentVariables: envVarArray,
             }
         } catch (error) {
             logger.error('Failed to load project settings:', error)

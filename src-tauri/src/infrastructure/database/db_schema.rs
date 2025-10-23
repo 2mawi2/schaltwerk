@@ -81,7 +81,8 @@ pub fn initialize_schema(db: &Database) -> anyhow::Result<()> {
             default_open_app TEXT DEFAULT NULL,
             default_base_branch TEXT,
             terminal_font_size INTEGER DEFAULT 13,
-            ui_font_size INTEGER DEFAULT 12
+            ui_font_size INTEGER DEFAULT 12,
+            dev_error_toasts_enabled BOOLEAN DEFAULT FALSE
         )",
         [],
     )?;
@@ -99,8 +100,9 @@ pub fn initialize_schema(db: &Database) -> anyhow::Result<()> {
             default_open_app,
             terminal_font_size,
             ui_font_size,
-            tutorial_completed
-        ) VALUES (1, FALSE, 'claude', FALSE, 'claude', NULL, 13, 12, FALSE)",
+            tutorial_completed,
+            dev_error_toasts_enabled
+        ) VALUES (1, FALSE, 'claude', FALSE, 'claude', NULL, 13, 12, FALSE, FALSE)",
         [],
     )?;
 
@@ -199,6 +201,10 @@ fn apply_app_config_migrations(conn: &rusqlite::Connection) -> anyhow::Result<()
     );
     let _ = conn.execute(
         "ALTER TABLE app_config ADD COLUMN archive_max_entries INTEGER DEFAULT 50",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE app_config ADD COLUMN dev_error_toasts_enabled BOOLEAN DEFAULT FALSE",
         [],
     );
     Ok(())

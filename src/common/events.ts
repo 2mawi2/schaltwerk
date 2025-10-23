@@ -25,7 +25,8 @@ export enum SchaltEvent {
   GitOperationFailed = 'schaltwerk:git-operation-failed',
   ProjectFilesUpdated = 'schaltwerk:project-files-updated',
   GitHubStatusChanged = 'schaltwerk:github-status-changed',
-  AppUpdateResult = 'schaltwerk:app-update-result'
+  AppUpdateResult = 'schaltwerk:app-update-result',
+  DevBackendError = 'schaltwerk:dev-backend-error'
 }
 
 
@@ -129,6 +130,11 @@ export interface AppUpdateResultPayload {
   errorMessage?: string
 }
 
+export interface DevBackendErrorPayload {
+  message: string
+  source?: string
+}
+
 import { EnrichedSession } from '../types/session'
 
 export interface SelectionPayload {
@@ -177,4 +183,5 @@ export type EventPayloadMap = {
   [SchaltEvent.ProjectFilesUpdated]: string[]
   [SchaltEvent.GitHubStatusChanged]: GitHubStatusPayload
   [SchaltEvent.AppUpdateResult]: AppUpdateResultPayload
+  [SchaltEvent.DevBackendError]: DevBackendErrorPayload
 }

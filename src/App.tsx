@@ -56,6 +56,7 @@ import { useOptionalToast } from './common/toast/ToastProvider'
 import { AppUpdateResultPayload } from './common/events'
 import { RawSession } from './types/session'
 import { stableSessionTerminalId } from './common/terminalIdentity'
+import { registerDevErrorListeners } from './dev/registerDevErrorListeners'
 import type { SettingsCategory } from './types/settings'
 
 
@@ -75,6 +76,7 @@ function AppContent() {
   const toast = useOptionalToast()
   const { beginSessionMutation, endSessionMutation, enqueuePendingStartup } = useSessions()
   const agentLifecycleStateRef = useRef(new Map<string, { state: 'spawned' | 'ready'; timestamp: number }>())
+  const [devErrorToastsEnabled, setDevErrorToastsEnabled] = useState(false)
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -119,6 +121,79 @@ function AppContent() {
   }, [])
 
   const refreshGithubStatus = github.refreshStatus
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) {
+      setDevErrorToastsEnabled(false)
+      return
+    }
+
+    let cancelled = false
+
+    const loadPreference = async () => {
+      try {
+        const result = await invoke<boolean | null | undefined>(TauriCommands.GetDevErrorToastsEnabled)
+        if (!cancelled) {
+          if (typeof result === 'boolean') {
+            setDevErrorToastsEnabled(result)
+          } else {
+            setDevErrorToastsEnabled(true)
+          }
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setDevErrorToastsEnabled(true)
+          logger.info('[App] Dev error toast preference unavailable; defaulting to enabled', error)
+        }
+      }
+    }
+
+    loadPreference()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) {
+      return
+    }
+
+    const cleanup = listenUiEvent(UiEvent.DevErrorToastPreferenceChanged, detail => {
+      setDevErrorToastsEnabled(Boolean(detail?.enabled ?? true))
+    })
+
+    return cleanup
+  }, [])
+
+  useEffect(() => {
+    if (!toast || !import.meta.env.DEV || !devErrorToastsEnabled) {
+      return
+    }
+
+    let active = true
+    let cleanup: (() => void) | undefined
+
+    registerDevErrorListeners({
+      isDev: import.meta.env.DEV,
+      pushToast: toast.pushToast,
+      listenBackendError: (handler) => listenEvent(SchaltEvent.DevBackendError, handler),
+    }).then((dispose) => {
+      if (!active) {
+        dispose()
+        return
+      }
+      cleanup = dispose
+    }).catch((error) => {
+      logger.warn('[App] Failed to register dev error listeners', error)
+    })
+
+    return () => {
+      active = false
+      cleanup?.()
+    }
+  }, [toast, devErrorToastsEnabled])
 
   useEffect(() => {
     if (!toast) return
