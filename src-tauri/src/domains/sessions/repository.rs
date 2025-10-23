@@ -229,6 +229,12 @@ impl SessionDbManager {
             .map_err(|e| anyhow!("Failed to set resume_allowed: {e}"))
     }
 
+    pub fn set_session_amp_thread_id(&self, session_id: &str, thread_id: &str) -> Result<()> {
+        self.db
+            .set_session_amp_thread_id(session_id, thread_id)
+            .map_err(|e| anyhow!("Failed to set amp_thread_id: {e}"))
+    }
+
     pub fn rename_draft_session(&self, old_name: &str, new_name: &str) -> Result<()> {
         self.db
             .rename_draft_session(&self.repo_path, old_name, new_name)

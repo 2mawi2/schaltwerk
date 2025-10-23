@@ -240,4 +240,17 @@ impl SettingsManager {
             .get_effective_binary_path(agent_name)
             .map_err(|e| e.to_string())
     }
+
+    pub fn get_amp_mcp_servers(&self) -> std::collections::HashMap<String, crate::domains::settings::McpServerConfig> {
+        self.service.get_amp_mcp_servers()
+    }
+
+    pub fn set_amp_mcp_servers(
+        &mut self,
+        mcp_servers: std::collections::HashMap<String, crate::domains::settings::McpServerConfig>,
+    ) -> Result<(), String> {
+        self.service
+            .set_amp_mcp_servers(mcp_servers)
+            .map_err(|e| e.to_string())
+    }
 }

@@ -91,7 +91,7 @@ describe('SwitchOrchestratorModal', () => {
     await act(async () => {
       rerender(<SwitchOrchestratorModal open={true} onClose={vi.fn()} onSwitch={vi.fn()} />)
     })
-    expect(screen.getByText('Switch Orchestrator Agent')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Switch Orchestrator Agent' })).toBeInTheDocument()
   })
 
   it('loads current agent type on open and displays it', async () => {
@@ -233,7 +233,7 @@ describe('SwitchOrchestratorModal', () => {
     const { onClose } = openModal()
 
     // Wait until ready
-    await waitFor(() => screen.getByText('Switch Orchestrator Agent'))
+    await waitFor(() => screen.getByRole('heading', { name: 'Switch Orchestrator Agent' }))
 
     // Esc closes
     const esc = new KeyboardEvent('keydown', { key: 'Escape' })
@@ -247,7 +247,7 @@ describe('SwitchOrchestratorModal', () => {
     const onClose2 = vi.fn()
     const onSwitch2 = vi.fn().mockResolvedValue(undefined)
     render(<SwitchOrchestratorModal open={true} onClose={onClose2} onSwitch={onSwitch2} />)
-    await waitFor(() => screen.getByText('Switch Orchestrator Agent'))
+    await waitFor(() => screen.getByRole('heading', { name: 'Switch Orchestrator Agent' }))
 
     const enter = new KeyboardEvent('keydown', { key: 'Enter' })
     await act(async () => {
