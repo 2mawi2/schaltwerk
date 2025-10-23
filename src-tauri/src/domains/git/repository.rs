@@ -201,9 +201,13 @@ pub fn create_initial_commit(repo_path: &Path) -> Result<()> {
 
     let repo = Repository::open(repo_path)?;
 
-    // Get the default signature from git config
-    let sig = repo.signature()
-        .map_err(|e| anyhow!("Failed to get signature from git config: {e}. Please configure git user.name and user.email"))?;
+    // Require a valid signature from git configuration. This matches the behaviour of the CLI and
+    // keeps commit history attributable to the local user.
+    let sig = repo.signature().map_err(|err| {
+        anyhow!(
+            "Failed to get signature from git config: {err}. Please configure git user.name and user.email for this repository."
+        )
+    })?;
 
     // Create an empty tree for the initial commit
     let tree_id = {

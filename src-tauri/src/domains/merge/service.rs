@@ -1,11 +1,21 @@
 use std::collections::BTreeSet;
+#[cfg(test)]
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+#[cfg(test)]
+use std::path::Path;
+use std::path::PathBuf;
+#[cfg(test)]
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use anyhow::{anyhow, Context, Result};
-use git2::{build::CheckoutBuilder, BranchType, MergeOptions, Oid, Repository};
-use log::{debug, error, info, warn};
+use git2::{build::CheckoutBuilder, BranchType, ErrorCode, MergeOptions, Oid, Repository};
+#[cfg(test)]
+use log::error;
+use log::{debug, info, warn};
+
+#[cfg(test)]
+static RUN_GIT_FORBIDDEN: AtomicBool = AtomicBool::new(false);
 use tokio::task;
 use tokio::time::timeout;
 
@@ -59,7 +69,7 @@ impl MergeService {
         )
     }
 
-    fn session_manager(&self) -> SessionManager {
+    pub fn session_manager(&self) -> SessionManager {
         SessionManager::new(self.db.clone(), self.repo_path.clone())
     }
 
@@ -135,6 +145,8 @@ impl MergeService {
             ));
         }
 
+        self.ensure_parent_branch_clean(&context)?;
+
         let commit_message = match mode {
             MergeMode::Squash => {
                 let message = commit_message
@@ -186,6 +198,37 @@ impl MergeService {
         self.after_success(&context)?;
 
         Ok(outcome)
+    }
+
+    fn ensure_parent_branch_clean(&self, context: &SessionMergeContext) -> Result<()> {
+        let repo = Repository::open(&context.repo_path)?;
+        let head = match repo.head() {
+            Ok(head) => head,
+            Err(_) => return Ok(()),
+        };
+
+        if !head.is_branch() || head.shorthand() != Some(context.parent_branch.as_str()) {
+            return Ok(());
+        }
+
+        if has_uncommitted_changes(&context.repo_path)? {
+            let sample = uncommitted_sample_paths(&context.repo_path, 3)
+                .unwrap_or_default()
+                .join(", ");
+            let hint = if sample.is_empty() {
+                String::new()
+            } else {
+                format!(" Offending paths: {sample}")
+            };
+            return Err(anyhow!(
+                "Parent branch '{}' has uncommitted changes in repository '{}'.{}",
+                context.parent_branch,
+                context.repo_path.display(),
+                hint
+            ));
+        }
+
+        Ok(())
     }
 
     fn after_success(&self, context: &SessionMergeContext) -> Result<()> {
@@ -320,10 +363,7 @@ fn perform_squash(context: SessionMergeContext, commit_message: String) -> Resul
     );
 
     if needs_rebase(&context)? {
-        if let Err(err) = run_rebase(&context) {
-            let _ = abort_rebase(&context);
-            return Err(err);
-        }
+        rebase_session_branch(&context)?;
     } else {
         debug!(
             "{OPERATION_LABEL}: skipping rebase for branch '{branch}' because parent '{parent}' is already an ancestor",
@@ -332,32 +372,14 @@ fn perform_squash(context: SessionMergeContext, commit_message: String) -> Resul
         );
     }
 
-    run_git(
-        &context.worktree_path,
-        vec![
-            OsString::from("reset"),
-            OsString::from("--soft"),
-            OsString::from(&context.parent_branch),
-        ],
-    )?;
-
-    run_git(
-        &context.worktree_path,
-        vec![
-            OsString::from("commit"),
-            OsString::from("-m"),
-            OsString::from(commit_message),
-        ],
-    )?;
-
+    let new_head_oid = create_squash_commit(&context, &commit_message)?;
     let repo = Repository::open(&context.repo_path)?;
-    let head_oid = resolve_branch_oid(&repo, &context.session_branch)?;
-    fast_forward_branch(&repo, &context.parent_branch, head_oid)?;
+    fast_forward_branch(&repo, &context.parent_branch, new_head_oid)?;
 
     Ok(MergeOutcome {
         session_branch: context.session_branch,
         parent_branch: context.parent_branch,
-        new_commit: head_oid.to_string(),
+        new_commit: new_head_oid.to_string(),
         mode: MergeMode::Squash,
     })
 }
@@ -370,10 +392,7 @@ fn perform_reapply(context: SessionMergeContext) -> Result<MergeOutcome> {
     );
 
     if needs_rebase(&context)? {
-        if let Err(err) = run_rebase(&context) {
-            let _ = abort_rebase(&context);
-            return Err(err);
-        }
+        rebase_session_branch(&context)?;
     } else {
         debug!(
             "{OPERATION_LABEL}: skipping rebase for branch '{branch}' because parent '{parent}' is already an ancestor",
@@ -402,21 +421,215 @@ fn needs_rebase(context: &SessionMergeContext) -> Result<bool> {
     Ok(merge_base != latest_parent_oid)
 }
 
-fn run_rebase(context: &SessionMergeContext) -> Result<()> {
-    run_git(
-        &context.worktree_path,
-        vec![
-            OsString::from("rebase"),
-            OsString::from(&context.parent_branch),
-        ],
-    )
+fn rebase_session_branch(context: &SessionMergeContext) -> Result<()> {
+    debug!(
+        "{OPERATION_LABEL}: rebasing session branch '{branch}' onto parent '{parent}' via libgit2",
+        branch = context.session_branch,
+        parent = context.parent_branch
+    );
+
+    let repo = Repository::open(&context.worktree_path).with_context(|| {
+        format!(
+            "Failed to open worktree repository at {}",
+            context.worktree_path.display()
+        )
+    })?;
+
+    let head = repo.head().with_context(|| {
+        format!(
+            "Failed to resolve HEAD for session branch '{}'",
+            context.session_branch
+        )
+    })?;
+    let annotated_branch = repo.reference_to_annotated_commit(&head).with_context(|| {
+        format!(
+            "Failed to prepare annotated commit for session branch '{}'",
+            context.session_branch
+        )
+    })?;
+
+    let parent_ref_name = normalize_branch_ref(&context.parent_branch);
+    let parent_ref = repo.find_reference(&parent_ref_name).with_context(|| {
+        format!(
+            "Parent reference '{}' missing while rebasing session '{}'",
+            parent_ref_name, context.session_name
+        )
+    })?;
+    let annotated_parent = repo
+        .reference_to_annotated_commit(&parent_ref)
+        .with_context(|| {
+            format!(
+                "Failed to prepare annotated parent commit '{}' while rebasing session '{}'",
+                context.parent_branch, context.session_name
+            )
+        })?;
+
+    let mut checkout = CheckoutBuilder::new();
+    checkout.safe();
+    checkout.allow_conflicts(true);
+
+    let mut rebase_opts = git2::RebaseOptions::new();
+    rebase_opts.checkout_options(checkout);
+
+    let mut rebase = repo
+        .rebase(
+            Some(&annotated_branch),
+            Some(&annotated_parent),
+            None,
+            Some(&mut rebase_opts),
+        )
+        .with_context(|| {
+            format!(
+                "Failed to start rebase for session '{}' onto parent '{}'",
+                context.session_name, context.parent_branch
+            )
+        })?;
+
+    while let Some(op_result) = rebase.next() {
+        let op = op_result.with_context(|| {
+            format!(
+                "Failed advancing rebase operation for session '{}'",
+                context.session_name
+            )
+        })?;
+
+        {
+            let index = repo.index()?;
+            if index.has_conflicts() {
+                let conflicts = collect_conflicting_paths(&index)?;
+                let _ = rebase.abort();
+                return Err(anyhow!(
+                    "Rebase produced conflicts for session '{}': {}",
+                    context.session_name,
+                    conflicts.join(", ")
+                ));
+            }
+        }
+
+        let original_commit = repo.find_commit(op.id()).with_context(|| {
+            format!(
+                "Failed to locate original commit '{}' while rebasing session '{}'",
+                op.id(),
+                context.session_name
+            )
+        })?;
+
+        let author = original_commit.author().to_owned();
+        let committer = original_commit.committer().to_owned();
+        let message_owned = original_commit.message().unwrap_or("").to_string();
+        let message_opt = if message_owned.is_empty() {
+            None
+        } else {
+            Some(message_owned.as_str())
+        };
+
+        if let Err(err) = rebase.commit(Some(&author), &committer, message_opt) {
+            if err.code() == ErrorCode::Applied {
+                let _ = rebase.abort();
+                return Err(anyhow!(
+                    "Conflicting change already exists on parent branch '{}' while merging session '{}': {}",
+                    context.parent_branch,
+                    context.session_name,
+                    err.message()
+                ));
+            }
+
+            let conflicts = repo
+                .index()
+                .ok()
+                .filter(|index| index.has_conflicts())
+                .and_then(|index| collect_conflicting_paths(&index).ok());
+
+            let _ = rebase.abort();
+
+            let conflict_hint = conflicts
+                .filter(|paths| !paths.is_empty())
+                .map(|paths| format!(" Conflicting paths: {}", paths.join(", ")))
+                .unwrap_or_default();
+
+            return Err(anyhow!(
+                "Rebase failed for session '{}': {}{}",
+                context.session_name,
+                err,
+                conflict_hint
+            ));
+        }
+    }
+
+    match repo.signature() {
+        Ok(sig) => rebase.finish(Some(&sig))?,
+        Err(_) => rebase.finish(None)?,
+    }
+
+    let mut checkout = CheckoutBuilder::new();
+    checkout.force();
+    repo.checkout_head(Some(&mut checkout))?;
+
+    Ok(())
 }
 
-fn abort_rebase(context: &SessionMergeContext) -> Result<()> {
-    run_git(
-        &context.worktree_path,
-        vec![OsString::from("rebase"), OsString::from("--abort")],
-    )
+fn create_squash_commit(context: &SessionMergeContext, commit_message: &str) -> Result<Oid> {
+    let repo = Repository::open(&context.worktree_path).with_context(|| {
+        format!(
+            "Failed to open worktree repository at {}",
+            context.worktree_path.display()
+        )
+    })?;
+
+    let parent_oid = resolve_branch_oid(&repo, &context.parent_branch)?;
+    let parent_commit = repo.find_commit(parent_oid).with_context(|| {
+        format!(
+            "Failed to locate parent commit '{}' for squash merge",
+            context.parent_branch
+        )
+    })?;
+
+    repo.reset(parent_commit.as_object(), git2::ResetType::Soft, None)
+        .with_context(|| {
+            format!(
+                "Failed to perform soft reset to parent '{}' before squash merge",
+                context.parent_branch
+            )
+        })?;
+
+    let mut index = repo.index()?;
+    if index.has_conflicts() {
+        let conflicts = collect_conflicting_paths(&index)?;
+        return Err(anyhow!(
+            "Cannot create squash commit for session '{}': unresolved conflicts {}",
+            context.session_name,
+            conflicts.join(", ")
+        ));
+    }
+
+    let tree_oid = index.write_tree()?;
+    let tree = repo.find_tree(tree_oid)?;
+    let signature = repo
+        .signature()
+        .with_context(|| "Git signature is required to create squash merge commit".to_string())?;
+
+    let reference_name = normalize_branch_ref(&context.session_branch);
+    let new_commit_oid = repo
+        .commit(
+            Some(&reference_name),
+            &signature,
+            &signature,
+            commit_message,
+            &tree,
+            &[&parent_commit],
+        )
+        .with_context(|| {
+            format!(
+                "Failed to create squash commit for session '{}' targeting parent '{}'",
+                context.session_name, context.parent_branch
+            )
+        })?;
+
+    let mut checkout = CheckoutBuilder::new();
+    checkout.force();
+    repo.checkout_head(Some(&mut checkout))?;
+
+    Ok(new_commit_oid)
 }
 
 pub fn compute_merge_state(
@@ -464,7 +677,16 @@ pub fn compute_merge_state(
     })
 }
 
+#[cfg(test)]
 fn run_git(current_dir: &Path, args: Vec<OsString>) -> Result<()> {
+    if RUN_GIT_FORBIDDEN.load(Ordering::SeqCst) {
+        panic!(
+            "run_git invoked while forbidden: command=git {:?}, cwd={}",
+            args,
+            current_dir.display()
+        );
+    }
+
     debug!(
         "{OPERATION_LABEL}: running git {args:?} in {path}",
         path = current_dir.display()
@@ -606,6 +828,8 @@ mod tests {
     use super::*;
     use crate::domains::sessions::service::SessionCreationParams;
     use crate::schaltwerk_core::database::Database;
+    use serial_test::serial;
+    use std::sync::atomic::Ordering;
     use tempfile::TempDir;
 
     fn init_repo(path: &Path) {
@@ -681,6 +905,21 @@ mod tests {
             ],
         )
         .unwrap();
+    }
+
+    struct RunGitBlocker;
+
+    impl RunGitBlocker {
+        fn new() -> Self {
+            RUN_GIT_FORBIDDEN.store(true, Ordering::SeqCst);
+            RunGitBlocker
+        }
+    }
+
+    impl Drop for RunGitBlocker {
+        fn drop(&mut self) {
+            RUN_GIT_FORBIDDEN.store(false, Ordering::SeqCst);
+        }
     }
 
     #[tokio::test]
@@ -1205,5 +1444,459 @@ mod tests {
         let session_after = manager.get_session(&session.name).unwrap();
         assert!(session_after.ready_to_merge);
         assert_eq!(session_after.session_state, SessionState::Reviewed);
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn merge_reapply_skips_shelling_out_to_git() {
+        let temp = TempDir::new().unwrap();
+        let (manager, db, repo_path) = create_session_manager(&temp);
+
+        let params = SessionCreationParams {
+            name: "reapply-no-git",
+            prompt: Some("reapply"),
+            base_branch: Some("main"),
+            custom_branch: None,
+            was_auto_generated: false,
+            version_group_id: None,
+            version_number: None,
+            agent_type: None,
+            skip_permissions: None,
+        };
+
+        let session = manager.create_session_with_agent(params).unwrap();
+        write_session_file(
+            &session.worktree_path,
+            "src/lib.rs",
+            "pub fn feature() -> i32 { 1 }\n",
+        );
+
+        std::fs::write(repo_path.join("base.txt"), "parent diverges\n").unwrap();
+        run_git(
+            &repo_path,
+            vec![OsString::from("add"), OsString::from("base.txt")],
+        )
+        .unwrap();
+        run_git(
+            &repo_path,
+            vec![
+                OsString::from("commit"),
+                OsString::from("-m"),
+                OsString::from("parent diverges"),
+            ],
+        )
+        .unwrap();
+
+        manager.mark_session_ready(&session.name, false).unwrap();
+
+        let repo_before = Repository::open(&repo_path).unwrap();
+        let parent_before_oid = resolve_branch_oid(&repo_before, "main").unwrap();
+
+        let service = MergeService::new(db.clone(), repo_path.clone());
+        let blocker = RunGitBlocker::new();
+        let outcome = service
+            .merge(&session.name, MergeMode::Reapply, None)
+            .await
+            .expect("reapply merge should succeed without spawning git");
+        drop(blocker);
+
+        assert_eq!(outcome.mode, MergeMode::Reapply);
+
+        let repo_after = Repository::open(&repo_path).unwrap();
+        let parent_head = resolve_branch_oid(&repo_after, "main").unwrap();
+        let session_head = resolve_branch_oid(&repo_after, &session.branch).unwrap();
+        assert_eq!(parent_head, session_head);
+
+        let new_commit = repo_after.find_commit(parent_head).unwrap();
+        assert_eq!(new_commit.parent_id(0).unwrap(), parent_before_oid);
+        assert_eq!(new_commit.message().unwrap().trim(), "session work");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn merge_squash_skips_shelling_out_to_git() {
+        let temp = TempDir::new().unwrap();
+        let (manager, db, repo_path) = create_session_manager(&temp);
+
+        let params = SessionCreationParams {
+            name: "squash-no-git",
+            prompt: Some("squash"),
+            base_branch: Some("main"),
+            custom_branch: None,
+            was_auto_generated: false,
+            version_group_id: None,
+            version_number: None,
+            agent_type: None,
+            skip_permissions: None,
+        };
+
+        let session = manager.create_session_with_agent(params).unwrap();
+        write_session_file(&session.worktree_path, "src/lib.rs", "pub fn alpha() {}\n");
+        write_session_file(
+            &session.worktree_path,
+            "src/lib.rs",
+            "pub fn alpha() {}\npub fn beta() {}\n",
+        );
+
+        std::fs::write(repo_path.join("base.txt"), "parent divergence\n").unwrap();
+        run_git(
+            &repo_path,
+            vec![OsString::from("add"), OsString::from("base.txt")],
+        )
+        .unwrap();
+        run_git(
+            &repo_path,
+            vec![
+                OsString::from("commit"),
+                OsString::from("-m"),
+                OsString::from("parent diverges"),
+            ],
+        )
+        .unwrap();
+
+        manager.mark_session_ready(&session.name, false).unwrap();
+
+        let repo_before = Repository::open(&repo_path).unwrap();
+        let parent_before_oid = resolve_branch_oid(&repo_before, "main").unwrap();
+
+        let service = MergeService::new(db.clone(), repo_path.clone());
+        let blocker = RunGitBlocker::new();
+        let commit_message = "Squashed session work";
+        let outcome = service
+            .merge(
+                &session.name,
+                MergeMode::Squash,
+                Some(commit_message.to_string()),
+            )
+            .await
+            .expect("squash merge should succeed without spawning git");
+        drop(blocker);
+
+        assert_eq!(outcome.mode, MergeMode::Squash);
+        assert_eq!(outcome.parent_branch, "main");
+
+        let repo_after = Repository::open(&repo_path).unwrap();
+        let parent_head = resolve_branch_oid(&repo_after, "main").unwrap();
+        assert_eq!(parent_head.to_string(), outcome.new_commit);
+
+        let new_commit = repo_after.find_commit(parent_head).unwrap();
+        assert_eq!(new_commit.parent_id(0).unwrap(), parent_before_oid);
+        assert_eq!(new_commit.message().unwrap().trim(), commit_message);
+
+        let session_head = resolve_branch_oid(&repo_after, &session.branch).unwrap();
+        assert_eq!(session_head, parent_head);
+    }
+
+    #[tokio::test]
+    async fn merge_reapply_preserves_session_on_conflict() {
+        let temp = TempDir::new().unwrap();
+        let (manager, db, repo_path) = create_session_manager(&temp);
+
+        let params = SessionCreationParams {
+            name: "reapply-conflict",
+            prompt: Some("conflict work"),
+            base_branch: Some("main"),
+            custom_branch: None,
+            was_auto_generated: false,
+            version_group_id: None,
+            version_number: None,
+            agent_type: None,
+            skip_permissions: None,
+        };
+
+        let session = manager.create_session_with_agent(params).unwrap();
+        write_session_file(&session.worktree_path, "conflict.txt", "session change\n");
+        manager.mark_session_ready(&session.name, false).unwrap();
+
+        std::fs::write(repo_path.join("conflict.txt"), "parent change\n").unwrap();
+        run_git(
+            &repo_path,
+            vec![OsString::from("add"), OsString::from("conflict.txt")],
+        )
+        .unwrap();
+        run_git(
+            &repo_path,
+            vec![
+                OsString::from("commit"),
+                OsString::from("-m"),
+                OsString::from("parent conflicting change"),
+            ],
+        )
+        .unwrap();
+
+        let repo_before = Repository::open(&repo_path).unwrap();
+        let session_head_before = resolve_branch_oid(&repo_before, &session.branch).unwrap();
+        let parent_head_before = resolve_branch_oid(&repo_before, &session.parent_branch).unwrap();
+
+        let service = MergeService::new(db.clone(), repo_path.clone());
+        let err = service
+            .merge(&session.name, MergeMode::Reapply, None)
+            .await
+            .expect_err("merge should surface rebase conflict and abort");
+        assert!(
+            err.to_string().to_lowercase().contains("conflict"),
+            "error message should mention conflict, got: {err}"
+        );
+
+        let session_after = manager
+            .get_session(&session.name)
+            .expect("session should remain in database after conflict");
+        assert!(session_after.worktree_path.exists());
+        assert!(session_after.worktree_path.join("conflict.txt").exists());
+
+        let repo_after = Repository::open(&repo_path).unwrap();
+        let session_head_after = resolve_branch_oid(&repo_after, &session.branch).unwrap();
+        let parent_head_after = resolve_branch_oid(&repo_after, &session.parent_branch).unwrap();
+
+        assert_eq!(
+            session_head_after, session_head_before,
+            "session branch should remain on original commit when merge fails"
+        );
+        assert_eq!(
+            parent_head_after, parent_head_before,
+            "parent branch must be unchanged when merge fails"
+        );
+    }
+
+    #[tokio::test]
+    async fn merge_squash_preserves_session_on_conflict() {
+        let temp = TempDir::new().unwrap();
+        let (manager, db, repo_path) = create_session_manager(&temp);
+
+        let params = SessionCreationParams {
+            name: "squash-conflict",
+            prompt: Some("conflict work"),
+            base_branch: Some("main"),
+            custom_branch: None,
+            was_auto_generated: false,
+            version_group_id: None,
+            version_number: None,
+            agent_type: None,
+            skip_permissions: None,
+        };
+
+        let session = manager.create_session_with_agent(params).unwrap();
+        write_session_file(&session.worktree_path, "conflict.txt", "session change\n");
+        manager.mark_session_ready(&session.name, false).unwrap();
+
+        std::fs::write(repo_path.join("conflict.txt"), "parent change\n").unwrap();
+        run_git(
+            &repo_path,
+            vec![OsString::from("add"), OsString::from("conflict.txt")],
+        )
+        .unwrap();
+        run_git(
+            &repo_path,
+            vec![
+                OsString::from("commit"),
+                OsString::from("-m"),
+                OsString::from("parent conflicting change"),
+            ],
+        )
+        .unwrap();
+
+        let repo_before = Repository::open(&repo_path).unwrap();
+        let session_head_before = resolve_branch_oid(&repo_before, &session.branch).unwrap();
+        let parent_head_before = resolve_branch_oid(&repo_before, &session.parent_branch).unwrap();
+
+        let service = MergeService::new(db.clone(), repo_path.clone());
+        let err = service
+            .merge(
+                &session.name,
+                MergeMode::Squash,
+                Some("should fail due to conflict".into()),
+            )
+            .await
+            .expect_err("squash merge should fail when conflicts exist");
+        assert!(
+            err.to_string().to_lowercase().contains("conflict"),
+            "error message should mention conflict, got: {err}"
+        );
+
+        let session_after = manager
+            .get_session(&session.name)
+            .expect("session should remain after failed squash merge");
+        assert!(session_after.worktree_path.exists());
+        assert!(session_after.worktree_path.join("conflict.txt").exists());
+
+        let repo_after = Repository::open(&repo_path).unwrap();
+        let session_head_after = resolve_branch_oid(&repo_after, &session.branch).unwrap();
+        let parent_head_after = resolve_branch_oid(&repo_after, &session.parent_branch).unwrap();
+
+        assert_eq!(
+            session_head_after, session_head_before,
+            "session branch should remain untouched when squash merge fails"
+        );
+        assert_eq!(
+            parent_head_after, parent_head_before,
+            "parent branch must remain unchanged when squash merge fails"
+        );
+    }
+
+    #[tokio::test]
+    async fn merge_reapply_reports_already_applied_patch_as_conflict() {
+        let temp = TempDir::new().unwrap();
+        let (manager, db, repo_path) = create_session_manager(&temp);
+
+        let params = SessionCreationParams {
+            name: "duplicate-change",
+            prompt: Some("todo"),
+            base_branch: Some("main"),
+            custom_branch: None,
+            was_auto_generated: false,
+            version_group_id: None,
+            version_number: None,
+            agent_type: None,
+            skip_permissions: None,
+        };
+
+        let session = manager.create_session_with_agent(params).unwrap();
+        write_session_file(
+            &session.worktree_path,
+            "src/lib.rs",
+            "pub fn change() -> i32 { 1 }\n",
+        );
+        manager.mark_session_ready(&session.name, false).unwrap();
+
+        // Apply the exact same change to main, so the session commit becomes redundant.
+        std::fs::create_dir_all(repo_path.join("src")).unwrap();
+        std::fs::write(
+            repo_path.join("src/lib.rs"),
+            "pub fn change() -> i32 { 1 }\n",
+        )
+        .unwrap();
+        run_git(
+            &repo_path,
+            vec![OsString::from("add"), OsString::from("src/lib.rs")],
+        )
+        .unwrap();
+        run_git(
+            &repo_path,
+            vec![
+                OsString::from("commit"),
+                OsString::from("-m"),
+                OsString::from("apply session change on main"),
+            ],
+        )
+        .unwrap();
+
+        let service = MergeService::new(db.clone(), repo_path.clone());
+        let err = service
+            .merge(&session.name, MergeMode::Reapply, None)
+            .await
+            .expect_err("merge should fail because the patch already exists on main");
+        assert!(
+            err.to_string().to_lowercase().contains("conflict"),
+            "error should be treated as a conflict, message: {err}"
+        );
+
+        let session_after = manager
+            .get_session(&session.name)
+            .expect("session should remain after duplicate change rejection");
+        assert!(session_after.worktree_path.exists());
+    }
+
+    #[tokio::test]
+    async fn merge_reapply_rejects_dirty_parent_branch() {
+        let temp = TempDir::new().unwrap();
+        let (manager, db, repo_path) = create_session_manager(&temp);
+
+        let params = SessionCreationParams {
+            name: "dirty-parent-reapply",
+            prompt: Some("todo"),
+            base_branch: Some("main"),
+            custom_branch: None,
+            was_auto_generated: false,
+            version_group_id: None,
+            version_number: None,
+            agent_type: None,
+            skip_permissions: None,
+        };
+
+        let session = manager.create_session_with_agent(params).unwrap();
+        write_session_file(&session.worktree_path, "src/lib.rs", "pub fn change() {}\n");
+        manager.mark_session_ready(&session.name, false).unwrap();
+
+        std::fs::write(repo_path.join("dirty.txt"), "uncommitted change").unwrap();
+
+        let repo_before = Repository::open(&repo_path).unwrap();
+        let session_head_before = resolve_branch_oid(&repo_before, &session.branch).unwrap();
+        let parent_head_before = resolve_branch_oid(&repo_before, &session.parent_branch).unwrap();
+
+        let service = MergeService::new(db.clone(), repo_path.clone());
+        let err = service
+            .merge(&session.name, MergeMode::Reapply, None)
+            .await
+            .expect_err("merge should fail when parent branch has uncommitted changes");
+        assert!(
+            err.to_string().contains("uncommitted changes"),
+            "error message should mention dirty parent state: {err}"
+        );
+
+        let session_after = manager
+            .get_session(&session.name)
+            .expect("session should remain after dirty parent rejection");
+        assert!(session_after.worktree_path.exists());
+
+        let repo_after = Repository::open(&repo_path).unwrap();
+        let session_head_after = resolve_branch_oid(&repo_after, &session.branch).unwrap();
+        let parent_head_after = resolve_branch_oid(&repo_after, &session.parent_branch).unwrap();
+
+        assert_eq!(session_head_after, session_head_before);
+        assert_eq!(parent_head_after, parent_head_before);
+    }
+
+    #[tokio::test]
+    async fn merge_squash_rejects_dirty_parent_branch() {
+        let temp = TempDir::new().unwrap();
+        let (manager, db, repo_path) = create_session_manager(&temp);
+
+        let params = SessionCreationParams {
+            name: "dirty-parent-squash",
+            prompt: Some("todo"),
+            base_branch: Some("main"),
+            custom_branch: None,
+            was_auto_generated: false,
+            version_group_id: None,
+            version_number: None,
+            agent_type: None,
+            skip_permissions: None,
+        };
+
+        let session = manager.create_session_with_agent(params).unwrap();
+        write_session_file(&session.worktree_path, "src/lib.rs", "pub fn change() {}\n");
+        manager.mark_session_ready(&session.name, false).unwrap();
+
+        std::fs::write(repo_path.join("dirty.txt"), "uncommitted change").unwrap();
+
+        let repo_before = Repository::open(&repo_path).unwrap();
+        let session_head_before = resolve_branch_oid(&repo_before, &session.branch).unwrap();
+        let parent_head_before = resolve_branch_oid(&repo_before, &session.parent_branch).unwrap();
+
+        let service = MergeService::new(db.clone(), repo_path.clone());
+        let err = service
+            .merge(
+                &session.name,
+                MergeMode::Squash,
+                Some("squash message".into()),
+            )
+            .await
+            .expect_err("squash merge should fail when parent branch has uncommitted changes");
+        assert!(
+            err.to_string().contains("uncommitted changes"),
+            "error message should mention dirty parent state: {err}"
+        );
+
+        let session_after = manager
+            .get_session(&session.name)
+            .expect("session should remain after dirty parent rejection");
+        assert!(session_after.worktree_path.exists());
+
+        let repo_after = Repository::open(&repo_path).unwrap();
+        let session_head_after = resolve_branch_oid(&repo_after, &session.branch).unwrap();
+        let parent_head_after = resolve_branch_oid(&repo_after, &session.parent_branch).unwrap();
+
+        assert_eq!(session_head_after, session_head_before);
+        assert_eq!(parent_head_after, parent_head_before);
     }
 }
