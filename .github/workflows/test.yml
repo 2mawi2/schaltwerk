@@ -182,7 +182,7 @@ jobs:
       - name: Run Rust tests
         run: |
           cd src-tauri
-          cargo nextest run --all-features --cargo-profile ci-test
+          cargo nextest run --all-features --status-level fail --failure-output immediate
 
       - name: Build Rust
         run: |
