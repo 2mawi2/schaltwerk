@@ -242,6 +242,21 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const reloadSessionsAndRefreshIdle = useCallback(async () => {
         await reloadSessions()
     }, [reloadSessions]);
+
+    const createSafeUnlistener = useCallback((fn: UnlistenFn): UnlistenFn => {
+        let called = false
+        return () => {
+            if (called) return
+            called = true
+            try {
+                Promise.resolve(fn()).catch(error => {
+                    logger.warn('Failed to unlisten sidebar event', error)
+                })
+            } catch (error) {
+                logger.warn('Failed to unlisten sidebar event', error)
+            }
+        }
+    }, [])
     
     // Maintain per-filter selection memory and choose the next best session when visibility changes
     useEffect(() => {
@@ -376,17 +391,19 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
 
         const attach = async () => {
             try {
-                unlistenProjectReady = await listenEvent(SchaltEvent.ProjectReady, () => { void fetchOrchestratorBranch() })
+                const unlisten = await listenEvent(SchaltEvent.ProjectReady, () => { void fetchOrchestratorBranch() })
+                unlistenProjectReady = createSafeUnlistener(unlisten)
             } catch (error) {
                 logger.warn('Failed to listen for project ready events:', error)
             }
 
             try {
-                unlistenFileChanges = await listenEvent(SchaltEvent.FileChanges, event => {
+                const unlisten = await listenEvent(SchaltEvent.FileChanges, event => {
                     if (event.session_name === ORCHESTRATOR_SESSION_NAME) {
                         setOrchestratorBranch(event.branch_info.current_branch || 'HEAD')
                     }
                 })
+                unlistenFileChanges = createSafeUnlistener(unlisten)
             } catch (error) {
                 logger.warn('Failed to listen for orchestrator file changes:', error)
             }
@@ -402,7 +419,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 unlistenFileChanges()
             }
         }
-    }, [fetchOrchestratorBranch])
+    }, [fetchOrchestratorBranch, createSafeUnlistener])
 
     const handleSelectOrchestrator = async () => {
         await setSelection({ kind: 'orchestrator' }, false, true) // User clicked - intentional
@@ -936,10 +953,11 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                         await handler(payload)
                     }
                 })
+                const safeUnlisten = createSafeUnlistener(unlisten)
                 if (disposed) {
-                    unlisten()
+                    safeUnlisten()
                 } else {
-                    unlisteners.push(unlisten)
+                    unlisteners.push(safeUnlisten)
                 }
             } catch (e) {
                 logger.warn('Failed to attach sidebar event listener', e)
@@ -987,14 +1005,10 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         return () => {
             disposed = true
             unlisteners.forEach(unlisten => {
-                try {
-                    unlisten()
-                } catch (e) {
-                    logger.warn('Failed to unlisten sidebar event', e)
-                }
+                unlisten()
             })
         }
-    }, [setCurrentFocus, setFocusForSession, setSelection])
+    }, [setCurrentFocus, setFocusForSession, setSelection, createSafeUnlistener])
 
     useEffect(() => () => cancelMarkReadyCooldown(), [cancelMarkReadyCooldown])
 
