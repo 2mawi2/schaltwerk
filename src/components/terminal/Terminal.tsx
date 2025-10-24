@@ -27,7 +27,6 @@ import { writeTerminalBackend } from '../../terminal/transport/backend'
 import {
     acquireTerminalInstance,
     detachTerminalInstance,
-    releaseTerminalInstance,
     hasTerminalInstance,
 } from '../../terminal/registry/terminalRegistry'
 import { XtermTerminal } from '../../terminal/xterm/XtermTerminal'
@@ -1288,12 +1287,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 onDataDisposableRef.current = null;
             }
 
-            const isRunTerminal = terminalId.startsWith('run-terminal');
-            if (isRunTerminal) {
-                releaseTerminalInstance(terminalId);
-            } else {
-                detachTerminalInstance(terminalId);
-            }
+            detachTerminalInstance(terminalId);
             xtermWrapperRef.current = null;
             gpuRenderer.current = null;
             terminal.current = null;

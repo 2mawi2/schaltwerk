@@ -137,7 +137,33 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
 
   useEffect(() => {
     let cancelled = false
-    let unlisten: (() => void) | null = null
+    let unlisten: (() => void | Promise<void>) | null = null
+
+    const cleanupListener = (fn: (() => void | Promise<void>) | null, context: 'cancellation' | 'teardown') => {
+      if (!fn) {
+        return
+      }
+      try {
+        const result = fn()
+        if (result && result instanceof Promise) {
+          void result.catch(error => {
+            logger.debug(
+              context === 'cancellation'
+                ? '[RunTerminal] TerminalClosed listener cleanup failed after cancellation'
+                : '[RunTerminal] TerminalClosed listener cleanup failed during teardown',
+              error
+            )
+          })
+        }
+      } catch (error) {
+        logger.debug(
+          context === 'cancellation'
+            ? '[RunTerminal] TerminalClosed listener cleanup failed after cancellation'
+            : '[RunTerminal] TerminalClosed listener cleanup failed during teardown',
+          error
+        )
+      }
+    }
 
     const setup = async () => {
       try {
@@ -152,11 +178,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
         })
 
         if (cancelled) {
-          try {
-            dispose()
-          } catch (error) {
-            logger.debug('[RunTerminal] Cleaned up TerminalClosed listener after cancellation', error)
-          }
+          cleanupListener(dispose, 'cancellation')
           return
         }
 
@@ -170,13 +192,8 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
 
     return () => {
       cancelled = true
-      if (unlisten) {
-        try {
-          unlisten()
-        } catch (error) {
-          logger.debug('[RunTerminal] TerminalClosed listener cleanup failed', error)
-        }
-      }
+      cleanupListener(unlisten, 'teardown')
+      unlisten = null
     }
   }, [runTerminalId, onRunningStateChange])
 
