@@ -32,10 +32,10 @@ pub async fn report_attention_snapshot(
         }
     };
 
-    let (total_count, badge_label) = {
+    let (total_count, badge_count) = {
         let mut guard = registry.lock().await;
         let total = guard.update_snapshot(normalized_label.clone(), session_keys);
-        let badge = AttentionStateRegistry::badge_label(total);
+        let badge = AttentionStateRegistry::badge_count(total);
         (total, badge)
     };
 
@@ -45,7 +45,7 @@ pub async fn report_attention_snapshot(
             .get_webview_window(&normalized_label)
             .or_else(|| app.get_webview_window("main"));
         if let Some(window) = candidate
-            && let Err(err) = window.set_badge_label(badge_label.clone())
+            && let Err(err) = window.set_badge_count(badge_count)
         {
             trace!("[attention] Failed to set badge label: {err}");
         }
@@ -53,6 +53,12 @@ pub async fn report_attention_snapshot(
 
     Ok(AttentionSnapshotResponse {
         total_count,
-        badge_label,
+        badge_label: badge_count.map(|count| {
+            if count >= 99 {
+                "99+".to_string()
+            } else {
+                count.to_string()
+            }
+        }),
     })
 }

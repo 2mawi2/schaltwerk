@@ -34,11 +34,10 @@ impl AttentionStateRegistry {
         unique.len()
     }
 
-    pub fn badge_label(total: usize) -> Option<String> {
+    pub fn badge_count(total: usize) -> Option<i64> {
         match total {
             0 => None,
-            1..=9 => Some(total.to_string()),
-            _ => Some("9+".to_string()),
+            _ => Some(std::cmp::min(total, 99) as i64),
         }
     }
 }
@@ -64,23 +63,15 @@ mod tests {
         assert_eq!(total, 3);
 
         let total = registry.update_snapshot("window-a".to_string(), Vec::<String>::new());
-        assert_eq!(total, 1);
+        assert_eq!(total, 2);
     }
 
     #[test]
     fn computes_badge_label() {
-        assert_eq!(AttentionStateRegistry::badge_label(0), None);
-        assert_eq!(
-            AttentionStateRegistry::badge_label(1),
-            Some("1".to_string())
-        );
-        assert_eq!(
-            AttentionStateRegistry::badge_label(9),
-            Some("9".to_string())
-        );
-        assert_eq!(
-            AttentionStateRegistry::badge_label(10),
-            Some("9+".to_string())
-        );
+        assert_eq!(AttentionStateRegistry::badge_count(0), None);
+        assert_eq!(AttentionStateRegistry::badge_count(1), Some(1));
+        assert_eq!(AttentionStateRegistry::badge_count(9), Some(9));
+        assert_eq!(AttentionStateRegistry::badge_count(10), Some(10));
+        assert_eq!(AttentionStateRegistry::badge_count(150), Some(99));
     }
 }

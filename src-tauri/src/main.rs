@@ -836,6 +836,7 @@ fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_updater::Builder::new()
             .pubkey(UPDATER_PUBLIC_KEY.trim())

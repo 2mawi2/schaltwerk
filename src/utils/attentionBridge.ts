@@ -3,6 +3,21 @@ import { getCurrentWindow, UserAttentionType } from '@tauri-apps/api/window'
 import { TauriCommands } from '../common/tauriCommands'
 import { logger } from './logger'
 
+type NotificationPluginModule = typeof import('@tauri-apps/plugin-notification')
+
+let notificationPluginPromise: Promise<NotificationPluginModule | null> | null = null
+
+async function loadNotificationPlugin(): Promise<NotificationPluginModule | null> {
+  if (!notificationPluginPromise) {
+    notificationPluginPromise = import('@tauri-apps/plugin-notification')
+      .catch((error) => {
+        logger.debug('[attentionBridge] Notification plugin unavailable:', error)
+        return null
+      })
+  }
+  return notificationPluginPromise
+}
+
 export interface AttentionSnapshotResponse {
   totalCount: number
   badgeLabel: string | null
@@ -46,6 +61,19 @@ export async function reportAttentionSnapshot(windowLabel: string, sessionKeys: 
 }
 
 export async function ensureNotificationPermission(): Promise<NotificationPermission> {
+  const plugin = await loadNotificationPlugin()
+  if (plugin) {
+    try {
+      if (await plugin.isPermissionGranted()) {
+        return 'granted'
+      }
+      const permission = await plugin.requestPermission()
+      return permission === 'granted' ? 'granted' : 'denied'
+    } catch (error) {
+      logger.debug('[attentionBridge] Plugin notification permission request failed:', error)
+    }
+  }
+
   if (typeof window === 'undefined' || typeof Notification === 'undefined') {
     return 'denied'
   }
@@ -70,6 +98,28 @@ export interface SystemNotificationOptions {
 }
 
 export async function showSystemNotification(options: SystemNotificationOptions): Promise<boolean> {
+  const plugin = await loadNotificationPlugin()
+  if (plugin) {
+    try {
+      const granted = await plugin.isPermissionGranted()
+      if (!granted) {
+        const permission = await plugin.requestPermission()
+        if (permission !== 'granted') {
+          return false
+        }
+      }
+
+      await plugin.sendNotification({
+        title: options.title,
+        body: options.body,
+        silent: options.silent ?? false,
+      })
+      return true
+    } catch (error) {
+      logger.debug('[attentionBridge] Failed to display notification via plugin:', error)
+    }
+  }
+
   if (typeof window === 'undefined' || typeof Notification === 'undefined') {
     return false
   }
