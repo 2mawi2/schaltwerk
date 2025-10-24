@@ -318,9 +318,7 @@ fn resolve_current_refs(repo: &Repository) -> (Option<HistoryItemRef>, Option<Hi
     let current_ref = repo.head().ok().and_then(|head| {
         let name = head.name()?;
         let short_name = name.strip_prefix("refs/heads/").unwrap_or(name);
-        let target = head
-            .target()
-            .map(|oid| oid.to_string()[..7].to_string());
+        let target = head.target().map(|oid| oid.to_string()[..7].to_string());
 
         Some(HistoryItemRef {
             id: name.to_string(),

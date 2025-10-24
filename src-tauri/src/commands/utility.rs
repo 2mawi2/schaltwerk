@@ -88,8 +88,7 @@ pub fn get_environment_variable(name: String) -> Result<Option<String>, String> 
 
 #[tauri::command]
 pub async fn open_external_url(url: String) -> Result<(), String> {
-    let parsed_url = Url::parse(&url)
-        .map_err(|error| format!("Invalid URL '{url}': {error}"))?;
+    let parsed_url = Url::parse(&url).map_err(|error| format!("Invalid URL '{url}': {error}"))?;
     let target: String = parsed_url.into();
     let log_target = target.clone();
     let join_error_target = target.clone();
@@ -105,9 +104,7 @@ pub async fn open_external_url(url: String) -> Result<(), String> {
     })
     .await
     .map_err(|error| {
-        log::error!(
-            "Failed to join external URL launcher task for {join_error_target}: {error}"
-        );
+        log::error!("Failed to join external URL launcher task for {join_error_target}: {error}");
         format!("Failed to launch URL '{join_error_target}': task join error")
     })?
 }
@@ -206,11 +203,10 @@ mod tests {
 
     impl CommandRunner for MockCommandRunner {
         fn run(&self, program: &str, args: &[&str]) -> Result<ExitStatus, io::Error> {
-            self
-                .invocations
-                .lock()
-                .unwrap()
-                .push((program.to_string(), args.iter().map(|arg| arg.to_string()).collect()));
+            self.invocations.lock().unwrap().push((
+                program.to_string(),
+                args.iter().map(|arg| arg.to_string()).collect(),
+            ));
 
             self.response
                 .lock()
@@ -274,7 +270,8 @@ mod tests {
 
     #[test]
     fn launch_url_propagates_spawn_errors() {
-        let runner = MockCommandRunner::new(Err(io::Error::new(io::ErrorKind::NotFound, "missing")));
+        let runner =
+            MockCommandRunner::new(Err(io::Error::new(io::ErrorKind::NotFound, "missing")));
 
         let error = launch_url_with_runner("https://example.com", &runner)
             .expect_err("launch should have failed");

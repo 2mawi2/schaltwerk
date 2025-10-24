@@ -247,10 +247,7 @@ fn apply_sessions_migrations(conn: &rusqlite::Connection) -> anyhow::Result<()> 
         [],
     );
     // Store Amp thread ID for resuming threads across sessions
-    let _ = conn.execute(
-        "ALTER TABLE sessions ADD COLUMN amp_thread_id TEXT",
-        [],
-    );
+    let _ = conn.execute("ALTER TABLE sessions ADD COLUMN amp_thread_id TEXT", []);
     Ok(())
 }
 

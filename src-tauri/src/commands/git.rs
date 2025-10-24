@@ -23,8 +23,7 @@ pub fn get_git_graph_history(
         fetch_git_history(path, limit, cursor_ref)
     };
 
-    result
-        .map_err(|e| format!("Failed to get git history: {e}"))
+    result.map_err(|e| format!("Failed to get git history: {e}"))
 }
 
 #[tauri::command]

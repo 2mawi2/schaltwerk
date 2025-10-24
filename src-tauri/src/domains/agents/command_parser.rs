@@ -92,10 +92,12 @@ pub fn parse_agent_command(command: &str) -> Result<(String, String, Vec<String>
         .unwrap_or(fname);
 
     // For Amp, we need to check both the binary name and path
-    let is_amp = agent_token == "amp" || agent_token.ends_with("/amp") || agent_token.ends_with("\\amp");
+    let is_amp =
+        agent_token == "amp" || agent_token.ends_with("/amp") || agent_token.ends_with("\\amp");
     let is_supported = supported_agents
         .iter()
-        .any(|agent| stem == *agent || agent_token == *agent) || is_amp;
+        .any(|agent| stem == *agent || agent_token == *agent)
+        || is_amp;
 
     if !is_supported {
         let agent_list = supported_agents.join(", ");

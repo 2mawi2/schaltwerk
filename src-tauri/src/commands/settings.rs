@@ -2,7 +2,8 @@ use std::collections::HashMap;
 
 use crate::{get_core_read, get_core_write, PROJECT_MANAGER, SETTINGS_MANAGER};
 use schaltwerk::domains::settings::{
-    DiffViewPreferences, McpServerConfig, SessionPreferences, TerminalSettings, TerminalUIPreferences,
+    DiffViewPreferences, McpServerConfig, SessionPreferences, TerminalSettings,
+    TerminalUIPreferences,
 };
 use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
 use schaltwerk::schaltwerk_core::db_project_config::{
@@ -660,7 +661,9 @@ pub async fn get_amp_mcp_servers() -> Result<HashMap<String, McpServerConfig>, S
 }
 
 #[tauri::command]
-pub async fn set_amp_mcp_servers(mcp_servers: HashMap<String, McpServerConfig>) -> Result<(), String> {
+pub async fn set_amp_mcp_servers(
+    mcp_servers: HashMap<String, McpServerConfig>,
+) -> Result<(), String> {
     let settings_manager = SETTINGS_MANAGER
         .get()
         .ok_or_else(|| "Settings manager not initialized".to_string())?;

@@ -1,8 +1,8 @@
 use super::format_binary_invocation;
 use std::fs;
 use std::path::Path;
-use std::time::SystemTime;
 use std::time::Duration;
+use std::time::SystemTime;
 use tokio::time::sleep;
 
 #[derive(Debug, Clone, Default)]
@@ -135,9 +135,7 @@ pub async fn watch_amp_thread_creation(timeout_secs: u64) -> Option<String> {
     }
 
     let initial_threads = get_existing_threads(&threads_dir)?;
-    log::debug!(
-        "Amp thread watcher: Initial threads: {initial_threads:?}"
-    );
+    log::debug!("Amp thread watcher: Initial threads: {initial_threads:?}");
 
     let deadline = std::time::Instant::now() + Duration::from_secs(timeout_secs);
 

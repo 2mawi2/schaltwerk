@@ -7,38 +7,73 @@ fn is_internal_tooling_path(path: &str) -> bool {
     path == ".schaltwerk" || path.starts_with(".schaltwerk/")
 }
 
-pub fn has_uncommitted_changes(worktree_path: &Path) -> Result<bool> {
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct UncommittedChangesStatus {
+    pub has_tracked_changes: bool,
+    pub has_untracked_changes: bool,
+}
+
+fn classify_status(entry_status: Status) -> (bool, bool) {
+    let has_untracked = entry_status.contains(Status::WT_NEW);
+
+    let tracked_bits = Status::INDEX_NEW
+        | Status::INDEX_MODIFIED
+        | Status::INDEX_DELETED
+        | Status::INDEX_RENAMED
+        | Status::INDEX_TYPECHANGE
+        | Status::WT_MODIFIED
+        | Status::WT_DELETED
+        | Status::WT_RENAMED
+        | Status::WT_TYPECHANGE
+        | Status::CONFLICTED;
+
+    let has_tracked = entry_status.intersects(tracked_bits);
+
+    (has_tracked, has_untracked)
+}
+
+pub fn get_uncommitted_changes_status(worktree_path: &Path) -> Result<UncommittedChangesStatus> {
     let repo = Repository::open(worktree_path)?;
 
-    // Include untracked files; recurse into untracked dirs
     let mut opts = StatusOptions::new();
     opts.include_untracked(true).recurse_untracked_dirs(true);
     let statuses = repo.statuses(Some(&mut opts))?;
 
-    // Filter out schaltwerk internal artifacts within the worktree
-    const MAX_SAMPLE: usize = 3;
-    let mut offending: Vec<String> = Vec::new();
+    let mut summary = UncommittedChangesStatus::default();
+
     for entry in statuses.iter() {
         if let Some(path) = entry.path() {
             if is_internal_tooling_path(path) {
                 continue;
             }
-            offending.push(path.to_string());
-        } else {
-            offending.push("<unknown>".to_string());
         }
-        if offending.len() >= MAX_SAMPLE {
+
+        let (has_tracked, has_untracked) = classify_status(entry.status());
+        if has_tracked {
+            summary.has_tracked_changes = true;
+        }
+        if has_untracked {
+            summary.has_untracked_changes = true;
+        }
+
+        if summary.has_tracked_changes && summary.has_untracked_changes {
             break;
         }
     }
-    let any = !offending.is_empty();
+
     log::debug!(
-        "has_uncommitted_changes: path={} total_status_entries={} offending_sample={:?}",
+        "get_uncommitted_changes_status: path={} tracked={} untracked={}",
         worktree_path.display(),
-        statuses.len(),
-        offending
+        summary.has_tracked_changes,
+        summary.has_untracked_changes
     );
-    Ok(any)
+
+    Ok(summary)
+}
+
+pub fn has_uncommitted_changes(worktree_path: &Path) -> Result<bool> {
+    let status = get_uncommitted_changes_status(worktree_path)?;
+    Ok(status.has_tracked_changes || status.has_untracked_changes)
 }
 
 pub fn has_conflicts(worktree_path: &Path) -> Result<bool> {

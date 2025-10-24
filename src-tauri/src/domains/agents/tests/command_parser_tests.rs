@@ -174,13 +174,16 @@ fn test_parse_agent_command_cwd_with_spaces() {
     assert_eq!(args, vec!["--version"]);
 }
 
-    #[test]
+#[test]
 fn test_parse_agent_command_amp_with_dangerously_allow_all() {
     let cmd = r#"cd /tmp/work && amp --dangerously-allow-all <<< 'implement feature'"#;
     let (cwd, agent, args) = parse_agent_command(cmd).unwrap();
     assert_eq!(cwd, "/tmp/work");
     assert_eq!(agent, "amp");
-    assert_eq!(args, vec!["--dangerously-allow-all", "<<<", "implement feature"]);
+    assert_eq!(
+        args,
+        vec!["--dangerously-allow-all", "<<<", "implement feature"]
+    );
 }
 
 #[test]

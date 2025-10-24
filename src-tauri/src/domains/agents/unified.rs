@@ -310,29 +310,29 @@ mod tests {
 
     #[test]
     fn test_registry_has_all_agents() {
-    let registry = AgentRegistry::new();
-    assert!(registry.get("claude").is_some());
-    assert!(registry.get("codex").is_some());
-    assert!(registry.get("gemini").is_some());
-    assert!(registry.get("opencode").is_some());
-    assert!(registry.get("droid").is_some());
-    assert!(registry.get("qwen").is_some());
-    assert!(registry.get("amp").is_some());
+        let registry = AgentRegistry::new();
+        assert!(registry.get("claude").is_some());
+        assert!(registry.get("codex").is_some());
+        assert!(registry.get("gemini").is_some());
+        assert!(registry.get("opencode").is_some());
+        assert!(registry.get("droid").is_some());
+        assert!(registry.get("qwen").is_some());
+        assert!(registry.get("amp").is_some());
         assert!(registry.get("terminal").is_some());
     }
 
     #[test]
     fn test_registry_supported_agents() {
-    let registry = AgentRegistry::new();
-    let supported = registry.supported_agents();
-    assert!(supported.len() >= 8);
-    assert!(supported.contains(&"claude".to_string()));
-    assert!(supported.contains(&"codex".to_string()));
-    assert!(supported.contains(&"droid".to_string()));
-    assert!(supported.contains(&"gemini".to_string()));
-    assert!(supported.contains(&"opencode".to_string()));
-    assert!(supported.contains(&"qwen".to_string()));
-    assert!(supported.contains(&"amp".to_string()));
+        let registry = AgentRegistry::new();
+        let supported = registry.supported_agents();
+        assert!(supported.len() >= 8);
+        assert!(supported.contains(&"claude".to_string()));
+        assert!(supported.contains(&"codex".to_string()));
+        assert!(supported.contains(&"droid".to_string()));
+        assert!(supported.contains(&"gemini".to_string()));
+        assert!(supported.contains(&"opencode".to_string()));
+        assert!(supported.contains(&"qwen".to_string()));
+        assert!(supported.contains(&"amp".to_string()));
         assert!(supported.contains(&"terminal".to_string()));
     }
 
@@ -583,28 +583,28 @@ mod tests {
     }
 
     mod qwen_tests {
-    use super::*;
+        use super::*;
 
-    #[test]
-    fn test_qwen_adapter_basic() {
-    let adapter = QwenAdapter;
-    let manifest = AgentManifest::get("qwen").unwrap();
+        #[test]
+        fn test_qwen_adapter_basic() {
+            let adapter = QwenAdapter;
+            let manifest = AgentManifest::get("qwen").unwrap();
 
-    let ctx = AgentLaunchContext {
-    worktree_path: Path::new("/test/path"),
-    session_id: None,
-    initial_prompt: Some("test prompt"),
-    skip_permissions: true,
-    binary_override: Some("qwen"),
-    manifest,
-    };
+            let ctx = AgentLaunchContext {
+                worktree_path: Path::new("/test/path"),
+                session_id: None,
+                initial_prompt: Some("test prompt"),
+                skip_permissions: true,
+                binary_override: Some("qwen"),
+                manifest,
+            };
 
-    let spec = adapter.build_launch_spec(ctx);
-    assert!(spec.shell_command.contains("qwen"));
-    assert!(spec.shell_command.contains("--yolo"));
-    assert!(spec.shell_command.contains("--prompt-interactive"));
-    assert!(spec.shell_command.contains("test prompt"));
-    }
+            let spec = adapter.build_launch_spec(ctx);
+            assert!(spec.shell_command.contains("qwen"));
+            assert!(spec.shell_command.contains("--yolo"));
+            assert!(spec.shell_command.contains("--prompt-interactive"));
+            assert!(spec.shell_command.contains("test prompt"));
+        }
     }
 
     mod amp_tests {

@@ -198,7 +198,12 @@ mod service_unified_tests {
 
         // First start should be FRESH (no --continue / no -r)
         let cmd1 = manager
-            .start_claude_in_session_with_restart_and_binary(spec_name, false, &HashMap::new(), None)
+            .start_claude_in_session_with_restart_and_binary(
+                spec_name,
+                false,
+                &HashMap::new(),
+                None,
+            )
             .unwrap();
         let shell1 = &cmd1.shell_command;
         assert!(shell1.contains(" claude"));
@@ -207,7 +212,12 @@ mod service_unified_tests {
 
         // Second start should allow resume now (resume_allowed flipped true)
         let cmd2 = manager
-            .start_claude_in_session_with_restart_and_binary(spec_name, false, &HashMap::new(), None)
+            .start_claude_in_session_with_restart_and_binary(
+                spec_name,
+                false,
+                &HashMap::new(),
+                None,
+            )
             .unwrap();
         let shell2 = &cmd2.shell_command;
         assert!(
@@ -398,7 +408,12 @@ mod service_unified_tests {
         setup_opencode_session_history(home_dir.path(), &session.worktree_path, "oc-session", 3);
 
         let cmd = manager
-            .start_claude_in_session_with_restart_and_binary(&session.name, false, &HashMap::new(), None)
+            .start_claude_in_session_with_restart_and_binary(
+                &session.name,
+                false,
+                &HashMap::new(),
+                None,
+            )
             .expect("expected OpenCode command");
         let shell_command = &cmd.shell_command;
 
@@ -442,7 +457,12 @@ mod service_unified_tests {
         setup_opencode_session_history(home_dir.path(), &session.worktree_path, "oc-gate", 4);
 
         let cmd_first = manager
-            .start_claude_in_session_with_restart_and_binary(&session.name, false, &HashMap::new(), None)
+            .start_claude_in_session_with_restart_and_binary(
+                &session.name,
+                false,
+                &HashMap::new(),
+                None,
+            )
             .expect("expected OpenCode command");
         let first_shell = &cmd_first.shell_command;
 
@@ -465,7 +485,12 @@ mod service_unified_tests {
         );
 
         let cmd_second = manager
-            .start_claude_in_session_with_restart_and_binary(&session.name, false, &HashMap::new(), None)
+            .start_claude_in_session_with_restart_and_binary(
+                &session.name,
+                false,
+                &HashMap::new(),
+                None,
+            )
             .expect("expected OpenCode command");
         let second_shell = &cmd_second.shell_command;
 
@@ -1510,9 +1535,8 @@ impl SessionManager {
 
         let existing_branches_list =
             git::list_branches(&self.repo_path).unwrap_or_else(|_| Vec::new());
-        let repo_was_empty =
-            !git::repository_has_commits(&self.repo_path).unwrap_or(false)
-                || existing_branches_list.is_empty();
+        let repo_was_empty = !git::repository_has_commits(&self.repo_path).unwrap_or(false)
+            || existing_branches_list.is_empty();
         log::info!(
             "Session bootstrap state before worktree creation: repo_was_empty={}, base_branch='{}', repo='{}', branches=[{}]",
             repo_was_empty,
@@ -2241,7 +2265,12 @@ impl SessionManager {
         session_name: &str,
         binary_paths: &HashMap<String, String>,
     ) -> Result<AgentLaunchSpec> {
-        self.start_claude_in_session_with_restart_and_binary(session_name, false, binary_paths, None)
+        self.start_claude_in_session_with_restart_and_binary(
+            session_name,
+            false,
+            binary_paths,
+            None,
+        )
     }
 
     pub fn start_claude_in_session_with_args(
@@ -2258,7 +2287,12 @@ impl SessionManager {
         _cli_args: Option<&str>,
         binary_paths: &HashMap<String, String>,
     ) -> Result<AgentLaunchSpec> {
-        self.start_claude_in_session_with_restart_and_binary(session_name, false, binary_paths, None)
+        self.start_claude_in_session_with_restart_and_binary(
+            session_name,
+            false,
+            binary_paths,
+            None,
+        )
     }
 
     pub fn start_claude_in_session_with_restart_and_binary(

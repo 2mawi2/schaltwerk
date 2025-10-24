@@ -19,7 +19,9 @@ static RUN_GIT_FORBIDDEN: AtomicBool = AtomicBool::new(false);
 use tokio::task;
 use tokio::time::timeout;
 
-use crate::domains::git::operations::{has_uncommitted_changes, uncommitted_sample_paths};
+use crate::domains::git::operations::{
+    get_uncommitted_changes_status, has_uncommitted_changes, uncommitted_sample_paths,
+};
 use crate::domains::merge::lock;
 use crate::domains::merge::types::{MergeMode, MergeOutcome, MergePreview, MergeState};
 use crate::domains::sessions::entity::SessionState;
@@ -220,12 +222,12 @@ impl MergeService {
             } else {
                 format!(" Offending paths: {sample}")
             };
-            return Err(anyhow!(
-                "Parent branch '{}' has uncommitted changes in repository '{}'.{}",
-                context.parent_branch,
-                context.repo_path.display(),
-                hint
-            ));
+            warn!(
+                "{OPERATION_LABEL}: parent branch '{branch}' has uncommitted changes in repository '{repo}'. Merge will update refs only without touching the working tree.{hint}",
+                branch = context.parent_branch,
+                repo = context.repo_path.display(),
+                hint = hint
+            );
         }
 
         Ok(())
@@ -778,15 +780,58 @@ fn fast_forward_branch(repo: &Repository, branch: &str, new_oid: Oid) -> Result<
         ));
     }
 
+    let pre_update_state = repo.workdir().map(get_uncommitted_changes_status);
+
     reference.set_target(new_oid, "schaltwerk fast-forward merge")?;
+
+    let mut should_update_worktree = false;
+    let mut skip_reason: Option<String> = None;
 
     if let Ok(head) = repo.head() {
         if head.is_branch() && head.shorthand() == Some(branch) {
-            debug!("{OPERATION_LABEL}: updating working tree for branch '{branch}'");
-            let mut checkout = CheckoutBuilder::new();
-            checkout.force();
-            repo.checkout_head(Some(&mut checkout))?;
+            if let Some(workdir) = repo.workdir() {
+                let workdir_path = workdir.to_path_buf();
+                match pre_update_state {
+                    Some(Ok(status)) => {
+                        if status.has_tracked_changes {
+                            skip_reason = Some(format!(
+                                "working tree '{}' has tracked changes",
+                                workdir_path.display()
+                            ));
+                        } else {
+                            should_update_worktree = true;
+                            if status.has_untracked_changes {
+                                debug!(
+                                    "{OPERATION_LABEL}: updating working tree for branch '{branch}' while preserving untracked files"
+                                );
+                            }
+                        }
+                    }
+                    Some(Err(err)) => {
+                        skip_reason = Some(format!(
+                            "unable to inspect working tree '{}': {err}",
+                            workdir_path.display()
+                        ));
+                    }
+                    None => {
+                        should_update_worktree = true;
+                    }
+                }
+            } else {
+                should_update_worktree = true;
+            }
         }
+    }
+
+    if should_update_worktree {
+        debug!("{OPERATION_LABEL}: updating working tree for branch '{branch}'");
+        let mut checkout = CheckoutBuilder::new();
+        checkout.force();
+        repo.checkout_head(Some(&mut checkout))?;
+    } else if let Some(reason) = skip_reason {
+        info!(
+            "{OPERATION_LABEL}: skipping working tree checkout for branch '{branch}' because {reason}"
+        );
     }
 
     Ok(())
@@ -1796,7 +1841,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn merge_reapply_rejects_dirty_parent_branch() {
+    async fn merge_reapply_handles_dirty_parent_branch_without_touching_worktree() {
         let temp = TempDir::new().unwrap();
         let (manager, db, repo_path) = create_session_manager(&temp);
 
@@ -1823,18 +1868,16 @@ mod tests {
         let parent_head_before = resolve_branch_oid(&repo_before, &session.parent_branch).unwrap();
 
         let service = MergeService::new(db.clone(), repo_path.clone());
-        let err = service
+        let outcome = service
             .merge(&session.name, MergeMode::Reapply, None)
             .await
-            .expect_err("merge should fail when parent branch has uncommitted changes");
-        assert!(
-            err.to_string().contains("uncommitted changes"),
-            "error message should mention dirty parent state: {err}"
-        );
+            .expect("merge should succeed even when parent branch has uncommitted changes");
+        assert_eq!(outcome.mode, MergeMode::Reapply);
+        assert_eq!(outcome.parent_branch, session.parent_branch);
 
         let session_after = manager
             .get_session(&session.name)
-            .expect("session should remain after dirty parent rejection");
+            .expect("session should remain after merge");
         assert!(session_after.worktree_path.exists());
 
         let repo_after = Repository::open(&repo_path).unwrap();
@@ -1842,11 +1885,46 @@ mod tests {
         let parent_head_after = resolve_branch_oid(&repo_after, &session.parent_branch).unwrap();
 
         assert_eq!(session_head_after, session_head_before);
-        assert_eq!(parent_head_after, parent_head_before);
+        assert_ne!(parent_head_after, parent_head_before);
+        assert_eq!(parent_head_after, session_head_after);
+
+        let merged_file = repo_path.join("src/lib.rs");
+        assert_eq!(
+            std::fs::read_to_string(&merged_file).unwrap(),
+            "pub fn change() {}\n"
+        );
+
+        let status_output = std::process::Command::new("git")
+            .args(["status", "--porcelain"])
+            .current_dir(&repo_path)
+            .output()
+            .unwrap();
+        let status_stdout = String::from_utf8(status_output.stdout).unwrap();
+        assert!(
+            status_stdout
+                .lines()
+                .any(|line| line.trim() == "?? dirty.txt"),
+            "expected dirty.txt to remain untracked, status output:\n{status_stdout}"
+        );
+        assert!(
+            !status_stdout.contains(" D "),
+            "expected no tracked deletions, status output:\n{status_stdout}"
+        );
+
+        assert!(has_uncommitted_changes(&repo_path).unwrap());
+        let dirty_path = repo_path.join("dirty.txt");
+        assert!(
+            dirty_path.exists(),
+            "dirty.txt should remain in the worktree"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&dirty_path).unwrap(),
+            "uncommitted change"
+        );
     }
 
     #[tokio::test]
-    async fn merge_squash_rejects_dirty_parent_branch() {
+    async fn merge_squash_handles_dirty_parent_branch_without_touching_worktree() {
         let temp = TempDir::new().unwrap();
         let (manager, db, repo_path) = create_session_manager(&temp);
 
@@ -1873,29 +1951,63 @@ mod tests {
         let parent_head_before = resolve_branch_oid(&repo_before, &session.parent_branch).unwrap();
 
         let service = MergeService::new(db.clone(), repo_path.clone());
-        let err = service
+        let outcome = service
             .merge(
                 &session.name,
                 MergeMode::Squash,
                 Some("squash message".into()),
             )
             .await
-            .expect_err("squash merge should fail when parent branch has uncommitted changes");
-        assert!(
-            err.to_string().contains("uncommitted changes"),
-            "error message should mention dirty parent state: {err}"
-        );
+            .expect("squash merge should succeed even when parent branch has uncommitted changes");
+        assert_eq!(outcome.mode, MergeMode::Squash);
+        assert_eq!(outcome.parent_branch, session.parent_branch);
 
         let session_after = manager
             .get_session(&session.name)
-            .expect("session should remain after dirty parent rejection");
+            .expect("session should remain after merge");
         assert!(session_after.worktree_path.exists());
 
         let repo_after = Repository::open(&repo_path).unwrap();
         let session_head_after = resolve_branch_oid(&repo_after, &session.branch).unwrap();
         let parent_head_after = resolve_branch_oid(&repo_after, &session.parent_branch).unwrap();
 
-        assert_eq!(session_head_after, session_head_before);
-        assert_eq!(parent_head_after, parent_head_before);
+        assert_ne!(session_head_after, session_head_before);
+        assert_ne!(parent_head_after, parent_head_before);
+        assert_eq!(session_head_after.to_string(), outcome.new_commit);
+        assert_eq!(outcome.new_commit, parent_head_after.to_string());
+
+        let merged_file = repo_path.join("src/lib.rs");
+        assert_eq!(
+            std::fs::read_to_string(&merged_file).unwrap(),
+            "pub fn change() {}\n"
+        );
+
+        let status_output = std::process::Command::new("git")
+            .args(["status", "--porcelain"])
+            .current_dir(&repo_path)
+            .output()
+            .unwrap();
+        let status_stdout = String::from_utf8(status_output.stdout).unwrap();
+        assert!(
+            status_stdout
+                .lines()
+                .any(|line| line.trim() == "?? dirty.txt"),
+            "expected dirty.txt to remain untracked, status output:\n{status_stdout}"
+        );
+        assert!(
+            !status_stdout.contains(" D "),
+            "expected no tracked deletions, status output:\n{status_stdout}"
+        );
+
+        assert!(has_uncommitted_changes(&repo_path).unwrap());
+        let dirty_path = repo_path.join("dirty.txt");
+        assert!(
+            dirty_path.exists(),
+            "dirty.txt should remain in the worktree"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&dirty_path).unwrap(),
+            "uncommitted change"
+        );
     }
 }

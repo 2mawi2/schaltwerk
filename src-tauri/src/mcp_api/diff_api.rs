@@ -10,12 +10,12 @@ use log::info;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use schaltwerk::domains::workspace::diff_engine::{
-    add_collapsible_sections, calculate_diff_stats, compute_unified_diff, DiffLine, LineType,
-};
 use schaltwerk::binary_detection::{get_unsupported_reason, is_binary_file_by_extension};
 use schaltwerk::domains::git;
 use schaltwerk::domains::sessions::entity::{ChangedFile, Session, SessionStatus};
+use schaltwerk::domains::workspace::diff_engine::{
+    add_collapsible_sections, calculate_diff_stats, compute_unified_diff, DiffLine, LineType,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -674,9 +674,11 @@ pub fn fetch_session_spec(session: &Session) -> Result<SessionSpecResponse, Diff
 #[cfg(test)]
 mod tests {
     use super::*;
-    use schaltwerk::domains::workspace::diff_engine::{add_collapsible_sections, compute_unified_diff};
     use git2::{Oid, Repository};
     use schaltwerk::domains::sessions::entity::{SessionState, SessionStatus};
+    use schaltwerk::domains::workspace::diff_engine::{
+        add_collapsible_sections, compute_unified_diff,
+    };
     use std::process::{Command, Stdio};
     use tempfile::TempDir;
 

@@ -392,10 +392,11 @@ mod tests {
             session_id: Option<String>,
             terminal_ids: Vec<String>,
         ) -> Result<(), String> {
-            self.register_calls
-                .lock()
-                .unwrap()
-                .push((project_id, session_id.clone(), terminal_ids.clone()));
+            self.register_calls.lock().unwrap().push((
+                project_id,
+                session_id.clone(),
+                terminal_ids.clone(),
+            ));
             if self.should_error {
                 Err("register failed".to_string())
             } else {
