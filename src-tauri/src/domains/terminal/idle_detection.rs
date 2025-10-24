@@ -89,6 +89,10 @@ impl IdleDetector {
             .map(|t| now.duration_since(t).as_millis() as u64)
             .unwrap_or(u64::MAX);
 
+        if self.last_bytes_at.is_none() && self.last_visible_change_at.is_none() {
+            return None;
+        }
+
         if self.idle_reported && bytes_elapsed < self.threshold_ms {
             info!(
                 "[{}] Terminal became active (received bytes within threshold: {}ms < {}ms)",
@@ -123,6 +127,19 @@ mod tests {
     use super::{IdleDetector, IdleTransition};
     use crate::domains::terminal::visible::VisibleScreen;
     use std::time::{Duration, Instant};
+
+    #[test]
+    fn does_not_mark_idle_before_any_input() {
+        let threshold = 100u64;
+        let mut detector = IdleDetector::new(threshold, "test-terminal".to_string());
+        let mut screen = VisibleScreen::new(5, 40, "test-terminal".to_string());
+
+        let baseline = Instant::now();
+        assert_eq!(detector.tick(baseline, &mut screen), None);
+
+        let later = baseline + Duration::from_millis(threshold + 50);
+        assert_eq!(detector.tick(later, &mut screen), None);
+    }
 
     #[test]
     fn detects_idle_after_threshold() {
