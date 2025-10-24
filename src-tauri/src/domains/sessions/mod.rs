@@ -5,7 +5,6 @@ pub mod entity;
 pub mod process_cleanup;
 pub mod repository;
 pub mod service;
-pub mod storage;
 pub mod utils;
 
 #[cfg(test)]

@@ -1,4 +1,4 @@
-import { minimatch } from 'minimatch'
+import minimatch from 'minimatch'
 
 const GENERATED_FILE_PATTERNS = [
   'dist/**',

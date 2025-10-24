@@ -6,8 +6,6 @@ use std::time::Duration;
 use crate::domains::merge::service::compute_merge_state;
 use crate::domains::merge::types::MergeStateSnapshot;
 use crate::domains::sessions::activity::SessionGitStatsUpdated;
-use crate::domains::sessions::cache::{cache_worktree_size, invalidate_worktree_size};
-use crate::domains::sessions::storage::compute_worktree_size_bytes;
 use crate::infrastructure::events::{emit_event, SchaltEvent};
 use log::{debug, error, info, trace, warn};
 use notify::{RecommendedWatcher, RecursiveMode};
@@ -189,8 +187,6 @@ impl FileWatcher {
             return Ok(());
         }
 
-        invalidate_worktree_size(worktree_path);
-
         // Identify commit signals so we can correlate immediate updates after commit
         let mut saw_index = false;
         let mut saw_head = false;
@@ -261,10 +257,6 @@ impl FileWatcher {
         // Also emit fresh git stats immediately so the session list updates without waiting for polling
         match git::calculate_git_stats_fast(worktree_path, base_branch) {
             Ok(stats) => {
-                let worktree_size_bytes = compute_worktree_size_bytes(worktree_path);
-                if let Some(bytes) = worktree_size_bytes {
-                    cache_worktree_size(worktree_path, bytes);
-                }
                 let has_conflicts = match git::has_conflicts(worktree_path) {
                     Ok(value) => value,
                     Err(err) => {
@@ -309,7 +301,6 @@ impl FileWatcher {
                     merge_has_conflicts: merge_snapshot.merge_has_conflicts,
                     merge_conflicting_paths: merge_snapshot.merge_conflicting_paths,
                     merge_is_up_to_date: merge_snapshot.merge_is_up_to_date,
-                    worktree_size_bytes,
                 };
                 let _ = emit_event(app_handle, SchaltEvent::SessionGitStats, &payload);
                 debug!(
