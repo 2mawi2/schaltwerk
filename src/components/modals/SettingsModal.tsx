@@ -222,6 +222,7 @@ interface TerminalSettings {
 interface SessionPreferences {
     auto_commit_on_review: boolean
     skip_confirmation_modals: boolean
+    always_show_large_diffs: boolean
 }
 
 export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Props) {
@@ -244,7 +245,8 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
     })
     const [sessionPreferences, setSessionPreferences] = useState<SessionPreferences>({
         auto_commit_on_review: false,
-        skip_confirmation_modals: false
+        skip_confirmation_modals: false,
+        always_show_large_diffs: false
     })
     const [mergePreferences, setMergePreferences] = useState<ProjectMergePreferences>({
         autoCancelAfterMerge: true
@@ -2062,6 +2064,27 @@ fi`}
                                     <div className="text-caption text-slate-400 mt-1">
                                         Skip confirmation dialogs for actions that ask "Don't ask me again".
                                         When enabled, previously dismissed confirmations will be automatically applied.
+                                    </div>
+                                </div>
+                            </label>
+
+                            <label className="flex items-center gap-3 cursor-pointer">
+                                  <input
+                                      type="checkbox"
+                                      checked={sessionPreferences.always_show_large_diffs}
+                                       onChange={(e) => setSessionPreferences({
+                                           ...sessionPreferences,
+                                           always_show_large_diffs: e.target.checked
+                                       })}
+                                       className={`w-4 h-4 ${theme.colors.accent.cyan.dark} bg-slate-800 border-slate-600 rounded focus:ring-${theme.colors.accent.cyan.DEFAULT} focus:ring-2`}
+                                 />
+                                <div className="flex-1">
+                                    <div className="text-body font-medium text-slate-200">
+                                        Always Show Large Diffs
+                                    </div>
+                                    <div className="text-caption text-slate-400 mt-1">
+                                        Always render large diffs instead of collapsing them by default.
+                                        When disabled, diffs over 500 lines or 100KB will be collapsed for performance.
                                     </div>
                                 </div>
                             </label>

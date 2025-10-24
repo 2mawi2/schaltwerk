@@ -11,6 +11,8 @@ import { LineSelection } from '../../hooks/useLineSelection'
 import { theme } from '../../common/theme'
 import { OpenInSplitButton, type OpenApp } from '../OpenInSplitButton'
 import { ConfirmDiscardDialog } from '../common/ConfirmDiscardDialog'
+import { shouldCollapseDiff } from '../../domains/diff/diffFilters'
+import { CollapsedDiffBadge } from './CollapsedDiffBadge'
 
 type ContextMenuState =
   | {
@@ -142,6 +144,9 @@ export interface DiffViewerProps {
   scrollContainerRef: React.RefObject<HTMLDivElement>
   fileRefs: React.MutableRefObject<Map<string, HTMLDivElement>>
   fileBodyHeights: Map<string, number>
+  alwaysShowLargeDiffs: boolean
+  expandedFiles: Set<string>
+  onToggleFileExpanded: (filePath: string) => void
   onFileBodyHeightChange: (filePath: string, height: number) => void
   getCommentsForFile: (filePath: string) => ReviewCommentThread[]
   highlightCode: (filePath: string, lineKey: string, code: string) => string
@@ -177,6 +182,9 @@ export function DiffViewer({
   scrollContainerRef,
   fileRefs,
   fileBodyHeights,
+  alwaysShowLargeDiffs,
+  expandedFiles,
+  onToggleFileExpanded,
   onFileBodyHeightChange,
   getCommentsForFile,
   highlightCode,
@@ -570,7 +578,25 @@ export function DiffViewer({
                   <div className="px-4 py-8 text-center text-slate-500">
                     <AnimatedText text="loading" size="sm" />
                   </div>
-                ) : (
+                ) : (() => {
+                  const filterResult = shouldCollapseDiff(
+                    file.path,
+                    fileDiff.totalLineCount ?? 0,
+                    fileDiff.fileInfo.sizeBytes,
+                    alwaysShowLargeDiffs
+                  )
+                  const isFileExpanded = expandedFiles.has(file.path)
+
+                  if (filterResult.shouldCollapse && !isFileExpanded) {
+                    return (
+                      <CollapsedDiffBadge
+                        filterResult={filterResult}
+                        onClick={() => onToggleFileExpanded(file.path)}
+                      />
+                    )
+                  }
+
+                  return (
                   <HorizontalScrollRegion
                     bodyRef={getDiffBodyRef(file.path)}
                     onActivate={(element) => {
@@ -650,7 +676,8 @@ export function DiffViewer({
                       </tbody>
                     </table>
                   </HorizontalScrollRegion>
-                )}
+                  )
+                })()}
               </div>
             )
           })
@@ -747,7 +774,25 @@ export function DiffViewer({
                       </div>
                     )}
                   </div>
-                ) : shouldRenderContent ? (
+                ) : shouldRenderContent ? (() => {
+                  const filterResult = shouldCollapseDiff(
+                    file.path,
+                    fileDiff.totalLineCount ?? 0,
+                    fileDiff.fileInfo.sizeBytes,
+                    alwaysShowLargeDiffs
+                  )
+                  const isFileExpanded = expandedFiles.has(file.path)
+
+                  if (filterResult.shouldCollapse && !isFileExpanded) {
+                    return (
+                      <CollapsedDiffBadge
+                        filterResult={filterResult}
+                        onClick={() => onToggleFileExpanded(file.path)}
+                      />
+                    )
+                  }
+
+                  return (
                   <HorizontalScrollRegion
                     bodyRef={getDiffBodyRef(file.path)}
                     onActivate={(element) => {
@@ -826,7 +871,8 @@ export function DiffViewer({
                       </tbody>
                     </table>
                   </HorizontalScrollRegion>
-                ) : (
+                  )
+                })() : (
                   <div className="px-4 py-8 text-sm text-slate-600">
                     <div
                       data-testid="diff-placeholder"
