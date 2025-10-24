@@ -1,7 +1,7 @@
 import { logger } from '../../utils/logger';
 import { XtermTerminal } from '../xterm/XtermTerminal';
 import { disposeGpuRenderer } from '../gpu/gpuRendererRegistry';
-import { sessionTerminalBaseVariants } from '../../common/terminalIdentity';
+import { sessionTerminalBaseVariants, sanitizeSessionName } from '../../common/terminalIdentity';
 import { terminalOutputManager } from '../stream/terminalOutputManager';
 
 export interface TerminalInstanceRecord {
@@ -205,11 +205,20 @@ export function detachTerminalInstance(id: string): void {
 
 export function releaseSessionTerminals(sessionName: string): void {
   const bases = sessionTerminalBaseVariants(sessionName);
+  const runCandidateIds = new Set<string>();
+  if (sessionName) {
+    runCandidateIds.add(`run-terminal-${sessionName}`);
+    const sanitized = sanitizeSessionName(sessionName);
+    runCandidateIds.add(`run-terminal-${sanitized}`);
+  }
   registry.releaseByPredicate(id => {
     for (const base of bases) {
       if (id === base || id.startsWith(`${base}-`)) {
         return true;
       }
+    }
+    if (runCandidateIds.has(id)) {
+      return true;
     }
     return false;
   });
