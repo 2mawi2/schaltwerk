@@ -29,11 +29,7 @@ export function GitHubIssuePromptSection({
   const isAuthenticated = github.status?.authenticated ?? false
   const hasRepository = github.hasRepository
   const integrationReady = isCliInstalled && isAuthenticated && hasRepository
-  const missingInstall = !isCliInstalled
-  const missingAuth = !isAuthenticated
-  const missingRepository = !hasRepository
-
-  const { results, loading, error, query, setQuery, refresh, fetchDetails, clearError } =
+  const { results, loading, error, query, setQuery, fetchDetails, clearError } =
     useGithubIssueSearch({ enabled: integrationReady })
   const [activeIssue, setActiveIssue] = useState<number | null>(null)
   const [hoveredIssue, setHoveredIssue] = useState<number | null>(null)
@@ -96,38 +92,6 @@ export function GitHubIssuePromptSection({
       clearError()
     }
   }, [error, pushToast, clearError])
-
-  const handleInstallClick = useCallback(() => {
-    if (typeof window !== 'undefined' && typeof window.open === 'function') {
-      window.open('https://cli.github.com/manual/installation', '_blank', 'noopener,noreferrer')
-    }
-  }, [])
-
-  const handleAuthenticateClick = useCallback(async () => {
-    try {
-      await github.authenticate()
-    } catch (err) {
-      pushToast({
-        tone: 'error',
-        title: 'GitHub authentication failed',
-        description: err instanceof Error ? err.message : String(err),
-      })
-    }
-  }, [github, pushToast])
-
-  const handleConnectClick = useCallback(async () => {
-    try {
-      await github.connectProject()
-      await github.refreshStatus()
-      refresh()
-    } catch (err) {
-      pushToast({
-        tone: 'error',
-        title: 'Failed to connect repository',
-        description: err instanceof Error ? err.message : String(err),
-      })
-    }
-  }, [github, pushToast, refresh])
 
   const handleIssueClick = useCallback(
     async (summary: GithubIssueSummary) => {
@@ -317,53 +281,6 @@ export function GitHubIssuePromptSection({
         className="flex flex-col gap-3 p-4 border rounded"
         style={{ borderColor: theme.colors.border.subtle, backgroundColor: theme.colors.background.elevated }}
       >
-        <p className="text-sm" style={{ color: theme.colors.text.primary }}>
-          Connect GitHub to import issue descriptions as prompts.
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {missingInstall && (
-            <button
-              type="button"
-              onClick={handleInstallClick}
-              className="px-3 py-1.5 text-xs rounded"
-              style={{
-                backgroundColor: theme.colors.background.primary,
-                border: `1px solid ${theme.colors.border.subtle}`,
-                color: theme.colors.text.primary,
-              }}
-            >
-              Install GitHub CLI
-            </button>
-          )}
-          {missingAuth && (
-            <button
-              type="button"
-              onClick={handleAuthenticateClick}
-              className="px-3 py-1.5 text-xs rounded"
-              style={{
-                backgroundColor: theme.colors.background.primary,
-                border: `1px solid ${theme.colors.border.subtle}`,
-                color: theme.colors.text.primary,
-              }}
-            >
-              Authenticate GitHub
-            </button>
-          )}
-          {missingRepository && (
-            <button
-              type="button"
-              onClick={handleConnectClick}
-              className="px-3 py-1.5 text-xs rounded"
-              style={{
-                backgroundColor: theme.colors.background.primary,
-                border: `1px solid ${theme.colors.border.subtle}`,
-                color: theme.colors.text.primary,
-              }}
-            >
-              Connect repository
-            </button>
-          )}
-        </div>
         <input
           type="search"
           value={query}
