@@ -1,5 +1,6 @@
 import type { DevBackendErrorPayload } from '../common/events'
 import type { ToastOptions } from '../common/toast/ToastProvider'
+import { logger } from '../utils/logger'
 
 export type { DevBackendErrorPayload }
 
@@ -134,6 +135,19 @@ export async function registerDevErrorListeners(
     } else if (globalObject.onerror == null && previousOnError) {
       globalObject.onerror = previousOnError
     }
-    unlistenBackend()
+    try {
+      const unlistenResult = unlistenBackend()
+      if (
+        typeof unlistenResult === 'object' &&
+        unlistenResult !== null &&
+        typeof (unlistenResult as Promise<unknown>).catch === 'function'
+      ) {
+        ;(unlistenResult as Promise<unknown>).catch((error) => {
+          logger.warn('[registerDevErrorListeners] Failed to unlisten dev backend errors', error)
+        })
+      }
+    } catch (error) {
+      logger.warn('[registerDevErrorListeners] Failed to unlisten dev backend errors', error)
+    }
   }
 }

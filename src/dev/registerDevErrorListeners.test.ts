@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
+import { logger } from '../utils/logger'
 import { registerDevErrorListeners, type DevBackendErrorPayload } from './registerDevErrorListeners'
 
 describe('registerDevErrorListeners', () => {
@@ -124,5 +125,27 @@ describe('registerDevErrorListeners', () => {
     }))
 
     cleanup()
+  })
+
+  it('logs and suppresses backend unlisten errors', async () => {
+    const pushToast = vi.fn()
+    const unlisten = vi.fn(() => Promise.reject(new Error('stop listening failed')))
+    const listenBackendError = vi.fn(async () => unlisten)
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {})
+
+    const cleanup = await registerDevErrorListeners({
+      isDev: true,
+      pushToast,
+      listenBackendError,
+    })
+
+    cleanup()
+    await Promise.resolve()
+
+    expect(unlisten).toHaveBeenCalled()
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[registerDevErrorListeners] Failed to unlisten dev backend errors',
+      expect.any(Error)
+    )
   })
 })
