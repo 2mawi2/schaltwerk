@@ -132,6 +132,8 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
   const activeSelectionFileRef = useRef<string | null>(null)
   const historyLoadedRef = useRef<Set<string>>(new Set())
   const [historyPrefetchVersion, setHistoryPrefetchVersion] = useState(0)
+  const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
+  const [alwaysShowLargeDiffs, setAlwaysShowLargeDiffs] = useState(false)
 
   const historyFiles = useMemo<ChangedFile[]>(() => {
     if (mode !== 'history' || !historyContext) {
@@ -269,6 +271,18 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
   useEffect(() => {
     setSelectedFile(filePath)
   }, [filePath])
+
+  useEffect(() => {
+    const loadPreferences = async () => {
+      try {
+        const prefs = await invoke<{ always_show_large_diffs?: boolean }>(TauriCommands.GetSessionPreferences)
+        setAlwaysShowLargeDiffs(prefs?.always_show_large_diffs ?? false)
+      } catch (error) {
+        logger.debug('Failed to load session preferences for diff collapse:', error)
+      }
+    }
+    loadPreferences()
+  }, [])
 
   useEffect(() => {
     if (mode === 'history') {
@@ -1471,6 +1485,18 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
     })
   }, [])
 
+  const toggleFileExpanded = useCallback((filePath: string) => {
+    setExpandedFiles(prev => {
+      const next = new Set(prev)
+      if (next.has(filePath)) {
+        next.delete(filePath)
+      } else {
+        next.add(filePath)
+      }
+      return next
+    })
+  }, [])
+
 
   useEffect(() => {
     if (!compactDiffs) {
@@ -1790,6 +1816,9 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
               scrollContainerRef={scrollContainerRef as React.RefObject<HTMLDivElement>}
               fileRefs={fileRefs}
               fileBodyHeights={fileBodyHeightsRef.current}
+              alwaysShowLargeDiffs={alwaysShowLargeDiffs}
+              expandedFiles={expandedFiles}
+              onToggleFileExpanded={toggleFileExpanded}
               onFileBodyHeightChange={registerFileBodyHeight}
               getCommentsForFile={emptyThreadCommentsForFile}
               highlightCode={highlightCode}
@@ -1942,6 +1971,9 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
                 scrollContainerRef={scrollContainerRef as React.RefObject<HTMLDivElement>}
                 fileRefs={fileRefs}
                 fileBodyHeights={fileBodyHeightsRef.current}
+                alwaysShowLargeDiffs={alwaysShowLargeDiffs}
+                expandedFiles={expandedFiles}
+                onToggleFileExpanded={toggleFileExpanded}
                 onFileBodyHeightChange={registerFileBodyHeight}
                 getCommentsForFile={getThreadsForFile}
                 highlightCode={highlightCode}

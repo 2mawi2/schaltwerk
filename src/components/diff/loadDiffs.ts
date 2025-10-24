@@ -15,6 +15,7 @@ export interface FileDiffDataUnified {
   fileInfo: FileInfo
   isBinary?: boolean
   unsupportedReason?: string
+  totalLineCount?: number
 }
 
 export interface FileDiffDataSplit {
@@ -24,6 +25,7 @@ export interface FileDiffDataSplit {
   fileInfo: FileInfo
   isBinary?: boolean
   unsupportedReason?: string
+  totalLineCount?: number
 }
 
 export type FileDiffData = FileDiffDataUnified | FileDiffDataSplit
@@ -74,6 +76,7 @@ export async function loadCommitFileDiff(request: CommitDiffRequest): Promise<Fi
     fileInfo: diffResponse.fileInfo,
     isBinary: diffResponse.isBinary,
     unsupportedReason: diffResponse.unsupportedReason,
+    totalLineCount: diffResponse.lines.length,
   }
 }
 
@@ -83,22 +86,20 @@ export async function loadFileDiff(
   file: ChangedFile,
   viewMode: ViewMode
 ): Promise<FileDiffData> {
-  // PERFORMANCE FIX: Only call the Rust backend once, it handles file loading internally
-  // This eliminates the double file loading that was killing performance
-  
   if (viewMode === 'unified') {
     const diffResponse = await invoke<DiffResponse>(TauriCommands.ComputeUnifiedDiffBackend, {
       sessionName,
       filePath: file.path,
     })
     const changedLinesCount = diffResponse.stats.additions + diffResponse.stats.deletions
-    return { 
-      file, 
-      diffResult: diffResponse.lines, 
+    return {
+      file,
+      diffResult: diffResponse.lines,
       changedLinesCount,
       fileInfo: diffResponse.fileInfo,
       isBinary: diffResponse.isBinary,
-      unsupportedReason: diffResponse.unsupportedReason
+      unsupportedReason: diffResponse.unsupportedReason,
+      totalLineCount: diffResponse.lines.length,
     }
   } else {
     const splitResponse = await invoke<SplitDiffResponse>(TauriCommands.ComputeSplitDiffBackend, {
@@ -106,13 +107,14 @@ export async function loadFileDiff(
       filePath: file.path,
     })
     const changedLinesCount = splitResponse.stats.additions + splitResponse.stats.deletions
-    return { 
-      file, 
-      splitDiffResult: splitResponse.splitResult, 
+    return {
+      file,
+      splitDiffResult: splitResponse.splitResult,
       changedLinesCount,
       fileInfo: splitResponse.fileInfo,
       isBinary: splitResponse.isBinary,
-      unsupportedReason: splitResponse.unsupportedReason
+      unsupportedReason: splitResponse.unsupportedReason,
+      totalLineCount: splitResponse.splitResult.leftLines.length + splitResponse.splitResult.rightLines.length,
     }
   }
 }
