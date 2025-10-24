@@ -87,6 +87,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
     const lastAgentTypeRef = useRef<AgentType>('claude')
     const hasAgentOverrideRef = useRef(false)
     const lastSupportedSkipPermissionsRef = useRef(false)
+    const lastOpenStateRef = useRef(false)
     const githubPromptReady = githubIntegration.canCreatePr && !githubIntegration.loading
 
     const updateManualPrompt = useCallback(
@@ -437,15 +438,21 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
     }, [open, registerModal, unregisterModal])
     
     useLayoutEffect(() => {
+        const openedThisRender = open && !lastOpenStateRef.current
+        const closedThisRender = !open && lastOpenStateRef.current
+        lastOpenStateRef.current = open
+
         if (open) {
-            logger.info('[NewSessionModal] Modal opened with:', {
-                initialIsDraft,
-                isPrefillPending,
-                hasPrefillData,
-                currentCreateAsDraft: createAsDraft,
-                wasOpen: wasOpenRef.current,
-                lastInitialIsDraft: lastInitialIsDraftRef.current
-            })
+            if (openedThisRender) {
+                logger.info('[NewSessionModal] Modal opened with:', {
+                    initialIsDraft,
+                    isPrefillPending,
+                    hasPrefillData,
+                    currentCreateAsDraft: createAsDraft,
+                    wasOpen: wasOpenRef.current,
+                    lastInitialIsDraft: lastInitialIsDraftRef.current
+                })
+            }
             
             setCreating(false)
             // Generate a fresh Docker-style name each time the modal opens
@@ -514,7 +521,9 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                         setSkipPermissions(false)
                     })
             } else {
-                logger.info('[NewSessionModal] Skipping full state reset - reason: prefill pending or has data or modal was already open and initialIsDraft unchanged')
+                if (openedThisRender || initialIsDraftChanged) {
+                    logger.info('[NewSessionModal] Skipping full state reset - reason: prefill pending or has data or modal was already open and initialIsDraft unchanged')
+                }
                 // Still need to reset some state
                 setValidationError('')
                 setCreating(false)
@@ -543,10 +552,12 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
             }
         } else {
             setIgnorePersistedAgentType(hasAgentOverrideRef.current)
-            logger.info(`[NewSessionModal] Modal closed - resetting all state except taskContent ${JSON.stringify({
-                lastAgentType: lastAgentTypeRef.current,
-                hasOverride: hasAgentOverrideRef.current
-            })}`)
+            if (closedThisRender) {
+                logger.info(`[NewSessionModal] Modal closed - resetting all state except taskContent ${JSON.stringify({
+                    lastAgentType: lastAgentTypeRef.current,
+                    hasOverride: hasAgentOverrideRef.current
+                })}`)
+            }
             setIsPrefillPending(false)
             setHasPrefillData(false)
             setCreateAsDraft(false)
