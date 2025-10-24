@@ -134,15 +134,13 @@ fn extend_process_path() {
         .arg(shell_arg)
         .arg("echo -n $PATH")
         .output()
+        && output.status.success()
+        && let Ok(login_path) = String::from_utf8(output.stdout)
     {
-        if output.status.success() {
-            if let Ok(login_path) = String::from_utf8(output.stdout) {
-                for segment in login_path.split(':').filter(|s| !s.is_empty()) {
-                    let path = PathBuf::from(segment);
-                    if seen.insert(path.clone()) {
-                        current_paths.push(path);
-                    }
-                }
+        for segment in login_path.split(':').filter(|s| !s.is_empty()) {
+            let path = PathBuf::from(segment);
+            if seen.insert(path.clone()) {
+                current_paths.push(path);
             }
         }
     }
