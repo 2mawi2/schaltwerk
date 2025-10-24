@@ -4,7 +4,7 @@ import { SessionButton } from './SessionButton'
 import { SessionVersionGroup as SessionVersionGroupType } from '../../utils/sessionVersions'
 import { isSpec } from '../../utils/sessionFilters'
 import { SessionSelection } from '../../hooks/useSessionManagement'
-import { theme } from '../../common/theme'
+import { theme, getAgentColorScheme } from '../../common/theme'
 import type { MergeStatus } from '../../contexts/SessionsContext'
 
 interface SessionVersionGroupProps {
@@ -197,44 +197,26 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
                                agentType === 'amp' ? 'yellow' :
                                agentType === 'mixed' ? 'violet' : 'gray'
 
+              const colorScheme = agentColor !== 'gray' ? getAgentColorScheme(agentColor) : null
+
               return (
                 <>
-                  {agentType && (
+                  {agentType && colorScheme && (
                     <>
                       <span className="text-slate-400 text-xs">|</span>
                       <span
                         className="inline-flex items-center gap-1 px-1.5 py-[1px] rounded text-[10px] border"
                         style={{
                           lineHeight: theme.lineHeight.badge,
-                          backgroundColor: agentColor === 'blue' ? theme.colors.accent.blue.bg :
-                                          agentColor === 'green' ? theme.colors.accent.green.bg :
-                                          agentColor === 'orange' ? theme.colors.accent.amber.bg :
-                                          agentColor === 'violet' ? theme.colors.accent.violet.bg :
-                                          agentColor === 'yellow' ? theme.colors.accent.yellow.bg :
-                                          theme.colors.accent.red.bg,
-                          color: agentColor === 'blue' ? theme.colors.accent.blue.light :
-                                agentColor === 'green' ? theme.colors.accent.green.light :
-                                agentColor === 'orange' ? theme.colors.accent.amber.light :
-                                agentColor === 'violet' ? theme.colors.accent.violet.light :
-                                agentColor === 'yellow' ? theme.colors.accent.yellow.light :
-                                theme.colors.accent.red.light,
-                          borderColor: agentColor === 'blue' ? theme.colors.accent.blue.border :
-                                     agentColor === 'green' ? theme.colors.accent.green.border :
-                                     agentColor === 'orange' ? theme.colors.accent.amber.border :
-                                     agentColor === 'violet' ? theme.colors.accent.violet.border :
-                                     agentColor === 'yellow' ? theme.colors.accent.yellow.border :
-                                     theme.colors.accent.red.border
+                          backgroundColor: colorScheme.bg,
+                          color: colorScheme.light,
+                          borderColor: colorScheme.border
                         }}
                         title={isMixedAgents ? `Agents: ${uniqueAgents.join(', ')}` : `Agent: ${agentType}`}
                       >
                         <span className="w-1 h-1 rounded-full"
                               style={{
-                                backgroundColor: agentColor === 'blue' ? theme.colors.accent.blue.DEFAULT :
-                                                agentColor === 'green' ? theme.colors.accent.green.DEFAULT :
-                                                agentColor === 'orange' ? theme.colors.accent.amber.DEFAULT :
-                                                agentColor === 'violet' ? theme.colors.accent.violet.DEFAULT :
-                                                agentColor === 'yellow' ? theme.colors.accent.yellow.DEFAULT :
-                                                theme.colors.accent.red.DEFAULT
+                                backgroundColor: colorScheme.DEFAULT
                               }} />
                         {isMixedAgents ? `${uniqueAgents.length} agents` : agentType}
                       </span>

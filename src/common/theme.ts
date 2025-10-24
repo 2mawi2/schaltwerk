@@ -379,3 +379,18 @@ export const getFileStatusColor = (status: string) => {
       return theme.colors.accent.blue.DEFAULT
   }
 }
+
+type AgentColor = 'blue' | 'green' | 'orange' | 'violet' | 'red' | 'yellow'
+
+export const getAgentColorScheme = (agentColor: AgentColor) => {
+  const colorMap = {
+    blue: theme.colors.accent.blue,
+    green: theme.colors.accent.green,
+    orange: theme.colors.accent.amber,
+    violet: theme.colors.accent.violet,
+    yellow: theme.colors.accent.yellow,
+    red: theme.colors.accent.red
+  }
+
+  return colorMap[agentColor]
+}
