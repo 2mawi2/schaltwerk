@@ -1,13 +1,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { CopyBundleBar } from './CopyBundleBar'
 import { invoke } from '@tauri-apps/api/core'
-import { listenEvent } from '../../common/eventSystem'
 import { TauriCommands } from '../../common/tauriCommands'
 import type { ChangedFile } from '../../common/events'
+import { CopyBundleBar } from './CopyBundleBar'
 
 const countTokensMock = vi.hoisted(() => vi.fn<(text: string) => number>())
+const listenEventMock = vi.hoisted(() => vi.fn(async () => () => {}))
+const loggerMock = vi.hoisted(() => ({
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn()
+}))
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 
@@ -26,16 +32,19 @@ vi.mock('../../common/toast/ToastProvider', () => ({
   useOptionalToast: () => ({ pushToast: pushToastMock, dismissToast: vi.fn() })
 }))
 
+vi.mock('../../utils/logger', () => ({
+  logger: loggerMock
+}))
+
 vi.mock('../../common/eventSystem', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../common/eventSystem')>()
   return {
     ...actual,
-    listenEvent: vi.fn(async () => () => {})
+    listenEvent: listenEventMock
   }
 })
 
 const mockInvoke = vi.mocked(invoke)
-const mockListenEvent = vi.mocked(listenEvent)
 const user = userEvent.setup()
 
 const makeChangedFile = (file: Partial<ChangedFile> & { path: string }): ChangedFile => {
@@ -71,10 +80,15 @@ describe('CopyBundleBar', () => {
     localStorage.clear()
     mockClipboard()
 
-    mockListenEvent.mockResolvedValue(() => {})
+    listenEventMock.mockResolvedValue(() => {})
 
     countTokensMock.mockReset()
     countTokensMock.mockImplementation((text: string) => text.length)
+
+    loggerMock.debug.mockReset()
+    loggerMock.info.mockReset()
+    loggerMock.warn.mockReset()
+    loggerMock.error.mockReset()
 
     mockInvoke.mockImplementation(async (cmd: string, _args?: unknown) => {
       switch (cmd) {
@@ -109,7 +123,7 @@ describe('CopyBundleBar', () => {
   })
 
   it('renders checkboxes and defaults to spec only when available', async () => {
-    mockListenEvent.mockResolvedValue(() => {})
+    listenEventMock.mockResolvedValue(() => {})
     
     render(<CopyBundleBar sessionName="s1" />)
 
@@ -268,5 +282,30 @@ describe('CopyBundleBar', () => {
     const fileTokens = countTokensMock.mock.results.at(-1)?.value as number
 
     expect(fileTokens).toBeGreaterThan(diffTokens)
+  })
+  
+  it('logs a warning when event unlisten rejects during cleanup', async () => {
+    const unlistenError = new Error('failed to unregister')
+
+    listenEventMock
+      .mockImplementationOnce(async () => {
+        return async () => {
+          throw unlistenError
+        }
+      })
+      .mockImplementationOnce(async () => () => {})
+
+    const { unmount } = render(<CopyBundleBar sessionName="cleanup-session" />)
+
+    await screen.findByRole('checkbox', { name: /spec/i })
+
+    unmount()
+
+    await waitFor(() => {
+      expect(loggerMock.warn).toHaveBeenCalledWith(
+        '[CopyBundleBar] Failed to cleanup file changes listener',
+        unlistenError
+      )
+    })
   })
 })
