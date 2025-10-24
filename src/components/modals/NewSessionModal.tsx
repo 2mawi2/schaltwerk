@@ -103,24 +103,27 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
             if (next === promptSource) {
                 return
             }
-
-        if (next === 'github_issue') {
-            setManualPromptDraft(taskContent)
-            setPromptSource('github_issue')
-            if (githubIssueSelection) {
-                setTaskContent(githubIssueSelection.prompt)
-            } else {
-                setTaskContent('')
+            if (next === 'github_issue' && !githubPromptReady) {
+                return
             }
-        } else {
-            setPromptSource('custom')
-            setGithubIssueLoading(false)
-            setTaskContent(manualPromptDraft)
-            onPromptChange?.(manualPromptDraft)
-        }
+
+            if (next === 'github_issue') {
+                setManualPromptDraft(taskContent)
+                setPromptSource('github_issue')
+                if (githubIssueSelection) {
+                    setTaskContent(githubIssueSelection.prompt)
+                } else {
+                    setTaskContent('')
+                }
+            } else {
+                setPromptSource('custom')
+                setGithubIssueLoading(false)
+                setTaskContent(manualPromptDraft)
+                onPromptChange?.(manualPromptDraft)
+            }
             setValidationError('')
         },
-        [promptSource, taskContent, githubIssueSelection, manualPromptDraft, onPromptChange]
+        [promptSource, githubPromptReady, taskContent, githubIssueSelection, manualPromptDraft, onPromptChange]
     )
 
     const handleBranchChange = (branch: string) => {
@@ -903,13 +906,18 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={() => handlePromptSourceChange('github_issue')}
+                                    onClick={() => {
+                                        if (githubPromptReady) {
+                                            handlePromptSourceChange('github_issue')
+                                        }
+                                    }}
                                     title={
                                         githubPromptReady
                                             ? 'Use a GitHub issue as the agent prompt'
                                             : 'Connect GitHub to enable GitHub issue prompts'
                                     }
                                     aria-pressed={promptSource === 'github_issue'}
+                                    disabled={!githubPromptReady}
                                     className="px-3 py-1 text-xs rounded transition-colors"
                                     style={{
                                         backgroundColor:
@@ -925,7 +933,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                                 : theme.colors.border.subtle
                                         }`,
                                         opacity: githubPromptReady ? 1 : 0.6,
-                                        cursor: githubPromptReady ? 'pointer' : 'default',
+                                        cursor: githubPromptReady ? 'pointer' : 'not-allowed',
                                     }}
                                 >
                                     GitHub issue

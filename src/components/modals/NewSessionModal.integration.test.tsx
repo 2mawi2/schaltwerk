@@ -645,7 +645,22 @@ describe('NewSessionModal GitHub issue prompt source', () => {
 
     test('restores manual prompt when toggling between prompt sources', async () => {
         render(
-            <TestProviders>
+            <TestProviders
+                githubOverrides={{
+                    status: {
+                        installed: true,
+                        authenticated: true,
+                        userLogin: 'octocat',
+                        repository: {
+                            nameWithOwner: 'example/repo',
+                            defaultBranch: 'main',
+                        },
+                    },
+                    hasRepository: true,
+                    canCreatePr: true,
+                    isGhMissing: false,
+                }}
+            >
                 <NewSessionModal open={true} onClose={vi.fn()} onCreate={vi.fn()} cachedPrompt="Initial cached prompt" />
             </TestProviders>
         )
@@ -677,7 +692,7 @@ describe('NewSessionModal GitHub issue prompt source', () => {
         expect(getTaskEditorContent()).toContain('Manual prompt content')
     })
 
-    test('renders GitHub integration call-to-action when requirements are missing', async () => {
+    test('keeps manual prompt active when GitHub integration is unavailable', async () => {
         render(
             <TestProviders
                 githubOverrides={{
@@ -700,13 +715,13 @@ describe('NewSessionModal GitHub issue prompt source', () => {
             expect(screen.getByTestId('session-config-panel')).toBeInTheDocument()
         })
 
-        fireEvent.click(screen.getByRole('button', { name: 'GitHub issue' }))
+        const githubButton = screen.getByRole('button', { name: 'GitHub issue' })
+        expect(githubButton).toBeDisabled()
 
-        const searchInput = await screen.findByPlaceholderText('Search GitHub issues')
-        expect(searchInput).toBeDisabled()
-        expect(screen.getByText('Install GitHub CLI')).toBeInTheDocument()
-        expect(screen.getByText('Authenticate GitHub')).toBeInTheDocument()
-        expect(screen.getByText('Connect repository')).toBeInTheDocument()
+        fireEvent.click(githubButton)
+
+        expect(screen.getByTestId('session-task-editor')).toBeInTheDocument()
+        expect(screen.queryByPlaceholderText('Search GitHub issues')).not.toBeInTheDocument()
     })
 
     test('selecting a GitHub issue populates preview and submits generated prompt', async () => {
