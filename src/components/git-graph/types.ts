@@ -49,4 +49,6 @@ export interface HistoryProviderSnapshot {
   currentBaseRef?: HistoryItemRef
   nextCursor?: string
   hasMore?: boolean
+  headCommit?: string
+  unchanged?: boolean
 }

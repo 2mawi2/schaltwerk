@@ -55,6 +55,10 @@ pub struct HistoryProviderSnapshot {
     pub next_cursor: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none", rename = "hasMore")]
     pub has_more: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "headCommit")]
+    pub head_commit: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unchanged: Option<bool>,
 }
 
 pub fn get_commit_file_changes(
@@ -135,14 +139,46 @@ pub fn get_commit_file_changes(
     Ok(files)
 }
 
-const DEFAULT_HISTORY_LIMIT: usize = 400;
+const DEFAULT_HISTORY_LIMIT: usize = 100;
 
 pub fn get_git_history(
     repo_path: &Path,
     limit: Option<usize>,
     cursor: Option<&str>,
 ) -> Result<HistoryProviderSnapshot> {
+    get_git_history_with_head(repo_path, limit, cursor, None)
+}
+
+pub fn get_git_history_with_head(
+    repo_path: &Path,
+    limit: Option<usize>,
+    cursor: Option<&str>,
+    since_head: Option<&str>,
+) -> Result<HistoryProviderSnapshot> {
     let repo = Repository::open(repo_path).context("Failed to open git repository")?;
+
+    let head_commit = repo
+        .head()
+        .ok()
+        .and_then(|head| head.target())
+        .map(|oid| oid.to_string());
+
+    let (current_ref, current_remote_ref) = resolve_current_refs(&repo);
+
+    if let (Some(expected), Some(actual)) = (since_head, head_commit.as_deref()) {
+        if expected == actual {
+            return Ok(HistoryProviderSnapshot {
+                items: Vec::new(),
+                current_ref,
+                current_remote_ref,
+                current_base_ref: None,
+                next_cursor: None,
+                has_more: Some(false),
+                head_commit,
+                unchanged: Some(true),
+            });
+        }
+    }
 
     let mut items = Vec::new();
     let mut oid_to_refs: HashMap<Oid, Vec<HistoryItemRef>> = HashMap::new();
@@ -262,10 +298,29 @@ pub fn get_git_history(
         return get_git_history(repo_path, Some(effective_limit), None);
     }
 
+    Ok(HistoryProviderSnapshot {
+        items,
+        current_ref,
+        current_remote_ref,
+        current_base_ref: None,
+        next_cursor: last_full_oid,
+        has_more: Some(has_more),
+        head_commit,
+        unchanged: if since_head.is_some() {
+            Some(false)
+        } else {
+            None
+        },
+    })
+}
+
+fn resolve_current_refs(repo: &Repository) -> (Option<HistoryItemRef>, Option<HistoryItemRef>) {
     let current_ref = repo.head().ok().and_then(|head| {
         let name = head.name()?;
         let short_name = name.strip_prefix("refs/heads/").unwrap_or(name);
-        let target = head.target().map(|oid| oid.to_string()[..7].to_string());
+        let target = head
+            .target()
+            .map(|oid| oid.to_string()[..7].to_string());
 
         Some(HistoryItemRef {
             id: name.to_string(),
@@ -290,14 +345,7 @@ pub fn get_git_history(
             })
     });
 
-    Ok(HistoryProviderSnapshot {
-        items,
-        current_ref,
-        current_remote_ref,
-        current_base_ref: None,
-        next_cursor: last_full_oid,
-        has_more: Some(has_more),
-    })
+    (current_ref, current_remote_ref)
 }
 
 #[cfg(test)]

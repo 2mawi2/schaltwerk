@@ -4,13 +4,14 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { useProject } from '../../contexts/ProjectContext'
 import { HistoryList } from './HistoryList'
 import { toViewModel } from './graphLayout'
-import type { CommitDetailState, CommitFileChange, HistoryProviderSnapshot, HistoryItem, HistoryItemViewModel } from './types'
+import type { CommitDetailState, CommitFileChange, HistoryItem, HistoryItemViewModel } from './types'
 import { logger } from '../../utils/logger'
 import { theme } from '../../common/theme'
 import { useToast } from '../../common/toast/ToastProvider'
 import { writeClipboard } from '../../utils/clipboard'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import type { EventPayloadMap } from '../../common/events'
+import { useGitHistory } from '../../contexts/GitHistoryContext'
 
 interface GitGraphPanelProps {
   onOpenCommitDiff?: (payload: {
@@ -23,18 +24,22 @@ interface GitGraphPanelProps {
   sessionName?: string | null
 }
 
-const HISTORY_PAGE_SIZE = 400
-
 export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverride, sessionName }: GitGraphPanelProps = {}) => {
   const { projectPath } = useProject()
   const repoPath = repoPathOverride ?? projectPath
   const { pushToast } = useToast()
-  const [snapshot, setSnapshot] = useState<HistoryProviderSnapshot | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [isLoadingMore, setIsLoadingMore] = useState(false)
-  const [loadMoreError, setLoadMoreError] = useState<string | null>(null)
-  const activeRepoRef = useRef<string | null>(repoPath ?? null)
+  const {
+    snapshot,
+    isLoading,
+    error,
+    isLoadingMore,
+    loadMoreError,
+    latestHead,
+    ensureLoaded,
+    loadMore: loadMoreHistory,
+    refresh: refreshHistory,
+  } = useGitHistory(repoPath)
+  const repoPathRef = useRef<string | null>(repoPath ?? null)
   const [selectedCommitId, setSelectedCommitId] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; commit: HistoryItem } | null>(null)
   const [commitDetails, setCommitDetails] = useState<Record<string, CommitDetailState>>({})
@@ -46,145 +51,23 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
   const activeRefreshHeadRef = useRef<string | null>(null)
 
   useEffect(() => {
-    activeRepoRef.current = repoPath ?? null
-  }, [repoPath])
-
-  const mergeSnapshot = useCallback(
-    (incoming: HistoryProviderSnapshot, append: boolean) => {
-      setSnapshot(prev => {
-        if (append && prev) {
-          const existingKeys = new Set(prev.items.map(item => item.fullHash ?? item.id))
-          const deduped = incoming.items.filter(item => {
-            const key = item.fullHash ?? item.id
-            if (existingKeys.has(key)) {
-              return false
-            }
-            existingKeys.add(key)
-            return true
-          })
-
-          return {
-            ...prev,
-            items: [...prev.items, ...deduped],
-            currentRef: incoming.currentRef ?? prev.currentRef,
-            currentRemoteRef: incoming.currentRemoteRef ?? prev.currentRemoteRef,
-            currentBaseRef: incoming.currentBaseRef ?? prev.currentBaseRef,
-            nextCursor: incoming.nextCursor,
-            hasMore: incoming.hasMore,
-          }
-        }
-
-        return {
-          ...incoming,
-        }
-      })
-    },
-    []
-  )
-
-  const loadHistory = useCallback(
-    async (options?: { cursor?: string; mode?: 'initial' | 'append' | 'refresh' }) => {
-      if (!repoPath) {
-        return
-      }
-
-      const cursor = options?.cursor
-      const mode = options?.mode ?? (cursor ? 'append' : 'initial')
-      const append = mode === 'append'
-      const refresh = mode === 'refresh'
-      if (append) {
-        setIsLoadingMore(true)
-        setLoadMoreError(null)
-      } else if (refresh) {
-        setLoadMoreError(null)
-      } else {
-        setIsLoading(true)
-        setError(null)
-        setLoadMoreError(null)
-      }
-
-      try {
-        const result = await invoke<HistoryProviderSnapshot>(TauriCommands.GetGitGraphHistory, {
-          repoPath,
-          limit: HISTORY_PAGE_SIZE,
-          cursor,
-        })
-
-        logger.debug('[GitGraphPanel] Received history page', {
-          itemCount: result.items.length,
-          append,
-          hasMore: result.hasMore,
-          mode,
-          nextCursor: result.nextCursor,
-        })
-
-        if (activeRepoRef.current !== repoPath) {
-          return
-        }
-
-        mergeSnapshot(result, append)
-
-        if (!append) {
-          const topItem = result.items[0]
-          const fullHash = topItem?.fullHash ?? null
-          const shortFromFull = fullHash ? fullHash.slice(0, 7) : null
-          const topHead = shortFromFull ?? topItem?.id ?? null
-          latestHeadRef.current = topHead ?? null
-          hasLoadedRef.current = true
-        }
-      } catch (err) {
-        if (activeRepoRef.current !== repoPath) {
-          return
-        }
-        const errorMsg = err instanceof Error ? err.message : String(err)
-        if (append) {
-          logger.error('[GitGraphPanel] Failed to fetch additional git history', err)
-          setLoadMoreError(errorMsg)
-        } else if (refresh) {
-          logger.warn('[GitGraphPanel] Failed to refresh git history', err)
-        } else {
-          logger.error('[GitGraphPanel] Failed to fetch git history', err)
-          setError(errorMsg)
-        }
-      } finally {
-        if (activeRepoRef.current === repoPath) {
-          if (append) {
-            setIsLoadingMore(false)
-          } else if (!refresh) {
-            setIsLoading(false)
-          }
-        }
-      }
-    },
-    [repoPath, mergeSnapshot]
-  )
-
-  useEffect(() => {
     refreshProcessingRef.current = false
     pendingRefreshHeadsRef.current = []
     activeRefreshHeadRef.current = null
     hasLoadedRef.current = false
     latestHeadRef.current = null
 
-    if (!repoPath) {
-      setSnapshot(null)
-      setIsLoading(false)
-      setIsLoadingMore(false)
-      setError(null)
-      setLoadMoreError(null)
-      setSelectedCommitId(null)
-      setContextMenu(null)
-      return
-    }
-
-    setSnapshot(null)
-    setLoadMoreError(null)
     setSelectedCommitId(null)
     setContextMenu(null)
     setCommitDetails({})
     commitDetailsRef.current = {}
-    void loadHistory({ mode: 'initial' })
-  }, [repoPath, loadHistory])
+
+    if (!repoPath) {
+      return
+    }
+
+    void ensureLoaded()
+  }, [repoPath, ensureLoaded])
 
   const historyItems = useMemo(() => {
     return snapshot ? toViewModel(snapshot) : []
@@ -197,8 +80,8 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
     if (!nextCursor || isLoadingMore) {
       return
     }
-    loadHistory({ cursor: nextCursor, mode: 'append' })
-  }, [nextCursor, isLoadingMore, loadHistory])
+    void loadMoreHistory(nextCursor)
+  }, [nextCursor, isLoadingMore, loadMoreHistory])
 
   const handleContextMenu = useCallback((event: React.MouseEvent, commit: HistoryItem) => {
     event.preventDefault()
@@ -267,6 +150,26 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
     commitDetailsRef.current = commitDetails
   }, [commitDetails])
 
+  useEffect(() => {
+    repoPathRef.current = repoPath ?? null
+  }, [repoPath])
+
+  useEffect(() => {
+    hasLoadedRef.current = Boolean(snapshot)
+  }, [snapshot])
+
+  useEffect(() => {
+    latestHeadRef.current = latestHead ?? null
+  }, [latestHead])
+
+  const headsMatch = useCallback((a?: string | null, b?: string | null) => {
+    if (!a || !b) {
+      return false
+    }
+    const len = Math.min(a.length, b.length)
+    return a.slice(0, len) === b.slice(0, len)
+  }, [])
+
   const processRefreshQueue = useCallback(
     async () => {
       if (refreshProcessingRef.current || !repoPath) {
@@ -283,7 +186,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
           }
 
           activeRefreshHeadRef.current = head
-          await loadHistory({ mode: 'refresh' })
+          await refreshHistory()
           activeRefreshHeadRef.current = null
         }
       } finally {
@@ -294,12 +197,16 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
         }
       }
     },
-    [repoPath, loadHistory]
+    [repoPath, refreshHistory]
   )
 
   const enqueueRefreshHead = useCallback(
     (head: string) => {
       if (!repoPath) {
+        return
+      }
+
+      if (headsMatch(latestHeadRef.current, head)) {
         return
       }
 
@@ -313,7 +220,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
       }
       void processRefreshQueue()
     },
-    [repoPath, processRefreshQueue]
+    [repoPath, processRefreshQueue, headsMatch]
   )
 
   const handleFileChanges = useCallback(
@@ -331,13 +238,13 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
         return
       }
 
-      if (latestHeadRef.current && latestHeadRef.current === nextHead) {
+      if (headsMatch(latestHeadRef.current, nextHead)) {
         return
       }
 
       enqueueRefreshHead(nextHead)
     },
-    [repoPath, enqueueRefreshHead, sessionName]
+    [repoPath, enqueueRefreshHead, sessionName, headsMatch]
   )
 
   useEffect(() => {
@@ -417,7 +324,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
       commitHash,
     })
       .then(files => {
-        if (activeRepoRef.current !== repoPath) {
+        if (repoPathRef.current !== repoPath) {
           return
         }
         setCommitDetails(prev => ({
@@ -431,7 +338,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
         }))
       })
       .catch(err => {
-        if (activeRepoRef.current !== repoPath) {
+        if (repoPathRef.current !== repoPath) {
           return
         }
         const message = err instanceof Error ? err.message : String(err)

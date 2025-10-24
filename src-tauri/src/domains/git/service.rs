@@ -15,7 +15,8 @@ pub use super::worktrees::{
 };
 
 pub use super::history::{
-    get_commit_file_changes, get_git_history, CommitFileChange, HistoryProviderSnapshot,
+    get_commit_file_changes, get_git_history, get_git_history_with_head, CommitFileChange,
+    HistoryProviderSnapshot,
 };
 pub use super::operations::{
     commit_all_changes, has_conflicts, has_uncommitted_changes, is_valid_branch_name,
