@@ -1,11 +1,20 @@
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { TauriCommands } from '../../common/tauriCommands'
-import { NewSessionModal } from './NewSessionModal'
+import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest'
+import type { MockedFunction, MockInstance } from 'vitest'
+import { UiEvent, emitUiEvent } from '../../common/uiEvents'
 import { TestProviders } from '../../tests/test-utils'
 import { invoke } from '@tauri-apps/api/core'
-import { describe, test, expect, vi, beforeEach } from 'vitest'
-import type { MockedFunction } from 'vitest'
-import { UiEvent, emitUiEvent } from '../../common/uiEvents'
+import type { GithubIssueDetails } from '../../types/githubIssues'
+import type { UseGithubIssueSearchResult } from '../../hooks/useGithubIssueSearch'
+
+const mockUseGithubIssueSearch = vi.fn<() => UseGithubIssueSearchResult>()
+
+vi.mock('../../hooks/useGithubIssueSearch', () => ({
+    useGithubIssueSearch: () => mockUseGithubIssueSearch(),
+}))
+
+import { NewSessionModal } from './NewSessionModal'
 
 // Mock Tauri
 vi.mock('@tauri-apps/api/core', () => ({
@@ -77,7 +86,64 @@ vi.mock('../shared/SessionConfigurationPanel', () => ({
     }
 }))
 
+
 const mockInvoke = invoke as MockedFunction<typeof invoke>
+let windowOpenSpy: MockInstance<Window['open']> | null = null
+
+function defaultInvokeHandler(command: string, args?: unknown) {
+    switch (command) {
+        case TauriCommands.RepositoryIsEmpty:
+            return Promise.resolve(false)
+        case TauriCommands.ListProjectBranches:
+            return Promise.resolve(['main', 'develop'])
+        case TauriCommands.GetProjectDefaultBaseBranch:
+            return Promise.resolve(null)
+        case TauriCommands.GetProjectDefaultBranch:
+            return Promise.resolve('main')
+        case TauriCommands.SchaltwerkCoreGetSkipPermissions:
+            return Promise.resolve(false)
+        case TauriCommands.SchaltwerkCoreGetAgentType:
+            return Promise.resolve('claude')
+        case TauriCommands.GetAgentEnvVars:
+            if (args && typeof args === 'object' && 'agentType' in args) {
+                if ((args as { agentType: string }).agentType === 'claude') {
+                    return Promise.resolve({ API_KEY: 'abc123' })
+                }
+            }
+            return Promise.resolve({})
+        case TauriCommands.GetAgentCliArgs:
+            if (args && typeof args === 'object' && 'agentType' in args) {
+                const agentType = (args as { agentType: string }).agentType
+                if (agentType === 'claude') {
+                    return Promise.resolve('--persisted-claude')
+                }
+                if (agentType === 'opencode') {
+                    return Promise.resolve('--persisted-opencode')
+                }
+            }
+            return Promise.resolve('')
+        case TauriCommands.SetAgentEnvVars:
+        case TauriCommands.SetAgentCliArgs:
+            return Promise.resolve()
+        case TauriCommands.SchaltwerkCoreListProjectFiles:
+            return Promise.resolve(['README.md'])
+        case TauriCommands.GitHubSearchIssues:
+            return Promise.resolve([])
+        case TauriCommands.GitHubGetIssueDetails:
+            return Promise.resolve({
+                number: 1,
+                title: 'Example issue',
+                url: 'https://github.com/example/repo/issues/1',
+                body: 'Example body',
+                labels: [],
+                comments: [],
+            })
+        case TauriCommands.OpenExternalUrl:
+            return Promise.resolve()
+        default:
+            return Promise.resolve()
+    }
+}
 
 function getTaskEditorContent(): string {
     const editor = screen.queryByTestId('session-task-editor')
@@ -100,46 +166,35 @@ function getTaskEditorContent(): string {
 describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
     beforeEach(() => {
         vi.clearAllMocks()
-        mockInvoke.mockImplementation((command, args) => {
-            switch (command) {
-                case TauriCommands.RepositoryIsEmpty:
-                    return Promise.resolve(false)
-                case TauriCommands.ListProjectBranches:
-                    return Promise.resolve(['main', 'develop'])
-                case TauriCommands.GetProjectDefaultBaseBranch:
-                    return Promise.resolve(null) // No saved default
-                case TauriCommands.GetProjectDefaultBranch:
-                    return Promise.resolve('main')
-                case TauriCommands.SchaltwerkCoreGetSkipPermissions:
-                    return Promise.resolve(false)
-                case TauriCommands.SchaltwerkCoreGetAgentType:
-                    return Promise.resolve('claude')
-                case TauriCommands.GetAgentEnvVars:
-                    if (args && typeof args === 'object' && 'agentType' in args) {
-                        if (args.agentType === 'claude') {
-                            return Promise.resolve({ API_KEY: 'abc123' })
-                        }
-                    }
-                    return Promise.resolve({})
-                case TauriCommands.GetAgentCliArgs:
-                    if (args && typeof args === 'object' && 'agentType' in args) {
-                        if (args.agentType === 'claude') {
-                            return Promise.resolve('--persisted-claude')
-                        }
-                        if (args.agentType === 'opencode') {
-                            return Promise.resolve('--persisted-opencode')
-                        }
-                    }
-                    return Promise.resolve('')
-                case TauriCommands.SetAgentEnvVars:
-                case TauriCommands.SetAgentCliArgs:
-                    return Promise.resolve()
-                case TauriCommands.SchaltwerkCoreListProjectFiles:
-                    return Promise.resolve(['README.md'])
-                default:
-                    return Promise.resolve()
-            }
+        if (windowOpenSpy) {
+            windowOpenSpy.mockRestore()
+        }
+        windowOpenSpy = vi.spyOn(window, 'open').mockImplementation(() => ({} as Window))
+        delete (window as unknown as Record<string, unknown>).__TAURI__
+        mockUseGithubIssueSearch.mockReturnValue({
+            results: [],
+            loading: false,
+            error: null,
+            query: '',
+            setQuery: vi.fn(),
+            refresh: vi.fn(),
+            fetchDetails: vi.fn().mockResolvedValue({
+                number: 0,
+                title: '',
+                url: '',
+                body: '',
+                labels: [],
+                comments: [],
+            } as GithubIssueDetails),
+            clearError: vi.fn(),
         })
+        mockInvoke.mockImplementation(defaultInvokeHandler)
+    })
+
+    afterEach(() => {
+        windowOpenSpy?.mockRestore()
+        windowOpenSpy = null
+        delete (window as unknown as Record<string, unknown>).__TAURI__
     })
 
     test('renders SessionConfigurationPanel when not creating as draft', async () => {
@@ -551,5 +606,375 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
         // After modal reopen, SessionConfigurationPanel maintains its defaults
         // The agent type may have been changed during the test and persisted
         expect(screen.getByTestId('initial-agent')).toBeTruthy()
+    })
+})
+
+describe('NewSessionModal GitHub issue prompt source', () => {
+    beforeEach(() => {
+        vi.clearAllMocks()
+        if (windowOpenSpy) {
+            windowOpenSpy.mockRestore()
+        }
+        windowOpenSpy = vi.spyOn(window, 'open').mockImplementation(() => ({} as Window))
+        delete (window as unknown as Record<string, unknown>).__TAURI__
+        mockUseGithubIssueSearch.mockReturnValue({
+            results: [],
+            loading: false,
+            error: null,
+            query: '',
+            setQuery: vi.fn(),
+            refresh: vi.fn(),
+            fetchDetails: vi.fn().mockResolvedValue({
+                number: 0,
+                title: '',
+                url: '',
+                body: '',
+                labels: [],
+                comments: [],
+            } as GithubIssueDetails),
+            clearError: vi.fn(),
+        })
+        mockInvoke.mockImplementation(defaultInvokeHandler)
+    })
+
+    afterEach(() => {
+        windowOpenSpy?.mockRestore()
+        windowOpenSpy = null
+        delete (window as unknown as Record<string, unknown>).__TAURI__
+    })
+
+    test('restores manual prompt when toggling between prompt sources', async () => {
+        render(
+            <TestProviders>
+                <NewSessionModal open={true} onClose={vi.fn()} onCreate={vi.fn()} cachedPrompt="Initial cached prompt" />
+            </TestProviders>
+        )
+
+        await waitFor(() => {
+            expect(screen.getByTestId('session-config-panel')).toBeInTheDocument()
+        })
+
+        await act(async () => {
+            emitUiEvent(UiEvent.NewSessionPrefill, {
+                taskContent: 'Manual prompt content',
+                fromDraft: false,
+            })
+        })
+
+        expect(getTaskEditorContent()).toContain('Manual prompt content')
+
+        fireEvent.click(screen.getByRole('button', { name: 'GitHub issue' }))
+
+        await waitFor(() => {
+            expect(screen.queryByTestId('session-task-editor')).not.toBeInTheDocument()
+        })
+
+        fireEvent.click(screen.getByRole('button', { name: 'Custom prompt' }))
+
+        await waitFor(() => {
+            expect(screen.getByTestId('session-task-editor')).toBeInTheDocument()
+        })
+        expect(getTaskEditorContent()).toContain('Manual prompt content')
+    })
+
+    test('renders GitHub integration call-to-action when requirements are missing', async () => {
+        render(
+            <TestProviders
+                githubOverrides={{
+                    status: {
+                        installed: false,
+                        authenticated: false,
+                        userLogin: null,
+                        repository: null,
+                    },
+                    isGhMissing: true,
+                    hasRepository: false,
+                    canCreatePr: false,
+                }}
+            >
+                <NewSessionModal open={true} onClose={vi.fn()} onCreate={vi.fn()} />
+            </TestProviders>
+        )
+
+        await waitFor(() => {
+            expect(screen.getByTestId('session-config-panel')).toBeInTheDocument()
+        })
+
+        fireEvent.click(screen.getByRole('button', { name: 'GitHub issue' }))
+
+        const searchInput = await screen.findByPlaceholderText('Search GitHub issues')
+        expect(searchInput).toBeDisabled()
+        expect(screen.getByText('Install GitHub CLI')).toBeInTheDocument()
+        expect(screen.getByText('Authenticate GitHub')).toBeInTheDocument()
+        expect(screen.getByText('Connect repository')).toBeInTheDocument()
+    })
+
+    test('selecting a GitHub issue populates preview and submits generated prompt', async () => {
+        const onCreate = vi.fn()
+        mockUseGithubIssueSearch.mockReturnValue({
+            results: [
+                {
+                    number: 42,
+                    title: 'Fix login flow',
+                    state: 'OPEN',
+                    updatedAt: '2024-01-01T00:00:00Z',
+                    author: 'octocat',
+                    labels: [],
+                    url: 'https://github.com/example/repo/issues/42',
+                },
+            ],
+            loading: false,
+            error: null,
+            query: '',
+            setQuery: vi.fn(),
+            refresh: vi.fn(),
+            fetchDetails: vi.fn().mockResolvedValue({
+                number: 42,
+                title: 'Fix login flow',
+                url: 'https://github.com/example/repo/issues/42',
+                body: 'Issue body goes here.',
+                labels: [
+                    { name: 'bug', color: 'd73a4a' },
+                    { name: 'frontend', color: '0052cc' },
+                ],
+                comments: [
+                    {
+                        author: 'alice',
+                        createdAt: '2024-01-01T01:00:00Z',
+                        body: 'First comment',
+                    },
+                    {
+                        author: 'bob',
+                        createdAt: '2024-01-01T02:00:00Z',
+                        body: 'Second comment',
+                    },
+                ],
+            } as GithubIssueDetails),
+            clearError: vi.fn(),
+        })
+        mockInvoke.mockImplementation((command: string) => {
+            switch (command) {
+                case TauriCommands.RepositoryIsEmpty:
+                    return Promise.resolve(false)
+                case TauriCommands.ListProjectBranches:
+                    return Promise.resolve(['main'])
+                case TauriCommands.GetProjectDefaultBaseBranch:
+                    return Promise.resolve('main')
+                case TauriCommands.SchaltwerkCoreGetSkipPermissions:
+                    return Promise.resolve(false)
+                case TauriCommands.SchaltwerkCoreGetAgentType:
+                    return Promise.resolve('claude')
+                case TauriCommands.GetAgentEnvVars:
+                    return Promise.resolve({})
+                case TauriCommands.GetAgentCliArgs:
+                    return Promise.resolve('')
+                case TauriCommands.GitHubSearchIssues:
+                    return Promise.resolve([
+                        {
+                            number: 42,
+                            title: 'Fix login flow',
+                            state: 'OPEN',
+                            updatedAt: '2024-01-01T00:00:00Z',
+                            author: 'octocat',
+                            labels: [
+                                { name: 'bug', color: 'd73a4a' },
+                                { name: 'frontend', color: '0052cc' },
+                            ],
+                            url: 'https://github.com/example/repo/issues/42',
+                        },
+                    ])
+                case TauriCommands.GitHubGetIssueDetails:
+                    return Promise.resolve({
+                        number: 42,
+                        title: 'Fix login flow',
+                        url: 'https://github.com/example/repo/issues/42',
+                        body: 'Issue body goes here.',
+                        labels: [
+                            { name: 'bug', color: 'd73a4a' },
+                            { name: 'frontend', color: '0052cc' },
+                        ],
+                        comments: [
+                            {
+                                author: 'alice',
+                                createdAt: '2024-01-01T01:00:00Z',
+                                body: 'First comment',
+                            },
+                            {
+                                author: 'bob',
+                                createdAt: '2024-01-01T02:00:00Z',
+                                body: 'Second comment',
+                            },
+                        ],
+                    })
+                default:
+                    return Promise.resolve()
+            }
+        })
+
+        render(
+            <TestProviders
+                githubOverrides={{
+                    status: {
+                        installed: true,
+                        authenticated: true,
+                        userLogin: 'octocat',
+                        repository: {
+                            nameWithOwner: 'example/repo',
+                            defaultBranch: 'main',
+                        },
+                    },
+                    isGhMissing: false,
+                    hasRepository: true,
+                    canCreatePr: true,
+                }}
+            >
+                <NewSessionModal open={true} onClose={vi.fn()} onCreate={onCreate} />
+            </TestProviders>
+        )
+
+        await waitFor(() => {
+            expect(screen.getByTestId('session-config-panel')).toBeInTheDocument()
+        })
+
+        fireEvent.click(screen.getByRole('button', { name: 'GitHub issue' }))
+
+        const issueButton = await screen.findByRole('button', { name: /Use GitHub issue 42/ })
+        fireEvent.click(issueButton)
+
+        await waitFor(() => {
+            expect(screen.getByText('Start Agent')).not.toBeDisabled()
+        })
+
+        fireEvent.click(screen.getByTestId('change-branch'))
+
+        fireEvent.click(screen.getByText('Start Agent'))
+
+        await waitFor(() => {
+            expect(onCreate).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    prompt: expect.stringContaining('GitHub Issue Context: Fix login flow (#42)'),
+                })
+            )
+        })
+
+        const generatedPrompt = onCreate.mock.calls[0][0].prompt as string
+        expect(generatedPrompt).toContain('Issue body goes here.')
+        expect(generatedPrompt).toContain('Comment by alice (2024-01-01T01:00:00Z):')
+        expect(generatedPrompt).toContain('First comment')
+        expect(generatedPrompt).toContain('Comment by bob (2024-01-01T02:00:00Z):')
+    })
+
+    test('View on GitHub uses shell open when available', async () => {
+        mockUseGithubIssueSearch.mockReturnValue({
+            results: [
+                {
+                    number: 99,
+                    title: 'Investigate crash',
+                    state: 'OPEN',
+                    updatedAt: '2024-05-05T10:00:00Z',
+                    author: 'octocat',
+                    labels: [],
+                    url: 'https://github.com/example/repo/issues/99',
+                },
+            ],
+            loading: false,
+            error: null,
+            query: '',
+            setQuery: vi.fn(),
+            refresh: vi.fn(),
+            fetchDetails: vi.fn().mockResolvedValue({
+                number: 99,
+                title: 'Investigate crash',
+                url: 'https://github.com/example/repo/issues/99',
+                body: 'Crash details',
+                labels: [],
+                comments: [],
+            } as GithubIssueDetails),
+            clearError: vi.fn(),
+        })
+
+        mockInvoke.mockImplementation((command: string) => {
+            switch (command) {
+                case TauriCommands.RepositoryIsEmpty:
+                    return Promise.resolve(false)
+                case TauriCommands.ListProjectBranches:
+                    return Promise.resolve(['main'])
+                case TauriCommands.GetProjectDefaultBaseBranch:
+                    return Promise.resolve('main')
+                case TauriCommands.SchaltwerkCoreGetSkipPermissions:
+                    return Promise.resolve(false)
+                case TauriCommands.SchaltwerkCoreGetAgentType:
+                    return Promise.resolve('claude')
+                case TauriCommands.GetAgentEnvVars:
+                    return Promise.resolve({})
+                case TauriCommands.GetAgentCliArgs:
+                    return Promise.resolve('')
+                case TauriCommands.GitHubSearchIssues:
+                    return Promise.resolve([
+                        {
+                            number: 99,
+                            title: 'Investigate crash',
+                            state: 'OPEN',
+                            updatedAt: '2024-05-05T10:00:00Z',
+                            author: 'octocat',
+                            labels: [],
+                            url: 'https://github.com/example/repo/issues/99',
+                        },
+                    ])
+                case TauriCommands.GitHubGetIssueDetails:
+                    return Promise.resolve({
+                        number: 99,
+                        title: 'Investigate crash',
+                        url: 'https://github.com/example/repo/issues/99',
+                        body: 'Crash details',
+                        labels: [],
+                        comments: [],
+                    })
+                case TauriCommands.OpenExternalUrl:
+                    return Promise.resolve()
+                default:
+                    return Promise.resolve()
+            }
+        })
+
+        render(
+            <TestProviders
+                githubOverrides={{
+                    status: {
+                        installed: true,
+                        authenticated: true,
+                        userLogin: 'octocat',
+                        repository: {
+                            nameWithOwner: 'example/repo',
+                            defaultBranch: 'main',
+                        },
+                    },
+                    isGhMissing: false,
+                    hasRepository: true,
+                    canCreatePr: true,
+                }}
+            >
+                <NewSessionModal open={true} onClose={vi.fn()} onCreate={vi.fn()} />
+            </TestProviders>
+        )
+
+        await waitFor(() => {
+            expect(screen.getByTestId('session-config-panel')).toBeInTheDocument()
+        })
+
+        fireEvent.click(screen.getByRole('button', { name: 'GitHub issue' }))
+
+        const issueButton = await screen.findByRole('button', { name: /Use GitHub issue 99/ })
+        fireEvent.click(issueButton)
+
+        const viewButton = await screen.findByRole('button', { name: 'View on GitHub' })
+        fireEvent.click(viewButton)
+
+        await waitFor(() => {
+            expect(mockInvoke).toHaveBeenCalledWith(
+                TauriCommands.OpenExternalUrl,
+                expect.objectContaining({ url: 'https://github.com/example/repo/issues/99' })
+            )
+        })
     })
 })

@@ -831,6 +831,8 @@ fn main() {
             github_authenticate,
             github_connect_project,
             github_create_reviewed_pr,
+            github_search_issues,
+            github_get_issue_details,
             // Permission commands
             permissions::check_folder_access,
             permissions::trigger_folder_permission_request,

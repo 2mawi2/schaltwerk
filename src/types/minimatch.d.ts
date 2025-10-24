@@ -1,5 +1,5 @@
 declare module 'minimatch' {
-  interface MinimatchOptions {
+  export interface MinimatchOptions {
     cwd?: string
     dot?: boolean
     matchBase?: boolean
@@ -9,6 +9,7 @@ declare module 'minimatch' {
     noext?: boolean
     partial?: boolean
     nocomment?: boolean
+    [key: string]: unknown
   }
 
   export default function minimatch(

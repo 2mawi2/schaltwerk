@@ -11,6 +11,35 @@ const markdownFocus = {
   focusEnd: vi.fn(),
 }
 
+vi.mock('../../contexts/GithubIntegrationContext', () => {
+  const noop = vi.fn()
+  return {
+    useGithubIntegrationContext: () => ({
+      status: {
+        installed: true,
+        authenticated: true,
+        userLogin: 'tester',
+        repository: {
+          nameWithOwner: 'example/repo',
+          defaultBranch: 'main',
+        },
+      },
+      loading: false,
+      isAuthenticating: false,
+      isConnecting: false,
+      isCreatingPr: () => false,
+      authenticate: noop,
+      connectProject: noop,
+      createReviewedPr: noop,
+      getCachedPrUrl: () => undefined,
+      canCreatePr: true,
+      isGhMissing: false,
+      hasRepository: true,
+      refreshStatus: noop,
+    }),
+  }
+})
+
 vi.mock('../plans/MarkdownEditor', async () => {
   const React = await import('react')
   const { forwardRef, useImperativeHandle, useRef } = React

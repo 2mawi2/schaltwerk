@@ -54,6 +54,40 @@ pub struct GitHubPrResult {
     pub url: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GitHubIssueLabel {
+    pub name: String,
+    pub color: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GitHubIssueSummary {
+    pub number: u64,
+    pub title: String,
+    pub state: String,
+    pub updated_at: String,
+    pub author_login: Option<String>,
+    pub labels: Vec<GitHubIssueLabel>,
+    pub url: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GitHubIssueComment {
+    pub author_login: Option<String>,
+    pub created_at: String,
+    pub body: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GitHubIssueDetails {
+    pub number: u64,
+    pub title: String,
+    pub url: String,
+    pub body: String,
+    pub labels: Vec<GitHubIssueLabel>,
+    pub comments: Vec<GitHubIssueComment>,
+}
+
 #[derive(Debug)]
 pub enum GitHubCliError {
     NotInstalled,
@@ -351,6 +385,189 @@ impl<R: CommandRunner> GitHubCli<R> {
         Ok(GitHubRepositoryInfo {
             name_with_owner: response.name_with_owner,
             default_branch,
+        })
+    }
+
+    pub fn search_issues(
+        &self,
+        project_path: &Path,
+        query: &str,
+        limit: usize,
+    ) -> Result<Vec<GitHubIssueSummary>, GitHubCliError> {
+        debug!(
+            "[GitHubCli] Searching issues for project={}, query='{}', limit={}",
+            project_path.display(),
+            query,
+            limit
+        );
+        ensure_git_remote_exists(project_path)?;
+
+        let env = [("GH_PROMPT_DISABLED", "1"), ("NO_COLOR", "1")];
+        let constrained_limit = limit.clamp(1, 100);
+        let trimmed_query = query.trim();
+
+        let mut args_vec = vec![
+            "issue".to_string(),
+            "list".to_string(),
+            "--json".to_string(),
+            "number,title,state,updatedAt,author,labels,url".to_string(),
+            "--limit".to_string(),
+            constrained_limit.to_string(),
+        ];
+
+        let (normalized_query, label_filters) = split_label_filters(trimmed_query);
+
+        if normalized_query.is_empty() {
+            args_vec.push("--state".to_string());
+            args_vec.push("open".to_string());
+        } else {
+            args_vec.push("--search".to_string());
+            args_vec.push(normalized_query);
+            args_vec.push("--state".to_string());
+            args_vec.push("all".to_string());
+        }
+        for label_filter in label_filters {
+            args_vec.push("--label".to_string());
+            args_vec.push(label_filter);
+        }
+
+        let arg_refs: Vec<&str> = args_vec.iter().map(|entry| entry.as_str()).collect();
+        let output = self
+            .runner
+            .run(&self.program, &arg_refs, Some(project_path), &env)
+            .map_err(map_runner_error)?;
+
+        if !output.success() {
+            return Err(command_failure(&self.program, &args_vec, output));
+        }
+
+        let clean_output = strip_ansi_codes(&output.stdout);
+        let parsed: Vec<IssueListResponse> = serde_json::from_str(clean_output.trim()).map_err(
+            |err| {
+                log::error!(
+                    "[GitHubCli] Failed to parse issue search response: {err}; raw={}, cleaned={}",
+                    output.stdout.trim(),
+                    clean_output.trim()
+                );
+                GitHubCliError::InvalidOutput(
+                    "GitHub CLI returned issue data in an unexpected format.".to_string(),
+                )
+            },
+        )?;
+
+        let mut results: Vec<GitHubIssueSummary> = parsed
+            .into_iter()
+            .map(|issue| GitHubIssueSummary {
+                number: issue.number,
+                title: issue.title,
+                state: issue.state,
+                updated_at: issue.updated_at,
+                author_login: issue.author.and_then(|actor| actor.login),
+                labels: issue
+                    .labels
+                    .into_iter()
+                    .map(|label| GitHubIssueLabel {
+                        name: label.name,
+                        color: label.color,
+                    })
+                    .collect(),
+                url: issue.url,
+            })
+            .collect();
+
+        fn parse_timestamp(value: &str) -> i64 {
+            chrono::DateTime::parse_from_rfc3339(value)
+                .map(|dt| dt.timestamp())
+                .unwrap_or(i64::MIN)
+        }
+
+        results.sort_by(|a, b| {
+            let b_key = parse_timestamp(&b.updated_at);
+            let a_key = parse_timestamp(&a.updated_at);
+            b_key
+                .cmp(&a_key)
+                .then_with(|| a.number.cmp(&b.number))
+        });
+
+        Ok(results)
+    }
+
+    pub fn get_issue_with_comments(
+        &self,
+        project_path: &Path,
+        number: u64,
+    ) -> Result<GitHubIssueDetails, GitHubCliError> {
+        debug!(
+            "[GitHubCli] Fetching issue details for project={}, number={}",
+            project_path.display(),
+            number
+        );
+        ensure_git_remote_exists(project_path)?;
+
+        let env = [("GH_PROMPT_DISABLED", "1"), ("NO_COLOR", "1")];
+        let args_vec = vec![
+            "issue".to_string(),
+            "view".to_string(),
+            number.to_string(),
+            "--json".to_string(),
+            "number,title,body,url,labels,comments".to_string(),
+        ];
+
+        let arg_refs: Vec<&str> = args_vec.iter().map(|entry| entry.as_str()).collect();
+        let output = self
+            .runner
+            .run(&self.program, &arg_refs, Some(project_path), &env)
+            .map_err(map_runner_error)?;
+
+        if !output.success() {
+            return Err(command_failure(&self.program, &args_vec, output));
+        }
+
+        let clean_output = strip_ansi_codes(&output.stdout);
+        let parsed: IssueDetailsResponse = serde_json::from_str(clean_output.trim()).map_err(
+            |err| {
+                log::error!(
+                    "[GitHubCli] Failed to parse issue detail response: {err}; raw={}, cleaned={}",
+                    output.stdout.trim(),
+                    clean_output.trim()
+                );
+                GitHubCliError::InvalidOutput(
+                    "GitHub CLI returned issue detail data in an unexpected format.".to_string(),
+                )
+            },
+        )?;
+
+        let labels = parsed
+            .labels
+            .into_iter()
+            .map(|label| GitHubIssueLabel {
+                name: label.name,
+                color: label.color,
+            })
+            .collect();
+
+        let comment_nodes = match parsed.comments.unwrap_or(IssueComments::None) {
+            IssueComments::Connection { nodes } => nodes,
+            IssueComments::List(nodes) => nodes,
+            IssueComments::None => Vec::new(),
+        };
+
+        let comments = comment_nodes
+            .into_iter()
+            .map(|comment| GitHubIssueComment {
+                author_login: comment.author.and_then(|actor| actor.login),
+                created_at: comment.created_at.unwrap_or_default(),
+                body: comment.body.unwrap_or_default(),
+            })
+            .collect();
+
+        Ok(GitHubIssueDetails {
+            number: parsed.number,
+            title: parsed.title,
+            url: parsed.url,
+            body: parsed.body.unwrap_or_default(),
+            labels,
+            comments,
         })
     }
 
@@ -745,6 +962,125 @@ fn sanitize_branch_component(input: &str) -> String {
     }
 }
 
+fn split_label_filters(query: &str) -> (String, Vec<String>) {
+    let mut cleaned = String::with_capacity(query.len());
+    let mut labels: Vec<String> = Vec::new();
+    let mut index = 0;
+
+    while index < query.len() {
+        if let Some((marker_len, is_boundary)) = detect_label_marker(query, index) {
+            if is_boundary {
+                let after_marker = index + marker_len;
+                let value_start = skip_leading_whitespace(query, after_marker);
+                if value_start >= query.len() {
+                    index = value_start;
+                    continue;
+                }
+
+                let (label_value, value_end) = parse_label_value(query, value_start);
+                if let Some(value) = label_value {
+                    labels.push(value);
+                    index = skip_leading_whitespace(query, value_end);
+                    continue;
+                }
+
+                index = value_end;
+                continue;
+            }
+        }
+
+        let ch = query[index..].chars().next().unwrap();
+        cleaned.push(ch);
+        index += ch.len_utf8();
+    }
+
+    let normalized = cleaned
+        .split_whitespace()
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    (normalized, labels)
+}
+
+fn detect_label_marker(query: &str, index: usize) -> Option<(usize, bool)> {
+    for marker in ["label:", "label="] {
+        let len = marker.len();
+        if let Some(candidate) = query[index..].get(..len) {
+            if candidate.eq_ignore_ascii_case(marker) {
+                let boundary = index == 0
+                    || query[..index]
+                        .chars()
+                        .last()
+                        .map(|ch| ch.is_whitespace())
+                        .unwrap_or(true);
+                return Some((len, boundary));
+            }
+        }
+    }
+    None
+}
+
+fn skip_leading_whitespace(query: &str, mut index: usize) -> usize {
+    while index < query.len() {
+        let ch = query[index..].chars().next().unwrap();
+        if ch.is_whitespace() {
+            index += ch.len_utf8();
+        } else {
+            break;
+        }
+    }
+    index
+}
+
+fn parse_label_value(query: &str, start: usize) -> (Option<String>, usize) {
+    if start >= query.len() {
+        return (None, start);
+    }
+
+    let mut cursor = start;
+    let mut iter = query[cursor..].chars();
+    let first = iter.next().unwrap();
+
+    if first == '"' || first == '\'' {
+        cursor += first.len_utf8();
+        let mut value = String::new();
+        while cursor < query.len() {
+            let ch = query[cursor..].chars().next().unwrap();
+            if ch == first {
+                cursor += ch.len_utf8();
+                break;
+            }
+            value.push(ch);
+            cursor += ch.len_utf8();
+        }
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            return (None, cursor);
+        }
+        return (Some(trimmed.to_string()), cursor);
+    }
+
+    let mut value = String::new();
+    value.push(first);
+    cursor += first.len_utf8();
+    while cursor < query.len() {
+        let ch = query[cursor..].chars().next().unwrap();
+        if ch.is_whitespace() {
+            break;
+        }
+        value.push(ch);
+        cursor += ch.len_utf8();
+    }
+
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return (None, cursor);
+    }
+
+    (Some(trimmed.to_string()), cursor)
+}
+
 #[derive(Debug, Deserialize)]
 struct RepoViewResponse {
     #[serde(rename = "nameWithOwner")]
@@ -761,6 +1097,58 @@ struct DefaultBranchRef {
 #[derive(Debug, Deserialize)]
 struct PrViewResponse {
     url: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct IssueListResponse {
+    number: u64,
+    title: String,
+    state: String,
+    #[serde(rename = "updatedAt")]
+    updated_at: String,
+    author: Option<IssueActor>,
+    #[serde(default)]
+    labels: Vec<IssueLabel>,
+    url: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct IssueActor {
+    login: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct IssueLabel {
+    name: String,
+    #[serde(default)]
+    color: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct IssueDetailsResponse {
+    number: u64,
+    title: String,
+    url: String,
+    body: Option<String>,
+    #[serde(default)]
+    labels: Vec<IssueLabel>,
+    comments: Option<IssueComments>,
+}
+
+#[derive(Debug, Deserialize)]
+struct IssueCommentNode {
+    body: Option<String>,
+    #[serde(rename = "createdAt")]
+    created_at: Option<String>,
+    author: Option<IssueActor>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum IssueComments {
+    Connection { #[serde(default)] nodes: Vec<IssueCommentNode> },
+    List(Vec<IssueCommentNode>),
+    None,
 }
 
 #[cfg(test)]
@@ -861,6 +1249,312 @@ mod tests {
         let status = cli.check_auth().expect("status");
         assert!(!status.authenticated);
         assert_eq!(status.user_login, None);
+    }
+
+    #[test]
+    fn search_issues_parses_results_and_builds_arguments() {
+        let runner = MockRunner::default();
+        runner.push_response(Ok(CommandOutput {
+            status: Some(0),
+            stdout: "\u{1b}[32m[\n  {\"number\":42,\"title\":\"Bug\",\"state\":\"OPEN\",\"updatedAt\":\"2024-01-01T12:00:00Z\",\"author\":{\"login\":\"octocat\"},\"labels\":[{\"name\":\"bug\",\"color\":\"d73a4a\"}],\"url\":\"https://github.com/example/repo/issues/42\"}\n]\u{1b}[0m".to_string(),
+            stderr: String::new(),
+        }));
+        let cli = GitHubCli::with_runner(runner.clone());
+
+        let temp = TempDir::new().unwrap();
+        let repo_path = temp.path();
+        let repo = git2::Repository::init(repo_path).unwrap();
+        repo.remote("origin", "https://github.com/example/repo").unwrap();
+
+        let results = cli
+            .search_issues(repo_path, "", 50)
+            .expect("issue search results");
+
+        assert_eq!(results.len(), 1);
+        let issue = &results[0];
+        assert_eq!(issue.number, 42);
+        assert_eq!(issue.title, "Bug");
+        assert_eq!(issue.state, "OPEN");
+        assert_eq!(issue.updated_at, "2024-01-01T12:00:00Z");
+        assert_eq!(issue.author_login.as_deref(), Some("octocat"));
+        assert_eq!(issue.labels.len(), 1);
+        assert_eq!(issue.labels[0].name, "bug");
+        assert_eq!(issue.labels[0].color.as_deref(), Some("d73a4a"));
+        assert_eq!(
+            issue.url,
+            "https://github.com/example/repo/issues/42"
+        );
+
+        let calls = runner.calls();
+        assert_eq!(calls.len(), 1);
+        let args = calls[0].args.clone();
+        assert_eq!(args[0], "issue");
+        assert_eq!(args[1], "list");
+        assert!(args.contains(&"--json".to_string()));
+        assert!(args.contains(&"--limit".to_string()));
+        assert!(args.contains(&"--state".to_string()));
+        assert!(args.contains(&"open".to_string()));
+        assert!(
+            !args.contains(&"--search".to_string()),
+            "Search flag should be omitted when query is empty"
+        );
+    }
+
+    #[test]
+    fn search_issues_includes_query_and_state_all() {
+        let runner = MockRunner::default();
+        runner.push_response(Ok(CommandOutput {
+            status: Some(0),
+            stdout: "[{\"number\":7,\"title\":\"Feature\",\"state\":\"OPEN\",\"updatedAt\":\"2024-02-02T00:00:00Z\",\"author\":null,\"labels\":[],\"url\":\"https://github.com/example/repo/issues/7\"}]".to_string(),
+            stderr: String::new(),
+        }));
+        let cli = GitHubCli::with_runner(runner.clone());
+
+        let temp = TempDir::new().unwrap();
+        let repo_path = temp.path();
+        let repo = git2::Repository::init(repo_path).unwrap();
+        repo.remote("origin", "https://github.com/example/repo").unwrap();
+
+        let results = cli
+            .search_issues(repo_path, "  regression fix ", 5)
+            .expect("issue search results");
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].number, 7);
+
+        let args = runner.calls()[0].args.clone();
+        assert!(args.contains(&"--search".to_string()));
+        assert!(args.contains(&"regression fix".to_string()));
+        assert!(args.contains(&"--state".to_string()));
+        assert!(args.contains(&"all".to_string()));
+    }
+
+    #[test]
+    fn search_issues_extracts_label_filters() {
+        let runner = MockRunner::default();
+        runner.push_response(Ok(CommandOutput {
+            status: Some(0),
+            stdout: "[]".to_string(),
+            stderr: String::new(),
+        }));
+        let cli = GitHubCli::with_runner(runner.clone());
+
+        let temp = TempDir::new().unwrap();
+        let repo_path = temp.path();
+        let repo = git2::Repository::init(repo_path).unwrap();
+        repo.remote("origin", "https://github.com/example/repo").unwrap();
+
+        let _ = cli
+            .search_issues(repo_path, "label:\"bug\" critical", 5)
+            .expect("issue search results");
+
+        let args = runner.calls()[0].args.clone();
+        assert!(args.contains(&"--label".to_string()));
+        assert!(args.contains(&"bug".to_string()));
+        assert!(args.contains(&"--search".to_string()));
+        assert!(args.contains(&"critical".to_string()));
+        assert!(
+            !args.iter().any(|arg| arg.contains("label:\"bug\"")),
+            "label qualifier should be stripped from search text"
+        );
+    }
+
+    #[test]
+    fn search_issues_with_label_only_uses_state_open() {
+        let runner = MockRunner::default();
+        runner.push_response(Ok(CommandOutput {
+            status: Some(0),
+            stdout: "[]".to_string(),
+            stderr: String::new(),
+        }));
+        let cli = GitHubCli::with_runner(runner.clone());
+
+        let temp = TempDir::new().unwrap();
+        let repo_path = temp.path();
+        let repo = git2::Repository::init(repo_path).unwrap();
+        repo.remote("origin", "https://github.com/example/repo").unwrap();
+
+        let _ = cli
+            .search_issues(repo_path, "label:enhancement", 10)
+            .expect("issue search results");
+
+        let args = runner.calls()[0].args.clone();
+        assert!(args.contains(&"--label".to_string()));
+        assert!(args.contains(&"enhancement".to_string()));
+        assert!(
+            !args.contains(&"--search".to_string()),
+            "Search flag should be omitted when only labels are provided"
+        );
+        let state_index = args
+            .iter()
+            .position(|arg| arg == "--state")
+            .expect("state argument should exist");
+        assert_eq!(args[state_index + 1], "open");
+    }
+
+    #[test]
+    fn search_issues_supports_multiple_label_filters() {
+        let runner = MockRunner::default();
+        runner.push_response(Ok(CommandOutput {
+            status: Some(0),
+            stdout: "[]".to_string(),
+            stderr: String::new(),
+        }));
+        let cli = GitHubCli::with_runner(runner.clone());
+
+        let temp = TempDir::new().unwrap();
+        let repo_path = temp.path();
+        let repo = git2::Repository::init(repo_path).unwrap();
+        repo.remote("origin", "https://github.com/example/repo").unwrap();
+
+        let _ = cli
+            .search_issues(
+                repo_path,
+                "label:bug label:\"help wanted\" login failure",
+                25,
+            )
+            .expect("issue search results");
+
+        let args = runner.calls()[0].args.clone();
+        let label_args: Vec<&String> = args
+            .iter()
+            .filter(|arg| arg.as_str() == "--label")
+            .collect();
+        assert_eq!(label_args.len(), 2, "expected two label flags");
+        assert!(args.contains(&"bug".to_string()));
+        assert!(args.contains(&"help wanted".to_string()));
+        assert!(args.contains(&"--search".to_string()));
+        assert!(args.contains(&"login failure".to_string()));
+        assert!(
+            !args.iter().any(|arg| arg.contains("label:")),
+            "label tokens should be removed from search query"
+        );
+    }
+
+    #[test]
+    fn search_issues_sorts_results_by_updated_at_desc() {
+        let runner = MockRunner::default();
+        runner.push_response(Ok(CommandOutput {
+            status: Some(0),
+            stdout: r#"[{"number":1,"title":"Older","state":"OPEN","updatedAt":"2024-01-01T00:00:00Z","author":null,"labels":[],"url":"https://example.com/1"},{"number":2,"title":"Newer","state":"OPEN","updatedAt":"2024-01-02T00:00:00Z","author":null,"labels":[],"url":"https://example.com/2"}]"#.to_string(),
+            stderr: String::new(),
+        }));
+        let cli = GitHubCli::with_runner(runner.clone());
+
+        let temp = TempDir::new().unwrap();
+        let repo_path = temp.path();
+        let repo = git2::Repository::init(repo_path).unwrap();
+        repo.remote("origin", "https://github.com/example/repo").unwrap();
+
+        let results = cli
+            .search_issues(repo_path, "", 20)
+            .expect("issue search results");
+
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].number, 2);
+        assert_eq!(results[1].number, 1);
+    }
+
+    #[test]
+    fn get_issue_with_comments_parses_body_and_comments() {
+        let runner = MockRunner::default();
+        runner.push_response(Ok(CommandOutput {
+            status: Some(0),
+            stdout: json!({
+                "number": 101,
+                "title": "Broken flow",
+                "url": "https://github.com/example/repo/issues/101",
+                "body": "Steps to reproduce",
+                "labels": [
+                    { "name": "bug", "color": "d73a4a" },
+                    { "name": "priority:high", "color": "b60205" }
+                ],
+                "comments": {
+                    "nodes": [
+                        {
+                            "author": { "login": "octocat" },
+                            "createdAt": "2024-03-01T10:00:00Z",
+                            "body": "Can confirm"
+                        },
+                        {
+                            "author": { "login": "hubot" },
+                            "createdAt": "2024-03-01T11:00:00Z",
+                            "body": "Working on a fix"
+                        }
+                    ]
+                }
+            })
+            .to_string(),
+            stderr: String::new(),
+        }));
+        let cli = GitHubCli::with_runner(runner.clone());
+
+        let temp = TempDir::new().unwrap();
+        let repo_path = temp.path();
+        let repo = git2::Repository::init(repo_path).unwrap();
+        repo.remote("origin", "https://github.com/example/repo").unwrap();
+
+        let details = cli
+            .get_issue_with_comments(repo_path, 101)
+            .expect("issue details");
+
+        assert_eq!(details.number, 101);
+        assert_eq!(details.title, "Broken flow");
+        assert_eq!(details.url, "https://github.com/example/repo/issues/101");
+        assert_eq!(details.body, "Steps to reproduce");
+        assert_eq!(details.labels.len(), 2);
+        assert_eq!(details.labels[0].name, "bug");
+        assert_eq!(details.comments.len(), 2);
+        assert_eq!(details.comments[0].author_login.as_deref(), Some("octocat"));
+        assert_eq!(details.comments[0].created_at, "2024-03-01T10:00:00Z");
+        assert_eq!(details.comments[0].body, "Can confirm");
+        assert_eq!(details.comments[1].author_login.as_deref(), Some("hubot"));
+
+        let args = runner.calls()[0].args.clone();
+        assert_eq!(args[0], "issue");
+        assert_eq!(args[1], "view");
+        assert!(args.contains(&"101".to_string()));
+        assert!(args.contains(&"--json".to_string()));
+    }
+
+    #[test]
+    fn get_issue_with_comments_handles_array_response() {
+        let runner = MockRunner::default();
+        runner.push_response(Ok(CommandOutput {
+            status: Some(0),
+            stdout: json!({
+                "number": 5,
+                "title": "Array comments",
+                "url": "https://github.com/example/repo/issues/5",
+                "body": "Body",
+                "labels": [],
+                "comments": [
+                    {
+                        "author": { "login": "octocat" },
+                        "createdAt": "2024-01-01T00:00:00Z",
+                        "body": "First array comment"
+                    }
+                ]
+            }).to_string(),
+            stderr: String::new(),
+        }));
+        let cli = GitHubCli::with_runner(runner.clone());
+
+        let temp = TempDir::new().unwrap();
+        let repo_path = temp.path();
+        let repo = git2::Repository::init(repo_path).unwrap();
+        repo.remote("origin", "https://github.com/example/repo").unwrap();
+
+        let details = cli
+            .get_issue_with_comments(repo_path, 5)
+            .expect("issue details");
+
+        assert_eq!(details.comments.len(), 1);
+        assert_eq!(
+            details.comments[0].author_login.as_deref(),
+            Some("octocat")
+        );
+        assert_eq!(details.comments[0].body, "First array comment");
     }
 
     #[test]
