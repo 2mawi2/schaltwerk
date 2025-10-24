@@ -9,7 +9,7 @@ use {
     log::{debug, warn},
     std::collections::HashSet,
     tokio::process::Command,
-    tokio::time::{sleep, Duration},
+    tokio::time::{Duration, sleep},
 };
 
 /// Workaround for https://github.com/openai/codex/issues/4726 until Codex cleans up its own
@@ -87,9 +87,10 @@ async fn terminate_processes_with_cwd_unix(path: &Path) -> Result<Vec<i32>> {
     let mut seen: HashSet<i32> = HashSet::new();
     for line in stdout.lines() {
         if let Ok(pid) = line.trim().parse::<i32>()
-            && pid as u32 != std::process::id() {
-                seen.insert(pid);
-            }
+            && pid as u32 != std::process::id()
+        {
+            seen.insert(pid);
+        }
     }
 
     if seen.is_empty() {

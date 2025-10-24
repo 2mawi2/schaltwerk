@@ -6,8 +6,8 @@ use schaltwerk::domains::git;
 use schaltwerk::domains::git::stats::build_changed_files_from_diff;
 use schaltwerk::domains::sessions::entity::ChangedFile;
 use schaltwerk::domains::workspace::diff_engine::{
-    add_collapsible_sections, calculate_diff_stats, calculate_split_diff_stats, compute_split_diff,
-    compute_unified_diff, get_file_language, DiffResponse, FileInfo, SplitDiffResponse,
+    DiffResponse, FileInfo, SplitDiffResponse, add_collapsible_sections, calculate_diff_stats,
+    calculate_split_diff_stats, compute_split_diff, compute_unified_diff, get_file_language,
 };
 use schaltwerk::domains::workspace::file_utils;
 use serde::Serialize;
@@ -612,9 +612,10 @@ pub async fn get_commit_comparison_info(
 fn short_id_str(repo: &Repository, oid: Oid) -> String {
     if let Ok(obj) = repo.find_object(oid, None)
         && let Ok(buf) = obj.short_id()
-            && let Ok(s) = std::str::from_utf8(&buf) {
-                return s.to_string();
-            }
+        && let Ok(s) = std::str::from_utf8(&buf)
+    {
+        return s.to_string();
+    }
     let s = oid.to_string();
     s.chars().take(7).collect()
 }

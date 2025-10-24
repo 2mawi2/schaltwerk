@@ -1,6 +1,6 @@
 use crate::domains::merge::service::{compute_merge_state, resolve_branch_oid};
 use crate::domains::merge::types::MergeStateSnapshot;
-use crate::infrastructure::events::{emit_event, SchaltEvent};
+use crate::infrastructure::events::{SchaltEvent, emit_event};
 use crate::{
     domains::git::db_git_stats::GitStatsMethods, domains::git::service as git,
     domains::sessions::db_sessions::SessionMethods, schaltwerk_core::database::Database,
@@ -17,7 +17,7 @@ use std::sync::Arc;
 #[cfg(test)]
 use std::time::UNIX_EPOCH;
 use tauri::AppHandle;
-use tokio::time::{interval, Duration};
+use tokio::time::{Duration, interval};
 #[cfg(test)]
 use walkdir::WalkDir;
 

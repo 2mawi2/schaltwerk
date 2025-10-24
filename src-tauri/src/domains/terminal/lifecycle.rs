@@ -1,5 +1,5 @@
 use super::local::TerminalState;
-use crate::infrastructure::events::{emit_event, SchaltEvent};
+use crate::infrastructure::events::{SchaltEvent, emit_event};
 use log::{debug, error, info, warn};
 use portable_pty::{Child, ExitStatus, MasterPty};
 use std::collections::HashMap;
@@ -46,17 +46,17 @@ pub(crate) fn extract_session_name(terminal_id: &str) -> Option<String> {
 
         if let Some((name_part, hash_part)) = without_suffix.rsplit_once('~')
             && (hash_part.len() == 8 || hash_part.len() == 6)
-                && hash_part.chars().all(|c| c.is_ascii_hexdigit())
-            {
-                return Some(name_part.to_string());
-            }
+            && hash_part.chars().all(|c| c.is_ascii_hexdigit())
+        {
+            return Some(name_part.to_string());
+        }
 
         if let Some((name_part, hash_part)) = without_suffix.rsplit_once('-')
             && (hash_part.len() == 8 || hash_part.len() == 6)
-                && hash_part.chars().all(|c| c.is_ascii_hexdigit())
-            {
-                return Some(name_part.to_string());
-            }
+            && hash_part.chars().all(|c| c.is_ascii_hexdigit())
+        {
+            return Some(name_part.to_string());
+        }
 
         Some(without_suffix.to_string())
     } else if terminal_id.starts_with("orchestrator-") && terminal_id.ends_with("-top") {
@@ -101,28 +101,28 @@ async fn check_agent_health(
 
     let terminals_guard = terminals.read().await;
     if let Some(state) = terminals_guard.get(terminal_id)
-        && let Ok(elapsed) = std::time::SystemTime::now().duration_since(state.last_output) {
-            let elapsed_secs = elapsed.as_secs();
+        && let Ok(elapsed) = std::time::SystemTime::now().duration_since(state.last_output)
+    {
+        let elapsed_secs = elapsed.as_secs();
 
-            let inactivity_threshold = if get_agent_type_from_terminal(terminal_id) == Some("codex")
-            {
-                300
-            } else {
-                600
-            };
+        let inactivity_threshold = if get_agent_type_from_terminal(terminal_id) == Some("codex") {
+            300
+        } else {
+            600
+        };
 
-            if elapsed_secs > inactivity_threshold {
-                warn!(
-                    "AGENT HEALTH WARNING: Terminal {terminal_id} has been inactive for {elapsed_secs} seconds (threshold: {inactivity_threshold})"
-                );
+        if elapsed_secs > inactivity_threshold {
+            warn!(
+                "AGENT HEALTH WARNING: Terminal {terminal_id} has been inactive for {elapsed_secs} seconds (threshold: {inactivity_threshold})"
+            );
 
-                debug!(
-                    "Agent terminal {terminal_id} buffer size: {} bytes, seq: {}",
-                    state.buffer.len(),
-                    state.seq
-                );
-            }
+            debug!(
+                "Agent terminal {terminal_id} buffer size: {} bytes, seq: {}",
+                state.buffer.len(),
+                state.seq
+            );
         }
+    }
 }
 
 async fn handle_agent_crash(terminal_id: String, status: ExitStatus, deps: LifecycleDeps) {

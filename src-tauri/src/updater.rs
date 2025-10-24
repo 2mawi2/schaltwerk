@@ -1,4 +1,4 @@
-use crate::events::{emit_event, SchaltEvent};
+use crate::events::{SchaltEvent, emit_event};
 use log::{debug, error, info, warn};
 use serde::Serialize;
 use std::sync::Arc;

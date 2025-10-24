@@ -3,11 +3,11 @@ use crate::{
     domains::sessions::db_sessions::SessionMethods,
     schaltwerk_core::{
         database::Database,
-        db_project_config::{ProjectConfigMethods, DEFAULT_BRANCH_PREFIX},
+        db_project_config::{DEFAULT_BRANCH_PREFIX, ProjectConfigMethods},
     },
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use std::path::Path;
 use tokio::process::Command;
 

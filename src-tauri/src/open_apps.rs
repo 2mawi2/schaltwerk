@@ -448,7 +448,9 @@ fn open_path_in(app_id: &str, path: &str) -> Result<(), String> {
                     "zed" => "Zed",
                     _ => app_id,
                 };
-                Err(format!("{app_name} is not installed. Please install it from the official website or choose a different application."))
+                Err(format!(
+                    "{app_name} is not installed. Please install it from the official website or choose a different application."
+                ))
             }
             Err(e) => {
                 // Command execution failed

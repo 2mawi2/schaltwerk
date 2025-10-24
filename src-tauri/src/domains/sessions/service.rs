@@ -1,6 +1,6 @@
 use crate::domains::agents::AgentLaunchSpec;
 use crate::shared::terminal_id::{terminal_id_for_session_bottom, terminal_id_for_session_top};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use chrono::{TimeZone, Utc};
 use log::{info, warn};
 use std::collections::HashMap;
@@ -56,7 +56,7 @@ pub struct SessionCreationParams<'a> {
 const SESSION_READY_COMMIT_MESSAGE: &str = "Complete development work for {}";
 use crate::{
     domains::git::service as git,
-    domains::sessions::cache::{clear_session_prompted_non_test, SessionCacheManager},
+    domains::sessions::cache::{SessionCacheManager, clear_session_prompted_non_test},
     domains::sessions::db_sessions::SessionMethods as _,
     domains::sessions::entity::ArchivedSpec,
     domains::sessions::entity::{
@@ -294,9 +294,11 @@ mod service_unified_tests {
 
         assert!(result.is_ok());
         let command = result.unwrap();
-        assert!(command
-            .shell_command
-            .contains("--sandbox danger-full-access"));
+        assert!(
+            command
+                .shell_command
+                .contains("--sandbox danger-full-access")
+        );
 
         // Test with skip_permissions = false
         session.id = Uuid::new_v4().to_string();
@@ -1624,10 +1626,10 @@ impl SessionManager {
 
         log::info!("Worktree verified and ready: {}", worktree_path.display());
 
-        if should_copy_claude_locals
-            && let Err(err) = self.copy_claude_local_files(&worktree_path) {
-                warn!("Failed to copy Claude local overrides for session '{unique_name}': {err}");
-            }
+        if should_copy_claude_locals && let Err(err) = self.copy_claude_local_files(&worktree_path)
+        {
+            warn!("Failed to copy Claude local overrides for session '{unique_name}': {err}");
+        }
 
         // IMPORTANT: Do not execute project setup script here.
         // We stream the setup script output directly in the session's top terminal
@@ -1650,9 +1652,10 @@ impl SessionManager {
         git_stats.session_id = session_id.clone();
         self.db_manager.save_git_stats(&git_stats)?;
         if let Some(ts) = git_stats.last_diff_change_ts
-            && let Some(dt) = Utc.timestamp_opt(ts, 0).single() {
-                let _ = self.db_manager.set_session_activity(&session_id, dt);
-            }
+            && let Some(dt) = Utc.timestamp_opt(ts, 0).single()
+        {
+            let _ = self.db_manager.set_session_activity(&session_id, dt);
+        }
 
         self.cache_manager.unreserve_name(&unique_name);
         log::info!("Successfully created session '{unique_name}'");
@@ -1679,20 +1682,21 @@ impl SessionManager {
 
         let claude_dir = self.repo_path.join(".claude");
         if claude_dir.is_dir()
-            && let Ok(entries) = fs::read_dir(&claude_dir) {
-                for entry in entries.filter_map(Result::ok) {
-                    let path = entry.path();
-                    if !path.is_file() {
-                        continue;
-                    }
-                    let name_lower = entry.file_name().to_string_lossy().to_ascii_lowercase();
-                    if !name_lower.contains(".local.") {
-                        continue;
-                    }
-                    let dest = worktree_path.join(".claude").join(entry.file_name());
-                    copy_plan.push((path, dest));
+            && let Ok(entries) = fs::read_dir(&claude_dir)
+        {
+            for entry in entries.filter_map(Result::ok) {
+                let path = entry.path();
+                if !path.is_file() {
+                    continue;
                 }
+                let name_lower = entry.file_name().to_string_lossy().to_ascii_lowercase();
+                if !name_lower.contains(".local.") {
+                    continue;
+                }
+                let dest = worktree_path.join(".claude").join(entry.file_name());
+                copy_plan.push((path, dest));
             }
+        }
 
         for (source, dest) in copy_plan {
             if dest.exists() {
@@ -1835,11 +1839,12 @@ impl SessionManager {
                     let worktrees = repo.worktrees()?;
                     for wt_name in worktrees.iter().flatten() {
                         if let Ok(wt) = repo.find_worktree(wt_name)
-                            && wt.path() == worktree_path {
-                                // Prune the worktree (force removal)
-                                let _ = wt.prune(Some(&mut WorktreePruneOptions::new()));
-                                break;
-                            }
+                            && wt.path() == worktree_path
+                        {
+                            // Prune the worktree (force removal)
+                            let _ = wt.prune(Some(&mut WorktreePruneOptions::new()));
+                            break;
+                        }
                     }
                     // Also try to remove directory if still exists
                     if worktree_path.exists() {
@@ -1890,14 +1895,16 @@ impl SessionManager {
 
         // Wait for parallel operations
         if let Some(worktree_handle) = worktree_future
-            && let Err(e) = worktree_handle.await {
-                log::warn!("Fast cancel {name}: Worktree task error: {e}");
-            }
+            && let Err(e) = worktree_handle.await
+        {
+            log::warn!("Fast cancel {name}: Worktree task error: {e}");
+        }
 
         if let Some(branch_handle) = branch_future
-            && let Err(e) = branch_handle.await {
-                log::warn!("Fast cancel {name}: Branch task error: {e}");
-            }
+            && let Err(e) = branch_handle.await
+        {
+            log::warn!("Fast cancel {name}: Branch task error: {e}");
+        }
 
         // Update database status
         self.db_manager
@@ -1931,17 +1938,21 @@ impl SessionManager {
         }
 
         if session.worktree_path.exists()
-            && let Err(e) = git::remove_worktree(&self.repo_path, &session.worktree_path) {
-                log::warn!("Failed to remove worktree when converting to spec (will continue anyway): {e}. This may be due to active processes or file locks in the worktree directory.");
-                // Continue with conversion even if worktree removal fails - the important part
-                // is updating the session state in the database. The orphaned directory
-                // can be cleaned up later via cleanup_orphaned_worktrees()
-            }
+            && let Err(e) = git::remove_worktree(&self.repo_path, &session.worktree_path)
+        {
+            log::warn!(
+                "Failed to remove worktree when converting to spec (will continue anyway): {e}. This may be due to active processes or file locks in the worktree directory."
+            );
+            // Continue with conversion even if worktree removal fails - the important part
+            // is updating the session state in the database. The orphaned directory
+            // can be cleaned up later via cleanup_orphaned_worktrees()
+        }
 
         if git::branch_exists(&self.repo_path, &session.branch)?
-            && let Err(e) = git::delete_branch(&self.repo_path, &session.branch) {
-                log::warn!("Failed to delete branch '{}': {}", session.branch, e);
-            }
+            && let Err(e) = git::delete_branch(&self.repo_path, &session.branch)
+        {
+            log::warn!("Failed to delete branch '{}': {}", session.branch, e);
+        }
 
         self.db_manager
             .update_session_status(&session.id, SessionStatus::Spec)?;
@@ -2201,13 +2212,18 @@ impl SessionManager {
         }
 
         let total_elapsed = start_time.elapsed();
-        log::info!("list_enriched_sessions: Returning {} enriched sessions (total: {}ms, db: {}ms, git_stats: {}ms, worktree_checks: {}ms, avg per session: {}ms)",
+        log::info!(
+            "list_enriched_sessions: Returning {} enriched sessions (total: {}ms, db: {}ms, git_stats: {}ms, worktree_checks: {}ms, avg per session: {}ms)",
             enriched.len(),
             total_elapsed.as_millis(),
             db_time.as_millis(),
             git_stats_total_time.as_millis(),
             worktree_check_time.as_millis(),
-            if session_count > 0 { total_elapsed.as_millis() / session_count as u128 } else { 0 }
+            if session_count > 0 {
+                total_elapsed.as_millis() / session_count as u128
+            } else {
+                0
+            }
         );
 
         if total_elapsed.as_millis() > 500 {
@@ -2327,16 +2343,27 @@ impl SessionManager {
             } else {
                 None
             };
-            log::info!("Session manager: find_resumable_claude_session_fast returned: {resumable_session_id:?}");
+            log::info!(
+                "Session manager: find_resumable_claude_session_fast returned: {resumable_session_id:?}"
+            );
 
             // Determine session_id and prompt based on force_restart and existing session
             let (session_id_to_use, prompt_to_use, did_start_fresh) = if force_restart {
                 // Explicit restart - always use initial prompt, no session resumption
-                log::info!("Session manager: Force restarting Claude session '{}' with initial_prompt={:?}", session_name, session.initial_prompt);
+                log::info!(
+                    "Session manager: Force restarting Claude session '{}' with initial_prompt={:?}",
+                    session_name,
+                    session.initial_prompt
+                );
                 (None, session.initial_prompt.as_deref(), true)
             } else if let Some(session_id) = resumable_session_id {
                 // Session exists with actual conversation content and not forcing restart - resume with session ID
-                log::info!("Session manager: Resuming existing Claude session '{}' with session_id='{}' in worktree: {}", session_name, session_id, session.worktree_path.display());
+                log::info!(
+                    "Session manager: Resuming existing Claude session '{}' with session_id='{}' in worktree: {}",
+                    session_name,
+                    session_id,
+                    session.worktree_path.display()
+                );
                 (Some(session_id), None, false)
             } else {
                 // No resumable session - use initial prompt for first start or empty sessions
@@ -2348,7 +2375,9 @@ impl SessionManager {
                 (None, session.initial_prompt.as_deref(), true)
             };
 
-            log::info!("Session manager: Final decision - session_id_to_use={session_id_to_use:?}, prompt_to_use={prompt_to_use:?}");
+            log::info!(
+                "Session manager: Final decision - session_id_to_use={session_id_to_use:?}, prompt_to_use={prompt_to_use:?}"
+            );
 
             // Only mark session as prompted if we're actually using the prompt
             if prompt_to_use.is_some() {
@@ -2357,16 +2386,17 @@ impl SessionManager {
             }
 
             // If we started fresh and resume had been disallowed, flip resume_allowed back to true for future resumes
-            if did_start_fresh && !resume_allowed
+            if did_start_fresh
+                && !resume_allowed
                 && let Err(err) = self
                     .db_manager
                     .set_session_resume_allowed(&session.id, true)
-                {
-                    log::warn!(
-                        "Failed to re-enable resume for session {}: {err}",
-                        session.id
-                    );
-                }
+            {
+                log::warn!(
+                    "Failed to re-enable resume for session {}: {err}",
+                    session.id
+                );
+            }
 
             let binary_path = self.utils.get_effective_binary_path_with_override(
                 "claude",
@@ -2410,7 +2440,10 @@ impl SessionManager {
             } else {
                 None
             };
-            log::info!("Session manager: resume_allowed={resume_allowed}, find_codex_resume_path returned: {:?}", resume_path.as_ref().map(|p| p.display().to_string()));
+            log::info!(
+                "Session manager: resume_allowed={resume_allowed}, find_codex_resume_path returned: {:?}",
+                resume_path.as_ref().map(|p| p.display().to_string())
+            );
             log::info!(
                 "Session manager: find_codex_session_fast returned: {resumable_session_id:?}"
             );
@@ -2465,7 +2498,9 @@ impl SessionManager {
                 (None, session.initial_prompt.as_deref(), true)
             };
 
-            log::info!("Session manager: Final decision - session_id_to_use={session_id_to_use:?}, prompt_to_use={prompt_to_use:?}");
+            log::info!(
+                "Session manager: Final decision - session_id_to_use={session_id_to_use:?}, prompt_to_use={prompt_to_use:?}"
+            );
 
             // Only mark session as prompted if we're actually using the prompt
             if prompt_to_use.is_some() {
@@ -2474,16 +2509,17 @@ impl SessionManager {
             }
 
             // If we started fresh and resume had been disallowed, flip resume_allowed back to true for future resumes
-            if did_start_fresh && !resume_allowed
+            if did_start_fresh
+                && !resume_allowed
                 && let Err(err) = self
                     .db_manager
                     .set_session_resume_allowed(&session.id, true)
-                {
-                    log::warn!(
-                        "Failed to re-enable resume for session {}: {err}",
-                        session.id
-                    );
-                }
+            {
+                log::warn!(
+                    "Failed to re-enable resume for session {}: {err}",
+                    session.id
+                );
+            }
 
             let binary_path = self.utils.get_effective_binary_path_with_override(
                 "codex",
@@ -2680,7 +2716,10 @@ impl SessionManager {
 
         if !self.repo_path.join(".git").exists() {
             log::error!("Not a git repository: {}", self.repo_path.display());
-            return Err(anyhow!("The folder '{}' is not a git repository. The orchestrator requires a git repository to function.", self.repo_path.display()));
+            return Err(anyhow!(
+                "The folder '{}' is not a git repository. The orchestrator requires a git repository to function.",
+                self.repo_path.display()
+            ));
         }
 
         let skip_permissions = self.db_manager.get_orchestrator_skip_permissions()?;
@@ -2766,7 +2805,9 @@ impl SessionManager {
                         Some(session_id)
                     }
                     None => {
-                        log::info!("Orchestrator: No existing Claude orchestrator sessions found in main repo, starting fresh");
+                        log::info!(
+                            "Orchestrator: No existing Claude orchestrator sessions found in main repo, starting fresh"
+                        );
                         None
                     }
                 }
@@ -2824,7 +2865,9 @@ impl SessionManager {
 
         // Validate that the session is in a valid state for marking as reviewed
         if session.session_state == SessionState::Spec {
-            return Err(anyhow!("Cannot mark spec session '{session_name}' as reviewed. Start the spec first with schaltwerk_draft_start."));
+            return Err(anyhow!(
+                "Cannot mark spec session '{session_name}' as reviewed. Start the spec first with schaltwerk_draft_start."
+            ));
         }
 
         if session.ready_to_merge {
@@ -2875,7 +2918,9 @@ impl SessionManager {
             if let Err(e) = self.set_global_skip_permissions(skip_permissions) {
                 warn!("Failed to set global skip permissions to '{skip_permissions}': {e}");
             } else {
-                info!("Set global skip permissions to '{skip_permissions}' for session '{session_name}'");
+                info!(
+                    "Set global skip permissions to '{skip_permissions}' for session '{session_name}'"
+                );
             }
         }
 
@@ -3130,14 +3175,15 @@ impl SessionManager {
         log::info!("Worktree verified and ready: {}", worktree_path.display());
 
         if let Ok(Some(setup_script)) = self.db_manager.get_project_setup_script()
-            && !setup_script.trim().is_empty() {
-                self.utils.execute_setup_script(
-                    &setup_script,
-                    &unique_name,
-                    &branch,
-                    &worktree_path,
-                )?;
-            }
+            && !setup_script.trim().is_empty()
+        {
+            self.utils.execute_setup_script(
+                &setup_script,
+                &unique_name,
+                &branch,
+                &worktree_path,
+            )?;
+        }
 
         self.db_manager
             .update_session_status(&session_id, SessionStatus::Active)?;
@@ -3167,9 +3213,10 @@ impl SessionManager {
         git_stats.session_id = session_id.clone();
         self.db_manager.save_git_stats(&git_stats)?;
         if let Some(ts) = git_stats.last_diff_change_ts
-            && let Some(dt) = Utc.timestamp_opt(ts, 0).single() {
-                let _ = self.db_manager.set_session_activity(&session_id, dt);
-            }
+            && let Some(dt) = Utc.timestamp_opt(ts, 0).single()
+        {
+            let _ = self.db_manager.set_session_activity(&session_id, dt);
+        }
 
         Ok(())
     }
@@ -3278,7 +3325,9 @@ impl SessionManager {
                         log::error!(
                             "Failed to resolve parent branch for spec '{session_name}': {e}"
                         );
-                        return Err(anyhow!("Failed to detect base branch: {e}. Please ensure the repository has at least one branch (e.g., 'main' or 'master')"));
+                        return Err(anyhow!(
+                            "Failed to detect base branch: {e}. Please ensure the repository has at least one branch (e.g., 'main' or 'master')"
+                        ));
                     }
                 }
             }
@@ -3331,14 +3380,15 @@ impl SessionManager {
         );
 
         if let Ok(Some(setup_script)) = self.db_manager.get_project_setup_script()
-            && !setup_script.trim().is_empty() {
-                self.utils.execute_setup_script(
-                    &setup_script,
-                    &session.name,
-                    &session.branch,
-                    &session.worktree_path,
-                )?;
-            }
+            && !setup_script.trim().is_empty()
+        {
+            self.utils.execute_setup_script(
+                &setup_script,
+                &session.name,
+                &session.branch,
+                &session.worktree_path,
+            )?;
+        }
 
         self.db_manager
             .update_session_status(&session.id, SessionStatus::Active)?;
@@ -3349,7 +3399,9 @@ impl SessionManager {
             .set_session_resume_allowed(&session.id, false)?;
 
         if let Some(spec_content) = session.spec_content {
-            log::info!("Copying spec content to initial_prompt for session '{session_name}': '{spec_content}'");
+            log::info!(
+                "Copying spec content to initial_prompt for session '{session_name}': '{spec_content}'"
+            );
             self.db_manager
                 .update_session_initial_prompt(&session.id, &spec_content)?;
             clear_session_prompted_non_test(&session.worktree_path);
@@ -3357,7 +3409,9 @@ impl SessionManager {
                 "Cleared prompt state for session '{session_name}' to ensure spec content is used"
             );
         } else {
-            log::warn!("No spec_content found for session '{session_name}' - initial_prompt will not be set");
+            log::warn!(
+                "No spec_content found for session '{session_name}' - initial_prompt will not be set"
+            );
         }
 
         let global_agent = self
@@ -3373,9 +3427,10 @@ impl SessionManager {
         git_stats.session_id = session.id.clone();
         self.db_manager.save_git_stats(&git_stats)?;
         if let Some(ts) = git_stats.last_diff_change_ts
-            && let Some(dt) = Utc.timestamp_opt(ts, 0).single() {
-                let _ = self.db_manager.set_session_activity(&session.id, dt);
-            }
+            && let Some(dt) = Utc.timestamp_opt(ts, 0).single()
+        {
+            let _ = self.db_manager.set_session_activity(&session.id, dt);
+        }
 
         Ok(())
     }
@@ -3469,7 +3524,9 @@ impl SessionManager {
         }
 
         self.db_manager.update_spec_content(&session.id, content)?;
-        info!("SessionCore: Successfully updated spec content in database for session '{session_name}'");
+        info!(
+            "SessionCore: Successfully updated spec content in database for session '{session_name}'"
+        );
         Ok(())
     }
 
@@ -3491,7 +3548,9 @@ impl SessionManager {
         }
 
         self.db_manager.append_spec_content(&session.id, content)?;
-        info!("SessionCore: Successfully appended spec content in database for session '{session_name}'");
+        info!(
+            "SessionCore: Successfully appended spec content in database for session '{session_name}'"
+        );
         Ok(())
     }
 
@@ -3671,12 +3730,14 @@ impl SessionManager {
             .map_err(|e| anyhow!("Failed to open worktree repository: {e}"))?;
         if let Ok(head) = repo.head() {
             if let Some(name) = head.shorthand()
-                && name != session.branch {
-                    log::warn!(
-                        "Discard file: HEAD shorthand '{}' != session branch '{}' (continuing defensively)",
-                        name, session.branch
-                    );
-                }
+                && name != session.branch
+            {
+                log::warn!(
+                    "Discard file: HEAD shorthand '{}' != session branch '{}' (continuing defensively)",
+                    name,
+                    session.branch
+                );
+            }
         } else {
             log::warn!("Discard file: unable to read HEAD; continuing defensively");
         }

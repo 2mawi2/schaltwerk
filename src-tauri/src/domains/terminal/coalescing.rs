@@ -114,16 +114,18 @@ pub async fn handle_coalesced_output(
             };
 
             if let Some(prefix) = remainder_prefix
-                && !prefix.is_empty() {
-                    let mut buffers = coalescing_state.emit_buffers.write().await;
-                    let entry = buffers.entry(params.terminal_id.to_string()).or_default();
-                    entry.splice(0..0, prefix);
-                }
+                && !prefix.is_empty()
+            {
+                let mut buffers = coalescing_state.emit_buffers.write().await;
+                let entry = buffers.entry(params.terminal_id.to_string()).or_default();
+                entry.splice(0..0, prefix);
+            }
 
             if let Some(text) = payload
-                && let Err(e) = handle.emit(&event_name, text) {
-                    warn!("Failed to emit terminal output: {e}");
-                }
+                && let Err(e) = handle.emit(&event_name, text)
+            {
+                warn!("Failed to emit terminal output: {e}");
+            }
         } else {
             // No app handle available (tests or early startup): restore bytes back to buffer
             let mut buffers = coalescing_state.emit_buffers.write().await;
@@ -160,7 +162,7 @@ fn decode_coalesced_bytes(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::time::{sleep, Duration};
+    use tokio::time::{Duration, sleep};
 
     #[tokio::test]
     async fn test_coalescing_state_creation() {
@@ -465,11 +467,13 @@ mod tests {
         assert!(!state.emit_buffers.read().await.contains_key(terminal_id));
         assert!(!state.emit_scheduled.read().await.contains_key(terminal_id));
         // The clear_for method still clears normalized buffers for compatibility
-        assert!(!state
-            .emit_buffers_norm
-            .read()
-            .await
-            .contains_key(terminal_id));
+        assert!(
+            !state
+                .emit_buffers_norm
+                .read()
+                .await
+                .contains_key(terminal_id)
+        );
         assert!(!state.norm_last_cr.read().await.contains_key(terminal_id));
     }
 

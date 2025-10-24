@@ -11,6 +11,7 @@ export interface UnifiedTabProps {
   showCloseButton?: boolean
   disabled?: boolean
   className?: string
+  badgeContent?: React.ReactNode
   title?: string
   style?: React.CSSProperties
   isRunTab?: boolean
@@ -26,6 +27,7 @@ export function UnifiedTab({
   showCloseButton = true,
   disabled = false,
   className = '',
+  badgeContent,
   title,
   style,
   isRunTab = false,
@@ -113,10 +115,22 @@ export function UnifiedTab({
       )}
 
       {/* Tab content */}
-      <div className="relative z-10 flex items-center w-full">
+      <div className="relative z-10 flex items-center w-full gap-2">
         <span className="truncate flex-1 font-medium">
           {label}
         </span>
+
+        {badgeContent && (
+          <span
+            className="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[11px] font-semibold"
+            style={{
+              backgroundColor: theme.colors.accent.yellow.bg,
+              color: theme.colors.accent.yellow.DEFAULT,
+            }}
+          >
+            {badgeContent}
+          </span>
+        )}
 
         {showCloseButton && onClose && (
           <button

@@ -76,6 +76,7 @@ export const TauriCommands = {
   PtyAck: 'pty_ack',
   PtySubscribe: 'pty_subscribe',
   RefreshAgentBinaryDetection: 'refresh_agent_binary_detection',
+  ReportAttentionSnapshot: 'report_attention_snapshot',
   RemoveMcpForProject: 'remove_mcp_for_project',
   RemoveRecentProject: 'remove_recent_project',
   RepositoryIsEmpty: 'repository_is_empty',

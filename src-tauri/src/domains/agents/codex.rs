@@ -377,7 +377,8 @@ fn persist_disk_cache(sessions_dir: &Path, cache: &HashMap<PathBuf, CachedFileEn
     let tmp_path = path.with_extension("tmp");
 
     if let Some(parent) = path.parent()
-        && let Err(err) = fs::create_dir_all(parent) {
+        && let Err(err) = fs::create_dir_all(parent)
+    {
         log::warn!(
             "Codex session index: Failed to create cache directory {}: {err}",
             parent.display()
@@ -917,7 +918,9 @@ pub fn build_codex_command_with_config(
                 cmd.push_str(" resume ");
                 cmd.push_str(&id);
             } else {
-                log::warn!("⚠️ Codex command builder: Could not extract session id from legacy file URI: {trimmed}");
+                log::warn!(
+                    "⚠️ Codex command builder: Could not extract session id from legacy file URI: {trimmed}"
+                );
                 cmd.push_str(" resume");
             }
         } else if trimmed.is_empty() {
@@ -951,7 +954,7 @@ pub fn build_codex_command_with_config(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use filetime::{set_file_mtime, FileTime};
+    use filetime::{FileTime, set_file_mtime};
     use std::env;
     use std::fs;
     use std::io::Write;
@@ -1386,7 +1389,7 @@ mod tests {
 
     #[test]
     fn test_find_codex_session_fast_resume_when_old_match_exists() {
-        use filetime::{set_file_mtime, FileTime};
+        use filetime::{FileTime, set_file_mtime};
 
         let tmp = tempdir().unwrap();
         let day_old = tmp.path().join(".codex/sessions/2025/08/22");

@@ -1,8 +1,8 @@
 use super::{
-    get_effective_shell, ApplicationSpec, CreateParams, LocalPtyAdapter, TerminalBackend,
-    TerminalSnapshot,
+    ApplicationSpec, CreateParams, LocalPtyAdapter, TerminalBackend, TerminalSnapshot,
+    get_effective_shell,
 };
-use crate::infrastructure::events::{emit_event, SchaltEvent};
+use crate::infrastructure::events::{SchaltEvent, emit_event};
 use log::{debug, error, info, warn};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -265,7 +265,10 @@ impl TerminalManager {
         rows: u16,
         env: Vec<(String, String)>,
     ) -> Result<(), String> {
-        info!("Creating terminal through manager with size: id={id}, cwd={cwd}, size={cols}x{rows}, env_count={}", env.len());
+        info!(
+            "Creating terminal through manager with size: id={id}, cwd={cwd}, size={cols}x{rows}, env_count={}",
+            env.len()
+        );
 
         let cwd_for_event = cwd.clone();
         let params = if env.is_empty() {
@@ -350,8 +353,10 @@ impl TerminalManager {
         &self,
         params: CreateTerminalWithAppAndSizeParams,
     ) -> Result<(), String> {
-        info!("Creating terminal with app and size through manager: id={}, cwd={}, command={}, size={}x{}", 
-            params.id, params.cwd, params.command, params.cols, params.rows);
+        info!(
+            "Creating terminal with app and size through manager: id={}, cwd={}, command={}, size={}x{}",
+            params.id, params.cwd, params.command, params.cols, params.rows
+        );
 
         let app_spec = ApplicationSpec {
             command: params.command,

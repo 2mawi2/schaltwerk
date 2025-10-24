@@ -1,8 +1,8 @@
+use crate::SETTINGS_MANAGER;
 use crate::commands::schaltwerk_core::schaltwerk_core_cli::extract_codex_prompt_if_present;
 use crate::commands::schaltwerk_core::schaltwerk_core_cli::{
     fix_codex_single_dash_long_flags, normalize_cli_text, reorder_codex_model_after_profile,
 };
-use crate::SETTINGS_MANAGER;
 use schaltwerk::schaltwerk_core::db_project_config::ProjectConfigMethods;
 use std::path::Path;
 
@@ -144,12 +144,13 @@ pub fn build_final_args(
             fix_codex_single_dash_long_flags(&mut additional);
             reorder_codex_model_after_profile(&mut additional);
             if harness_manages_codex_sandbox()
-                && let Some(removed) = strip_codex_sandbox_overrides(&mut additional) {
-                    let removed_joined = removed.join(", ");
-                    log::warn!(
-                        "Ignoring Codex CLI sandbox override because Schaltwerk manages sandbox mode: {removed_joined}"
-                    );
-                }
+                && let Some(removed) = strip_codex_sandbox_overrides(&mut additional)
+            {
+                let removed_joined = removed.join(", ");
+                log::warn!(
+                    "Ignoring Codex CLI sandbox override because Schaltwerk manages sandbox mode: {removed_joined}"
+                );
+            }
             parsed_agent_args.extend(additional);
             if let Some(p) = extracted_prompt {
                 parsed_agent_args.push(p);

@@ -13,6 +13,7 @@ import {
 import { AgentType, AGENT_TYPES, createAgentRecord } from '../types/session'
 
 export type { AgentType }
+export type AttentionNotificationMode = 'off' | 'dock' | 'system' | 'both'
 type EnvVars = Record<string, string>
 
 interface ProjectSettings {
@@ -60,6 +61,8 @@ interface SessionPreferences {
     auto_commit_on_review: boolean
     skip_confirmation_modals: boolean
     always_show_large_diffs: boolean
+    attention_notification_mode: AttentionNotificationMode
+    remember_idle_baseline: boolean
 }
 
 export interface ProjectMergePreferences {
@@ -131,6 +134,13 @@ export const useSettings = () => {
     
     const saveSessionPreferences = useCallback(async (sessionPreferences: SessionPreferences): Promise<void> => {
         await invoke(TauriCommands.SetSessionPreferences, { preferences: sessionPreferences })
+        emitUiEvent(UiEvent.SessionPreferencesUpdated, {
+            autoCommitOnReview: sessionPreferences.auto_commit_on_review,
+            skipConfirmationModals: sessionPreferences.skip_confirmation_modals,
+            alwaysShowLargeDiffs: sessionPreferences.always_show_large_diffs,
+            attentionNotificationMode: sessionPreferences.attention_notification_mode,
+            rememberIdleBaseline: sessionPreferences.remember_idle_baseline
+        })
     }, [])
 
     const saveMergePreferences = useCallback(async (mergePreferences: ProjectMergePreferences): Promise<void> => {
@@ -268,12 +278,22 @@ export const useSettings = () => {
     }, [])
     
     const loadSessionPreferences = useCallback(async (): Promise<SessionPreferences> => {
+        const defaults: SessionPreferences = {
+            auto_commit_on_review: false,
+            skip_confirmation_modals: false,
+            always_show_large_diffs: false,
+            attention_notification_mode: 'dock',
+            remember_idle_baseline: true
+        }
         try {
-            const preferences = await invoke<SessionPreferences>(TauriCommands.GetSessionPreferences)
-            return preferences || { auto_commit_on_review: false, skip_confirmation_modals: false, always_show_large_diffs: false }
+            const preferences = await invoke<Partial<SessionPreferences>>(TauriCommands.GetSessionPreferences)
+            return {
+                ...defaults,
+                ...preferences
+            }
         } catch (error) {
             logger.error('Failed to load session preferences:', error)
-            return { auto_commit_on_review: false, skip_confirmation_modals: false, always_show_large_diffs: false }
+            return defaults
         }
     }, [])
 

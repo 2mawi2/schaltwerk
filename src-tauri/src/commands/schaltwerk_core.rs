@@ -1,6 +1,6 @@
 use crate::{
-    commands::session_lookup_cache::global_session_lookup_cache, get_core_read, get_core_write,
-    get_file_watcher_manager, get_terminal_manager, PROJECT_MANAGER, SETTINGS_MANAGER,
+    PROJECT_MANAGER, SETTINGS_MANAGER, commands::session_lookup_cache::global_session_lookup_cache,
+    get_core_read, get_core_write, get_file_watcher_manager, get_terminal_manager,
 };
 use schaltwerk::domains::agents::{manifest::AgentManifest, naming, parse_agent_command};
 use schaltwerk::domains::git::repository;
@@ -15,10 +15,10 @@ use schaltwerk::domains::terminal::{
     shell_invocation_to_posix,
 };
 use schaltwerk::domains::workspace::get_project_files_with_status;
-use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
-use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
-use schaltwerk::schaltwerk_core::db_project_config::{ProjectConfigMethods, DEFAULT_BRANCH_PREFIX};
+use schaltwerk::infrastructure::events::{SchaltEvent, emit_event};
 use schaltwerk::schaltwerk_core::SessionManager;
+use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
+use schaltwerk::schaltwerk_core::db_project_config::{DEFAULT_BRANCH_PREFIX, ProjectConfigMethods};
 use schaltwerk::services::ServiceHandles;
 use schaltwerk::utils::env_adapter::EnvAdapter;
 use std::collections::HashSet;
@@ -173,7 +173,7 @@ pub async fn merge_session_with_events(
             return Err(MergeCommandError {
                 message: e,
                 conflict: false,
-            })
+            });
         }
     };
 
@@ -211,8 +211,7 @@ pub async fn merge_session_with_events(
             let message = if conflict {
                 format!(
                     "Merge conflicts detected while updating '{}'. Resolve the conflicts in the session worktree and try again.\n{}",
-                    preview.parent_branch,
-                    summary
+                    preview.parent_branch, summary
                 )
             } else {
                 summary.clone()
@@ -222,47 +221,40 @@ pub async fn merge_session_with_events(
                 let manager = service.session_manager();
                 if let Ok(session) = manager.get_session(name)
                     && session.worktree_path.exists()
-                        && let Ok(stats) =
-                            schaltwerk::domains::git::service::calculate_git_stats_fast(
-                                &session.worktree_path,
-                                &session.parent_branch,
-                            )
-                        {
-                            let has_conflicts =
-                                schaltwerk::domains::git::operations::has_conflicts(
-                                    &session.worktree_path,
-                                )
-                                .unwrap_or(false);
+                    && let Ok(stats) = schaltwerk::domains::git::service::calculate_git_stats_fast(
+                        &session.worktree_path,
+                        &session.parent_branch,
+                    )
+                {
+                    let has_conflicts =
+                        schaltwerk::domains::git::operations::has_conflicts(&session.worktree_path)
+                            .unwrap_or(false);
 
-                            let mut merge_snapshot =
-                                MergeStateSnapshot::from_preview(Some(&preview));
-                            merge_snapshot.merge_has_conflicts = Some(true);
+                    let mut merge_snapshot = MergeStateSnapshot::from_preview(Some(&preview));
+                    merge_snapshot.merge_has_conflicts = Some(true);
 
-                            let payload =
-                                schaltwerk::domains::sessions::activity::SessionGitStatsUpdated {
-                                    session_id: session.id.clone(),
-                                    session_name: session.name.clone(),
-                                    files_changed: stats.files_changed,
-                                    lines_added: stats.lines_added,
-                                    lines_removed: stats.lines_removed,
-                                    has_uncommitted: stats.has_uncommitted,
-                                    has_conflicts,
-                                    top_uncommitted_paths: None,
-                                    merge_has_conflicts: merge_snapshot.merge_has_conflicts,
-                                    merge_conflicting_paths: merge_snapshot.merge_conflicting_paths,
-                                    merge_is_up_to_date: merge_snapshot.merge_is_up_to_date,
-                                };
+                    let payload = schaltwerk::domains::sessions::activity::SessionGitStatsUpdated {
+                        session_id: session.id.clone(),
+                        session_name: session.name.clone(),
+                        files_changed: stats.files_changed,
+                        lines_added: stats.lines_added,
+                        lines_removed: stats.lines_removed,
+                        has_uncommitted: stats.has_uncommitted,
+                        has_conflicts,
+                        top_uncommitted_paths: None,
+                        merge_has_conflicts: merge_snapshot.merge_has_conflicts,
+                        merge_conflicting_paths: merge_snapshot.merge_conflicting_paths,
+                        merge_is_up_to_date: merge_snapshot.merge_is_up_to_date,
+                    };
 
-                            if let Err(err) =
-                                emit_event(app, SchaltEvent::SessionGitStats, &payload)
-                            {
-                                log::debug!(
-                                    "Failed to emit SessionGitStats after merge failure for {}: {}",
-                                    session.name,
-                                    err
-                                );
-                            }
-                        }
+                    if let Err(err) = emit_event(app, SchaltEvent::SessionGitStats, &payload) {
+                        log::debug!(
+                            "Failed to emit SessionGitStats after merge failure for {}: {}",
+                            session.name,
+                            err
+                        );
+                    }
+                }
             }
 
             events::emit_git_operation_failed(
@@ -317,8 +309,8 @@ pub async fn schaltwerk_core_archive_spec_session(
 }
 
 #[tauri::command]
-pub async fn schaltwerk_core_list_archived_specs(
-) -> Result<Vec<schaltwerk::domains::sessions::entity::ArchivedSpec>, String> {
+pub async fn schaltwerk_core_list_archived_specs()
+-> Result<Vec<schaltwerk::domains::sessions::entity::ArchivedSpec>, String> {
     let manager = session_manager_read().await?;
     manager
         .list_archived_specs()
@@ -563,7 +555,9 @@ pub async fn schaltwerk_core_create_session(
                 );
 
                 if !session.pending_name_generation {
-                    log::info!("Session '{session_name_clone}' does not have pending_name_generation flag, skipping");
+                    log::info!(
+                        "Session '{session_name_clone}' does not have pending_name_generation flag, skipping"
+                    );
                     return;
                 }
                 let agent = session.original_agent_type.clone().unwrap_or_else(|| {
@@ -650,7 +644,9 @@ pub async fn schaltwerk_core_create_session(
                 .await
             {
                 Ok(Some(display_name)) => {
-                    log::info!("Successfully generated display name '{display_name}' for session '{session_name_clone}'");
+                    log::info!(
+                        "Successfully generated display name '{display_name}' for session '{session_name_clone}'"
+                    );
 
                     if let Err(e) = db_clone.set_pending_name_generation(&session_id, false) {
                         log::warn!(
@@ -1205,9 +1201,10 @@ pub async fn schaltwerk_core_start_claude_with_restart(
     log::info!("Claude command for session {session_name}: {command}");
 
     if agent_type == "amp"
-        && let Err(e) = manager.spawn_amp_thread_watcher(&session_name) {
-            log::warn!("Failed to spawn amp thread watcher for session '{session_name}': {e}");
-        }
+        && let Err(e) = manager.spawn_amp_thread_watcher(&session_name)
+    {
+        log::warn!("Failed to spawn amp thread watcher for session '{session_name}': {e}");
+    }
 
     let (cwd, agent_name, agent_args) = parse_agent_command(&command)?;
     let agent_kind = agent_ctx::infer_agent_kind(&agent_name);
@@ -1229,15 +1226,19 @@ pub async fn schaltwerk_core_start_claude_with_restart(
     }
 
     if auto_send_initial_command
-        && let Some(initial) = initial_command.clone().filter(|v| !v.trim().is_empty()) {
-            terminal_manager
-                .queue_initial_command(terminal_id.clone(), initial, ready_marker.clone())
-                .await?;
-        }
+        && let Some(initial) = initial_command.clone().filter(|v| !v.trim().is_empty())
+    {
+        terminal_manager
+            .queue_initial_command(terminal_id.clone(), initial, ready_marker.clone())
+            .await?;
+    }
 
     let (mut env_vars, cli_args) =
         agent_ctx::collect_agent_env_and_cli(&agent_kind, &core.repo_path, &core.db).await;
-    log::info!("Creating terminal with {agent_name} directly: {terminal_id} with {} env vars and CLI args: '{cli_args}'", env_vars.len());
+    log::info!(
+        "Creating terminal with {agent_name} directly: {terminal_id} with {} env vars and CLI args: '{cli_args}'",
+        env_vars.len()
+    );
 
     EnvAdapter::set_var("SCHALTWERK_SESSION", &session_name);
     if !env_vars.iter().any(|(key, _)| key == "SCHALTWERK_SESSION") {
@@ -1263,55 +1264,56 @@ pub async fn schaltwerk_core_start_claude_with_restart(
         }
     }
     if let Ok(Some(setup)) = core.db.get_project_setup_script(&core.repo_path)
-        && !setup.trim().is_empty() {
-            // Persist setup script to a temp file for reliable execution
-            let temp_dir = std::env::temp_dir();
-            let ts = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_nanos())
-                .unwrap_or(0);
-            let script_path = temp_dir.join(format!("schalt_setup_{session_name}_{ts}.sh"));
-            if let Err(e) = std::fs::write(&script_path, setup) {
-                log::warn!("Failed to write setup script to temp file: {e}");
+        && !setup.trim().is_empty()
+    {
+        // Persist setup script to a temp file for reliable execution
+        let temp_dir = std::env::temp_dir();
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let script_path = temp_dir.join(format!("schalt_setup_{session_name}_{ts}.sh"));
+        if let Err(e) = std::fs::write(&script_path, setup) {
+            log::warn!("Failed to write setup script to temp file: {e}");
+        } else {
+            let marker_q = sh_quote_string(marker_rel);
+            let script_q = sh_quote_string(&script_path.display().to_string());
+            let script_command = format!("sh {script_q}");
+
+            let (user_shell, default_args) = get_effective_shell();
+            let login_invocation = build_login_shell_invocation_with_shell(
+                &user_shell,
+                &default_args,
+                &script_command,
+            );
+            let run_setup_command = shell_invocation_to_posix(&login_invocation);
+
+            // If we already have a shell_cmd (e.g., from Amp with pipe), wrap it with setup
+            let is_piped_cmd = use_shell_chain && shell_cmd.is_some();
+            let exec_cmd = if is_piped_cmd {
+                // Amp with pipe: wrap the piped command with setup (no exec prefix needed)
+                shell_cmd.take().unwrap()
             } else {
-                let marker_q = sh_quote_string(marker_rel);
-                let script_q = sh_quote_string(&script_path.display().to_string());
-                let script_command = format!("sh {script_q}");
+                // Regular agent: build exec command from agent_name and args
+                let mut exec_cmd = String::new();
+                exec_cmd.push_str(&sh_quote_string(&agent_name));
+                for a in &agent_args {
+                    exec_cmd.push(' ');
+                    exec_cmd.push_str(&sh_quote_string(a));
+                }
+                exec_cmd
+            };
 
-                let (user_shell, default_args) = get_effective_shell();
-                let login_invocation = build_login_shell_invocation_with_shell(
-                    &user_shell,
-                    &default_args,
-                    &script_command,
-                );
-                let run_setup_command = shell_invocation_to_posix(&login_invocation);
-
-                // If we already have a shell_cmd (e.g., from Amp with pipe), wrap it with setup
-                let is_piped_cmd = use_shell_chain && shell_cmd.is_some();
-                let exec_cmd = if is_piped_cmd {
-                    // Amp with pipe: wrap the piped command with setup (no exec prefix needed)
-                    shell_cmd.take().unwrap()
-                } else {
-                    // Regular agent: build exec command from agent_name and args
-                    let mut exec_cmd = String::new();
-                    exec_cmd.push_str(&sh_quote_string(&agent_name));
-                    for a in &agent_args {
-                        exec_cmd.push(' ');
-                        exec_cmd.push_str(&sh_quote_string(a));
-                    }
-                    exec_cmd
-                };
-
-                // For piped commands, exec is already in the command (or not needed)
-                // For regular agents, use exec to replace the shell
-                let exec_prefix = if is_piped_cmd { "" } else { "exec " };
-                let chained = format!(
-                        "set -e; if [ ! -f {marker_q} ]; then {run_setup_command}; rm -f {script_q}; mkdir -p .schaltwerk; : > {marker_q}; fi; {exec_prefix}{exec_cmd}"
-                    );
-                shell_cmd = Some(chained);
-                use_shell_chain = true;
-            }
+            // For piped commands, exec is already in the command (or not needed)
+            // For regular agents, use exec to replace the shell
+            let exec_prefix = if is_piped_cmd { "" } else { "exec " };
+            let chained = format!(
+                "set -e; if [ ! -f {marker_q} ]; then {run_setup_command}; rm -f {script_q}; mkdir -p .schaltwerk; : > {marker_q}; fi; {exec_prefix}{exec_cmd}"
+            );
+            shell_cmd = Some(chained);
+            use_shell_chain = true;
         }
+    }
 
     // Build final args using centralized logic (handles Codex ordering/normalization)
     let final_args = agent_ctx::build_final_args(&agent_kind, agent_args.clone(), &cli_args);
@@ -1649,16 +1651,17 @@ pub async fn schaltwerk_core_get_font_sizes() -> Result<(i32, i32), String> {
                 drop(core);
 
                 if let Ok((db_terminal, db_ui)) = db_result
-                    && (db_terminal, db_ui) != (terminal, ui) {
-                        {
-                            let mut manager = settings_manager.lock().await;
-                            if let Err(err) = manager.set_font_sizes(db_terminal, db_ui) {
-                                log::warn!("Failed to migrate font sizes to settings: {err}");
-                            }
+                    && (db_terminal, db_ui) != (terminal, ui)
+                {
+                    {
+                        let mut manager = settings_manager.lock().await;
+                        if let Err(err) = manager.set_font_sizes(db_terminal, db_ui) {
+                            log::warn!("Failed to migrate font sizes to settings: {err}");
                         }
-                        terminal = db_terminal;
-                        ui = db_ui;
                     }
+                    terminal = db_terminal;
+                    ui = db_ui;
+                }
             }
             Err(err) => {
                 if !err.contains("No active project") {
@@ -1744,41 +1747,42 @@ pub async fn schaltwerk_core_mark_session_ready(
 
     if let Ok(session) = manager.get_session(&name)
         && session.worktree_path.exists()
-            && let Ok(stats) = schaltwerk::domains::git::service::calculate_git_stats_fast(
-                &session.worktree_path,
-                &session.parent_branch,
-            ) {
-                let has_conflicts =
-                    schaltwerk::domains::git::operations::has_conflicts(&session.worktree_path)
-                        .unwrap_or(false);
+        && let Ok(stats) = schaltwerk::domains::git::service::calculate_git_stats_fast(
+            &session.worktree_path,
+            &session.parent_branch,
+        )
+    {
+        let has_conflicts =
+            schaltwerk::domains::git::operations::has_conflicts(&session.worktree_path)
+                .unwrap_or(false);
 
-                let merge_service = MergeService::new(core.db.clone(), core.repo_path.clone());
-                let merge_preview = merge_service.preview(&name).ok();
+        let merge_service = MergeService::new(core.db.clone(), core.repo_path.clone());
+        let merge_preview = merge_service.preview(&name).ok();
 
-                let merge_snapshot = MergeStateSnapshot::from_preview(merge_preview.as_ref());
+        let merge_snapshot = MergeStateSnapshot::from_preview(merge_preview.as_ref());
 
-                let payload = schaltwerk::domains::sessions::activity::SessionGitStatsUpdated {
-                    session_id: session.id.clone(),
-                    session_name: session.name.clone(),
-                    files_changed: stats.files_changed,
-                    lines_added: stats.lines_added,
-                    lines_removed: stats.lines_removed,
-                    has_uncommitted: stats.has_uncommitted,
-                    has_conflicts,
-                    top_uncommitted_paths: None,
-                    merge_has_conflicts: merge_snapshot.merge_has_conflicts,
-                    merge_conflicting_paths: merge_snapshot.merge_conflicting_paths,
-                    merge_is_up_to_date: merge_snapshot.merge_is_up_to_date,
-                };
+        let payload = schaltwerk::domains::sessions::activity::SessionGitStatsUpdated {
+            session_id: session.id.clone(),
+            session_name: session.name.clone(),
+            files_changed: stats.files_changed,
+            lines_added: stats.lines_added,
+            lines_removed: stats.lines_removed,
+            has_uncommitted: stats.has_uncommitted,
+            has_conflicts,
+            top_uncommitted_paths: None,
+            merge_has_conflicts: merge_snapshot.merge_has_conflicts,
+            merge_conflicting_paths: merge_snapshot.merge_conflicting_paths,
+            merge_is_up_to_date: merge_snapshot.merge_is_up_to_date,
+        };
 
-                if let Err(err) = emit_event(&app, SchaltEvent::SessionGitStats, &payload) {
-                    log::debug!(
-                        "Failed to emit SessionGitStats after marking ready for {}: {}",
-                        session.name,
-                        err
-                    );
-                }
-            }
+        if let Err(err) = emit_event(&app, SchaltEvent::SessionGitStats, &payload) {
+            log::debug!(
+                "Failed to emit SessionGitStats after marking ready for {}: {}",
+                session.name,
+                err
+            );
+        }
+    }
 
     // Emit event to notify frontend of the change
     // Invalidate cache before emitting refreshed event
@@ -1905,7 +1909,9 @@ pub async fn schaltwerk_core_create_spec_session(
                 }
             }
 
-            log::info!("Starting name generation for spec session '{session_name}' with agent '{agent}'...");
+            log::info!(
+                "Starting name generation for spec session '{session_name}' with agent '{agent}'..."
+            );
 
             // Generate display name - use spec_content as the prompt
             let ctx = naming::SessionRenameContext {
@@ -2123,7 +2129,9 @@ pub async fn schaltwerk_core_start_spec_session(
                 );
 
                 if !session.pending_name_generation {
-                    log::info!("Session '{session_name_clone}' does not have pending_name_generation flag, skipping");
+                    log::info!(
+                        "Session '{session_name_clone}' does not have pending_name_generation flag, skipping"
+                    );
                     return;
                 }
                 let agent = session.original_agent_type.clone().unwrap_or_else(|| {
@@ -2132,7 +2140,9 @@ pub async fn schaltwerk_core_start_spec_session(
                         .unwrap_or_else(|_| "claude".to_string())
                 });
 
-                log::info!("Using agent '{agent}' for name generation of spec-started session '{session_name_clone}'");
+                log::info!(
+                    "Using agent '{agent}' for name generation of spec-started session '{session_name_clone}'"
+                );
 
                 // Use initial_prompt if available, otherwise use spec_content
                 let prompt_content = session
@@ -2223,7 +2233,9 @@ pub async fn schaltwerk_core_start_spec_session(
                 .await
             {
                 Ok(Some(display_name)) => {
-                    log::info!("Successfully generated display name '{display_name}' for spec-started session '{session_name_clone}'");
+                    log::info!(
+                        "Successfully generated display name '{display_name}' for spec-started session '{session_name_clone}'"
+                    );
 
                     if let Err(e) = db_clone.set_pending_name_generation(&session_id, false) {
                         log::warn!(
@@ -2239,7 +2251,9 @@ pub async fn schaltwerk_core_start_spec_session(
                     events::emit_selection_running(&app_handle, &session_name_clone);
                 }
                 Ok(None) => {
-                    log::warn!("Name generation returned None for spec-started session '{session_name_clone}'");
+                    log::warn!(
+                        "Name generation returned None for spec-started session '{session_name_clone}'"
+                    );
                     let _ = db_clone.set_pending_name_generation(&session_id, false);
                     log::info!(
                         "Queueing sessions refresh after spec-session name generation (None)"
@@ -2252,7 +2266,9 @@ pub async fn schaltwerk_core_start_spec_session(
                     events::emit_selection_running(&app_handle, &session_name_clone);
                 }
                 Err(e) => {
-                    log::error!("Failed to generate display name for spec-started session '{session_name_clone}': {e}");
+                    log::error!(
+                        "Failed to generate display name for spec-started session '{session_name_clone}': {e}"
+                    );
                     let _ = db_clone.set_pending_name_generation(&session_id, false);
                     log::info!(
                         "Queueing sessions refresh after spec-session name generation (Err)"

@@ -81,9 +81,10 @@ pub fn previous_tilde_hashed_terminal_id_for_session_bottom(name: &str) -> Strin
 
 fn strip_numeric_suffix(id: &str) -> &str {
     if let Some((prefix, suffix)) = id.rsplit_once('-')
-        && suffix.chars().all(|c| c.is_ascii_digit()) {
-            return prefix;
-        }
+        && suffix.chars().all(|c| c.is_ascii_digit())
+    {
+        return prefix;
+    }
     id
 }
 
@@ -157,9 +158,13 @@ mod tests {
 
     #[test]
     fn legacy_and_previous_hash_helpers_match_expected_patterns() {
-        assert!(legacy_terminal_id_for_session_top("alpha beta").starts_with("session-alpha_beta-"));
-        assert!(previous_hashed_terminal_id_for_session_top("alpha beta")
-            .starts_with("session-alpha_beta-"));
+        assert!(
+            legacy_terminal_id_for_session_top("alpha beta").starts_with("session-alpha_beta-")
+        );
+        assert!(
+            previous_hashed_terminal_id_for_session_top("alpha beta")
+                .starts_with("session-alpha_beta-")
+        );
         assert!(
             previous_tilde_hashed_terminal_id_for_session_top("alpha beta")
                 .starts_with("session-alpha_beta~")

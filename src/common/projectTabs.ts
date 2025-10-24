@@ -1,6 +1,7 @@
 export interface ProjectTab {
   projectPath: string
   projectName: string
+  attentionCount?: number
 }
 
 export function determineNextActiveTab(tabs: ProjectTab[], closingPath: string): ProjectTab | null {

@@ -19,9 +19,9 @@ mod permissions;
 mod projects;
 mod updater;
 
-use crate::commands::sessions_refresh::{request_sessions_refresh, SessionsRefreshReason};
+use crate::commands::sessions_refresh::{SessionsRefreshReason, request_sessions_refresh};
 use clap::Parser;
-use schaltwerk::domains::git::repository;
+use schaltwerk::domains::{attention::AttentionStateRegistry, git::repository};
 use schaltwerk::infrastructure::config::SettingsManager;
 use schaltwerk::project_manager::ProjectManager;
 use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
@@ -77,14 +77,15 @@ fn extend_process_path() {
         .arg("echo -n $PATH")
         .output()
         && output.status.success()
-            && let Ok(login_path) = String::from_utf8(output.stdout) {
-                for segment in login_path.split(':').filter(|s| !s.is_empty()) {
-                    let path = PathBuf::from(segment);
-                    if seen.insert(path.clone()) {
-                        current_paths.push(path);
-                    }
-                }
+        && let Ok(login_path) = String::from_utf8(output.stdout)
+    {
+        for segment in login_path.split(':').filter(|s| !s.is_empty()) {
+            let path = PathBuf::from(segment);
+            if seen.insert(path.clone()) {
+                current_paths.push(path);
             }
+        }
+    }
 
     if let Ok(joined) = env::join_paths(&current_paths) {
         EnvAdapter::set_var("PATH", &joined.to_string_lossy());
@@ -234,6 +235,7 @@ async fn set_default_open_app(app_id: String) -> Result<(), String> {
 
 pub static PROJECT_MANAGER: OnceCell<Arc<ProjectManager>> = OnceCell::const_new();
 pub static SETTINGS_MANAGER: OnceCell<Arc<Mutex<SettingsManager>>> = OnceCell::const_new();
+pub static ATTENTION_REGISTRY: OnceCell<Arc<Mutex<AttentionStateRegistry>>> = OnceCell::const_new();
 pub static FILE_WATCHER_MANAGER: OnceCell<Arc<schaltwerk::domains::workspace::FileWatcherManager>> =
     OnceCell::const_new();
 
@@ -244,8 +246,8 @@ pub async fn get_project_manager() -> Arc<ProjectManager> {
         .clone()
 }
 
-pub async fn get_terminal_manager(
-) -> Result<Arc<schaltwerk::domains::terminal::TerminalManager>, String> {
+pub async fn get_terminal_manager()
+-> Result<Arc<schaltwerk::domains::terminal::TerminalManager>, String> {
     let manager = get_project_manager().await;
     manager
         .current_terminal_manager()
@@ -253,8 +255,8 @@ pub async fn get_terminal_manager(
         .map_err(|e| format!("Failed to get terminal manager: {e}"))
 }
 
-pub async fn get_schaltwerk_core(
-) -> Result<Arc<RwLock<schaltwerk::schaltwerk_core::SchaltwerkCore>>, String> {
+pub async fn get_schaltwerk_core()
+-> Result<Arc<RwLock<schaltwerk::schaltwerk_core::SchaltwerkCore>>, String> {
     let manager = get_project_manager().await;
     manager.current_schaltwerk_core().await.map_err(|e| {
         let detail = e.to_string();
@@ -268,20 +270,20 @@ pub async fn get_schaltwerk_core(
     })
 }
 
-pub async fn get_core_read(
-) -> Result<OwnedRwLockReadGuard<schaltwerk::schaltwerk_core::SchaltwerkCore>, String> {
+pub async fn get_core_read()
+-> Result<OwnedRwLockReadGuard<schaltwerk::schaltwerk_core::SchaltwerkCore>, String> {
     let core = get_schaltwerk_core().await?;
     Ok(Arc::clone(&core).read_owned().await)
 }
 
-pub async fn get_core_write(
-) -> Result<OwnedRwLockWriteGuard<schaltwerk::schaltwerk_core::SchaltwerkCore>, String> {
+pub async fn get_core_write()
+-> Result<OwnedRwLockWriteGuard<schaltwerk::schaltwerk_core::SchaltwerkCore>, String> {
     let core = get_schaltwerk_core().await?;
     Ok(Arc::clone(&core).write_owned().await)
 }
 
-pub async fn get_file_watcher_manager(
-) -> Result<Arc<schaltwerk::domains::workspace::FileWatcherManager>, String> {
+pub async fn get_file_watcher_manager()
+-> Result<Arc<schaltwerk::domains::workspace::FileWatcherManager>, String> {
     FILE_WATCHER_MANAGER
         .get()
         .ok_or_else(|| "File watcher manager not initialized".to_string())
@@ -363,7 +365,7 @@ async fn get_active_file_watchers() -> Result<Vec<String>, String> {
 use http_body_util::BodyExt;
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
-use hyper::{body::Incoming as IncomingBody, Request, Response, StatusCode};
+use hyper::{Request, Response, StatusCode, body::Incoming as IncomingBody};
 use hyper_util::rt::TokioIo;
 use tokio::net::TcpListener;
 
@@ -422,58 +424,58 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                 let body_bytes = body.collect().await?.to_bytes();
 
                 if let Ok(body_str) = String::from_utf8(body_bytes.to_vec())
-                    && let Ok(payload) = serde_json::from_str::<serde_json::Value>(&body_str) {
-                        log::info!("Received session-added webhook: {payload}");
+                    && let Ok(payload) = serde_json::from_str::<serde_json::Value>(&body_str)
+                {
+                    log::info!("Received session-added webhook: {payload}");
 
-                        // Extract session information and emit the event
-                        if let Some(session_name) =
-                            payload.get("session_name").and_then(|v| v.as_str())
+                    // Extract session information and emit the event
+                    if let Some(session_name) = payload.get("session_name").and_then(|v| v.as_str())
+                    {
+                        #[derive(serde::Serialize, Clone)]
+                        struct SessionAddedPayload {
+                            session_name: String,
+                            branch: String,
+                            worktree_path: String,
+                            parent_branch: String,
+                            created_at: String,
+                            last_modified: Option<String>,
+                        }
+
+                        let session_payload = SessionAddedPayload {
+                            session_name: session_name.to_string(),
+                            branch: payload
+                                .get("branch")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string(),
+                            worktree_path: payload
+                                .get("worktree_path")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string(),
+                            parent_branch: payload
+                                .get("parent_branch")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string(),
+                            created_at: payload
+                                .get("created_at")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string())
+                                .unwrap_or_else(|| chrono::Utc::now().to_rfc3339()),
+                            last_modified: payload
+                                .get("last_modified")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string()),
+                        };
+
+                        if let Err(e) =
+                            emit_event(&app, SchaltEvent::SessionAdded, &session_payload)
                         {
-                            #[derive(serde::Serialize, Clone)]
-                            struct SessionAddedPayload {
-                                session_name: String,
-                                branch: String,
-                                worktree_path: String,
-                                parent_branch: String,
-                                created_at: String,
-                                last_modified: Option<String>,
-                            }
-
-                            let session_payload = SessionAddedPayload {
-                                session_name: session_name.to_string(),
-                                branch: payload
-                                    .get("branch")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("")
-                                    .to_string(),
-                                worktree_path: payload
-                                    .get("worktree_path")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("")
-                                    .to_string(),
-                                parent_branch: payload
-                                    .get("parent_branch")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("")
-                                    .to_string(),
-                                created_at: payload
-                                    .get("created_at")
-                                    .and_then(|v| v.as_str())
-                                    .map(|s| s.to_string())
-                                    .unwrap_or_else(|| chrono::Utc::now().to_rfc3339()),
-                                last_modified: payload
-                                    .get("last_modified")
-                                    .and_then(|v| v.as_str())
-                                    .map(|s| s.to_string()),
-                            };
-
-                            if let Err(e) =
-                                emit_event(&app, SchaltEvent::SessionAdded, &session_payload)
-                            {
-                                log::error!("Failed to emit session-added event: {e}");
-                            }
+                            log::error!("Failed to emit session-added event: {e}");
                         }
                     }
+                }
 
                 Ok(Response::new("OK".to_string()))
             }
@@ -483,28 +485,28 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                 let body_bytes = body.collect().await?.to_bytes();
 
                 if let Ok(body_str) = String::from_utf8(body_bytes.to_vec())
-                    && let Ok(payload) = serde_json::from_str::<serde_json::Value>(&body_str) {
-                        log::info!("Received session-removed webhook: {payload}");
+                    && let Ok(payload) = serde_json::from_str::<serde_json::Value>(&body_str)
+                {
+                    log::info!("Received session-removed webhook: {payload}");
 
-                        if let Some(session_name) =
-                            payload.get("session_name").and_then(|v| v.as_str())
+                    if let Some(session_name) = payload.get("session_name").and_then(|v| v.as_str())
+                    {
+                        #[derive(serde::Serialize, Clone)]
+                        struct SessionRemovedPayload {
+                            session_name: String,
+                        }
+
+                        let session_payload = SessionRemovedPayload {
+                            session_name: session_name.to_string(),
+                        };
+
+                        if let Err(e) =
+                            emit_event(&app, SchaltEvent::SessionRemoved, &session_payload)
                         {
-                            #[derive(serde::Serialize, Clone)]
-                            struct SessionRemovedPayload {
-                                session_name: String,
-                            }
-
-                            let session_payload = SessionRemovedPayload {
-                                session_name: session_name.to_string(),
-                            };
-
-                            if let Err(e) =
-                                emit_event(&app, SchaltEvent::SessionRemoved, &session_payload)
-                            {
-                                log::error!("Failed to emit session-removed event: {e}");
-                            }
+                            log::error!("Failed to emit session-removed event: {e}");
                         }
                     }
+                }
 
                 Ok(Response::new("OK".to_string()))
             }
@@ -514,123 +516,142 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                 let body_bytes = body.collect().await?.to_bytes();
 
                 if let Ok(body_str) = String::from_utf8(body_bytes.to_vec())
-                    && let Ok(payload) = serde_json::from_str::<serde_json::Value>(&body_str) {
-                        log::info!("Received follow-up-message webhook: {payload}");
+                    && let Ok(payload) = serde_json::from_str::<serde_json::Value>(&body_str)
+                {
+                    log::info!("Received follow-up-message webhook: {payload}");
 
-                        if let (Some(session_name), Some(message)) = (
-                            payload.get("session_name").and_then(|v| v.as_str()),
-                            payload.get("message").and_then(|v| v.as_str()),
-                        ) {
-                            let timestamp = payload
-                                .get("timestamp")
-                                .and_then(|v| v.as_u64())
-                                .unwrap_or_else(|| {
-                                    std::time::SystemTime::now()
-                                        .duration_since(std::time::UNIX_EPOCH)
-                                        .unwrap()
-                                        .as_millis() as u64
-                                });
+                    if let (Some(session_name), Some(message)) = (
+                        payload.get("session_name").and_then(|v| v.as_str()),
+                        payload.get("message").and_then(|v| v.as_str()),
+                    ) {
+                        let timestamp = payload
+                            .get("timestamp")
+                            .and_then(|v| v.as_u64())
+                            .unwrap_or_else(|| {
+                                std::time::SystemTime::now()
+                                    .duration_since(std::time::UNIX_EPOCH)
+                                    .unwrap()
+                                    .as_millis() as u64
+                            });
 
-                            // Move reviewed sessions back to running upon follow-up (only if reviewed)
-                            if let Ok(core) = get_core_write().await {
-                                let manager = core.session_manager();
-                                match manager.unmark_reviewed_on_follow_up(session_name) {
-                                    Ok(true) => {
-                                        log::info!("Follow-up unmarked review state for '{session_name}', scheduling sessions refresh");
-                                        request_sessions_refresh(
-                                            &app,
-                                            SessionsRefreshReason::AgentActivity,
-                                        );
-                                    }
-                                    Ok(false) => {
-                                        log::debug!("Follow-up received for '{session_name}' with no review state to clear");
-                                    }
-                                    Err(e) => {
-                                        log::warn!("Failed to process follow-up review state for '{session_name}': {e}");
-                                    }
+                        // Move reviewed sessions back to running upon follow-up (only if reviewed)
+                        if let Ok(core) = get_core_write().await {
+                            let manager = core.session_manager();
+                            match manager.unmark_reviewed_on_follow_up(session_name) {
+                                Ok(true) => {
+                                    log::info!(
+                                        "Follow-up unmarked review state for '{session_name}', scheduling sessions refresh"
+                                    );
+                                    request_sessions_refresh(
+                                        &app,
+                                        SessionsRefreshReason::AgentActivity,
+                                    );
                                 }
-                            } else {
-                                log::warn!("Could not access SchaltwerkCore to update session state on follow-up");
-                            }
-
-                            let primary_terminal_id = terminal_id_for_session_top(session_name);
-                            let mut candidate_ids = Vec::new();
-                            for candidate in [
-                                primary_terminal_id.clone(),
-                                previous_tilde_hashed_terminal_id_for_session_top(session_name),
-                                previous_hashed_terminal_id_for_session_top(session_name),
-                                legacy_terminal_id_for_session_top(session_name),
-                            ] {
-                                if !candidate_ids.contains(&candidate) {
-                                    candidate_ids.push(candidate);
+                                Ok(false) => {
+                                    log::debug!(
+                                        "Follow-up received for '{session_name}' with no review state to clear"
+                                    );
+                                }
+                                Err(e) => {
+                                    log::warn!(
+                                        "Failed to process follow-up review state for '{session_name}': {e}"
+                                    );
                                 }
                             }
+                        } else {
+                            log::warn!(
+                                "Could not access SchaltwerkCore to update session state on follow-up"
+                            );
+                        }
 
-                            let mut delivered_terminal_id = primary_terminal_id.clone();
-                            let mut delivered = false;
-
-                            if let Ok(manager) = get_terminal_manager().await {
-                                for candidate in candidate_ids.iter() {
-                                    match manager.terminal_exists(candidate).await {
-                                        Ok(true) => {
-                                            match manager
-                                                .paste_and_submit_terminal(
-                                                    candidate.clone(),
-                                                    message.as_bytes().to_vec(),
-                                                    false,
-                                                )
-                                                .await
-                                            {
-                                                Ok(_) => {
-                                                    delivered_terminal_id = candidate.clone();
-                                                    delivered = true;
-                                                    log::info!("Successfully pasted follow-up message to terminal {candidate}");
-                                                    break;
-                                                }
-                                                Err(e) => {
-                                                    log::warn!("Failed to paste follow-up message to terminal {candidate}: {e}");
-                                                    // Try next candidate in case this ID is stale.
-                                                }
-                                            }
-                                        }
-                                        Ok(false) => {
-                                            log::debug!("Terminal {candidate} not found while handling follow-up; checking next candidate");
-                                        }
-                                        Err(e) => {
-                                            log::warn!("Failed to check if terminal {candidate} exists: {e}");
-                                        }
-                                    }
-                                }
-
-                                if !delivered {
-                                    log::warn!("No matching terminal found for follow-up message to session '{session_name}'. Tried: {candidate_ids:?}");
-                                }
-                            } else {
-                                log::warn!("Could not get terminal manager for follow-up message");
-                            }
-
-                            #[derive(serde::Serialize, Clone)]
-                            struct FollowUpMessagePayload {
-                                session_name: String,
-                                message: String,
-                                timestamp: u64,
-                                terminal_id: String,
-                            }
-
-                            let message_payload = FollowUpMessagePayload {
-                                session_name: session_name.to_string(),
-                                message: message.to_string(),
-                                timestamp,
-                                terminal_id: delivered_terminal_id,
-                            };
-
-                            if let Err(e) =
-                                emit_event(&app, SchaltEvent::FollowUpMessage, &message_payload)
-                            {
-                                log::error!("Failed to emit follow-up-message event: {e}");
+                        let primary_terminal_id = terminal_id_for_session_top(session_name);
+                        let mut candidate_ids = Vec::new();
+                        for candidate in [
+                            primary_terminal_id.clone(),
+                            previous_tilde_hashed_terminal_id_for_session_top(session_name),
+                            previous_hashed_terminal_id_for_session_top(session_name),
+                            legacy_terminal_id_for_session_top(session_name),
+                        ] {
+                            if !candidate_ids.contains(&candidate) {
+                                candidate_ids.push(candidate);
                             }
                         }
+
+                        let mut delivered_terminal_id = primary_terminal_id.clone();
+                        let mut delivered = false;
+
+                        if let Ok(manager) = get_terminal_manager().await {
+                            for candidate in candidate_ids.iter() {
+                                match manager.terminal_exists(candidate).await {
+                                    Ok(true) => {
+                                        match manager
+                                            .paste_and_submit_terminal(
+                                                candidate.clone(),
+                                                message.as_bytes().to_vec(),
+                                                false,
+                                            )
+                                            .await
+                                        {
+                                            Ok(_) => {
+                                                delivered_terminal_id = candidate.clone();
+                                                delivered = true;
+                                                log::info!(
+                                                    "Successfully pasted follow-up message to terminal {candidate}"
+                                                );
+                                                break;
+                                            }
+                                            Err(e) => {
+                                                log::warn!(
+                                                    "Failed to paste follow-up message to terminal {candidate}: {e}"
+                                                );
+                                                // Try next candidate in case this ID is stale.
+                                            }
+                                        }
+                                    }
+                                    Ok(false) => {
+                                        log::debug!(
+                                            "Terminal {candidate} not found while handling follow-up; checking next candidate"
+                                        );
+                                    }
+                                    Err(e) => {
+                                        log::warn!(
+                                            "Failed to check if terminal {candidate} exists: {e}"
+                                        );
+                                    }
+                                }
+                            }
+
+                            if !delivered {
+                                log::warn!(
+                                    "No matching terminal found for follow-up message to session '{session_name}'. Tried: {candidate_ids:?}"
+                                );
+                            }
+                        } else {
+                            log::warn!("Could not get terminal manager for follow-up message");
+                        }
+
+                        #[derive(serde::Serialize, Clone)]
+                        struct FollowUpMessagePayload {
+                            session_name: String,
+                            message: String,
+                            timestamp: u64,
+                            terminal_id: String,
+                        }
+
+                        let message_payload = FollowUpMessagePayload {
+                            session_name: session_name.to_string(),
+                            message: message.to_string(),
+                            timestamp,
+                            terminal_id: delivered_terminal_id,
+                        };
+
+                        if let Err(e) =
+                            emit_event(&app, SchaltEvent::FollowUpMessage, &message_payload)
+                        {
+                            log::error!("Failed to emit follow-up-message event: {e}");
+                        }
                     }
+                }
 
                 Ok(Response::new("OK".to_string()))
             }
@@ -653,7 +674,9 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
 
                             // Don't emit Selection event - let the user stay focused on their current session
                             // The spec will appear in the sidebar but won't steal focus
-                            log::info!("Spec created via MCP: {draft_name} - preserving current user focus");
+                            log::info!(
+                                "Spec created via MCP: {draft_name} - preserving current user focus"
+                            );
                         } else {
                             log::warn!("Spec-created webhook payload missing 'name' field");
                         }
@@ -728,7 +751,7 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
     }
 }
 
-use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
+use schaltwerk::infrastructure::events::{SchaltEvent, emit_event};
 #[cfg(debug_assertions)]
 use schaltwerk::infrastructure::logging::register_dev_error_hook;
 #[cfg(debug_assertions)]
@@ -863,6 +886,7 @@ fn main() {
             get_environment_variable,
             get_app_version,
             check_for_updates_now,
+            report_attention_snapshot,
             schaltwerk_core_log_frontend_message,
             open_external_url,
             // MCP commands
@@ -1018,6 +1042,11 @@ fn main() {
             set_amp_mcp_servers
         ])
         .setup(move |app| {
+            if ATTENTION_REGISTRY.get().is_none() {
+                let registry = Arc::new(Mutex::new(AttentionStateRegistry::default()));
+                let _ = ATTENTION_REGISTRY.set(registry);
+            }
+
             #[cfg(debug_assertions)]
             {
                 let backend_error_handle = app.handle().clone();

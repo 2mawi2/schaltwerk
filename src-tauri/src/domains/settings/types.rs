@@ -66,6 +66,25 @@ fn default_true() -> bool {
     true
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum AttentionNotificationMode {
+    Off,
+    Dock,
+    System,
+    Both,
+}
+
+impl Default for AttentionNotificationMode {
+    fn default() -> Self {
+        Self::Dock
+    }
+}
+
+fn default_attention_mode() -> AttentionNotificationMode {
+    AttentionNotificationMode::Dock
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DiffViewPreferences {
     #[serde(default)]
@@ -95,6 +114,12 @@ pub struct SessionPreferences {
     pub auto_commit_on_review: bool,
     #[serde(default)]
     pub skip_confirmation_modals: bool,
+    #[serde(default)]
+    pub always_show_large_diffs: bool,
+    #[serde(default = "default_attention_mode")]
+    pub attention_notification_mode: AttentionNotificationMode,
+    #[serde(default = "default_true")]
+    pub remember_idle_baseline: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

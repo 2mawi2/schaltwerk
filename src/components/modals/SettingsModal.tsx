@@ -3,7 +3,8 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { useFontSize } from '../../contexts/FontSizeContext'
-import { useSettings, AgentType, ProjectMergePreferences } from '../../hooks/useSettings'
+import { useSettings } from '../../hooks/useSettings'
+import type { AgentType, ProjectMergePreferences, AttentionNotificationMode } from '../../hooks/useSettings'
 import { useSessions } from '../../contexts/SessionsContext'
 import { useActionButtons } from '../../contexts/ActionButtonsContext'
 import type { HeaderActionConfig } from '../../types/actionButton'
@@ -30,6 +31,7 @@ import { emitUiEvent, UiEvent } from '../../common/uiEvents'
 import { useOptionalToast } from '../../common/toast/ToastProvider'
 import { AppUpdateResultPayload } from '../../common/events'
 import type { SettingsCategory } from '../../types/settings'
+import { ensureNotificationPermission, requestDockBounce, showSystemNotification } from '../../utils/attentionBridge'
 
 const shortcutArraysEqual = (a: string[] = [], b: string[] = []) => {
     if (a.length !== b.length) return false
@@ -200,6 +202,29 @@ const CATEGORIES: CategoryConfig[] = [
 const PROJECT_CATEGORY_ORDER: SettingsCategory[] = ['projectGeneral', 'projectRun', 'projectActions', 'archives']
 const PROJECT_CATEGORY_SET = new Set<SettingsCategory>(PROJECT_CATEGORY_ORDER)
 
+const ATTENTION_MODE_OPTIONS: Array<{ value: AttentionNotificationMode, label: string, description: string }> = [
+    {
+        value: 'dock',
+        label: 'Dock bounce',
+        description: 'Bounce the dock icon when Schaltwerk is hidden so you notice idle agents quickly.'
+    },
+    {
+        value: 'system',
+        label: 'System notification',
+        description: 'Send a macOS notification without bouncing the dock icon.'
+    },
+    {
+        value: 'both',
+        label: 'Dock bounce + notification',
+        description: 'Use both signals for maximum visibility when an agent needs attention.'
+    },
+    {
+        value: 'off',
+        label: 'Disabled',
+        description: 'Turn off attention alerts entirely.'
+    }
+]
+
 interface ProjectSettings {
     setupScript: string
     branchPrefix: string
@@ -223,6 +248,8 @@ interface SessionPreferences {
     auto_commit_on_review: boolean
     skip_confirmation_modals: boolean
     always_show_large_diffs: boolean
+    attention_notification_mode: AttentionNotificationMode
+    remember_idle_baseline: boolean
 }
 
 export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Props) {
@@ -246,7 +273,9 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
     const [sessionPreferences, setSessionPreferences] = useState<SessionPreferences>({
         auto_commit_on_review: false,
         skip_confirmation_modals: false,
-        always_show_large_diffs: false
+        always_show_large_diffs: false,
+        attention_notification_mode: 'dock',
+        remember_idle_baseline: true
     })
     const [mergePreferences, setMergePreferences] = useState<ProjectMergePreferences>({
         autoCancelAfterMerge: true
@@ -402,12 +431,48 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
     const [editableActionButtons, setEditableActionButtons] = useState<HeaderActionConfig[]>([])
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
     
-    const hideNotification = () => setNotification(prev => ({ ...prev, visible: false }))
-    const scheduleHideNotification = (delayMs: number = 3000) => window.setTimeout(hideNotification, delayMs)
-    const showNotification = (message: string, type: NotificationType) => {
+    const hideNotification = useCallback(() => {
+        setNotification(prev => ({ ...prev, visible: false }))
+    }, [])
+    const scheduleHideNotification = useCallback((delayMs: number = 3000) => {
+        return window.setTimeout(hideNotification, delayMs)
+    }, [hideNotification])
+    const showNotification = useCallback((message: string, type: NotificationType) => {
         setNotification({ message, type, visible: true })
         scheduleHideNotification(3000)
-    }
+    }, [scheduleHideNotification])
+
+    const handleTestNotification = useCallback(async () => {
+        const mode = sessionPreferences.attention_notification_mode
+        if (mode === 'off') {
+            showNotification('Attention notifications are disabled. Select a mode to test them.', 'info')
+            return
+        }
+
+        const shouldBounce = mode === 'dock' || mode === 'both'
+        const shouldNotify = mode === 'system' || mode === 'both'
+
+        if (shouldBounce) {
+            void requestDockBounce()
+        }
+
+        if (shouldNotify) {
+            const permission = await ensureNotificationPermission()
+            if (permission !== 'granted') {
+                showNotification('System notifications are blocked. Enable them in System Settings to receive alerts.', 'error')
+                return
+            }
+            await showSystemNotification({
+                title: 'Schaltwerk · Test notification',
+                body: 'If you can read this, attention notifications are working.',
+                silent: true
+            })
+        }
+
+        if (shouldBounce || shouldNotify) {
+            showNotification('Attention notification test triggered.', 'success')
+        }
+    }, [sessionPreferences.attention_notification_mode, showNotification])
 
     // Normalize smart dashes some platforms insert automatically (Safari/macOS)
     // so CLI flags like "--model" are preserved as two ASCII hyphens.
@@ -2088,6 +2153,83 @@ fi`}
                                     </div>
                                 </div>
                             </label>
+
+                            <div className="pt-4 mt-6 border-t border-slate-700/60">
+                                <h4 className="text-body font-medium text-slate-200 mb-1">
+                                    Attention Notifications
+                                </h4>
+                                <p className="text-caption text-slate-400 mb-3">
+                                    Choose how Schaltwerk alerts you when an agent becomes idle while the window is hidden.
+                                </p>
+                                <div className="space-y-3">
+                                    {ATTENTION_MODE_OPTIONS.map(option => (
+                                        <label key={option.value} className="flex items-start gap-3 cursor-pointer">
+                                            <input
+                                                type="radio"
+                                                name="attention-notification-mode"
+                                                value={option.value}
+                                                checked={sessionPreferences.attention_notification_mode === option.value}
+                                                onChange={() => setSessionPreferences({
+                                                    ...sessionPreferences,
+                                                    attention_notification_mode: option.value
+                                                })}
+                                                className="w-4 h-4 border rounded-full mt-1"
+                                                style={{
+                                                    accentColor: theme.colors.accent.cyan.DEFAULT,
+                                                    borderColor: theme.colors.border.subtle,
+                                                    backgroundColor: theme.colors.background.primary
+                                                }}
+                                            />
+                                            <div className="flex-1">
+                                                <div className="text-body font-medium text-slate-200">
+                                                    {option.label}
+                                                </div>
+                                                <div className="text-caption text-slate-400 mt-1">
+                                                    {option.description}
+                                                </div>
+                                            </div>
+                                        </label>
+                                    ))}
+                                </div>
+                                <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                    <label className="flex items-start gap-3 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={sessionPreferences.remember_idle_baseline}
+                                            onChange={(e) => setSessionPreferences({
+                                                ...sessionPreferences,
+                                                remember_idle_baseline: e.target.checked
+                                            })}
+                                            className="w-4 h-4 border rounded mt-1"
+                                            style={{
+                                                accentColor: theme.colors.accent.cyan.DEFAULT,
+                                                borderColor: theme.colors.border.subtle,
+                                                backgroundColor: theme.colors.background.primary
+                                            }}
+                                        />
+                                        <div className="flex-1">
+                                            <div className="text-body font-medium text-slate-200">
+                                                Remember idle sessions when I switch away
+                                            </div>
+                                            <div className="text-caption text-slate-400 mt-1">
+                                                Ignore sessions that were already idle before you hid the window.
+                                                They will notify again after they become active and idle once more.
+                                            </div>
+                                        </div>
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={handleTestNotification}
+                                        className="px-3 py-1.5 rounded text-sm font-medium transition-opacity hover:opacity-90 self-start md:self-auto"
+                                        style={{
+                                            backgroundColor: theme.colors.accent.blue.DEFAULT,
+                                            color: theme.colors.text.inverse
+                                        }}
+                                    >
+                                        Test notification
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                         
                         <div className="mt-4 p-3 bg-slate-800/50 border border-slate-700 rounded">

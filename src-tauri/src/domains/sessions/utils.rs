@@ -4,9 +4,9 @@ use crate::{
     domains::sessions::entity::{EnrichedSession, FilterMode, SessionState, SortMode},
     domains::sessions::repository::SessionDbManager,
     domains::terminal::{build_login_shell_invocation, sh_quote_string},
-    schaltwerk_core::db_project_config::{ProjectConfigMethods, DEFAULT_BRANCH_PREFIX},
+    schaltwerk_core::db_project_config::{DEFAULT_BRANCH_PREFIX, ProjectConfigMethods},
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
@@ -145,13 +145,14 @@ impl SessionUtils {
             );
 
             if let Ok(git_dir) = worktree_path.join(".git").canonicalize()
-                && git_dir.is_file() {
-                    log::info!(
-                        "Removing git worktree reference at: {}",
-                        worktree_path.display()
-                    );
-                    git::remove_worktree(&self.repo_path, worktree_path)?;
-                }
+                && git_dir.is_file()
+            {
+                log::info!(
+                    "Removing git worktree reference at: {}",
+                    worktree_path.display()
+                );
+                git::remove_worktree(&self.repo_path, worktree_path)?;
+            }
 
             if worktree_path.exists() {
                 log::info!(
@@ -395,7 +396,9 @@ impl SessionUtils {
             return override_path.to_string();
         }
 
-        log::debug!("No override provided for {agent_name}, will be resolved from settings at command level");
+        log::debug!(
+            "No override provided for {agent_name}, will be resolved from settings at command level"
+        );
         agent_name.to_string()
     }
 }

@@ -281,7 +281,9 @@ describe('useSettings', () => {
       const sessionPreferences = {
         auto_commit_on_review: false,
         skip_confirmation_modals: false,
-        always_show_large_diffs: false
+        always_show_large_diffs: false,
+        attention_notification_mode: 'dock' as const,
+        remember_idle_baseline: true
       }
 
       const mergePreferences = {
@@ -356,7 +358,9 @@ describe('useSettings', () => {
       const sessionPreferences = {
         auto_commit_on_review: false,
         skip_confirmation_modals: false,
-        always_show_large_diffs: false
+        always_show_large_diffs: false,
+        attention_notification_mode: 'dock' as const,
+        remember_idle_baseline: true
       }
 
       const mergePreferences = {
@@ -427,7 +431,9 @@ describe('useSettings', () => {
       const sessionPreferences = {
         auto_commit_on_review: false,
         skip_confirmation_modals: false,
-        always_show_large_diffs: false
+        always_show_large_diffs: false,
+        attention_notification_mode: 'dock' as const,
+        remember_idle_baseline: true
       }
 
       const mergePreferences = {

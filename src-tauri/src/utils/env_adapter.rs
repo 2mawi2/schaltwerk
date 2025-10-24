@@ -6,18 +6,14 @@ pub struct EnvAdapter;
 
 impl EnvAdapter {
     pub fn set_var(key: &str, value: &str) {
-        let _guard = ENV_LOCK
-            .lock()
-            .expect("env adapter mutex poisoned");
+        let _guard = ENV_LOCK.lock().expect("env adapter mutex poisoned");
         unsafe {
             std::env::set_var(key, value);
         }
     }
 
     pub fn remove_var(key: &str) {
-        let _guard = ENV_LOCK
-            .lock()
-            .expect("env adapter mutex poisoned");
+        let _guard = ENV_LOCK.lock().expect("env adapter mutex poisoned");
         unsafe {
             std::env::remove_var(key);
         }

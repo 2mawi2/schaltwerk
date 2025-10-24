@@ -7,7 +7,7 @@ use crate::{
     schaltwerk_core::db_app_config::AppConfigMethods,
     schaltwerk_core::db_project_config::ProjectConfigMethods,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use chrono::Utc;
 use log::warn;
 use std::path::PathBuf;

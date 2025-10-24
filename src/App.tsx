@@ -29,6 +29,7 @@ import { OnboardingModal } from './components/onboarding/OnboardingModal'
 import { useOnboarding } from './hooks/useOnboarding'
 import { useSessionPrefill } from './hooks/useSessionPrefill'
 import { useRightPanelPersistence } from './hooks/useRightPanelPersistence'
+import { useAttentionNotifications } from './hooks/useAttentionNotifications'
 import { theme } from './common/theme'
 import { GithubIntegrationProvider, useGithubIntegrationContext } from './contexts/GithubIntegrationContext'
 import { resolveOpenPathForOpenButton } from './utils/resolveOpenPath'
@@ -75,9 +76,10 @@ function AppContent() {
   const { fetchSessionForPrefill } = useSessionPrefill()
   const github = useGithubIntegrationContext()
   const toast = useOptionalToast()
-  const { beginSessionMutation, endSessionMutation, enqueuePendingStartup } = useSessions()
+  const { beginSessionMutation, endSessionMutation, enqueuePendingStartup, allSessions } = useSessions()
   const agentLifecycleStateRef = useRef(new Map<string, { state: 'spawned' | 'ready'; timestamp: number }>())
   const [devErrorToastsEnabled, setDevErrorToastsEnabled] = useState(false)
+  const [attentionCounts, setAttentionCounts] = useState<Record<string, number>>({})
   const { openFeedback } = useFeedback({ selection })
 
   useEffect(() => {
@@ -387,6 +389,22 @@ function AppContent() {
   const startShortcut = shortcuts[KeyboardShortcutAction.NewSession] || (isMac ? '⌘N' : 'Ctrl + N')
   const specShortcut = shortcuts[KeyboardShortcutAction.NewSpec] || (isMac ? '⇧⌘N' : 'Ctrl + Shift + N')
   const preserveSelection = useSelectionPreserver()
+  const projectDisplayName = useMemo(() => (projectPath ? getBasename(projectPath) : null), [projectPath])
+
+  useAttentionNotifications({
+    sessions: allSessions,
+    projectPath,
+    projectDisplayName,
+    onProjectAttentionChange: useCallback((count: number) => {
+      if (!projectPath) {
+        return
+      }
+      setAttentionCounts(prev => {
+        if (prev[projectPath] === count) return prev
+        return { ...prev, [projectPath]: count }
+      })
+    }, [projectPath]),
+  })
 
   const rightPanelStorageKey = selection
     ? selection.kind === 'orchestrator'
@@ -1197,6 +1215,13 @@ function AppContent() {
     // Remove the tab from UI
     const newTabs = openTabs.filter(tab => tab.projectPath !== path)
     setOpenTabs(newTabs)
+    setAttentionCounts(prev => {
+      if (!(path in prev)) {
+        return prev
+      }
+      const { [path]: _removed, ...rest } = prev
+      return rest
+    })
 
     // Clean up the closed project in backend
     try {
@@ -1271,6 +1296,15 @@ function AppContent() {
     switchProject('next')
   }, [switchProject])
 
+  const tabsWithAttention = useMemo(() => openTabs.map(tab => ({
+    ...tab,
+    attentionCount: attentionCounts[tab.projectPath] ?? 0
+  })), [openTabs, attentionCounts])
+
+  const globalAttentionCount = useMemo(() => {
+    return Object.values(attentionCounts).reduce((total, count) => total + count, 0)
+  }, [attentionCounts])
+
   // Update unified work area ring color when selection changes
   useEffect(() => {
     const el = document.getElementById('work-ring')
@@ -1293,6 +1327,7 @@ function AppContent() {
             setSettingsOpen(true)
           }}
           onOpenFeedback={openFeedback}
+          globalAttentionCount={globalAttentionCount}
         />
         <div className="pt-[32px] h-full">
           <HomeScreen onOpenProject={handleOpenProject} />
@@ -1313,7 +1348,7 @@ function AppContent() {
     <ErrorBoundary name="App">
       {/* Show TopBar always */}
       <TopBar
-        tabs={openTabs}
+        tabs={tabsWithAttention}
         activeTabPath={activeTabPath}
         onGoHome={handleGoHome}
         onSelectTab={handleSelectTab}
@@ -1324,6 +1359,7 @@ function AppContent() {
         }}
         onOpenFeedback={openFeedback}
         onOpenProjectSelector={() => setProjectSelectorOpen(true)}
+        globalAttentionCount={globalAttentionCount}
         resolveOpenPath={async () => resolveOpenPathForOpenButton({
           selection,
           activeTabPath,

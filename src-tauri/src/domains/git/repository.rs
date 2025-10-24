@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use git2::Repository;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -127,7 +127,8 @@ pub fn get_default_branch(repo_path: &Path) -> Result<String> {
     if let Ok(_remote) = repo.find_remote("origin") {
         // Try to find refs/remotes/origin/HEAD
         if let Ok(reference) = repo.find_reference("refs/remotes/origin/HEAD")
-            && let Some(target) = reference.symbolic_target() {
+            && let Some(target) = reference.symbolic_target()
+        {
             log::debug!("Found remote origin HEAD: {target}");
             if let Some(branch) = target.strip_prefix("refs/remotes/origin/") {
                 log::info!("Using default branch from remote: {branch}");

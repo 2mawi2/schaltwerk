@@ -1,4 +1,5 @@
 pub mod agents;
+pub mod attention;
 pub mod git;
 pub mod merge;
 pub mod projects;
