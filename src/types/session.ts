@@ -56,7 +56,6 @@ export interface SessionInfo {
     diff_stats?: DiffStats
     top_uncommitted_paths?: string[]
     attention_required?: boolean
-    worktree_size_bytes?: number
 }
 
 export interface DiffStats {
