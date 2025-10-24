@@ -28,6 +28,7 @@ import {
     acquireTerminalInstance,
     detachTerminalInstance,
     releaseTerminalInstance,
+    hasTerminalInstance,
 } from '../../terminal/registry/terminalRegistry'
 import { XtermTerminal } from '../../terminal/xterm/XtermTerminal'
 import { useTerminalGpu } from '../../hooks/useTerminalGpu'
@@ -35,6 +36,7 @@ import { terminalOutputManager } from '../../terminal/stream/terminalOutputManag
 import { TerminalResizeCoordinator } from './resize/TerminalResizeCoordinator'
 import { calculateEffectiveColumns, MIN_TERMINAL_COLUMNS } from './terminalSizing'
 import { shouldEmitControlPaste, shouldEmitControlNewline } from './terminalKeybindings'
+import { hydrateReusedTerminal } from './hydration'
 
 const DEFAULT_SCROLLBACK_LINES = 10000
 const BACKGROUND_SCROLLBACK_LINES = 5000
@@ -119,12 +121,13 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const lastSize = useRef<{ cols: number; rows: number }>({ cols: 80, rows: 24 });
     const lastEffectiveRef = useRef<{ cols: number; rows: number }>(lastEffectiveRefInit);
     const resizeCoordinatorRef = useRef<TerminalResizeCoordinator | null>(null);
-    const [hydrated, setHydrated] = useState(false);
-    const hydratedRef = useRef<boolean>(false);
+    const existingInstance = hasTerminalInstance(terminalId);
+    const [hydrated, setHydrated] = useState(existingInstance);
+    const hydratedRef = useRef<boolean>(existingInstance);
     const [agentLoading, setAgentLoading] = useState(false);
     const [agentStopped, setAgentStopped] = useState(false);
     const terminalEverStartedRef = useRef<boolean>(false);
-    const hydratedOnceRef = useRef<boolean>(false);
+    const hydratedOnceRef = useRef<boolean>(existingInstance);
     // Tracks user-initiated interrupt signal to distinguish from startup/other exits.
     const lastSigintAtRef = useRef<number | null>(null);
     const [isSearchVisible, setIsSearchVisible] = useState(false);
@@ -789,10 +792,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             return;
         }
 
-        setHydrated(false);
-        hydratedRef.current = false;
-        hydratedOnceRef.current = false;
-
         // Revert: Always show a visible terminal cursor.
         // Prior logic adjusted/hid the xterm cursor for TUI agents which led to
         // "no cursor" reports in bottom terminals (e.g., Neovim/Neogrim). We now
@@ -818,6 +817,20 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 minimumContrastRatio: atlasContrast,
             },
         }));
+
+        if (isNew) {
+            setHydrated(false);
+            hydratedRef.current = false;
+            hydratedOnceRef.current = false;
+        } else {
+            hydrateReusedTerminal({
+                isNew,
+                hydratedRef,
+                hydratedOnceRef,
+                setHydrated,
+                onReady,
+            });
+        }
         const instance = record.xterm;
         if (!isNew) {
             instance.applyConfig({
@@ -1284,8 +1297,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             xtermWrapperRef.current = null;
             gpuRenderer.current = null;
             terminal.current = null;
-            setHydrated(false);
             hydratedRef.current = false;
+            hydratedOnceRef.current = false;
             // Note: We intentionally don't close terminals here to allow switching between sessions
             // All terminals are cleaned up when the app exits via the backend cleanup handler
             // useCleanupRegistry handles other cleanup automatically
@@ -1574,14 +1587,15 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
     useLayoutEffect(() => {
         if (previousTerminalId.current === terminalId) {
-            return
+            return;
         }
 
-    previousTerminalId.current = terminalId
-    hydratedOnceRef.current = false
-    setHydrated(false)
-    hydratedRef.current = false
-}, [terminalId]);
+        const hasInstance = hasTerminalInstance(terminalId);
+        previousTerminalId.current = terminalId;
+        hydratedOnceRef.current = hasInstance;
+        hydratedRef.current = hasInstance;
+        setHydrated(hasInstance);
+    }, [terminalId]);
 
 
     const handleTerminalClick = (event?: React.MouseEvent<HTMLDivElement>) => {

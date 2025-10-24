@@ -176,12 +176,17 @@ vi.mock('../../hooks/useTerminalGpu', () => ({
   }),
 }))
 
+const registryMocks = vi.hoisted(() => ({
+  hasTerminalInstance: vi.fn(() => false),
+}))
+
 vi.mock('../../terminal/registry/terminalRegistry', () => {
   const { acquireMock } = terminalHarness
   return {
     acquireTerminalInstance: vi.fn((id: string, factory: () => unknown) => acquireMock(id, factory as () => HarnessInstance)),
     releaseTerminalInstance: vi.fn(),
     detachTerminalInstance: vi.fn(),
+    hasTerminalInstance: registryMocks.hasTerminalInstance,
   }
 })
 
@@ -283,6 +288,7 @@ beforeEach(() => {
   vi.stubGlobal('getSelection', () => ({
     isCollapsed: true,
   }))
+  registryMocks.hasTerminalInstance.mockReturnValue(false)
 })
 
 describe('Terminal', () => {
@@ -334,6 +340,7 @@ describe('Terminal', () => {
 
   it('reapplies configuration when reusing an existing terminal instance', async () => {
     terminalHarness.setNextIsNew(false)
+    registryMocks.hasTerminalInstance.mockReturnValue(true)
     render(<Terminal terminalId="session-123-bottom" readOnly />)
 
     await waitFor(() => {
