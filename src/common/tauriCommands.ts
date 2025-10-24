@@ -12,6 +12,8 @@ export const TauriCommands = {
   GitHubAuthenticate: 'github_authenticate',
   GitHubConnectProject: 'github_connect_project',
   GitHubCreateReviewedPr: 'github_create_reviewed_pr',
+  GitHubSearchIssues: 'github_search_issues',
+  GitHubGetIssueDetails: 'github_get_issue_details',
   CreateNewProject: 'create_new_project',
   CreateRunTerminal: 'create_run_terminal',
   CreateTerminal: 'create_terminal',

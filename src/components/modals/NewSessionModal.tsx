@@ -22,6 +22,9 @@ import { AgentDefaultsSection } from '../shared/AgentDefaultsSection'
 import { useProjectFileIndex } from '../../hooks/useProjectFileIndex'
 import type { MarkdownEditorRef } from '../plans/MarkdownEditor'
 import { ResizableModal } from '../shared/ResizableModal'
+import { GitHubIssuePromptSection } from './GitHubIssuePromptSection'
+import type { GithubIssueSelectionResult } from '../../types/githubIssues'
+import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
 
 const MarkdownEditor = lazy(() => import('../plans/MarkdownEditor').then(m => ({ default: m.MarkdownEditor })))
 
@@ -48,6 +51,7 @@ interface Props {
 export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '', onPromptChange, onClose, onCreate }: Props) {
     const { registerModal, unregisterModal } = useModal()
     const { isAvailable } = useAgentAvailability()
+    const githubIntegration = useGithubIntegrationContext()
     const [name, setName] = useState(() => generateDockerStyleName())
     const [, setWasEdited] = useState(false)
     const [taskContent, setTaskContent] = useState('')
@@ -69,6 +73,10 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
     const [agentCliArgs, setAgentCliArgs] = useState<AgentCliArgsState>(createEmptyCliArgsState)
     const [agentConfigLoading, setAgentConfigLoading] = useState(false)
     const [ignorePersistedAgentType, setIgnorePersistedAgentType] = useState(false)
+    const [promptSource, setPromptSource] = useState<'custom' | 'github_issue'>('custom')
+    const [manualPromptDraft, setManualPromptDraft] = useState(cachedPrompt)
+    const [githubIssueSelection, setGithubIssueSelection] = useState<GithubIssueSelectionResult | null>(null)
+    const [githubIssueLoading, setGithubIssueLoading] = useState(false)
     const nameInputRef = useRef<HTMLInputElement>(null)
     const markdownEditorRef = useRef<MarkdownEditorRef>(null)
     const hasFocusedDuringOpenRef = useRef(false)
@@ -79,6 +87,41 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
     const lastAgentTypeRef = useRef<AgentType>('claude')
     const hasAgentOverrideRef = useRef(false)
     const lastSupportedSkipPermissionsRef = useRef(false)
+    const githubPromptReady = githubIntegration.canCreatePr && !githubIntegration.loading
+
+    const updateManualPrompt = useCallback(
+        (value: string) => {
+            setManualPromptDraft(value)
+            setTaskContent(value)
+            onPromptChange?.(value)
+        },
+        [onPromptChange]
+    )
+
+    const handlePromptSourceChange = useCallback(
+        (next: 'custom' | 'github_issue') => {
+            if (next === promptSource) {
+                return
+            }
+
+        if (next === 'github_issue') {
+            setManualPromptDraft(taskContent)
+            setPromptSource('github_issue')
+            if (githubIssueSelection) {
+                setTaskContent(githubIssueSelection.prompt)
+            } else {
+                setTaskContent('')
+            }
+        } else {
+            setPromptSource('custom')
+            setGithubIssueLoading(false)
+            setTaskContent(manualPromptDraft)
+            onPromptChange?.(manualPromptDraft)
+        }
+            setValidationError('')
+        },
+        [promptSource, taskContent, githubIssueSelection, manualPromptDraft, onPromptChange]
+    )
 
     const handleBranchChange = (branch: string) => {
         setBaseBranch(branch)
@@ -246,6 +289,15 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
             return
         }
         
+        const issuePrompt = githubIssueSelection?.prompt ?? ''
+        const currentPrompt =
+            promptSource === 'github_issue' ? issuePrompt : taskContent
+
+        if (promptSource === 'github_issue' && !githubIssueSelection) {
+            setValidationError('Select a GitHub issue to continue')
+            return
+        }
+
         // Validate that base branch is selected
         if (!createAsDraft && !baseBranch) {
             setValidationError('Please select a base branch')
@@ -253,7 +305,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
         }
         
         // Validate spec content if creating as spec
-         if (createAsDraft && !taskContent.trim()) {
+         if (createAsDraft && !currentPrompt.trim()) {
              setValidationError('Please enter spec content')
              return
          }
@@ -270,12 +322,12 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
 
             const createData = {
                 name: finalName,
-                prompt: createAsDraft ? undefined : (taskContent || undefined),
+                prompt: createAsDraft ? undefined : (currentPrompt || undefined),
                 baseBranch: createAsDraft ? '' : baseBranch,
                 customBranch: customBranch.trim() || undefined,
                 userEditedName: !!userEdited,
                 isSpec: createAsDraft,
-                draftContent: createAsDraft ? taskContent : undefined,
+                draftContent: createAsDraft ? currentPrompt : undefined,
                 versionCount: createAsDraft ? 1 : versionCount,
                 agentType,
                 skipPermissions: createAsDraft ? skipPermissions : undefined,
@@ -291,7 +343,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
         } catch (_e) {
             setCreating(false)
         }
-    }, [creating, name, taskContent, baseBranch, customBranch, onCreate, validateSessionName, createAsDraft, versionCount, agentType, skipPermissions])
+    }, [creating, name, taskContent, baseBranch, customBranch, onCreate, validateSessionName, createAsDraft, versionCount, agentType, skipPermissions, promptSource, githubIssueSelection])
 
     // Keep ref in sync immediately on render to avoid stale closures in tests
     createRef.current = handleCreate
@@ -411,6 +463,10 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                 setName(gen)
                 setWasEdited(false)
                 wasEditedRef.current = false
+                setPromptSource('custom')
+                setGithubIssueSelection(null)
+                setGithubIssueLoading(false)
+                setManualPromptDraft(cachedPrompt)
                 setTaskContent(cachedPrompt)
                 setValidationError('')
                 setCreateAsDraft(initialIsDraft)
@@ -545,6 +601,10 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
             }
             if (typeof taskContentFromDraft === 'string') {
                 logger.info('[NewSessionModal] Setting agent content from prefill:', taskContentFromDraft.substring(0, 100), '...')
+                setPromptSource('custom')
+                setGithubIssueSelection(null)
+                setGithubIssueLoading(false)
+                setManualPromptDraft(taskContentFromDraft)
                 setTaskContent(taskContentFromDraft)
             }
             if (baseBranchFromDraft) {
@@ -637,16 +697,29 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
     if (!open) return null
 
     const canStartAgent = agentType === 'terminal' || isAvailable(agentType)
+    const hasSpecContent =
+        promptSource === 'github_issue'
+            ? Boolean(githubIssueSelection?.prompt.trim())
+            : Boolean(taskContent.trim())
+    const requiresIssueSelection = promptSource === 'github_issue' && !githubIssueSelection
     const isStartDisabled =
         !name.trim() ||
         (!createAsDraft && !baseBranch) ||
         creating ||
-        (createAsDraft && !taskContent.trim()) ||
-        (!createAsDraft && !canStartAgent)
+        githubIssueLoading ||
+        (createAsDraft && !hasSpecContent) ||
+        (!createAsDraft && !canStartAgent) ||
+        requiresIssueSelection
 
     const getStartButtonTitle = () => {
         if (createAsDraft) {
             return "Create spec (Cmd+Enter)"
+        }
+        if (githubIssueLoading) {
+            return 'Fetching issue details...'
+        }
+        if (requiresIssueSelection) {
+            return 'Select a GitHub issue to generate a prompt'
         }
         if (!canStartAgent) {
             return `${agentType} is not installed. Please install it to use this agent.`
@@ -803,38 +876,129 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                     </div>
 
                     <div className="flex flex-col flex-1 min-h-0">
-                        <label className="block text-sm text-slate-300 mb-1">
-                            {createAsDraft ? 'Spec content' : 'Initial prompt (optional)'}
-                        </label>
-                        <Suspense fallback={<div className="flex-1 rounded border border-slate-700" style={{ backgroundColor: theme.colors.background.elevated }} /> }>
-                            <div className="flex-1 min-h-0 overflow-hidden" data-testid="session-task-editor">
-                                <MarkdownEditor
-                                    ref={markdownEditorRef}
-                                    value={taskContent}
-                                    onChange={value => {
-                                        setTaskContent(value)
-                                        onPromptChange?.(value)
+                        <div className="flex items-center justify-between mb-2">
+                            <label className="block text-sm text-slate-300">
+                                {createAsDraft ? 'Spec content' : 'Initial prompt (optional)'}
+                            </label>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => handlePromptSourceChange('custom')}
+                                    aria-pressed={promptSource === 'custom'}
+                                    className="px-3 py-1 text-xs rounded transition-colors"
+                                    style={{
+                                        backgroundColor:
+                                            promptSource === 'custom'
+                                                ? theme.colors.background.elevated
+                                                : theme.colors.background.primary,
+                                        color: theme.colors.text.primary,
+                                        border: `1px solid ${
+                                            promptSource === 'custom'
+                                                ? theme.colors.accent.blue.DEFAULT
+                                                : theme.colors.border.subtle
+                                        }`,
+                                    }}
+                                >
+                                    Custom prompt
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handlePromptSourceChange('github_issue')}
+                                    title={
+                                        githubPromptReady
+                                            ? 'Use a GitHub issue as the agent prompt'
+                                            : 'Connect GitHub to enable GitHub issue prompts'
+                                    }
+                                    aria-pressed={promptSource === 'github_issue'}
+                                    className="px-3 py-1 text-xs rounded transition-colors"
+                                    style={{
+                                        backgroundColor:
+                                            promptSource === 'github_issue'
+                                                ? theme.colors.background.elevated
+                                                : theme.colors.background.primary,
+                                        color: githubPromptReady
+                                            ? theme.colors.text.primary
+                                            : theme.colors.text.secondary,
+                                        border: `1px solid ${
+                                            promptSource === 'github_issue'
+                                                ? theme.colors.accent.blue.DEFAULT
+                                                : theme.colors.border.subtle
+                                        }`,
+                                        opacity: githubPromptReady ? 1 : 0.6,
+                                        cursor: githubPromptReady ? 'pointer' : 'default',
+                                    }}
+                                >
+                                    GitHub issue
+                                </button>
+                            </div>
+                        </div>
+                        <div className="flex-1 min-h-0 overflow-hidden">
+                            {promptSource === 'custom' ? (
+                                <Suspense
+                                    fallback={
+                                        <div
+                                            className="h-full rounded border border-slate-700"
+                                            style={{ backgroundColor: theme.colors.background.elevated }}
+                                        />
+                                    }
+                                >
+                                    <div className="h-full" data-testid="session-task-editor">
+                                        <MarkdownEditor
+                                            ref={markdownEditorRef}
+                                            value={taskContent}
+                                            onChange={value => {
+                                                updateManualPrompt(value)
+                                                if (validationError) {
+                                                    setValidationError('')
+                                                }
+                                            }}
+                                            placeholder={
+                                                createAsDraft
+                                                    ? 'Enter spec content in markdown...'
+                                                    : 'Describe the agent for the Claude session'
+                                            }
+                                            className="h-full"
+                                            fileReferenceProvider={projectFileIndex}
+                                        />
+                                    </div>
+                                </Suspense>
+                            ) : (
+                                <GitHubIssuePromptSection
+                                    selection={githubIssueSelection}
+                                    onIssueLoaded={selection => {
+                                        setGithubIssueSelection(selection)
+                                        setTaskContent(selection.prompt)
+                                        onPromptChange?.(selection.prompt)
                                         if (validationError) {
                                             setValidationError('')
                                         }
                                     }}
-                                    placeholder={createAsDraft ? 'Enter spec content in markdown...' : 'Describe the agent for the Claude session'}
-                                    className="h-full"
-                                    fileReferenceProvider={projectFileIndex}
+                                    onClearSelection={() => {
+                                        setGithubIssueSelection(null)
+                                        setTaskContent('')
+                                        onPromptChange?.('')
+                                    }}
+                                    onLoadingChange={setGithubIssueLoading}
                                 />
-                            </div>
-                        </Suspense>
-                        <p className="text-xs text-slate-400 mt-1">
-                            {createAsDraft ? (
-                                <>
-                                    <svg className="inline-block w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                                    </svg>
-                                    Spec agents are saved for later. You can start them when ready. Type @ to reference project files.
-                                </>
-                            ) : (
-                                'Type @ to reference project files.'
                             )}
+                        </div>
+                        <p className="text-xs text-slate-400 mt-1">
+                            {promptSource === 'github_issue'
+                                ? 'Select an issue to pull its description and comments into the agent prompt.'
+                                : createAsDraft
+                                    ? (
+                                        <>
+                                            <svg className="inline-block w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                                <path
+                                                    fillRule="evenodd"
+                                                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                                                    clipRule="evenodd"
+                                                />
+                                            </svg>
+                                            Specs are saved for later. You can start them when ready. Type @ to reference project files.
+                                        </>
+                                    )
+                                    : 'Type @ to reference project files.'}
                         </p>
                     </div>
 
