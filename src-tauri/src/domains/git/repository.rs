@@ -126,13 +126,12 @@ pub fn get_default_branch(repo_path: &Path) -> Result<String> {
     // Try to find the origin remote's HEAD
     if let Ok(_remote) = repo.find_remote("origin") {
         // Try to find refs/remotes/origin/HEAD
-        if let Ok(reference) = repo.find_reference("refs/remotes/origin/HEAD") {
-            if let Some(target) = reference.symbolic_target() {
-                log::debug!("Found remote origin HEAD: {target}");
-                if let Some(branch) = target.strip_prefix("refs/remotes/origin/") {
-                    log::info!("Using default branch from remote: {branch}");
-                    return Ok(branch.to_string());
-                }
+        if let Ok(reference) = repo.find_reference("refs/remotes/origin/HEAD")
+            && let Some(target) = reference.symbolic_target() {
+            log::debug!("Found remote origin HEAD: {target}");
+            if let Some(branch) = target.strip_prefix("refs/remotes/origin/") {
+                log::info!("Using default branch from remote: {branch}");
+                return Ok(branch.to_string());
             }
         }
 
@@ -235,6 +234,7 @@ pub fn create_initial_commit(repo_path: &Path) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::env_adapter::EnvAdapter;
     use git2::Signature;
     use tempfile::TempDir;
 
@@ -244,14 +244,11 @@ mod tests {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         Repository::init(temp_dir.path()).expect("Failed to init repo");
 
-        // Set environment variable
-        std::env::set_var("PARA_REPO_PATH", temp_dir.path());
+        EnvAdapter::set_var("PARA_REPO_PATH", &temp_dir.path().to_string_lossy());
 
-        // Test discovery
         let result = discover_repository_from_env();
 
-        // Clean up
-        std::env::remove_var("PARA_REPO_PATH");
+        EnvAdapter::remove_var("PARA_REPO_PATH");
 
         assert!(result.is_some(), "Should discover repository from env");
         if let Some(result_path) = result {
@@ -266,14 +263,11 @@ mod tests {
 
     #[test]
     fn test_discover_repository_from_env_empty() {
-        // Set empty environment variable
-        std::env::set_var("PARA_REPO_PATH", "");
+        EnvAdapter::set_var("PARA_REPO_PATH", "");
 
-        // Test discovery
         let result = discover_repository_from_env();
 
-        // Clean up
-        std::env::remove_var("PARA_REPO_PATH");
+        EnvAdapter::remove_var("PARA_REPO_PATH");
 
         // When PARA_REPO_PATH is empty, the function should not use it
         // and may still discover a repo from the current directory
@@ -283,14 +277,11 @@ mod tests {
 
     #[test]
     fn test_discover_repository_from_env_invalid() {
-        // Set invalid path - use a path that definitely won't have a git repo
-        std::env::set_var("PARA_REPO_PATH", "/proc/does/not/exist/invalid/path");
+        EnvAdapter::set_var("PARA_REPO_PATH", "/proc/does/not/exist/invalid/path");
 
-        // Test discovery
         let result = discover_repository_from_env();
 
-        // Clean up
-        std::env::remove_var("PARA_REPO_PATH");
+        EnvAdapter::remove_var("PARA_REPO_PATH");
 
         // Should return None for paths that don't exist or don't contain git repos
         // Note: This might find a git repo due to discovery traversing up the directory tree

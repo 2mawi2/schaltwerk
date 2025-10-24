@@ -659,7 +659,7 @@ fn build_claude_namegen_args(prompt_plain: &str, cli_args: Option<&str>) -> Vec<
 pub fn parse_opencode_output(stdout: &str) -> Option<String> {
     // Try JSON first, then fallback to raw text
     let parsed_json: Result<serde_json::Value, _> = serde_json::from_str(stdout);
-    let candidate = if let Ok(v) = parsed_json {
+    if let Ok(v) = parsed_json {
         v.as_str()
             .or_else(|| v.get("name").and_then(|x| x.as_str()))
             .map(|s| s.to_string())
@@ -689,9 +689,7 @@ pub fn parse_opencode_output(stdout: &str) -> Option<String> {
                     None
                 }
             })
-    });
-
-    candidate
+    })
 }
 
 fn build_namegen_env(env_vars: &[(String, String)]) -> Vec<(String, String)> {

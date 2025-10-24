@@ -39,10 +39,9 @@ pub struct CodexAdapter;
 
 impl AgentAdapter for CodexAdapter {
     fn find_session(&self, path: &Path) -> Option<String> {
-        if let Some(p) = super::codex::find_codex_resume_path(path) {
-            if let Some(id) = super::codex::extract_session_id_from_path(&p) {
-                return Some(id);
-            }
+        if let Some(p) = super::codex::find_codex_resume_path(path)
+            && let Some(id) = super::codex::extract_session_id_from_path(&p) {
+            return Some(id);
         }
         super::codex::find_codex_session(path)
     }
@@ -534,6 +533,7 @@ mod tests {
         #[test]
         #[serial]
         fn test_droid_adapter_creates_vscode_shim_and_sets_path_env() {
+            use crate::utils::env_adapter::EnvAdapter;
             use tempfile::tempdir;
 
             let adapter = DroidAdapter;
@@ -541,10 +541,9 @@ mod tests {
             let temp = tempdir().expect("failed to create temp dir");
             let worktree_path = temp.path();
 
-            // Guard original PATH so we can assert override behaviour deterministically.
             let original_path_var = std::env::var("PATH").ok();
             let original_path = "/usr/local/bin:/usr/bin:/bin";
-            std::env::set_var("PATH", original_path);
+            EnvAdapter::set_var("PATH", original_path);
 
             let ctx = AgentLaunchContext {
                 worktree_path,
@@ -575,9 +574,9 @@ mod tests {
             assert_eq!(path_env, &expected);
 
             if let Some(value) = original_path_var {
-                std::env::set_var("PATH", value);
+                EnvAdapter::set_var("PATH", &value);
             } else {
-                std::env::remove_var("PATH");
+                EnvAdapter::remove_var("PATH");
             }
         }
     }

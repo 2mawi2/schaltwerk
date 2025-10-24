@@ -41,14 +41,13 @@ pub fn find_resumable_claude_session_fast(path: &Path) -> Option<String> {
     if visited.insert(project_dir.clone()) {
         candidates.push(project_dir.clone());
     }
-    if let Some(a) = alt_project_dir {
-        if visited.insert(a.clone()) {
-            log::info!(
-                "Claude session detection (fast-path): Adding canonical candidate dir: {}",
-                a.display()
-            );
-            candidates.push(a);
-        }
+    if let Some(a) = alt_project_dir
+        && visited.insert(a.clone()) {
+        log::info!(
+            "Claude session detection (fast-path): Adding canonical candidate dir: {}",
+            a.display()
+        );
+        candidates.push(a);
     }
 
     let mut newest: Option<(SystemTime, String, PathBuf)> = None;
@@ -212,19 +211,15 @@ fn session_file_contains_session_metadata(path: &Path, expected_session_id: &str
             continue;
         }
 
-        match serde_json::from_str::<serde_json::Value>(trimmed) {
-            Ok(value) => {
-                if matches!(value.get("sessionId").and_then(|v| v.as_str()), Some(id) if id == expected_session_id)
-                {
-                    return true;
-                }
-            }
-            Err(err) => {
-                log::debug!(
-                    "Claude session detection: Failed to parse JSON from {}: {err}",
-                    path.display()
-                );
-            }
+        if let Ok(value) = serde_json::from_str::<serde_json::Value>(trimmed)
+            && matches!(value.get("sessionId").and_then(|v| v.as_str()), Some(id) if id == expected_session_id)
+        {
+            return true;
+        } else if let Err(err) = serde_json::from_str::<serde_json::Value>(trimmed) {
+            log::debug!(
+                "Claude session detection: Failed to parse JSON from {}: {err}",
+                path.display()
+            );
         }
     }
 
@@ -417,12 +412,12 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_find_resumable_claude_session_fast_with_temp_home() {
+        use crate::utils::env_adapter::EnvAdapter;
         // Prepare a temporary HOME with a Claude projects directory
         let tempdir = tempfile::tempdir().expect("tempdir");
         let home_path = tempdir.path();
-        // Save and override HOME
         let prev_home = std::env::var("HOME").ok();
-        std::env::set_var("HOME", home_path);
+        EnvAdapter::set_var("HOME", &home_path.to_string_lossy());
 
         let worktree = Path::new(
             "/Users/marius.wichtner/Documents/git/schaltwerk/.schaltwerk/worktrees/eager_tesla",
@@ -478,21 +473,21 @@ mod tests {
         let found = find_resumable_claude_session_fast(worktree);
         assert_eq!(found.as_deref(), Some("ses_new"));
 
-        // Restore HOME
         if let Some(h) = prev_home {
-            std::env::set_var("HOME", h);
+            EnvAdapter::set_var("HOME", &h);
         } else {
-            std::env::remove_var("HOME");
+            EnvAdapter::remove_var("HOME");
         }
     }
 
     #[test]
     #[serial_test::serial]
     fn test_find_resumable_claude_session_ignores_summary_only_files() {
+        use crate::utils::env_adapter::EnvAdapter;
         let tempdir = tempfile::tempdir().expect("tempdir");
         let home_path = tempdir.path();
         let prev_home = std::env::var("HOME").ok();
-        std::env::set_var("HOME", home_path);
+        EnvAdapter::set_var("HOME", &home_path.to_string_lossy());
 
         let worktree = Path::new(
             "/Users/marius.wichtner/Documents/git/schaltwerk/.schaltwerk/worktrees/focused_mccarthy",
@@ -527,19 +522,20 @@ mod tests {
         assert_eq!(found.as_deref(), Some("valid-session"));
 
         if let Some(h) = prev_home {
-            std::env::set_var("HOME", h);
+            EnvAdapter::set_var("HOME", &h);
         } else {
-            std::env::remove_var("HOME");
+            EnvAdapter::remove_var("HOME");
         }
     }
 
     #[test]
     #[serial_test::serial]
     fn test_find_resumable_claude_session_returns_none_for_summary_only_dir() {
+        use crate::utils::env_adapter::EnvAdapter;
         let tempdir = tempfile::tempdir().expect("tempdir");
         let home_path = tempdir.path();
         let prev_home = std::env::var("HOME").ok();
-        std::env::set_var("HOME", home_path);
+        EnvAdapter::set_var("HOME", &home_path.to_string_lossy());
 
         let worktree = Path::new(
             "/Users/marius.wichtner/Documents/git/schaltwerk/.schaltwerk/worktrees/fleet_torvalds",
@@ -562,9 +558,9 @@ mod tests {
         assert_eq!(found, None);
 
         if let Some(h) = prev_home {
-            std::env::set_var("HOME", h);
+            EnvAdapter::set_var("HOME", &h);
         } else {
-            std::env::remove_var("HOME");
+            EnvAdapter::remove_var("HOME");
         }
     }
 

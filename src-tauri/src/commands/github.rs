@@ -524,9 +524,10 @@ mod tests {
 
     impl TempHomeGuard {
         fn new() -> Self {
+            use schaltwerk::utils::env_adapter::EnvAdapter;
             let temp_dir = TempDir::new().expect("temp home directory");
             let previous = std::env::var("HOME").ok();
-            std::env::set_var("HOME", temp_dir.path());
+            EnvAdapter::set_var("HOME", &temp_dir.path().to_string_lossy());
             Self {
                 previous,
                 _temp_dir: temp_dir,
@@ -536,10 +537,11 @@ mod tests {
 
     impl Drop for TempHomeGuard {
         fn drop(&mut self) {
+            use schaltwerk::utils::env_adapter::EnvAdapter;
             if let Some(prev) = &self.previous {
-                std::env::set_var("HOME", prev);
+                EnvAdapter::set_var("HOME", prev);
             } else {
-                std::env::remove_var("HOME");
+                EnvAdapter::remove_var("HOME");
             }
         }
     }

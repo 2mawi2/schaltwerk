@@ -227,17 +227,15 @@ fn resolve_command(command: &str) -> String {
         }
     }
 
-    if let Ok(output) = std::process::Command::new("which").arg(command).output() {
-        if output.status.success() {
-            if let Ok(path) = String::from_utf8(output.stdout) {
+    if let Ok(output) = std::process::Command::new("which").arg(command).output()
+        && output.status.success()
+            && let Ok(path) = String::from_utf8(output.stdout) {
                 let path = path.trim();
                 if !path.is_empty() {
                     log::info!("Found {command} via which: {path}");
                     return path.to_string();
                 }
             }
-        }
-    }
 
     log::warn!("Could not resolve path for '{command}', using as-is");
     command.to_string()

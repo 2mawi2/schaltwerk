@@ -342,16 +342,14 @@ pub fn calculate_split_diff_stats(split: &SplitDiffResult) -> DiffStats {
     let mut deletions = 0;
 
     for i in 0..split.left_lines.len().max(split.right_lines.len()) {
-        if let Some(left) = split.left_lines.get(i) {
-            if matches!(left.line_type, LineType::Removed) {
+        if let Some(left) = split.left_lines.get(i)
+            && matches!(left.line_type, LineType::Removed) {
                 deletions += 1;
             }
-        }
-        if let Some(right) = split.right_lines.get(i) {
-            if matches!(right.line_type, LineType::Added) {
+        if let Some(right) = split.right_lines.get(i)
+            && matches!(right.line_type, LineType::Added) {
                 additions += 1;
             }
-        }
     }
 
     DiffStats {

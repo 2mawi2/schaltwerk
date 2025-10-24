@@ -281,11 +281,10 @@ mod client {
 
     fn configure_mcp_codex(mcp_server_path: &str) -> Result<String, String> {
         let (config_path, created_dir) = codex_config_path()?;
-        if created_dir {
-            if let Some(parent) = config_path.parent() {
+        if created_dir
+            && let Some(parent) = config_path.parent() {
                 log::info!("Created Codex config directory at {}", parent.display());
             }
-        }
         let mut content = if config_path.exists() {
             fs::read_to_string(&config_path)
                 .map_err(|e| format!("Failed to read Codex config: {e}"))?
@@ -508,11 +507,10 @@ mod client {
     ) -> Result<String, String> {
         let (config_path, created_dir) = opencode_config_path(project_path)?;
 
-        if created_dir {
-            if let Some(parent) = config_path.parent() {
+        if created_dir
+            && let Some(parent) = config_path.parent() {
                 log::info!("Created OpenCode config directory at {}", parent.display());
             }
-        }
 
         // Read existing config or create new one
         let config_content = if config_path.exists() {
@@ -570,8 +568,8 @@ mod client {
             .map_err(|e| format!("Failed to parse OpenCode config JSON: {e}"))?;
 
         // Remove Schaltwerk from MCP section
-        if let Some(mcp_section) = config.get_mut("mcp") {
-            if let Some(mcp_obj) = mcp_section.as_object_mut() {
+        if let Some(mcp_section) = config.get_mut("mcp")
+            && let Some(mcp_obj) = mcp_section.as_object_mut() {
                 mcp_obj.remove("schaltwerk");
 
                 // If MCP section is empty, remove it entirely
@@ -579,7 +577,6 @@ mod client {
                     config.as_object_mut().unwrap().remove("mcp");
                 }
             }
-        }
 
         let updated_content = serde_json::to_string_pretty(&config)
             .map_err(|e| format!("Failed to serialize OpenCode config: {e}"))?;
@@ -642,8 +639,8 @@ mod client {
             .map_err(|e| format!("Failed to parse Amp config JSON: {e}"))?;
 
         // Remove schaltwerk from amp.mcpServers
-        if let Some(mcp_servers) = config.get_mut("amp.mcpServers") {
-            if let Some(obj) = mcp_servers.as_object_mut() {
+        if let Some(mcp_servers) = config.get_mut("amp.mcpServers")
+            && let Some(obj) = mcp_servers.as_object_mut() {
                 obj.remove("schaltwerk");
 
                 // If no MCP servers left, remove the section
@@ -651,7 +648,6 @@ mod client {
                     config.as_object_mut().unwrap().remove("amp.mcpServers");
                 }
             }
-        }
 
         let updated_content = serde_json::to_string_pretty(&config)
             .map_err(|e| format!("Failed to serialize Amp config: {e}"))?;
@@ -713,15 +709,14 @@ mod client {
         let mut config: serde_json::Value = serde_json::from_str(&content)
             .map_err(|e| format!("Failed to parse Factory Droid config JSON: {e}"))?;
 
-        if let Some(mcp_servers) = config.get_mut("mcpServers") {
-            if let Some(obj) = mcp_servers.as_object_mut() {
+        if let Some(mcp_servers) = config.get_mut("mcpServers")
+            && let Some(obj) = mcp_servers.as_object_mut() {
                 obj.remove("schaltwerk");
 
                 if obj.is_empty() {
                     config.as_object_mut().unwrap().remove("mcpServers");
                 }
             }
-        }
 
         let updated_content = serde_json::to_string_pretty(&config)
             .map_err(|e| format!("Failed to serialize Factory Droid config: {e}"))?;

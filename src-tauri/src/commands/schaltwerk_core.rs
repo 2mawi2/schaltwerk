@@ -20,6 +20,7 @@ use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
 use schaltwerk::schaltwerk_core::db_project_config::{ProjectConfigMethods, DEFAULT_BRANCH_PREFIX};
 use schaltwerk::schaltwerk_core::SessionManager;
 use schaltwerk::services::ServiceHandles;
+use schaltwerk::utils::env_adapter::EnvAdapter;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use tauri::State;
@@ -219,9 +220,9 @@ pub async fn merge_session_with_events(
 
             if conflict {
                 let manager = service.session_manager();
-                if let Ok(session) = manager.get_session(name) {
-                    if session.worktree_path.exists() {
-                        if let Ok(stats) =
+                if let Ok(session) = manager.get_session(name)
+                    && session.worktree_path.exists()
+                        && let Ok(stats) =
                             schaltwerk::domains::git::service::calculate_git_stats_fast(
                                 &session.worktree_path,
                                 &session.parent_branch,
@@ -262,8 +263,6 @@ pub async fn merge_session_with_events(
                                 );
                             }
                         }
-                    }
-                }
             }
 
             events::emit_git_operation_failed(
@@ -1205,11 +1204,10 @@ pub async fn schaltwerk_core_start_claude_with_restart(
 
     log::info!("Claude command for session {session_name}: {command}");
 
-    if agent_type == "amp" {
-        if let Err(e) = manager.spawn_amp_thread_watcher(&session_name) {
+    if agent_type == "amp"
+        && let Err(e) = manager.spawn_amp_thread_watcher(&session_name) {
             log::warn!("Failed to spawn amp thread watcher for session '{session_name}': {e}");
         }
-    }
 
     let (cwd, agent_name, agent_args) = parse_agent_command(&command)?;
     let agent_kind = agent_ctx::infer_agent_kind(&agent_name);
@@ -1230,19 +1228,18 @@ pub async fn schaltwerk_core_start_claude_with_restart(
         terminal_manager.close_terminal(terminal_id.clone()).await?;
     }
 
-    if auto_send_initial_command {
-        if let Some(initial) = initial_command.clone().filter(|v| !v.trim().is_empty()) {
+    if auto_send_initial_command
+        && let Some(initial) = initial_command.clone().filter(|v| !v.trim().is_empty()) {
             terminal_manager
                 .queue_initial_command(terminal_id.clone(), initial, ready_marker.clone())
                 .await?;
         }
-    }
 
     let (mut env_vars, cli_args) =
         agent_ctx::collect_agent_env_and_cli(&agent_kind, &core.repo_path, &core.db).await;
     log::info!("Creating terminal with {agent_name} directly: {terminal_id} with {} env vars and CLI args: '{cli_args}'", env_vars.len());
 
-    std::env::set_var("SCHALTWERK_SESSION", &session_name);
+    EnvAdapter::set_var("SCHALTWERK_SESSION", &session_name);
     if !env_vars.iter().any(|(key, _)| key == "SCHALTWERK_SESSION") {
         env_vars.push(("SCHALTWERK_SESSION".to_string(), session_name.clone()));
     }
@@ -1265,8 +1262,8 @@ pub async fn schaltwerk_core_start_claude_with_restart(
             use_shell_chain = true;
         }
     }
-    if let Ok(Some(setup)) = core.db.get_project_setup_script(&core.repo_path) {
-        if !setup.trim().is_empty() {
+    if let Ok(Some(setup)) = core.db.get_project_setup_script(&core.repo_path)
+        && !setup.trim().is_empty() {
             // Persist setup script to a temp file for reliable execution
             let temp_dir = std::env::temp_dir();
             let ts = std::time::SystemTime::now()
@@ -1315,7 +1312,6 @@ pub async fn schaltwerk_core_start_claude_with_restart(
                 use_shell_chain = true;
             }
         }
-    }
 
     // Build final args using centralized logic (handles Codex ordering/normalization)
     let final_args = agent_ctx::build_final_args(&agent_kind, agent_args.clone(), &cli_args);
@@ -1652,8 +1648,8 @@ pub async fn schaltwerk_core_get_font_sizes() -> Result<(i32, i32), String> {
                 let db_result = core.db.get_font_sizes();
                 drop(core);
 
-                if let Ok((db_terminal, db_ui)) = db_result {
-                    if (db_terminal, db_ui) != (terminal, ui) {
+                if let Ok((db_terminal, db_ui)) = db_result
+                    && (db_terminal, db_ui) != (terminal, ui) {
                         {
                             let mut manager = settings_manager.lock().await;
                             if let Err(err) = manager.set_font_sizes(db_terminal, db_ui) {
@@ -1663,7 +1659,6 @@ pub async fn schaltwerk_core_get_font_sizes() -> Result<(i32, i32), String> {
                         terminal = db_terminal;
                         ui = db_ui;
                     }
-                }
             }
             Err(err) => {
                 if !err.contains("No active project") {
@@ -1747,9 +1742,9 @@ pub async fn schaltwerk_core_mark_session_ready(
         .mark_session_ready_with_message(&name, effective_auto_commit, commit_message.as_deref())
         .map_err(|e| format!("Failed to mark session as reviewed: {e}"))?;
 
-    if let Ok(session) = manager.get_session(&name) {
-        if session.worktree_path.exists() {
-            if let Ok(stats) = schaltwerk::domains::git::service::calculate_git_stats_fast(
+    if let Ok(session) = manager.get_session(&name)
+        && session.worktree_path.exists()
+            && let Ok(stats) = schaltwerk::domains::git::service::calculate_git_stats_fast(
                 &session.worktree_path,
                 &session.parent_branch,
             ) {
@@ -1784,8 +1779,6 @@ pub async fn schaltwerk_core_mark_session_ready(
                     );
                 }
             }
-        }
-    }
 
     // Emit event to notify frontend of the change
     // Invalidate cache before emitting refreshed event

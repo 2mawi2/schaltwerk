@@ -787,8 +787,8 @@ fn fast_forward_branch(repo: &Repository, branch: &str, new_oid: Oid) -> Result<
     let mut should_update_worktree = false;
     let mut skip_reason: Option<String> = None;
 
-    if let Ok(head) = repo.head() {
-        if head.is_branch() && head.shorthand() == Some(branch) {
+    if let Ok(head) = repo.head()
+        && head.is_branch() && head.shorthand() == Some(branch) {
             if let Some(workdir) = repo.workdir() {
                 let workdir_path = workdir.to_path_buf();
                 match pre_update_state {
@@ -821,7 +821,6 @@ fn fast_forward_branch(repo: &Repository, branch: &str, new_oid: Oid) -> Result<
                 should_update_worktree = true;
             }
         }
-    }
 
     if should_update_worktree {
         debug!("{OPERATION_LABEL}: updating working tree for branch '{branch}'");

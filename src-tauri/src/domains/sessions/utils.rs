@@ -144,15 +144,14 @@ impl SessionUtils {
                 worktree_path.display()
             );
 
-            if let Ok(git_dir) = worktree_path.join(".git").canonicalize() {
-                if git_dir.is_file() {
+            if let Ok(git_dir) = worktree_path.join(".git").canonicalize()
+                && git_dir.is_file() {
                     log::info!(
                         "Removing git worktree reference at: {}",
                         worktree_path.display()
                     );
                     git::remove_worktree(&self.repo_path, worktree_path)?;
                 }
-            }
 
             if worktree_path.exists() {
                 log::info!(

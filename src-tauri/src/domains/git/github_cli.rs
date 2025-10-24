@@ -964,25 +964,24 @@ fn split_label_filters(query: &str) -> (String, Vec<String>) {
     let mut index = 0;
 
     while index < query.len() {
-        if let Some((marker_len, is_boundary)) = detect_label_marker(query, index) {
-            if is_boundary {
-                let after_marker = index + marker_len;
-                let value_start = skip_leading_whitespace(query, after_marker);
-                if value_start >= query.len() {
-                    index = value_start;
-                    continue;
-                }
-
-                let (label_value, value_end) = parse_label_value(query, value_start);
-                if let Some(value) = label_value {
-                    labels.push(value);
-                    index = skip_leading_whitespace(query, value_end);
-                    continue;
-                }
-
-                index = value_end;
+        if let Some((marker_len, is_boundary)) = detect_label_marker(query, index)
+            && is_boundary {
+            let after_marker = index + marker_len;
+            let value_start = skip_leading_whitespace(query, after_marker);
+            if value_start >= query.len() {
+                index = value_start;
                 continue;
             }
+
+            let (label_value, value_end) = parse_label_value(query, value_start);
+            if let Some(value) = label_value {
+                labels.push(value);
+                index = skip_leading_whitespace(query, value_end);
+                continue;
+            }
+
+            index = value_end;
+            continue;
         }
 
         let ch = query[index..].chars().next().unwrap();
@@ -1002,16 +1001,15 @@ fn split_label_filters(query: &str) -> (String, Vec<String>) {
 fn detect_label_marker(query: &str, index: usize) -> Option<(usize, bool)> {
     for marker in ["label:", "label="] {
         let len = marker.len();
-        if let Some(candidate) = query[index..].get(..len) {
-            if candidate.eq_ignore_ascii_case(marker) {
-                let boundary = index == 0
-                    || query[..index]
-                        .chars()
-                        .last()
-                        .map(|ch| ch.is_whitespace())
-                        .unwrap_or(true);
-                return Some((len, boundary));
-            }
+        if let Some(candidate) = query[index..].get(..len)
+            && candidate.eq_ignore_ascii_case(marker) {
+            let boundary = index == 0
+                || query[..index]
+                    .chars()
+                    .last()
+                    .map(|ch| ch.is_whitespace())
+                    .unwrap_or(true);
+            return Some((len, boundary));
         }
     }
     None

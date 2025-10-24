@@ -143,14 +143,13 @@ pub fn build_final_args(
             let extracted_prompt = extract_codex_prompt_if_present(&mut parsed_agent_args);
             fix_codex_single_dash_long_flags(&mut additional);
             reorder_codex_model_after_profile(&mut additional);
-            if harness_manages_codex_sandbox() {
-                if let Some(removed) = strip_codex_sandbox_overrides(&mut additional) {
+            if harness_manages_codex_sandbox()
+                && let Some(removed) = strip_codex_sandbox_overrides(&mut additional) {
                     let removed_joined = removed.join(", ");
                     log::warn!(
                         "Ignoring Codex CLI sandbox override because Schaltwerk manages sandbox mode: {removed_joined}"
                     );
                 }
-            }
             parsed_agent_args.extend(additional);
             if let Some(p) = extracted_prompt {
                 parsed_agent_args.push(p);
@@ -176,18 +175,20 @@ mod tests {
 
     impl EnvVarGuard {
         fn set(key: &'static str, value: &str) -> Self {
+            use schaltwerk::utils::env_adapter::EnvAdapter;
             let original = std::env::var(key).ok();
-            std::env::set_var(key, value);
+            EnvAdapter::set_var(key, value);
             Self { key, original }
         }
     }
 
     impl Drop for EnvVarGuard {
         fn drop(&mut self) {
+            use schaltwerk::utils::env_adapter::EnvAdapter;
             if let Some(ref original) = self.original {
-                std::env::set_var(self.key, original);
+                EnvAdapter::set_var(self.key, original);
             } else {
-                std::env::remove_var(self.key);
+                EnvAdapter::remove_var(self.key);
             }
         }
     }
@@ -294,7 +295,8 @@ mod tests {
     #[test]
     #[serial]
     fn codex_standalone_keeps_duplicate_sandbox_flag() {
-        std::env::remove_var("SCHALTWERK_SESSION");
+        use schaltwerk::utils::env_adapter::EnvAdapter;
+        EnvAdapter::remove_var("SCHALTWERK_SESSION");
         let args = build_final_args(
             &AgentKind::Codex,
             vec!["--sandbox".into(), "workspace-write".into()],

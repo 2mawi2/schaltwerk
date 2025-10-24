@@ -152,16 +152,14 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_project_history_add_update_remove_and_persist() {
-        // Redirect HOME and XDG_CONFIG_HOME for cross-platform compatibility
+        use schaltwerk::utils::env_adapter::EnvAdapter;
         let tmp = TempDir::new().unwrap();
         let prev_home = env::var("HOME").ok();
         let prev_xdg = env::var("XDG_CONFIG_HOME").ok();
 
-        // Set HOME for macOS and XDG_CONFIG_HOME for Linux
-        env::set_var("HOME", tmp.path());
-        env::set_var("XDG_CONFIG_HOME", tmp.path().join(".config"));
+        EnvAdapter::set_var("HOME", &tmp.path().to_string_lossy());
+        EnvAdapter::set_var("XDG_CONFIG_HOME", &tmp.path().join(".config").to_string_lossy());
 
-        // Ensure the config directory exists
         let config_path = tmp.path().join(".config");
         std::fs::create_dir_all(&config_path).unwrap();
 
@@ -173,31 +171,27 @@ mod tests {
         let projects = hist.get_recent_projects();
         assert_eq!(projects.len(), 2);
 
-        // Add a small delay to ensure timestamp difference
         std::thread::sleep(std::time::Duration::from_millis(10));
 
-        // Update timestamp and ensure order changes (most recent first)
         hist.update_timestamp("/a/b/c").unwrap();
         let recent = hist.get_recent_projects();
         assert_eq!(recent[0].path, "/a/b/c");
 
-        // Remove and persist
         hist.remove_project("/a/b/c").unwrap();
         let after_remove = ProjectHistory::load().unwrap();
         let list = after_remove.get_recent_projects();
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].path, "/x/y");
 
-        // Restore environment variables
         if let Some(p) = prev_home {
-            env::set_var("HOME", p);
+            EnvAdapter::set_var("HOME", &p);
         } else {
-            env::remove_var("HOME");
+            EnvAdapter::remove_var("HOME");
         }
         if let Some(p) = prev_xdg {
-            env::set_var("XDG_CONFIG_HOME", p);
+            EnvAdapter::set_var("XDG_CONFIG_HOME", &p);
         } else {
-            env::remove_var("XDG_CONFIG_HOME");
+            EnvAdapter::remove_var("XDG_CONFIG_HOME");
         }
     }
 

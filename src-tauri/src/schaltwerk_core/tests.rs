@@ -7,6 +7,8 @@ use crate::domains::sessions::entity::SessionStatus;
 #[cfg(test)]
 use crate::shared::terminal_id::{terminal_id_for_session_bottom, terminal_id_for_session_top};
 #[cfg(test)]
+use crate::utils::env_adapter::EnvAdapter;
+#[cfg(test)]
 use crate::{
     domains::sessions::service::SessionManager,
     schaltwerk_core::{git, Database},
@@ -1541,11 +1543,9 @@ fn test_codex_spec_start_respects_resume_gate() {
     writeln!(f, "{{\"id\":\"s-1\",\"timestamp\":\"2025-09-13T01:00:00.000Z\",\"cwd\":\"{}\",\"originator\":\"codex_cli_rs\"}}", running.worktree_path.display()).unwrap();
     writeln!(f, "{{\"record_type\":\"state\"}}").unwrap();
 
-    // Point HOME to our temp dir so Codex resume detection picks it up
     let prev_home = std::env::var("HOME").ok();
-    std::env::set_var("HOME", home_dir.path());
+    EnvAdapter::set_var("HOME", &home_dir.path().to_string_lossy());
 
-    // First start should be a fresh start using the prompt (resume gate is false)
     let cmd1 = manager.start_claude_in_session(&running.name).unwrap();
     let shell1 = &cmd1.shell_command;
     assert!(
@@ -1564,7 +1564,6 @@ fn test_codex_spec_start_respects_resume_gate() {
         shell1
     );
 
-    // Second start should allow resume now (resume_allowed flipped true)
     let cmd2 = manager.start_claude_in_session(&running.name).unwrap();
     let shell2 = &cmd2.shell_command;
     assert!(
@@ -1572,7 +1571,6 @@ fn test_codex_spec_start_respects_resume_gate() {
         "expected Codex command on second start, got: {}",
         shell2
     );
-    // Should prefer resuming via the dedicated resume subcommand
     let resumed = shell2.contains(" codex --sandbox ") && shell2.contains(" resume");
     assert!(
         resumed,
@@ -1580,11 +1578,10 @@ fn test_codex_spec_start_respects_resume_gate() {
         shell2
     );
 
-    // Restore HOME
     if let Some(h) = prev_home {
-        std::env::set_var("HOME", h);
+        EnvAdapter::set_var("HOME", &h);
     } else {
-        std::env::remove_var("HOME");
+        EnvAdapter::remove_var("HOME");
     }
 }
 
@@ -1618,11 +1615,9 @@ fn test_orchestrator_codex_prefers_explicit_resume_path() {
     writeln!(f, "{{\"id\":\"orch-session\",\"timestamp\":\"2025-09-13T01:00:00.000Z\",\"cwd\":\"{}\",\"originator\":\"codex_cli_rs\"}}", env.repo_path.display()).unwrap();
     writeln!(f, "{{\"record_type\":\"state\"}}").unwrap();
 
-    // Point HOME to our temp dir so Codex resume detection picks it up
     let prev_home = std::env::var("HOME").ok();
-    std::env::set_var("HOME", home_dir.path());
+    EnvAdapter::set_var("HOME", &home_dir.path().to_string_lossy());
 
-    // Build orchestrator command (resume enabled by default)
     let cmd = manager.start_claude_in_orchestrator().unwrap();
     let shell = &cmd.shell_command;
     assert!(
@@ -1630,7 +1625,6 @@ fn test_orchestrator_codex_prefers_explicit_resume_path() {
         "expected Codex orchestrator command: {}",
         shell
     );
-    // Should prefer explicit resume via session identifier
     assert!(
         shell.contains(" codex --sandbox "),
         "expected Codex sandbox flag in orchestrator start: {}",
@@ -1642,10 +1636,9 @@ fn test_orchestrator_codex_prefers_explicit_resume_path() {
         shell
     );
 
-    // Restore HOME
     if let Some(h) = prev_home {
-        std::env::set_var("HOME", h);
+        EnvAdapter::set_var("HOME", &h);
     } else {
-        std::env::remove_var("HOME");
+        EnvAdapter::remove_var("HOME");
     }
 }

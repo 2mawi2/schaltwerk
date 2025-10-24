@@ -52,11 +52,10 @@ impl SqliteConnectionManager {
         conn.pragma_update(None, "foreign_keys", "ON")?;
         conn.pragma_update(None, "synchronous", "NORMAL")?;
 
-        if matches!(self.config, SqliteConfig::File(_)) {
-            if let Err(err) = conn.pragma_update(None, "journal_mode", "WAL") {
+        if matches!(self.config, SqliteConfig::File(_))
+            && let Err(err) = conn.pragma_update(None, "journal_mode", "WAL") {
                 log::warn!("Failed to enable WAL journal mode: {err}");
             }
-        }
 
         conn.busy_timeout(Duration::from_millis(5_000))?;
         Ok(())

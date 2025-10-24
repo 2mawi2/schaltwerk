@@ -67,12 +67,10 @@ pub fn ensure_vscode_cli_shim(
 }
 
 fn write_if_different(path: &Path, contents: &str) -> io::Result<()> {
-    if path.exists() {
-        if let Ok(existing) = fs::read_to_string(path) {
-            if existing == contents {
-                return Ok(());
-            }
-        }
+    if path.exists()
+        && let Ok(existing) = fs::read_to_string(path)
+        && existing == contents {
+        return Ok(());
     }
 
     if let Some(parent) = path.parent() {
