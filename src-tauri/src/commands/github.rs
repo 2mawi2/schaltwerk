@@ -5,8 +5,8 @@ use schaltwerk::domains::git::github_cli::{
     GitHubIssueDetails, GitHubIssueLabel, GitHubIssueSummary,
 };
 use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
-use schaltwerk::schaltwerk_core::db_project_config::{ProjectConfigMethods, ProjectGithubConfig};
 use schaltwerk::project_manager::ProjectManager;
+use schaltwerk::schaltwerk_core::db_project_config::{ProjectConfigMethods, ProjectGithubConfig};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -241,7 +241,13 @@ pub async fn github_search_issues(
 ) -> Result<Vec<GitHubIssueSummaryPayload>, String> {
     let manager = get_project_manager().await;
     let cli = GitHubCli::new();
-    github_search_issues_impl(Arc::clone(&manager), &cli, query, ISSUE_SEARCH_DEFAULT_LIMIT).await
+    github_search_issues_impl(
+        Arc::clone(&manager),
+        &cli,
+        query,
+        ISSUE_SEARCH_DEFAULT_LIMIT,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -521,8 +527,11 @@ mod tests {
             let temp_dir = TempDir::new().expect("temp home directory");
             let previous = std::env::var("HOME").ok();
             std::env::set_var("HOME", temp_dir.path());
-            Self { previous, _temp_dir: temp_dir }
-    }
+            Self {
+                previous,
+                _temp_dir: temp_dir,
+            }
+        }
     }
 
     impl Drop for TempHomeGuard {
@@ -584,14 +593,10 @@ mod tests {
         init_repo(temp.path());
         let _home_guard = configure_repo(&manager, temp.path()).await;
 
-        let results = github_search_issues_impl(
-            Arc::clone(&manager),
-            &cli,
-            Some(" bug ".to_string()),
-            20,
-        )
-        .await
-        .expect("search results");
+        let results =
+            github_search_issues_impl(Arc::clone(&manager), &cli, Some(" bug ".to_string()), 20)
+                .await
+                .expect("search results");
 
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].number, 1);

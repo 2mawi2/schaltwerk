@@ -265,7 +265,9 @@ impl SettingsManager {
             .map_err(|e| e.to_string())
     }
 
-    pub fn get_amp_mcp_servers(&self) -> std::collections::HashMap<String, crate::domains::settings::McpServerConfig> {
+    pub fn get_amp_mcp_servers(
+        &self,
+    ) -> std::collections::HashMap<String, crate::domains::settings::McpServerConfig> {
         self.service.get_amp_mcp_servers()
     }
 

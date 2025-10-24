@@ -91,7 +91,6 @@ impl SessionCacheManager {
             let mut cache = spec_cache.lock().unwrap();
             cache.clear();
         }
-
     }
 }
 

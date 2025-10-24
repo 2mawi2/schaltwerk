@@ -1,17 +1,17 @@
-use std::path::Path;
 use crate::commands::session_lookup_cache::{current_repo_cache_key, global_session_lookup_cache};
-use schaltwerk::domains::workspace::diff_engine::{
-    add_collapsible_sections, calculate_diff_stats, calculate_split_diff_stats, compute_split_diff,
-    compute_unified_diff, get_file_language, DiffResponse, FileInfo, SplitDiffResponse,
-};
-use schaltwerk::domains::workspace::file_utils;
 use crate::get_core_read;
 use git2::{Delta, DiffFindOptions, DiffOptions, ObjectType, Oid, Repository, Sort, Tree};
 use schaltwerk::binary_detection::{get_unsupported_reason, is_binary_file_by_extension};
 use schaltwerk::domains::git;
 use schaltwerk::domains::git::stats::build_changed_files_from_diff;
 use schaltwerk::domains::sessions::entity::ChangedFile;
+use schaltwerk::domains::workspace::diff_engine::{
+    add_collapsible_sections, calculate_diff_stats, calculate_split_diff_stats, compute_split_diff,
+    compute_unified_diff, get_file_language, DiffResponse, FileInfo, SplitDiffResponse,
+};
+use schaltwerk::domains::workspace::file_utils;
 use serde::Serialize;
+use std::path::Path;
 
 #[tauri::command]
 pub async fn get_changed_files_from_main(

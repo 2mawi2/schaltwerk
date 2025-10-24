@@ -2,10 +2,8 @@ use crate::domains::merge::service::{compute_merge_state, resolve_branch_oid};
 use crate::domains::merge::types::MergeStateSnapshot;
 use crate::infrastructure::events::{emit_event, SchaltEvent};
 use crate::{
-    domains::git::db_git_stats::GitStatsMethods,
-    domains::git::service as git,
-    domains::sessions::db_sessions::SessionMethods,
-    schaltwerk_core::database::Database,
+    domains::git::db_git_stats::GitStatsMethods, domains::git::service as git,
+    domains::sessions::db_sessions::SessionMethods, schaltwerk_core::database::Database,
 };
 use anyhow::Result;
 #[cfg(test)]

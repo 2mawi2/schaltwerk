@@ -11,8 +11,7 @@ use std::time::{Duration, SystemTime};
 static LOG_PATH: Mutex<Option<PathBuf>> = Mutex::new(None);
 static LOG_FILE_WRITER: Mutex<Option<BufWriter<File>>> = Mutex::new(None);
 static LOGGER_INITIALIZED: Mutex<bool> = Mutex::new(false);
-static DEV_ERROR_DISPATCH: Mutex<Option<Arc<DevErrorCallback>>> =
-    Mutex::new(None);
+static DEV_ERROR_DISPATCH: Mutex<Option<Arc<DevErrorCallback>>> = Mutex::new(None);
 
 const DEFAULT_RETENTION_HOURS: u64 = 72;
 const SECONDS_PER_HOUR: u64 = 3_600;
@@ -178,7 +177,11 @@ pub fn init_logging() {
             };
 
             if let Some(callback) = hook {
-                let source = if target.is_empty() { None } else { Some(target) };
+                let source = if target.is_empty() {
+                    None
+                } else {
+                    Some(target)
+                };
                 callback(&message_text, source);
             }
         }
@@ -435,8 +438,7 @@ mod tests {
     fn test_dev_error_hook_receives_error_logs() {
         init_logging();
 
-        let captured: Arc<Mutex<Vec<(String, Option<String>)>>> =
-            Arc::new(Mutex::new(Vec::new()));
+        let captured: Arc<Mutex<Vec<(String, Option<String>)>>> = Arc::new(Mutex::new(Vec::new()));
         let captured_clone = Arc::clone(&captured);
 
         register_dev_error_hook(move |message, source| {
@@ -448,7 +450,9 @@ mod tests {
 
         let guard = captured.lock().unwrap();
         assert!(
-            guard.iter().any(|(message, _)| message.contains("dev error hook smoke test")),
+            guard
+                .iter()
+                .any(|(message, _)| message.contains("dev error hook smoke test")),
             "expected captured messages to include the emitted error log"
         );
     }

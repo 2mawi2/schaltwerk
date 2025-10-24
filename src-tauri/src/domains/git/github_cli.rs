@@ -442,8 +442,8 @@ impl<R: CommandRunner> GitHubCli<R> {
         }
 
         let clean_output = strip_ansi_codes(&output.stdout);
-        let parsed: Vec<IssueListResponse> = serde_json::from_str(clean_output.trim()).map_err(
-            |err| {
+        let parsed: Vec<IssueListResponse> =
+            serde_json::from_str(clean_output.trim()).map_err(|err| {
                 log::error!(
                     "[GitHubCli] Failed to parse issue search response: {err}; raw={}, cleaned={}",
                     output.stdout.trim(),
@@ -452,8 +452,7 @@ impl<R: CommandRunner> GitHubCli<R> {
                 GitHubCliError::InvalidOutput(
                     "GitHub CLI returned issue data in an unexpected format.".to_string(),
                 )
-            },
-        )?;
+            })?;
 
         let mut results: Vec<GitHubIssueSummary> = parsed
             .into_iter()
@@ -484,9 +483,7 @@ impl<R: CommandRunner> GitHubCli<R> {
         results.sort_by(|a, b| {
             let b_key = parse_timestamp(&b.updated_at);
             let a_key = parse_timestamp(&a.updated_at);
-            b_key
-                .cmp(&a_key)
-                .then_with(|| a.number.cmp(&b.number))
+            b_key.cmp(&a_key).then_with(|| a.number.cmp(&b.number))
         });
 
         Ok(results)
@@ -524,8 +521,8 @@ impl<R: CommandRunner> GitHubCli<R> {
         }
 
         let clean_output = strip_ansi_codes(&output.stdout);
-        let parsed: IssueDetailsResponse = serde_json::from_str(clean_output.trim()).map_err(
-            |err| {
+        let parsed: IssueDetailsResponse =
+            serde_json::from_str(clean_output.trim()).map_err(|err| {
                 log::error!(
                     "[GitHubCli] Failed to parse issue detail response: {err}; raw={}, cleaned={}",
                     output.stdout.trim(),
@@ -534,8 +531,7 @@ impl<R: CommandRunner> GitHubCli<R> {
                 GitHubCliError::InvalidOutput(
                     "GitHub CLI returned issue detail data in an unexpected format.".to_string(),
                 )
-            },
-        )?;
+            })?;
 
         let labels = parsed
             .labels
@@ -1146,7 +1142,10 @@ struct IssueCommentNode {
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
 enum IssueComments {
-    Connection { #[serde(default)] nodes: Vec<IssueCommentNode> },
+    Connection {
+        #[serde(default)]
+        nodes: Vec<IssueCommentNode>,
+    },
     List(Vec<IssueCommentNode>),
     None,
 }
@@ -1264,7 +1263,8 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let repo_path = temp.path();
         let repo = git2::Repository::init(repo_path).unwrap();
-        repo.remote("origin", "https://github.com/example/repo").unwrap();
+        repo.remote("origin", "https://github.com/example/repo")
+            .unwrap();
 
         let results = cli
             .search_issues(repo_path, "", 50)
@@ -1280,10 +1280,7 @@ mod tests {
         assert_eq!(issue.labels.len(), 1);
         assert_eq!(issue.labels[0].name, "bug");
         assert_eq!(issue.labels[0].color.as_deref(), Some("d73a4a"));
-        assert_eq!(
-            issue.url,
-            "https://github.com/example/repo/issues/42"
-        );
+        assert_eq!(issue.url, "https://github.com/example/repo/issues/42");
 
         let calls = runner.calls();
         assert_eq!(calls.len(), 1);
@@ -1313,7 +1310,8 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let repo_path = temp.path();
         let repo = git2::Repository::init(repo_path).unwrap();
-        repo.remote("origin", "https://github.com/example/repo").unwrap();
+        repo.remote("origin", "https://github.com/example/repo")
+            .unwrap();
 
         let results = cli
             .search_issues(repo_path, "  regression fix ", 5)
@@ -1342,7 +1340,8 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let repo_path = temp.path();
         let repo = git2::Repository::init(repo_path).unwrap();
-        repo.remote("origin", "https://github.com/example/repo").unwrap();
+        repo.remote("origin", "https://github.com/example/repo")
+            .unwrap();
 
         let _ = cli
             .search_issues(repo_path, "label:\"bug\" critical", 5)
@@ -1372,7 +1371,8 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let repo_path = temp.path();
         let repo = git2::Repository::init(repo_path).unwrap();
-        repo.remote("origin", "https://github.com/example/repo").unwrap();
+        repo.remote("origin", "https://github.com/example/repo")
+            .unwrap();
 
         let _ = cli
             .search_issues(repo_path, "label:enhancement", 10)
@@ -1405,7 +1405,8 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let repo_path = temp.path();
         let repo = git2::Repository::init(repo_path).unwrap();
-        repo.remote("origin", "https://github.com/example/repo").unwrap();
+        repo.remote("origin", "https://github.com/example/repo")
+            .unwrap();
 
         let _ = cli
             .search_issues(
@@ -1444,7 +1445,8 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let repo_path = temp.path();
         let repo = git2::Repository::init(repo_path).unwrap();
-        repo.remote("origin", "https://github.com/example/repo").unwrap();
+        repo.remote("origin", "https://github.com/example/repo")
+            .unwrap();
 
         let results = cli
             .search_issues(repo_path, "", 20)
@@ -1492,7 +1494,8 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let repo_path = temp.path();
         let repo = git2::Repository::init(repo_path).unwrap();
-        repo.remote("origin", "https://github.com/example/repo").unwrap();
+        repo.remote("origin", "https://github.com/example/repo")
+            .unwrap();
 
         let details = cli
             .get_issue_with_comments(repo_path, 101)
@@ -1535,7 +1538,8 @@ mod tests {
                         "body": "First array comment"
                     }
                 ]
-            }).to_string(),
+            })
+            .to_string(),
             stderr: String::new(),
         }));
         let cli = GitHubCli::with_runner(runner.clone());
@@ -1543,17 +1547,15 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let repo_path = temp.path();
         let repo = git2::Repository::init(repo_path).unwrap();
-        repo.remote("origin", "https://github.com/example/repo").unwrap();
+        repo.remote("origin", "https://github.com/example/repo")
+            .unwrap();
 
         let details = cli
             .get_issue_with_comments(repo_path, 5)
             .expect("issue details");
 
         assert_eq!(details.comments.len(), 1);
-        assert_eq!(
-            details.comments[0].author_login.as_deref(),
-            Some("octocat")
-        );
+        assert_eq!(details.comments[0].author_login.as_deref(), Some("octocat"));
         assert_eq!(details.comments[0].body, "First array comment");
     }
 
