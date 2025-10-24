@@ -241,7 +241,11 @@ export function CopyBundleBar({ sessionName }: CopyBundleBarProps) {
           fileCacheRef.current.clear()
         })
         if (disposed) {
-          unlisten()
+          try {
+            await unlisten()
+          } catch (err) {
+            logger.warn('[CopyBundleBar] Failed to cleanup file changes listener', err)
+          }
         } else {
           unlistenFileChanges = unlisten
         }
@@ -266,7 +270,11 @@ export function CopyBundleBar({ sessionName }: CopyBundleBarProps) {
           }
         })
         if (disposed) {
-          unlisten()
+          try {
+            await unlisten()
+          } catch (err) {
+            logger.warn('[CopyBundleBar] Failed to cleanup sessions refreshed listener', err)
+          }
         } else {
           unlistenSessionsRefreshed = unlisten
         }
@@ -281,18 +289,26 @@ export function CopyBundleBar({ sessionName }: CopyBundleBarProps) {
     return () => {
       disposed = true
       if (unlistenFileChanges) {
-        try {
-          unlistenFileChanges()
-        } catch (err) {
-          logger.debug('[CopyBundleBar] Failed to cleanup file changes listener', err)
-        }
+        const unlisten = unlistenFileChanges
+        unlistenFileChanges = null
+        void (async () => {
+          try {
+            await unlisten()
+          } catch (err) {
+            logger.warn('[CopyBundleBar] Failed to cleanup file changes listener', err)
+          }
+        })()
       }
       if (unlistenSessionsRefreshed) {
-        try {
-          unlistenSessionsRefreshed()
-        } catch (err) {
-          logger.debug('[CopyBundleBar] Failed to cleanup sessions refreshed listener', err)
-        }
+        const unlisten = unlistenSessionsRefreshed
+        unlistenSessionsRefreshed = null
+        void (async () => {
+          try {
+            await unlisten()
+          } catch (err) {
+            logger.warn('[CopyBundleBar] Failed to cleanup sessions refreshed listener', err)
+          }
+        })()
       }
     }
   }, [loadInitialData, sessionName])

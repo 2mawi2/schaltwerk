@@ -1,13 +1,30 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { vi } from 'vitest'
-import { GitGraphPanel } from './GitGraphPanel'
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
 import { SchaltEvent } from '../../common/eventSystem'
 import type { HistoryProviderSnapshot } from './types'
+import { GitGraphPanel } from './GitGraphPanel'
+import { logger } from '../../utils/logger'
 
 const useGitHistoryMock = vi.fn()
+
+const { fileChangeHandlers, defaultListenImplementation, listenEventMock } = vi.hoisted(() => {
+  const handlers: Record<string, (payload: unknown) => unknown> = {}
+  const defaultImpl = async (event: string, handler: (payload: unknown) => unknown) => {
+    handlers[event] = handler
+    return () => {
+      delete handlers[event]
+    }
+  }
+
+  return {
+    fileChangeHandlers: handlers,
+    defaultListenImplementation: defaultImpl,
+    listenEventMock: vi.fn(defaultImpl)
+  }
+})
 
 vi.mock('../../contexts/ProjectContext', () => ({
   useProject: () => ({ projectPath: '/repo/path' })
@@ -17,18 +34,20 @@ vi.mock('../../common/toast/ToastProvider', () => ({
   useToast: () => ({ pushToast: vi.fn() })
 }))
 
-const fileChangeHandlers: Record<string, (payload: unknown) => unknown> = {}
+vi.mock('../../utils/logger', () => ({
+  logger: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn()
+  }
+}))
 
 vi.mock('../../common/eventSystem', async importOriginal => {
   const actual = await importOriginal<typeof import('../../common/eventSystem')>()
   return {
     ...actual,
-    listenEvent: vi.fn(async (event, handler) => {
-      fileChangeHandlers[event] = handler as (payload: unknown) => unknown
-      return () => {
-        delete fileChangeHandlers[event]
-      }
-    })
+    listenEvent: listenEventMock
   }
 })
 
@@ -56,8 +75,11 @@ const baseSnapshot: HistoryProviderSnapshot = {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks()
   mockedInvoke.mockReset()
   useGitHistoryMock.mockReset()
+  listenEventMock.mockReset()
+  listenEventMock.mockImplementation(defaultListenImplementation)
   Object.keys(fileChangeHandlers).forEach(key => {
     delete fileChangeHandlers[key]
   })
@@ -277,5 +299,41 @@ describe('GitGraphPanel', () => {
     })
 
     expect(refreshMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('logs and swallows errors when event unlisten rejects during cleanup', async () => {
+    const ensureLoadedMock = vi.fn()
+
+    useGitHistoryMock.mockReturnValue({
+      snapshot: baseSnapshot,
+      isLoading: false,
+      error: null,
+      isLoadingMore: false,
+      loadMoreError: null,
+      latestHead: baseSnapshot.headCommit ?? null,
+      ensureLoaded: ensureLoadedMock,
+      loadMore: vi.fn(),
+      refresh: vi.fn()
+    })
+
+    const unlistenError = new Error('failed to unlisten')
+
+    listenEventMock.mockImplementationOnce(async (event, handler) => {
+      fileChangeHandlers[event] = handler
+      return async () => {
+        throw unlistenError
+      }
+    })
+
+    const { unmount } = render(<GitGraphPanel />)
+    expect(ensureLoadedMock).toHaveBeenCalled()
+
+    unmount()
+    await waitFor(() => {
+      expect(logger.warn).toHaveBeenCalledWith(
+        '[GitGraphPanel] Failed to unsubscribe from file change events',
+        unlistenError
+      )
+    })
   })
 })

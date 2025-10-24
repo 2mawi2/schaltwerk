@@ -255,7 +255,11 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
       try {
         const unlistenFileChanges = await listenEvent(SchaltEvent.FileChanges, handleFileChanges)
         if (!isMounted) {
-          unlistenFileChanges()
+          try {
+            await unlistenFileChanges()
+          } catch (err) {
+            logger.warn('[GitGraphPanel] Failed to unsubscribe from file change events', err)
+          }
           return
         }
         unlisten = unlistenFileChanges
@@ -269,8 +273,15 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
     return () => {
       isMounted = false
       if (unlisten) {
-        unlisten()
+        const unlistenFn = unlisten
         unlisten = null
+        void (async () => {
+          try {
+            await unlistenFn()
+          } catch (err) {
+            logger.warn('[GitGraphPanel] Failed to unsubscribe from file change events', err)
+          }
+        })()
       }
     }
   }, [handleFileChanges])
