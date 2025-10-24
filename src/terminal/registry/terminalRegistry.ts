@@ -214,3 +214,7 @@ export function releaseSessionTerminals(sessionName: string): void {
     return false;
   });
 }
+
+export function hasTerminalInstance(id: string): boolean {
+  return registry.has(id);
+}

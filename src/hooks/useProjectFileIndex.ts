@@ -90,12 +90,27 @@ export function useProjectFileIndex(): ProjectFileIndexApi {
     })
 
     return () => {
-      unlistenPromise
+      void unlistenPromise
         .then(unlisten => {
-          unlisten()
+          try {
+            const result = unlisten()
+            const maybePromise = result as unknown
+            if (
+              typeof maybePromise === 'object' &&
+              maybePromise !== null &&
+              'then' in maybePromise &&
+              typeof (maybePromise as Promise<unknown>).then === 'function'
+            ) {
+              void (maybePromise as Promise<void>).catch(err => {
+                logger.warn('[useProjectFileIndex] Failed to unlisten ProjectFilesUpdated event (async)', err)
+              })
+            }
+          } catch (err) {
+            logger.warn('[useProjectFileIndex] Failed to unlisten ProjectFilesUpdated event', err)
+          }
         })
         .catch(err => {
-          logger.warn('[useProjectFileIndex] Failed to unlisten ProjectFilesUpdated event', err)
+          logger.warn('[useProjectFileIndex] Failed to resolve ProjectFilesUpdated unlisten promise', err)
         })
     }
   }, [])
