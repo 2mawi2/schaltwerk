@@ -5,6 +5,7 @@ import { logger } from '../../utils/logger'
 import type { Selection } from '../../contexts/SelectionContext'
 import { FEEDBACK_ISSUE_URL } from './constants'
 import { composeFeedbackBody } from './template'
+import { useOptionalToast } from '../../common/toast/ToastProvider'
 
 interface UseFeedbackOptions {
   selection: Selection
@@ -12,6 +13,7 @@ interface UseFeedbackOptions {
 
 export function useFeedback({ selection }: UseFeedbackOptions) {
   const [appVersion, setAppVersion] = useState<string | null>(null)
+  const toast = useOptionalToast()
 
   useEffect(() => {
     let cancelled = false
@@ -51,8 +53,13 @@ export function useFeedback({ selection }: UseFeedbackOptions) {
 
     invoke<void>(TauriCommands.OpenExternalUrl, { url }).catch(error => {
       logger.warn('[Feedback] Failed to open external feedback link', error)
+      toast?.pushToast({
+        tone: 'error',
+        title: 'Failed to open feedback link',
+        description: 'Copy the link from the logs and open it manually.',
+      })
     })
-  }, [appVersion, selection])
+  }, [appVersion, selection, toast])
 
   return { openFeedback }
 }
