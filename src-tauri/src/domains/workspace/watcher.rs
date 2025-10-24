@@ -131,8 +131,8 @@ impl FileWatcher {
             })?;
 
         // Also watch the worktree's gitdir/index to catch commit events (for linked worktrees)
-        if let Some(ref idx) = self._gitdir_index {
-            if let Some(parent) = idx.parent() {
+        if let Some(ref idx) = self._gitdir_index
+            && let Some(parent) = idx.parent() {
                 watcher
                     .watch(parent, RecursiveMode::NonRecursive)
                     .map_err(|e| {
@@ -147,7 +147,6 @@ impl FileWatcher {
                     idx.display()
                 );
             }
-        }
 
         info!(
             "Started file watching for session {} at path {}",
@@ -160,12 +159,11 @@ impl FileWatcher {
     fn resolve_gitdir_index(worktree_path: &Path) -> Option<PathBuf> {
         let dot_git = worktree_path.join(".git");
         if dot_git.is_file() {
-            if let Ok(s) = std::fs::read_to_string(&dot_git) {
-                if let Some(rest) = s.strip_prefix("gitdir: ") {
+            if let Ok(s) = std::fs::read_to_string(&dot_git)
+                && let Some(rest) = s.strip_prefix("gitdir: ") {
                     let gitdir = PathBuf::from(rest.trim());
                     return Some(gitdir.join("index"));
                 }
-            }
         } else if dot_git.is_dir() {
             return Some(dot_git.join("index"));
         }
@@ -400,38 +398,32 @@ impl FileWatcher {
         let mut lines_removed: u32 = 0;
 
         // Staged: tree (HEAD or merge-base) to index
-        if let Ok(idx) = repo.index() {
-            if let Ok(head) = repo.head() {
-                if let Some(head_oid) = head.target() {
-                    if let Ok(head_commit) = repo.find_commit(head_oid) {
-                        if let Ok(head_tree) = head_commit.tree() {
+        if let Ok(idx) = repo.index()
+            && let Ok(head) = repo.head()
+                && let Some(head_oid) = head.target()
+                    && let Ok(head_commit) = repo.find_commit(head_oid)
+                        && let Ok(head_tree) = head_commit.tree() {
                             let mut opts = git2::DiffOptions::new();
                             if let Ok(diff_idx) = repo.diff_tree_to_index(
                                 Some(&head_tree),
                                 Some(&idx),
                                 Some(&mut opts),
-                            ) {
-                                if let Ok(stats) = diff_idx.stats() {
+                            )
+                                && let Ok(stats) = diff_idx.stats() {
                                     lines_added += stats.insertions() as u32;
                                     lines_removed += stats.deletions() as u32;
                                 }
-                            }
                         }
-                    }
-                }
-            }
-        }
 
         // Unstaged: index to workdir
         if let Ok(idx) = repo.index() {
             let mut opts = git2::DiffOptions::new();
             opts.include_untracked(true).recurse_untracked_dirs(true);
-            if let Ok(diff_wd) = repo.diff_index_to_workdir(Some(&idx), Some(&mut opts)) {
-                if let Ok(stats) = diff_wd.stats() {
+            if let Ok(diff_wd) = repo.diff_index_to_workdir(Some(&idx), Some(&mut opts))
+                && let Ok(stats) = diff_wd.stats() {
                     lines_added += stats.insertions() as u32;
                     lines_removed += stats.deletions() as u32;
                 }
-            }
         }
 
         Ok(ChangeSummary {

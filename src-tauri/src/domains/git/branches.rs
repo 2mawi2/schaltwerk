@@ -33,13 +33,11 @@ pub fn list_branches(repo_path: &Path) -> Result<Vec<String>> {
     // Get remote branches and convert them to local branch names
     let remote_branches = repo.branches(Some(BranchType::Remote))?;
     for (branch, _) in remote_branches.flatten() {
-        if let Some(name) = branch.name()? {
+        if let Some(name) = branch.name()?
             // Strip origin/ prefix to get the branch name
-            if let Some(branch_name) = name.strip_prefix("origin/") {
-                if branch_name != "HEAD" {
-                    branch_names.push(branch_name.to_string());
-                }
-            }
+            && let Some(branch_name) = name.strip_prefix("origin/")
+            && branch_name != "HEAD" {
+            branch_names.push(branch_name.to_string());
         }
     }
 
@@ -70,7 +68,7 @@ pub fn branch_exists(repo_path: &Path, branch_name: &str) -> Result<bool> {
     let repo = Repository::open(repo_path)?;
 
     // Try to find the branch
-    let result = match repo.find_branch(branch_name, BranchType::Local) {
+    match repo.find_branch(branch_name, BranchType::Local) {
         Ok(_) => Ok(true),
         Err(e) if e.code() == git2::ErrorCode::NotFound => Ok(false),
         // Treat corrupted branches as non-existent
@@ -81,8 +79,7 @@ pub fn branch_exists(repo_path: &Path, branch_name: &str) -> Result<bool> {
             Ok(false)
         }
         Err(e) => Err(anyhow!("Error checking branch existence: {e}")),
-    };
-    result
+    }
 }
 
 pub fn ensure_branch_at_head(repo_path: &Path, branch_name: &str) -> Result<()> {
@@ -96,17 +93,16 @@ pub fn ensure_branch_at_head(repo_path: &Path, branch_name: &str) -> Result<()> 
         return Ok(());
     }
 
-    if current_branch != "HEAD" {
-        if let Ok(mut existing) = repo.find_branch(&current_branch, BranchType::Local) {
-            log::info!(
-                "Renaming current branch '{current_branch}' to requested base '{branch_name}'"
-            );
-            existing.rename(branch_name, false).map_err(|e| {
-                anyhow!("Failed to rename branch '{current_branch}' to '{branch_name}': {e}")
-            })?;
-            checkout_branch(&repo, branch_name)?;
-            return Ok(());
-        }
+    if current_branch != "HEAD"
+        && let Ok(mut existing) = repo.find_branch(&current_branch, BranchType::Local) {
+        log::info!(
+            "Renaming current branch '{current_branch}' to requested base '{branch_name}'"
+        );
+        existing.rename(branch_name, false).map_err(|e| {
+            anyhow!("Failed to rename branch '{current_branch}' to '{branch_name}': {e}")
+        })?;
+        checkout_branch(&repo, branch_name)?;
+        return Ok(());
     }
 
     let head_obj = repo

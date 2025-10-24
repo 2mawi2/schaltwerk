@@ -113,19 +113,17 @@ pub async fn handle_coalesced_output(
                 decode_coalesced_bytes(bytes, params.terminal_id, &mut utf8_streams)
             };
 
-            if let Some(prefix) = remainder_prefix {
-                if !prefix.is_empty() {
+            if let Some(prefix) = remainder_prefix
+                && !prefix.is_empty() {
                     let mut buffers = coalescing_state.emit_buffers.write().await;
                     let entry = buffers.entry(params.terminal_id.to_string()).or_default();
                     entry.splice(0..0, prefix);
                 }
-            }
 
-            if let Some(text) = payload {
-                if let Err(e) = handle.emit(&event_name, text) {
+            if let Some(text) = payload
+                && let Err(e) = handle.emit(&event_name, text) {
                     warn!("Failed to emit terminal output: {e}");
                 }
-            }
         } else {
             // No app handle available (tests or early startup): restore bytes back to buffer
             let mut buffers = coalescing_state.emit_buffers.write().await;

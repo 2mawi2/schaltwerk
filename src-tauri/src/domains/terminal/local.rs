@@ -513,8 +513,8 @@ impl LocalPtyAdapter {
                             }
 
                             if !sanitized_data.is_empty() {
-                                if let Some(seq) = current_seq {
-                                    if output_event_sender_clone.receiver_count() > 0
+                                if let Some(seq) = current_seq
+                                    && output_event_sender_clone.receiver_count() > 0
                                         && output_event_sender_clone
                                             .send((id_clone.clone(), seq))
                                             .is_err()
@@ -523,8 +523,6 @@ impl LocalPtyAdapter {
                                             "[Terminal {id_clone}] Output listener closed; skipping notification"
                                         );
                                     }
-                                    
-                                }
 
                                 handle_coalesced_output(
                                     &coalescing_state_output,
@@ -1046,11 +1044,10 @@ fn session_id_from_terminal_id(id: &str) -> Option<String> {
     };
 
     // Remove numeric index at end like -0, -1 FIRST
-    if let Some((prefix, maybe_index)) = rest.rsplit_once('-') {
-        if maybe_index.chars().all(|c| c.is_ascii_digit()) {
+    if let Some((prefix, maybe_index)) = rest.rsplit_once('-')
+        && maybe_index.chars().all(|c| c.is_ascii_digit()) {
             rest = prefix;
         }
-    }
 
     // Remove terminal position suffix (-top or -bottom)
     for suffix in ["-top", "-bottom"] {

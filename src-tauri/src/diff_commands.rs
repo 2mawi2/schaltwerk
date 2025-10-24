@@ -610,13 +610,11 @@ pub async fn get_commit_comparison_info(
 }
 
 fn short_id_str(repo: &Repository, oid: Oid) -> String {
-    if let Ok(obj) = repo.find_object(oid, None) {
-        if let Ok(buf) = obj.short_id() {
-            if let Ok(s) = std::str::from_utf8(&buf) {
+    if let Ok(obj) = repo.find_object(oid, None)
+        && let Ok(buf) = obj.short_id()
+            && let Ok(s) = std::str::from_utf8(&buf) {
                 return s.to_string();
             }
-        }
-    }
     let s = oid.to_string();
     s.chars().take(7).collect()
 }

@@ -80,11 +80,10 @@ pub fn previous_tilde_hashed_terminal_id_for_session_bottom(name: &str) -> Strin
 }
 
 fn strip_numeric_suffix(id: &str) -> &str {
-    if let Some((prefix, suffix)) = id.rsplit_once('-') {
-        if suffix.chars().all(|c| c.is_ascii_digit()) {
+    if let Some((prefix, suffix)) = id.rsplit_once('-')
+        && suffix.chars().all(|c| c.is_ascii_digit()) {
             return prefix;
         }
-    }
     id
 }
 

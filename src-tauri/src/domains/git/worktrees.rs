@@ -104,15 +104,14 @@ pub fn discard_path_in_worktree(
     }
 
     // Reset the index entry for this path back to HEAD, tolerating files that were removed in HEAD.
-    if let Err(err) = repo.reset_default(None, [rel_str.as_str()]) {
-        if err.code() != ErrorCode::NotFound {
+    if let Err(err) = repo.reset_default(None, [rel_str.as_str()])
+        && err.code() != ErrorCode::NotFound {
             return Err(anyhow!(
                 "Failed to reset index for {}: {}",
                 rel_str,
                 err.message()
             ));
         }
-    }
 
     // Fall back to HEAD behaviour when no base reference is available.
     if tracked_in_head {
@@ -187,11 +186,10 @@ fn resolve_branch_commit_oid(repo: &Repository, branch: &str) -> Result<Option<O
     ];
 
     for reference_name in candidates {
-        if let Ok(reference) = repo.find_reference(&reference_name) {
-            if let Ok(commit) = reference.peel_to_commit() {
+        if let Ok(reference) = repo.find_reference(&reference_name)
+            && let Ok(commit) = reference.peel_to_commit() {
                 return Ok(Some(commit.id()));
             }
-        }
     }
 
     Ok(None)
@@ -276,11 +274,10 @@ pub fn remove_worktree(repo_path: &Path, worktree_path: &Path) -> Result<()> {
                 .unwrap_or_else(|_| wt_path.to_path_buf());
             if canonical_wt_path == canonical_target_path || wt_path == worktree_path {
                 // First remove the directory (this makes the worktree invalid)
-                if worktree_path.exists() {
-                    if let Err(e) = std::fs::remove_dir_all(worktree_path) {
+                if worktree_path.exists()
+                    && let Err(e) = std::fs::remove_dir_all(worktree_path) {
                         return Err(anyhow!("Failed to remove worktree directory: {e}"));
                     }
-                }
 
                 // Now prune the worktree (should work since directory is gone)
                 if let Err(e) = wt.prune(Some(&mut WorktreePruneOptions::new())) {
@@ -482,12 +479,11 @@ pub fn reset_worktree_to_base(worktree_path: &Path, base_branch: &str) -> Result
 
     let mut target_obj = None;
     for name in &base_ref_names {
-        if let Ok(reference) = repo.find_reference(name) {
-            if let Some(oid) = reference.target() {
+        if let Ok(reference) = repo.find_reference(name)
+            && let Some(oid) = reference.target() {
                 target_obj = Some(repo.find_object(oid, None)?);
                 break;
             }
-        }
     }
 
     let target_obj = target_obj.ok_or_else(|| {

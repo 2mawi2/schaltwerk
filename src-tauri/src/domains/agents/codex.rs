@@ -46,20 +46,16 @@ impl DirSignature {
             for entry in read_dir.flatten() {
                 let path = entry.path();
                 if path.is_dir() {
-                    if let Ok(meta) = entry.metadata() {
-                        if let Ok(modified) = meta.modified() {
-                            if let Ok(millis) = modified
-                                .duration_since(std::time::SystemTime::UNIX_EPOCH)
-                                .map(|dur| dur.as_millis())
-                            {
-                                if latest_dir_millis
-                                    .map(|current| millis > current)
-                                    .unwrap_or(true)
-                                {
-                                    latest_dir_millis = Some(millis);
-                                }
-                            }
-                        }
+                    if let Ok(meta) = entry.metadata()
+                        && let Ok(modified) = meta.modified()
+                        && let Ok(millis) = modified
+                            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                            .map(|dur| dur.as_millis())
+                        && latest_dir_millis
+                            .map(|current| millis > current)
+                            .unwrap_or(true)
+                    {
+                        latest_dir_millis = Some(millis);
                     }
                     if depth < 3 {
                         stack.push((path, depth + 1));
@@ -72,20 +68,16 @@ impl DirSignature {
                 }
 
                 file_count += 1;
-                if let Ok(meta) = entry.metadata() {
-                    if let Ok(modified) = meta.modified() {
-                        if let Ok(millis) = modified
-                            .duration_since(std::time::SystemTime::UNIX_EPOCH)
-                            .map(|dur| dur.as_millis())
-                        {
-                            if latest_file_millis
-                                .map(|current| millis > current)
-                                .unwrap_or(true)
-                            {
-                                latest_file_millis = Some(millis);
-                            }
-                        }
-                    }
+                if let Ok(meta) = entry.metadata()
+                    && let Ok(modified) = meta.modified()
+                    && let Ok(millis) = modified
+                        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                        .map(|dur| dur.as_millis())
+                    && latest_file_millis
+                        .map(|current| millis > current)
+                        .unwrap_or(true)
+                {
+                    latest_file_millis = Some(millis);
                 }
             }
         }
@@ -384,14 +376,13 @@ fn persist_disk_cache(sessions_dir: &Path, cache: &HashMap<PathBuf, CachedFileEn
     let path = cache_file_path(sessions_dir);
     let tmp_path = path.with_extension("tmp");
 
-    if let Some(parent) = path.parent() {
-        if let Err(err) = fs::create_dir_all(parent) {
-            log::warn!(
-                "Codex session index: Failed to create cache directory {}: {err}",
-                parent.display()
-            );
-            return;
-        }
+    if let Some(parent) = path.parent()
+        && let Err(err) = fs::create_dir_all(parent) {
+        log::warn!(
+            "Codex session index: Failed to create cache directory {}: {err}",
+            parent.display()
+        );
+        return;
     }
 
     let entries: Vec<DiskCacheRecord> = cache
@@ -1255,6 +1246,7 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_find_codex_session_fast_uses_cached_snapshot() {
+        use crate::utils::env_adapter::EnvAdapter;
         let temp_home = tempdir().unwrap();
         let sessions_root = temp_home.path().join(".codex").join("sessions");
         let target_dir = sessions_root.join("2025").join("09").join("20");
@@ -1281,21 +1273,20 @@ mod tests {
         drop(handle);
 
         let original_home = env::var("HOME").ok();
-        env::set_var("HOME", temp_home.path());
+        EnvAdapter::set_var("HOME", &temp_home.path().to_string_lossy());
         CODEX_SESSION_INDEX.reset_for_tests();
 
         let resume_hint = find_codex_session_fast(Path::new("/worktree/a"));
         assert_eq!(resume_hint.as_deref(), Some("__resume__"));
 
-        // Second call should hit the cached snapshot with the same result.
         let resume_hint_cached = find_codex_session_fast(Path::new("/worktree/a"));
         assert_eq!(resume_hint_cached.as_deref(), Some("__resume__"));
 
         CODEX_SESSION_INDEX.reset_for_tests();
         if let Some(home) = original_home {
-            env::set_var("HOME", home);
+            EnvAdapter::set_var("HOME", &home);
         } else {
-            env::remove_var("HOME");
+            EnvAdapter::remove_var("HOME");
         }
     }
 

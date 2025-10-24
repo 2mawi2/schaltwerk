@@ -95,8 +95,8 @@ fn detect_version(path: &Path) -> Option<String> {
     let version_flags = vec!["--version", "-v", "version"];
 
     for flag in version_flags {
-        if let Ok(output) = Command::new(path).arg(flag).output() {
-            if output.status.success() {
+        if let Ok(output) = Command::new(path).arg(flag).output()
+            && output.status.success() {
                 let version_output = String::from_utf8_lossy(&output.stdout);
                 if !version_output.trim().is_empty() {
                     let version = version_output.lines().next().unwrap_or("").trim();
@@ -106,7 +106,6 @@ fn detect_version(path: &Path) -> Option<String> {
                     }
                 }
             }
-        }
     }
 
     debug!("Could not detect version for: {}", path.display());

@@ -76,6 +76,7 @@ mod service_unified_tests {
     use super::*;
     use crate::domains::sessions::entity::{Session, SessionState, SessionStatus};
     use crate::schaltwerk_core::database::Database;
+    use crate::utils::env_adapter::EnvAdapter;
     use chrono::Utc;
     use serial_test::serial;
     use std::collections::HashMap;
@@ -130,13 +131,12 @@ mod service_unified_tests {
     #[serial_test::serial]
     fn test_resume_gating_after_spec_then_first_start_is_fresh() {
         let (manager, temp_dir) = create_test_session_manager();
-        // Arrange temp HOME to simulate Claude history existing
         let home_dir = tempfile::tempdir().unwrap();
         let prev_home = std::env::var("HOME").ok();
         let override_key = "SCHALTWERK_CLAUDE_HOME_OVERRIDE";
         let prev_override = std::env::var(override_key).ok();
-        std::env::set_var("HOME", home_dir.path());
-        std::env::set_var(override_key, home_dir.path());
+        EnvAdapter::set_var("HOME", &home_dir.path().to_string_lossy());
+        EnvAdapter::set_var(override_key, &home_dir.path().to_string_lossy());
 
         // Make the repo a valid git repo with an initial commit
         std::process::Command::new("git")
@@ -225,16 +225,15 @@ mod service_unified_tests {
             "Expected resume via explicit -r <session> on second start"
         );
 
-        // Cleanup HOME
         if let Some(h) = prev_home {
-            std::env::set_var("HOME", h);
+            EnvAdapter::set_var("HOME", &h);
         } else {
-            std::env::remove_var("HOME");
+            EnvAdapter::remove_var("HOME");
         }
         if let Some(v) = prev_override {
-            std::env::set_var(override_key, v);
+            EnvAdapter::set_var(override_key, &v);
         } else {
-            std::env::remove_var(override_key);
+            EnvAdapter::remove_var(override_key);
         }
     }
 
@@ -401,7 +400,7 @@ mod service_unified_tests {
 
         let home_dir = tempfile::TempDir::new().unwrap();
         let prev_home = std::env::var("HOME").ok();
-        std::env::set_var("HOME", home_dir.path());
+        EnvAdapter::set_var("HOME", &home_dir.path().to_string_lossy());
 
         std::fs::create_dir_all(temp_dir.path().join("repo").join(".git")).unwrap();
 
@@ -434,9 +433,9 @@ mod service_unified_tests {
         );
 
         if let Some(prev) = prev_home {
-            std::env::set_var("HOME", prev);
+            EnvAdapter::set_var("HOME", &prev);
         } else {
-            std::env::remove_var("HOME");
+            EnvAdapter::remove_var("HOME");
         }
     }
 
@@ -450,7 +449,7 @@ mod service_unified_tests {
 
         let home_dir = tempfile::TempDir::new().unwrap();
         let prev_home = std::env::var("HOME").ok();
-        std::env::set_var("HOME", home_dir.path());
+        EnvAdapter::set_var("HOME", &home_dir.path().to_string_lossy());
 
         std::fs::create_dir_all(temp_dir.path().join("repo").join(".git")).unwrap();
 
@@ -504,9 +503,9 @@ mod service_unified_tests {
         );
 
         if let Some(prev) = prev_home {
-            std::env::set_var("HOME", prev);
+            EnvAdapter::set_var("HOME", &prev);
         } else {
-            std::env::remove_var("HOME");
+            EnvAdapter::remove_var("HOME");
         }
     }
 
@@ -609,7 +608,7 @@ mod service_unified_tests {
         writeln!(f, "{{\"record_type\":\"state\"}}").unwrap();
 
         let prev_home = std::env::var("HOME").ok();
-        std::env::set_var("HOME", home_dir.path());
+        EnvAdapter::set_var("HOME", &home_dir.path().to_string_lossy());
 
         // Second start should allow resume now (gate flips after fresh start and session file exists)
         let cmd2 = manager.start_claude_in_session(&running.name).unwrap();
@@ -623,9 +622,9 @@ mod service_unified_tests {
 
         // Restore HOME
         if let Some(h) = prev_home {
-            std::env::set_var("HOME", h);
+            EnvAdapter::set_var("HOME", &h);
         } else {
-            std::env::remove_var("HOME");
+            EnvAdapter::remove_var("HOME");
         }
     }
 
@@ -1625,11 +1624,10 @@ impl SessionManager {
 
         log::info!("Worktree verified and ready: {}", worktree_path.display());
 
-        if should_copy_claude_locals {
-            if let Err(err) = self.copy_claude_local_files(&worktree_path) {
+        if should_copy_claude_locals
+            && let Err(err) = self.copy_claude_local_files(&worktree_path) {
                 warn!("Failed to copy Claude local overrides for session '{unique_name}': {err}");
             }
-        }
 
         // IMPORTANT: Do not execute project setup script here.
         // We stream the setup script output directly in the session's top terminal
@@ -1651,11 +1649,10 @@ impl SessionManager {
         let mut git_stats = git::calculate_git_stats_fast(&worktree_path, &parent_branch)?;
         git_stats.session_id = session_id.clone();
         self.db_manager.save_git_stats(&git_stats)?;
-        if let Some(ts) = git_stats.last_diff_change_ts {
-            if let Some(dt) = Utc.timestamp_opt(ts, 0).single() {
+        if let Some(ts) = git_stats.last_diff_change_ts
+            && let Some(dt) = Utc.timestamp_opt(ts, 0).single() {
                 let _ = self.db_manager.set_session_activity(&session_id, dt);
             }
-        }
 
         self.cache_manager.unreserve_name(&unique_name);
         log::info!("Successfully created session '{unique_name}'");
@@ -1681,8 +1678,8 @@ impl SessionManager {
         }
 
         let claude_dir = self.repo_path.join(".claude");
-        if claude_dir.is_dir() {
-            if let Ok(entries) = fs::read_dir(&claude_dir) {
+        if claude_dir.is_dir()
+            && let Ok(entries) = fs::read_dir(&claude_dir) {
                 for entry in entries.filter_map(Result::ok) {
                     let path = entry.path();
                     if !path.is_file() {
@@ -1696,7 +1693,6 @@ impl SessionManager {
                     copy_plan.push((path, dest));
                 }
             }
-        }
 
         for (source, dest) in copy_plan {
             if dest.exists() {
@@ -1838,13 +1834,12 @@ impl SessionManager {
                     let repo = Repository::open(&repo_path)?;
                     let worktrees = repo.worktrees()?;
                     for wt_name in worktrees.iter().flatten() {
-                        if let Ok(wt) = repo.find_worktree(wt_name) {
-                            if wt.path() == worktree_path {
+                        if let Ok(wt) = repo.find_worktree(wt_name)
+                            && wt.path() == worktree_path {
                                 // Prune the worktree (force removal)
                                 let _ = wt.prune(Some(&mut WorktreePruneOptions::new()));
                                 break;
                             }
-                        }
                     }
                     // Also try to remove directory if still exists
                     if worktree_path.exists() {
@@ -1894,17 +1889,15 @@ impl SessionManager {
         };
 
         // Wait for parallel operations
-        if let Some(worktree_handle) = worktree_future {
-            if let Err(e) = worktree_handle.await {
+        if let Some(worktree_handle) = worktree_future
+            && let Err(e) = worktree_handle.await {
                 log::warn!("Fast cancel {name}: Worktree task error: {e}");
             }
-        }
 
-        if let Some(branch_handle) = branch_future {
-            if let Err(e) = branch_handle.await {
+        if let Some(branch_handle) = branch_future
+            && let Err(e) = branch_handle.await {
                 log::warn!("Fast cancel {name}: Branch task error: {e}");
             }
-        }
 
         // Update database status
         self.db_manager
@@ -1937,20 +1930,18 @@ impl SessionManager {
             log::warn!("Converting session '{name}' to spec with uncommitted changes");
         }
 
-        if session.worktree_path.exists() {
-            if let Err(e) = git::remove_worktree(&self.repo_path, &session.worktree_path) {
+        if session.worktree_path.exists()
+            && let Err(e) = git::remove_worktree(&self.repo_path, &session.worktree_path) {
                 log::warn!("Failed to remove worktree when converting to spec (will continue anyway): {e}. This may be due to active processes or file locks in the worktree directory.");
                 // Continue with conversion even if worktree removal fails - the important part
                 // is updating the session state in the database. The orphaned directory
                 // can be cleaned up later via cleanup_orphaned_worktrees()
             }
-        }
 
-        if git::branch_exists(&self.repo_path, &session.branch)? {
-            if let Err(e) = git::delete_branch(&self.repo_path, &session.branch) {
+        if git::branch_exists(&self.repo_path, &session.branch)?
+            && let Err(e) = git::delete_branch(&self.repo_path, &session.branch) {
                 log::warn!("Failed to delete branch '{}': {}", session.branch, e);
             }
-        }
 
         self.db_manager
             .update_session_status(&session.id, SessionStatus::Spec)?;
@@ -2366,8 +2357,8 @@ impl SessionManager {
             }
 
             // If we started fresh and resume had been disallowed, flip resume_allowed back to true for future resumes
-            if did_start_fresh && !resume_allowed {
-                if let Err(err) = self
+            if did_start_fresh && !resume_allowed
+                && let Err(err) = self
                     .db_manager
                     .set_session_resume_allowed(&session.id, true)
                 {
@@ -2376,7 +2367,6 @@ impl SessionManager {
                         session.id
                     );
                 }
-            }
 
             let binary_path = self.utils.get_effective_binary_path_with_override(
                 "claude",
@@ -2484,8 +2474,8 @@ impl SessionManager {
             }
 
             // If we started fresh and resume had been disallowed, flip resume_allowed back to true for future resumes
-            if did_start_fresh && !resume_allowed {
-                if let Err(err) = self
+            if did_start_fresh && !resume_allowed
+                && let Err(err) = self
                     .db_manager
                     .set_session_resume_allowed(&session.id, true)
                 {
@@ -2494,7 +2484,6 @@ impl SessionManager {
                         session.id
                     );
                 }
-            }
 
             let binary_path = self.utils.get_effective_binary_path_with_override(
                 "codex",
@@ -3140,8 +3129,8 @@ impl SessionManager {
 
         log::info!("Worktree verified and ready: {}", worktree_path.display());
 
-        if let Ok(Some(setup_script)) = self.db_manager.get_project_setup_script() {
-            if !setup_script.trim().is_empty() {
+        if let Ok(Some(setup_script)) = self.db_manager.get_project_setup_script()
+            && !setup_script.trim().is_empty() {
                 self.utils.execute_setup_script(
                     &setup_script,
                     &unique_name,
@@ -3149,7 +3138,6 @@ impl SessionManager {
                     &worktree_path,
                 )?;
             }
-        }
 
         self.db_manager
             .update_session_status(&session_id, SessionStatus::Active)?;
@@ -3178,11 +3166,10 @@ impl SessionManager {
         let mut git_stats = git::calculate_git_stats_fast(&worktree_path, &parent_branch)?;
         git_stats.session_id = session_id.clone();
         self.db_manager.save_git_stats(&git_stats)?;
-        if let Some(ts) = git_stats.last_diff_change_ts {
-            if let Some(dt) = Utc.timestamp_opt(ts, 0).single() {
+        if let Some(ts) = git_stats.last_diff_change_ts
+            && let Some(dt) = Utc.timestamp_opt(ts, 0).single() {
                 let _ = self.db_manager.set_session_activity(&session_id, dt);
             }
-        }
 
         Ok(())
     }
@@ -3343,8 +3330,8 @@ impl SessionManager {
             session.worktree_path.display()
         );
 
-        if let Ok(Some(setup_script)) = self.db_manager.get_project_setup_script() {
-            if !setup_script.trim().is_empty() {
+        if let Ok(Some(setup_script)) = self.db_manager.get_project_setup_script()
+            && !setup_script.trim().is_empty() {
                 self.utils.execute_setup_script(
                     &setup_script,
                     &session.name,
@@ -3352,7 +3339,6 @@ impl SessionManager {
                     &session.worktree_path,
                 )?;
             }
-        }
 
         self.db_manager
             .update_session_status(&session.id, SessionStatus::Active)?;
@@ -3386,11 +3372,10 @@ impl SessionManager {
         let mut git_stats = git::calculate_git_stats_fast(&session.worktree_path, &parent_branch)?;
         git_stats.session_id = session.id.clone();
         self.db_manager.save_git_stats(&git_stats)?;
-        if let Some(ts) = git_stats.last_diff_change_ts {
-            if let Some(dt) = Utc.timestamp_opt(ts, 0).single() {
+        if let Some(ts) = git_stats.last_diff_change_ts
+            && let Some(dt) = Utc.timestamp_opt(ts, 0).single() {
                 let _ = self.db_manager.set_session_activity(&session.id, dt);
             }
-        }
 
         Ok(())
     }
@@ -3685,14 +3670,13 @@ impl SessionManager {
         let repo = git2::Repository::open(&session.worktree_path)
             .map_err(|e| anyhow!("Failed to open worktree repository: {e}"))?;
         if let Ok(head) = repo.head() {
-            if let Some(name) = head.shorthand() {
-                if name != session.branch {
+            if let Some(name) = head.shorthand()
+                && name != session.branch {
                     log::warn!(
                         "Discard file: HEAD shorthand '{}' != session branch '{}' (continuing defensively)",
                         name, session.branch
                     );
                 }
-            }
         } else {
             log::warn!("Discard file: unable to read HEAD; continuing defensively");
         }

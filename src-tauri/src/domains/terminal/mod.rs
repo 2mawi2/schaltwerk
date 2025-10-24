@@ -108,8 +108,8 @@ pub fn put_terminal_shell_override(shell: String, args: Vec<String>) {
 /// Falls back to the process `$SHELL` or a platform default when unset.
 pub fn get_effective_shell() -> (String, Vec<String>) {
     // Use runtime override if present and valid
-    if let Ok(guard) = TERMINAL_SHELL_STATE.read() {
-        if let Some((shell, args)) = guard.clone() {
+    if let Ok(guard) = TERMINAL_SHELL_STATE.read()
+        && let Some((shell, args)) = guard.clone() {
             if let Some(resolved) = resolve_shell_candidate(&shell) {
                 return (resolved, args);
             } else {
@@ -118,7 +118,6 @@ pub fn get_effective_shell() -> (String, Vec<String>) {
                 );
             }
         }
-    }
 
     if let Ok(env_shell) = env::var("SHELL") {
         if let Some(resolved) = resolve_shell_candidate(&env_shell) {
@@ -216,14 +215,13 @@ fn resolve_shell_candidate(shell: &str) -> Option<String> {
 }
 
 fn expand_home(shell: &str) -> String {
-    if let Some(stripped) = shell.strip_prefix("~/") {
-        if let Ok(home) = env::var("HOME") {
+    if let Some(stripped) = shell.strip_prefix("~/")
+        && let Ok(home) = env::var("HOME") {
             return PathBuf::from(home)
                 .join(stripped)
                 .to_string_lossy()
                 .into_owned();
         }
-    }
 
     shell.to_string()
 }

@@ -117,21 +117,19 @@ pub fn get_commit_file_changes(
             .path()
             .or_else(|| delta.old_file().path())
             .and_then(|path| path.to_str())
-        {
-            if !path.is_empty() {
-                let old_path = delta
-                    .old_file()
-                    .path()
-                    .and_then(|old| old.to_str())
-                    .filter(|old| *old != path)
-                    .map(|old| old.to_string());
+            && !path.is_empty() {
+            let old_path = delta
+                .old_file()
+                .path()
+                .and_then(|old| old.to_str())
+                .filter(|old| *old != path)
+                .map(|old| old.to_string());
 
-                files.push(CommitFileChange {
-                    path: path.to_string(),
-                    change_type: status.to_string(),
-                    old_path,
-                });
-            }
+            files.push(CommitFileChange {
+                path: path.to_string(),
+                change_type: status.to_string(),
+                old_path,
+            });
         }
     }
 
@@ -165,19 +163,18 @@ pub fn get_git_history_with_head(
 
     let (current_ref, current_remote_ref) = resolve_current_refs(&repo);
 
-    if let (Some(expected), Some(actual)) = (since_head, head_commit.as_deref()) {
-        if expected == actual {
-            return Ok(HistoryProviderSnapshot {
-                items: Vec::new(),
-                current_ref,
-                current_remote_ref,
-                current_base_ref: None,
-                next_cursor: None,
-                has_more: Some(false),
-                head_commit,
-                unchanged: Some(true),
-            });
-        }
+    if let (Some(expected), Some(actual)) = (since_head, head_commit.as_deref())
+        && expected == actual {
+        return Ok(HistoryProviderSnapshot {
+            items: Vec::new(),
+            current_ref,
+            current_remote_ref,
+            current_base_ref: None,
+            next_cursor: None,
+            has_more: Some(false),
+            head_commit,
+            unchanged: Some(true),
+        });
     }
 
     let mut items = Vec::new();
@@ -187,38 +184,36 @@ pub fn get_git_history_with_head(
     let references = repo.references()?;
     for reference in references {
         let reference = reference?;
-        if let Some(name) = reference.name() {
-            if let Ok(resolved) = reference.resolve() {
-                if let Some(target) = resolved.target() {
-                    let ref_type = if name.starts_with("refs/heads/") {
-                        walk_roots.push(target);
-                        Some("branch")
-                    } else if name.starts_with("refs/remotes/") {
-                        Some("remote")
-                    } else if name.starts_with("refs/tags/") {
-                        Some("tag")
-                    } else {
-                        None
-                    };
+        if let Some(name) = reference.name()
+            && let Ok(resolved) = reference.resolve()
+            && let Some(target) = resolved.target() {
+            let ref_type = if name.starts_with("refs/heads/") {
+                walk_roots.push(target);
+                Some("branch")
+            } else if name.starts_with("refs/remotes/") {
+                Some("remote")
+            } else if name.starts_with("refs/tags/") {
+                Some("tag")
+            } else {
+                None
+            };
 
-                    if let Some(icon) = ref_type {
-                        let short_name = name
-                            .strip_prefix("refs/heads/")
-                            .or_else(|| name.strip_prefix("refs/remotes/"))
-                            .or_else(|| name.strip_prefix("refs/tags/"))
-                            .unwrap_or(name);
+            if let Some(icon) = ref_type {
+                let short_name = name
+                    .strip_prefix("refs/heads/")
+                    .or_else(|| name.strip_prefix("refs/remotes/"))
+                    .or_else(|| name.strip_prefix("refs/tags/"))
+                    .unwrap_or(name);
 
-                        let history_ref = HistoryItemRef {
-                            id: name.to_string(),
-                            name: short_name.to_string(),
-                            revision: Some(target.to_string()),
-                            color: None,
-                            icon: Some(icon.to_string()),
-                        };
+                let history_ref = HistoryItemRef {
+                    id: name.to_string(),
+                    name: short_name.to_string(),
+                    revision: Some(target.to_string()),
+                    color: None,
+                    icon: Some(icon.to_string()),
+                };
 
-                        oid_to_refs.entry(target).or_default().push(history_ref);
-                    }
-                }
+                oid_to_refs.entry(target).or_default().push(history_ref);
             }
         }
     }
@@ -233,12 +228,10 @@ pub fn get_git_history_with_head(
         }
     }
 
-    if seen_roots.is_empty() {
-        if let Ok(head) = repo.head() {
-            if let Some(target) = head.target() {
-                revwalk.push(target)?;
-            }
-        }
+    if seen_roots.is_empty()
+        && let Ok(head) = repo.head()
+        && let Some(target) = head.target() {
+        revwalk.push(target)?;
     }
 
     let effective_limit = limit
@@ -264,13 +257,12 @@ pub fn get_git_history_with_head(
 
         let full_oid = oid.to_string();
 
-        if !cursor_seen {
-            if let Some(ref target) = cursor_value {
-                if &full_oid == target {
-                    cursor_seen = true;
-                }
-                continue;
+        if !cursor_seen
+            && let Some(ref target) = cursor_value {
+            if &full_oid == target {
+                cursor_seen = true;
             }
+            continue;
         }
 
         let commit = repo.find_commit(oid)?;

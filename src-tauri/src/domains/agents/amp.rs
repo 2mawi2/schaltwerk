@@ -188,23 +188,21 @@ pub fn build_amp_command_with_config(
     cmd.push_str(" && ");
 
     // Amp supports stdin input, so we can pipe the prompt if provided
-    if let Some(prompt) = initial_prompt {
-        if !prompt.trim().is_empty() {
-            let escaped = super::escape_prompt_for_shell(prompt);
-            cmd.push_str("echo \"");
-            cmd.push_str(&escaped);
-            cmd.push_str("\" | ");
-        }
+    if let Some(prompt) = initial_prompt
+        && !prompt.trim().is_empty() {
+        let escaped = super::escape_prompt_for_shell(prompt);
+        cmd.push_str("echo \"");
+        cmd.push_str(&escaped);
+        cmd.push_str("\" | ");
     }
 
     cmd.push_str(&binary_invocation);
 
     // Resume existing thread if session_id is provided
-    if let Some(thread_id) = session_id {
-        if !thread_id.is_empty() {
-            cmd.push_str(" threads continue ");
-            cmd.push_str(thread_id);
-        }
+    if let Some(thread_id) = session_id
+        && !thread_id.is_empty() {
+        cmd.push_str(" threads continue ");
+        cmd.push_str(thread_id);
     }
 
     if skip_permissions {
@@ -217,6 +215,7 @@ pub fn build_amp_command_with_config(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::env_adapter::EnvAdapter;
     use serial_test::serial;
     use std::path::Path;
 
@@ -381,17 +380,15 @@ mod tests {
             f.write_all(b"{}").unwrap();
         });
 
-        // Set HOME to temp directory for this test
         let original_home = std::env::var("HOME").ok();
-        std::env::set_var("HOME", temp.path());
+        EnvAdapter::set_var("HOME", &temp.path().to_string_lossy());
 
         let result = watch_amp_thread_creation(5).await;
 
-        // Restore HOME
         if let Some(home) = original_home {
-            std::env::set_var("HOME", home);
+            EnvAdapter::set_var("HOME", &home);
         } else {
-            std::env::remove_var("HOME");
+            EnvAdapter::remove_var("HOME");
         }
 
         assert_eq!(result, Some("T-new-thread-id".to_string()));

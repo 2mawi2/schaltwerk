@@ -76,14 +76,13 @@ pub fn get_project_files_with_status(
 ) -> Result<(Vec<String>, bool)> {
     let key = cache_key(repo_path);
 
-    if !force_refresh {
-        if let Some(cached) = {
+    if !force_refresh
+        && let Some(cached) = {
             let guard = FILE_CACHE.lock().expect("file cache mutex poisoned");
             guard.get(&key).cloned()
         } {
             return Ok((cached, false));
         }
-    }
 
     let files = refresh_project_files(repo_path)?;
     Ok((files, true))

@@ -44,21 +44,19 @@ pub(crate) fn extract_session_name(terminal_id: &str) -> Option<String> {
         let without_prefix = terminal_id.strip_prefix("session-")?;
         let without_suffix = without_prefix.strip_suffix("-top")?;
 
-        if let Some((name_part, hash_part)) = without_suffix.rsplit_once('~') {
-            if (hash_part.len() == 8 || hash_part.len() == 6)
+        if let Some((name_part, hash_part)) = without_suffix.rsplit_once('~')
+            && (hash_part.len() == 8 || hash_part.len() == 6)
                 && hash_part.chars().all(|c| c.is_ascii_hexdigit())
             {
                 return Some(name_part.to_string());
             }
-        }
 
-        if let Some((name_part, hash_part)) = without_suffix.rsplit_once('-') {
-            if (hash_part.len() == 8 || hash_part.len() == 6)
+        if let Some((name_part, hash_part)) = without_suffix.rsplit_once('-')
+            && (hash_part.len() == 8 || hash_part.len() == 6)
                 && hash_part.chars().all(|c| c.is_ascii_hexdigit())
             {
                 return Some(name_part.to_string());
             }
-        }
 
         Some(without_suffix.to_string())
     } else if terminal_id.starts_with("orchestrator-") && terminal_id.ends_with("-top") {
@@ -102,8 +100,8 @@ async fn check_agent_health(
     *last_activity_check = now;
 
     let terminals_guard = terminals.read().await;
-    if let Some(state) = terminals_guard.get(terminal_id) {
-        if let Ok(elapsed) = std::time::SystemTime::now().duration_since(state.last_output) {
+    if let Some(state) = terminals_guard.get(terminal_id)
+        && let Ok(elapsed) = std::time::SystemTime::now().duration_since(state.last_output) {
             let elapsed_secs = elapsed.as_secs();
 
             let inactivity_threshold = if get_agent_type_from_terminal(terminal_id) == Some("codex")
@@ -125,7 +123,6 @@ async fn check_agent_health(
                 );
             }
         }
-    }
 }
 
 async fn handle_agent_crash(terminal_id: String, status: ExitStatus, deps: LifecycleDeps) {

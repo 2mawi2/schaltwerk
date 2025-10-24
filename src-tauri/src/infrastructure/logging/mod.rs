@@ -47,11 +47,10 @@ pub fn get_log_dir() -> PathBuf {
 
 /// Get the current log file path
 pub fn get_log_path() -> PathBuf {
-    if let Ok(guard) = LOG_PATH.lock() {
-        if let Some(ref path) = *guard {
+    if let Ok(guard) = LOG_PATH.lock()
+        && let Some(ref path) = *guard {
             return path.clone();
         }
-    }
 
     let log_dir = get_log_dir();
 
@@ -192,13 +191,12 @@ pub fn init_logging() {
         buf.flush()?;
 
         // Also write to buffered file writer (with error handling)
-        if let Ok(mut guard) = LOG_FILE_WRITER.lock() {
-            if let Some(ref mut writer) = *guard {
+        if let Ok(mut guard) = LOG_FILE_WRITER.lock()
+            && let Some(ref mut writer) = *guard {
                 let _ = writeln!(writer, "{log_line}");
                 // Only flush periodically for better performance
                 let _ = writer.flush();
             }
-        }
 
         Ok(())
     });
@@ -335,6 +333,7 @@ fn cleanup_old_logs(log_dir: &Path, retention: Duration) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::env_adapter::EnvAdapter;
     use filetime::{set_file_mtime, FileTime};
     use serial_test::serial;
     use std::env;
@@ -346,17 +345,16 @@ mod tests {
     #[serial]
     fn test_get_log_dir_uses_data_local_dir() {
         let tmp = TempDir::new().unwrap();
-        // Redirect HOME so dirs uses temp location on macOS
         let prev = env::var("HOME").ok();
-        env::set_var("HOME", tmp.path());
+        EnvAdapter::set_var("HOME", &tmp.path().to_string_lossy());
 
         let dir = get_log_dir();
         assert!(dir.exists() || dir.to_string_lossy().contains("schaltwerk/logs"));
 
         if let Some(p) = prev {
-            env::set_var("HOME", p);
+            EnvAdapter::set_var("HOME", &p);
         } else {
-            env::remove_var("HOME");
+            EnvAdapter::remove_var("HOME");
         }
     }
 
@@ -365,20 +363,18 @@ mod tests {
     fn test_get_log_path_creates_directory_and_returns_file() {
         let tmp = TempDir::new().unwrap();
         let prev = env::var("HOME").ok();
-        env::set_var("HOME", tmp.path());
+        EnvAdapter::set_var("HOME", &tmp.path().to_string_lossy());
 
         let path = get_log_path();
-        // Parent directory may not exist until first write; ensure we can create it
         let parent = path.parent().unwrap();
         std::fs::create_dir_all(parent).unwrap();
         assert!(parent.exists());
-        // file may not exist until first write, but path should be under logs dir
         assert!(path.to_string_lossy().contains("schaltwerk"));
 
         if let Some(p) = prev {
-            env::set_var("HOME", p);
+            EnvAdapter::set_var("HOME", &p);
         } else {
-            env::remove_var("HOME");
+            EnvAdapter::remove_var("HOME");
         }
     }
 
@@ -411,25 +407,25 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let prev_home = env::var("HOME").ok();
         let prev_enable = env::var("SCHALTWERK_ENABLE_LOGS").ok();
-        env::set_var("HOME", tmp.path());
-        env::set_var("SCHALTWERK_ENABLE_LOGS", "0");
+        EnvAdapter::set_var("HOME", &tmp.path().to_string_lossy());
+        EnvAdapter::set_var("SCHALTWERK_ENABLE_LOGS", "0");
 
         let config = resolve_logging_config();
         assert!(!config.file_logging_enabled);
 
-        env::set_var("SCHALTWERK_ENABLE_LOGS", "1");
+        EnvAdapter::set_var("SCHALTWERK_ENABLE_LOGS", "1");
         let enabled_config = resolve_logging_config();
         assert!(enabled_config.file_logging_enabled);
 
         if let Some(prev) = prev_enable {
-            env::set_var("SCHALTWERK_ENABLE_LOGS", prev);
+            EnvAdapter::set_var("SCHALTWERK_ENABLE_LOGS", &prev);
         } else {
-            env::remove_var("SCHALTWERK_ENABLE_LOGS");
+            EnvAdapter::remove_var("SCHALTWERK_ENABLE_LOGS");
         }
         if let Some(prev) = prev_home {
-            env::set_var("HOME", prev);
+            EnvAdapter::set_var("HOME", &prev);
         } else {
-            env::remove_var("HOME");
+            EnvAdapter::remove_var("HOME");
         }
     }
 

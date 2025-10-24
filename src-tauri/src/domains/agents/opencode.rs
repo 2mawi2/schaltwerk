@@ -328,16 +328,13 @@ fn extract_repo_root(path: &Path) -> Option<PathBuf> {
             .file_name()
             .map(|name| name == "worktrees")
             .unwrap_or(false)
+            && let Some(grand) = parent.parent()
+            && grand
+                .file_name()
+                .map(|name| name == ".schaltwerk")
+                .unwrap_or(false)
         {
-            if let Some(grand) = parent.parent() {
-                if grand
-                    .file_name()
-                    .map(|name| name == ".schaltwerk")
-                    .unwrap_or(false)
-                {
-                    return grand.parent().map(|p| p.to_path_buf());
-                }
-            }
+            return grand.parent().map(|p| p.to_path_buf());
         }
         current = parent;
     }
@@ -490,13 +487,12 @@ fn resolve_opencode_binary_with_config(config: Option<&OpenCodeConfig>) -> Strin
     let command = "opencode";
 
     // Check config first (useful for tests)
-    if let Some(cfg) = config {
-        if let Some(ref path) = cfg.binary_path {
-            let trimmed = path.trim();
-            if !trimmed.is_empty() {
-                log::info!("Using opencode from config: {trimmed}");
-                return trimmed.to_string();
-            }
+    if let Some(cfg) = config
+        && let Some(ref path) = cfg.binary_path {
+        let trimmed = path.trim();
+        if !trimmed.is_empty() {
+            log::info!("Using opencode from config: {trimmed}");
+            return trimmed.to_string();
         }
     }
 
@@ -542,15 +538,13 @@ fn resolve_opencode_binary_impl(command: &str) -> String {
         }
     }
 
-    if let Ok(output) = std::process::Command::new("which").arg(command).output() {
-        if output.status.success() {
-            if let Ok(path) = String::from_utf8(output.stdout) {
-                let path = path.trim();
-                if !path.is_empty() {
-                    log::info!("Found opencode via which: {path}");
-                    return path.to_string();
-                }
-            }
+    if let Ok(output) = std::process::Command::new("which").arg(command).output()
+        && output.status.success()
+        && let Ok(path) = String::from_utf8(output.stdout) {
+        let path = path.trim();
+        if !path.is_empty() {
+            log::info!("Found opencode via which: {path}");
+            return path.to_string();
         }
     }
 
@@ -625,26 +619,26 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_find_opencode_session_no_home() {
-        // Test when HOME environment variable is not set
+        use crate::utils::env_adapter::EnvAdapter;
         let original_home = std::env::var("HOME").ok();
-        std::env::remove_var("HOME");
+        EnvAdapter::remove_var("HOME");
 
         let path = Path::new("/some/path");
         let result = find_opencode_session(path);
         assert!(result.is_none());
 
-        // Restore HOME if it was set
         if let Some(home) = original_home {
-            std::env::set_var("HOME", home);
+            EnvAdapter::set_var("HOME", &home);
         }
     }
 
     #[test]
     #[serial_test::serial]
     fn test_find_opencode_session_hashed_storage_with_history() {
+        use crate::utils::env_adapter::EnvAdapter;
         let temp_home = tempfile::tempdir().unwrap();
         let original_home = std::env::var("HOME").ok();
-        std::env::set_var("HOME", temp_home.path());
+        EnvAdapter::set_var("HOME", &temp_home.path().to_string_lossy());
 
         let repo_root = temp_home.path().join("repo");
         let worktree_path = repo_root
@@ -701,18 +695,19 @@ mod tests {
         assert!(result.has_history);
 
         if let Some(home) = original_home {
-            std::env::set_var("HOME", home);
+            EnvAdapter::set_var("HOME", &home);
         } else {
-            std::env::remove_var("HOME");
+            EnvAdapter::remove_var("HOME");
         }
     }
 
     #[test]
     #[serial_test::serial]
     fn test_find_opencode_session_hashed_storage_without_history() {
+        use crate::utils::env_adapter::EnvAdapter;
         let temp_home = tempfile::tempdir().unwrap();
         let original_home = std::env::var("HOME").ok();
-        std::env::set_var("HOME", temp_home.path());
+        EnvAdapter::set_var("HOME", &temp_home.path().to_string_lossy());
 
         let repo_root = temp_home.path().join("repo_two");
         let worktree_path = repo_root
@@ -769,9 +764,9 @@ mod tests {
         assert!(!result.has_history);
 
         if let Some(home) = original_home {
-            std::env::set_var("HOME", home);
+            EnvAdapter::set_var("HOME", &home);
         } else {
-            std::env::remove_var("HOME");
+            EnvAdapter::remove_var("HOME");
         }
     }
 

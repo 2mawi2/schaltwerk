@@ -2,9 +2,9 @@ use super::types::{AgentBinaryConfig, Settings};
 
 pub fn clean_invalid_binary_paths(settings: &mut Settings) {
     let fix_config = |config: &mut Option<AgentBinaryConfig>| {
-        if let Some(cfg) = config {
-            if let Some(ref path) = cfg.custom_path.clone() {
-                if path.ends_with(".js") || path.ends_with(".mjs") {
+        if let Some(cfg) = config
+            && let Some(ref path) = cfg.custom_path.clone()
+                && (path.ends_with(".js") || path.ends_with(".mjs")) {
                     log::warn!(
                         "Found JS file path for {}: {}, attempting to fix",
                         cfg.agent_name,
@@ -44,8 +44,6 @@ pub fn clean_invalid_binary_paths(settings: &mut Settings) {
                         cfg.auto_detect = true;
                     }
                 }
-            }
-        }
     };
 
     fix_config(&mut settings.agent_binaries.claude);

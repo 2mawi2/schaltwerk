@@ -30,6 +30,7 @@ use schaltwerk::shared::terminal_id::{
     legacy_terminal_id_for_session_top, previous_hashed_terminal_id_for_session_top,
     previous_tilde_hashed_terminal_id_for_session_top, terminal_id_for_session_top,
 };
+use schaltwerk::utils::env_adapter::EnvAdapter;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{Mutex, OnceCell, OwnedRwLockReadGuard, OwnedRwLockWriteGuard, RwLock};
@@ -75,9 +76,8 @@ fn extend_process_path() {
         .arg("-ilc")
         .arg("echo -n $PATH")
         .output()
-    {
-        if output.status.success() {
-            if let Ok(login_path) = String::from_utf8(output.stdout) {
+        && output.status.success()
+            && let Ok(login_path) = String::from_utf8(output.stdout) {
                 for segment in login_path.split(':').filter(|s| !s.is_empty()) {
                     let path = PathBuf::from(segment);
                     if seen.insert(path.clone()) {
@@ -85,11 +85,9 @@ fn extend_process_path() {
                     }
                 }
             }
-        }
-    }
 
     if let Ok(joined) = env::join_paths(&current_paths) {
-        env::set_var("PATH", &joined);
+        EnvAdapter::set_var("PATH", &joined.to_string_lossy());
         if let Some(path_str) = joined.to_str() {
             log::info!("[startup] PATH after extend_process_path: {path_str}");
         }
@@ -150,7 +148,7 @@ fn extend_process_path() {
     }
 
     if let Ok(joined) = env::join_paths(&current_paths) {
-        env::set_var("PATH", &joined);
+        EnvAdapter::set_var("PATH", &joined.to_string_lossy());
         if let Some(path_str) = joined.to_str() {
             log::info!("[startup] PATH after extend_process_path: {path_str}");
         }
@@ -425,8 +423,8 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                 let body = req.into_body();
                 let body_bytes = body.collect().await?.to_bytes();
 
-                if let Ok(body_str) = String::from_utf8(body_bytes.to_vec()) {
-                    if let Ok(payload) = serde_json::from_str::<serde_json::Value>(&body_str) {
+                if let Ok(body_str) = String::from_utf8(body_bytes.to_vec())
+                    && let Ok(payload) = serde_json::from_str::<serde_json::Value>(&body_str) {
                         log::info!("Received session-added webhook: {payload}");
 
                         // Extract session information and emit the event
@@ -478,7 +476,6 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                             }
                         }
                     }
-                }
 
                 Ok(Response::new("OK".to_string()))
             }
@@ -487,8 +484,8 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                 let body = req.into_body();
                 let body_bytes = body.collect().await?.to_bytes();
 
-                if let Ok(body_str) = String::from_utf8(body_bytes.to_vec()) {
-                    if let Ok(payload) = serde_json::from_str::<serde_json::Value>(&body_str) {
+                if let Ok(body_str) = String::from_utf8(body_bytes.to_vec())
+                    && let Ok(payload) = serde_json::from_str::<serde_json::Value>(&body_str) {
                         log::info!("Received session-removed webhook: {payload}");
 
                         if let Some(session_name) =
@@ -510,7 +507,6 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                             }
                         }
                     }
-                }
 
                 Ok(Response::new("OK".to_string()))
             }
@@ -519,8 +515,8 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                 let body = req.into_body();
                 let body_bytes = body.collect().await?.to_bytes();
 
-                if let Ok(body_str) = String::from_utf8(body_bytes.to_vec()) {
-                    if let Ok(payload) = serde_json::from_str::<serde_json::Value>(&body_str) {
+                if let Ok(body_str) = String::from_utf8(body_bytes.to_vec())
+                    && let Ok(payload) = serde_json::from_str::<serde_json::Value>(&body_str) {
                         log::info!("Received follow-up-message webhook: {payload}");
 
                         if let (Some(session_name), Some(message)) = (
@@ -637,7 +633,6 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                             }
                         }
                     }
-                }
 
                 Ok(Response::new("OK".to_string()))
             }
@@ -1207,13 +1202,11 @@ fn main() {
                 });
 
                 // Stop MCP server if running
-                if let Some(process_mutex) = commands::mcp::get_mcp_server_process().get() {
-                    if let Ok(mut guard) = process_mutex.try_lock() {
-                        if let Some(mut process) = guard.take() {
+                if let Some(process_mutex) = commands::mcp::get_mcp_server_process().get()
+                    && let Ok(mut guard) = process_mutex.try_lock()
+                        && let Some(mut process) = guard.take() {
                             let _ = process.kill();
                         }
-                    }
-                }
 
                 // Exit immediately - OS will clean up all remaining resources
                 std::process::exit(0);
@@ -1225,6 +1218,7 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+    use schaltwerk::utils::env_adapter::EnvAdapter;
     use serial_test::serial;
 
     #[tokio::test]
@@ -1232,9 +1226,9 @@ mod tests {
     async fn test_default_open_app_command_flow() {
         let temp_dir = tempfile::tempdir().expect("failed to create temp dir");
         let override_path = temp_dir.path().join("sessions.db");
-        std::env::set_var(
+        EnvAdapter::set_var(
             "SCHALTWERK_APP_CONFIG_DB_PATH",
-            override_path.to_string_lossy().as_ref(),
+            &override_path.to_string_lossy(),
         );
 
         let fallback = super::get_default_open_app()
@@ -1257,6 +1251,6 @@ mod tests {
             .expect("expected updated default app");
         assert_eq!(updated, "vscode");
 
-        std::env::remove_var("SCHALTWERK_APP_CONFIG_DB_PATH");
+        EnvAdapter::remove_var("SCHALTWERK_APP_CONFIG_DB_PATH");
     }
 }

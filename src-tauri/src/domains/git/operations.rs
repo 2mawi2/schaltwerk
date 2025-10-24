@@ -42,10 +42,9 @@ pub fn get_uncommitted_changes_status(worktree_path: &Path) -> Result<Uncommitte
     let mut summary = UncommittedChangesStatus::default();
 
     for entry in statuses.iter() {
-        if let Some(path) = entry.path() {
-            if is_internal_tooling_path(path) {
-                continue;
-            }
+        if let Some(path) = entry.path()
+            && is_internal_tooling_path(path) {
+            continue;
         }
 
         let (has_tracked, has_untracked) = classify_status(entry.status());
@@ -87,10 +86,9 @@ pub fn has_conflicts(worktree_path: &Path) -> Result<bool> {
         if !entry.status().contains(Status::CONFLICTED) {
             continue;
         }
-        if let Some(path) = entry.path() {
-            if is_internal_tooling_path(path) {
-                continue;
-            }
+        if let Some(path) = entry.path()
+            && is_internal_tooling_path(path) {
+            continue;
         }
         log::debug!(
             "has_conflicts: path={} conflict at {:?}",
@@ -150,11 +148,9 @@ pub fn commit_all_changes(worktree_path: &Path, message: &str) -> Result<()> {
     };
 
     // If we have a parent, check if the tree is the same (nothing to commit)
-    if let Some(ref parent) = parent_commit {
-        if parent.tree_id() == tree_id {
-            // Nothing to commit
-            return Ok(());
-        }
+    if let Some(ref parent) = parent_commit
+        && parent.tree_id() == tree_id {
+        return Ok(());
     }
 
     // Get the signature from git config
