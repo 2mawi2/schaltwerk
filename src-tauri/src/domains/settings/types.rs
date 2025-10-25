@@ -109,7 +109,7 @@ fn default_sidebar_width() -> u32 {
     320
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SessionPreferences {
     pub auto_commit_on_review: bool,
     #[serde(default)]
@@ -120,6 +120,18 @@ pub struct SessionPreferences {
     pub attention_notification_mode: AttentionNotificationMode,
     #[serde(default = "default_true")]
     pub remember_idle_baseline: bool,
+}
+
+impl Default for SessionPreferences {
+    fn default() -> Self {
+        Self {
+            auto_commit_on_review: false,
+            skip_confirmation_modals: false,
+            always_show_large_diffs: false,
+            attention_notification_mode: default_attention_mode(),
+            remember_idle_baseline: true,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

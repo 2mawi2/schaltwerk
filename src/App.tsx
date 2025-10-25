@@ -390,11 +390,46 @@ function AppContent() {
   const specShortcut = shortcuts[KeyboardShortcutAction.NewSpec] || (isMac ? '⇧⌘N' : 'Ctrl + Shift + N')
   const preserveSelection = useSelectionPreserver()
   const projectDisplayName = useMemo(() => (projectPath ? getBasename(projectPath) : null), [projectPath])
+  const openProjectPaths = useMemo(() => openTabs.map(tab => tab.projectPath), [openTabs])
+  const handleAttentionSummaryChange = useCallback(
+    ({ perProjectCounts }: { perProjectCounts: Record<string, number>; totalCount: number }) => {
+      setAttentionCounts(prev => {
+        const next: Record<string, number> = {}
+        for (const tab of openTabs) {
+          next[tab.projectPath] = perProjectCounts[tab.projectPath] ?? 0
+        }
+        for (const [key, value] of Object.entries(perProjectCounts)) {
+          if (!(key in next)) {
+            next[key] = value
+          }
+        }
+
+        const prevKeys = Object.keys(prev)
+        const nextKeys = Object.keys(next)
+        if (prevKeys.length === nextKeys.length) {
+          let different = false
+          for (const key of nextKeys) {
+            if (prev[key] !== next[key]) {
+              different = true
+              break
+            }
+          }
+          if (!different) {
+            return prev
+          }
+        }
+
+        return next
+      })
+    },
+    [openTabs]
+  )
 
   useAttentionNotifications({
     sessions: allSessions,
     projectPath,
     projectDisplayName,
+    openProjectPaths,
     onProjectAttentionChange: useCallback((count: number) => {
       if (!projectPath) {
         return
@@ -404,6 +439,7 @@ function AppContent() {
         return { ...prev, [projectPath]: count }
       })
     }, [projectPath]),
+    onAttentionSummaryChange: handleAttentionSummaryChange,
   })
 
   const rightPanelStorageKey = selection
@@ -1301,10 +1337,6 @@ function AppContent() {
     attentionCount: attentionCounts[tab.projectPath] ?? 0
   })), [openTabs, attentionCounts])
 
-  const globalAttentionCount = useMemo(() => {
-    return Object.values(attentionCounts).reduce((total, count) => total + count, 0)
-  }, [attentionCounts])
-
   // Update unified work area ring color when selection changes
   useEffect(() => {
     const el = document.getElementById('work-ring')
@@ -1327,7 +1359,6 @@ function AppContent() {
             setSettingsOpen(true)
           }}
           onOpenFeedback={openFeedback}
-          globalAttentionCount={globalAttentionCount}
         />
         <div className="pt-[32px] h-full">
           <HomeScreen onOpenProject={handleOpenProject} />
@@ -1359,7 +1390,6 @@ function AppContent() {
         }}
         onOpenFeedback={openFeedback}
         onOpenProjectSelector={() => setProjectSelectorOpen(true)}
-        globalAttentionCount={globalAttentionCount}
         resolveOpenPath={async () => resolveOpenPathForOpenButton({
           selection,
           activeTabPath,

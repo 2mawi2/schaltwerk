@@ -160,4 +160,95 @@ describe('useAttentionNotifications', () => {
 
     expect(mockRequestDockBounce).toHaveBeenCalledTimes(1)
   })
+
+  it('aggregates attention across projects for snapshot reporting', async () => {
+    const onAttentionSummaryChange = vi.fn()
+    const { rerender } = renderHook(({ projectPath, sessions, openProjectPaths }) =>
+      useAttentionNotifications({
+        sessions,
+        projectPath,
+        projectDisplayName: 'project',
+        onAttentionSummaryChange,
+        openProjectPaths,
+      })
+    , {
+      initialProps: {
+        projectPath: '/Users/test/project-a',
+        sessions: [createSession('a1', true)],
+        openProjectPaths: ['/Users/test/project-a'],
+      },
+    })
+
+    await flushPromises()
+    mockReportAttentionSnapshot.mockClear()
+    onAttentionSummaryChange.mockClear()
+
+    await act(async () => {
+      rerender({
+        projectPath: '/Users/test/project-b',
+        sessions: [createSession('b1', true)],
+        openProjectPaths: ['/Users/test/project-a', '/Users/test/project-b'],
+      })
+      await flushPromises()
+    })
+
+    expect(onAttentionSummaryChange).toHaveBeenLastCalledWith({
+      perProjectCounts: {
+        '/Users/test/project-a': 1,
+        '/Users/test/project-b': 1,
+      },
+      totalCount: 2,
+    })
+
+    const lastCall = mockReportAttentionSnapshot.mock.calls[mockReportAttentionSnapshot.mock.calls.length - 1]
+    expect(lastCall).toEqual([
+      'main',
+      ['/Users/test/project-a::a1', '/Users/test/project-b::b1'],
+    ])
+  })
+
+  it('drops projects that are no longer open from attention summary', async () => {
+    const onAttentionSummaryChange = vi.fn()
+    const { rerender } = renderHook(({ projectPath, sessions, openProjectPaths }) =>
+      useAttentionNotifications({
+        sessions,
+        projectPath,
+        projectDisplayName: 'project',
+        onAttentionSummaryChange,
+        openProjectPaths,
+      })
+    , {
+      initialProps: {
+        projectPath: '/Users/test/project-a',
+        sessions: [createSession('a1', true)],
+        openProjectPaths: ['/Users/test/project-a'],
+      },
+    })
+
+    await flushPromises()
+    mockReportAttentionSnapshot.mockClear()
+    onAttentionSummaryChange.mockClear()
+
+    await act(async () => {
+      rerender({
+        projectPath: '/Users/test/project-b',
+        sessions: [createSession('b1', true)],
+        openProjectPaths: ['/Users/test/project-b'],
+      })
+      await flushPromises()
+    })
+
+    expect(onAttentionSummaryChange).toHaveBeenLastCalledWith({
+      perProjectCounts: {
+        '/Users/test/project-b': 1,
+      },
+      totalCount: 1,
+    })
+
+    const lastCall = mockReportAttentionSnapshot.mock.calls[mockReportAttentionSnapshot.mock.calls.length - 1]
+    expect(lastCall).toEqual([
+      'main',
+      ['/Users/test/project-b::b1'],
+    ])
+  })
 })

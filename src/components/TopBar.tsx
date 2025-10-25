@@ -2,7 +2,7 @@ import { VscHome, VscSettingsGear, VscLayoutSidebarRight, VscLayoutSidebarRightO
 import { TabBar } from './TabBar'
 import { ProjectTab } from '../common/projectTabs'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { useRef, useEffect, useCallback, useState, useMemo } from 'react'
+import { useRef, useEffect, useCallback, useState } from 'react'
 import { OpenInSplitButton } from './OpenInSplitButton'
 import { BranchIndicator } from './BranchIndicator'
 import { logger } from '../utils/logger'
@@ -40,7 +40,6 @@ interface TopBarProps {
   resolveOpenPath?: () => Promise<string | undefined>
   // Counter to trigger open from keyboard shortcut
   triggerOpenCounter?: number
-  globalAttentionCount?: number
 }
 
 export function TopBar({
@@ -52,7 +51,6 @@ export function TopBar({
   onOpenSettings,
   onOpenFeedback,
   onOpenProjectSelector,
-  globalAttentionCount = 0,
   isRightPanelCollapsed = false,
   onToggleRightPanel,
   resolveOpenPath,
@@ -63,13 +61,6 @@ export function TopBar({
   const openButtonRef = useRef<{ triggerOpen: () => Promise<void> } | null>(null)
   const [platform, setPlatform] = useState<UiPlatform>(() => normalizePlatform(detectPlatformSafe()))
   const isMac = platform === 'mac'
-  const attentionBadgeLabel = useMemo(() => {
-    if (!globalAttentionCount || globalAttentionCount <= 0) {
-      return null
-    }
-    return globalAttentionCount > 9 ? '9+' : String(globalAttentionCount)
-  }, [globalAttentionCount])
-
   useEffect(() => {
     let cancelled = false
     getPlatform()
@@ -184,21 +175,6 @@ export function TopBar({
             userSelect: 'none'
           } as React.CSSProperties}
         />
-
-        {attentionBadgeLabel && (
-          <div className="mr-2" data-testid="global-attention-indicator">
-            <span
-              className="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[11px] font-semibold"
-              style={{
-                backgroundColor: theme.colors.accent.yellow.bg,
-                color: theme.colors.accent.yellow.DEFAULT,
-              }}
-            >
-              {attentionBadgeLabel}
-            </span>
-          </div>
-        )}
-        
         {/* Branch indicator - only shows in development builds */}
         <BranchIndicator />
 

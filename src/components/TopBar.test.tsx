@@ -79,10 +79,9 @@ describe('TopBar feedback button', () => {
       <TopBar
         {...baseProps}
         onOpenFeedback={vi.fn()}
-        globalAttentionCount={3}
       />
     )
 
-    expect(screen.getByTestId('global-attention-indicator')).toHaveTextContent('3')
+    expect(screen.queryByTestId('global-attention-indicator')).toBeNull()
   })
 })
