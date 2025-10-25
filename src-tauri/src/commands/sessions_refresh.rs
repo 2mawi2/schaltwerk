@@ -1,7 +1,7 @@
 use std::sync::LazyLock;
 use std::time::{Duration, Instant};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use tauri::AppHandle;
 use tokio::sync::Mutex;
 
@@ -10,7 +10,7 @@ use crate::{
     get_core_read,
 };
 use schaltwerk::domains::sessions::EnrichedSession;
-use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
+use schaltwerk::infrastructure::events::{SchaltEvent, emit_event};
 
 const DEFAULT_COOLDOWN: Duration = Duration::from_millis(125);
 const MIN_INTERVAL_BETWEEN_SNAPSHOTS: Duration = Duration::from_millis(250);

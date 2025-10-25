@@ -40,11 +40,7 @@ pub fn build_qwen_command_with_config(
     let binary_name = if let Some(cfg) = config {
         if let Some(ref path) = cfg.binary_path {
             let trimmed = path.trim();
-            if !trimmed.is_empty() {
-                trimmed
-            } else {
-                "qwen"
-            }
+            if !trimmed.is_empty() { trimmed } else { "qwen" }
         } else {
             "qwen"
         }
@@ -62,7 +58,8 @@ pub fn build_qwen_command_with_config(
     // Prefer using real CLI interactive prompt flag when available.
     // Fallback: launch TUI and inject prompt via terminal manager.
     if let Some(prompt) = _initial_prompt
-        && !prompt.trim().is_empty() {
+        && !prompt.trim().is_empty()
+    {
         let escaped = super::escape_prompt_for_shell(prompt);
         cmd.push_str(&format!(r#" --prompt-interactive "{escaped}""#));
     }

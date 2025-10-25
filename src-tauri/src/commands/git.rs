@@ -1,7 +1,6 @@
 use schaltwerk::domains::git::{
-    get_commit_file_changes as fetch_commit_files, get_git_history as fetch_git_history,
-    get_git_history_with_head as fetch_git_history_with_head, CommitFileChange,
-    HistoryProviderSnapshot,
+    CommitFileChange, HistoryProviderSnapshot, get_commit_file_changes as fetch_commit_files,
+    get_git_history as fetch_git_history, get_git_history_with_head as fetch_git_history_with_head,
 };
 use std::path::Path;
 

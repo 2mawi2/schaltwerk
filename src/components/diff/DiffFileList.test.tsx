@@ -7,7 +7,6 @@ import { useSelection } from '../../contexts/SelectionContext'
 import { useProject } from '../../contexts/ProjectContext'
 import { TestProviders } from '../../tests/test-utils'
 import { UiEvent, emitUiEvent } from '../../common/uiEvents'
-import { SortMode, FilterMode } from '../../types/sessionFilters'
 import type { SessionGitStatsUpdated } from '../../common/events'
 import * as eventSystemModule from '../../common/eventSystem'
 import type { EnrichedSession } from '../../types/session'
@@ -152,6 +151,11 @@ describe('DiffFileList', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetMockSessions()
+  })
+
+  afterEach(() => {
+    vi.clearAllTimers()
+    vi.useRealTimers()
   })
 
   it('renders file list with mock data', async () => {
@@ -320,8 +324,6 @@ describe('DiffFileList', () => {
   })
 
   it('falls back to polling when watcher fails to start', async () => {
-    vi.useFakeTimers()
-
     const { invoke } = await import('@tauri-apps/api/core')
     const mockInvoke = invoke as ReturnType<typeof vi.fn>
 
@@ -333,14 +335,6 @@ describe('DiffFileList', () => {
       return defaultInvokeImplementation(cmd, args)
     })
 
-    const advance = async (ms: number) => {
-      await act(async () => {
-        vi.advanceTimersByTime(ms)
-      })
-      await Promise.resolve()
-      await Promise.resolve()
-    }
-
     try {
       render(
         <Wrapper sessionName="demo">
@@ -348,29 +342,21 @@ describe('DiffFileList', () => {
         </Wrapper>
       )
 
+      expect(await screen.findByText('a.ts')).toBeInTheDocument()
+
       const getDiffCallCount = () =>
         mockInvoke.mock.calls.filter(([cmd]) => cmd === TauriCommands.GetChangedFilesFromMain).length
 
-      await advance(0)
-      await advance(0)
-
       const initialCalls = getDiffCallCount()
 
-      let attempts = 0
-      let currentCalls = initialCalls
+      await new Promise(resolve => setTimeout(resolve, 3000))
 
-      while (attempts < 10 && currentCalls === initialCalls) {
-        await advance(500)
-        currentCalls = getDiffCallCount()
-        attempts += 1
-      }
-
-      expect(currentCalls).toBeGreaterThan(initialCalls)
+      const afterPolling = getDiffCallCount()
+      expect(afterPolling).toBeGreaterThan(initialCalls)
     } finally {
-      vi.useRealTimers()
       mockInvoke.mockImplementation(defaultInvokeImplementation)
     }
-  })
+  }, 10000)
 
   it('updates orchestrator changes when FileChanges event arrives', async () => {
     const { invoke } = await import('@tauri-apps/api/core')
@@ -896,7 +882,9 @@ describe('DiffFileList', () => {
       }
 
       const alphaDeferred = createRejectDeferred()
-      alphaDeferred.promise.catch(() => {})
+      void alphaDeferred.promise.catch((error) => {
+        console.error('Expected test rejection:', error)
+      })
 
       mockInvoke.mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
         if (cmd === TauriCommands.GetChangedFilesFromMain) {

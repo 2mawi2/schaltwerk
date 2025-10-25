@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -80,9 +80,10 @@ pub fn get_project_files_with_status(
         && let Some(cached) = {
             let guard = FILE_CACHE.lock().expect("file cache mutex poisoned");
             guard.get(&key).cloned()
-        } {
-            return Ok((cached, false));
         }
+    {
+        return Ok((cached, false));
+    }
 
     let files = refresh_project_files(repo_path)?;
     Ok((files, true))

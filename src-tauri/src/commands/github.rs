@@ -4,7 +4,7 @@ use schaltwerk::domains::git::github_cli::{
     CommandRunner, CreatePrOptions, GitHubCli, GitHubCliError, GitHubIssueComment,
     GitHubIssueDetails, GitHubIssueLabel, GitHubIssueSummary,
 };
-use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
+use schaltwerk::infrastructure::events::{SchaltEvent, emit_event};
 use schaltwerk::project_manager::ProjectManager;
 use schaltwerk::schaltwerk_core::db_project_config::{ProjectConfigMethods, ProjectGithubConfig};
 use serde::{Deserialize, Serialize};

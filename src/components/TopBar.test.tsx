@@ -73,4 +73,15 @@ describe('TopBar feedback button', () => {
 
     expect(onOpenFeedback).toHaveBeenCalledTimes(1)
   })
+
+  it('renders global attention indicator when count is greater than zero', () => {
+    render(
+      <TopBar
+        {...baseProps}
+        onOpenFeedback={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByTestId('global-attention-indicator')).toBeNull()
+  })
 })

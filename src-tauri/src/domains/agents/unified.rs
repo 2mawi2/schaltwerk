@@ -40,7 +40,8 @@ pub struct CodexAdapter;
 impl AgentAdapter for CodexAdapter {
     fn find_session(&self, path: &Path) -> Option<String> {
         if let Some(p) = super::codex::find_codex_resume_path(path)
-            && let Some(id) = super::codex::extract_session_id_from_path(&p) {
+            && let Some(id) = super::codex::extract_session_id_from_path(&p)
+        {
             return Some(id);
         }
         super::codex::find_codex_session(path)

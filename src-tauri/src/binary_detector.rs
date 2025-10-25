@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-pub use crate::utils::binary_utils::{check_binary, DetectedBinary, InstallationMethod};
+pub use crate::utils::binary_utils::{DetectedBinary, InstallationMethod, check_binary};
 
 impl InstallationMethod {
     fn priority(&self) -> u8 {

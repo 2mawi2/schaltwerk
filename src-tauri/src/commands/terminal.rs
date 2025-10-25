@@ -1,7 +1,7 @@
+use schaltwerk::services::ServiceHandles;
 use schaltwerk::services::terminals::{
     CreateRunTerminalRequest, CreateTerminalRequest, CreateTerminalWithSizeRequest,
 };
-use schaltwerk::services::ServiceHandles;
 use serde::Serialize;
 use tauri::State;
 

@@ -4,6 +4,7 @@ import { vi } from 'vitest'
 import { SettingsModal } from './SettingsModal'
 import { defaultShortcutConfig } from '../../keyboardShortcuts/config'
 import { TauriCommands } from '../../common/tauriCommands'
+import { requestDockBounce } from '../../utils/attentionBridge'
 
 const baseInvokeImplementation = async (command: string, _args?: unknown) => {
   switch (command) {
@@ -74,6 +75,10 @@ vi.mock('../settings/SettingsArchivesSection', () => ({
   SettingsArchivesSection: () => null,
 }))
 
+vi.mock('../../utils/attentionBridge', () => ({
+  requestDockBounce: vi.fn(),
+}))
+
 vi.mock('./FontPicker', () => ({
   FontPicker: () => null,
 }))
@@ -140,7 +145,13 @@ const createDefaultUseSettingsValue = () => ({
   loadCliArgs: vi.fn().mockResolvedValue(createEmptyCliArgs()),
   loadProjectSettings: vi.fn().mockResolvedValue({ setupScript: '', branchPrefix: 'schaltwerk', environmentVariables: [] }),
   loadTerminalSettings: vi.fn().mockResolvedValue({ shell: null, shellArgs: [], fontFamily: null }),
-  loadSessionPreferences: vi.fn().mockResolvedValue({ auto_commit_on_review: false, skip_confirmation_modals: false }),
+  loadSessionPreferences: vi.fn().mockResolvedValue({
+    auto_commit_on_review: false,
+    skip_confirmation_modals: false,
+    always_show_large_diffs: false,
+    attention_notification_mode: 'dock',
+    remember_idle_baseline: true
+  }),
   loadMergePreferences: vi.fn().mockResolvedValue({ autoCancelAfterMerge: true }),
   loadKeyboardShortcuts: vi.fn().mockResolvedValue(defaultShortcutConfig),
   saveKeyboardShortcuts: vi.fn().mockResolvedValue(undefined),
@@ -155,6 +166,8 @@ const createDefaultUseSessionsValue = () => ({
 })
 
 const useSessionsMock = vi.fn(createDefaultUseSessionsValue)
+
+const mockedRequestDockBounce = vi.mocked(requestDockBounce)
 
 vi.mock('../../hooks/useSettings', () => ({
   useSettings: () => useSettingsMock(),
@@ -173,6 +186,7 @@ describe('SettingsModal loading indicators', () => {
     useSessionsMock.mockReturnValue(createDefaultUseSessionsValue())
     invokeMock.mockClear()
     invokeMock.mockImplementation(baseInvokeImplementation)
+    mockedRequestDockBounce.mockReset()
   })
 
   it('renders textual loader when settings are loading', async () => {
@@ -204,6 +218,60 @@ describe('SettingsModal loading indicators', () => {
 
     expect(await screen.findByRole('button', { name: 'Saving...' })).toBeInTheDocument()
   })
+
+  it('triggers attention notification test button', async () => {
+    const settingsValue = createDefaultUseSettingsValue()
+    settingsValue.loadSessionPreferences = vi.fn().mockResolvedValue({
+      auto_commit_on_review: false,
+      skip_confirmation_modals: false,
+      always_show_large_diffs: false,
+      attention_notification_mode: 'dock',
+      remember_idle_baseline: true
+    })
+    useSettingsMock.mockReturnValue(settingsValue)
+
+    const user = userEvent.setup()
+
+    render(
+      <SettingsModal
+        open={true}
+        onClose={() => {}}
+      />
+    )
+
+    await user.click(await screen.findByRole('button', { name: 'Sessions' }))
+
+    const testButton = await screen.findByText('Test notification')
+    await user.click(testButton)
+
+    expect(mockedRequestDockBounce).toHaveBeenCalled()
+  })
+
+  it('disables remember idle baseline toggle when notifications are off', async () => {
+    const settingsValue = createDefaultUseSettingsValue()
+    settingsValue.loadSessionPreferences = vi.fn().mockResolvedValue({
+      auto_commit_on_review: false,
+      skip_confirmation_modals: false,
+      always_show_large_diffs: false,
+      attention_notification_mode: 'off',
+      remember_idle_baseline: true
+    })
+    useSettingsMock.mockReturnValue(settingsValue)
+
+    const user = userEvent.setup()
+
+    render(
+      <SettingsModal
+        open={true}
+        onClose={() => {}}
+      />
+    )
+
+    await user.click(await screen.findByRole('button', { name: 'Sessions' }))
+
+    const baselineToggle = await screen.findByLabelText('Remember idle sessions when I switch away')
+    expect(baselineToggle).toBeDisabled()
+  })
 })
 
 describe('SettingsModal initial tab handling', () => {
@@ -217,6 +285,7 @@ describe('SettingsModal initial tab handling', () => {
       }
       return baseInvokeImplementation(command, args)
     })
+    mockedRequestDockBounce.mockReset()
   })
 
   it('opens the specified initial tab when provided', async () => {
@@ -289,6 +358,7 @@ describe('SettingsModal version settings', () => {
     useSessionsMock.mockReturnValue(createDefaultUseSessionsValue())
     invokeMock.mockClear()
     invokeMock.mockImplementation(baseInvokeImplementation)
+    mockedRequestDockBounce.mockReset()
   })
 
   it('loads auto update preference on mount', async () => {
@@ -343,6 +413,7 @@ describe('SettingsModal appearance settings', () => {
     useSessionsMock.mockReturnValue(createDefaultUseSessionsValue())
     invokeMock.mockClear()
     invokeMock.mockImplementation(baseInvokeImplementation)
+    mockedRequestDockBounce.mockReset()
   })
 
   it('loads dev error toast preference on mount', async () => {
@@ -394,6 +465,7 @@ describe('SettingsModal project settings navigation', () => {
     useSessionsMock.mockReturnValue(createDefaultUseSessionsValue())
     invokeMock.mockClear()
     invokeMock.mockImplementation(baseInvokeImplementation)
+    mockedRequestDockBounce.mockReset()
   })
 
   it('nests run script and action buttons under Project Settings sub-navigation', async () => {

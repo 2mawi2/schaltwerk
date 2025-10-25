@@ -79,7 +79,7 @@ impl SettingsService {
             _ => {
                 return Err(SettingsServiceError::UnknownAgentType(
                     agent_type.to_string(),
-                ))
+                ));
             }
         }
 

@@ -1,5 +1,5 @@
 use super::repository::{get_current_branch, get_unborn_head_branch, repository_has_commits};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use git2::build::CheckoutBuilder;
 use git2::{BranchType, Repository};
 use std::path::Path;
@@ -36,7 +36,8 @@ pub fn list_branches(repo_path: &Path) -> Result<Vec<String>> {
         if let Some(name) = branch.name()?
             // Strip origin/ prefix to get the branch name
             && let Some(branch_name) = name.strip_prefix("origin/")
-            && branch_name != "HEAD" {
+            && branch_name != "HEAD"
+        {
             branch_names.push(branch_name.to_string());
         }
     }
@@ -94,10 +95,9 @@ pub fn ensure_branch_at_head(repo_path: &Path, branch_name: &str) -> Result<()> 
     }
 
     if current_branch != "HEAD"
-        && let Ok(mut existing) = repo.find_branch(&current_branch, BranchType::Local) {
-        log::info!(
-            "Renaming current branch '{current_branch}' to requested base '{branch_name}'"
-        );
+        && let Ok(mut existing) = repo.find_branch(&current_branch, BranchType::Local)
+    {
+        log::info!("Renaming current branch '{current_branch}' to requested base '{branch_name}'");
         existing.rename(branch_name, false).map_err(|e| {
             anyhow!("Failed to rename branch '{current_branch}' to '{branch_name}': {e}")
         })?;

@@ -11,7 +11,7 @@ use crate::utils::env_adapter::EnvAdapter;
 #[cfg(test)]
 use crate::{
     domains::sessions::service::SessionManager,
-    schaltwerk_core::{git, Database},
+    schaltwerk_core::{Database, git},
 };
 #[cfg(test)]
 use anyhow::Result;
@@ -812,9 +812,9 @@ fn test_list_enriched_sessions_performance_caching() {
         dur_cold
     };
     assert!(
-            dur_warm <= dur_cold + tolerance,
-            "Expected warm ( {dur_warm:?} ) to be <= cold + tolerance ( cold={dur_cold:?}, tol={tolerance:?} )"
-        );
+        dur_warm <= dur_cold + tolerance,
+        "Expected warm ( {dur_warm:?} ) to be <= cold + tolerance ( cold={dur_cold:?}, tol={tolerance:?} )"
+    );
 }
 
 #[test]

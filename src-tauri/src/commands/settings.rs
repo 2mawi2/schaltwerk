@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 
-use crate::{get_core_read, get_core_write, PROJECT_MANAGER, SETTINGS_MANAGER};
+use crate::{PROJECT_MANAGER, SETTINGS_MANAGER, get_core_read, get_core_write};
 use schaltwerk::domains::settings::{
     DiffViewPreferences, McpServerConfig, SessionPreferences, TerminalSettings,
     TerminalUIPreferences,
 };
 use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
 use schaltwerk::schaltwerk_core::db_project_config::{
-    default_action_buttons, HeaderActionConfig, ProjectConfigMethods, ProjectMergePreferences,
-    ProjectSessionsSettings, RunScript,
+    HeaderActionConfig, ProjectConfigMethods, ProjectMergePreferences, ProjectSessionsSettings,
+    RunScript, default_action_buttons,
 };
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -747,9 +747,11 @@ mod tests {
     async fn test_settings_manager_not_initialized() {
         let result = get_agent_env_vars("claude".to_string()).await;
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .contains("Settings manager not initialized"));
+        assert!(
+            result
+                .unwrap_err()
+                .contains("Settings manager not initialized")
+        );
     }
 
     #[tokio::test]
@@ -814,9 +816,11 @@ mod tests {
 
         let result = set_project_action_buttons(actions).await;
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .contains("Maximum of 6 action buttons allowed"));
+        assert!(
+            result
+                .unwrap_err()
+                .contains("Maximum of 6 action buttons allowed")
+        );
     }
 
     #[tokio::test]
@@ -910,9 +914,11 @@ mod tests {
     async fn test_get_agent_env_vars_uninitialized_manager() {
         let result = get_agent_env_vars("claude".to_string()).await;
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .contains("Settings manager not initialized"));
+        assert!(
+            result
+                .unwrap_err()
+                .contains("Settings manager not initialized")
+        );
     }
 
     #[tokio::test]
@@ -920,63 +926,77 @@ mod tests {
         let env_vars = HashMap::new();
         let result = set_agent_env_vars("claude".to_string(), env_vars).await;
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .contains("Settings manager not initialized"));
+        assert!(
+            result
+                .unwrap_err()
+                .contains("Settings manager not initialized")
+        );
     }
 
     #[tokio::test]
     async fn test_get_agent_cli_args_uninitialized_manager() {
         let result = get_agent_cli_args("claude".to_string()).await;
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .contains("Settings manager not initialized"));
+        assert!(
+            result
+                .unwrap_err()
+                .contains("Settings manager not initialized")
+        );
     }
 
     #[tokio::test]
     async fn test_set_agent_cli_args_uninitialized_manager() {
         let result = set_agent_cli_args("claude".to_string(), "--test".to_string()).await;
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .contains("Settings manager not initialized"));
+        assert!(
+            result
+                .unwrap_err()
+                .contains("Settings manager not initialized")
+        );
     }
 
     #[tokio::test]
     async fn test_get_terminal_ui_preferences_uninitialized_manager() {
         let result = get_terminal_ui_preferences().await;
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .contains("Settings manager not initialized"));
+        assert!(
+            result
+                .unwrap_err()
+                .contains("Settings manager not initialized")
+        );
     }
 
     #[tokio::test]
     async fn test_set_terminal_collapsed_uninitialized_manager() {
         let result = set_terminal_collapsed(true).await;
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .contains("Settings manager not initialized"));
+        assert!(
+            result
+                .unwrap_err()
+                .contains("Settings manager not initialized")
+        );
     }
 
     #[tokio::test]
     async fn test_set_terminal_divider_position_uninitialized_manager() {
         let result = set_terminal_divider_position(0.5).await;
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .contains("Settings manager not initialized"));
+        assert!(
+            result
+                .unwrap_err()
+                .contains("Settings manager not initialized")
+        );
     }
 
     #[tokio::test]
     async fn test_get_terminal_settings_uninitialized_manager() {
         let result = get_terminal_settings().await;
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .contains("Settings manager not initialized"));
+        assert!(
+            result
+                .unwrap_err()
+                .contains("Settings manager not initialized")
+        );
     }
 
     #[tokio::test]
@@ -984,18 +1004,22 @@ mod tests {
         let settings = crate::settings::TerminalSettings::default();
         let result = set_terminal_settings(settings).await;
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .contains("Settings manager not initialized"));
+        assert!(
+            result
+                .unwrap_err()
+                .contains("Settings manager not initialized")
+        );
     }
 
     #[tokio::test]
     async fn test_get_diff_view_preferences_uninitialized_manager() {
         let result = get_diff_view_preferences().await;
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .contains("Settings manager not initialized"));
+        assert!(
+            result
+                .unwrap_err()
+                .contains("Settings manager not initialized")
+        );
     }
 
     #[tokio::test]
@@ -1003,27 +1027,33 @@ mod tests {
         let preferences = crate::settings::DiffViewPreferences::default();
         let result = set_diff_view_preferences(preferences).await;
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .contains("Settings manager not initialized"));
+        assert!(
+            result
+                .unwrap_err()
+                .contains("Settings manager not initialized")
+        );
     }
 
     #[tokio::test]
     async fn test_get_project_default_base_branch_uninitialized_core() {
         let result = get_project_default_base_branch().await;
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .contains("Failed to get Schaltwerk core"));
+        assert!(
+            result
+                .unwrap_err()
+                .contains("Failed to get Schaltwerk core")
+        );
     }
 
     #[tokio::test]
     async fn test_set_project_default_base_branch_uninitialized_core() {
         let result = set_project_default_base_branch(Some("main".to_string())).await;
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .contains("Failed to get Schaltwerk core"));
+        assert!(
+            result
+                .unwrap_err()
+                .contains("Failed to get Schaltwerk core")
+        );
     }
 
     #[tokio::test]
@@ -1177,36 +1207,44 @@ mod tests {
     async fn test_get_tutorial_completed_uninitialized_core() {
         let result = get_tutorial_completed().await;
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .contains("Settings manager not initialized"));
+        assert!(
+            result
+                .unwrap_err()
+                .contains("Settings manager not initialized")
+        );
     }
 
     #[tokio::test]
     async fn test_set_tutorial_completed_uninitialized_core() {
         let result = set_tutorial_completed(true).await;
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .contains("Settings manager not initialized"));
+        assert!(
+            result
+                .unwrap_err()
+                .contains("Settings manager not initialized")
+        );
     }
 
     #[tokio::test]
     async fn test_get_dev_error_toasts_enabled_uninitialized_manager() {
         let result = get_dev_error_toasts_enabled().await;
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .contains("Settings manager not initialized"));
+        assert!(
+            result
+                .unwrap_err()
+                .contains("Settings manager not initialized")
+        );
     }
 
     #[tokio::test]
     async fn test_set_dev_error_toasts_enabled_uninitialized_manager() {
         let result = set_dev_error_toasts_enabled(true).await;
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .contains("Settings manager not initialized"));
+        assert!(
+            result
+                .unwrap_err()
+                .contains("Settings manager not initialized")
+        );
     }
 
     #[test]

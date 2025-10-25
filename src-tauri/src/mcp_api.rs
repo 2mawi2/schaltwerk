@@ -1,19 +1,19 @@
 use http_body_util::BodyExt;
-use hyper::{body::Incoming, Method, Request, Response, StatusCode};
+use hyper::{Method, Request, Response, StatusCode, body::Incoming};
 use log::{error, info, warn};
 use serde::Serialize;
 use url::form_urlencoded;
 
-use crate::commands::github::{github_create_reviewed_pr, CreateReviewedPrArgs};
+use crate::commands::github::{CreateReviewedPrArgs, github_create_reviewed_pr};
 use crate::commands::schaltwerk_core::{
-    merge_session_with_events, schaltwerk_core_cancel_session, MergeCommandError,
+    MergeCommandError, merge_session_with_events, schaltwerk_core_cancel_session,
 };
-use crate::commands::sessions_refresh::{request_sessions_refresh, SessionsRefreshReason};
+use crate::commands::sessions_refresh::{SessionsRefreshReason, request_sessions_refresh};
 use crate::mcp_api::diff_api::{DiffApiError, DiffChunkRequest, DiffScope, SummaryQuery};
 use crate::{get_core_read, get_core_write};
 use schaltwerk::domains::merge::MergeMode;
 use schaltwerk::domains::sessions::entity::Session;
-use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
+use schaltwerk::infrastructure::events::{SchaltEvent, emit_event};
 use schaltwerk::schaltwerk_core::{SessionManager, SessionState};
 
 mod diff_api;
@@ -210,7 +210,7 @@ async fn diff_summary(req: Request<Incoming>) -> Result<Response<String>, hyper:
             return Ok(json_error_response(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("Failed to serialize diff summary: {e}"),
-            ))
+            ));
         }
     };
 
@@ -240,7 +240,7 @@ async fn diff_chunk(req: Request<Incoming>) -> Result<Response<String>, hyper::E
             return Ok(json_error_response(
                 StatusCode::UNPROCESSABLE_ENTITY,
                 "path query parameter is required".into(),
-            ))
+            ));
         }
     };
 
@@ -272,7 +272,7 @@ async fn diff_chunk(req: Request<Incoming>) -> Result<Response<String>, hyper::E
             return Ok(json_error_response(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("Failed to serialize diff chunk: {e}"),
-            ))
+            ));
         }
     };
 
@@ -286,7 +286,7 @@ async fn get_session_spec(name: &str) -> Result<Response<String>, hyper::Error> 
             return Ok(json_error_response(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("Internal error: {e}"),
-            ))
+            ));
         }
     };
 
@@ -308,7 +308,7 @@ async fn get_session_spec(name: &str) -> Result<Response<String>, hyper::Error> 
             return Ok(json_error_response(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("Failed to serialize session spec: {e}"),
-            ))
+            ));
         }
     };
 
@@ -1129,7 +1129,7 @@ async fn merge_session(
                     return Ok(error_response(
                         StatusCode::NOT_FOUND,
                         format!("Session '{name}' not found: {e}"),
-                    ))
+                    ));
                 }
             }
         }
@@ -1150,7 +1150,7 @@ async fn merge_session(
             return Ok(error_response(
                 StatusCode::BAD_REQUEST,
                 format!("Invalid JSON payload: {e}"),
-            ))
+            ));
         }
     };
 
@@ -1249,7 +1249,7 @@ async fn create_pull_request(
                     return Ok(error_response(
                         StatusCode::NOT_FOUND,
                         format!("Session '{name}' not found: {e}"),
-                    ))
+                    ));
                 }
             }
         }
@@ -1269,7 +1269,7 @@ async fn create_pull_request(
             return Ok(error_response(
                 StatusCode::BAD_REQUEST,
                 format!("Invalid JSON payload: {e}"),
-            ))
+            ));
         }
     };
 
@@ -1287,7 +1287,7 @@ async fn create_pull_request(
             return Ok(error_response(
                 StatusCode::BAD_REQUEST,
                 format!("Failed to create pull request: {e}"),
-            ))
+            ));
         }
     };
 

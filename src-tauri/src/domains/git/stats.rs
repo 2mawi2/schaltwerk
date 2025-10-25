@@ -3,7 +3,7 @@ use crate::domains::sessions::entity::{ChangedFile, GitStats};
 use anyhow::Result;
 use chrono::Utc;
 use git2::{Diff, DiffFindOptions, DiffFormat, DiffOptions, Oid, Repository, StatusOptions};
-use std::collections::{hash_map::Entry, HashMap, HashSet};
+use std::collections::{HashMap, HashSet, hash_map::Entry};
 use std::fs;
 use std::path::Path;
 #[cfg(test)]
@@ -234,7 +234,8 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
     // Compute filtered has_uncommitted: ignore .schaltwerk internal files
     let has_uncommitted_filtered = statuses.iter().any(|entry| {
         if let Some(path) = entry.path()
-            && is_internal_tooling_path(path) {
+            && is_internal_tooling_path(path)
+        {
             return false;
         }
         true
@@ -243,7 +244,8 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
     let mut sample: Vec<String> = Vec::new();
     for entry in statuses.iter() {
         if let Some(path) = entry.path()
-            && is_internal_tooling_path(path) {
+            && is_internal_tooling_path(path)
+        {
             continue;
         }
         if let Some(path) = entry.path() {
@@ -294,7 +296,8 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
     let cache_key = (worktree_path.to_path_buf(), parent_branch.to_string());
     if let Some(m) = STATS_CACHE.get()
         && let Some((k, v)) = m.lock().unwrap().get(&cache_key)
-        && *k == key {
+        && *k == key
+    {
         let cache_hit_time = start_time.elapsed();
         log::debug!(
             "Git stats cache hit for {} ({}ms)",
@@ -302,11 +305,11 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
             cache_hit_time.as_millis()
         );
         let mut last_diff_change_ts: Option<i64> = None;
-        if let (Some(base_commit), Some(head_commit)) =
-            (base_commit.as_ref(), head_commit.as_ref())
+        if let (Some(base_commit), Some(head_commit)) = (base_commit.as_ref(), head_commit.as_ref())
             && let Ok(merge_base_oid) = repo.merge_base(base_commit.id(), head_commit.id())
             && repo.revparse(&format!("{merge_base_oid}..HEAD")).is_ok()
-            && let Ok(mut revwalk) = repo.revwalk() {
+            && let Ok(mut revwalk) = repo.revwalk()
+        {
             revwalk.push_head().ok();
             revwalk.hide(merge_base_oid).ok();
             let latest_commit_ts = revwalk
@@ -321,14 +324,16 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
 
         let mut files_for_mtime: HashSet<String> = HashSet::new();
         if let Some(ht) = head_tree.as_ref()
-            && let Ok(idx) = repo.index() {
+            && let Ok(idx) = repo.index()
+        {
             let mut staged_opts = DiffOptions::new();
             if let Ok(diff_for_mtime) =
                 repo.diff_tree_to_index(Some(ht), Some(&idx), Some(&mut staged_opts))
             {
                 for d in diff_for_mtime.deltas() {
                     if let Some(p) = d.new_file().path().or_else(|| d.old_file().path())
-                        && let Some(s) = p.to_str() {
+                        && let Some(s) = p.to_str()
+                    {
                         files_for_mtime.insert(s.to_string());
                     }
                 }
@@ -344,7 +349,8 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
             {
                 for d in diff_for_mtime.deltas() {
                     if let Some(p) = d.new_file().path().or_else(|| d.old_file().path())
-                        && let Some(s) = p.to_str() {
+                        && let Some(s) = p.to_str()
+                    {
                         files_for_mtime.insert(s.to_string());
                     }
                 }
@@ -356,10 +362,10 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
             let abs = worktree_path.join(&rel);
             if let Ok(metadata) = fs::metadata(&abs)
                 && let Ok(modified) = metadata.modified()
-                && let Ok(secs) = modified.duration_since(std::time::UNIX_EPOCH) {
+                && let Ok(secs) = modified.duration_since(std::time::UNIX_EPOCH)
+            {
                 let ts = secs.as_secs() as i64;
-                latest_uncommitted_ts =
-                    Some(latest_uncommitted_ts.map_or(ts, |cur| cur.max(ts)));
+                latest_uncommitted_ts = Some(latest_uncommitted_ts.map_or(ts, |cur| cur.max(ts)));
             } else {
                 saw_schema_change_cache = true;
             }
@@ -408,48 +414,50 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
     opts.include_untracked(true).recurse_untracked_dirs(true);
 
     if let Some(ref bt) = base_tree
-        && let Ok(mut diff) = repo.diff_tree_to_workdir_with_index(Some(bt), Some(&mut opts)) {
-            let mut find_opts = DiffFindOptions::new();
-            diff.find_similar(Some(&mut find_opts)).ok();
-            for delta in diff.deltas() {
-                if let Some(path) = delta.new_file().path().or_else(|| delta.old_file().path())
-                    && let Some(path_str) = path.to_str() {
-                        files.insert(path_str.to_string());
-                        files_for_mtime.insert(path_str.to_string());
-                    }
-
-                if files.len() >= VERY_LARGE_SESSION_THRESHOLD {
-                    log::info!(
-                        "Session has {} files (>= {VERY_LARGE_SESSION_THRESHOLD}), skipping stats calculation",
-                        files.len()
-                    );
-                    return Err(anyhow::anyhow!(
-                        "Session too large ({} files) for stats calculation",
-                        files.len()
-                    ));
-                }
-
-                use git2::Delta;
-                match delta.status() {
-                    Delta::Deleted | Delta::Renamed | Delta::Typechange => {
-                        saw_schema_change = true;
-                    }
-                    _ => {}
-                }
+        && let Ok(mut diff) = repo.diff_tree_to_workdir_with_index(Some(bt), Some(&mut opts))
+    {
+        let mut find_opts = DiffFindOptions::new();
+        diff.find_similar(Some(&mut find_opts)).ok();
+        for delta in diff.deltas() {
+            if let Some(path) = delta.new_file().path().or_else(|| delta.old_file().path())
+                && let Some(path_str) = path.to_str()
+            {
+                files.insert(path_str.to_string());
+                files_for_mtime.insert(path_str.to_string());
             }
 
-            if files.len() >= LARGE_SESSION_THRESHOLD {
+            if files.len() >= VERY_LARGE_SESSION_THRESHOLD {
                 log::info!(
-                    "Session has {} files (>= {LARGE_SESSION_THRESHOLD}), stats calculation may be slow",
+                    "Session has {} files (>= {VERY_LARGE_SESSION_THRESHOLD}), skipping stats calculation",
                     files.len()
                 );
+                return Err(anyhow::anyhow!(
+                    "Session too large ({} files) for stats calculation",
+                    files.len()
+                ));
             }
 
-            if let Ok(stats) = diff.stats() {
-                insertions = stats.insertions() as u32;
-                deletions = stats.deletions() as u32;
+            use git2::Delta;
+            match delta.status() {
+                Delta::Deleted | Delta::Renamed | Delta::Typechange => {
+                    saw_schema_change = true;
+                }
+                _ => {}
             }
         }
+
+        if files.len() >= LARGE_SESSION_THRESHOLD {
+            log::info!(
+                "Session has {} files (>= {LARGE_SESSION_THRESHOLD}), stats calculation may be slow",
+                files.len()
+            );
+        }
+
+        if let Ok(stats) = diff.stats() {
+            insertions = stats.insertions() as u32;
+            deletions = stats.deletions() as u32;
+        }
+    }
 
     // Compute diff-aware last change timestamp
     let mut last_diff_change_ts: Option<i64> = None;
@@ -457,21 +465,22 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
     // Latest committed change ahead of parent_branch (relative to merge-base)
     if let (Some(base_commit), Some(head_commit)) = (base_commit.as_ref(), head_commit.as_ref())
         && let Ok(merge_base_oid) = repo.merge_base(base_commit.id(), head_commit.id())
-            && repo.revparse(&format!("{merge_base_oid}..HEAD")).is_ok() {
-                // Iterate commits in the range and take the most recent commit time (should be HEAD's time)
-                if let Ok(mut revwalk) = repo.revwalk() {
-                    revwalk.push_head().ok();
-                    revwalk.hide(merge_base_oid).ok();
-                    let latest_commit_ts = revwalk
-                        .filter_map(|oid| oid.ok())
-                        .filter_map(|oid| repo.find_commit(oid).ok())
-                        .map(|c| c.time().seconds())
-                        .max();
-                    if let Some(ts) = latest_commit_ts {
-                        last_diff_change_ts = Some(ts);
-                    }
-                }
+        && repo.revparse(&format!("{merge_base_oid}..HEAD")).is_ok()
+    {
+        // Iterate commits in the range and take the most recent commit time (should be HEAD's time)
+        if let Ok(mut revwalk) = repo.revwalk() {
+            revwalk.push_head().ok();
+            revwalk.hide(merge_base_oid).ok();
+            let latest_commit_ts = revwalk
+                .filter_map(|oid| oid.ok())
+                .filter_map(|oid| repo.find_commit(oid).ok())
+                .map(|c| c.time().seconds())
+                .max();
+            if let Some(ts) = latest_commit_ts {
+                last_diff_change_ts = Some(ts);
             }
+        }
+    }
 
     // Latest mtime among changed-but-uncommitted files (staged, unstaged, untracked)
     let mut latest_uncommitted_ts: Option<i64> = None;
@@ -479,11 +488,11 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
         let abs = worktree_path.join(&rel);
         if let Ok(metadata) = fs::metadata(&abs)
             && let Ok(modified) = metadata.modified()
-                && let Ok(secs) = modified.duration_since(std::time::UNIX_EPOCH) {
-                    let ts = secs.as_secs() as i64;
-                    latest_uncommitted_ts =
-                        Some(latest_uncommitted_ts.map_or(ts, |cur| cur.max(ts)));
-                }
+            && let Ok(secs) = modified.duration_since(std::time::UNIX_EPOCH)
+        {
+            let ts = secs.as_secs() as i64;
+            latest_uncommitted_ts = Some(latest_uncommitted_ts.map_or(ts, |cur| cur.max(ts)));
+        }
     }
     if let Some(u_ts) = latest_uncommitted_ts {
         last_diff_change_ts = Some(match last_diff_change_ts {
@@ -511,7 +520,8 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
 
     let total_time = start_time.elapsed();
     if total_time.as_millis() > 100 {
-        log::warn!("Git stats calculation took {}ms for {} (repo_discover: {}ms, insertions: {}, deletions: {})",
+        log::warn!(
+            "Git stats calculation took {}ms for {} (repo_discover: {}ms, insertions: {}, deletions: {})",
             total_time.as_millis(),
             worktree_path.display(),
             repo_discover_time.as_millis(),

@@ -117,7 +117,8 @@ pub fn get_commit_file_changes(
             .path()
             .or_else(|| delta.old_file().path())
             .and_then(|path| path.to_str())
-            && !path.is_empty() {
+            && !path.is_empty()
+        {
             let old_path = delta
                 .old_file()
                 .path()
@@ -164,7 +165,8 @@ pub fn get_git_history_with_head(
     let (current_ref, current_remote_ref) = resolve_current_refs(&repo);
 
     if let (Some(expected), Some(actual)) = (since_head, head_commit.as_deref())
-        && expected == actual {
+        && expected == actual
+    {
         return Ok(HistoryProviderSnapshot {
             items: Vec::new(),
             current_ref,
@@ -186,7 +188,8 @@ pub fn get_git_history_with_head(
         let reference = reference?;
         if let Some(name) = reference.name()
             && let Ok(resolved) = reference.resolve()
-            && let Some(target) = resolved.target() {
+            && let Some(target) = resolved.target()
+        {
             let ref_type = if name.starts_with("refs/heads/") {
                 walk_roots.push(target);
                 Some("branch")
@@ -230,7 +233,8 @@ pub fn get_git_history_with_head(
 
     if seen_roots.is_empty()
         && let Ok(head) = repo.head()
-        && let Some(target) = head.target() {
+        && let Some(target) = head.target()
+    {
         revwalk.push(target)?;
     }
 
@@ -257,8 +261,7 @@ pub fn get_git_history_with_head(
 
         let full_oid = oid.to_string();
 
-        if !cursor_seen
-            && let Some(ref target) = cursor_value {
+        if !cursor_seen && let Some(ref target) = cursor_value {
             if &full_oid == target {
                 cursor_seen = true;
             }

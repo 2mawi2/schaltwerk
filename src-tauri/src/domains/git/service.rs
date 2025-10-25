@@ -1,7 +1,7 @@
 // Re-export all the functions from the git domain modules
 pub use super::repository::{
-    create_initial_commit, discover_repository, get_default_branch, init_repository,
-    repository_has_commits, INITIAL_COMMIT_MESSAGE,
+    INITIAL_COMMIT_MESSAGE, create_initial_commit, discover_repository, get_default_branch,
+    init_repository, repository_has_commits,
 };
 
 pub use super::branches::{
@@ -15,8 +15,8 @@ pub use super::worktrees::{
 };
 
 pub use super::history::{
-    get_commit_file_changes, get_git_history, get_git_history_with_head, CommitFileChange,
-    HistoryProviderSnapshot,
+    CommitFileChange, HistoryProviderSnapshot, get_commit_file_changes, get_git_history,
+    get_git_history_with_head,
 };
 pub use super::operations::{
     commit_all_changes, has_conflicts, has_uncommitted_changes, is_valid_branch_name,

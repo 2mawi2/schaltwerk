@@ -48,9 +48,10 @@ pub fn get_log_dir() -> PathBuf {
 /// Get the current log file path
 pub fn get_log_path() -> PathBuf {
     if let Ok(guard) = LOG_PATH.lock()
-        && let Some(ref path) = *guard {
-            return path.clone();
-        }
+        && let Some(ref path) = *guard
+    {
+        return path.clone();
+    }
 
     let log_dir = get_log_dir();
 
@@ -192,11 +193,12 @@ pub fn init_logging() {
 
         // Also write to buffered file writer (with error handling)
         if let Ok(mut guard) = LOG_FILE_WRITER.lock()
-            && let Some(ref mut writer) = *guard {
-                let _ = writeln!(writer, "{log_line}");
-                // Only flush periodically for better performance
-                let _ = writer.flush();
-            }
+            && let Some(ref mut writer) = *guard
+        {
+            let _ = writeln!(writer, "{log_line}");
+            // Only flush periodically for better performance
+            let _ = writer.flush();
+        }
 
         Ok(())
     });
@@ -334,7 +336,7 @@ fn cleanup_old_logs(log_dir: &Path, retention: Duration) -> Vec<String> {
 mod tests {
     use super::*;
     use crate::utils::env_adapter::EnvAdapter;
-    use filetime::{set_file_mtime, FileTime};
+    use filetime::{FileTime, set_file_mtime};
     use serial_test::serial;
     use std::env;
     use std::sync::Arc;

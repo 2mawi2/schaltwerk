@@ -7,7 +7,7 @@ use std::sync::RwLock;
 use std::sync::{Arc, OnceLock};
 use tauri::{AppHandle, Emitter};
 
-use crate::events::{emit_event, SchaltEvent};
+use crate::events::{SchaltEvent, emit_event};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct PtyDataPayload {

@@ -1,5 +1,5 @@
 use super::connection::Database;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use chrono::Utc;
 use rusqlite::params;
 use serde::{Deserialize, Serialize};

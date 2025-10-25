@@ -3,7 +3,8 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { useFontSize } from '../../contexts/FontSizeContext'
-import { useSettings, AgentType, ProjectMergePreferences } from '../../hooks/useSettings'
+import { useSettings } from '../../hooks/useSettings'
+import type { AgentType, ProjectMergePreferences, AttentionNotificationMode } from '../../hooks/useSettings'
 import { useSessions } from '../../contexts/SessionsContext'
 import { useActionButtons } from '../../contexts/ActionButtonsContext'
 import type { HeaderActionConfig } from '../../types/actionButton'
@@ -223,6 +224,8 @@ interface SessionPreferences {
     auto_commit_on_review: boolean
     skip_confirmation_modals: boolean
     always_show_large_diffs: boolean
+    attention_notification_mode: AttentionNotificationMode
+    remember_idle_baseline: boolean
 }
 
 export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Props) {
@@ -246,7 +249,9 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
     const [sessionPreferences, setSessionPreferences] = useState<SessionPreferences>({
         auto_commit_on_review: false,
         skip_confirmation_modals: false,
-        always_show_large_diffs: false
+        always_show_large_diffs: false,
+        attention_notification_mode: 'dock',
+        remember_idle_baseline: true
     })
     const [mergePreferences, setMergePreferences] = useState<ProjectMergePreferences>({
         autoCancelAfterMerge: true
@@ -402,12 +407,21 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
     const [editableActionButtons, setEditableActionButtons] = useState<HeaderActionConfig[]>([])
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
     
-    const hideNotification = () => setNotification(prev => ({ ...prev, visible: false }))
-    const scheduleHideNotification = (delayMs: number = 3000) => window.setTimeout(hideNotification, delayMs)
-    const showNotification = (message: string, type: NotificationType) => {
+    const hideNotification = useCallback(() => {
+        setNotification(prev => ({ ...prev, visible: false }))
+    }, [])
+    const scheduleHideNotification = useCallback((delayMs: number = 3000) => {
+        return window.setTimeout(hideNotification, delayMs)
+    }, [hideNotification])
+    const showNotification = useCallback((message: string, type: NotificationType) => {
         setNotification({ message, type, visible: true })
         scheduleHideNotification(3000)
-    }
+    }, [scheduleHideNotification])
+
+    const attentionNotificationsEnabled = useMemo(
+        () => sessionPreferences.attention_notification_mode !== 'off',
+        [sessionPreferences.attention_notification_mode]
+    )
 
     // Normalize smart dashes some platforms insert automatically (Safari/macOS)
     // so CLI flags like "--model" are preserved as two ASCII hyphens.
@@ -2088,8 +2102,55 @@ fi`}
                                     </div>
                                 </div>
                             </label>
+
+                            <div className="pt-4 mt-6 border-t border-slate-700/60 space-y-3">
+                                <h4 className="text-body font-medium text-slate-200">
+                                    Idle Notifications
+                                </h4>
+                                <label className="flex items-center gap-3 cursor-pointer select-none">
+                                    <input
+                                        type="checkbox"
+                                        checked={attentionNotificationsEnabled}
+                                        onChange={(event) => setSessionPreferences({
+                                            ...sessionPreferences,
+                                            attention_notification_mode: event.target.checked ? 'dock' : 'off'
+                                        })}
+                                        className={`w-4 h-4 ${theme.colors.accent.cyan.dark} bg-slate-800 border-slate-600 rounded focus:ring-${theme.colors.accent.cyan.DEFAULT} focus:ring-2`}
+                                    />
+                                    <span className="text-body text-slate-200">Notify on idle</span>
+                                </label>
+                                <label
+                                    className={`flex items-start gap-3 cursor-pointer transition-opacity ${
+                                        attentionNotificationsEnabled ? '' : 'opacity-50 cursor-not-allowed'
+                                    }`}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={sessionPreferences.remember_idle_baseline}
+                                        disabled={!attentionNotificationsEnabled}
+                                        onChange={(e) => setSessionPreferences({
+                                            ...sessionPreferences,
+                                            remember_idle_baseline: e.target.checked
+                                        })}
+                                        className={`w-4 h-4 ${theme.colors.accent.cyan.dark} bg-slate-800 border-slate-600 rounded focus:ring-${theme.colors.accent.cyan.DEFAULT} focus:ring-2`}
+                                    />
+                                    <span className="text-body text-slate-200">Remember idle sessions when I switch away</span>
+                                </label>
+                                {attentionNotificationsEnabled && (
+                                    <button
+                                        type="button"
+                                        onClick={async () => {
+                                            const { requestDockBounce } = await import('../../utils/attentionBridge')
+                                            await requestDockBounce()
+                                        }}
+                                        className="mt-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-body text-slate-300 transition-colors"
+                                    >
+                                        Test notification
+                                    </button>
+                                )}
+                            </div>
                         </div>
-                        
+
                         <div className="mt-4 p-3 bg-slate-800/50 border border-slate-700 rounded">
                             <div className="text-caption text-slate-400">
                                 <strong>Auto-commit on Review:</strong>

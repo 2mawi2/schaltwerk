@@ -112,7 +112,7 @@ const getSessionKey = (sessionName: string | null, isCommander: boolean) => {
 }
 
 function useDiffLoaderStatus(sessionName: string | null, isCommander: boolean) {
-  const { loadingState, allSessions, projectId } = useSessions()
+  const { loadingState, allSessions } = useSessions()
 
   const sessionExists = useMemo(() => {
     if (!sessionName) {
@@ -120,7 +120,7 @@ function useDiffLoaderStatus(sessionName: string | null, isCommander: boolean) {
     }
 
     return allSessions.some(session => session.info.session_id === sessionName)
-  }, [sessionName, allSessions, projectId])
+  }, [sessionName, allSessions])
 
   const resolveInitialStatus = () => {
     if (isCommander || !sessionName) {
@@ -394,7 +394,9 @@ function useDiffLoader({
       }
 
       if (consumePendingReload(key) && statusRef.current === 'ready') {
-        load({ invalidateCache: true, force: true }).catch(() => {})
+        load({ invalidateCache: true, force: true }).catch((error) => {
+          logger.debug('Background reload failed after diff load', { error })
+        })
       }
     }
   }, [applyCacheEntry, buildOrchestratorEntry, buildSessionEntry, clearActiveData, consumePendingReload, markReloadPending, shouldApply])
@@ -413,7 +415,9 @@ function useDiffLoader({
     }
 
     const interval = setInterval(() => {
-      load({ invalidateCache: true, force: true }).catch(() => {})
+      load({ invalidateCache: true, force: true }).catch((error) => {
+        logger.debug('Polling load failed', { error })
+      })
     }, 2500)
 
     pollingIntervalRef.current = interval
@@ -432,7 +436,9 @@ function useDiffLoader({
       setFiles(cached.files)
       setBranchInfo(cached.branchInfo)
       setIsLoading(false)
-      load({ force: true }).catch(() => {})
+      load({ force: true }).catch((error) => {
+        logger.debug('Background cache refresh failed', { error })
+      })
       return
     }
 
@@ -467,7 +473,9 @@ function useDiffLoader({
 
       const key = sessionKeyRef.current
       if (!cacheRef.current.has(key)) {
-        load({ force: true }).catch(() => {})
+        load({ force: true }).catch((error) => {
+          logger.debug('Initial load failed on status ready', { error })
+        })
       } else {
         setIsLoading(false)
       }
@@ -485,7 +493,9 @@ function useDiffLoader({
       clearActiveData()
       stopPolling()
       setIsLoading(statusRef.current === 'waiting')
-      load({ force: true }).catch(() => {})
+      load({ force: true }).catch((error) => {
+        logger.debug('Load after project switch failed', { error })
+      })
     })
 
     return () => {
@@ -502,7 +512,6 @@ function useDiffLoader({
 
     const currentSession = sessionName
     const commander = isCommander
-    const key = sessionKey
 
     if (!commander && !currentSession) {
       return
@@ -591,7 +600,9 @@ function useDiffLoader({
             return
           }
 
-          load({ invalidateCache: true, force: true }).catch(() => {})
+          load({ invalidateCache: true, force: true }).catch((error) => {
+            logger.debug('Load after git stats update failed', { error })
+          })
         })
       } catch (error) {
         logger.error('[DiffFileList] Failed to register git stats listener:', error)
@@ -685,7 +696,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
   const [discardBusy, setDiscardBusy] = useState(false)
   const [pendingDiscardFile, setPendingDiscardFile] = useState<string | null>(null)
 
-  const sessionName = sessionNameOverride ?? (selection.kind === 'session' ? selection.payload : null)
+  const sessionName = sessionNameOverride ?? (selection.kind === 'session' ? selection.payload ?? null : null)
   const resolvedCommander = Boolean(isCommander)
   const { status: diffLoaderStatus, sessionExists } = useDiffLoaderStatus(sessionName, resolvedCommander)
   const { files, branchInfo, isLoading, reload } = useDiffLoader({

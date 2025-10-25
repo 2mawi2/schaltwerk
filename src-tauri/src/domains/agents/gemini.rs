@@ -62,7 +62,8 @@ pub fn build_gemini_command_with_config(
     // Prefer using real CLI interactive prompt flag when available.
     // Fallback: launch TUI and inject prompt via terminal manager.
     if let Some(prompt) = _initial_prompt
-        && !prompt.trim().is_empty() {
+        && !prompt.trim().is_empty()
+    {
         let escaped = super::escape_prompt_for_shell(prompt);
         cmd.push_str(&format!(r#" --prompt-interactive "{escaped}""#));
     }

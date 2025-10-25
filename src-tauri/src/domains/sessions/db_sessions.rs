@@ -2,7 +2,7 @@ use crate::domains::sessions::entity::{Session, SessionState, SessionStatus};
 use crate::schaltwerk_core::database::Database;
 use anyhow::Result;
 use chrono::{TimeZone, Utc};
-use rusqlite::{params, Result as SqlResult, ToSql};
+use rusqlite::{Result as SqlResult, ToSql, params};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -20,7 +20,7 @@ pub trait SessionMethods {
     fn list_sessions(&self, repo_path: &Path) -> Result<Vec<Session>>;
     fn list_all_active_sessions(&self) -> Result<Vec<Session>>;
     fn list_sessions_by_state(&self, repo_path: &Path, state: SessionState)
-        -> Result<Vec<Session>>;
+    -> Result<Vec<Session>>;
     fn update_session_status(&self, id: &str, status: SessionStatus) -> Result<()>;
     fn set_session_activity(
         &self,
