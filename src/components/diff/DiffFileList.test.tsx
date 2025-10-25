@@ -7,7 +7,6 @@ import { useSelection } from '../../contexts/SelectionContext'
 import { useProject } from '../../contexts/ProjectContext'
 import { TestProviders } from '../../tests/test-utils'
 import { UiEvent, emitUiEvent } from '../../common/uiEvents'
-import { SortMode, FilterMode } from '../../types/sessionFilters'
 import type { SessionGitStatsUpdated } from '../../common/events'
 import * as eventSystemModule from '../../common/eventSystem'
 import type { EnrichedSession } from '../../types/session'
@@ -896,7 +895,9 @@ describe('DiffFileList', () => {
       }
 
       const alphaDeferred = createRejectDeferred()
-      alphaDeferred.promise.catch(() => {})
+      void alphaDeferred.promise.catch((error) => {
+        console.error('Expected test rejection:', error)
+      })
 
       mockInvoke.mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
         if (cmd === TauriCommands.GetChangedFilesFromMain) {

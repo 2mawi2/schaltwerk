@@ -2136,9 +2136,21 @@ fi`}
                                     />
                                     <span className="text-body text-slate-200">Remember idle sessions when I switch away</span>
                                 </label>
+                                {attentionNotificationsEnabled && (
+                                    <button
+                                        type="button"
+                                        onClick={async () => {
+                                            const { requestDockBounce } = await import('../../utils/attentionBridge')
+                                            await requestDockBounce()
+                                        }}
+                                        className="mt-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-body text-slate-300 transition-colors"
+                                    >
+                                        Test notification
+                                    </button>
+                                )}
                             </div>
                         </div>
-                        
+
                         <div className="mt-4 p-3 bg-slate-800/50 border border-slate-700 rounded">
                             <div className="text-caption text-slate-400">
                                 <strong>Auto-commit on Review:</strong>
