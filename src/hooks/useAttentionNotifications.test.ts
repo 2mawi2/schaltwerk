@@ -15,7 +15,6 @@ vi.mock('./useWindowVisibility', () => ({
 
 const mockReportAttentionSnapshot = vi.fn().mockResolvedValue({ totalCount: 0, badgeLabel: null })
 const mockRequestDockBounce = vi.fn()
-const mockShowSystemNotification = vi.fn().mockResolvedValue(true)
 const mockGetCurrentWindowLabel = vi.fn().mockResolvedValue('main')
 const mockInvoke = vi.fn().mockResolvedValue({
   attention_notification_mode: 'dock',
@@ -25,9 +24,7 @@ const mockInvoke = vi.fn().mockResolvedValue({
 vi.mock('../utils/attentionBridge', () => ({
   reportAttentionSnapshot: (...args: unknown[]) => mockReportAttentionSnapshot(...args),
   requestDockBounce: (...args: unknown[]) => mockRequestDockBounce(...args),
-  showSystemNotification: (...args: unknown[]) => mockShowSystemNotification(...args),
   getCurrentWindowLabel: (...args: unknown[]) => mockGetCurrentWindowLabel(...args),
-  ensureNotificationPermission: vi.fn().mockResolvedValue('granted'),
 }))
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -60,7 +57,6 @@ describe('useAttentionNotifications', () => {
     mockVisibilityState.lastFocusLostAt = null
     mockReportAttentionSnapshot.mockClear()
     mockRequestDockBounce.mockClear()
-    mockShowSystemNotification.mockClear()
     mockGetCurrentWindowLabel.mockResolvedValue('main')
     mockInvoke.mockResolvedValue({
       attention_notification_mode: 'dock',
@@ -74,7 +70,6 @@ describe('useAttentionNotifications', () => {
       useAttentionNotifications({
         sessions,
         projectPath: '/Users/test/project',
-        projectDisplayName: 'project',
         onProjectAttentionChange,
       })
     , {
@@ -93,9 +88,9 @@ describe('useAttentionNotifications', () => {
     expect(mockReportAttentionSnapshot).toHaveBeenCalledWith('main', ['/Users/test/project::s1'])
   })
 
-  it('sends dock bounce and system notification when mode is both', async () => {
+  it('triggers dock bounce when notifications are enabled', async () => {
     mockInvoke.mockResolvedValue({
-      attention_notification_mode: 'both',
+      attention_notification_mode: 'dock',
       remember_idle_baseline: false,
     })
 
@@ -103,7 +98,6 @@ describe('useAttentionNotifications', () => {
       useAttentionNotifications({
         sessions,
         projectPath: '/Users/test/project',
-        projectDisplayName: 'project',
       })
     , {
       initialProps: { sessions: [createSession('s2', false)] },
@@ -117,7 +111,6 @@ describe('useAttentionNotifications', () => {
     })
 
     expect(mockRequestDockBounce).toHaveBeenCalled()
-    expect(mockShowSystemNotification).toHaveBeenCalled()
   })
 
   it('honours idle baseline when enabled', async () => {
@@ -132,7 +125,6 @@ describe('useAttentionNotifications', () => {
       useAttentionNotifications({
         sessions,
         projectPath: '/Users/test/project',
-        projectDisplayName: 'project',
       })
     , {
       initialProps: { sessions: [createSession('s3', true)] },
@@ -167,7 +159,6 @@ describe('useAttentionNotifications', () => {
       useAttentionNotifications({
         sessions,
         projectPath,
-        projectDisplayName: 'project',
         onAttentionSummaryChange,
         openProjectPaths,
       })
@@ -213,7 +204,6 @@ describe('useAttentionNotifications', () => {
       useAttentionNotifications({
         sessions,
         projectPath,
-        projectDisplayName: 'project',
         onAttentionSummaryChange,
         openProjectPaths,
       })
@@ -264,7 +254,6 @@ describe('useAttentionNotifications', () => {
       useAttentionNotifications({
         sessions,
         projectPath,
-        projectDisplayName: 'project',
         openProjectPaths,
       })
     , {

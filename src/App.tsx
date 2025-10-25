@@ -389,7 +389,6 @@ function AppContent() {
   const startShortcut = shortcuts[KeyboardShortcutAction.NewSession] || (isMac ? '⌘N' : 'Ctrl + N')
   const specShortcut = shortcuts[KeyboardShortcutAction.NewSpec] || (isMac ? '⇧⌘N' : 'Ctrl + Shift + N')
   const preserveSelection = useSelectionPreserver()
-  const projectDisplayName = useMemo(() => (projectPath ? getBasename(projectPath) : null), [projectPath])
   const openProjectPaths = useMemo(() => openTabs.map(tab => tab.projectPath), [openTabs])
   const handleAttentionSummaryChange = useCallback(
     ({ perProjectCounts }: { perProjectCounts: Record<string, number>; totalCount: number }) => {
@@ -428,7 +427,6 @@ function AppContent() {
   useAttentionNotifications({
     sessions: allSessions,
     projectPath,
-    projectDisplayName,
     openProjectPaths,
     onProjectAttentionChange: useCallback((count: number) => {
       if (!projectPath) {

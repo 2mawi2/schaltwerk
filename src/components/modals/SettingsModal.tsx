@@ -31,7 +31,7 @@ import { emitUiEvent, UiEvent } from '../../common/uiEvents'
 import { useOptionalToast } from '../../common/toast/ToastProvider'
 import { AppUpdateResultPayload } from '../../common/events'
 import type { SettingsCategory } from '../../types/settings'
-import { ensureNotificationPermission, requestDockBounce, showSystemNotification } from '../../utils/attentionBridge'
+import { requestDockBounce } from '../../utils/attentionBridge'
 
 const shortcutArraysEqual = (a: string[] = [], b: string[] = []) => {
     if (a.length !== b.length) return false
@@ -201,29 +201,6 @@ const CATEGORIES: CategoryConfig[] = [
 
 const PROJECT_CATEGORY_ORDER: SettingsCategory[] = ['projectGeneral', 'projectRun', 'projectActions', 'archives']
 const PROJECT_CATEGORY_SET = new Set<SettingsCategory>(PROJECT_CATEGORY_ORDER)
-
-const ATTENTION_MODE_OPTIONS: Array<{ value: AttentionNotificationMode, label: string, description: string }> = [
-    {
-        value: 'dock',
-        label: 'Dock bounce',
-        description: 'Bounce the dock icon when Schaltwerk is hidden so you notice idle agents quickly.'
-    },
-    {
-        value: 'system',
-        label: 'System notification',
-        description: 'Send a macOS notification without bouncing the dock icon.'
-    },
-    {
-        value: 'both',
-        label: 'Dock bounce + notification',
-        description: 'Use both signals for maximum visibility when an agent needs attention.'
-    },
-    {
-        value: 'off',
-        label: 'Disabled',
-        description: 'Turn off attention alerts entirely.'
-    }
-]
 
 interface ProjectSettings {
     setupScript: string
@@ -442,37 +419,20 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
         scheduleHideNotification(3000)
     }, [scheduleHideNotification])
 
-    const handleTestNotification = useCallback(async () => {
-        const mode = sessionPreferences.attention_notification_mode
-        if (mode === 'off') {
-            showNotification('Attention notifications are disabled. Select a mode to test them.', 'info')
+    const attentionNotificationsEnabled = useMemo(
+        () => sessionPreferences.attention_notification_mode !== 'off',
+        [sessionPreferences.attention_notification_mode]
+    )
+
+    const handleTestNotification = useCallback(() => {
+        if (!attentionNotificationsEnabled) {
+            showNotification('Enable idle notifications to test them.', 'info')
             return
         }
 
-        const shouldBounce = mode === 'dock' || mode === 'both'
-        const shouldNotify = mode === 'system' || mode === 'both'
-
-        if (shouldBounce) {
-            void requestDockBounce()
-        }
-
-        if (shouldNotify) {
-            const permission = await ensureNotificationPermission()
-            if (permission !== 'granted') {
-                showNotification('System notifications are blocked. Enable them in System Settings to receive alerts.', 'error')
-                return
-            }
-            await showSystemNotification({
-                title: 'Schaltwerk · Test notification',
-                body: 'If you can read this, attention notifications are working.',
-                silent: true
-            })
-        }
-
-        if (shouldBounce || shouldNotify) {
-            showNotification('Attention notification test triggered.', 'success')
-        }
-    }, [sessionPreferences.attention_notification_mode, showNotification])
+        void requestDockBounce()
+        showNotification('Attention notification test triggered.', 'success')
+    }, [attentionNotificationsEnabled, showNotification])
 
     // Normalize smart dashes some platforms insert automatically (Safari/macOS)
     // so CLI flags like "--model" are preserved as two ASCII hyphens.
@@ -2154,81 +2114,50 @@ fi`}
                                 </div>
                             </label>
 
-                            <div className="pt-4 mt-6 border-t border-slate-700/60">
-                                <h4 className="text-body font-medium text-slate-200 mb-1">
-                                    Attention Notifications
+                            <div className="pt-4 mt-6 border-t border-slate-700/60 space-y-3">
+                                <h4 className="text-body font-medium text-slate-200">
+                                    Idle Notifications
                                 </h4>
-                                <p className="text-caption text-slate-400 mb-3">
-                                    Choose how Schaltwerk alerts you when an agent becomes idle while the window is hidden.
-                                </p>
-                                <div className="space-y-3">
-                                    {ATTENTION_MODE_OPTIONS.map(option => (
-                                        <label key={option.value} className="flex items-start gap-3 cursor-pointer">
-                                            <input
-                                                type="radio"
-                                                name="attention-notification-mode"
-                                                value={option.value}
-                                                checked={sessionPreferences.attention_notification_mode === option.value}
-                                                onChange={() => setSessionPreferences({
-                                                    ...sessionPreferences,
-                                                    attention_notification_mode: option.value
-                                                })}
-                                                className="w-4 h-4 border rounded-full mt-1"
-                                                style={{
-                                                    accentColor: theme.colors.accent.cyan.DEFAULT,
-                                                    borderColor: theme.colors.border.subtle,
-                                                    backgroundColor: theme.colors.background.primary
-                                                }}
-                                            />
-                                            <div className="flex-1">
-                                                <div className="text-body font-medium text-slate-200">
-                                                    {option.label}
-                                                </div>
-                                                <div className="text-caption text-slate-400 mt-1">
-                                                    {option.description}
-                                                </div>
-                                            </div>
-                                        </label>
-                                    ))}
-                                </div>
-                                <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                                    <label className="flex items-start gap-3 cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={sessionPreferences.remember_idle_baseline}
-                                            onChange={(e) => setSessionPreferences({
-                                                ...sessionPreferences,
-                                                remember_idle_baseline: e.target.checked
-                                            })}
-                                            className="w-4 h-4 border rounded mt-1"
-                                            style={{
-                                                accentColor: theme.colors.accent.cyan.DEFAULT,
-                                                borderColor: theme.colors.border.subtle,
-                                                backgroundColor: theme.colors.background.primary
-                                            }}
-                                        />
-                                        <div className="flex-1">
-                                            <div className="text-body font-medium text-slate-200">
-                                                Remember idle sessions when I switch away
-                                            </div>
-                                            <div className="text-caption text-slate-400 mt-1">
-                                                Ignore sessions that were already idle before you hid the window.
-                                                They will notify again after they become active and idle once more.
-                                            </div>
-                                        </div>
-                                    </label>
-                                    <button
-                                        type="button"
-                                        onClick={handleTestNotification}
-                                        className="px-3 py-1.5 rounded text-sm font-medium transition-opacity hover:opacity-90 self-start md:self-auto"
-                                        style={{
-                                            backgroundColor: theme.colors.accent.blue.DEFAULT,
-                                            color: theme.colors.text.inverse
-                                        }}
-                                    >
-                                        Test notification
-                                    </button>
-                                </div>
+                                <label className="flex items-center gap-3 cursor-pointer select-none">
+                                    <input
+                                        type="checkbox"
+                                        checked={attentionNotificationsEnabled}
+                                        onChange={(event) => setSessionPreferences({
+                                            ...sessionPreferences,
+                                            attention_notification_mode: event.target.checked ? 'dock' : 'off'
+                                        })}
+                                        className={`w-4 h-4 ${theme.colors.accent.cyan.dark} bg-slate-800 border-slate-600 rounded focus:ring-${theme.colors.accent.cyan.DEFAULT} focus:ring-2`}
+                                    />
+                                    <span className="text-body text-slate-200">Notify on idle</span>
+                                </label>
+                                <label
+                                    className={`flex items-start gap-3 cursor-pointer transition-opacity ${
+                                        attentionNotificationsEnabled ? '' : 'opacity-50 cursor-not-allowed'
+                                    }`}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={sessionPreferences.remember_idle_baseline}
+                                        disabled={!attentionNotificationsEnabled}
+                                        onChange={(e) => setSessionPreferences({
+                                            ...sessionPreferences,
+                                            remember_idle_baseline: e.target.checked
+                                        })}
+                                        className={`w-4 h-4 ${theme.colors.accent.cyan.dark} bg-slate-800 border-slate-600 rounded focus:ring-${theme.colors.accent.cyan.DEFAULT} focus:ring-2`}
+                                    />
+                                    <span className="text-body text-slate-200">Remember idle sessions when I switch away</span>
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={handleTestNotification}
+                                    className="px-3 py-1.5 rounded text-sm font-medium transition-opacity hover:opacity-90 self-start"
+                                    style={{
+                                        backgroundColor: theme.colors.accent.blue.DEFAULT,
+                                        color: theme.colors.text.inverse
+                                    }}
+                                >
+                                    Test notification
+                                </button>
                             </div>
                         </div>
                         

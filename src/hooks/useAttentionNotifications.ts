@@ -11,7 +11,6 @@ import {
   getCurrentWindowLabel,
   reportAttentionSnapshot,
   requestDockBounce,
-  showSystemNotification,
 } from '../utils/attentionBridge'
 import { logger } from '../utils/logger'
 
@@ -28,7 +27,6 @@ const DEFAULT_PREFERENCES: AttentionPreferences = {
 interface UseAttentionNotificationsOptions {
   sessions: EnrichedSession[]
   projectPath: string | null
-  projectDisplayName: string | null
   openProjectPaths?: string[]
   onProjectAttentionChange?: (count: number) => void
   onAttentionSummaryChange?: (summary: AttentionSummary) => void
@@ -83,7 +81,6 @@ const loadPreferencesFromBackend = async (): Promise<AttentionPreferences> => {
 export function useAttentionNotifications({
   sessions,
   projectPath,
-  projectDisplayName,
   onProjectAttentionChange,
   onAttentionSummaryChange,
   openProjectPaths,
@@ -279,13 +276,10 @@ export function useAttentionNotifications({
 
     const newIdleSessions = attentionSessions.filter(item => !previousAttentionKeysRef.current.has(item.sessionKey))
 
-    if (!visibility.isForeground && preferencesRef.current.mode !== 'off' && newIdleSessions.length > 0) {
+    const notificationsEnabled = preferencesRef.current.mode !== 'off'
+
+    if (!visibility.isForeground && notificationsEnabled && newIdleSessions.length > 0) {
       let shouldBounce = false
-      const shouldShowDock = preferencesRef.current.mode === 'dock' || preferencesRef.current.mode === 'both'
-      const shouldShowSystem = preferencesRef.current.mode === 'system' || preferencesRef.current.mode === 'both'
-      const projectLabel = projectDisplayName && projectDisplayName.trim().length > 0
-        ? projectDisplayName
-        : 'Schaltwerk'
 
       for (const session of newIdleSessions) {
         if (preferencesRef.current.rememberBaseline && baselineRef.current.has(session.sessionKey)) {
@@ -294,17 +288,7 @@ export function useAttentionNotifications({
         if (notifiedRef.current.has(session.sessionKey)) {
           continue
         }
-        if (shouldShowDock) {
-          shouldBounce = true
-        }
-        if (shouldShowSystem) {
-          const body = `${session.displayName} is ready for input.`
-          void showSystemNotification({
-            title: `${projectLabel} · Agent idle`,
-            body,
-            silent: true,
-          })
-        }
+        shouldBounce = true
         notifiedRef.current.add(session.sessionKey)
       }
 
@@ -331,7 +315,6 @@ export function useAttentionNotifications({
   }, [
     sessions,
     projectPath,
-    projectDisplayName,
     visibility.isForeground,
     pushSnapshot,
     onProjectAttentionChange,
