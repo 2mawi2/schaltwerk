@@ -36,7 +36,6 @@ import { TerminalResizeCoordinator } from './resize/TerminalResizeCoordinator'
 import { calculateEffectiveColumns, MIN_TERMINAL_COLUMNS } from './terminalSizing'
 import { shouldEmitControlPaste, shouldEmitControlNewline } from './terminalKeybindings'
 import { hydrateReusedTerminal } from './hydration'
-import { safeUnlisten } from '../../utils/safeUnlisten'
 
 const DEFAULT_SCROLLBACK_LINES = 10000
 const BACKGROUND_SCROLLBACK_LINES = 5000
@@ -541,9 +540,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             setCustomFontFamily(custom)
             setResolvedFontFamily(chain)
         })
-        return () => {
-            void safeUnlisten(cleanup, '[Terminal] font updated listener')
-        }
+        return cleanup
     }, [])
 
      // Listen for unified agent-start events to prevent double-starting
@@ -572,7 +569,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
          return () => {
              if (unlistenAgentStarted) {
-                 void safeUnlisten(unlistenAgentStarted, `[Terminal ${terminalId}] agent started listener`)
+                 unlistenAgentStarted();
              }
          };
       }, [terminalId]);
@@ -608,11 +605,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                   logger.warn(`[Terminal ${terminalId}] Failed to attach TerminalClosed listener`, e);
               }
           })();
-          return () => {
-              if (unlisten) {
-                  void safeUnlisten(unlisten, `[Terminal ${terminalId}] terminal closed listener`)
-              }
-          };
+          return () => { try { unlisten?.(); } catch (e) { logger.debug(`[Terminal ${terminalId}] Failed to cleanup TerminalClosed listener:`, e); } };
       }, [isAgentTopTerminal, terminalId]);
 
     // Listen for force scroll events (e.g., after review comment paste)
@@ -636,7 +629,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         
         return () => {
             if (unlistenForceScroll) {
-                void safeUnlisten(unlistenForceScroll, `[Terminal ${terminalId}] force scroll listener`)
+                unlistenForceScroll();
             }
         };
     }, [terminalId, scrollToBottomInstant]);
@@ -676,9 +669,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             });
         };
         const cleanup = listenUiEvent(UiEvent.OpencodeSearchResize, handleSearchResize)
-        return () => {
-            void safeUnlisten(cleanup, `[Terminal ${terminalId}] OpenCode search resize listener`)
-        }
+        return cleanup
         // Deliberately depend on agentType/isBackground to keep logic accurate per mount
     }, [agentType, isBackground, terminalId, sessionName, isCommander, requestResize]);
 
@@ -748,9 +739,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             });
         };
         const cleanup = listenUiEvent(UiEvent.OpencodeSelectionResize, handleSelectionResize)
-        return () => {
-            void safeUnlisten(cleanup, `[Terminal ${terminalId}] OpenCode selection resize listener`)
-        }
+        return cleanup
     }, [agentType, isBackground, terminalId, sessionName, isCommander, requestResize]);
 
     // Generic, agent-agnostic terminal resize request listener (delegates to requestResize with two-pass fit)
