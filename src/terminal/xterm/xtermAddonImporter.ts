@@ -5,6 +5,7 @@ import type { SearchAddon as SearchAddonType } from '@xterm/addon-search'
 import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serialize'
 import type { Unicode11Addon as Unicode11AddonType } from '@xterm/addon-unicode11'
 import type { WebglAddon as WebglAddonType } from '@xterm/addon-webgl'
+import type { WebLinksAddon as WebLinksAddonType } from '@xterm/addon-web-links'
 
 export interface IXtermAddonNameToCtor {
   fit: typeof FitAddonType
@@ -14,6 +15,7 @@ export interface IXtermAddonNameToCtor {
   serialize: typeof SerializeAddonType
   unicode11: typeof Unicode11AddonType
   webgl: typeof WebglAddonType
+  webLinks: typeof WebLinksAddonType
 }
 
 type XtermAddonName = keyof IXtermAddonNameToCtor
@@ -56,6 +58,10 @@ async function loadAddonCtor<T extends XtermAddonName>(name: T): Promise<IXtermA
       case 'webgl': {
         const module = await import('@xterm/addon-webgl')
         return module.WebglAddon as IXtermAddonNameToCtor[T]
+      }
+      case 'webLinks': {
+        const module = await import('@xterm/addon-web-links')
+        return module.WebLinksAddon as IXtermAddonNameToCtor[T]
       }
       default: {
         throw new Error(`Unsupported addon ${String(name)}`)

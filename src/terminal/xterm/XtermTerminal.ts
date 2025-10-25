@@ -2,10 +2,13 @@ import type { ITerminalOptions } from '@xterm/xterm'
 import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
+import { WebLinksAddon } from '@xterm/addon-web-links'
+import { invoke } from '@tauri-apps/api/core'
 
 import { theme } from '../../common/theme'
 import { logger } from '../../utils/logger'
 import { XtermAddonImporter } from './xtermAddonImporter'
+import { TauriCommands } from '../../common/tauriCommands'
 
 export interface XtermTerminalConfig {
   scrollback: number
@@ -78,6 +81,7 @@ export class XtermTerminal {
   readonly raw: XTerm
   readonly fitAddon: FitAddon
   readonly searchAddon: SearchAddon
+  readonly webLinksAddon: WebLinksAddon
   private readonly container: HTMLDivElement
   private opened = false
   private readonly coreAddonsReady: Promise<void>
@@ -96,8 +100,18 @@ export class XtermTerminal {
     this.searchAddon = new SearchAddon()
     this.raw.loadAddon(this.searchAddon)
 
+    this.webLinksAddon = new WebLinksAddon(async (_event, uri) => {
+      try {
+        await invoke<void>(TauriCommands.OpenExternalUrl, { url: uri })
+      } catch (error) {
+        logger.error(`[XtermTerminal ${this.terminalId}] Failed to open link: ${uri}`, error)
+      }
+    })
+    this.raw.loadAddon(this.webLinksAddon)
+
     XtermAddonImporter.registerPreloadedAddon('fit', FitAddon)
     XtermAddonImporter.registerPreloadedAddon('search', SearchAddon)
+    XtermAddonImporter.registerPreloadedAddon('webLinks', WebLinksAddon)
 
     this.coreAddonsReady = Promise.resolve()
 

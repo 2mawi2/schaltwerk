@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: vi.fn().mockResolvedValue(undefined),
+}))
+
 vi.mock('@xterm/xterm', () => {
   const instances: unknown[] = []
   class MockXTerm {
@@ -31,6 +35,12 @@ vi.mock('@xterm/addon-search', () => ({
   SearchAddon: class {
     findNext = vi.fn()
     findPrevious = vi.fn()
+    dispose = vi.fn()
+  },
+}))
+
+vi.mock('@xterm/addon-web-links', () => ({
+  WebLinksAddon: class {
     dispose = vi.fn()
   },
 }))
@@ -79,9 +89,10 @@ describe('XtermTerminal wrapper', () => {
       foreground: theme.colors.text.primary,
       brightRed: theme.colors.accent.red.light,
     })
-    expect(instance.loadAddon).toHaveBeenCalledTimes(2)
+    expect(instance.loadAddon).toHaveBeenCalledTimes(3)
     expect(registerMock).toHaveBeenCalledWith('fit', expect.any(Function))
     expect(registerMock).toHaveBeenCalledWith('search', expect.any(Function))
+    expect(registerMock).toHaveBeenCalledWith('webLinks', expect.any(Function))
     expect(instance.parser.registerOscHandler).toHaveBeenCalledTimes(9)
     for (const code of [10, 11, 12, 13, 14, 15, 16, 17, 19]) {
       expect(instance.parser.registerOscHandler).toHaveBeenCalledWith(code, expect.any(Function))
