@@ -251,4 +251,53 @@ describe('useAttentionNotifications', () => {
       ['/Users/test/project-b::b1'],
     ])
   })
+
+  it('keeps idle baseline keyed per project', async () => {
+    mockInvoke.mockResolvedValue({
+      attention_notification_mode: 'dock',
+      remember_idle_baseline: true,
+    })
+
+    mockVisibilityState.isForeground = true
+
+    const { rerender } = renderHook(({ projectPath, sessions, openProjectPaths }) =>
+      useAttentionNotifications({
+        sessions,
+        projectPath,
+        projectDisplayName: 'project',
+        openProjectPaths,
+      })
+    , {
+      initialProps: {
+        projectPath: '/Users/test/project-a',
+        sessions: [createSession('shared', true)],
+        openProjectPaths: ['/Users/test/project-a'],
+      },
+    })
+
+    await flushPromises()
+
+    mockVisibilityState.isForeground = false
+    await act(async () => {
+      rerender({
+        projectPath: '/Users/test/project-a',
+        sessions: [createSession('shared', true)],
+        openProjectPaths: ['/Users/test/project-a'],
+      })
+      await flushPromises()
+    })
+
+    mockRequestDockBounce.mockClear()
+
+    await act(async () => {
+      rerender({
+        projectPath: '/Users/test/project-b',
+        sessions: [createSession('shared', true)],
+        openProjectPaths: ['/Users/test/project-a', '/Users/test/project-b'],
+      })
+      await flushPromises()
+    })
+
+    expect(mockRequestDockBounce).toHaveBeenCalledTimes(1)
+  })
 })

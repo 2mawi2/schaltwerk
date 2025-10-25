@@ -97,10 +97,8 @@ export function useAttentionNotifications({
   const [totalAttentionCount, setTotalAttentionCount] = useState(0)
   const windowLabelRef = useRef<string | null>(null)
   const projectAttentionKeyMapRef = useRef<Map<string, Set<string>>>(new Map())
-  const projectAttentionIdMapRef = useRef<Map<string, Set<string>>>(new Map())
   const globalAttentionKeysRef = useRef<Set<string>>(new Set())
-  const globalAttentionIdsRef = useRef<Set<string>>(new Set())
-  const previousAttentionIdsRef = useRef<Set<string>>(new Set())
+  const previousAttentionKeysRef = useRef<Set<string>>(new Set())
   const baselineRef = useRef<Set<string>>(new Set())
   const notifiedRef = useRef<Set<string>>(new Set())
   const lastReportedSignatureRef = useRef<string | null>(null)
@@ -124,35 +122,27 @@ export function useAttentionNotifications({
       for (const key of Array.from(projectAttentionKeyMapRef.current.keys())) {
         if (!allowed.has(key)) {
           projectAttentionKeyMapRef.current.delete(key)
-          projectAttentionIdMapRef.current.delete(key)
         }
       }
     }
 
     const perProjectCounts: Record<string, number> = {}
     const aggregatedKeys = new Set<string>()
-    const aggregatedIds = new Set<string>()
-
     for (const [projectKey, keys] of projectAttentionKeyMapRef.current.entries()) {
       perProjectCounts[projectKey] = keys.size
-      const ids = projectAttentionIdMapRef.current.get(projectKey) ?? new Set<string>()
       for (const key of keys) {
         aggregatedKeys.add(key)
-      }
-      for (const id of ids) {
-        aggregatedIds.add(id)
       }
     }
 
     globalAttentionKeysRef.current = aggregatedKeys
-    globalAttentionIdsRef.current = aggregatedIds
     setTotalAttentionCount(aggregatedKeys.size)
     onAttentionSummaryChange?.({
       perProjectCounts,
       totalCount: aggregatedKeys.size,
     })
 
-    return { aggregatedKeys, aggregatedIds }
+    return { aggregatedKeys }
   }, [onAttentionSummaryChange, openProjectPaths])
 
   useEffect(() => {
@@ -210,10 +200,9 @@ export function useAttentionNotifications({
       const previousProject = activeProjectKeyRef.current
       if (previousProject) {
         projectAttentionKeyMapRef.current.delete(previousProject)
-        projectAttentionIdMapRef.current.delete(previousProject)
       }
       activeProjectKeyRef.current = null
-      previousAttentionIdsRef.current = new Set()
+      previousAttentionKeysRef.current = new Set()
       baselineRef.current = new Set()
       notifiedRef.current = new Set()
       setProjectAttentionCount(0)
@@ -229,13 +218,10 @@ export function useAttentionNotifications({
     if (!projectAttentionKeyMapRef.current.has(projectKey)) {
       projectAttentionKeyMapRef.current.set(projectKey, new Set())
     }
-    if (!projectAttentionIdMapRef.current.has(projectKey)) {
-      projectAttentionIdMapRef.current.set(projectKey, new Set())
-    }
 
     if (activeProjectKeyRef.current !== projectPath) {
       activeProjectKeyRef.current = projectPath
-      previousAttentionIdsRef.current = new Set()
+      previousAttentionKeysRef.current = new Set()
       baselineRef.current = new Set()
       notifiedRef.current = new Set()
       setProjectAttentionCount(0)
@@ -261,7 +247,7 @@ export function useAttentionNotifications({
       void pushSnapshot([])
     } else {
       if (preferencesRef.current.rememberBaseline) {
-        baselineRef.current = new Set(globalAttentionIdsRef.current)
+        baselineRef.current = new Set(globalAttentionKeysRef.current)
       } else {
         baselineRef.current.clear()
       }
@@ -282,17 +268,16 @@ export function useAttentionNotifications({
       }
     })
 
-    const nextIdSet = new Set(attentionSessions.map(item => item.sessionId))
     const nextKeySet = new Set(attentionSessions.map(item => item.sessionKey))
 
-    for (const previousId of previousAttentionIdsRef.current) {
-      if (!nextIdSet.has(previousId)) {
-        baselineRef.current.delete(previousId)
-        notifiedRef.current.delete(previousId)
+    for (const previousKey of previousAttentionKeysRef.current) {
+      if (!nextKeySet.has(previousKey)) {
+        baselineRef.current.delete(previousKey)
+        notifiedRef.current.delete(previousKey)
       }
     }
 
-    const newIdleSessions = attentionSessions.filter(item => !previousAttentionIdsRef.current.has(item.sessionId))
+    const newIdleSessions = attentionSessions.filter(item => !previousAttentionKeysRef.current.has(item.sessionKey))
 
     if (!visibility.isForeground && preferencesRef.current.mode !== 'off' && newIdleSessions.length > 0) {
       let shouldBounce = false
@@ -303,10 +288,10 @@ export function useAttentionNotifications({
         : 'Schaltwerk'
 
       for (const session of newIdleSessions) {
-        if (preferencesRef.current.rememberBaseline && baselineRef.current.has(session.sessionId)) {
+        if (preferencesRef.current.rememberBaseline && baselineRef.current.has(session.sessionKey)) {
           continue
         }
-        if (notifiedRef.current.has(session.sessionId)) {
+        if (notifiedRef.current.has(session.sessionKey)) {
           continue
         }
         if (shouldShowDock) {
@@ -320,7 +305,7 @@ export function useAttentionNotifications({
             silent: true,
           })
         }
-        notifiedRef.current.add(session.sessionId)
+        notifiedRef.current.add(session.sessionKey)
       }
 
       if (shouldBounce) {
@@ -331,15 +316,14 @@ export function useAttentionNotifications({
     if (projectPath) {
       const projectKey = formatProjectKey(projectPath)
       projectAttentionKeyMapRef.current.set(projectKey, nextKeySet)
-      projectAttentionIdMapRef.current.set(projectKey, nextIdSet)
     }
 
-    previousAttentionIdsRef.current = nextIdSet
+    previousAttentionKeysRef.current = nextKeySet
 
-    const nextIdsArray = Array.from(nextIdSet)
-    setProjectAttentionCount(nextIdSet.size)
-    setAttentionSessionIds(nextIdsArray)
-    onProjectAttentionChange?.(nextIdSet.size)
+    const nextKeysArray = Array.from(nextKeySet)
+    setProjectAttentionCount(nextKeySet.size)
+    setAttentionSessionIds(nextKeysArray)
+    onProjectAttentionChange?.(nextKeySet.size)
 
     const aggregate = recomputeAttentionSummary()
     const keysForSnapshot = visibility.isForeground ? [] : Array.from(aggregate.aggregatedKeys)

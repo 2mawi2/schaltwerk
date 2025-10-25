@@ -1,10 +1,12 @@
 use crate::ATTENTION_REGISTRY;
 use log::trace;
-#[cfg(target_os = "macos")]
-use tauri::Manager;
 use schaltwerk::domains::attention::AttentionStateRegistry;
 use serde::Serialize;
 use tauri::AppHandle;
+#[cfg(target_os = "macos")]
+use tauri::Manager;
+
+const WINDOW_LABEL_FALLBACK: &str = "main";
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -26,7 +28,7 @@ pub async fn report_attention_snapshot(
     let normalized_label = {
         let trimmed = window_label.trim();
         if trimmed.is_empty() {
-            "main".to_string()
+            WINDOW_LABEL_FALLBACK.to_string()
         } else {
             trimmed.to_string()
         }
@@ -43,7 +45,7 @@ pub async fn report_attention_snapshot(
     {
         let candidate = app
             .get_webview_window(&normalized_label)
-            .or_else(|| app.get_webview_window("main"));
+            .or_else(|| app.get_webview_window(WINDOW_LABEL_FALLBACK));
         if let Some(window) = candidate
             && let Err(err) = window.set_badge_count(badge_count)
         {
