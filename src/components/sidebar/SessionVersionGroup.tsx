@@ -1,6 +1,6 @@
 import { memo, useState } from 'react'
 import { clsx } from 'clsx'
-import { SessionButton } from './SessionButton'
+import { SessionCard } from './SessionCard'
 import { SessionVersionGroup as SessionVersionGroupType } from '../../utils/sessionVersions'
 import { isSpec } from '../../utils/sessionFilters'
 import { SessionSelection } from '../../hooks/useSessionManagement'
@@ -79,7 +79,7 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
       && resettingSelection.payload === session.session.info.session_id
 
     return (
-      <SessionButton
+      <SessionCard
         session={session.session}
         index={startIndex}
         isSelected={isSelected}
@@ -267,7 +267,7 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
                           : "bg-slate-700 border-slate-600"
                       )} style={{ left: '-14px', transform: 'translate(-50%, -50%)' }} />
                       
-                  <SessionButton
+                  <SessionCard
               session={{
                 ...version.session,
                 info: {
