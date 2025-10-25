@@ -100,7 +100,7 @@ export class XtermTerminal {
     this.searchAddon = new SearchAddon()
     this.raw.loadAddon(this.searchAddon)
 
-    this.webLinksAddon = new WebLinksAddon(async (_event, uri) => {
+    this.webLinksAddon = new WebLinksAddon(async (_event: MouseEvent, uri: string) => {
       try {
         await invoke<void>(TauriCommands.OpenExternalUrl, { url: uri })
       } catch (error) {
