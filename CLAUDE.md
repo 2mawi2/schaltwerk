@@ -211,6 +211,8 @@ When creating specs for implementation agents:
 Run `bun run test` - ALL must pass:
 - TypeScript linting
 - Rust clippy
+- Rust dependency hygiene (`cargo shear`)
+- **Dead code detection** (`knip` - finds unused files, exports, and dependencies)
 - Rust tests
 - Rust build
 
@@ -219,6 +221,13 @@ Run `bun run test` - ALL must pass:
 - NEVER skip tests (no `.skip()`, `xit()`)
 - Fix performance test failures (they indicate real issues)
 - After every code change, the responsible agent must rerun the full validation suite and report "tests green" before handing the work back. Only proceed with known failing tests when the user explicitly permits leaving the suite red for that task.
+
+**Dead Code Detection:**
+- `knip` runs automatically as part of `bun run test`
+- Reports unused files, exports, types, and dependencies
+- Configured in `knip.json` to ignore test utilities and type declarations
+- Use `--no-exit-code` flag to prevent blocking CI on warnings
+- Review knip output regularly and clean up reported issues
 
 ## Event System
 

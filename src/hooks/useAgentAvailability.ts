@@ -14,15 +14,6 @@ const SUPPORTED_AGENTS = AGENT_TYPES
 // Re-export types for backward compatibility
 export type { AgentBinaryConfig, DetectedBinary } from './useAgentBinaryDetection'
 
-// Define InstallationMethod for backward compatibility
-export enum InstallationMethod {
-    Homebrew = 'Homebrew',
-    Npm = 'Npm',
-    Pip = 'Pip',
-    Manual = 'Manual',
-    System = 'System',
-}
-
 export function useAgentAvailability() {
     const {
         binaryConfigs,

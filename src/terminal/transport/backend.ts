@@ -107,14 +107,6 @@ export async function writeTerminalBackend(id: string, data: string): Promise<vo
   await invoke(TauriCommands.WriteTerminal, { id, data })
 }
 
-export async function resizeTerminalBackend(id: string, cols: number, rows: number): Promise<void> {
-  const transport = await withPluginTransport()
-  if (transport && pluginTerminals.has(id)) {
-    await transport.resize(id, rows, cols)
-    return
-  }
-  await invoke(TauriCommands.ResizeTerminal, { id, cols, rows })
-}
 
 export async function closeTerminalBackend(id: string): Promise<void> {
   const transport = await withPluginTransport()
