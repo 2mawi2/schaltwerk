@@ -4,6 +4,7 @@ import { listenEvent, SchaltEvent } from '../common/eventSystem'
 import { TauriCommands } from '../common/tauriCommands'
 import { GitHubStatusPayload, GitHubPrPayload, GitHubRepositoryPayload } from '../common/events'
 import { logger } from '../utils/logger'
+import { safeUnlisten } from '../utils/safeUnlisten'
 
 export interface CreateReviewedPrArgs {
   sessionId: string
@@ -76,9 +77,11 @@ export function useGithubIntegration(): GithubIntegrationValue {
     })
       .then((unlisten) => {
         if (!mounted) {
-          unlisten()
+          void safeUnlisten(unlisten, '[useGithubIntegration] GitHubStatusChanged listener (late)')
         } else {
-          unlistenRef.current = unlisten
+          unlistenRef.current = () => {
+            void safeUnlisten(unlisten, '[useGithubIntegration] GitHubStatusChanged listener')
+          }
         }
       })
       .catch((error) => {
@@ -88,11 +91,7 @@ export function useGithubIntegration(): GithubIntegrationValue {
     return () => {
       mounted = false
       if (unlistenRef.current) {
-        try {
-          unlistenRef.current()
-        } catch (error) {
-          logger.warn('[useGithubIntegration] Failed to remove GitHub status listener', error)
-        }
+        unlistenRef.current()
       }
     }
   }, [refreshStatus])

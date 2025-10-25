@@ -4,6 +4,7 @@ import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import { TauriCommands } from '../../common/tauriCommands'
 import type { TerminalTransport } from './TerminalTransport'
 import { logger } from '../../utils/logger'
+import { safeUnlisten } from '../../utils/safeUnlisten'
 
 interface SubscribeSnapshot {
   term_id: string
@@ -65,7 +66,7 @@ export class PluginTransport implements TerminalTransport {
     if (this.listeners.has(termId)) {
       try {
         const unlisten = await this.listeners.get(termId)!
-        unlisten()
+        await safeUnlisten(unlisten, `[PluginTransport] kill listener for ${termId}`)
       } catch (error) {
         logger.warn('[PluginTransport] failed to unlisten on kill', error)
       }
@@ -119,7 +120,7 @@ export class PluginTransport implements TerminalTransport {
         return undefined
       })
       if (unlisten) {
-        unlisten()
+        await safeUnlisten(unlisten, `[PluginTransport] PtyData listener for ${termId}`)
       }
       this.listeners.delete(termId)
     }
@@ -133,7 +134,7 @@ export class PluginTransport implements TerminalTransport {
     if (!this.listeners.has(termId)) return
     try {
       const unlisten = await this.listeners.get(termId)!
-      unlisten()
+      await safeUnlisten(unlisten, `[PluginTransport] unsubscribe for ${termId}`)
     } catch (error) {
       logger.warn('[PluginTransport] failed to unlisten existing subscription', error)
     }

@@ -4,6 +4,7 @@ import { renderHook, waitFor, act } from '@testing-library/react'
 import { ReactNode } from 'react'
 import { MockTauriInvokeArgs } from '../types/testing'
 import { EnrichedSession, RawSession, SessionState } from '../types/session'
+import { useProject } from './ProjectContext'
 
 // Mock Tauri APIs BEFORE importing provider modules
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
@@ -822,6 +823,55 @@ describe('SelectionContext', () => {
       const secondTop = result.current.terminals.top
 
       expect(firstTop).not.toEqual(secondTop)
+    })
+  })
+
+  describe('project switching', () => {
+    it('falls back to orchestrator when switching to a project without matching session', async () => {
+      enrichedSessionsMock = [
+        createEnrichedSession('alpha', '/sessions/alpha'),
+      ]
+      rawSessionsMock = {
+        alpha: createRawSession('alpha', '/sessions/alpha'),
+      }
+
+      const { result } = renderHook(() => {
+        return {
+          selectionContext: useSelection(),
+          project: useProject(),
+        }
+      }, { wrapper })
+
+      await waitFor(() => {
+        expect(result.current.selectionContext.isReady).toBe(true)
+      })
+
+      await act(async () => {
+        await result.current.selectionContext.setSelection({ kind: 'session', payload: 'alpha' })
+      })
+      expect(result.current.selectionContext.selection).toMatchObject({ kind: 'session', payload: 'alpha' })
+
+      enrichedSessionsMock = []
+
+      await act(async () => {
+        result.current.project.setProjectPath('/other/project')
+      })
+
+      await waitFor(() => {
+        expect(result.current.selectionContext.selection.kind).toBe('orchestrator')
+      })
+
+      enrichedSessionsMock = [
+        createEnrichedSession('alpha', '/sessions/alpha'),
+      ]
+
+      await act(async () => {
+        result.current.project.setProjectPath('/test/project')
+      })
+
+      await waitFor(() => {
+        expect(result.current.selectionContext.selection).toMatchObject({ kind: 'session', payload: 'alpha' })
+      })
     })
   })
 })

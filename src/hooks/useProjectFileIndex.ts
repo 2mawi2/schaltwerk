@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../common/tauriCommands'
 import { listenEvent, SchaltEvent } from '../common/eventSystem'
 import { logger } from '../utils/logger'
+import { safeUnlisten } from '../utils/safeUnlisten'
 
 export interface ProjectFileIndexApi {
   files: string[]
@@ -91,24 +92,7 @@ export function useProjectFileIndex(): ProjectFileIndexApi {
 
     return () => {
       void unlistenPromise
-        .then(unlisten => {
-          try {
-            const result = unlisten()
-            const maybePromise = result as unknown
-            if (
-              typeof maybePromise === 'object' &&
-              maybePromise !== null &&
-              'then' in maybePromise &&
-              typeof (maybePromise as Promise<unknown>).then === 'function'
-            ) {
-              void (maybePromise as Promise<void>).catch(err => {
-                logger.warn('[useProjectFileIndex] Failed to unlisten ProjectFilesUpdated event (async)', err)
-              })
-            }
-          } catch (err) {
-            logger.warn('[useProjectFileIndex] Failed to unlisten ProjectFilesUpdated event', err)
-          }
-        })
+        .then(unlisten => safeUnlisten(unlisten, '[useProjectFileIndex] ProjectFilesUpdated listener'))
         .catch(err => {
           logger.warn('[useProjectFileIndex] Failed to resolve ProjectFilesUpdated unlisten promise', err)
         })

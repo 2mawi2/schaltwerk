@@ -4,6 +4,8 @@ import { invoke } from '@tauri-apps/api/core'
 import { SchaltEvent, listenEvent } from '../common/eventSystem'
 import { UiEvent, emitUiEvent, TerminalResetDetail } from '../common/uiEvents'
 import { closeTerminalBackend, terminalExistsBackend } from '../terminal/transport/backend'
+import { safeUnlisten } from '../utils/safeUnlisten'
+import { logger } from '../utils/logger'
 
 export interface SessionSelection {
     kind: 'orchestrator' | 'session'
@@ -60,9 +62,13 @@ export function useSessionManagement(): SessionManagementHookReturn {
                     resolve()
                 }
             }
-            listenEvent(SchaltEvent.TerminalClosed, handler).then((unlisten) => {
-                stop = unlisten
-            })
+            listenEvent(SchaltEvent.TerminalClosed, handler)
+                .then((unlisten) => {
+                    stop = () => { void safeUnlisten(unlisten, `[useSessionManagement] TerminalClosed listener for ${terminalId}`) }
+                })
+                .catch((error) => {
+                    logger.warn('[useSessionManagement] Failed to attach TerminalClosed listener', error)
+                })
             // Deterministic RAF fallback to avoid deadlocks in tests without backend events
             let frames = 3
             const tick = () => {
@@ -94,9 +100,13 @@ export function useSessionManagement(): SessionManagementHookReturn {
                     resolve()
                 }
             }
-            listenEvent(SchaltEvent.TerminalAgentStarted, handler).then((unlisten) => {
-                stop = unlisten
-            })
+            listenEvent(SchaltEvent.TerminalAgentStarted, handler)
+                .then((unlisten) => {
+                    stop = () => { void safeUnlisten(unlisten, `[useSessionManagement] TerminalAgentStarted listener for ${terminalId}`) }
+                })
+                .catch((error) => {
+                    logger.warn('[useSessionManagement] Failed to attach TerminalAgentStarted listener', error)
+                })
             let frames = 3
             const tick = () => {
                 if (resolved) return
