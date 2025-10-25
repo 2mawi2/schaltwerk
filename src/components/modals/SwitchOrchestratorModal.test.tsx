@@ -102,24 +102,24 @@ describe('SwitchOrchestratorModal', () => {
 
   it('calls onSwitch with the currently selected agent type', async () => {
     const { onSwitch } = openModal()
+    const user = userEvent.setup()
 
     // Wait for agent type to load to "OpenCode"
     await waitFor(() => screen.getByRole('button', { name: /claude/i }))
 
     // Click Switch Agent -> should call with 'opencode'
-    fireEvent.click(screen.getByRole('button', { name: /switch agent/i }))
+    await user.click(screen.getByRole('button', { name: /switch agent/i }))
     await waitFor(() => expect(onSwitch).toHaveBeenCalledWith({ agentType: 'opencode', skipPermissions: false }))
 
     // Change selection to Claude via dropdown and switch again
     const selectorButton = screen.getByRole('button', { name: /opencode/i })
-    fireEvent.click(selectorButton)
-    
-    // Wait for dropdown to appear and contain Claude option
-    // The Claude option is nested inside spans, so we need to use role with name matching
-    const claudeOption = await screen.findByRole('button', { name: /Claude/i })
-    fireEvent.click(claudeOption)
+    await user.click(selectorButton)
 
-    fireEvent.click(screen.getByRole('button', { name: /switch agent/i }))
+    // Wait for dropdown to appear and contain Claude option
+    const claudeOption = await screen.findByRole('button', { name: /Claude/i })
+    await user.click(claudeOption)
+
+    await user.click(screen.getByRole('button', { name: /switch agent/i }))
     await waitFor(() => expect(onSwitch).toHaveBeenCalledWith({ agentType: 'claude', skipPermissions: false }))
   })
 
