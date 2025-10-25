@@ -64,6 +64,20 @@ pub fn get_app_version() -> String {
 }
 
 #[tauri::command]
+pub async fn clipboard_write_text(text: String) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || -> Result<(), String> {
+        let mut clipboard = arboard::Clipboard::new()
+            .map_err(|err| format!("Failed to access system clipboard: {err}"))?;
+        clipboard
+            .set_text(text)
+            .map_err(|err| format!("Failed to write text to clipboard: {err}"))?;
+        Ok(())
+    })
+    .await
+    .map_err(|err| format!("Clipboard write task failed: {err}"))?
+}
+
+#[tauri::command]
 pub fn schaltwerk_core_log_frontend_message(level: String, message: String) -> Result<(), String> {
     match level.as_str() {
         "error" => log::error!("{message}"),

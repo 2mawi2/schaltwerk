@@ -862,6 +862,7 @@ fn main() {
             path_exists,
             get_environment_variable,
             get_app_version,
+            clipboard_write_text,
             check_for_updates_now,
             schaltwerk_core_log_frontend_message,
             open_external_url,
