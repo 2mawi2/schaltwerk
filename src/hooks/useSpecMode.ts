@@ -6,6 +6,7 @@ import { FilterMode } from '../types/sessionFilters'
 import { listenEvent, SchaltEvent } from '../common/eventSystem'
 import { logger } from '../utils/logger'
 import { UiEvent, listenUiEvent, emitUiEvent } from '../common/uiEvents'
+import { safeUnlisten } from '../utils/safeUnlisten'
 
 function getBasename(path: string): string {
   return path.split(/[/\\]/).pop() || path
@@ -193,7 +194,9 @@ export function useSpecMode({ projectPath, selection, sessions, setFilterMode, s
     const cleanup = listenUiEvent(UiEvent.SpecCreated, detail => {
       logger.info('[useSpecMode] Spec created:', detail.name)
     })
-    return cleanup
+    return () => {
+      void safeUnlisten(cleanup, '[useSpecMode] SpecCreated listener')
+    }
   }, [])
   
   // Handle MCP spec updates - only exit spec mode if current spec is deleted
@@ -217,7 +220,7 @@ export function useSpecMode({ projectPath, selection, sessions, setFilterMode, s
     const unlisten = listenEvent(SchaltEvent.SessionsRefreshed, handleSessionsRefreshed)
 
     return () => {
-      unlisten.then(unlistenFn => unlistenFn())
+      void unlisten.then(unlistenFn => safeUnlisten(unlistenFn, '[useSpecMode] SessionsRefreshed listener'))
     }
   }, [selection, commanderSpecModeSession, sessions, setCommanderSpecModeSession])
 
@@ -230,7 +233,9 @@ export function useSpecMode({ projectPath, selection, sessions, setFilterMode, s
       }
     })
 
-    return cleanup
+    return () => {
+      void safeUnlisten(cleanup, '[useSpecMode] EnterSpecMode listener')
+    }
   }, [enterSpecMode, currentFilterMode])
 
   // Handle exiting spec mode

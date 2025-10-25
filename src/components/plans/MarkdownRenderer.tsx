@@ -1,12 +1,48 @@
-import { memo } from 'react'
+import { memo, useCallback } from 'react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { invoke } from '@tauri-apps/api/core'
 import { theme } from '../../common/theme'
+import { TauriCommands } from '../../common/tauriCommands'
+import { logger } from '../../utils/logger'
+import { useOptionalToast } from '../../common/toast/ToastProvider'
 
 interface MarkdownRendererProps {
   content: string
   className?: string
 }
+
+const LinkComponent = memo(function LinkComponent({ href, children }: { href?: string; children: React.ReactNode }) {
+  const toast = useOptionalToast()
+
+  const handleLinkClick = useCallback((e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault()
+    if (!href) return
+
+    invoke<void>(TauriCommands.OpenExternalUrl, { url: href }).catch(error => {
+      logger.warn('[MarkdownRenderer] Failed to open external link', { url: href, error })
+      toast?.pushToast({
+        tone: 'error',
+        title: 'Failed to open link',
+        description: typeof error === 'string' ? error : 'Could not open the link',
+      })
+    })
+  }, [href, toast])
+
+  return (
+    <a
+      href={href}
+      onClick={handleLinkClick}
+      style={{
+        color: theme.colors.accent.blue.DEFAULT,
+        textDecoration: 'underline',
+        cursor: 'pointer'
+      }}
+    >
+      {children}
+    </a>
+  )
+})
 
 const customComponents: Partial<Components> = {
   h1: ({ children }) => (
@@ -86,17 +122,9 @@ const customComponents: Partial<Components> = {
     </p>
   ),
   a: ({ href, children }) => (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      style={{
-        color: theme.colors.accent.blue.DEFAULT,
-        textDecoration: 'underline'
-      }}
-    >
+    <LinkComponent href={href}>
       {children}
-    </a>
+    </LinkComponent>
   ),
   code: ({ children, className }) => {
     const isInline = !className

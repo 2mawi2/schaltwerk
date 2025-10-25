@@ -1,16 +1,18 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { TauriCommands } from '../../common/tauriCommands'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import { listenEvent, SchaltEvent } from '../../common/eventSystem'
-import { useSelection } from '../../contexts/SelectionContext'
 import { VscFile, VscDiffAdded, VscDiffModified, VscDiffRemoved, VscFileBinary, VscDiscard, VscFolder } from 'react-icons/vsc'
 import clsx from 'clsx'
-import { isBinaryFileByExtension } from '../../utils/binaryDetection'
-import { logger } from '../../utils/logger'
+import { listenEvent, SchaltEvent } from '../../common/eventSystem'
+import { useSelection } from '../../contexts/SelectionContext'
+import { useSessions } from '../../contexts/SessionsContext'
+import { TauriCommands } from '../../common/tauriCommands'
 import { UiEvent, emitUiEvent, listenUiEvent } from '../../common/uiEvents'
 import { AnimatedText } from '../common/AnimatedText'
 import { ConfirmResetDialog } from '../common/ConfirmResetDialog'
 import { ConfirmDiscardDialog } from '../common/ConfirmDiscardDialog'
+import { isBinaryFileByExtension } from '../../utils/binaryDetection'
+import { logger } from '../../utils/logger'
+import { safeUnlisten } from '../../utils/safeUnlisten'
 import type { ChangedFile } from '../../common/events'
 import { DiffChangeBadges } from './DiffChangeBadges'
 import { ORCHESTRATOR_SESSION_NAME } from '../../constants/sessions'
@@ -22,6 +24,28 @@ interface DiffFileListProps {
   isCommander?: boolean
 }
 
+type DiffLoaderStatus = 'ready' | 'waiting' | 'missing'
+
+type BranchDisplayInfo = {
+  currentBranch: string
+  baseBranch: string
+  baseCommit: string
+  headCommit: string
+}
+
+type DiffCacheEntry = {
+  files: ChangedFile[]
+  branchInfo: BranchDisplayInfo | null
+  signature: string
+}
+
+type ReloadOptions = {
+  invalidateCache?: boolean
+  force?: boolean
+}
+
+const NO_SESSION_KEY = 'no-session'
+
 const serializeChangedFileSignature = (file: ChangedFile) => {
   const additions = file.additions ?? 0
   const deletions = file.deletions ?? 0
@@ -30,641 +54,937 @@ const serializeChangedFileSignature = (file: ChangedFile) => {
   return `${file.path}:${file.change_type}:${additions}:${deletions}:${changes}:${isBinary}`
 }
 
+const resolveSessionSignature = (sessionName: string, files: ChangedFile[], branchInfo: BranchDisplayInfo) => {
+  return [
+    'session',
+    sessionName,
+    files.length,
+    files.map(serializeChangedFileSignature).join(','),
+    branchInfo.currentBranch,
+    branchInfo.baseBranch,
+    branchInfo.baseCommit,
+    branchInfo.headCommit,
+  ].join(':')
+}
+
+const resolveOrchestratorSignature = (files: ChangedFile[], branchInfo: BranchDisplayInfo) => {
+  return [
+    'orchestrator',
+    files.length,
+    files.map(serializeChangedFileSignature).join(','),
+    branchInfo.currentBranch,
+    branchInfo.baseBranch,
+    branchInfo.baseCommit,
+    branchInfo.headCommit,
+  ].join(':')
+}
+
+const isSessionMissingError = (error: unknown) => {
+  if (!error) {
+    return false
+  }
+
+  if (typeof error === 'string') {
+    return error.includes('not found')
+  }
+
+  if (error instanceof Error) {
+    return error.message.includes('not found')
+  }
+
+  if (typeof error === 'object' && 'message' in error && typeof (error as { message?: unknown }).message === 'string') {
+    return ((error as { message: string }).message).includes('not found')
+  }
+
+  return false
+}
+
+const getSessionKey = (sessionName: string | null, isCommander: boolean) => {
+  if (isCommander && !sessionName) {
+    return ORCHESTRATOR_SESSION_NAME
+  }
+
+  if (!sessionName) {
+    return NO_SESSION_KEY
+  }
+
+  return `session:${sessionName}`
+}
+
+function useDiffLoaderStatus(sessionName: string | null, isCommander: boolean) {
+  const { loadingState, allSessions, projectId } = useSessions()
+
+  const sessionExists = useMemo(() => {
+    if (!sessionName) {
+      return false
+    }
+
+    return allSessions.some(session => session.info.session_id === sessionName)
+  }, [sessionName, allSessions, projectId])
+
+  const resolveInitialStatus = () => {
+    if (isCommander || !sessionName) {
+      return 'ready'
+    }
+
+    return loadingState === 'idle'
+      ? (sessionExists ? 'ready' : 'missing')
+      : 'waiting'
+  }
+
+  const [status, setStatus] = useState<DiffLoaderStatus>(resolveInitialStatus)
+
+  useEffect(() => {
+    if (isCommander || !sessionName) {
+      setStatus('ready')
+      return
+    }
+
+    if (loadingState !== 'idle') {
+      setStatus('waiting')
+      return
+    }
+
+    setStatus(sessionExists ? 'ready' : 'missing')
+  }, [isCommander, sessionName, sessionExists, loadingState])
+
+  return { status, sessionExists }
+}
+
+function useDiffLoader({
+  sessionName,
+  isCommander,
+  status,
+  sessionExists,
+}: {
+  sessionName: string | null
+  isCommander: boolean
+  status: DiffLoaderStatus
+  sessionExists: boolean
+}) {
+  const sessionKey = useMemo(() => getSessionKey(sessionName, isCommander), [sessionName, isCommander])
+  const [files, setFiles] = useState<ChangedFile[]>([])
+  const [branchInfo, setBranchInfo] = useState<BranchDisplayInfo | null>(null)
+  const [isLoading, setIsLoading] = useState<boolean>(status === 'waiting')
+
+  const cacheRef = useRef<Map<string, DiffCacheEntry>>(new Map())
+  const lastSignatureRef = useRef<string | null>(null)
+  const activeLoadRef = useRef<{ key: string; token: number } | null>(null)
+  const requestIdRef = useRef(0)
+  const pendingReloadRef = useRef<Map<string, boolean>>(new Map())
+  const statusRef = useRef<DiffLoaderStatus>(status)
+  const sessionKeyRef = useRef<string>(sessionKey)
+  const sessionExistsRef = useRef<boolean>(sessionExists)
+  const sessionNameRef = useRef<string | null>(sessionName)
+  const isCommanderRef = useRef<boolean>(isCommander)
+  const cancelledSessionsRef = useRef<Set<string>>(new Set())
+  const mountedRef = useRef(true)
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  useEffect(() => {
+    sessionKeyRef.current = sessionKey
+  }, [sessionKey])
+
+  useEffect(() => {
+    statusRef.current = status
+  }, [status])
+
+  useEffect(() => {
+    sessionExistsRef.current = sessionExists
+  }, [sessionExists])
+
+  useEffect(() => {
+    sessionNameRef.current = sessionName
+  }, [sessionName])
+
+  useEffect(() => {
+    isCommanderRef.current = isCommander
+  }, [isCommander])
+
+  const applyCacheEntry = useCallback((key: string, entry: DiffCacheEntry) => {
+    cacheRef.current.set(key, entry)
+
+    if (!mountedRef.current) {
+      return
+    }
+
+    if (sessionKeyRef.current !== key) {
+      return
+    }
+
+    if (lastSignatureRef.current === entry.signature) {
+      return
+    }
+
+    lastSignatureRef.current = entry.signature
+    setFiles(entry.files)
+    setBranchInfo(entry.branchInfo)
+  }, [])
+
+  const clearActiveData = useCallback(() => {
+    if (!mountedRef.current) {
+      return
+    }
+    lastSignatureRef.current = null
+    setFiles([])
+    setBranchInfo(null)
+  }, [])
+
+  const markReloadPending = useCallback((key: string) => {
+    pendingReloadRef.current.set(key, true)
+  }, [])
+
+  const consumePendingReload = useCallback((key: string) => {
+    if (!pendingReloadRef.current.has(key)) {
+      return false
+    }
+    pendingReloadRef.current.delete(key)
+    return true
+  }, [])
+
+  const shouldApply = useCallback((token: number, key: string) => {
+    const active = activeLoadRef.current
+    if (active && (active.key !== key || active.token !== token)) {
+      return false
+    }
+
+    return mountedRef.current && sessionKeyRef.current === key && statusRef.current === 'ready'
+  }, [])
+
+  const resolveBranchInfoFromEvent = useCallback((eventBranch: { current_branch: string; base_branch: string; base_commit: string; head_commit: string }): BranchDisplayInfo => {
+    return {
+      currentBranch: eventBranch.current_branch,
+      baseBranch: eventBranch.base_branch,
+      baseCommit: eventBranch.base_commit,
+      headCommit: eventBranch.head_commit,
+    }
+  }, [])
+
+  const buildSessionEntry = useCallback((targetSession: string, changedFiles: ChangedFile[], info: BranchDisplayInfo): DiffCacheEntry => {
+    return {
+      files: changedFiles,
+      branchInfo: info,
+      signature: resolveSessionSignature(targetSession, changedFiles, info),
+    }
+  }, [])
+
+  const buildOrchestratorEntry = useCallback((changedFiles: ChangedFile[], branch: BranchDisplayInfo): DiffCacheEntry => {
+    return {
+      files: changedFiles,
+      branchInfo: branch,
+      signature: resolveOrchestratorSignature(changedFiles, branch),
+    }
+  }, [])
+
+  const load = useCallback(async ({ invalidateCache = false, force = false }: ReloadOptions = {}): Promise<void> => {
+    const key = sessionKeyRef.current
+    const currentStatus = statusRef.current
+    const currentSessionName = sessionNameRef.current
+    const commander = isCommanderRef.current
+
+    if (currentStatus !== 'ready') {
+      return
+    }
+
+    if (!commander && !currentSessionName) {
+      return
+    }
+
+    if (!commander && !sessionExistsRef.current) {
+      return
+    }
+
+    if (!force) {
+      const active = activeLoadRef.current
+      if (active && active.key === key) {
+        markReloadPending(key)
+        return
+      }
+    }
+
+    if (invalidateCache) {
+      cacheRef.current.delete(key)
+      if (sessionKeyRef.current === key) {
+        lastSignatureRef.current = null
+      }
+    }
+
+    const token = ++requestIdRef.current
+    activeLoadRef.current = { key, token }
+    setIsLoading(true)
+
+    try {
+      if (commander && !currentSessionName) {
+        const [changedFiles, currentBranch] = await Promise.all([
+          invoke<ChangedFile[]>(TauriCommands.GetOrchestratorWorkingChanges),
+          invoke<string>(TauriCommands.GetCurrentBranchName, { sessionName: null }),
+        ])
+
+        const orchestratorBranch: BranchDisplayInfo = {
+          currentBranch,
+          baseBranch: 'Working Directory',
+          baseCommit: 'HEAD',
+          headCommit: 'Working',
+        }
+
+        const entry = buildOrchestratorEntry(changedFiles, orchestratorBranch)
+
+        if (!shouldApply(token, key)) {
+          return
+        }
+
+        applyCacheEntry(key, entry)
+        return
+      }
+
+      const targetSession = currentSessionName
+      if (!targetSession) {
+        return
+      }
+
+      if (cancelledSessionsRef.current.has(targetSession)) {
+        return
+      }
+
+      const [changedFiles, currentBranch, baseBranch, [baseCommit, headCommit]] = await Promise.all([
+        invoke<ChangedFile[]>(TauriCommands.GetChangedFilesFromMain, { sessionName: targetSession }),
+        invoke<string>(TauriCommands.GetCurrentBranchName, { sessionName: targetSession }),
+        invoke<string>(TauriCommands.GetBaseBranchName, { sessionName: targetSession }),
+        invoke<[string, string]>(TauriCommands.GetCommitComparisonInfo, { sessionName: targetSession }),
+      ])
+
+      const branchData: BranchDisplayInfo = {
+        currentBranch,
+        baseBranch,
+        baseCommit,
+        headCommit,
+      }
+
+      const entry = buildSessionEntry(targetSession, changedFiles, branchData)
+
+      if (!shouldApply(token, key)) {
+        return
+      }
+
+      applyCacheEntry(key, entry)
+    } catch (error) {
+      if (!shouldApply(token, key)) {
+        return
+      }
+
+      if (!isSessionMissingError(error)) {
+        logger.error('[DiffFileList] Failed to load changed files:', error)
+      }
+
+      cacheRef.current.delete(key)
+      clearActiveData()
+    } finally {
+      if (activeLoadRef.current && activeLoadRef.current.key === key && activeLoadRef.current.token === token) {
+        activeLoadRef.current = null
+      }
+
+      if (requestIdRef.current === token) {
+        setIsLoading(false)
+      }
+
+      if (consumePendingReload(key) && statusRef.current === 'ready') {
+        load({ invalidateCache: true, force: true }).catch(() => {})
+      }
+    }
+  }, [applyCacheEntry, buildOrchestratorEntry, buildSessionEntry, clearActiveData, consumePendingReload, markReloadPending, shouldApply])
+
+  const stopPolling = useCallback(() => {
+    if (!pollingIntervalRef.current) {
+      return
+    }
+    clearInterval(pollingIntervalRef.current)
+    pollingIntervalRef.current = null
+  }, [])
+
+  const startPolling = useCallback(() => {
+    if (pollingIntervalRef.current || !mountedRef.current) {
+      return
+    }
+
+    const interval = setInterval(() => {
+      load({ invalidateCache: true, force: true }).catch(() => {})
+    }, 2500)
+
+    pollingIntervalRef.current = interval
+  }, [load])
+
+  const reload = useCallback((options?: ReloadOptions) => {
+    return load({ ...options, force: true })
+  }, [load])
+
+  useEffect(() => {
+    const key = sessionKey
+    const cached = cacheRef.current.get(key)
+
+    if (cached) {
+      lastSignatureRef.current = cached.signature
+      setFiles(cached.files)
+      setBranchInfo(cached.branchInfo)
+      setIsLoading(false)
+      load({ force: true }).catch(() => {})
+      return
+    }
+
+    if (!isCommander && !sessionName) {
+      clearActiveData()
+      setIsLoading(false)
+      return
+    }
+
+    lastSignatureRef.current = null
+    cacheRef.current.delete(key)
+    clearActiveData()
+  }, [sessionKey, sessionName, isCommander, clearActiveData, load])
+
+  useEffect(() => {
+    if (status === 'waiting') {
+      setIsLoading(true)
+      return
+    }
+
+    if (status === 'missing') {
+      setIsLoading(false)
+      clearActiveData()
+      return
+    }
+
+    if (status === 'ready') {
+      if (!isCommander && !sessionName) {
+        setIsLoading(false)
+        return
+      }
+
+      const key = sessionKeyRef.current
+      if (!cacheRef.current.has(key)) {
+        load({ force: true }).catch(() => {})
+      } else {
+        setIsLoading(false)
+      }
+    }
+  }, [status, isCommander, sessionName, load, clearActiveData])
+
+  useEffect(() => {
+    const unlisten = listenUiEvent(UiEvent.ProjectSwitchComplete, () => {
+      requestIdRef.current += 1
+      activeLoadRef.current = null
+      pendingReloadRef.current.clear()
+      cacheRef.current.clear()
+      cancelledSessionsRef.current.clear()
+      lastSignatureRef.current = null
+      clearActiveData()
+      stopPolling()
+      setIsLoading(statusRef.current === 'waiting')
+      load({ force: true }).catch(() => {})
+    })
+
+    return () => {
+      void safeUnlisten(unlisten, '[DiffFileList] project switch listener cleanup')
+    }
+  }, [clearActiveData, load, stopPolling])
+
+  useEffect(() => {
+    stopPolling()
+
+    if (status !== 'ready') {
+      return
+    }
+
+    const currentSession = sessionName
+    const commander = isCommander
+    const key = sessionKey
+
+    if (!commander && !currentSession) {
+      return
+    }
+
+    if (!commander && !sessionExists) {
+      return
+    }
+
+    let watcherStarted = false
+    let disposed = false
+    let fileChangesUnlisten: (() => void | Promise<void>) | null = null
+    let gitStatsUnlisten: (() => void | Promise<void>) | null = null
+    let sessionCancellingUnlisten: (() => void | Promise<void>) | null = null
+    let sessionRemovedUnlisten: (() => void | Promise<void>) | null = null
+
+    const setupListeners = async () => {
+      if (!commander && currentSession) {
+        try {
+          await invoke(TauriCommands.StartFileWatcher, { sessionName: currentSession })
+          watcherStarted = true
+        } catch (error) {
+          logger.error('[DiffFileList] Failed to start file watcher; continuing without watcher', error)
+        }
+      }
+
+      if (!commander && currentSession) {
+        if (watcherStarted) {
+          stopPolling()
+        } else {
+          startPolling()
+        }
+      } else {
+        stopPolling()
+      }
+
+      try {
+        fileChangesUnlisten = await listenEvent(SchaltEvent.FileChanges, event => {
+          if (disposed) {
+            return
+          }
+
+          const currentCommander = isCommanderRef.current
+          const selectedSession = sessionNameRef.current
+          const isOrchestratorMatch = currentCommander && !selectedSession && event.session_name === ORCHESTRATOR_SESSION_NAME
+          const isSessionMatch = Boolean(selectedSession) && event.session_name === selectedSession
+
+          if (!isOrchestratorMatch && !isSessionMatch) {
+            return
+          }
+
+          const entryBranch = resolveBranchInfoFromEvent(event.branch_info)
+
+          if (isOrchestratorMatch) {
+            const entry = buildOrchestratorEntry(event.changed_files, entryBranch)
+            applyCacheEntry(ORCHESTRATOR_SESSION_NAME, entry)
+            setIsLoading(false)
+            return
+          }
+
+          if (!selectedSession) {
+            return
+          }
+
+          const entry = buildSessionEntry(selectedSession, event.changed_files, entryBranch)
+          applyCacheEntry(getSessionKey(selectedSession, false), entry)
+          setIsLoading(false)
+        })
+      } catch (error) {
+        logger.error('[DiffFileList] Failed to register file changes listener:', error)
+      }
+
+      try {
+        gitStatsUnlisten = await listenEvent(SchaltEvent.SessionGitStats, event => {
+          if (disposed) {
+            return
+          }
+
+          if (event.session_name !== ORCHESTRATOR_SESSION_NAME) {
+            return
+          }
+
+          const currentCommander = isCommanderRef.current
+          const selectedSession = sessionNameRef.current
+          if (!currentCommander || selectedSession) {
+            return
+          }
+
+          load({ invalidateCache: true, force: true }).catch(() => {})
+        })
+      } catch (error) {
+        logger.error('[DiffFileList] Failed to register git stats listener:', error)
+      }
+
+      try {
+        sessionCancellingUnlisten = await listenEvent(SchaltEvent.SessionCancelling, event => {
+          if (disposed || !event.session_name) {
+            return
+          }
+
+          cancelledSessionsRef.current.add(event.session_name)
+          cacheRef.current.delete(getSessionKey(event.session_name, false))
+
+          if (sessionNameRef.current === event.session_name) {
+            clearActiveData()
+            setIsLoading(false)
+          }
+
+          void invoke(TauriCommands.StopFileWatcher, { sessionName: event.session_name }).catch(err => {
+            logger.warn('[DiffFileList] Failed to stop file watcher during cancellation:', err)
+          })
+        })
+      } catch (error) {
+        logger.error('[DiffFileList] Failed to register session cancelling listener:', error)
+      }
+
+      try {
+        sessionRemovedUnlisten = await listenEvent(SchaltEvent.SessionRemoved, (event) => {
+          if (!event?.session_name) {
+            return
+          }
+
+          if (cancelledSessionsRef.current.has(event.session_name)) {
+            cancelledSessionsRef.current.delete(event.session_name)
+          }
+        })
+      } catch (error) {
+        logger.error('Failed to register session removed listener:', error)
+      }
+    }
+
+    void setupListeners()
+
+    return () => {
+      disposed = true
+
+      stopPolling()
+
+      if (!commander && currentSession && watcherStarted) {
+        void invoke(TauriCommands.StopFileWatcher, { sessionName: currentSession }).catch(err => {
+          logger.warn('[DiffFileList] Failed to stop file watcher on cleanup:', err)
+        })
+      }
+
+      void safeUnlisten(fileChangesUnlisten, '[DiffFileList] file changes cleanup')
+      void safeUnlisten(gitStatsUnlisten, '[DiffFileList] git stats cleanup')
+      void safeUnlisten(sessionCancellingUnlisten, '[DiffFileList] session cancelling cleanup')
+      void safeUnlisten(sessionRemovedUnlisten, '[DiffFileList] session removed cleanup')
+    }
+  }, [
+    status,
+    sessionName,
+    isCommander,
+    sessionExists,
+    sessionKey,
+    applyCacheEntry,
+    buildOrchestratorEntry,
+    buildSessionEntry,
+    clearActiveData,
+    load,
+    resolveBranchInfoFromEvent,
+    startPolling,
+    stopPolling,
+  ])
+
+  return {
+    files,
+    branchInfo,
+    isLoading,
+    reload,
+  }
+}
+
 export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }: DiffFileListProps) {
   const { selection } = useSelection()
-  const [files, setFiles] = useState<ChangedFile[]>([])
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [branchInfo, setBranchInfo] = useState<{ 
-    currentBranch: string, 
-    baseBranch: string,
-    baseCommit: string, 
-    headCommit: string 
-  } | null>(null)
-  
-  const sessionName = sessionNameOverride ?? (selection.kind === 'session' ? selection.payload : null)
   const [isResetting, setIsResetting] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [discardOpen, setDiscardOpen] = useState(false)
   const [discardBusy, setDiscardBusy] = useState(false)
   const [pendingDiscardFile, setPendingDiscardFile] = useState<string | null>(null)
-  const lastResultRef = useRef<string>('')
-  const lastSessionKeyRef = useRef<string | null>(null)
-  const sessionDataCacheRef = useRef<Map<string, {
-    files: ChangedFile[]
-    branchInfo: {
-      currentBranch: string
-      baseBranch: string
-      baseCommit: string
-      headCommit: string
-    } | null
-    signature: string
-  }>>(new Map())
-  const loadTokenRef = useRef(0)
-  const inFlightSessionKeyRef = useRef<string | null>(null)
-  
-  // Use refs to track current values without triggering effect recreations
-  const currentPropsRef = useRef({ sessionNameOverride, selection, isCommander })
-  currentPropsRef.current = { sessionNameOverride, selection, isCommander }
-  
-  // Store the load function in a ref so it doesn't change between renders
-  const loadChangedFilesRef = useRef<() => Promise<void>>(() => Promise.resolve())
-  const cancelledSessionsRef = useRef<Set<string>>(new Set())
-  
-  const getSessionKey = (session: string | null | undefined, commander: boolean | undefined) => {
-    if (commander && !session) return ORCHESTRATOR_SESSION_NAME
-    if (!session) return 'no-session'
-    return `session:${session}`
-  }
 
-  loadChangedFilesRef.current = async () => {
-    const { sessionNameOverride: overrideSnapshot, selection: selectionSnapshot, isCommander: commanderSnapshot } = currentPropsRef.current
-    const targetSession = overrideSnapshot ?? (selectionSnapshot.kind === 'session' ? selectionSnapshot.payload : null)
-    const sessionKey = getSessionKey(targetSession, commanderSnapshot)
-
-    if (isLoading && inFlightSessionKeyRef.current === sessionKey) {
-      return
-    }
-
-    const token = ++loadTokenRef.current
-    inFlightSessionKeyRef.current = sessionKey
-    setIsLoading(true)
-
-    const shouldApply = () => {
-      if (loadTokenRef.current !== token) return false
-      const { sessionNameOverride: latestOverride, selection: latestSelection, isCommander: latestCommander } = currentPropsRef.current
-      const latestSession = latestOverride ?? (latestSelection.kind === 'session' ? latestSelection.payload : null)
-      const latestKey = getSessionKey(latestSession, latestCommander)
-      return latestKey === sessionKey
-    }
-
-    try {
-      const { sessionNameOverride: currentOverride, selection: currentSelection, isCommander: currentIsCommander } = currentPropsRef.current
-      const currentSession = currentOverride ?? (currentSelection.kind === 'session' ? currentSelection.payload : null)
-
-      // Don't try to load files for cancelled sessions
-      if (currentSession && cancelledSessionsRef.current.has(currentSession)) {
-        return
-      }
-
-      // For orchestrator mode (no session), get working changes
-      if (currentIsCommander && !currentSession) {
-        const [changedFiles, currentBranch] = await Promise.all([
-          invoke<ChangedFile[]>(TauriCommands.GetOrchestratorWorkingChanges),
-          invoke<string>(TauriCommands.GetCurrentBranchName, { sessionName: null })
-        ])
-
-        // Check if results actually changed to avoid unnecessary re-renders
-        const resultSignature = `orchestrator-${changedFiles.length}-${changedFiles.map(serializeChangedFileSignature).join(',')}-${currentBranch}`
-        const cachedPayload = {
-          files: changedFiles,
-          branchInfo: {
-            currentBranch,
-            baseBranch: 'Working Directory',
-            baseCommit: 'HEAD',
-            headCommit: 'Working'
-          },
-          signature: resultSignature
-        }
-
-        sessionDataCacheRef.current.set(sessionKey, cachedPayload)
-
-        if (shouldApply()) {
-          lastResultRef.current = resultSignature
-          lastSessionKeyRef.current = sessionKey
-          setFiles(cachedPayload.files)
-          setBranchInfo(cachedPayload.branchInfo)
-        }
-        return
-      }
-
-      // Regular session mode
-      if (!currentSession) {
-        // Clear data when no session selected to prevent stale data
-        if (lastResultRef.current !== 'no-session') {
-          lastResultRef.current = 'no-session'
-          lastSessionKeyRef.current = getSessionKey(null, false)
-          setFiles([])
-          setBranchInfo(null)
-        }
-        return
-      }
-      
-      const [changedFiles, currentBranch, baseBranch, [baseCommit, headCommit]] = await Promise.all([
-        invoke<ChangedFile[]>(TauriCommands.GetChangedFilesFromMain, { sessionName: currentSession }),
-        invoke<string>(TauriCommands.GetCurrentBranchName, { sessionName: currentSession }),
-        invoke<string>(TauriCommands.GetBaseBranchName, { sessionName: currentSession }),
-        invoke<[string, string]>(TauriCommands.GetCommitComparisonInfo, { sessionName: currentSession })
-      ])
-      
-      // Check if results actually changed to avoid unnecessary re-renders
-      // Include session name in signature to ensure different sessions don't share cached results
-      const resultSignature = `session-${currentSession}-${changedFiles.length}-${changedFiles.map(serializeChangedFileSignature).join(',')}-${currentBranch}-${baseBranch}`
-
-      const cachedPayload = {
-        files: changedFiles,
-        branchInfo: {
-          currentBranch,
-          baseBranch,
-          baseCommit,
-          headCommit
-        },
-        signature: resultSignature
-      }
-
-      sessionDataCacheRef.current.set(sessionKey, cachedPayload)
-
-      if (shouldApply()) {
-        lastResultRef.current = resultSignature
-        lastSessionKeyRef.current = sessionKey
-        setFiles(cachedPayload.files)
-        setBranchInfo(cachedPayload.branchInfo)
-      }
-    } catch (error: unknown) {
-      if (!error?.toString()?.includes('not found')) {
-        logger.error(`Failed to load changed files:`, error)
-      }
-
-      if (!shouldApply()) {
-        if (sessionKey !== 'no-session') {
-          sessionDataCacheRef.current.delete(sessionKey)
-        }
-        return
-      }
-
-      setFiles([])
-      setBranchInfo(null)
-      lastResultRef.current = ''
-      lastSessionKeyRef.current = sessionKey
-      if (sessionKey !== 'no-session') {
-        sessionDataCacheRef.current.delete(sessionKey)
-      }
-    } finally {
-      if (loadTokenRef.current === token) {
-        setIsLoading(false)
-        inFlightSessionKeyRef.current = null
-      }
-    }
-  }
-  
-  // Stable function that calls the ref
-  const loadChangedFiles = useCallback(async () => {
-    await loadChangedFilesRef.current?.()
-  }, [])
-
-  // Path resolver used by top bar now; no local button anymore
-  
-  useEffect(() => {
-    // Reset component state immediately when session changes
-    const { sessionNameOverride: currentOverride, selection: currentSelection, isCommander: currentIsCommander } = currentPropsRef.current
-    const currentSession = currentOverride ?? (currentSelection.kind === 'session' ? currentSelection.payload : null)
-    
-    const newSessionKey = getSessionKey(currentSession, currentIsCommander)
-    const previousSessionKey = lastSessionKeyRef.current
-
-    if (!currentSession && !currentIsCommander) {
-      // Clear files when no session and not orchestrator
-      setFiles([])
-      setBranchInfo(null)
-      lastResultRef.current = 'no-session'
-      lastSessionKeyRef.current = getSessionKey(null, false)
-      return
-    }
-
-    // CRITICAL: Clear stale data immediately when session changes
-    // This prevents showing old session data while new session data loads
-    const cachedData = sessionDataCacheRef.current.get(newSessionKey)
-    const needsDataClear = previousSessionKey !== null && previousSessionKey !== newSessionKey
-
-    if (cachedData) {
-      setFiles(cachedData.files)
-      setBranchInfo(cachedData.branchInfo)
-      lastResultRef.current = cachedData.signature
-      lastSessionKeyRef.current = newSessionKey
-    } else if (needsDataClear) {
-      setFiles([])
-      setBranchInfo(null)
-      lastResultRef.current = ''
-      lastSessionKeyRef.current = newSessionKey
-    }
-
-    // Only load if we don't already have data for this session or if we just cleared stale data
-    const hasDataForCurrentSession = lastResultRef.current !== '' && lastSessionKeyRef.current === newSessionKey
-    if (!hasDataForCurrentSession || needsDataClear) {
-      loadChangedFiles()
-    }
-
-    let pollInterval: NodeJS.Timeout | null = null
-    let eventUnlisten: (() => void) | null = null
-    let gitStatsUnlisten: (() => void) | null = null
-    let sessionCancellingUnlisten: (() => void) | null = null
-    let isCancelled = false
-
-    // Setup async operations
-    const setup = async () => {
-      // Listen for session cancelling to stop polling immediately
-      if (currentSession) {
-        sessionCancellingUnlisten = await listenEvent(SchaltEvent.SessionCancelling, (event) => {
-          if (event.session_name === currentSession) {
-            logger.info(`Session ${currentSession} is being cancelled, stopping file watcher and polling`)
-            isCancelled = true
-            // Mark session as cancelled to prevent future loads
-            cancelledSessionsRef.current.add(currentSession)
-            // Clear data immediately
-            setFiles([])
-            setBranchInfo(null)
-            sessionDataCacheRef.current.delete(getSessionKey(currentSession, false))
-            // Stop polling
-            if (pollInterval) {
-              clearInterval(pollInterval)
-              pollInterval = null
-            }
-            invoke(TauriCommands.StopFileWatcher, { sessionName: event.session_name }).catch(err => {
-              logger.warn('[DiffFileList] Failed to stop file watcher during cancellation', err)
-            })
-          }
-        })
-      }
-      
-      // For orchestrator mode, poll less frequently since working directory changes are less frequent
-      if (currentIsCommander && !currentSession) {
-        pollInterval = setInterval(() => {
-          if (!isCancelled) {
-            loadChangedFiles()
-          }
-        }, 5000) // Poll every 5 seconds for orchestrator
-      } else {
-        // Try to start file watcher for session mode
-        try {
-          await invoke(TauriCommands.StartFileWatcher, { sessionName: currentSession })
-          logger.info(`File watcher started for session: ${currentSession}`)
-        } catch (error) {
-          logger.error('Failed to start file watcher, falling back to polling:', error)
-          // Fallback to polling if file watcher fails
-          pollInterval = setInterval(() => {
-            if (!isCancelled) {
-              loadChangedFiles()
-            }
-          }, 3000)
-        }
-      }
-
-      // Always set up event listener (even if watcher failed, in case it recovers)
-      try {
-        eventUnlisten = await listenEvent(SchaltEvent.FileChanges, (event) => {
-          // CRITICAL: Only update if this event is for the currently selected session
-          const { sessionNameOverride: currentOverride, selection: currentSelection, isCommander: currentCommander } = currentPropsRef.current
-          const currentlySelectedSession = currentOverride ?? (currentSelection.kind === 'session' ? currentSelection.payload : null)
-          const commanderSelected = currentCommander && currentSelection.kind === 'orchestrator'
-          const isSessionMatch = Boolean(currentlySelectedSession) && event.session_name === currentlySelectedSession
-          const isCommanderMatch = commanderSelected && event.session_name === ORCHESTRATOR_SESSION_NAME
-          if (!isSessionMatch && !isCommanderMatch) {
-            return
-          }
-
-          const branchInfoPayload = {
-            currentBranch: event.branch_info.current_branch,
-            baseBranch: event.branch_info.base_branch,
-            baseCommit: event.branch_info.base_commit,
-            headCommit: event.branch_info.head_commit
-          }
-
-          const signature = isCommanderMatch
-            ? `${ORCHESTRATOR_SESSION_NAME}-${event.changed_files.length}-${event.changed_files.map(serializeChangedFileSignature).join(',')}-${event.branch_info.current_branch}`
-            : `session-${currentlySelectedSession}-${event.changed_files.length}-${event.changed_files.map(serializeChangedFileSignature).join(',')}-${event.branch_info.current_branch}-${event.branch_info.base_branch}`
-
-          const cacheKey = isCommanderMatch
-            ? getSessionKey(null, true)
-            : getSessionKey(currentlySelectedSession, false)
-
-          setFiles(event.changed_files)
-          setBranchInfo(branchInfoPayload)
-
-          lastResultRef.current = signature
-          lastSessionKeyRef.current = cacheKey
-          sessionDataCacheRef.current.set(cacheKey, {
-            files: event.changed_files,
-            branchInfo: branchInfoPayload,
-            signature
-          })
-
-          // If we receive events, we can stop polling
-          if (pollInterval) {
-            clearInterval(pollInterval)
-            pollInterval = null
-          }
-        })
-      } catch (error) {
-        logger.error('Failed to set up event listener:', error)
-      }
-
-      try {
-        gitStatsUnlisten = await listenEvent(SchaltEvent.SessionGitStats, (event) => {
-          if (event.session_name !== ORCHESTRATOR_SESSION_NAME) return
-          const { selection: currentSelection, isCommander: currentCommander } = currentPropsRef.current
-          const commanderSelected = currentCommander && currentSelection.kind === 'orchestrator'
-          if (!commanderSelected) return
-          void loadChangedFiles()
-        })
-      } catch (error) {
-        logger.error('Failed to set up git stats listener:', error)
-      }
-    }
-
-    setup()
-
-    return () => {
-      // Stop file watcher
-      if (currentSession) {
-        invoke(TauriCommands.StopFileWatcher, { sessionName: currentSession }).catch(err => logger.error("Error:", err))
-      }
-      // Clean up event listeners
-      if (eventUnlisten) {
-        eventUnlisten()
-      }
-      if (gitStatsUnlisten) {
-        gitStatsUnlisten()
-      }
-      if (sessionCancellingUnlisten) {
-        sessionCancellingUnlisten()
-      }
-      // Clean up polling if active
-      if (pollInterval) {
-        clearInterval(pollInterval)
-      }
-    }
-  }, [sessionNameOverride, selection, isCommander, loadChangedFiles])
+  const sessionName = sessionNameOverride ?? (selection.kind === 'session' ? selection.payload : null)
+  const resolvedCommander = Boolean(isCommander)
+  const { status: diffLoaderStatus, sessionExists } = useDiffLoaderStatus(sessionName, resolvedCommander)
+  const { files, branchInfo, isLoading, reload } = useDiffLoader({
+    sessionName,
+    isCommander: resolvedCommander,
+    status: diffLoaderStatus,
+    sessionExists,
+  })
 
   useEffect(() => {
-    const unlisten = listenUiEvent(UiEvent.ProjectSwitchComplete, () => {
-      loadTokenRef.current += 1
-      inFlightSessionKeyRef.current = null
-      sessionDataCacheRef.current.clear()
-      cancelledSessionsRef.current.clear()
-      lastResultRef.current = ''
-      lastSessionKeyRef.current = null
-      setFiles([])
-      setBranchInfo(null)
-      setIsLoading(false)
-      void loadChangedFiles()
-    })
-
-    return () => {
-      unlisten()
+    if (selectedFile && !files.some(file => file.path === selectedFile)) {
+      setSelectedFile(null)
     }
-  }, [loadChangedFiles])
-  
-  const handleFileClick = (file: ChangedFile) => {
+  }, [files, selectedFile])
+
+  const handleFileClick = useCallback((file: ChangedFile) => {
     setSelectedFile(file.path)
     onFileSelect(file.path)
-  }
-  
-  const getFileIcon = (changeType: string, filePath: string) => {
+  }, [onFileSelect])
+
+  const getFileIcon = useCallback((changeType: string, filePath: string) => {
     if (isBinaryFileByExtension(filePath)) {
       return <VscFileBinary className="text-slate-400" />
     }
-    
+
     switch (changeType) {
-      case 'added': return <VscDiffAdded className="text-green-500" />
-      case 'modified': return <VscDiffModified className="text-yellow-500" />
-      case 'deleted': return <VscDiffRemoved className="text-red-500" />
-      default: return <VscFile className="text-cyan-400" />
+      case 'added':
+        return <VscDiffAdded className="text-green-500" />
+      case 'modified':
+        return <VscDiffModified className="text-yellow-500" />
+      case 'deleted':
+        return <VscDiffRemoved className="text-red-500" />
+      default:
+        return <VscFile className="text-cyan-400" />
     }
-  }
+  }, [])
 
   const confirmReset = useCallback(() => {
-    if (!sessionName || isCommander) return
+    if (!sessionName || resolvedCommander) {
+      return
+    }
     setConfirmOpen(true)
-  }, [sessionName, isCommander])
+  }, [sessionName, resolvedCommander])
 
   const handleResetSession = useCallback(async () => {
-    if (!sessionName || isCommander) return
+    if (!sessionName || resolvedCommander) {
+      return
+    }
+
     setIsResetting(true)
     try {
       await invoke(TauriCommands.SchaltwerkCoreResetSessionWorktree, { sessionName })
-      await loadChangedFilesRef.current()
+      await reload({ invalidateCache: true })
       emitUiEvent(UiEvent.TerminalReset, { kind: 'session', sessionId: sessionName })
-    } catch (e) {
-      logger.error('Failed to reset session from header:', e)
+    } catch (error) {
+      logger.error('[DiffFileList] Failed to reset session from header:', error)
     } finally {
       setIsResetting(false)
       setConfirmOpen(false)
     }
-  }, [sessionName, isCommander])
+  }, [sessionName, resolvedCommander, reload])
 
   const handleOpenFile = useCallback(async (filePath: string) => {
     try {
       let basePath: string
 
-      if (isCommander && !sessionName) {
+      if (resolvedCommander && !sessionName) {
         basePath = await invoke<string>(TauriCommands.GetActiveProjectPath)
       } else if (sessionName) {
         const sessionData = await invoke<{ worktree_path: string }>(TauriCommands.SchaltwerkCoreGetSession, { name: sessionName })
         basePath = sessionData.worktree_path
       } else {
-        logger.warn('Cannot open file: no session or orchestrator context')
+        logger.warn('[DiffFileList] Cannot open file: no session or orchestrator context')
         return
       }
 
       const fullPath = `${basePath}/${filePath}`
       const defaultAppId = await invoke<string>(TauriCommands.GetDefaultOpenApp)
       await invoke(TauriCommands.OpenInApp, { appId: defaultAppId, worktreePath: fullPath })
-    } catch (e) {
-      logger.error('Failed to open file:', filePath, e)
-      const errorMessage = typeof e === 'string' ? e : ((e as Error)?.message || String(e) || 'Unknown error')
-      alert(errorMessage)
+    } catch (error) {
+      logger.error('[DiffFileList] Failed to open file:', filePath, error)
+      const message = typeof error === 'string'
+        ? error
+        : (error instanceof Error ? error.message : 'Unknown error')
+      alert(message)
     }
-  }, [sessionName, isCommander])
-  
+  }, [sessionName, resolvedCommander])
+
+  const isBusy = diffLoaderStatus === 'waiting' || (isLoading && (resolvedCommander || Boolean(sessionName)))
+
   return (
     <>
-    <div className="h-full flex flex-col bg-panel">
-      <div className="px-3 py-2 border-b border-slate-800 relative">
-        <div className="flex items-center justify-between pr-12">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">
-              {isCommander && !sessionName 
-                ? 'Uncommitted Changes' 
-                : branchInfo?.baseCommit 
-                  ? `Changes from ${branchInfo.baseBranch || 'base'} (${branchInfo.baseCommit})`
-                  : `Changes from ${branchInfo?.baseBranch || 'base'}`}
-            </span>
-            {branchInfo && !isCommander && (
-              <span className="text-xs text-slate-500">
-                ({branchInfo.headCommit} → {branchInfo.baseCommit})
+      <div className="h-full flex flex-col bg-panel">
+        <div className="px-3 py-2 border-b border-slate-800 relative">
+          <div className="flex items-center justify-between pr-12">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">
+                {resolvedCommander && !sessionName
+                  ? 'Uncommitted Changes'
+                  : branchInfo?.baseCommit
+                    ? `Changes from ${branchInfo.baseBranch || 'base'} (${branchInfo.baseCommit})`
+                    : `Changes from ${branchInfo?.baseBranch || 'base'}`}
               </span>
-            )}
-            {branchInfo && isCommander && (
-              <span className="text-xs text-slate-500">
-                (on {branchInfo.currentBranch})
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-3">
-            {branchInfo && files.length > 0 && (
-              <div className="text-xs text-slate-500">
-                {files.length} files changed
-              </div>
-            )}
-            {sessionName && !isCommander && (
-              <div>
-                {isResetting ? (
-                  <AnimatedText text="resetting" size="xs" />
-                ) : (
-                  <button
-                    title={files.length > 0 ? 'Reset session' : 'No changes to reset'}
-                    aria-label="Reset session"
-                    onClick={files.length > 0 ? confirmReset : undefined}
-                    disabled={files.length === 0}
-                    className={`p-1 rounded ${files.length > 0 ? 'hover:bg-slate-800' : 'opacity-50 cursor-not-allowed'}`}
-                  >
-                    <VscDiscard className="text-lg" />
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-      
-      {sessionName === null && !isCommander ? (
-        <div className="flex-1 flex items-center justify-center p-4">
-          <div className="text-center text-slate-500">
-            <div className="text-sm">No session selected</div>
-            <div className="text-xs mt-1">Select a session to view changes</div>
-          </div>
-        </div>
-      ) : files.length > 0 ? (
-        <div className="flex-1 overflow-y-auto">
-          <div className="p-2">
-            {files.map(file => {
-              const additions = file.additions ?? 0
-              const deletions = file.deletions ?? 0
-              const totalChanges = file.changes ?? additions + deletions
-              const isBinary = file.is_binary ?? (file.change_type !== 'deleted' && isBinaryFileByExtension(file.path))
-              const fileName = file.path.split('/').pop() ?? file.path
-              const directory = file.path.includes('/')
-                ? file.path.substring(0, file.path.lastIndexOf('/'))
-                : ''
-
-              return (
-                <div
-                  key={file.path}
-                  className={clsx(
-                    'flex items-start gap-3 px-2 py-2 rounded cursor-pointer',
-                    'hover:bg-slate-800/50',
-                    selectedFile === file.path && 'bg-slate-800/30'
-                  )}
-                  onClick={() => handleFileClick(file)}
-                  data-selected={selectedFile === file.path}
-                  data-file-path={file.path}
-                >
-                  {getFileIcon(file.change_type, file.path)}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start gap-2 justify-between">
-                      <div className="min-w-0">
-                        <div className="text-sm truncate font-medium">{fileName}</div>
-                        {directory && (
-                          <div className="text-xs text-slate-500 truncate">{directory}</div>
-                        )}
-                      </div>
-                      <DiffChangeBadges
-                        additions={additions}
-                        deletions={deletions}
-                        changes={totalChanges}
-                        isBinary={isBinary}
-                        className="flex-shrink-0"
-                        layout="column"
-                        size="compact"
-                      />
-                    </div>
-                  </div>
-                  <button
-                    title="Open file in editor"
-                    aria-label={`Open ${file.path}`}
-                    className="ml-2 p-1 rounded hover:bg-slate-800"
-                    style={{ color: theme.colors.text.secondary }}
-                    onClick={async (e) => {
-                      e.stopPropagation()
-                      await handleOpenFile(file.path)
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.color = theme.colors.text.primary
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.color = theme.colors.text.secondary
-                    }}
-                  >
-                    <VscFolder className="text-base" />
-                  </button>
-                  <button
-                    title="Discard changes for this file"
-                    aria-label={`Discard ${file.path}`}
-                    className="p-1 rounded hover:bg-slate-800 text-slate-300"
-                    onClick={async (e) => {
-                      e.stopPropagation()
-                      setPendingDiscardFile(file.path)
-                      setDiscardOpen(true)
-                    }}
-                  >
-                    <VscDiscard className="text-base" />
-                  </button>
+              {branchInfo && !resolvedCommander && (
+                <span className="text-xs text-slate-500">
+                  ({branchInfo.headCommit} → {branchInfo.baseCommit})
+                </span>
+              )}
+              {branchInfo && resolvedCommander && (
+                <span className="text-xs text-slate-500">
+                  (on {branchInfo.currentBranch})
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              {branchInfo && files.length > 0 && (
+                <div className="text-xs text-slate-500">
+                  {files.length} files changed
                 </div>
-              )
-            })}
-          </div>
-        </div>
-      ) : (
-        <div className="flex-1 flex items-center justify-center text-slate-500">
-          <div className="text-center">
-            <VscFile className="mx-auto mb-2 text-4xl opacity-50" />
-            <div className="mb-1">
-              {isCommander && !sessionName 
-                ? 'No uncommitted changes' 
-                : branchInfo?.baseCommit
-                  ? `No changes from ${branchInfo.baseBranch || 'base'} (${branchInfo.baseCommit})`
-                  : `No changes from ${branchInfo?.baseBranch || 'base'}`}
-            </div>
-            <div className="text-xs">
-              {isCommander && !sessionName 
-                ? 'Your working directory is clean'
-                : branchInfo?.baseCommit === branchInfo?.headCommit
-                  ? `You are at the base commit (${branchInfo?.baseCommit})` 
-                  : `Your session is up to date with ${branchInfo?.baseBranch || 'base'}`
-              }
+              )}
+              {sessionName && !resolvedCommander && (
+                <div>
+                  {isResetting ? (
+                    <AnimatedText text="resetting" size="xs" />
+                  ) : (
+                    <button
+                      title={files.length > 0 ? 'Reset session' : 'No changes to reset'}
+                      aria-label="Reset session"
+                      onClick={files.length > 0 ? confirmReset : undefined}
+                      disabled={files.length === 0}
+                      className={`p-1 rounded ${files.length > 0 ? 'hover:bg-slate-800' : 'opacity-50 cursor-not-allowed'}`}
+                    >
+                      <VscDiscard className="text-lg" />
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
-      )}
-    </div>
-    <ConfirmResetDialog open={confirmOpen} onCancel={() => setConfirmOpen(false)} onConfirm={handleResetSession} isBusy={isResetting} />
-    <ConfirmDiscardDialog
-      open={discardOpen}
-      filePath={pendingDiscardFile}
-      isBusy={discardBusy}
-      onCancel={() => {
-        setDiscardOpen(false)
-        setPendingDiscardFile(null)
-      }}
-      onConfirm={async () => {
-        if (!pendingDiscardFile) return
-        try {
-          setDiscardBusy(true)
-          if (isCommander && !sessionName) {
-            await invoke(TauriCommands.SchaltwerkCoreDiscardFileInOrchestrator, { filePath: pendingDiscardFile })
-          } else if (sessionName) {
-            await invoke(TauriCommands.SchaltwerkCoreDiscardFileInSession, { sessionName, filePath: pendingDiscardFile })
-          }
-          await loadChangedFilesRef.current()
-        } catch (err) {
-          logger.error('Discard file failed:', err)
-        } finally {
-          setDiscardBusy(false)
+
+        {diffLoaderStatus === 'missing' ? (
+          <div className="flex-1 flex items-center justify-center text-slate-500">
+            <div className="text-center">
+              <VscFile className="mx-auto mb-2 text-4xl opacity-50" />
+              <div className="mb-1">Session not available in this project</div>
+              <div className="text-xs">Switch to a session belonging to this project to view its changes.</div>
+            </div>
+          </div>
+        ) : sessionName === null && !resolvedCommander ? (
+          <div className="flex-1 flex items-center justify-center p-4">
+            <div className="text-center text-slate-500">
+              <div className="text-sm">No session selected</div>
+              <div className="text-xs mt-1">Select a session to view changes</div>
+            </div>
+          </div>
+        ) : isBusy ? (
+          <div className="flex-1 flex items-center justify-center text-slate-500">
+            <AnimatedText text="loading" size="sm" />
+          </div>
+        ) : files.length > 0 ? (
+          <div className="flex-1 overflow-y-auto">
+            <div className="p-2">
+              {files.map(file => {
+                const additions = file.additions ?? 0
+                const deletions = file.deletions ?? 0
+                const totalChanges = file.changes ?? additions + deletions
+                const isBinary = file.is_binary ?? (file.change_type !== 'deleted' && isBinaryFileByExtension(file.path))
+                const fileName = file.path.split('/').pop() ?? file.path
+                const directory = file.path.includes('/')
+                  ? file.path.substring(0, file.path.lastIndexOf('/'))
+                  : ''
+
+                return (
+                  <div
+                    key={file.path}
+                    className={clsx(
+                      'flex items-start gap-3 px-2 py-2 rounded cursor-pointer',
+                      'hover:bg-slate-800/50',
+                      selectedFile === file.path && 'bg-slate-800/30'
+                    )}
+                    onClick={() => handleFileClick(file)}
+                    data-selected={selectedFile === file.path}
+                    data-file-path={file.path}
+                  >
+                    {getFileIcon(file.change_type, file.path)}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start gap-2 justify-between">
+                        <div className="min-w-0">
+                          <div className="text-sm truncate font-medium">{fileName}</div>
+                          {directory && (
+                            <div className="text-xs text-slate-500 truncate">{directory}</div>
+                          )}
+                        </div>
+                        <DiffChangeBadges
+                          additions={additions}
+                          deletions={deletions}
+                          changes={totalChanges}
+                          isBinary={isBinary}
+                          className="flex-shrink-0"
+                          layout="column"
+                          size="compact"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      title="Open file in editor"
+                      aria-label={`Open ${file.path}`}
+                      className="ml-2 p-1 rounded hover:bg-slate-800"
+                      style={{ color: theme.colors.text.secondary }}
+                      onClick={async (e) => {
+                        e.stopPropagation()
+                        await handleOpenFile(file.path)
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = theme.colors.text.primary
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = theme.colors.text.secondary
+                      }}
+                    >
+                      <VscFolder className="text-base" />
+                    </button>
+                    <button
+                      title="Discard changes for this file"
+                      aria-label={`Discard ${file.path}`}
+                      className="p-1 rounded hover:bg-slate-800 text-slate-300"
+                      onClick={async (e) => {
+                        e.stopPropagation()
+                        setPendingDiscardFile(file.path)
+                        setDiscardOpen(true)
+                      }}
+                    >
+                      <VscDiscard className="text-base" />
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 flex items-center justify-center text-slate-500">
+            <div className="text-center">
+              <VscFile className="mx-auto mb-2 text-4xl opacity-50" />
+              <div className="mb-1">
+                {resolvedCommander && !sessionName
+                  ? 'No uncommitted changes'
+                  : branchInfo?.baseCommit
+                    ? `No changes from ${branchInfo.baseBranch || 'base'} (${branchInfo.baseCommit})`
+                    : `No changes from ${branchInfo?.baseBranch || 'base'}`}
+              </div>
+              <div className="text-xs">
+                {resolvedCommander && !sessionName
+                  ? 'Your working directory is clean'
+                  : branchInfo?.baseCommit === branchInfo?.headCommit
+                    ? `You are at the base commit (${branchInfo?.baseCommit})`
+                    : `Your session is up to date with ${branchInfo?.baseBranch || 'base'}`
+                }
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+      <ConfirmResetDialog
+        open={confirmOpen}
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={handleResetSession}
+        isBusy={isResetting}
+      />
+      <ConfirmDiscardDialog
+        open={discardOpen}
+        filePath={pendingDiscardFile}
+        isBusy={discardBusy}
+        onCancel={() => {
           setDiscardOpen(false)
           setPendingDiscardFile(null)
-        }
-      }}
-    />
+        }}
+        onConfirm={async () => {
+          if (!pendingDiscardFile) {
+            return
+          }
+
+          try {
+            setDiscardBusy(true)
+            if (resolvedCommander && !sessionName) {
+              await invoke(TauriCommands.SchaltwerkCoreDiscardFileInOrchestrator, { filePath: pendingDiscardFile })
+            } else if (sessionName) {
+              await invoke(TauriCommands.SchaltwerkCoreDiscardFileInSession, { sessionName, filePath: pendingDiscardFile })
+            }
+            await reload({ invalidateCache: true })
+          } catch (error) {
+            logger.error('[DiffFileList] Discard file failed:', error)
+          } finally {
+            setDiscardBusy(false)
+            setDiscardOpen(false)
+            setPendingDiscardFile(null)
+          }
+        }}
+      />
     </>
   )
 }

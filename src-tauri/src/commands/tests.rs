@@ -123,3 +123,41 @@ async fn test_command_functions_exist_and_callable() {
         }
     }
 }
+
+#[cfg(target_os = "macos")]
+#[tokio::test]
+async fn test_clipboard_write_text_sets_content() {
+    use arboard::Clipboard;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    let payload = format!(
+        "schaltwerk-test-{}",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time should be after epoch")
+            .as_nanos()
+    );
+
+    let mut clipboard =
+        Clipboard::new().expect("should create clipboard handle for initial snapshot");
+    let previous = clipboard.get_text().ok();
+    drop(clipboard);
+
+    super::clipboard_write_text(payload.clone())
+        .await
+        .expect("clipboard write command should succeed on macOS");
+
+    let mut clipboard =
+        Clipboard::new().expect("should create clipboard handle for verification");
+    let current = clipboard
+        .get_text()
+        .expect("should read clipboard text after command");
+    assert_eq!(
+        current, payload,
+        "clipboard contents should match the payload passed to the command"
+    );
+
+    if let Some(prev) = previous {
+        let _ = clipboard.set_text(prev);
+    }
+}
