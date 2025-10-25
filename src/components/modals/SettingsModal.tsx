@@ -31,7 +31,6 @@ import { emitUiEvent, UiEvent } from '../../common/uiEvents'
 import { useOptionalToast } from '../../common/toast/ToastProvider'
 import { AppUpdateResultPayload } from '../../common/events'
 import type { SettingsCategory } from '../../types/settings'
-import { requestDockBounce } from '../../utils/attentionBridge'
 
 const shortcutArraysEqual = (a: string[] = [], b: string[] = []) => {
     if (a.length !== b.length) return false
@@ -423,16 +422,6 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
         () => sessionPreferences.attention_notification_mode !== 'off',
         [sessionPreferences.attention_notification_mode]
     )
-
-    const handleTestNotification = useCallback(() => {
-        if (!attentionNotificationsEnabled) {
-            showNotification('Enable idle notifications to test them.', 'info')
-            return
-        }
-
-        void requestDockBounce()
-        showNotification('Attention notification test triggered.', 'success')
-    }, [attentionNotificationsEnabled, showNotification])
 
     // Normalize smart dashes some platforms insert automatically (Safari/macOS)
     // so CLI flags like "--model" are preserved as two ASCII hyphens.
@@ -2147,17 +2136,6 @@ fi`}
                                     />
                                     <span className="text-body text-slate-200">Remember idle sessions when I switch away</span>
                                 </label>
-                                <button
-                                    type="button"
-                                    onClick={handleTestNotification}
-                                    className="px-3 py-1.5 rounded text-sm font-medium transition-opacity hover:opacity-90 self-start"
-                                    style={{
-                                        backgroundColor: theme.colors.accent.blue.DEFAULT,
-                                        color: theme.colors.text.inverse
-                                    }}
-                                >
-                                    Test notification
-                                </button>
                             </div>
                         </div>
                         
