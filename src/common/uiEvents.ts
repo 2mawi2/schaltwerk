@@ -254,20 +254,6 @@ export function clearBackgroundStarts(ids: string[]): void {
   for (const id of ids) bgStarted.delete(id)
 }
 
-/**
- * Mark a terminal as background-started while executing the provided async fn.
- * If fn throws, roll back the mark to allow another component to retry.
- */
-export async function withBackgroundStart<T>(terminalId: string, fn: () => Promise<T>): Promise<T> {
-  markBackgroundStart(terminalId)
-  try {
-    return await fn()
-  } catch (e) {
-    // Roll back on failure so other paths may start the agent (or user can retry)
-    clearBackgroundStarts([terminalId])
-    throw e
-  }
-}
 
 /**
  * Clear any marks that match a prefix. Useful on project close for orchestrator terminals.

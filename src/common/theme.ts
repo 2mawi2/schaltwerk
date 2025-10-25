@@ -352,33 +352,6 @@ export const theme = {
   },
 }
 
-export const getSessionColor = (status: string) => {
-  switch (status) {
-    case 'running':
-      return theme.colors.accent.magenta
-    case 'completed':
-      return theme.colors.accent.green
-    case 'spec':
-      return theme.colors.accent.amber
-    case 'error':
-      return theme.colors.accent.red
-    default:
-      return theme.colors.border
-  }
-}
-
-export const getFileStatusColor = (status: string) => {
-  switch (status) {
-    case 'added':
-      return theme.colors.accent.green.DEFAULT
-    case 'modified':
-      return theme.colors.accent.amber.DEFAULT
-    case 'deleted':
-      return theme.colors.accent.red.DEFAULT
-    default:
-      return theme.colors.accent.blue.DEFAULT
-  }
-}
 
 type AgentColor = 'blue' | 'green' | 'orange' | 'violet' | 'red' | 'yellow'
 

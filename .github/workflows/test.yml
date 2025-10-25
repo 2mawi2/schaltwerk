@@ -38,6 +38,7 @@ jobs:
               - 'bun.lock'
               - 'justfile'
               - 'tsconfig.json'
+              - 'knip.json'
               - 'vitest.config.ts'
               - 'vite.config.ts'
               - 'postcss.config.js'
@@ -79,6 +80,7 @@ jobs:
           node scripts/package-manager.mjs run lint
           node scripts/package-manager.mjs run lint:ts
           node scripts/package-manager.mjs run lint:mcp
+          node scripts/package-manager.mjs run deps:check
 
   test-frontend:
     name: Frontend Tests
