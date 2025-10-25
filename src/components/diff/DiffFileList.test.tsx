@@ -7,8 +7,10 @@ import { useSelection } from '../../contexts/SelectionContext'
 import { useProject } from '../../contexts/ProjectContext'
 import { TestProviders } from '../../tests/test-utils'
 import { UiEvent, emitUiEvent } from '../../common/uiEvents'
+import { SortMode, FilterMode } from '../../types/sessionFilters'
 import type { SessionGitStatsUpdated } from '../../common/events'
 import * as eventSystemModule from '../../common/eventSystem'
+import type { EnrichedSession } from '../../types/session'
 
 type MockChangedFile = {
   path: string
@@ -32,6 +34,47 @@ const createMockChangedFile = (file: Partial<MockChangedFile> & { path: string }
   }
 }
 
+type MockSessionConfig = string | { id: string; overrides?: Partial<EnrichedSession['info']> }
+
+const createMockSession = (sessionId: string, overrides: Partial<EnrichedSession['info']> = {}): EnrichedSession => ({
+  info: {
+    session_id: sessionId,
+    display_name: sessionId,
+    branch: 'feature/x',
+    base_branch: 'main',
+    worktree_path: `/tmp/worktrees/${sessionId}`,
+    status: 'active',
+    is_current: false,
+    session_type: 'worktree',
+    session_state: 'running',
+    ready_to_merge: false,
+    has_uncommitted_changes: true,
+    diff_stats: {
+      files_changed: 1,
+      additions: 0,
+      deletions: 0,
+      insertions: 0,
+    },
+    ...overrides,
+  },
+  terminals: [],
+})
+
+let mockSessions: EnrichedSession[] = [createMockSession('demo')]
+
+const resetMockSessions = () => {
+  mockSessions = [createMockSession('demo')]
+}
+
+const setMockSessions = (...configs: MockSessionConfig[]) => {
+  mockSessions = configs.map(config => {
+    if (typeof config === 'string') {
+      return createMockSession(config)
+    }
+    return createMockSession(config.id, config.overrides ?? {})
+  })
+}
+
 async function defaultInvokeImplementation(cmd: string, args?: Record<string, unknown>) {
   if (cmd === TauriCommands.SchaltwerkCoreGetSession) {
     return { worktree_path: '/tmp/worktree/' + (args?.name || 'default') }
@@ -51,7 +94,7 @@ async function defaultInvokeImplementation(cmd: string, args?: Record<string, un
   if (cmd === TauriCommands.GetCurrentDirectory) return '/test/project'
   if (cmd === TauriCommands.TerminalExists) return false
   if (cmd === TauriCommands.CreateTerminal) return undefined
-  if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return []
+  if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
   if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
   if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
   if (cmd === TauriCommands.SchaltwerkCoreGetFontSizes) return [13, 14]
@@ -108,6 +151,7 @@ function Wrapper({ children, sessionName }: { children: React.ReactNode, session
 describe('DiffFileList', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetMockSessions()
   })
 
   it('renders file list with mock data', async () => {
@@ -170,7 +214,7 @@ describe('DiffFileList', () => {
       if (cmd === TauriCommands.SchaltwerkCoreGetSession) return { worktree_path: '/tmp' }
       if (cmd === TauriCommands.StartFileWatcher) return undefined
       if (cmd === TauriCommands.StopFileWatcher) return undefined
-      return undefined
+      return defaultInvokeImplementation(cmd, _args)
     })
 
     render(
@@ -206,7 +250,7 @@ describe('DiffFileList', () => {
         ]
       }
       if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
-      return undefined
+      return defaultInvokeImplementation(cmd, _args)
     })
 
     render(
@@ -231,7 +275,7 @@ describe('DiffFileList', () => {
     mockInvoke.mockImplementation(async (cmd: string, _args?: Record<string, unknown>) => {
       if (cmd === TauriCommands.GetOrchestratorWorkingChanges) return []
       if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
-      return undefined
+      return defaultInvokeImplementation(cmd, _args)
     })
 
     render(
@@ -258,7 +302,7 @@ describe('DiffFileList', () => {
         ]
       }
       if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
-      return undefined
+      return defaultInvokeImplementation(cmd, _args)
     })
 
     render(
@@ -273,6 +317,59 @@ describe('DiffFileList', () => {
     // Should NOT show .schaltwerk files (they should be filtered by backend)
     expect(screen.queryByText('.schaltwerk')).not.toBeInTheDocument()
     expect(screen.queryByText('session.db')).not.toBeInTheDocument()
+  })
+
+  it('falls back to polling when watcher fails to start', async () => {
+    vi.useFakeTimers()
+
+    const { invoke } = await import('@tauri-apps/api/core')
+    const mockInvoke = invoke as ReturnType<typeof vi.fn>
+
+    mockInvoke.mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
+      if (cmd === TauriCommands.StartFileWatcher) {
+        throw new Error('watch limit reached')
+      }
+
+      return defaultInvokeImplementation(cmd, args)
+    })
+
+    const advance = async (ms: number) => {
+      await act(async () => {
+        vi.advanceTimersByTime(ms)
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+    }
+
+    try {
+      render(
+        <Wrapper sessionName="demo">
+          <DiffFileList onFileSelect={() => {}} />
+        </Wrapper>
+      )
+
+      const getDiffCallCount = () =>
+        mockInvoke.mock.calls.filter(([cmd]) => cmd === TauriCommands.GetChangedFilesFromMain).length
+
+      await advance(0)
+      await advance(0)
+
+      const initialCalls = getDiffCallCount()
+
+      let attempts = 0
+      let currentCalls = initialCalls
+
+      while (attempts < 10 && currentCalls === initialCalls) {
+        await advance(500)
+        currentCalls = getDiffCallCount()
+        attempts += 1
+      }
+
+      expect(currentCalls).toBeGreaterThan(initialCalls)
+    } finally {
+      vi.useRealTimers()
+      mockInvoke.mockImplementation(defaultInvokeImplementation)
+    }
   })
 
   it('updates orchestrator changes when FileChanges event arrives', async () => {
@@ -419,7 +516,7 @@ describe('DiffFileList', () => {
         return [createMockChangedFile({ path: 'test.ts', change_type: 'modified' })]
       }
       if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
-      return undefined
+      return defaultInvokeImplementation(cmd, _args)
     })
     
     render(
@@ -449,7 +546,7 @@ describe('DiffFileList', () => {
         })
       }
       if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
-      return undefined
+      return defaultInvokeImplementation(cmd, _args)
     })
 
     const { rerender } = render(
@@ -486,6 +583,7 @@ describe('DiffFileList', () => {
 
   describe('Session Switching Issues', () => {
     it('should show correct files when switching between sessions quickly', async () => {
+      setMockSessions('session1', 'session2')
       const { invoke } = await import('@tauri-apps/api/core')
 
       // Track which session data was returned for each call
@@ -508,7 +606,7 @@ describe('DiffFileList', () => {
         if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
         if (cmd === TauriCommands.GetBaseBranchName) return 'main'  
         if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc123', 'def456']
-        return undefined
+        return defaultInvokeImplementation(cmd, args)
       })
 
       const TestWrapper = ({ sessionName }: { sessionName: string }) => (
@@ -537,7 +635,8 @@ describe('DiffFileList', () => {
       expect(sessionCallLog).toContain('get_changed_files_from_main:session2')
     })
 
-    it('should clear stale data immediately when sessions switch', async () => {
+  it('should clear stale data immediately when sessions switch', async () => {
+      setMockSessions('clear-session1', 'clear-session2')
       const { invoke } = await import('@tauri-apps/api/core')
       const mockInvoke = invoke as ReturnType<typeof vi.fn>
 
@@ -557,7 +656,7 @@ describe('DiffFileList', () => {
         if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
         if (cmd === TauriCommands.GetBaseBranchName) return 'main'  
         if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc123', 'def456']
-        return undefined
+        return defaultInvokeImplementation(cmd, args)
       })
 
       const TestWrapper = ({ sessionName }: { sessionName: string }) => (
@@ -585,6 +684,7 @@ describe('DiffFileList', () => {
     })
 
     it('should include session name in result signatures to prevent cache sharing', async () => {
+      setMockSessions('session-a', 'session-b')
       const { invoke } = await import('@tauri-apps/api/core')
       const mockInvoke = invoke as ReturnType<typeof vi.fn>
 
@@ -599,7 +699,7 @@ describe('DiffFileList', () => {
         if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
         if (cmd === TauriCommands.GetBaseBranchName) return 'main'  
         if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc123', 'def456']
-        return undefined
+        return defaultInvokeImplementation(cmd, _args)
       })
 
       const TestWrapper = ({ sessionName }: { sessionName: string }) => (
@@ -625,6 +725,7 @@ describe('DiffFileList', () => {
     })
 
     it('should not reuse cache when session names overlap', async () => {
+      setMockSessions('latest', 'test')
       const { invoke } = await import('@tauri-apps/api/core')
       const mockInvoke = invoke as ReturnType<typeof vi.fn>
 
@@ -642,7 +743,7 @@ describe('DiffFileList', () => {
         if (cmd === TauriCommands.GetCurrentBranchName) return 'feature/x'
         if (cmd === TauriCommands.GetBaseBranchName) return 'main'
         if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc', 'def']
-        return undefined
+        return defaultInvokeImplementation(cmd, args)
       })
 
       const TestWrapper = ({ sessionName }: { sessionName: string }) => (
@@ -665,6 +766,7 @@ describe('DiffFileList', () => {
     })
 
     it('restores cached data immediately when switching back to a session', async () => {
+      setMockSessions('alpha', 'beta')
       const { invoke } = await import('@tauri-apps/api/core')
       const mockInvoke = invoke as ReturnType<typeof vi.fn>
 
@@ -699,7 +801,7 @@ describe('DiffFileList', () => {
         if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
         if (cmd === TauriCommands.GetBaseBranchName) return 'main'
         if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc123', 'def456']
-        return undefined
+        return defaultInvokeImplementation(cmd, args)
       })
 
       const TestWrapper = ({ sessionName }: { sessionName: string }) => (
@@ -730,6 +832,7 @@ describe('DiffFileList', () => {
     })
 
     it('ignores late responses from previously selected sessions', async () => {
+      setMockSessions('alpha', 'beta')
       const { invoke } = await import('@tauri-apps/api/core')
       const mockInvoke = invoke as ReturnType<typeof vi.fn>
 
@@ -757,7 +860,7 @@ describe('DiffFileList', () => {
         if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
         if (cmd === TauriCommands.GetBaseBranchName) return 'main'
         if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc123', 'def456']
-        return undefined
+        return defaultInvokeImplementation(cmd, args)
       })
 
       const TestWrapper = ({ sessionName }: { sessionName: string }) => (
@@ -780,6 +883,7 @@ describe('DiffFileList', () => {
     })
 
     it('ignores late rejections from previously selected sessions', async () => {
+      setMockSessions('alpha', 'beta')
       const { invoke } = await import('@tauri-apps/api/core')
       const mockInvoke = invoke as ReturnType<typeof vi.fn>
 
@@ -792,6 +896,7 @@ describe('DiffFileList', () => {
       }
 
       const alphaDeferred = createRejectDeferred()
+      alphaDeferred.promise.catch(() => {})
 
       mockInvoke.mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
         if (cmd === TauriCommands.GetChangedFilesFromMain) {
@@ -807,7 +912,7 @@ describe('DiffFileList', () => {
         if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
         if (cmd === TauriCommands.GetBaseBranchName) return 'main'
         if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc123', 'def456']
-        return undefined
+        return defaultInvokeImplementation(cmd, args)
       })
 
       const TestWrapper = ({ sessionName }: { sessionName: string }) => (
@@ -836,7 +941,7 @@ describe('DiffFileList', () => {
       const mockInvoke = invoke as ReturnType<typeof vi.fn>
 
       let currentProject = 'alpha'
-      mockInvoke.mockImplementation(async (cmd: string) => {
+      mockInvoke.mockImplementation(async (cmd: string, _args?: Record<string, unknown>) => {
         if (cmd === TauriCommands.GetOrchestratorWorkingChanges) {
           if (currentProject === 'alpha') {
             return [{ path: 'src/a-alpha.ts', change_type: 'modified' }]
@@ -848,7 +953,7 @@ describe('DiffFileList', () => {
         }
         if (cmd === TauriCommands.GetBaseBranchName) return 'main'
         if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc', 'def']
-        return undefined
+        return defaultInvokeImplementation(cmd, _args)
       })
 
       render(
@@ -980,4 +1085,20 @@ describe('DiffFileList', () => {
       expect(onFileSelect).not.toHaveBeenCalled()
     })
   })
+
+  it('renders placeholder when selected session is not part of current project', async () => {
+    const { invoke } = await import('@tauri-apps/api/core')
+    const invokeMock = vi.mocked(invoke)
+
+    render(
+      <Wrapper sessionName="ghost-session">
+        <DiffFileList onFileSelect={() => {}} />
+      </Wrapper>
+    )
+
+    expect(await screen.findByText(/session not available in this project/i)).toBeInTheDocument()
+    const diffCalls = invokeMock.mock.calls.filter(([cmd]) => cmd === TauriCommands.GetChangedFilesFromMain)
+    expect(diffCalls.length).toBe(0)
+  })
+
 })

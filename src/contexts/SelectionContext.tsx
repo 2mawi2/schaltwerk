@@ -17,6 +17,8 @@ import {
 } from '../terminal/transport/backend'
 import { sessionTerminalGroup } from '../common/terminalIdentity'
 import { ORCHESTRATOR_SESSION_NAME } from '../constants/sessions'
+import { safeUnlisten } from '../utils/safeUnlisten'
+import { computeProjectId, DEFAULT_PROJECT_ID } from '../utils/projectId'
 
 type NormalizedSessionState = 'spec' | 'running' | 'reviewed'
 
@@ -166,13 +168,15 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => { latestSessionsRef.current = allSessions }, [allSessions])
     const sessionFetchPromisesRef = useRef(new Map<string, Promise<SessionSnapshot | null>>())
     const lastSelectionByProjectRef = useRef(new Map<string, Selection>())
+    const activeProjectKeyRef = useRef<string>('project:default')
 
     const rememberSelection = useCallback((sel: Selection) => {
-        if (!projectPath) {
+        const key = activeProjectKeyRef.current
+        if (!key) {
             return
         }
-        lastSelectionByProjectRef.current.set(projectPath, { ...sel })
-    }, [projectPath])
+        lastSelectionByProjectRef.current.set(key, { ...sel })
+    }, [])
 
     // Helper: finalize a selection change by removing the switching class and notifying listeners
     const finalizeSelectionChange = useCallback((sel: Selection) => {
@@ -209,30 +213,34 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     // Helper function to get cached project ID
     const getCachedProjectId = useCallback((path: string | null): string => {
         if (path === cachedProjectPath.current) {
-            return projectIdCache.current || 'default'
+            return projectIdCache.current || DEFAULT_PROJECT_ID
         }
 
         cachedProjectPath.current = path
-
-        if (!path) {
-            projectIdCache.current = 'default'
-            return 'default'
-        }
-
-        // Get just the last directory name and combine with a hash for uniqueness
-        const dirName = path.split(/[/\\]/).pop() || 'unknown'
-        // Sanitize directory name: replace spaces and special chars with underscores
-        const sanitizedDirName = dirName.replace(/[^a-zA-Z0-9_-]/g, '_')
-        // Simple hash: sum of char codes
-        let hash = 0
-        for (let i = 0; i < path.length; i++) {
-            hash = ((hash << 5) - hash) + path.charCodeAt(i)
-            hash = hash & hash // Convert to 32bit integer
-        }
-        const projectId = `${sanitizedDirName}-${Math.abs(hash).toString(16).slice(0, 6)}`
+        const projectId = computeProjectId(path)
         projectIdCache.current = projectId
         return projectId
     }, [])
+
+    const computeProjectKey = useCallback((path: string | null) => {
+        if (!path) {
+            return 'project:default'
+        }
+        const projectId = getCachedProjectId(path)
+        return `project:${projectId}`
+    }, [getCachedProjectId])
+
+    const ensureProjectKey = useCallback((path: string | null) => {
+        const key = computeProjectKey(path)
+        if (path && lastSelectionByProjectRef.current.has(path)) {
+            const legacy = lastSelectionByProjectRef.current.get(path)
+            if (legacy) {
+                lastSelectionByProjectRef.current.delete(path)
+                lastSelectionByProjectRef.current.set(key, legacy)
+            }
+        }
+        return key
+    }, [computeProjectKey])
 
     const getTerminalIds = useCallback((sel: Selection): TerminalSet => {
         let workingDir = projectPath || ''
@@ -495,16 +503,15 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
 
     // Helper to get default selection for current project
     const getDefaultSelection = useCallback(async (): Promise<Selection> => {
-        if (projectPath) {
-            const remembered = lastSelectionByProjectRef.current.get(projectPath)
+        const key = activeProjectKeyRef.current
+        if (key) {
+            const remembered = lastSelectionByProjectRef.current.get(key)
             if (remembered) {
                 return { ...remembered }
             }
         }
-
-        // Default to orchestrator if no remembered selection
         return { kind: 'orchestrator' }
-    }, [projectPath])
+    }, [])
     
     // Validate and restore a remembered selection
     const validateAndRestoreSelection = useCallback(async (remembered: Selection): Promise<Selection> => {
@@ -950,7 +957,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 })
 
                 if (disposed) {
-                    unlisten()
+                    void safeUnlisten(unlisten, 'SelectionContext sessions-refreshed listener (late attach)')
                 } else {
                     cleanup = unlisten
                 }
@@ -963,46 +970,65 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
 
         return () => {
             disposed = true
-            if (cleanup) {
-                try {
-                    cleanup()
-                } catch (e) {
-                    logger.debug('[SelectionContext] Failed to cleanup sessions-refreshed listener', e)
-                }
-            }
+            void safeUnlisten(cleanup, 'SelectionContext sessions-refreshed listener')
         }
     }, [selection, ensureTerminals, getTerminalIds, isSpec, ensureSessionSnapshot, setTerminals, setCurrentSelection, clearTerminalTracking])
     
     // Initialize on mount and when project path changes
     useEffect(() => {
         const initialize = async () => {
-            // Wait for projectPath to be set before initializing
+            const projectKey = ensureProjectKey(projectPath ?? null)
+            activeProjectKeyRef.current = projectKey
+
             if (!projectPath) {
                 setIsReady(true)
                 return
             }
 
-            // Skip if already initialized with same project path
             if (hasInitialized.current && previousProjectPath.current === projectPath) {
                 return
             }
 
-            // Check if we're switching projects
             const projectChanged = hasInitialized.current &&
-                                  previousProjectPath.current !== null &&
-                                  previousProjectPath.current !== projectPath
+                previousProjectPath.current !== null &&
+                previousProjectPath.current !== projectPath
 
-            // Set initialized flag and update previous path
             hasInitialized.current = true
-            // Bump the project epoch on project change
             if (previousProjectPath.current !== projectPath) {
                 projectEpochRef.current += 1
             }
 
             previousProjectPath.current = projectPath
 
-            // If switching projects, restore the last selection for this project
             if (projectChanged) {
+                selectionTokenRef.current += 1
+                pendingSelectionRef.current = null
+                sessionSnapshotsRef.current.clear()
+                sessionFetchPromisesRef.current.clear()
+                terminalsCreated.current.clear()
+                creationLock.current.clear()
+
+                const previouslyWatched = lastWatchedSessionRef.current
+                if (previouslyWatched) {
+                    try {
+                        await invoke(TauriCommands.StopFileWatcher, { sessionName: previouslyWatched })
+                    } catch (error) {
+                        logger.debug('[SelectionContext] Failed to stop session watcher during project switch', error)
+                    }
+                }
+                if (orchestratorWatcherActiveRef.current) {
+                    try {
+                        await invoke(TauriCommands.StopFileWatcher, { sessionName: ORCHESTRATOR_SESSION_NAME })
+                    } catch (error) {
+                        logger.debug('[SelectionContext] Failed to stop orchestrator watcher during project switch', error)
+                    }
+                }
+                lastWatchedSessionRef.current = null
+                orchestratorWatcherActiveRef.current = false
+
+                setSelectionState({ kind: 'orchestrator' })
+                setTerminals(getTerminalIds({ kind: 'orchestrator' }))
+
                 isRestoringRef.current = true
                 try {
                     const defaultSelection = await getDefaultSelection()
@@ -1071,7 +1097,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             // Still mark as ready even on error so UI doesn't hang
             setIsReady(true)
         })
-    }, [projectPath, setSelection, getTerminalIds, validateAndRestoreSelection, getDefaultSelection, selection, ensureTerminals, terminals.top]) // Re-run when projectPath changes
+    }, [projectPath, setSelection, getTerminalIds, validateAndRestoreSelection, getDefaultSelection, selection, ensureTerminals, terminals.top, ensureProjectKey]) // Re-run when projectPath changes
     
     // Listen for selection events from backend (e.g., when MCP creates/updates specs)
     useEffect(() => {
@@ -1143,7 +1169,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                     await setSelection(target, false, true)
                 })
                 if (disposed) {
-                    stop()
+                    void safeUnlisten(stop, 'SelectionContext backend selection listener (late attach)')
                 } else {
                     unlisten = stop
                 }
@@ -1156,9 +1182,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         
         return () => {
             disposed = true
-            if (unlisten) {
-                unlisten()
-            }
+            void safeUnlisten(unlisten, 'SelectionContext backend selection listener')
         }
     }, [setSelection, selection, isSpec, filterMode, isAnyModalOpen, getCachedSessionSnapshot, ensureSessionSnapshot])
 
@@ -1178,7 +1202,9 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             logger.info('[SelectionContext] Received OpenSpecInOrchestrator event, switching to orchestrator')
             await setSelection({ kind: 'orchestrator' }, false, true)
         })
-        return cleanup
+        return () => {
+            void safeUnlisten(cleanup, 'SelectionContext open spec listener')
+        }
     }, [setSelection])
 
     return (

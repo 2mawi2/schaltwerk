@@ -15,6 +15,7 @@ import { logger } from '../../utils/logger'
 import { emitUiEvent, UiEvent, listenUiEvent } from '../../common/uiEvents'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import { beginSplitDrag, endSplitDrag } from '../../utils/splitDragCoordinator'
+import { safeUnlisten } from '../../utils/safeUnlisten'
 import { SpecWorkspacePanel } from '../specs/SpecWorkspacePanel'
 import { useSpecMode } from '../../hooks/useSpecMode'
 import { isSpec as isSpecSession } from '../../utils/sessionFilters'
@@ -237,9 +238,10 @@ const RightPanelTabsComponent = ({ onFileSelect, onOpenHistoryDiff, selectionOve
   useEffect(() => {
     if (effectiveSelection.kind !== 'orchestrator') return
 
+    let disposed = false
     let unlistenFn: (() => void) | null = null
 
-    listenEvent(SchaltEvent.SessionsRefreshed, () => {
+    const handleRefresh = () => {
       const currentSpecs = allSessionsRef.current.filter(session => isSpecSession(session.info))
       const previousSpecs = previousSpecsRef.current
 
@@ -262,15 +264,28 @@ const RightPanelTabsComponent = ({ onFileSelect, onOpenHistoryDiff, selectionOve
         newMap.set(spec.info.session_id, spec.info.spec_content || '')
       })
       previousSpecsRef.current = newMap
-    }).then(unlisten => {
-      unlistenFn = unlisten
-    }).catch(err => {
-      logger.warn('[RightPanelTabs] Failed to setup SessionsRefreshed listener', err)
+    }
+
+    listenEvent(SchaltEvent.SessionsRefreshed, () => {
+      if (!disposed) {
+        handleRefresh()
+      }
     })
+      .then(unlisten => {
+        if (disposed) {
+          void safeUnlisten(unlisten, '[RightPanelTabs] SessionsRefreshed listener (late)')
+          return
+        }
+        unlistenFn = unlisten
+      })
+      .catch(err => {
+        logger.warn('[RightPanelTabs] Failed to setup SessionsRefreshed listener', err)
+      })
 
     return () => {
+      disposed = true
       if (unlistenFn) {
-        unlistenFn()
+        void safeUnlisten(unlistenFn, '[RightPanelTabs] SessionsRefreshed listener')
       }
     }
   }, [effectiveSelection.kind])
@@ -292,7 +307,7 @@ const RightPanelTabsComponent = ({ onFileSelect, onOpenHistoryDiff, selectionOve
     })
 
     return () => {
-      cleanupSpecCreated()
+      void safeUnlisten(cleanupSpecCreated, '[RightPanelTabs] SpecCreated listener')
     }
   }, [effectiveSelection.kind, openSpecInWorkspace, openTabs, setUserSelectedTab])
 
@@ -306,7 +321,9 @@ const RightPanelTabsComponent = ({ onFileSelect, onOpenHistoryDiff, selectionOve
       }
     })
 
-    return cleanup
+    return () => {
+      void safeUnlisten(cleanup, '[RightPanelTabs] OpenSpecInOrchestrator listener')
+    }
   }, [setUserSelectedTab])
 
   // When selection becomes orchestrator and we have a pending spec, open it

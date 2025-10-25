@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { listenTerminalOutput } from '../common/eventSystem';
 import { subscribeTerminalBackend, isPluginTerminal } from '../terminal/transport/backend';
 import { logger } from '../utils/logger';
+import { safeUnlisten } from '../utils/safeUnlisten';
 
 export interface TerminalListenerOptions {
   terminalId: string | null;
@@ -111,18 +112,13 @@ export function useTerminalListener({
           });
 
           if (!mounted) {
-            try {
-              listener();
-            } catch (error) {
-              logger.debug('[useTerminalListener] Cleaned up listener after unmount', {
-                terminalId,
-                error
-              });
-            }
+            void safeUnlisten(listener, `[useTerminalListener] listener (late) for ${terminalId}`);
             return;
           }
 
-          unlisten = listener;
+          unlisten = () => {
+            void safeUnlisten(listener, `[useTerminalListener] listener for ${terminalId}`);
+          };
         }
       } catch (error) {
         if (mounted) {
@@ -138,7 +134,9 @@ export function useTerminalListener({
 
     return () => {
       mounted = false;
-      unlisten?.();
+      if (unlisten) {
+        unlisten();
+      }
       flushStreamingDecoder();
       textDecoderRef.current = null;
     };

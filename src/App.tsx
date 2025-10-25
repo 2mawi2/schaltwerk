@@ -59,6 +59,7 @@ import { stableSessionTerminalId } from './common/terminalIdentity'
 import { registerDevErrorListeners } from './dev/registerDevErrorListeners'
 import type { SettingsCategory } from './types/settings'
 import { useFeedback } from './domains/feedback'
+import { safeUnlisten } from './utils/safeUnlisten'
 
 
 
@@ -166,7 +167,9 @@ function AppContent() {
       setDevErrorToastsEnabled(Boolean(detail?.enabled ?? true))
     })
 
-    return cleanup
+    return () => {
+      void safeUnlisten(cleanup, '[App] dev error toast preference listener')
+    }
   }, [])
 
   useEffect(() => {
@@ -222,9 +225,9 @@ function AppContent() {
       toast.pushToast({ tone: 'error', title: 'Git repository required', description })
     })
     return () => {
-      spawnCleanup()
-      noProjectCleanup()
-      notGitCleanup()
+      void safeUnlisten(spawnCleanup, '[App] spawn error listener')
+      void safeUnlisten(noProjectCleanup, '[App] no project listener')
+      void safeUnlisten(notGitCleanup, '[App] not git listener')
     }
   }, [toast])
 
@@ -238,7 +241,9 @@ function AppContent() {
       }
       agentLifecycleStateRef.current.set(detail.terminalId, { state: detail.state, timestamp })
     })
-    return cleanup
+    return () => {
+      void safeUnlisten(cleanup, '[App] agent lifecycle listener')
+    }
   }, [])
 
   useEffect(() => {
@@ -331,10 +336,14 @@ function AppContent() {
           }
         })
 
+        const cleanup = () => {
+          void safeUnlisten(stop, '[App] updater result listener')
+        }
+
         if (disposed) {
-          stop()
+          cleanup()
         } else {
-          unlisten = stop
+          unlisten = cleanup
         }
       } catch (error) {
         logger.error('[Updater] Failed to attach listener', error)
@@ -345,9 +354,7 @@ function AppContent() {
 
     return () => {
       disposed = true
-      if (unlisten) {
-        unlisten()
-      }
+      unlisten?.()
     }
   }, [toast])
 
@@ -569,9 +576,17 @@ function AppContent() {
       }
     })()
 
-     return () => {
-      unlistenDirectoryPromise.then(unlisten => unlisten())
-      unlistenHomePromise.then(unlisten => unlisten())
+    return () => {
+      void unlistenDirectoryPromise
+        .then(unlisten => safeUnlisten(unlisten, '[App] open-directory listener'))
+        .catch(error => {
+          logger.warn('[App] Failed to resolve open-directory unlisten promise', error)
+        })
+      void unlistenHomePromise
+        .then(unlisten => safeUnlisten(unlisten, '[App] open-home listener'))
+        .catch(error => {
+          logger.warn('[App] Failed to resolve open-home unlisten promise', error)
+        })
     }
   }, [applyActiveProject, setProjectPath])
 
@@ -596,7 +611,9 @@ function AppContent() {
 
     const cleanup = listenUiEvent(UiEvent.PermissionError, handlePermissionError)
 
-    return cleanup
+    return () => {
+      void safeUnlisten(cleanup, '[App] permission error listener')
+    }
   }, [])
 
   useEffect(() => {
@@ -621,7 +638,9 @@ function AppContent() {
       }
     })
 
-    return cleanup
+    return () => {
+      void safeUnlisten(cleanup, '[App] session action listener')
+    }
   }, [handleCancelSession])
 
   useEffect(() => {
@@ -704,9 +723,9 @@ function AppContent() {
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
-      cleanupGlobalNewSession()
-      cleanupOpenDiffView()
-      cleanupOpenDiffFile()
+      void safeUnlisten(cleanupGlobalNewSession, '[App] global new session shortcut listener')
+      void safeUnlisten(cleanupOpenDiffView, '[App] open diff view listener')
+      void safeUnlisten(cleanupOpenDiffFile, '[App] open diff file listener')
     }
   }, [newSessionOpen, cancelModalOpen, increaseFontSizes, decreaseFontSizes, resetFontSizes, keyboardShortcutConfig, platform])
 
@@ -718,7 +737,9 @@ function AppContent() {
                        setOpenAsSpec(true)
       setNewSessionOpen(true)
     })
-    return cleanup
+    return () => {
+      void safeUnlisten(cleanup, '[App] new spec request listener')
+    }
   }, [])
   
   
@@ -731,7 +752,9 @@ function AppContent() {
        setOpenAsSpec(false)
       setNewSessionOpen(true)
     })
-    return cleanup
+    return () => {
+      void safeUnlisten(cleanup, '[App] new session request listener')
+    }
   }, [])
 
   useEffect(() => {
@@ -739,7 +762,9 @@ function AppContent() {
       setSettingsInitialTab(detail?.tab)
       setSettingsOpen(true)
     })
-    return cleanup
+    return () => {
+      void safeUnlisten(cleanup, '[App] open settings listener')
+    }
   }, [])
 
   // Open Start Agent modal prefilled from an existing spec
@@ -777,7 +802,9 @@ function AppContent() {
         logger.warn('[App] No prefill data fetched for session:', name)
       }
     })
-    return cleanup
+    return () => {
+      void safeUnlisten(cleanup, '[App] start agent from spec listener')
+    }
   }, [fetchSessionForPrefill])
 
 

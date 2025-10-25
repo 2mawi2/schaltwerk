@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useLayoutEffect, useCallback, useRef, ReactNode, useMemo } from 'react'
 import { TauriCommands } from '../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { UnlistenFn } from '@tauri-apps/api/event'
@@ -16,6 +16,8 @@ import { EventPayloadMap, GitOperationFailedPayload, GitOperationPayload } from 
 import { areSessionInfosEqual } from '../utils/sessionComparison'
 import { stableSessionTerminalId, isTopTerminalId } from '../common/terminalIdentity'
 import { releaseSessionTerminals } from '../terminal/registry/terminalRegistry'
+import { computeProjectId } from '../utils/projectId'
+import { safeUnlisten } from '../utils/safeUnlisten'
 
 type MergeModeOption = 'squash' | 'reapply'
 
@@ -146,12 +148,16 @@ function deriveMergeStatusFromSession(session: EnrichedSession): MergeStatus | u
     return undefined
 }
 
+type LoadingState = 'idle' | 'fetching' | 'switching'
+
 interface SessionsContextValue {
     sessions: EnrichedSession[]
     allSessions: EnrichedSession[]
     filteredSessions: EnrichedSession[]
     sortedSessions: EnrichedSession[]
     loading: boolean
+    loadingState: LoadingState
+    projectId: string
     sortMode: SortMode
     filterMode: FilterMode
     searchQuery: string
@@ -190,7 +196,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
     const toast = useOptionalToast()
     const pushToast = toast?.pushToast ?? noopToast
     const [allSessions, setAllSessions] = useState<EnrichedSession[]>([])
-    const [loading, setLoading] = useState(true)
+    const [loadingState, setLoadingState] = useState<LoadingState>('idle')
     const [sortMode, setSortMode] = useState<SortMode>(getDefaultSortMode())
     const [filterMode, setFilterMode] = useState<FilterMode>(getDefaultFilterMode())
     const [searchQuery, setSearchQuery] = useState<string>('')
@@ -198,6 +204,8 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
     const prevStatesRef = useRef<Map<string, string>>(new Map())
     const [lastProjectPath, setLastProjectPath] = useState<string | null>(null)
     const hasInitialLoadCompleted = useRef(false)
+    const projectId = useMemo(() => computeProjectId(projectPath), [projectPath])
+    const loading = loadingState !== 'idle'
     const currentSelectionRef = useRef<string | null>(null)
     const [settingsLoaded, setSettingsLoaded] = useState(false)
     const [mergeDialogState, setMergeDialogState] = useState<MergeDialogState>({
@@ -726,15 +734,14 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         if (!projectPath) {
             releaseRemovedSessions([])
             setAllSessions([])
-            setLoading(false)
+            setLoadingState('idle')
             hasInitialLoadCompleted.current = false
             return
         }
 
+        setLoadingState((state) => (state === 'switching' ? 'switching' : 'fetching'))
+
         try {
-            if (!hasInitialLoadCompleted.current) {
-                setLoading(true)
-            }
             const enrichedSessions = await singleflight(
                 `list_enriched_sessions:${projectPath}`,
                 () => invoke<EnrichedSession[]>(TauriCommands.SchaltwerkCoreListEnrichedSessions)
@@ -845,7 +852,8 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             releaseRemovedSessions([])
             setAllSessions([])
         } finally {
-            setLoading(false)
+            await Promise.resolve()
+            setLoadingState('idle')
             hasInitialLoadCompleted.current = true
         }
     }, [projectPath, mergeSessionsPreferDraft, syncMergeStatuses, autoStartRunningSessions, releaseRemovedSessions])
@@ -1122,16 +1130,18 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         saveSettings()
     }, [sortMode, filterMode, settingsLoaded, projectPath])
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         // Only reload sessions when projectPath actually changes
         if (projectPath !== lastProjectPath) {
+            const hadPreviousProject = Boolean(lastProjectPath)
             setLastProjectPath(projectPath)
             hasInitialLoadCompleted.current = false
             if (projectPath) {
+                setLoadingState(hadPreviousProject ? 'switching' : 'fetching')
                 reloadSessions()
             } else {
                 setAllSessions([])
-                setLoading(false)
+                setLoadingState('idle')
             }
         }
     }, [projectPath, lastProjectPath, reloadSessions])
@@ -1152,7 +1162,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             promise
                 .then(unlisten => {
                     if (disposed) {
-                        unlisten()
+                        void safeUnlisten(unlisten, `[SessionsContext] cleanup for ${event} (late registration)`)
                         return
                     }
                     unlisteners.push(unlisten)
@@ -1508,11 +1518,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         return () => {
             disposed = true
             unlisteners.forEach(unlisten => {
-                try {
-                    unlisten()
-                } catch (error) {
-                    logger.debug('[SessionsContext] Failed to cleanup listener:', error)
-                }
+                void safeUnlisten(unlisten, '[SessionsContext] listener cleanup')
             })
             unlisteners.length = 0
         }
@@ -1531,7 +1537,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             })
                 .then(unlisten => {
                     if (disposed) {
-                        unlisten()
+                        void safeUnlisten(unlisten, `[SessionsContext] git operation listener cleanup (${event})`)
                         return
                     }
                     cleanups.push(unlisten)
@@ -1652,11 +1658,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         return () => {
             disposed = true
             cleanups.forEach(cleanup => {
-                try {
-                    cleanup()
-                } catch (error) {
-                    logger.error('[SessionsContext] Failed to cleanup Git operation listener:', error)
-                }
+                void safeUnlisten(cleanup, '[SessionsContext] git operation listener cleanup')
             })
         }
     }, [pushToastRef, updateMergeInFlightRef, autoCancelAfterMergeRef])
@@ -1668,6 +1670,8 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             filteredSessions,
             sortedSessions,
             loading,
+            loadingState,
+            projectId,
             sortMode,
             filterMode,
             searchQuery,
