@@ -1,5 +1,4 @@
 use crate::ATTENTION_REGISTRY;
-use log::trace;
 use schaltwerk::domains::attention::AttentionStateRegistry;
 use serde::Serialize;
 use tauri::AppHandle;
@@ -46,10 +45,8 @@ pub async fn report_attention_snapshot(
         let candidate = app
             .get_webview_window(&normalized_label)
             .or_else(|| app.get_webview_window(WINDOW_LABEL_FALLBACK));
-        if let Some(window) = candidate
-            && let Err(err) = window.set_badge_count(badge_count)
-        {
-            trace!("[attention] Failed to set badge label: {err}");
+        if let Some(window) = candidate {
+            let _ = window.set_badge_count(badge_count);
         }
     }
 
