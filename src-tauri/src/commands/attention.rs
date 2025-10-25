@@ -16,7 +16,7 @@ pub struct AttentionSnapshotResponse {
 
 #[tauri::command]
 pub async fn report_attention_snapshot(
-    #[allow(unused_variables)] app: AppHandle,
+    #[cfg_attr(not(target_os = "macos"), allow(unused_variables))] app: AppHandle,
     window_label: String,
     session_keys: Vec<String>,
 ) -> Result<AttentionSnapshotResponse, String> {
