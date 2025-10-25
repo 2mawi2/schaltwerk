@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { screen } from '@testing-library/react'
 import { renderWithProviders } from '../../tests/test-utils'
-import { SessionButton } from './SessionButton'
+import { SessionCard } from './SessionCard'
 import type { EnrichedSession, SessionInfo } from '../../types/session'
 
 const baseInfo: SessionInfo = {
@@ -31,7 +31,7 @@ const baseSession: EnrichedSession = {
   terminals: [] as string[],
 }
 
-describe('SessionButton dirty indicator', () => {
+describe('SessionCard dirty indicator', () => {
   it('shows dirty indicator for reviewed sessions with uncommitted changes', () => {
     const session: EnrichedSession = { 
       ...baseSession, 
@@ -44,7 +44,7 @@ describe('SessionButton dirty indicator', () => {
       } 
     }
     renderWithProviders(
-      <SessionButton
+      <SessionCard
         session={session}
         index={0}
         isSelected={false}
@@ -75,7 +75,7 @@ describe('SessionButton dirty indicator', () => {
     }
 
     renderWithProviders(
-      <SessionButton
+      <SessionCard
         session={session}
         index={0}
         isSelected={false}
@@ -94,7 +94,7 @@ describe('SessionButton dirty indicator', () => {
 
   it('does not show dirty indicator when has_uncommitted_changes is false for reviewed session', () => {
     renderWithProviders(
-      <SessionButton
+      <SessionCard
         session={{
           ...baseSession,
           info: {
@@ -119,7 +119,7 @@ describe('SessionButton dirty indicator', () => {
   })
 })
 
-describe('SessionButton running tag', () => {
+describe('SessionCard running tag', () => {
   it('shows running tag when session is reviewed but still running', () => {
     const session: EnrichedSession = {
       ...baseSession,
@@ -131,7 +131,7 @@ describe('SessionButton running tag', () => {
     }
 
     renderWithProviders(
-      <SessionButton
+      <SessionCard
         session={session}
         index={0}
         isSelected={false}
@@ -149,10 +149,10 @@ describe('SessionButton running tag', () => {
   })
 })
 
-describe('SessionButton review cooldown', () => {
+describe('SessionCard review cooldown', () => {
   it('disables the mark reviewed action when mark ready is temporarily blocked', () => {
     renderWithProviders(
-      <SessionButton
+      <SessionCard
         session={baseSession}
         index={0}
         isSelected={false}

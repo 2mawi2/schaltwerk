@@ -1,12 +1,12 @@
 import { render } from '@testing-library/react'
-import { SessionButton } from '../SessionButton'
+import { SessionCard } from '../SessionCard'
 import type { ComponentProps } from 'react'
 import { GithubIntegrationProvider } from '../../../contexts/GithubIntegrationContext'
 import { ToastProvider } from '../../../common/toast/ToastProvider'
 
-type SessionButtonProps = ComponentProps<typeof SessionButton>
+type SessionCardProps = ComponentProps<typeof SessionCard>
 
-const baseSession: SessionButtonProps['session'] = {
+const baseSession: SessionCardProps['session'] = {
   info: {
     session_id: 'session-123',
     session_state: 'running',
@@ -35,8 +35,8 @@ const baseSession: SessionButtonProps['session'] = {
   terminals: []
 }
 
-function renderButton(overrides: Partial<SessionButtonProps> = {}) {
-  const props: SessionButtonProps = {
+function renderButton(overrides: Partial<SessionCardProps> = {}) {
+  const props: SessionCardProps = {
     session: baseSession,
     index: 0,
     isSelected: false,
@@ -51,13 +51,13 @@ function renderButton(overrides: Partial<SessionButtonProps> = {}) {
   return render(
     <GithubIntegrationProvider>
       <ToastProvider>
-        <SessionButton {...props} />
+        <SessionCard {...props} />
       </ToastProvider>
     </GithubIntegrationProvider>
   )
 }
 
-describe('SessionButton busy state', () => {
+describe('SessionCard busy state', () => {
   it('renders busy overlay and disables interactions when isBusy is true', async () => {
     const { container } = renderButton({ isBusy: true })
 

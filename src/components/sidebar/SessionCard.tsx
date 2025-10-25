@@ -11,7 +11,7 @@ import { useMultipleShortcutDisplays } from '../../keyboardShortcuts/useShortcut
 import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
 import { detectPlatformSafe } from '../../keyboardShortcuts/helpers'
 
-interface SessionButtonProps {
+interface SessionCardProps {
     session: {
         info: SessionInfo
         status?: SessionMonitorStatus
@@ -57,7 +57,7 @@ function getSessionStateColor(state?: string): 'green' | 'violet' | 'gray' {
     }
 }
 
-export const SessionButton = memo<SessionButtonProps>(({ 
+export const SessionCard = memo<SessionCardProps>(({ 
     session, 
     index, 
     isSelected, 
@@ -225,7 +225,7 @@ export const SessionButton = memo<SessionButtonProps>(({
                     />
                 </div>
             )}
-            <div className="flex items-start justify-between gap-2">
+            <div className="flex items-start justify-between gap-2" style={{ marginBottom: '8px' }}>
                 <div className="flex-1 min-w-0">
                     <div className="font-medium text-slate-100 truncate flex items-center gap-2">
                         {sessionName}
@@ -302,7 +302,7 @@ export const SessionButton = memo<SessionButtonProps>(({
                 </div>
             </div>
             {sessionState !== 'spec' && (
-                <div className="flex items-center justify-between gap-2 -mt-0.5">
+                <div className="flex items-center justify-between gap-2">
                     <div className="text-[11px] text-slate-400 truncate max-w-[50%]">{s.branch}</div>
                     <div className="flex items-center gap-2">
                         <SessionActions
@@ -337,7 +337,7 @@ export const SessionButton = memo<SessionButtonProps>(({
                 </div>
             )}
             {sessionState === 'spec' && (
-                <div className="flex items-center justify-end -mt-0.5">
+                <div className="flex items-center justify-end">
                     <SessionActions
                         sessionState={sessionState as 'spec' | 'running' | 'reviewed'}
                         isReadyToMerge={isReadyToMerge}
