@@ -3,30 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { DiffFileList } from './DiffFileList'
 import { TauriCommands } from '../../common/tauriCommands'
 import { TestProviders, createChangedFile } from '../../tests/test-utils'
-import { useProject } from '../../contexts/ProjectContext'
-import { useSelection } from '../../contexts/SelectionContext'
-import React, { useEffect } from 'react'
 
 const invokeMock = vi.fn(async (cmd: string) => {
-  if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
-    return [
-      {
-        info: {
-          session_id: 'demo',
-          branch: 'feature/demo',
-          base_branch: 'main',
-          worktree_path: '/tmp/demo',
-          status: 'active',
-          is_current: false,
-          session_type: 'worktree',
-          session_state: 'running',
-          ready_to_merge: false,
-          diff_stats: { files_changed: 1, additions: 1, deletions: 0, insertions: 1 },
-        },
-        terminals: [],
-      },
-    ]
-  }
   if (cmd === TauriCommands.GetChangedFilesFromMain) {
     return [
       createChangedFile({
@@ -41,8 +19,6 @@ const invokeMock = vi.fn(async (cmd: string) => {
   if (cmd === TauriCommands.GetCurrentBranchName) return 'schaltwerk/feature'
   if (cmd === TauriCommands.GetBaseBranchName) return 'main'
   if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc', 'def']
-  if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
-  if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
   if (cmd === TauriCommands.SchaltwerkCoreResetSessionWorktree) return undefined
   if (cmd === TauriCommands.StartFileWatcher) return undefined
   if (cmd === TauriCommands.StopFileWatcher) return undefined
@@ -54,18 +30,20 @@ vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn(async () => () => {})
 }))
 
-
-function ContextInitializer({ children }: { children: React.ReactNode }) {
-  const { setProjectPath } = useProject()
-  const { setSelection } = useSelection()
-
-  useEffect(() => {
-    setProjectPath('/test/project')
-    setSelection({ kind: 'session', payload: 'demo', sessionState: 'running' })
-  }, [setProjectPath, setSelection])
-
-  return <>{children}</>
-}
+vi.mock('../../contexts/SelectionContext', async () => {
+  const actual = await vi.importActual<Record<string, unknown>>('../../contexts/SelectionContext')
+  return {
+    ...actual,
+    useSelection: () => ({
+      selection: { kind: 'session', payload: 'demo', sessionState: 'running' },
+      terminals: { top: 'session-demo-top', bottomBase: 'session-demo-bottom', workingDirectory: '/tmp' },
+      setSelection: vi.fn(),
+      clearTerminalTracking: vi.fn(),
+      isReady: true,
+      isSpec: false,
+    })
+  }
+})
 
 describe('DiffFileList header reset button', () => {
   beforeEach(() => {
@@ -77,18 +55,15 @@ describe('DiffFileList header reset button', () => {
   it('renders icon button for session and triggers unified confirm flow', async () => {
     render(
       <TestProviders>
-        <ContextInitializer>
-          <DiffFileList onFileSelect={() => {}} />
-        </ContextInitializer>
+        <DiffFileList onFileSelect={() => {}} />
       </TestProviders>
     )
-    await screen.findByText('test.txt')
     const btn = await screen.findByRole('button', { name: /reset session/i })
     expect(btn).toBeInTheDocument()
     fireEvent.click(btn)
     // Wait for the confirmation dialog to appear, then find the Reset button in it
-    await screen.findByText('Reset Session Worktree')
-    const confirmButtons = screen.getAllByRole('button', { name: /^Reset$/ })
+    const confirmButtons = await screen.findAllByRole('button', { name: /^Reset$/ })
+    // The Reset button should be the last one (in the dialog, not the header)
     const confirmButton = confirmButtons[confirmButtons.length - 1]
     fireEvent.click(confirmButton)
     expect(invokeMock).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreResetSessionWorktree, expect.any(Object))

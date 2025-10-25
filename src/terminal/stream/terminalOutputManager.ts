@@ -5,7 +5,6 @@ import { listenTerminalOutput } from '../../common/eventSystem'
 import { TauriCommands } from '../../common/tauriCommands'
 import { ackTerminalBackend, isPluginTerminal, subscribeTerminalBackend } from '../transport/backend'
 import { logger } from '../../utils/logger'
-import { safeUnlisten } from '../../utils/safeUnlisten'
 
 type TerminalStreamListener = (chunk: string) => void
 
@@ -73,11 +72,9 @@ class TerminalOutputManager {
     if (!stream) return
     if (stream.unlisten) {
       try {
-        const unlisten = stream.unlisten
-        stream.unlisten = undefined
-        void safeUnlisten(unlisten, `[TerminalOutput] standard listener for ${id}`)
+        stream.unlisten()
       } catch (error) {
-        logger.debug(`[TerminalOutput] standard unlisten scheduling failed for ${id}`, error)
+        logger.debug(`[TerminalOutput] standard unlisten failed for ${id}`, error)
       }
     }
     const pluginUnlisten = stream.pluginUnlisten

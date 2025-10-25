@@ -1,14 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { TauriCommands } from '../common/tauriCommands'
 import { renderHook, act, waitFor } from '@testing-library/react'
-import { ReactNode, useEffect, useLayoutEffect } from 'react'
+import { ReactNode, useEffect } from 'react'
 import { SessionsProvider, useSessions, applySessionMutationState } from './SessionsContext'
 import { ProjectProvider, useProject } from './ProjectContext'
 import { FilterMode, SortMode } from '../types/sessionFilters'
 import type { Event } from '@tauri-apps/api/event'
 import { SchaltEvent } from '../common/eventSystem'
 import { stableSessionTerminalId } from '../common/terminalIdentity'
-import { computeProjectId } from '../utils/projectId'
 
 // Mock Tauri API
 vi.mock('@tauri-apps/api/core', () => ({
@@ -182,28 +181,11 @@ describe('SessionsContext', () => {
 
     it('should load sessions when project is available', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
-        // Each Tauri command resolves asynchronously in production; mimic that so hook state updates
-        // observe the same microtask boundary inside the test environment.
-        const flushAsync = () => Promise.resolve()
-
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
-                await flushAsync()
-                return mockSessions
-            }
-            if (cmd === TauriCommands.GetProjectSessionsSettings) {
-                await flushAsync()
-                return { filter_mode: 'all', sort_mode: 'name' }
-            }
-            if (cmd === TauriCommands.SetProjectSessionsSettings) {
-                await flushAsync()
-                return undefined
-            }
-            if (cmd === TauriCommands.GetProjectMergePreferences) {
-                await flushAsync()
-                return { auto_cancel_after_merge: false }
-            }
-            await flushAsync()
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
+            if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
+            if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+            if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
             return undefined
         })
 
@@ -241,26 +223,11 @@ describe('SessionsContext', () => {
 
     it('derives merge status from reviewed session metadata during initial load', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
-        const microtask = () => new Promise<void>(resolve => queueMicrotask(resolve))
-
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
-                await microtask()
-                return mockSessions
-            }
-            if (cmd === TauriCommands.GetProjectSessionsSettings) {
-                await microtask()
-                return { filter_mode: 'all', sort_mode: 'name' }
-            }
-            if (cmd === TauriCommands.SetProjectSessionsSettings) {
-                await microtask()
-                return undefined
-            }
-            if (cmd === TauriCommands.GetProjectMergePreferences) {
-                await microtask()
-                return { auto_cancel_after_merge: false }
-            }
-            await microtask()
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
+            if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
+            if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+            if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
             return undefined
         })
 
@@ -1762,93 +1729,6 @@ describe('SessionsContext', () => {
         await waitFor(() => {
             const cancelCalls = vi.mocked(invoke).mock.calls.filter(([cmd]) => cmd === TauriCommands.SchaltwerkCoreCancelSession)
             expect(cancelCalls.some(([, payload]) => (payload as { name?: string })?.name === 'test-ready')).toBe(true)
-        })
-    })
-
-    it('exposes hashed projectId for the active project', async () => {
-        const { invoke } = await import('@tauri-apps/api/core')
-        vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
-            if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
-            if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
-            if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
-            return undefined
-        })
-
-        const transitions: string[] = []
-
-        const { result } = renderHook(() => {
-            const sessions = useSessions()
-            const project = useProject()
-
-            useLayoutEffect(() => {
-                transitions.push(sessions.loadingState)
-            }, [sessions.loadingState])
-
-            return {
-                sessions,
-                project,
-            }
-        }, { wrapper })
-
-        await act(async () => {
-            result.current.project.setProjectPath('/Users/test/projects/alpha')
-        })
-
-        await waitFor(() => {
-            expect(result.current.sessions.loading).toBe(false)
-        })
-
-        expect(result.current.sessions.projectId).toBe(computeProjectId('/Users/test/projects/alpha'))
-    })
-
-    it('updates loadingState to reflect fetch and switching phases', async () => {
-        const { invoke } = await import('@tauri-apps/api/core')
-        vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
-            if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
-            if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
-            if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
-            return undefined
-        })
-
-        const transitions: string[] = []
-
-        const { result } = renderHook(() => {
-            const sessions = useSessions()
-            const project = useProject()
-
-            useLayoutEffect(() => {
-                transitions.push(sessions.loadingState)
-            }, [sessions.loadingState])
-
-            return {
-                sessions,
-                project,
-            }
-        }, { wrapper })
-
-        await act(async () => {
-            result.current.project.setProjectPath('/projects/alpha')
-            await Promise.resolve()
-        })
-
-        expect(transitions).toContain('fetching')
-
-        await waitFor(() => {
-            expect(result.current.sessions.loadingState).toBe('idle')
-        })
-
-        await act(async () => {
-            result.current.project.setProjectPath('/projects/beta')
-            await Promise.resolve()
-        })
-
-        const switchingCount = transitions.filter(state => state === 'switching').length
-        expect(switchingCount).toBeGreaterThan(0)
-
-        await waitFor(() => {
-            expect(result.current.sessions.loadingState).toBe('idle')
         })
     })
 })

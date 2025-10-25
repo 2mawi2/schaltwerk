@@ -1,5 +1,4 @@
 import { listenEvent, SchaltEvent } from '../common/eventSystem'
-import { safeUnlisten } from './safeUnlisten'
 
 export async function waitForSessionsRefreshed<T>(
   action: () => Promise<T> | T
@@ -19,6 +18,6 @@ export async function waitForSessionsRefreshed<T>(
     await waitForEvent
     return result
   } finally {
-    await safeUnlisten(unlisten, '[waitForSessionsRefreshed] SessionsRefreshed listener')
+    unlisten()
   }
 }
