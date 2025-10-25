@@ -77,8 +77,8 @@ pub mod manager_test;
 pub use local::LocalPtyAdapter;
 pub use manager::TerminalManager;
 pub use shell_invocation::{
-    build_login_shell_invocation, build_login_shell_invocation_with_shell, sh_quote_string,
-    shell_invocation_to_posix, ShellInvocation,
+    ShellInvocation, build_login_shell_invocation, build_login_shell_invocation_with_shell,
+    sh_quote_string, shell_invocation_to_posix,
 };
 
 use std::sync::RwLock;
@@ -109,15 +109,16 @@ pub fn put_terminal_shell_override(shell: String, args: Vec<String>) {
 pub fn get_effective_shell() -> (String, Vec<String>) {
     // Use runtime override if present and valid
     if let Ok(guard) = TERMINAL_SHELL_STATE.read()
-        && let Some((shell, args)) = guard.clone() {
-            if let Some(resolved) = resolve_shell_candidate(&shell) {
-                return (resolved, args);
-            } else {
-                log::warn!(
-                    "Configured terminal shell {shell:?} is unavailable; falling back to defaults"
-                );
-            }
+        && let Some((shell, args)) = guard.clone()
+    {
+        if let Some(resolved) = resolve_shell_candidate(&shell) {
+            return (resolved, args);
+        } else {
+            log::warn!(
+                "Configured terminal shell {shell:?} is unavailable; falling back to defaults"
+            );
         }
+    }
 
     if let Ok(env_shell) = env::var("SHELL") {
         if let Some(resolved) = resolve_shell_candidate(&env_shell) {
@@ -216,12 +217,13 @@ fn resolve_shell_candidate(shell: &str) -> Option<String> {
 
 fn expand_home(shell: &str) -> String {
     if let Some(stripped) = shell.strip_prefix("~/")
-        && let Ok(home) = env::var("HOME") {
-            return PathBuf::from(home)
-                .join(stripped)
-                .to_string_lossy()
-                .into_owned();
-        }
+        && let Ok(home) = env::var("HOME")
+    {
+        return PathBuf::from(home)
+            .join(stripped)
+            .to_string_lossy()
+            .into_owned();
+    }
 
     shell.to_string()
 }

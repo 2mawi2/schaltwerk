@@ -61,7 +61,6 @@ export function TopBar({
   const openButtonRef = useRef<{ triggerOpen: () => Promise<void> } | null>(null)
   const [platform, setPlatform] = useState<UiPlatform>(() => normalizePlatform(detectPlatformSafe()))
   const isMac = platform === 'mac'
-
   useEffect(() => {
     let cancelled = false
     getPlatform()
@@ -163,7 +162,7 @@ export function TopBar({
             onSelectTab={onSelectTab}
             onCloseTab={onCloseTab}
             onOpenProjectSelector={onOpenProjectSelector}
-          />
+        />
         </div>
         
         {/* Spacer in the middle - MAIN draggable area */}
@@ -176,7 +175,6 @@ export function TopBar({
             userSelect: 'none'
           } as React.CSSProperties}
         />
-        
         {/* Branch indicator - only shows in development builds */}
         <BranchIndicator />
 

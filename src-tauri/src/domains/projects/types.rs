@@ -158,7 +158,10 @@ mod tests {
         let prev_xdg = env::var("XDG_CONFIG_HOME").ok();
 
         EnvAdapter::set_var("HOME", &tmp.path().to_string_lossy());
-        EnvAdapter::set_var("XDG_CONFIG_HOME", &tmp.path().join(".config").to_string_lossy());
+        EnvAdapter::set_var(
+            "XDG_CONFIG_HOME",
+            &tmp.path().join(".config").to_string_lossy(),
+        );
 
         let config_path = tmp.path().join(".config");
         std::fs::create_dir_all(&config_path).unwrap();

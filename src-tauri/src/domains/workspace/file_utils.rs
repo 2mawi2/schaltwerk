@@ -134,14 +134,15 @@ fn determine_non_diffable_reason(path: &Path) -> String {
     }
 
     if let Ok(metadata) = fs::metadata(path)
-        && metadata.len() > MAX_FILE_SIZE {
-            let size_mb = metadata.len() as f64 / (1024.0 * 1024.0);
-            return format!(
-                "File too large: {:.1} MB (max: {} MB)",
-                size_mb,
-                MAX_FILE_SIZE / (1024 * 1024)
-            );
-        }
+        && metadata.len() > MAX_FILE_SIZE
+    {
+        let size_mb = metadata.len() as f64 / (1024.0 * 1024.0);
+        return format!(
+            "File too large: {:.1} MB (max: {} MB)",
+            size_mb,
+            MAX_FILE_SIZE / (1024 * 1024)
+        );
+    }
 
     if let Ok(true) = is_binary_file_impl(path) {
         return "Binary file content detected".to_string();

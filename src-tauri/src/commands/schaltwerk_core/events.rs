@@ -1,6 +1,6 @@
-use crate::commands::sessions_refresh::request_sessions_refresh;
 pub use crate::commands::sessions_refresh::SessionsRefreshReason;
-use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
+use crate::commands::sessions_refresh::request_sessions_refresh;
+use schaltwerk::infrastructure::events::{SchaltEvent, emit_event};
 use tauri::AppHandle;
 
 #[derive(serde::Serialize, Clone)]

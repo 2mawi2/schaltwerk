@@ -8,8 +8,8 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use anyhow::{anyhow, Context, Result};
-use git2::{build::CheckoutBuilder, BranchType, ErrorCode, MergeOptions, Oid, Repository};
+use anyhow::{Context, Result, anyhow};
+use git2::{BranchType, ErrorCode, MergeOptions, Oid, Repository, build::CheckoutBuilder};
 #[cfg(test)]
 use log::error;
 use log::{debug, info, warn};
@@ -788,39 +788,41 @@ fn fast_forward_branch(repo: &Repository, branch: &str, new_oid: Oid) -> Result<
     let mut skip_reason: Option<String> = None;
 
     if let Ok(head) = repo.head()
-        && head.is_branch() && head.shorthand() == Some(branch) {
-            if let Some(workdir) = repo.workdir() {
-                let workdir_path = workdir.to_path_buf();
-                match pre_update_state {
-                    Some(Ok(status)) => {
-                        if status.has_tracked_changes {
-                            skip_reason = Some(format!(
-                                "working tree '{}' has tracked changes",
-                                workdir_path.display()
-                            ));
-                        } else {
-                            should_update_worktree = true;
-                            if status.has_untracked_changes {
-                                debug!(
-                                    "{OPERATION_LABEL}: updating working tree for branch '{branch}' while preserving untracked files"
-                                );
-                            }
-                        }
-                    }
-                    Some(Err(err)) => {
+        && head.is_branch()
+        && head.shorthand() == Some(branch)
+    {
+        if let Some(workdir) = repo.workdir() {
+            let workdir_path = workdir.to_path_buf();
+            match pre_update_state {
+                Some(Ok(status)) => {
+                    if status.has_tracked_changes {
                         skip_reason = Some(format!(
-                            "unable to inspect working tree '{}': {err}",
+                            "working tree '{}' has tracked changes",
                             workdir_path.display()
                         ));
-                    }
-                    None => {
+                    } else {
                         should_update_worktree = true;
+                        if status.has_untracked_changes {
+                            debug!(
+                                "{OPERATION_LABEL}: updating working tree for branch '{branch}' while preserving untracked files"
+                            );
+                        }
                     }
                 }
-            } else {
-                should_update_worktree = true;
+                Some(Err(err)) => {
+                    skip_reason = Some(format!(
+                        "unable to inspect working tree '{}': {err}",
+                        workdir_path.display()
+                    ));
+                }
+                None => {
+                    should_update_worktree = true;
+                }
             }
+        } else {
+            should_update_worktree = true;
         }
+    }
 
     if should_update_worktree {
         debug!("{OPERATION_LABEL}: updating working tree for branch '{branch}'");
@@ -991,18 +993,24 @@ mod tests {
 
         assert_eq!(preview.parent_branch, "main");
         assert_eq!(preview.session_branch, session.branch);
-        assert!(preview
-            .squash_commands
-            .iter()
-            .any(|cmd| cmd.starts_with("git rebase")));
-        assert!(preview
-            .squash_commands
-            .iter()
-            .any(|cmd| cmd.starts_with("git reset --soft")));
-        assert!(preview
-            .reapply_commands
-            .iter()
-            .any(|cmd| cmd.starts_with("git rebase")));
+        assert!(
+            preview
+                .squash_commands
+                .iter()
+                .any(|cmd| cmd.starts_with("git rebase"))
+        );
+        assert!(
+            preview
+                .squash_commands
+                .iter()
+                .any(|cmd| cmd.starts_with("git reset --soft"))
+        );
+        assert!(
+            preview
+                .reapply_commands
+                .iter()
+                .any(|cmd| cmd.starts_with("git rebase"))
+        );
         assert!(!preview.has_conflicts);
         assert!(!preview.is_up_to_date);
         assert!(preview.conflicting_paths.is_empty());

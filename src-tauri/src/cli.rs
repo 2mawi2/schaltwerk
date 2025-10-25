@@ -1,6 +1,6 @@
 use clap::CommandFactory;
 
-pub use schaltwerk::shared::cli::{detect_special_cli_action, Cli, SpecialCliAction, VERSION};
+pub use schaltwerk::shared::cli::{Cli, SpecialCliAction, VERSION, detect_special_cli_action};
 
 pub fn perform_special_cli_action(action: SpecialCliAction) {
     match action {

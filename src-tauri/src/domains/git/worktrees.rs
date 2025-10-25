@@ -1,8 +1,8 @@
 use super::{branches::ensure_branch_at_head, repository::get_commit_hash};
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use git2::{
-    build::CheckoutBuilder, BranchType, ErrorCode, Oid, Repository, ResetType, WorktreeAddOptions,
-    WorktreePruneOptions,
+    BranchType, ErrorCode, Oid, Repository, ResetType, WorktreeAddOptions, WorktreePruneOptions,
+    build::CheckoutBuilder,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -105,13 +105,14 @@ pub fn discard_path_in_worktree(
 
     // Reset the index entry for this path back to HEAD, tolerating files that were removed in HEAD.
     if let Err(err) = repo.reset_default(None, [rel_str.as_str()])
-        && err.code() != ErrorCode::NotFound {
-            return Err(anyhow!(
-                "Failed to reset index for {}: {}",
-                rel_str,
-                err.message()
-            ));
-        }
+        && err.code() != ErrorCode::NotFound
+    {
+        return Err(anyhow!(
+            "Failed to reset index for {}: {}",
+            rel_str,
+            err.message()
+        ));
+    }
 
     // Fall back to HEAD behaviour when no base reference is available.
     if tracked_in_head {
@@ -187,9 +188,10 @@ fn resolve_branch_commit_oid(repo: &Repository, branch: &str) -> Result<Option<O
 
     for reference_name in candidates {
         if let Ok(reference) = repo.find_reference(&reference_name)
-            && let Ok(commit) = reference.peel_to_commit() {
-                return Ok(Some(commit.id()));
-            }
+            && let Ok(commit) = reference.peel_to_commit()
+        {
+            return Ok(Some(commit.id()));
+        }
     }
 
     Ok(None)
@@ -275,9 +277,10 @@ pub fn remove_worktree(repo_path: &Path, worktree_path: &Path) -> Result<()> {
             if canonical_wt_path == canonical_target_path || wt_path == worktree_path {
                 // First remove the directory (this makes the worktree invalid)
                 if worktree_path.exists()
-                    && let Err(e) = std::fs::remove_dir_all(worktree_path) {
-                        return Err(anyhow!("Failed to remove worktree directory: {e}"));
-                    }
+                    && let Err(e) = std::fs::remove_dir_all(worktree_path)
+                {
+                    return Err(anyhow!("Failed to remove worktree directory: {e}"));
+                }
 
                 // Now prune the worktree (should work since directory is gone)
                 if let Err(e) = wt.prune(Some(&mut WorktreePruneOptions::new())) {
@@ -480,10 +483,11 @@ pub fn reset_worktree_to_base(worktree_path: &Path, base_branch: &str) -> Result
     let mut target_obj = None;
     for name in &base_ref_names {
         if let Ok(reference) = repo.find_reference(name)
-            && let Some(oid) = reference.target() {
-                target_obj = Some(repo.find_object(oid, None)?);
-                break;
-            }
+            && let Some(oid) = reference.target()
+        {
+            target_obj = Some(repo.find_object(oid, None)?);
+            break;
+        }
     }
 
     let target_obj = target_obj.ok_or_else(|| {
@@ -539,7 +543,7 @@ mod unit_logic_tests {
 #[cfg(test)]
 mod discard_path_tests {
     use super::*;
-    use git2::{build::CheckoutBuilder, Repository};
+    use git2::{Repository, build::CheckoutBuilder};
     use tempfile::TempDir;
 
     fn init_repo(dir: &Path) -> Repository {

@@ -343,9 +343,11 @@ mod session_sorting_tests {
         assert_eq!(updated_sessions.len(), initial_count + 1);
 
         // Should find the new session
-        assert!(updated_sessions
-            .iter()
-            .any(|s| s.info.session_id == "new-session"));
+        assert!(
+            updated_sessions
+                .iter()
+                .any(|s| s.info.session_id == "new-session")
+        );
     }
 
     #[tokio::test]

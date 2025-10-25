@@ -845,7 +845,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_agent_top_terminal_has_larger_buffer() {
-        use tokio::time::{sleep, Duration};
+        use tokio::time::{Duration, sleep};
         let manager = TerminalManager::new();
         // Simulate an agent conversation terminal (session top)
         let id = unique_id("session-longhistory-top");

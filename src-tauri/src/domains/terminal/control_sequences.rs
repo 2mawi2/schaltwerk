@@ -195,7 +195,7 @@ pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
 
 #[cfg(test)]
 mod tests {
-    use super::{sanitize_control_sequences, SanitizedOutput, SequenceResponse};
+    use super::{SanitizedOutput, SequenceResponse, sanitize_control_sequences};
 
     #[test]
     fn handles_cursor_position_queries() {

@@ -96,16 +96,17 @@ fn detect_version(path: &Path) -> Option<String> {
 
     for flag in version_flags {
         if let Ok(output) = Command::new(path).arg(flag).output()
-            && output.status.success() {
-                let version_output = String::from_utf8_lossy(&output.stdout);
-                if !version_output.trim().is_empty() {
-                    let version = version_output.lines().next().unwrap_or("").trim();
-                    if !version.is_empty() {
-                        debug!("Detected version for {}: {}", path.display(), version);
-                        return Some(version.to_string());
-                    }
+            && output.status.success()
+        {
+            let version_output = String::from_utf8_lossy(&output.stdout);
+            if !version_output.trim().is_empty() {
+                let version = version_output.lines().next().unwrap_or("").trim();
+                if !version.is_empty() {
+                    debug!("Detected version for {}: {}", path.display(), version);
+                    return Some(version.to_string());
                 }
             }
+        }
     }
 
     debug!("Could not detect version for: {}", path.display());

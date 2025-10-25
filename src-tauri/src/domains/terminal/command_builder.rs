@@ -229,13 +229,14 @@ fn resolve_command(command: &str) -> String {
 
     if let Ok(output) = std::process::Command::new("which").arg(command).output()
         && output.status.success()
-            && let Ok(path) = String::from_utf8(output.stdout) {
-                let path = path.trim();
-                if !path.is_empty() {
-                    log::info!("Found {command} via which: {path}");
-                    return path.to_string();
-                }
-            }
+        && let Ok(path) = String::from_utf8(output.stdout)
+    {
+        let path = path.trim();
+        if !path.is_empty() {
+            log::info!("Found {command} via which: {path}");
+            return path.to_string();
+        }
+    }
 
     log::warn!("Could not resolve path for '{command}', using as-is");
     command.to_string()
@@ -325,14 +326,17 @@ mod tests {
     #[test]
     fn environment_includes_terminal_metadata() {
         let env = build_environment(80, 24);
-        assert!(env
-            .iter()
-            .any(|(key, value)| key == "TERM_PROGRAM" && value == "schaltwerk"));
-        assert!(env
-            .iter()
-            .any(|(key, value)| { key == "TERM_PROGRAM_VERSION" && !value.trim().is_empty() }));
-        assert!(env
-            .iter()
-            .any(|(key, value)| key == "COLORTERM" && value == "truecolor"));
+        assert!(
+            env.iter()
+                .any(|(key, value)| key == "TERM_PROGRAM" && value == "schaltwerk")
+        );
+        assert!(
+            env.iter()
+                .any(|(key, value)| { key == "TERM_PROGRAM_VERSION" && !value.trim().is_empty() })
+        );
+        assert!(
+            env.iter()
+                .any(|(key, value)| key == "COLORTERM" && value == "truecolor")
+        );
     }
 }

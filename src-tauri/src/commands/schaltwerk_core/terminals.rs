@@ -12,10 +12,14 @@ pub use schaltwerk::shared::terminal_id::{
 pub fn ensure_cwd_access<P: AsRef<Path>>(cwd: P) -> Result<(), String> {
     match std::fs::read_dir(&cwd) {
         Ok(_) => Ok(()),
-        Err(e) if e.kind()==std::io::ErrorKind::PermissionDenied =>
-            Err(format!("Permission required for folder: {}. Please grant access when prompted and then retry starting the agent.", cwd.as_ref().display())),
-        Err(e) if e.kind()==std::io::ErrorKind::NotFound =>
-            Err(format!("Working directory not found: {}", cwd.as_ref().display())),
+        Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => Err(format!(
+            "Permission required for folder: {}. Please grant access when prompted and then retry starting the agent.",
+            cwd.as_ref().display()
+        )),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Err(format!(
+            "Working directory not found: {}",
+            cwd.as_ref().display()
+        )),
         Err(e) => Err(format!("Error accessing working directory: {e}")),
     }
 }

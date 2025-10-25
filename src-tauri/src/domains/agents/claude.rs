@@ -42,7 +42,8 @@ pub fn find_resumable_claude_session_fast(path: &Path) -> Option<String> {
         candidates.push(project_dir.clone());
     }
     if let Some(a) = alt_project_dir
-        && visited.insert(a.clone()) {
+        && visited.insert(a.clone())
+    {
         log::info!(
             "Claude session detection (fast-path): Adding canonical candidate dir: {}",
             a.display()
@@ -293,7 +294,7 @@ pub fn build_claude_command_with_config(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use filetime::{set_file_mtime, FileTime};
+    use filetime::{FileTime, set_file_mtime};
     use std::fs::{self, File};
     use std::io::Write as _;
     use std::path::Path;
@@ -627,7 +628,9 @@ mod tests {
     fn test_sanitize_schaltwerk_worktree_path() {
         // Matches observed ~/.claude/projects folder for this worktree:
         // -Users-marius-wichtner-Documents-git-schaltwerk--schaltwerk-worktrees-auto-submit-functionality
-        let path = Path::new("/Users/marius.wichtner/Documents/git/schaltwerk/.schaltwerk/worktrees/auto-submit-functionality");
+        let path = Path::new(
+            "/Users/marius.wichtner/Documents/git/schaltwerk/.schaltwerk/worktrees/auto-submit-functionality",
+        );
         let sanitized = sanitize_path_for_claude(path);
         assert_eq!(
             sanitized,

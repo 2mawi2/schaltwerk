@@ -6,13 +6,13 @@ use std::time::Duration;
 use crate::domains::merge::service::compute_merge_state;
 use crate::domains::merge::types::MergeStateSnapshot;
 use crate::domains::sessions::activity::SessionGitStatsUpdated;
-use crate::infrastructure::events::{emit_event, SchaltEvent};
+use crate::infrastructure::events::{SchaltEvent, emit_event};
 use log::{debug, error, info, trace, warn};
 use notify::{RecommendedWatcher, RecursiveMode};
-use notify_debouncer_mini::{new_debouncer, DebounceEventResult, Debouncer};
+use notify_debouncer_mini::{DebounceEventResult, Debouncer, new_debouncer};
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{Mutex, mpsc};
 
 use crate::domains::git::service as git;
 use crate::domains::sessions::entity::ChangedFile;
@@ -94,7 +94,9 @@ impl FileWatcher {
                         )
                         .await
                         {
-                            warn!("Failed to handle file changes for session {session_name_clone}: {e}");
+                            warn!(
+                                "Failed to handle file changes for session {session_name_clone}: {e}"
+                            );
                         }
                     }
                     Err(e) => {
@@ -132,21 +134,22 @@ impl FileWatcher {
 
         // Also watch the worktree's gitdir/index to catch commit events (for linked worktrees)
         if let Some(ref idx) = self._gitdir_index
-            && let Some(parent) = idx.parent() {
-                watcher
-                    .watch(parent, RecursiveMode::NonRecursive)
-                    .map_err(|e| {
-                        format!(
-                            "Failed to watch gitdir index parent {}: {e}",
-                            parent.display()
-                        )
-                    })?;
-                info!(
-                    "Started watching gitdir index for session {} at {}",
-                    self._session_name,
-                    idx.display()
-                );
-            }
+            && let Some(parent) = idx.parent()
+        {
+            watcher
+                .watch(parent, RecursiveMode::NonRecursive)
+                .map_err(|e| {
+                    format!(
+                        "Failed to watch gitdir index parent {}: {e}",
+                        parent.display()
+                    )
+                })?;
+            info!(
+                "Started watching gitdir index for session {} at {}",
+                self._session_name,
+                idx.display()
+            );
+        }
 
         info!(
             "Started file watching for session {} at path {}",
@@ -160,10 +163,11 @@ impl FileWatcher {
         let dot_git = worktree_path.join(".git");
         if dot_git.is_file() {
             if let Ok(s) = std::fs::read_to_string(&dot_git)
-                && let Some(rest) = s.strip_prefix("gitdir: ") {
-                    let gitdir = PathBuf::from(rest.trim());
-                    return Some(gitdir.join("index"));
-                }
+                && let Some(rest) = s.strip_prefix("gitdir: ")
+            {
+                let gitdir = PathBuf::from(rest.trim());
+                return Some(gitdir.join("index"));
+            }
         } else if dot_git.is_dir() {
             return Some(dot_git.join("index"));
         }
@@ -212,7 +216,11 @@ impl FileWatcher {
         }
         debug!(
             "Processing file changes for session {}: {} events (commit_signals index:{} head:{} refs:{})",
-            session_name, events.len(), saw_index, saw_head, saw_refs
+            session_name,
+            events.len(),
+            saw_index,
+            saw_head,
+            saw_refs
         );
 
         let changed_files = git::get_changed_files(worktree_path, base_branch)
@@ -400,30 +408,30 @@ impl FileWatcher {
         // Staged: tree (HEAD or merge-base) to index
         if let Ok(idx) = repo.index()
             && let Ok(head) = repo.head()
-                && let Some(head_oid) = head.target()
-                    && let Ok(head_commit) = repo.find_commit(head_oid)
-                        && let Ok(head_tree) = head_commit.tree() {
-                            let mut opts = git2::DiffOptions::new();
-                            if let Ok(diff_idx) = repo.diff_tree_to_index(
-                                Some(&head_tree),
-                                Some(&idx),
-                                Some(&mut opts),
-                            )
-                                && let Ok(stats) = diff_idx.stats() {
-                                    lines_added += stats.insertions() as u32;
-                                    lines_removed += stats.deletions() as u32;
-                                }
-                        }
+            && let Some(head_oid) = head.target()
+            && let Ok(head_commit) = repo.find_commit(head_oid)
+            && let Ok(head_tree) = head_commit.tree()
+        {
+            let mut opts = git2::DiffOptions::new();
+            if let Ok(diff_idx) =
+                repo.diff_tree_to_index(Some(&head_tree), Some(&idx), Some(&mut opts))
+                && let Ok(stats) = diff_idx.stats()
+            {
+                lines_added += stats.insertions() as u32;
+                lines_removed += stats.deletions() as u32;
+            }
+        }
 
         // Unstaged: index to workdir
         if let Ok(idx) = repo.index() {
             let mut opts = git2::DiffOptions::new();
             opts.include_untracked(true).recurse_untracked_dirs(true);
             if let Ok(diff_wd) = repo.diff_index_to_workdir(Some(&idx), Some(&mut opts))
-                && let Ok(stats) = diff_wd.stats() {
-                    lines_added += stats.insertions() as u32;
-                    lines_removed += stats.deletions() as u32;
-                }
+                && let Ok(stats) = diff_wd.stats()
+            {
+                lines_added += stats.insertions() as u32;
+                lines_removed += stats.deletions() as u32;
+            }
         }
 
         Ok(ChangeSummary {

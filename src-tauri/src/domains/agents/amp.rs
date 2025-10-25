@@ -170,11 +170,7 @@ pub fn build_amp_command_with_config(
     let binary_name = if let Some(cfg) = config {
         if let Some(ref path) = cfg.binary_path {
             let trimmed = path.trim();
-            if !trimmed.is_empty() {
-                trimmed
-            } else {
-                "amp"
-            }
+            if !trimmed.is_empty() { trimmed } else { "amp" }
         } else {
             "amp"
         }
@@ -189,7 +185,8 @@ pub fn build_amp_command_with_config(
 
     // Amp supports stdin input, so we can pipe the prompt if provided
     if let Some(prompt) = initial_prompt
-        && !prompt.trim().is_empty() {
+        && !prompt.trim().is_empty()
+    {
         let escaped = super::escape_prompt_for_shell(prompt);
         cmd.push_str("echo \"");
         cmd.push_str(&escaped);
@@ -200,7 +197,8 @@ pub fn build_amp_command_with_config(
 
     // Resume existing thread if session_id is provided
     if let Some(thread_id) = session_id
-        && !thread_id.is_empty() {
+        && !thread_id.is_empty()
+    {
         cmd.push_str(" threads continue ");
         cmd.push_str(thread_id);
     }

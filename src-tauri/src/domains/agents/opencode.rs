@@ -488,7 +488,8 @@ fn resolve_opencode_binary_with_config(config: Option<&OpenCodeConfig>) -> Strin
 
     // Check config first (useful for tests)
     if let Some(cfg) = config
-        && let Some(ref path) = cfg.binary_path {
+        && let Some(ref path) = cfg.binary_path
+    {
         let trimmed = path.trim();
         if !trimmed.is_empty() {
             log::info!("Using opencode from config: {trimmed}");
@@ -540,7 +541,8 @@ fn resolve_opencode_binary_impl(command: &str) -> String {
 
     if let Ok(output) = std::process::Command::new("which").arg(command).output()
         && output.status.success()
-        && let Ok(path) = String::from_utf8(output.stdout) {
+        && let Ok(path) = String::from_utf8(output.stdout)
+    {
         let path = path.trim();
         if !path.is_empty() {
             log::info!("Found opencode via which: {path}");

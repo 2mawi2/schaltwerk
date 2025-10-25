@@ -1,11 +1,11 @@
-use super::coalescing::{handle_coalesced_output, CoalescingParams, CoalescingState};
+use super::coalescing::{CoalescingParams, CoalescingState, handle_coalesced_output};
 use super::command_builder::build_command_spec;
-use super::control_sequences::{sanitize_control_sequences, SanitizedOutput, SequenceResponse};
+use super::control_sequences::{SanitizedOutput, SequenceResponse, sanitize_control_sequences};
 use super::idle_detection::{IdleDetector, IdleTransition};
 use super::lifecycle::{self, LifecycleDeps};
 use super::visible::VisibleScreen;
 use super::{CreateParams, TerminalBackend, TerminalSnapshot};
-use crate::infrastructure::events::{emit_event, SchaltEvent};
+use crate::infrastructure::events::{SchaltEvent, emit_event};
 use crate::shared::terminal_id::is_session_top_terminal_id;
 use log::{debug, error, info, trace, warn};
 use portable_pty::{Child, MasterPty, NativePtySystem, PtySize, PtySystem};
@@ -14,7 +14,7 @@ use std::io::{Read, Write};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 use tauri::AppHandle;
-use tokio::sync::{broadcast, Mutex, RwLock};
+use tokio::sync::{Mutex, RwLock, broadcast};
 
 const DEFAULT_MAX_BUFFER_SIZE: usize = 2 * 1024 * 1024;
 const AGENT_MAX_BUFFER_SIZE: usize = 64 * 1024 * 1024;
@@ -929,7 +929,7 @@ impl TerminalBackend for LocalPtyAdapter {
             }
             // Use blocking wait inside a timeout without inner sleeps
             let wait_res = {
-                use tokio::time::{timeout, Duration};
+                use tokio::time::{Duration, timeout};
                 timeout(
                     Duration::from_millis(500),
                     tokio::task::spawn_blocking(move || child.wait()),
@@ -1045,9 +1045,10 @@ fn session_id_from_terminal_id(id: &str) -> Option<String> {
 
     // Remove numeric index at end like -0, -1 FIRST
     if let Some((prefix, maybe_index)) = rest.rsplit_once('-')
-        && maybe_index.chars().all(|c| c.is_ascii_digit()) {
-            rest = prefix;
-        }
+        && maybe_index.chars().all(|c| c.is_ascii_digit())
+    {
+        rest = prefix;
+    }
 
     // Remove terminal position suffix (-top or -bottom)
     for suffix in ["-top", "-bottom"] {
@@ -1069,8 +1070,8 @@ fn session_id_from_terminal_id(id: &str) -> Option<String> {
 mod tests {
     use super::super::ApplicationSpec;
     use super::*;
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
     use tokio::time::sleep;
 
@@ -1413,30 +1414,38 @@ mod tests {
 
         adapter.close(&id).await.unwrap();
 
-        assert!(!adapter
-            .coalescing_state
-            .emit_buffers
-            .read()
-            .await
-            .contains_key(&id));
-        assert!(!adapter
-            .coalescing_state
-            .emit_scheduled
-            .read()
-            .await
-            .contains_key(&id));
-        assert!(!adapter
-            .coalescing_state
-            .emit_buffers_norm
-            .read()
-            .await
-            .contains_key(&id));
-        assert!(!adapter
-            .coalescing_state
-            .norm_last_cr
-            .read()
-            .await
-            .contains_key(&id));
+        assert!(
+            !adapter
+                .coalescing_state
+                .emit_buffers
+                .read()
+                .await
+                .contains_key(&id)
+        );
+        assert!(
+            !adapter
+                .coalescing_state
+                .emit_scheduled
+                .read()
+                .await
+                .contains_key(&id)
+        );
+        assert!(
+            !adapter
+                .coalescing_state
+                .emit_buffers_norm
+                .read()
+                .await
+                .contains_key(&id)
+        );
+        assert!(
+            !adapter
+                .coalescing_state
+                .norm_last_cr
+                .read()
+                .await
+                .contains_key(&id)
+        );
     }
 
     #[tokio::test]

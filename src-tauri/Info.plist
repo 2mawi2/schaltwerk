@@ -10,5 +10,7 @@
     <string>Schaltwerk needs access to your Documents folder to manage development sessions and run AI agents.</string>
     <key>NSDownloadsFolderUsageDescription</key>
     <string>Schaltwerk needs access to your Downloads folder to manage development sessions.</string>
+    <key>NSUserNotificationUsageDescription</key>
+    <string>Schaltwerk uses notifications to alert you when agents finish or need attention.</string>
 </dict>
 </plist>

@@ -1,6 +1,6 @@
 use super::{agent_ctx, terminals};
 use crate::get_terminal_manager;
-use schaltwerk::domains::agents::{parse_agent_command, AgentLaunchSpec};
+use schaltwerk::domains::agents::{AgentLaunchSpec, parse_agent_command};
 use schaltwerk::domains::terminal::manager::CreateTerminalWithAppAndSizeParams;
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock};

@@ -1,5 +1,5 @@
 use crate::domains::terminal::{
-    manager::CreateTerminalWithAppAndSizeParams, TerminalManager, TerminalSnapshot,
+    TerminalManager, TerminalSnapshot, manager::CreateTerminalWithAppAndSizeParams,
 };
 use crate::project_manager::ProjectManager;
 use crate::schaltwerk_core::db_project_config::ProjectConfigMethods;

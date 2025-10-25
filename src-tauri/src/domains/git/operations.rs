@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use git2::{IndexAddOption, Repository, Status, StatusOptions};
 use std::path::Path;
 
@@ -43,7 +43,8 @@ pub fn get_uncommitted_changes_status(worktree_path: &Path) -> Result<Uncommitte
 
     for entry in statuses.iter() {
         if let Some(path) = entry.path()
-            && is_internal_tooling_path(path) {
+            && is_internal_tooling_path(path)
+        {
             continue;
         }
 
@@ -87,7 +88,8 @@ pub fn has_conflicts(worktree_path: &Path) -> Result<bool> {
             continue;
         }
         if let Some(path) = entry.path()
-            && is_internal_tooling_path(path) {
+            && is_internal_tooling_path(path)
+        {
             continue;
         }
         log::debug!(
@@ -149,7 +151,8 @@ pub fn commit_all_changes(worktree_path: &Path, message: &str) -> Result<()> {
 
     // If we have a parent, check if the tree is the same (nothing to commit)
     if let Some(ref parent) = parent_commit
-        && parent.tree_id() == tree_id {
+        && parent.tree_id() == tree_id
+    {
         return Ok(());
     }
 
