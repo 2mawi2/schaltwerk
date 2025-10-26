@@ -180,6 +180,7 @@ function useDiffLoader({
   const cancelledSessionsRef = useRef<Set<string>>(new Set())
   const mountedRef = useRef(true)
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const orchestratorThrottleRef = useRef<{ timer: ReturnType<typeof setTimeout> | null; lastTs: number }>({ timer: null, lastTs: 0 })
 
   useEffect(() => {
     return () => {
@@ -317,7 +318,11 @@ function useDiffLoader({
 
     const token = ++requestIdRef.current
     activeLoadRef.current = { key, token }
-    setIsLoading(true)
+    // Avoid flashing loader for orchestrator refreshes once initial data exists
+    const avoidOrchestratorLoading = commander && !currentSessionName && Boolean(lastSignatureRef.current)
+    if (!avoidOrchestratorLoading) {
+      setIsLoading(true)
+    }
 
     try {
       if (commander && !currentSessionName) {
@@ -567,8 +572,28 @@ function useDiffLoader({
 
           if (isOrchestratorMatch) {
             const entry = buildOrchestratorEntry(event.changed_files, entryBranch)
-            applyCacheEntry(ORCHESTRATOR_SESSION_NAME, entry)
-            setIsLoading(false)
+            // Skip if unchanged signature
+            if (lastSignatureRef.current === entry.signature) {
+              setIsLoading(false)
+              return
+            }
+            // Throttle orchestrator updates to at most once per second
+            const now = Date.now()
+            const minInterval = 1000
+            const elapsed = now - orchestratorThrottleRef.current.lastTs
+            const apply = () => {
+              applyCacheEntry(ORCHESTRATOR_SESSION_NAME, entry)
+              orchestratorThrottleRef.current.lastTs = Date.now()
+              setIsLoading(false)
+            }
+            if (elapsed < minInterval) {
+              if (orchestratorThrottleRef.current.timer) {
+                clearTimeout(orchestratorThrottleRef.current.timer)
+              }
+              orchestratorThrottleRef.current.timer = setTimeout(apply, minInterval - elapsed)
+            } else {
+              apply()
+            }
             return
           }
 
@@ -600,9 +625,8 @@ function useDiffLoader({
             return
           }
 
-          load({ invalidateCache: true, force: true }).catch((error) => {
-            logger.debug('Load after git stats update failed', { error })
-          })
+          // For orchestrator, rely on FileChanges events; avoid extra loads that cause UI churn
+          return
         })
       } catch (error) {
         logger.error('[DiffFileList] Failed to register git stats listener:', error)
@@ -656,6 +680,11 @@ function useDiffLoader({
         void invoke(TauriCommands.StopFileWatcher, { sessionName: currentSession }).catch(err => {
           logger.warn('[DiffFileList] Failed to stop file watcher on cleanup:', err)
         })
+      }
+
+      if (orchestratorThrottleRef.current.timer) {
+        clearTimeout(orchestratorThrottleRef.current.timer)
+        orchestratorThrottleRef.current.timer = null
       }
 
       void safeUnlisten(fileChangesUnlisten, '[DiffFileList] file changes cleanup')
@@ -785,7 +814,8 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
     }
   }, [sessionName, resolvedCommander])
 
-  const isBusy = diffLoaderStatus === 'waiting' || (isLoading && (resolvedCommander || Boolean(sessionName)))
+  // Only block the view with a loader during initial load; on subsequent refreshes keep content visible
+  const showLoading = diffLoaderStatus === 'waiting' || ((resolvedCommander || Boolean(sessionName)) && isLoading && files.length === 0)
 
   return (
     <>
@@ -853,7 +883,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
               <div className="text-xs mt-1">Select a session to view changes</div>
             </div>
           </div>
-        ) : isBusy ? (
+        ) : showLoading ? (
           <div className="flex-1 flex items-center justify-center text-slate-500">
             <AnimatedText text="loading" size="sm" />
           </div>
