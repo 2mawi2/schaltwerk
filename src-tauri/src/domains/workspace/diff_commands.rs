@@ -1,5 +1,5 @@
 use std::path::Path;
-use crate::{get_schaltwerk_core, get_project_manager};
+use crate::get_project_manager;
 use crate::domains::git::service as git;
 use crate::domains::sessions::entity::ChangedFile;
 use crate::domains::workspace::file_utils;
@@ -846,13 +846,21 @@ fn find_session_with_fallback<'a>(
 
 async fn get_repo_path(session_name: Option<String>) -> Result<String, String> {
     if let Some(name) = session_name {
-        let core = get_schaltwerk_core().await?;
-        let core = core.lock().await;
-        let manager = core.session_manager();
-        
-        let sessions = manager.list_enriched_sessions()
+        let project_manager = get_project_manager().await;
+        let project = project_manager
+            .current_project()
+            .await
+            .map_err(|e| format!("Failed to get project context: {e}"))?;
+
+        let session_manager = {
+            let core = project.schaltwerk_core.read().await;
+            core.session_manager()
+        };
+
+        let sessions = session_manager
+            .list_enriched_sessions()
             .map_err(|e| format!("Failed to get sessions: {e}"))?;
-        
+
         if let Some(session) = find_session_with_fallback(&sessions, &name) {
             Ok(session.info.worktree_path.clone())
         } else {
@@ -882,13 +890,21 @@ async fn get_repo_path(session_name: Option<String>) -> Result<String, String> {
 
 async fn get_base_branch(session_name: Option<String>) -> Result<String, String> {
     if let Some(name) = session_name {
-        let core = get_schaltwerk_core().await?;
-        let core = core.lock().await;
-        let manager = core.session_manager();
-        
-        let sessions = manager.list_enriched_sessions()
+        let project_manager = get_project_manager().await;
+        let project = project_manager
+            .current_project()
+            .await
+            .map_err(|e| format!("Failed to get project context: {e}"))?;
+
+        let session_manager = {
+            let core = project.schaltwerk_core.read().await;
+            core.session_manager()
+        };
+
+        let sessions = session_manager
+            .list_enriched_sessions()
             .map_err(|e| format!("Failed to get sessions: {e}"))?;
-        
+
         if let Some(session) = find_session_with_fallback(&sessions, &name) {
             Ok(session.info.base_branch.clone())
         } else {

@@ -1,5 +1,5 @@
 use crate::domains::sessions::entity::GitStats;
-use crate::schaltwerk_core::database::Database;
+use crate::infrastructure::database::Database;
 use anyhow::Result;
 use chrono::{TimeZone, Utc};
 use rusqlite::params;

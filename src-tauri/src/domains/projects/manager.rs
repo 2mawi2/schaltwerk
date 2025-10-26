@@ -7,13 +7,33 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::domains::terminal::TerminalManager;
-use crate::schaltwerk_core::SchaltwerkCore;
+use crate::infrastructure::database::Database;
+
+#[derive(Clone)]
+pub struct ProjectCore {
+    db: Database,
+    repo_path: PathBuf,
+}
+
+impl ProjectCore {
+    pub fn new(db: Database, repo_path: PathBuf) -> Self {
+        Self { db, repo_path }
+    }
+
+    pub fn database(&self) -> Database {
+        self.db.clone()
+    }
+
+    pub fn repo_path(&self) -> &PathBuf {
+        &self.repo_path
+    }
+}
 
 /// Represents a single project with its own terminals and sessions
 pub struct Project {
     pub path: PathBuf,
     pub terminal_manager: Arc<TerminalManager>,
-    pub schaltwerk_core: Arc<RwLock<SchaltwerkCore>>,
+    pub core: Arc<RwLock<ProjectCore>>,
 }
 
 impl Project {
@@ -33,15 +53,13 @@ impl Project {
 
         info!("Using database at: {}", db_path.display());
 
-        let schaltwerk_core = Arc::new(RwLock::new(SchaltwerkCore::new_with_repo_path(
-            Some(db_path),
-            path.clone(),
-        )?));
+        let database = Database::new(Some(db_path))?;
+        let core = Arc::new(RwLock::new(ProjectCore::new(database, path.clone())));
 
         Ok(Self {
             path,
             terminal_manager,
-            schaltwerk_core,
+            core,
         })
     }
 
@@ -94,14 +112,13 @@ impl Project {
         let terminal_manager = Arc::new(TerminalManager::new());
 
         // Use in-memory database for tests
-        let schaltwerk_core = Arc::new(RwLock::new(SchaltwerkCore::new_in_memory_with_repo_path(
-            path.clone(),
-        )?));
+        let database = Database::new_in_memory()?;
+        let core = Arc::new(RwLock::new(ProjectCore::new(database, path.clone())));
 
         Ok(Self {
             path,
             terminal_manager,
-            schaltwerk_core,
+            core,
         })
     }
 }
@@ -300,16 +317,16 @@ impl ProjectManager {
     }
 
     /// Get SchaltwerkCore for current project
-    pub async fn current_schaltwerk_core(&self) -> Result<Arc<RwLock<SchaltwerkCore>>> {
+    pub async fn current_schaltwerk_core(&self) -> Result<Arc<RwLock<ProjectCore>>> {
         let project = self.current_project().await?;
-        Ok(project.schaltwerk_core.clone())
+        Ok(project.core.clone())
     }
 
     /// Get SchaltwerkCore for a specific project path
     pub async fn get_schaltwerk_core_for_path(
         &self,
         path: &PathBuf,
-    ) -> Result<Arc<RwLock<SchaltwerkCore>>> {
+    ) -> Result<Arc<RwLock<ProjectCore>>> {
         // Canonicalize the input path for consistent comparison
         let canonical_path = match std::fs::canonicalize(path) {
             Ok(p) => p,
@@ -334,11 +351,11 @@ impl ProjectManager {
             let project_canonical =
                 std::fs::canonicalize(&project.path).unwrap_or(project.path.clone());
             if project_canonical == canonical_path {
-                return Ok(project.schaltwerk_core.clone());
+                return Ok(project.core.clone());
             }
             // Check if the path is inside this project (for worktree paths)
             if canonical_path.starts_with(&project_canonical) {
-                return Ok(project.schaltwerk_core.clone());
+                return Ok(project.core.clone());
             }
         }
 
@@ -354,7 +371,7 @@ impl ProjectManager {
         projects_write.insert(canonical_path.clone(), arc_project.clone());
         drop(projects_write);
 
-        Ok(arc_project.schaltwerk_core.clone())
+        Ok(arc_project.core.clone())
     }
 
     #[cfg(test)]

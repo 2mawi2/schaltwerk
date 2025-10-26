@@ -66,8 +66,9 @@ use crate::{
     domains::sessions::process_cleanup::terminate_processes_with_cwd,
     domains::sessions::repository::SessionDbManager,
     domains::sessions::utils::SessionUtils,
-    infrastructure::database::db_archived_specs::ArchivedSpecMethods as _,
-    schaltwerk_core::database::Database,
+    infrastructure::database::{
+        db_archived_specs::ArchivedSpecMethods as _, Database,
+    },
 };
 use uuid::Uuid;
 
@@ -75,7 +76,7 @@ use uuid::Uuid;
 mod service_unified_tests {
     use super::*;
     use crate::domains::sessions::entity::{Session, SessionState, SessionStatus};
-    use crate::schaltwerk_core::database::Database;
+    use crate::infrastructure::database::Database;
     use crate::utils::env_adapter::EnvAdapter;
     use chrono::Utc;
     use serial_test::serial;
@@ -3675,7 +3676,7 @@ impl SessionManager {
     }
 
     #[cfg(test)]
-    pub fn db_ref(&self) -> &crate::schaltwerk_core::database::Database {
+    pub fn db_ref(&self) -> &Database {
         &self.db_manager.db
     }
 

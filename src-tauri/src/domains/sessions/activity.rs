@@ -3,7 +3,7 @@ use crate::domains::merge::types::MergeStateSnapshot;
 use crate::infrastructure::events::{SchaltEvent, emit_event};
 use crate::{
     domains::git::db_git_stats::GitStatsMethods, domains::git::service as git,
-    domains::sessions::db_sessions::SessionMethods, schaltwerk_core::database::Database,
+    domains::sessions::db_sessions::SessionMethods, infrastructure::database::Database,
 };
 use anyhow::Result;
 #[cfg(test)]
@@ -263,7 +263,7 @@ mod tests {
         domains::git::service::{create_worktree_from_base, get_current_branch},
         domains::sessions::db_sessions::SessionMethods,
         domains::sessions::entity::{Session, SessionState, SessionStatus},
-        schaltwerk_core::database::Database,
+        infrastructure::database::Database,
     };
     use chrono::Utc;
     use std::sync::{Arc, Mutex};

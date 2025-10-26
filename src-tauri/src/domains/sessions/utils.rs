@@ -4,7 +4,7 @@ use crate::{
     domains::sessions::entity::{EnrichedSession, FilterMode, SessionState, SortMode},
     domains::sessions::repository::SessionDbManager,
     domains::terminal::{build_login_shell_invocation, sh_quote_string},
-    schaltwerk_core::db_project_config::{DEFAULT_BRANCH_PREFIX, ProjectConfigMethods},
+    infrastructure::database::{DEFAULT_BRANCH_PREFIX, ProjectConfigMethods},
 };
 use anyhow::{Result, anyhow};
 use std::path::{Path, PathBuf};

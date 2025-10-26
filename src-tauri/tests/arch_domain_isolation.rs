@@ -16,31 +16,6 @@ const CROSS_DOMAIN_ALLOWLIST: &[(&str, &str)] = &[
     ("git", "sessions"),        // Git projections enrich session stats
 ];
 
-const LEGACY_EXCEPTION_LIST: &[(&str, &str)] = &[
-    // Agents still rely on legacy database helpers for name canonicalisation
-    ("domains/agents/naming.rs", "schaltwerk_core::database::Database"),
-    ("domains/agents/naming.rs", "schaltwerk_core::{"),
-    // Git domain persists stats through the legacy database layer
-    ("domains/git/db_git_stats.rs", "schaltwerk_core::database::Database"),
-    // Merge service writes merge state snapshots through legacy DB plumbing
-    ("domains/merge/service.rs", "schaltwerk_core::database::Database"),
-    // Projects manager still delegates lifecycle to schaltwerk_core facade
-    ("domains/projects/manager.rs", "schaltwerk_core::SchaltwerkCore"),
-    // Session activity hydrates history via schaltwerk_core database APIs
-    ("domains/sessions/activity.rs", "schaltwerk_core::database::Database"),
-    // Session persistence wraps the old project config repositories
-    ("domains/sessions/db_sessions.rs", "schaltwerk_core::database::Database"),
-    ("domains/sessions/repository.rs", "schaltwerk_core::database::Database"),
-    ("domains/sessions/repository.rs", "schaltwerk_core::db_app_config"),
-    ("domains/sessions/repository.rs", "schaltwerk_core::db_project_config"),
-    // Session service still reads raw Database handles during refactor
-    ("domains/sessions/service.rs", "schaltwerk_core::database::Database"),
-    ("domains/sessions/sorting.rs", "schaltwerk_core::database::Database"),
-    // Session utils rely on default branch prefix from legacy config schema
-    ("domains/sessions/utils.rs", "schaltwerk_core::db_project_config"),
-    // Workspace diff commands still call helper that proxies to core
-    ("domains/workspace/diff_commands.rs", "get_schaltwerk_core"),
-];
 
 const LAYERING_BLOCKLIST: &[&str] = &["commands", "services"];
 
@@ -60,7 +35,7 @@ fn no_cross_domain_imports() {
 #[test]
 fn no_legacy_schaltwerk_core_imports() {
     let violations = check_imports_in_directory("src/domains", |path, import| {
-        arch_test_utils::validate_legacy_import(path, import, LEGACY_EXCEPTION_LIST)
+        arch_test_utils::validate_legacy_import(path, import, &[])
     });
 
     assert!(

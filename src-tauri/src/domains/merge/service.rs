@@ -26,7 +26,7 @@ use crate::domains::merge::lock;
 use crate::domains::merge::types::{MergeMode, MergeOutcome, MergePreview, MergeState};
 use crate::domains::sessions::entity::SessionState;
 use crate::domains::sessions::service::SessionManager;
-use crate::schaltwerk_core::database::Database;
+use crate::infrastructure::database::Database;
 
 const MERGE_TIMEOUT: Duration = Duration::from_secs(180);
 const OPERATION_LABEL: &str = "merge_session";
@@ -873,7 +873,7 @@ fn index_entry_path(entry: &git2::IndexEntry) -> Option<String> {
 mod tests {
     use super::*;
     use crate::domains::sessions::service::SessionCreationParams;
-    use crate::schaltwerk_core::database::Database;
+    use crate::infrastructure::database::Database;
     use serial_test::serial;
     use std::sync::atomic::Ordering;
     use tempfile::TempDir;

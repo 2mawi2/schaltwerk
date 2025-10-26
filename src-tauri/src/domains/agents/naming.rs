@@ -1,10 +1,7 @@
 use crate::{
     domains::git,
     domains::sessions::db_sessions::SessionMethods,
-    schaltwerk_core::{
-        database::Database,
-        db_project_config::{DEFAULT_BRANCH_PREFIX, ProjectConfigMethods},
-    },
+    infrastructure::database::{Database, DEFAULT_BRANCH_PREFIX, ProjectConfigMethods},
 };
 
 use anyhow::{Result, anyhow};
@@ -1055,7 +1052,7 @@ Line 4"
 
     #[tokio::test]
     async fn test_generate_display_name_skips_empty_prompt() {
-        use crate::schaltwerk_core::database::Database;
+        use crate::infrastructure::database::Database;
         use tempfile::TempDir;
 
         let temp_dir = TempDir::new().unwrap();
@@ -1116,7 +1113,7 @@ Line 4"
 
     #[tokio::test]
     async fn test_generate_display_name_timeout_simulation() {
-        use crate::schaltwerk_core::database::Database;
+        use crate::infrastructure::database::Database;
         use tempfile::TempDir;
 
         let temp_dir = TempDir::new().unwrap();
@@ -1150,7 +1147,7 @@ Line 4"
 
     #[tokio::test]
     async fn test_generate_display_name_handles_invalid_agent_output() {
-        use crate::schaltwerk_core::database::Database;
+        use crate::infrastructure::database::Database;
         use tempfile::TempDir;
 
         let temp_dir = TempDir::new().unwrap();
@@ -1177,7 +1174,7 @@ Line 4"
 
     #[test]
     fn test_session_rename_context_creation() {
-        use crate::schaltwerk_core::database::Database;
+        use crate::infrastructure::database::Database;
         use tempfile::TempDir;
 
         let temp_dir = TempDir::new().unwrap();
