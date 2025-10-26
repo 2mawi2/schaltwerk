@@ -460,6 +460,7 @@ test:
     {{pm}} run lint:mcp
     {{pm}} run lint:rust
     {{pm}} run deps:rust
+    {{pm}} run deps:check
     {{pm}} run test:frontend
     {{pm}} run test:mcp
     {{pm}} run test:rust
