@@ -1,7 +1,7 @@
 use crate::{
     domains::git,
-    domains::sessions::db_sessions::SessionMethods,
-    infrastructure::database::{Database, DEFAULT_BRANCH_PREFIX, ProjectConfigMethods},
+    infrastructure::database::{DEFAULT_BRANCH_PREFIX, Database},
+    shared::session_metadata_gateway::SessionMetadataGateway,
 };
 
 use anyhow::{Result, anyhow};
@@ -94,6 +94,8 @@ pub async fn generate_display_name_and_rename_branch(
         binary_path,
     } = ctx;
 
+    let session_gateway = SessionMetadataGateway::new(db);
+
     let result = generate_display_name(
         db,
         session_id,
@@ -107,7 +109,7 @@ pub async fn generate_display_name_and_rename_branch(
     .await?;
 
     if let Some(ref new_name) = result {
-        let branch_prefix = db
+        let branch_prefix = session_gateway
             .get_project_branch_prefix(repo_path)
             .unwrap_or_else(|err| {
                 log::warn!("Falling back to default branch prefix during agent rename: {err}");
@@ -133,7 +135,9 @@ pub async fn generate_display_name_and_rename_branch(
                             );
 
                             // Update the branch name in the database
-                            if let Err(e) = db.update_session_branch(session_id, &new_branch) {
+                            if let Err(e) =
+                                session_gateway.update_session_branch(session_id, &new_branch)
+                            {
                                 log::error!("Failed to update branch name in database: {e}");
                             }
                         }
@@ -194,6 +198,8 @@ pub async fn generate_display_name(
     let base_prompt = initial_prompt.unwrap(); // Safe to unwrap after the check above
     let truncated = truncate_prompt(base_prompt);
     log::debug!("Truncated prompt for name generation: {truncated}");
+
+    let session_gateway = SessionMetadataGateway::new(db);
 
     // Prompt for plain text result for JSON wrappers
     // Explicitly tell the AI to not use tools for faster response
@@ -366,7 +372,7 @@ Respond with JSON: {{"name": "short-kebab-case-name"}}"#
                 let name = sanitize_name(&result);
                 log::info!("Sanitized name: {name}");
                 if !name.is_empty() {
-                    db.update_session_display_name(session_id, &name)?;
+                    session_gateway.update_session_display_name(session_id, &name)?;
                     log::info!(
                         "Updated database with display_name '{name}' for session_id '{session_id}'"
                     );
@@ -429,7 +435,7 @@ Respond with JSON: {{"name": "short-kebab-case-name"}}"#
                 log::info!("Sanitized name: {name}");
 
                 if !name.is_empty() {
-                    db.update_session_display_name(session_id, &name)?;
+                    session_gateway.update_session_display_name(session_id, &name)?;
                     log::info!(
                         "Updated database with display_name '{name}' for session_id '{session_id}'"
                     );
@@ -505,7 +511,7 @@ Respond with JSON: {{"name": "short-kebab-case-name"}}"#
                 log::info!("Sanitized name: {name}");
 
                 if !name.is_empty() {
-                    db.update_session_display_name(session_id, &name)?;
+                    session_gateway.update_session_display_name(session_id, &name)?;
                     log::info!(
                         "Updated database with display_name '{name}' for session_id '{session_id}'"
                     );
@@ -592,7 +598,7 @@ Respond with JSON: {{"name": "short-kebab-case-name"}}"#
             log::info!("Sanitized name: {name}");
 
             if !name.is_empty() {
-                db.update_session_display_name(session_id, &name)?;
+                session_gateway.update_session_display_name(session_id, &name)?;
                 log::info!(
                     "Updated database with display_name '{name}' for session_id '{session_id}'"
                 );

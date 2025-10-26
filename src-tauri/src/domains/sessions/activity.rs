@@ -1,6 +1,5 @@
-use crate::domains::merge::service::{compute_merge_state, resolve_branch_oid};
-use crate::domains::merge::types::MergeStateSnapshot;
 use crate::infrastructure::events::{SchaltEvent, emit_event};
+use crate::shared::merge_snapshot_gateway::MergeSnapshotGateway;
 use crate::{
     domains::git::db_git_stats::GitStatsMethods, domains::git::service as git,
     domains::sessions::db_sessions::SessionMethods, infrastructure::database::Database,
@@ -95,32 +94,36 @@ impl<E: EventEmitter> ActivityTracker<E> {
                             }
                         };
 
-                        let merge_state =
-                            Repository::open(&session.repository_path)
+                        let merge_snapshot = Repository::open(&session.repository_path)
+                            .ok()
+                            .and_then(|repo| {
+                                let session_oid = MergeSnapshotGateway::resolve_branch_oid(
+                                    &repo,
+                                    &session.branch,
+                                )
+                                .ok()?;
+                                let parent_oid = MergeSnapshotGateway::resolve_branch_oid(
+                                    &repo,
+                                    &session.parent_branch,
+                                )
+                                .ok()?;
+                                MergeSnapshotGateway::compute(
+                                    &repo,
+                                    session_oid,
+                                    parent_oid,
+                                    &session.branch,
+                                    &session.parent_branch,
+                                )
+                                .map_err(|err| {
+                                    log::warn!(
+                                        "Merge assessment failed for session '{}': {}",
+                                        session.name,
+                                        err
+                                    );
+                                })
                                 .ok()
-                                .and_then(|repo| {
-                                    let session_oid =
-                                        resolve_branch_oid(&repo, &session.branch).ok()?;
-                                    let parent_oid =
-                                        resolve_branch_oid(&repo, &session.parent_branch).ok()?;
-                                    compute_merge_state(
-                                        &repo,
-                                        session_oid,
-                                        parent_oid,
-                                        &session.branch,
-                                        &session.parent_branch,
-                                    )
-                                    .map_err(|err| {
-                                        log::warn!(
-                                            "Merge assessment failed for session '{}': {}",
-                                            session.name,
-                                            err
-                                        );
-                                    })
-                                    .ok()
-                                });
-
-                        let merge_snapshot = MergeStateSnapshot::from_state(merge_state);
+                            })
+                            .unwrap_or_default();
 
                         if let Err(e) = self.db.save_git_stats(&stats) {
                             log::warn!("Failed to save git stats for {}: {}", session.name, e);

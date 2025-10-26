@@ -66,9 +66,7 @@ use crate::{
     domains::sessions::process_cleanup::terminate_processes_with_cwd,
     domains::sessions::repository::SessionDbManager,
     domains::sessions::utils::SessionUtils,
-    infrastructure::database::{
-        db_archived_specs::ArchivedSpecMethods as _, Database,
-    },
+    infrastructure::database::{Database, db_archived_specs::ArchivedSpecMethods as _},
 };
 use uuid::Uuid;
 

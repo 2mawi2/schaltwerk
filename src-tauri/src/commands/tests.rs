@@ -147,8 +147,7 @@ async fn test_clipboard_write_text_sets_content() {
         .await
         .expect("clipboard write command should succeed on macOS");
 
-    let mut clipboard =
-        Clipboard::new().expect("should create clipboard handle for verification");
+    let mut clipboard = Clipboard::new().expect("should create clipboard handle for verification");
     let current = clipboard
         .get_text()
         .expect("should read clipboard text after command");

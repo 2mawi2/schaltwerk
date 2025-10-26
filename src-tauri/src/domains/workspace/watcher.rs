@@ -3,9 +3,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::domains::merge::service::compute_merge_state;
-use crate::domains::merge::types::MergeStateSnapshot;
-use crate::domains::sessions::activity::SessionGitStatsUpdated;
 use crate::infrastructure::events::{SchaltEvent, emit_event};
 use log::{debug, error, info, trace, warn};
 use notify::{RecommendedWatcher, RecursiveMode};
@@ -15,7 +12,8 @@ use tauri::AppHandle;
 use tokio::sync::{Mutex, mpsc};
 
 use crate::domains::git::service as git;
-use crate::domains::sessions::entity::ChangedFile;
+use crate::shared::merge_snapshot_gateway::MergeSnapshotGateway;
+use crate::shared::session_metadata_gateway::{ChangedFile, SessionGitStatsUpdated};
 use git2::Repository;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -270,23 +268,31 @@ impl FileWatcher {
                         false
                     }
                 };
-                let merge_state = Repository::open(worktree_path).ok().and_then(|repo| {
-                    let session_oid = repo.head().ok().and_then(|h| h.target());
-                    let parent_obj = repo.revparse_single(base_branch).ok()?;
-                    let parent_oid = parent_obj.peel_to_commit().ok()?.id();
-                    let branch_name = session_branch_name.clone();
+                let merge_snapshot = Repository::open(worktree_path)
+                    .ok()
+                    .and_then(|repo| {
+                        let session_oid = repo.head().ok().and_then(|h| h.target());
+                        let parent_obj = repo.revparse_single(base_branch).ok()?;
+                        let parent_oid = parent_obj.peel_to_commit().ok()?.id();
+                        let branch_name = session_branch_name.clone();
 
-                    session_oid.and_then(|oid| {
-                        compute_merge_state(&repo, oid, parent_oid, &branch_name, base_branch)
+                        session_oid.and_then(|oid| {
+                            MergeSnapshotGateway::compute(
+                                &repo,
+                                oid,
+                                parent_oid,
+                                &branch_name,
+                                base_branch,
+                            )
                             .map_err(|err| {
                                 log::debug!(
                                     "Watcher merge assessment failed for {session_name}: {err}"
                                 );
                             })
                             .ok()
+                        })
                     })
-                });
-                let merge_snapshot = MergeStateSnapshot::from_state(merge_state);
+                    .unwrap_or_default();
                 // Collect a small sample of uncommitted paths to help frontend tooltips
                 let sample = match crate::domains::git::operations::uncommitted_sample_paths(
                     worktree_path,
