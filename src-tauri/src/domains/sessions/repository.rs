@@ -162,10 +162,29 @@ impl SessionDbManager {
             return Ok(cached);
         }
 
-        let (spec_content, initial_prompt, session_state) = self
+        let (spec_content, initial_prompt, session_state) = match self
             .db
             .get_session_task_content(&self.repo_path, name)
-            .map_err(|e| anyhow!("Failed to get session agent content: {e}"))?;
+        {
+            Ok(result) => result,
+            Err(error) => {
+                if error
+                    .downcast_ref::<rusqlite::Error>()
+                    .is_some_and(|sql_error| matches!(sql_error, rusqlite::Error::QueryReturnedNoRows))
+                {
+                    warn!(
+                        "Spec content requested for missing session '{name}', returning empty payload"
+                    );
+                    crate::domains::sessions::cache::invalidate_spec_content(
+                        &self.repo_path,
+                        name,
+                    );
+                    return Ok((None, None));
+                }
+
+                return Err(anyhow!("Failed to get session agent content: {error}"));
+            }
+        };
 
         let result = (spec_content, initial_prompt);
 
