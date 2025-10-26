@@ -36,6 +36,7 @@ import { TerminalResizeCoordinator } from './resize/TerminalResizeCoordinator'
 import { calculateEffectiveColumns, MIN_TERMINAL_COLUMNS } from './terminalSizing'
 import { shouldEmitControlPaste, shouldEmitControlNewline } from './terminalKeybindings'
 import { hydrateReusedTerminal } from './hydration'
+import { shouldStickToBottom } from './autoScroll'
 
 const DEFAULT_SCROLLBACK_LINES = 10000
 const BACKGROUND_SCROLLBACK_LINES = 5000
@@ -426,6 +427,35 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const scrollToBottomInstant = useCallback(() => {
         terminal.current?.scrollToBottom();
     }, []);
+
+    const stickToBottomIfNeeded = useCallback((reason?: string) => {
+        const term = terminal.current;
+        if (!term) return;
+        try {
+            const buf = term.buffer?.active;
+            if (!buf) return;
+            const base = typeof buf.baseY === 'number' ? buf.baseY : 0;
+            const viewport = typeof buf.viewportY === 'number' ? buf.viewportY : 0;
+            const shouldStick = shouldStickToBottom({
+                baseY: base,
+                viewportY: viewport,
+                isSearchVisible,
+                isDraggingSelection: dragSelectingRef.current,
+                selectionActive: selectionActiveRef.current,
+                hasUserSelection: isUserSelectingInTerminal(),
+            });
+            if (!shouldStick) {
+                return;
+            }
+            try {
+                term.scrollToBottom();
+            } catch (error) {
+                logger.debug(`[Terminal ${terminalId}] Failed to scroll to bottom${reason ? ` during ${reason}` : ''}:`, error);
+            }
+        } catch (error) {
+            logger.debug(`[Terminal ${terminalId}] Failed to evaluate stick-to-bottom${reason ? ` during ${reason}` : ''}:`, error);
+        }
+    }, [isSearchVisible, isUserSelectingInTerminal, terminalId]);
 
     const restartAgent = useCallback(async () => {
         if (!isAgentTopTerminal) return;
@@ -880,7 +910,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
         // Ensure scrollbar thumb reflects the current buffer position when the terminal is attached.
         requestAnimationFrame(() => {
-            terminal.current?.scrollToBottom();
+            stickToBottomIfNeeded('attach');
         });
         let rendererInitialized = false;
         const initializeRenderer = async () => {
@@ -1100,9 +1130,20 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                         }
                     }
 
+                    stickToBottomIfNeeded('render');
+
                 });
                 if (disposable && typeof disposable === 'object' && typeof (disposable as { dispose?: () => void }).dispose === 'function') {
                     outputDisposables.push(disposable as IDisposable);
+                }
+            }
+
+            if (typeof terminal.current.onScroll === 'function') {
+                const scrollDisposable = terminal.current.onScroll(() => {
+                    stickToBottomIfNeeded('scroll');
+                });
+                if (scrollDisposable && typeof scrollDisposable === 'object' && typeof (scrollDisposable as { dispose?: () => void }).dispose === 'function') {
+                    outputDisposables.push(scrollDisposable as IDisposable);
                 }
             }
         }
@@ -1318,6 +1359,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         gpuRenderer,
         handleFontPreferenceChange,
         webglRendererActive,
+        stickToBottomIfNeeded,
     ]);
 
 

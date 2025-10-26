@@ -45,7 +45,22 @@ type HarnessInstance = {
   raw: {
     cols: number
     rows: number
+    buffer: {
+      active: {
+        viewportY: number
+        baseY: number
+        length: number
+      }
+    }
     resize: ReturnType<typeof vi.fn>
+    scrollLines: ReturnType<typeof vi.fn>
+    scrollToBottom: ReturnType<typeof vi.fn>
+    focus: ReturnType<typeof vi.fn>
+    hasSelection: ReturnType<typeof vi.fn>
+    attachCustomKeyEventHandler: ReturnType<typeof vi.fn>
+    onData: ReturnType<typeof vi.fn>
+    onRender: ReturnType<typeof vi.fn>
+    onScroll: ReturnType<typeof vi.fn>
     options: {
       scrollback?: number
       fontFamily?: string
@@ -53,6 +68,9 @@ type HarnessInstance = {
       disableStdin?: boolean
       minimumContrastRatio?: number
       [key: string]: unknown
+    }
+    parser: {
+      registerOscHandler: ReturnType<typeof vi.fn>
     }
   }
 }
@@ -88,6 +106,7 @@ const terminalHarness = vi.hoisted(() => {
       },
       onData: vi.fn(() => disposable()),
       onRender: vi.fn(() => disposable()),
+      onScroll: vi.fn(() => disposable()),
     }
   }
 
