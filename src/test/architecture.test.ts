@@ -1,8 +1,8 @@
-import { describe, it, expect } from 'vitest';
-import * as fs from 'node:fs';
+import { describe, it } from 'vitest';
 import path from 'node:path';
-import { glob } from 'glob';
 import { fileURLToPath } from 'node:url';
+import { projectFiles } from 'archunit';
+import type { FileInfo } from 'archunit';
 import {
   EVENT_LISTENER_EXCEPTIONS,
   MODULE_BOUNDARY_EXCEPTIONS,
@@ -15,232 +15,319 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..', '..');
 
-function readFileLines(file: string): string[] {
-  const content = fs.readFileSync(file, 'utf-8');
-  return content.split('\n');
+type FailureDetail = {
+  line: number;
+  snippet: string;
+};
+
+const SOURCE_EXTENSIONS = new Set(['ts', 'tsx']);
+
+function toRelativePath(filePath: string): string {
+  return path
+    .relative(projectRoot, filePath)
+    .split(path.sep)
+    .join('/');
+}
+
+function isSourceFile(file: FileInfo): boolean {
+  return SOURCE_EXTENSIONS.has(file.extension);
+}
+
+function isTestFile(relativePath: string): boolean {
+  return (
+    relativePath.startsWith('src/test/') ||
+    /\.test\.(ts|tsx)$/.test(relativePath)
+  );
+}
+
+function formatFailureDetails(details: Map<string, FailureDetail[]>): string {
+  return [...details.entries()]
+    .flatMap(([file, matches]) =>
+      matches.map((entry) => `${file}:${entry.line} - ${entry.snippet}`),
+    )
+    .join('\n');
+}
+
+function formatViolations(violations: unknown[]): string {
+  return violations
+    .map((violation) => {
+      const fileInfo = (violation as { fileInfo?: FileInfo }).fileInfo;
+      if (fileInfo) {
+        const relative = toRelativePath(fileInfo.path);
+        const message =
+          typeof (violation as { message?: string }).message === 'string'
+            ? (violation as { message: string }).message
+            : 'Rule violation';
+        return `${relative} - ${message}`;
+      }
+      if (typeof (violation as { message?: string }).message === 'string') {
+        return (violation as { message: string }).message;
+      }
+      if (typeof (violation as { rule?: string }).rule === 'string') {
+        return (violation as { rule: string }).rule;
+      }
+      return 'Unknown violation';
+    })
+    .join('\n');
+}
+
+function raiseIfViolations(
+  violations: unknown[],
+  details: Map<string, FailureDetail[]>,
+  header: string,
+  footer?: string,
+) {
+  if (violations.length === 0) return;
+  const detailMessage =
+    details.size > 0 ? formatFailureDetails(details) : formatViolations(violations);
+  const messageParts = [header, detailMessage];
+  if (footer) {
+    messageParts.push('', footer);
+  }
+  throw new Error(messageParts.join('\n'));
 }
 
 describe('Tauri Command Architecture', () => {
-  it('should use TauriCommands enum for all invoke calls', () => {
-    const files = glob.sync('src/**/*.{ts,tsx}', {
-      cwd: projectRoot,
-      absolute: true,
-      ignore: [
-        'src/common/tauriCommands.ts',
-        'src/test/**',
-        'src/**/*.test.ts',
-        'src/**/*.test.tsx',
-      ],
-    });
-
-    const invokePattern = /invoke\s*\(\s*['"`]([^'"`]+)['"`]/g;
-    const violations: Array<{ file: string; line: number; match: string }> = [];
-
-    for (const file of files) {
-      if (isException(file, TAURI_COMMAND_EXCEPTIONS)) continue;
-      const lines = readFileLines(file);
-      lines.forEach((line, idx) => {
-        let match: RegExpExecArray | null;
-        while ((match = invokePattern.exec(line)) !== null) {
-          violations.push({
-            file: path.relative(projectRoot, file),
-            line: idx + 1,
-            match: match[0],
-          });
+  it('should use TauriCommands enum for all invoke calls', async () => {
+    const failureDetails = new Map<string, FailureDetail[]>();
+    const rule = projectFiles()
+      .inFolder('src/**')
+      .should()
+      .adhereTo((file) => {
+        if (!isSourceFile(file)) return true;
+        const relativePath = toRelativePath(file.path);
+        if (
+          relativePath === 'src/common/tauriCommands.ts' ||
+          isTestFile(relativePath) ||
+          isException(relativePath, TAURI_COMMAND_EXCEPTIONS)
+        ) {
+          return true;
         }
-      });
-    }
 
-    if (violations.length > 0) {
-      const message = violations
-        .map((v) => `${v.file}:${v.line} - ${v.match}`)
-        .join('\n');
-      throw new Error(
-        `Found ${violations.length} string literal invoke() calls:\n${message}\n\nUse TauriCommands enum instead`,
-      );
-    }
+        const lines = file.content.split('\n');
+        const matches: FailureDetail[] = [];
+        lines.forEach((line, index) => {
+          const pattern = /invoke\s*\(\s*['"`]([^'"`]+)['"`]/g;
+          let match: RegExpExecArray | null;
+          while ((match = pattern.exec(line)) !== null) {
+            matches.push({
+              line: index + 1,
+              snippet: match[0].trim(),
+            });
+          }
+        });
 
-    expect(violations).toHaveLength(0);
+        if (matches.length > 0) {
+          failureDetails.set(relativePath, matches);
+          return false;
+        }
+
+        return true;
+      }, 'Use TauriCommands enum for invoke calls');
+
+    const violations = await rule.check();
+    raiseIfViolations(
+      violations,
+      failureDetails,
+      `Found ${violations.length} string literal invoke() calls:`,
+      'Use TauriCommands enum instead',
+    );
   });
 });
 
 describe('Event System Architecture', () => {
-  it('should use SchaltEvent enum for all event listeners', () => {
-    const files = glob.sync('src/**/*.{ts,tsx}', {
-      cwd: projectRoot,
-      absolute: true,
-      ignore: [
-        'src/common/eventSystem.ts',
-        'src/test/**',
-        'src/**/*.test.ts',
-        'src/**/*.test.tsx',
-      ],
-    });
-
-    const eventPattern = /(?:listen|once|emit)\s*\(\s*['"`]([^'"`]+)['"`]/g;
-    const violations: Array<{ file: string; line: number; match: string }> = [];
-
-    for (const file of files) {
-      if (isException(file, EVENT_LISTENER_EXCEPTIONS)) continue;
-      const lines = readFileLines(file);
-      lines.forEach((line, idx) => {
-        if (line.includes('listenEvent') || line.includes('SchaltEvent')) {
-          return;
+  it('should use SchaltEvent enum for all event listeners', async () => {
+    const failureDetails = new Map<string, FailureDetail[]>();
+    const rule = projectFiles()
+      .inFolder('src/**')
+      .should()
+      .adhereTo((file) => {
+        if (!isSourceFile(file)) return true;
+        const relativePath = toRelativePath(file.path);
+        if (
+          relativePath === 'src/common/eventSystem.ts' ||
+          isTestFile(relativePath) ||
+          isException(relativePath, EVENT_LISTENER_EXCEPTIONS)
+        ) {
+          return true;
         }
-        let match: RegExpExecArray | null;
-        while ((match = eventPattern.exec(line)) !== null) {
-          violations.push({
-            file: path.relative(projectRoot, file),
-            line: idx + 1,
-            match: match[0],
-          });
+
+        const lines = file.content.split('\n');
+        const matches: FailureDetail[] = [];
+        lines.forEach((line, index) => {
+          if (line.includes('listenEvent') || line.includes('SchaltEvent')) {
+            return;
+          }
+          const pattern = /(?:listen|once|emit)\s*\(\s*['"`]([^'"`]+)['"`]/g;
+          let match: RegExpExecArray | null;
+          while ((match = pattern.exec(line)) !== null) {
+            matches.push({
+              line: index + 1,
+              snippet: match[0].trim(),
+            });
+          }
+        });
+
+        if (matches.length > 0) {
+          failureDetails.set(relativePath, matches);
+          return false;
         }
-      });
-    }
 
-    if (violations.length > 0) {
-      const message = violations
-        .map((v) => `${v.file}:${v.line} - ${v.match}`)
-        .join('\n');
-      throw new Error(
-        `Found ${violations.length} string literal event calls:\n${message}\n\nUse SchaltEvent enum + helpers instead`,
-      );
-    }
+        return true;
+      }, 'Use SchaltEvent enum helpers for event wiring');
 
-    expect(violations).toHaveLength(0);
+    const violations = await rule.check();
+    raiseIfViolations(
+      violations,
+      failureDetails,
+      `Found ${violations.length} string literal event calls:`,
+      'Use SchaltEvent enum + helpers instead',
+    );
   });
 });
 
 describe('Theme System Architecture', () => {
-  it('should not use hardcoded colors outside theme files', () => {
-    const files = glob.sync('src/**/*.{ts,tsx}', {
-      cwd: projectRoot,
-      absolute: true,
-      ignore: [
-        'src/common/theme.ts',
-        'src/styles/**',
-        'src/test/**',
-        'src/**/*.test.ts',
-        'src/**/*.test.tsx',
-      ],
-    });
-
-    const colorPattern =
-      /#[0-9a-fA-F]{3,8}\b|rgba?\s*\([^)]+\)|hsla?\s*\([^)]+\)/g;
-    const violations: Array<{ file: string; line: number; match: string }> = [];
-
-    for (const file of files) {
-      if (isException(file, THEME_EXCEPTIONS)) continue;
-      const lines = readFileLines(file);
-      lines.forEach((line, idx) => {
-        const trimmed = line.trim();
-        if (trimmed.startsWith('//') || trimmed.startsWith('*')) return;
-        let match: RegExpExecArray | null;
-        while ((match = colorPattern.exec(line)) !== null) {
-          violations.push({
-            file: path.relative(projectRoot, file),
-            line: idx + 1,
-            match: match[0],
-          });
+  it('should not use hardcoded colors outside theme files', async () => {
+    const failureDetails = new Map<string, FailureDetail[]>();
+    const rule = projectFiles()
+      .inFolder('src/**')
+      .should()
+      .adhereTo((file) => {
+        if (!isSourceFile(file)) return true;
+        const relativePath = toRelativePath(file.path);
+        if (
+          relativePath === 'src/common/theme.ts' ||
+          relativePath.startsWith('src/styles/') ||
+          isTestFile(relativePath) ||
+          isException(relativePath, THEME_EXCEPTIONS)
+        ) {
+          return true;
         }
-      });
-    }
 
-    if (violations.length > 0) {
-      const message = violations
-        .map((v) => `${v.file}:${v.line} - ${v.match}`)
-        .join('\n');
-      throw new Error(
-        `Found ${violations.length} hardcoded colors:\n${message}\n\nUse theme.colors.* instead`,
-      );
-    }
+        const lines = file.content.split('\n');
+        const matches: FailureDetail[] = [];
+        lines.forEach((line, index) => {
+          const trimmed = line.trim();
+          if (trimmed.startsWith('//') || trimmed.startsWith('*')) return;
+          const pattern =
+            /#[0-9a-fA-F]{3,8}\b|rgba?\s*\([^)]+\)|hsla?\s*\([^)]+\)/g;
+          let match: RegExpExecArray | null;
+          while ((match = pattern.exec(line)) !== null) {
+            matches.push({
+              line: index + 1,
+              snippet: match[0].trim(),
+            });
+          }
+        });
 
-    expect(violations).toHaveLength(0);
+        if (matches.length > 0) {
+          failureDetails.set(relativePath, matches);
+          return false;
+        }
+
+        return true;
+      }, 'Use theme.colors.* for palette access');
+
+    const violations = await rule.check();
+    raiseIfViolations(
+      violations,
+      failureDetails,
+      `Found ${violations.length} hardcoded colors:`,
+      'Use theme.colors.* instead',
+    );
   });
 
-  it('should not use hardcoded font sizes outside theme files', () => {
-    const files = glob.sync('src/**/*.{ts,tsx}', {
-      cwd: projectRoot,
-      absolute: true,
-      ignore: [
-        'src/common/theme.ts',
-        'src/styles/**',
-        'src/test/**',
-        'src/**/*.test.ts',
-        'src/**/*.test.tsx',
-      ],
-    });
-
-    const fontSizePattern =
-      /(?:fontSize|font-size)\s*[=:]\s*['"`]?(\d+(?:\.\d+)?(?:px|rem|em))['"`]?/g;
-    const violations: Array<{ file: string; line: number; match: string }> = [];
-
-    for (const file of files) {
-      if (isException(file, THEME_EXCEPTIONS)) continue;
-      const lines = readFileLines(file);
-      lines.forEach((line, idx) => {
-        const trimmed = line.trim();
-        if (trimmed.startsWith('//') || trimmed.startsWith('*')) return;
-        let match: RegExpExecArray | null;
-        while ((match = fontSizePattern.exec(line)) !== null) {
-          violations.push({
-            file: path.relative(projectRoot, file),
-            line: idx + 1,
-            match: match[0],
-          });
+  it('should not use hardcoded font sizes outside theme files', async () => {
+    const failureDetails = new Map<string, FailureDetail[]>();
+    const rule = projectFiles()
+      .inFolder('src/**')
+      .should()
+      .adhereTo((file) => {
+        if (!isSourceFile(file)) return true;
+        const relativePath = toRelativePath(file.path);
+        if (
+          relativePath === 'src/common/theme.ts' ||
+          relativePath.startsWith('src/styles/') ||
+          isTestFile(relativePath) ||
+          isException(relativePath, THEME_EXCEPTIONS)
+        ) {
+          return true;
         }
-      });
-    }
 
-    if (violations.length > 0) {
-      const message = violations
-        .map((v) => `${v.file}:${v.line} - ${v.match}`)
-        .join('\n');
-      throw new Error(
-        `Found ${violations.length} hardcoded font sizes:\n${message}\n\nUse theme.fontSize.* instead`,
-      );
-    }
+        const lines = file.content.split('\n');
+        const matches: FailureDetail[] = [];
+        lines.forEach((line, index) => {
+          const trimmed = line.trim();
+          if (trimmed.startsWith('//') || trimmed.startsWith('*')) return;
+          const pattern =
+            /(?:fontSize|font-size)\s*[=:]\s*['"`]?(\d+(?:\.\d+)?(?:px|rem|em))['"`]?/g;
+          let match: RegExpExecArray | null;
+          while ((match = pattern.exec(line)) !== null) {
+            matches.push({
+              line: index + 1,
+              snippet: match[0].trim(),
+            });
+          }
+        });
 
-    expect(violations).toHaveLength(0);
+        if (matches.length > 0) {
+          failureDetails.set(relativePath, matches);
+          return false;
+        }
+
+        return true;
+      }, 'Use theme.fontSize.* for typography');
+
+    const violations = await rule.check();
+    raiseIfViolations(
+      violations,
+      failureDetails,
+      `Found ${violations.length} hardcoded font sizes:`,
+      'Use theme.fontSize.* instead',
+    );
   });
 });
 
 describe('Module Boundaries Architecture', () => {
-  it('common/ should not import from components/ or contexts/', () => {
-    const files = glob.sync('src/common/**/*.{ts,tsx}', {
-      cwd: projectRoot,
-      absolute: true,
-      ignore: ['src/common/**/*.test.ts', 'src/common/**/*.test.tsx'],
-    });
-
-    const importPattern =
-      /import\s+.*\s+from\s+['"](\.\.[/\\](?:components|contexts)[^'"]*)['"]/g;
-    const violations: Array<{ file: string; line: number; import: string }> = [];
-
-    for (const file of files) {
-      if (isException(file, MODULE_BOUNDARY_EXCEPTIONS)) continue;
-      const lines = readFileLines(file);
-      lines.forEach((line, idx) => {
-        let match: RegExpExecArray | null;
-        while ((match = importPattern.exec(line)) !== null) {
-          violations.push({
-            file: path.relative(projectRoot, file),
-            line: idx + 1,
-            import: match[1],
-          });
+  it('common/ should not import from components/ or contexts/', async () => {
+    const failureDetails = new Map<string, FailureDetail[]>();
+    const rule = projectFiles()
+      .inFolder('src/common/**')
+      .shouldNot()
+      .adhereTo((file) => {
+        if (!isSourceFile(file)) return false;
+        const relativePath = toRelativePath(file.path);
+        if (isTestFile(relativePath) || isException(relativePath, MODULE_BOUNDARY_EXCEPTIONS)) {
+          return false;
         }
-      });
-    }
 
-    if (violations.length > 0) {
-      const message = violations
-        .map((v) => `${v.file}:${v.line} - imports ${v.import}`)
-        .join('\n');
-      throw new Error(
-        `Found ${violations.length} common/ imports from components/contexts:\n${message}`,
-      );
-    }
+        const lines = file.content.split('\n');
+        const matches: FailureDetail[] = [];
+        lines.forEach((line, index) => {
+          const pattern =
+            /import\s+.*\s+from\s+['"](\.\.[/\\](?:components|contexts)[^'"]*)['"]/g;
+          let match: RegExpExecArray | null;
+          while ((match = pattern.exec(line)) !== null) {
+            matches.push({
+              line: index + 1,
+              snippet: `imports ${match[1]}`,
+            });
+          }
+        });
 
-    expect(violations).toHaveLength(0);
+        if (matches.length > 0) {
+          failureDetails.set(relativePath, matches);
+          return true;
+        }
+
+        return false;
+      }, 'common/ must stay independent of components/contexts');
+
+    const violations = await rule.check();
+    raiseIfViolations(
+      violations,
+      failureDetails,
+      `Found ${violations.length} common/ imports from components/contexts:`,
+    );
   });
 });

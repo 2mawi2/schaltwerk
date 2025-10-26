@@ -96,6 +96,7 @@
     "@typescript-eslint/parser": "^8.43.0",
     "@vitest/coverage-v8": "^4.0.1",
     "@vitest/ui": "^4.0.1",
+    "archunit": "^2.1.63",
     "eslint": "^9.37.0",
     "eslint-plugin-react-hooks": "^7.0.0",
     "glob": "^11.0.0",
