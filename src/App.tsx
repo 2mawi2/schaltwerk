@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, useEffectEvent } from 'react'
 import { SchaltEvent, listenEvent } from './common/eventSystem'
 import { useMultipleShortcutDisplays } from './keyboardShortcuts/useShortcutDisplay'
 import { KeyboardShortcutAction } from './keyboardShortcuts/config'
@@ -125,8 +125,6 @@ function AppContent() {
     }
   }, [])
 
-  const refreshGithubStatus = github.refreshStatus
-
   useEffect(() => {
     if (!import.meta.env.DEV) {
       setDevErrorToastsEnabled(false)
@@ -244,12 +242,16 @@ function AppContent() {
     return cleanup
   }, [])
 
-  useEffect(() => {
-    if (!projectPath) return
-    refreshGithubStatus().catch(error => {
+  const onProjectChange = useEffectEvent(() => {
+    github.refreshStatus().catch(error => {
       logger.warn('[App] Failed to refresh GitHub status after project change', error)
     })
-  }, [projectPath, refreshGithubStatus])
+  })
+
+  useEffect(() => {
+    if (!projectPath) return
+    onProjectChange()
+  }, [projectPath])
 
   useEffect(() => {
     if (!toast) return

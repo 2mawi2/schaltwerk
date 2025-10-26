@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import type { AttentionNotificationMode } from './useSettings'
 import { EnrichedSession } from '../types/session'
@@ -119,7 +119,7 @@ export function useAttentionNotifications({
     return label
   }, [])
 
-  const recomputeAttentionSummary = useCallback(() => {
+  const recomputeAttentionSummary = useEffectEvent(() => {
     const allowed = openProjectPaths ? new Set(openProjectPaths) : null
     if (allowed) {
       for (const key of Array.from(projectAttentionKeyMapRef.current.keys())) {
@@ -146,11 +146,11 @@ export function useAttentionNotifications({
     })
 
     return { aggregatedKeys }
-  }, [onAttentionSummaryChange, openProjectPaths])
+  })
 
   useEffect(() => {
     recomputeAttentionSummary()
-  }, [recomputeAttentionSummary])
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -180,7 +180,7 @@ export function useAttentionNotifications({
     }
   }, [])
 
-  const pushSnapshot = useCallback(
+  const pushSnapshot = useEffectEvent(
     async (sessionKeys: string[]) => {
       const label = await ensureWindowLabel()
       if (!label) {
@@ -194,8 +194,7 @@ export function useAttentionNotifications({
       lastReportedSignatureRef.current = signature
       const response = await reportAttentionSnapshot(label, sortedKeys)
       onSnapshotReported?.(response)
-    },
-    [ensureWindowLabel, visibility.isForeground, onSnapshotReported]
+    }
   )
 
   useEffect(() => {
@@ -238,8 +237,6 @@ export function useAttentionNotifications({
   }, [
     projectPath,
     onProjectAttentionChange,
-    recomputeAttentionSummary,
-    pushSnapshot,
     visibility.isForeground,
   ])
 
@@ -256,7 +253,7 @@ export function useAttentionNotifications({
       }
       void pushSnapshot(Array.from(globalAttentionKeysRef.current))
     }
-  }, [visibility.isForeground, pushSnapshot])
+  }, [visibility.isForeground])
 
   useEffect(() => {
     const attentionSessions: AttentionSession[] = (projectPath
@@ -322,9 +319,7 @@ export function useAttentionNotifications({
     sessions,
     projectPath,
     visibility.isForeground,
-    pushSnapshot,
     onProjectAttentionChange,
-    recomputeAttentionSummary,
   ])
 
   useEffect(() => {
