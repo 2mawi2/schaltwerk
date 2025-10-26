@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { vi } from 'vitest'
 import { invoke } from '@tauri-apps/api/core'
@@ -262,11 +262,11 @@ describe('GitGraphPanel', () => {
 
     render(<GitGraphPanel />)
 
-    expect(ensureLoadedMock).toHaveBeenCalledTimes(1)
-
     await waitFor(() => {
       expect(refreshMock).toHaveBeenCalled()
     })
+
+    expect(ensureLoadedMock).toHaveBeenCalledTimes(1)
   })
 
   it('refreshes when the panel receives user interaction', async () => {
@@ -287,6 +287,16 @@ describe('GitGraphPanel', () => {
 
     const user = userEvent.setup()
     render(<GitGraphPanel />)
+
+    await waitFor(() => {
+      expect(refreshMock).toHaveBeenCalled()
+    })
+
+    refreshMock.mockClear()
+
+    await waitFor(() => {
+      expect(ensureLoadedMock).toHaveBeenCalled()
+    })
 
     await waitFor(() => {
       expect(ensureLoadedMock).toHaveBeenCalled()
@@ -675,5 +685,135 @@ describe('GitGraphPanel', () => {
         unlistenError
       )
     })
+  })
+
+  it('keeps the context menu open when the same contextmenu event bubbles to the overlay', async () => {
+    const ensureLoadedMock = vi.fn()
+    const refreshMock = vi.fn().mockResolvedValue(undefined)
+
+    useGitHistoryMock.mockReturnValue({
+      snapshot: baseSnapshot,
+      isLoading: false,
+      error: null,
+      isLoadingMore: false,
+      loadMoreError: null,
+      latestHead: baseSnapshot.headCommit ?? null,
+      ensureLoaded: ensureLoadedMock,
+      loadMore: vi.fn(),
+      refresh: refreshMock
+    })
+
+    render(<GitGraphPanel />)
+
+    await waitFor(() => {
+      expect(ensureLoadedMock).toHaveBeenCalled()
+    })
+
+    await waitFor(() => {
+      expect(refreshMock).toHaveBeenCalled()
+    })
+
+    const baselineCalls = refreshMock.mock.calls.length
+
+    const commitRow = await screen.findByText('Initial commit')
+    fireEvent.contextMenu(commitRow)
+
+    const overlay = document.body.querySelector('.fixed.inset-0.z-40') as HTMLElement | null
+    expect(overlay).not.toBeNull()
+    expect(screen.queryByText('Copy commit ID')).toBeInTheDocument()
+
+    const overlayEvent = new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
+    overlayEvent.preventDefault()
+    overlay!.dispatchEvent(overlayEvent)
+
+    expect(screen.queryByText('Copy commit ID')).toBeInTheDocument()
+
+    expect(refreshMock.mock.calls.length).toBe(baselineCalls)
+  })
+
+  it('closes the context menu when the overlay receives a left click', async () => {
+    const ensureLoadedMock = vi.fn()
+    const refreshMock = vi.fn().mockResolvedValue(undefined)
+
+    useGitHistoryMock.mockReturnValue({
+      snapshot: baseSnapshot,
+      isLoading: false,
+      error: null,
+      isLoadingMore: false,
+      loadMoreError: null,
+      latestHead: baseSnapshot.headCommit ?? null,
+      ensureLoaded: ensureLoadedMock,
+      loadMore: vi.fn(),
+      refresh: refreshMock
+    })
+
+    const user = userEvent.setup()
+
+    render(<GitGraphPanel />)
+
+    await waitFor(() => {
+      expect(ensureLoadedMock).toHaveBeenCalled()
+    })
+
+    await waitFor(() => {
+      expect(refreshMock).toHaveBeenCalled()
+    })
+
+    const baselineCalls = refreshMock.mock.calls.length
+
+    const commitRow = await screen.findByText('Initial commit')
+    fireEvent.contextMenu(commitRow)
+
+    const overlay = document.body.querySelector('.fixed.inset-0.z-40') as HTMLElement | null
+    expect(overlay).not.toBeNull()
+    expect(screen.queryByText('Copy commit ID')).toBeInTheDocument()
+
+    await user.click(overlay!)
+
+    expect(screen.queryByText('Copy commit ID')).not.toBeInTheDocument()
+    expect(refreshMock.mock.calls.length).toBe(baselineCalls)
+  })
+
+  it('does not trigger a manual refresh when interacting with the context menu', async () => {
+    const ensureLoadedMock = vi.fn()
+    const refreshMock = vi.fn().mockResolvedValue(undefined)
+
+    useGitHistoryMock.mockReturnValue({
+      snapshot: baseSnapshot,
+      isLoading: false,
+      error: null,
+      isLoadingMore: false,
+      loadMoreError: null,
+      latestHead: baseSnapshot.headCommit ?? null,
+      ensureLoaded: ensureLoadedMock,
+      loadMore: vi.fn(),
+      refresh: refreshMock
+    })
+
+    const user = userEvent.setup()
+
+    render(<GitGraphPanel />)
+
+    await waitFor(() => {
+      expect(ensureLoadedMock).toHaveBeenCalled()
+    })
+
+    await waitFor(() => {
+      expect(refreshMock).toHaveBeenCalled()
+    })
+
+    const baselineCalls = refreshMock.mock.calls.length
+
+    const commitRow = await screen.findByText('Initial commit')
+    fireEvent.contextMenu(commitRow)
+
+    expect(screen.queryByText('Copy commit ID')).toBeInTheDocument()
+    expect(refreshMock.mock.calls.length).toBe(baselineCalls)
+
+    mockedInvoke.mockResolvedValue(undefined)
+
+    await user.click(screen.getByText('Copy commit ID'))
+
+    expect(refreshMock.mock.calls.length).toBe(baselineCalls)
   })
 })

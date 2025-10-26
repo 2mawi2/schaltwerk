@@ -99,7 +99,6 @@
     "archunit": "^2.1.63",
     "eslint": "^9.37.0",
     "eslint-plugin-react-hooks": "^7.0.0",
-    "glob": "^11.0.0",
     "happy-dom": "^20.0.2",
     "knip": "^5.66.3",
     "npm-run-all2": "^8.0.0",
