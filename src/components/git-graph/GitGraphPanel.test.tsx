@@ -221,6 +221,11 @@ describe('GitGraphPanel', () => {
 
     render(<GitGraphPanel sessionName="session-1" />)
 
+    await waitFor(() => {
+      expect(refreshMock).toHaveBeenCalled()
+    })
+    refreshMock.mockClear()
+
     const handler = fileChangeHandlers[SchaltEvent.FileChanges]
     expect(handler).toBeDefined()
 
@@ -237,8 +242,215 @@ describe('GitGraphPanel', () => {
     })
 
     expect(refreshMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('eagerly refreshes after ensureLoaded to capture external commits', async () => {
+    const ensureLoadedMock = vi.fn().mockResolvedValue(undefined)
+    const refreshMock = vi.fn().mockResolvedValue(undefined)
+
+    useGitHistoryMock.mockReturnValue({
+      snapshot: baseSnapshot,
+      isLoading: false,
+      error: null,
+      isLoadingMore: false,
+      loadMoreError: null,
+      latestHead: baseSnapshot.headCommit ?? null,
+      ensureLoaded: ensureLoadedMock,
+      loadMore: vi.fn(),
+      refresh: refreshMock
+    })
+
+    render(<GitGraphPanel />)
+
+    expect(ensureLoadedMock).toHaveBeenCalledTimes(1)
+
+    await waitFor(() => {
+      expect(refreshMock).toHaveBeenCalled()
+    })
+  })
+
+  it('refreshes when the panel receives user interaction', async () => {
+    const ensureLoadedMock = vi.fn().mockResolvedValue(undefined)
+    const refreshMock = vi.fn().mockResolvedValue(undefined)
+
+    useGitHistoryMock.mockReturnValue({
+      snapshot: baseSnapshot,
+      isLoading: false,
+      error: null,
+      isLoadingMore: false,
+      loadMoreError: null,
+      latestHead: baseSnapshot.headCommit ?? null,
+      ensureLoaded: ensureLoadedMock,
+      loadMore: vi.fn(),
+      refresh: refreshMock
+    })
+
+    const user = userEvent.setup()
+    render(<GitGraphPanel />)
+
+    await waitFor(() => {
+      expect(ensureLoadedMock).toHaveBeenCalled()
+    })
+
+    refreshMock.mockClear()
+
+    await user.click(screen.getByTestId('git-history-panel'))
 
     expect(refreshMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('refreshes when watcher emits after orchestrator mount (simulated commit)', async () => {
+    const ensureLoadedMock = vi.fn().mockResolvedValue(undefined)
+    const refreshMock = vi.fn().mockResolvedValue(undefined)
+
+    useGitHistoryMock.mockReturnValue({
+      snapshot: baseSnapshot,
+      isLoading: false,
+      error: null,
+      isLoadingMore: false,
+      loadMoreError: null,
+      latestHead: baseSnapshot.headCommit ?? null,
+      ensureLoaded: ensureLoadedMock,
+      loadMore: vi.fn(),
+      refresh: refreshMock
+    })
+
+    mockedInvoke.mockResolvedValue(baseSnapshot as unknown)
+
+    render(<GitGraphPanel />)
+
+    await waitFor(() => {
+      expect(refreshMock).toHaveBeenCalled()
+    })
+    refreshMock.mockClear()
+
+    const handler = fileChangeHandlers[SchaltEvent.FileChanges]
+    expect(handler).toBeDefined()
+
+    await handler?.({
+      session_name: 'orchestrator',
+      branch_info: {
+        current_branch: 'main',
+        base_branch: 'main',
+        base_commit: 'abc0000',
+        head_commit: 'abc0000ffffeeee1111222233334444aaaa5555'
+      }
+    })
+
+    expect(refreshMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('should refresh when watcher emits before snapshot (currently failing)', async () => {
+    const ensureLoadedMock = vi.fn().mockResolvedValue(undefined)
+    const refreshMock = vi.fn().mockResolvedValue(undefined)
+
+    useGitHistoryMock.mockReturnValue({
+      snapshot: null,
+      isLoading: false,
+      error: null,
+      isLoadingMore: false,
+      loadMoreError: null,
+      latestHead: null,
+      ensureLoaded: ensureLoadedMock,
+      loadMore: vi.fn(),
+      refresh: refreshMock
+    })
+
+    mockedInvoke.mockResolvedValue(baseSnapshot as unknown)
+
+    render(<GitGraphPanel />)
+
+    await waitFor(() => {
+      expect(ensureLoadedMock).toHaveBeenCalled()
+    })
+
+    refreshMock.mockClear()
+
+    const handler = fileChangeHandlers[SchaltEvent.FileChanges]
+    expect(handler).toBeDefined()
+
+    await handler?.({
+      session_name: 'orchestrator',
+      branch_info: {
+        current_branch: 'main',
+        base_branch: 'main',
+        base_commit: 'abc0000',
+        head_commit: 'abc0000ffffeeee1111222233334444bbbb5555'
+      }
+    })
+
+    await waitFor(() => {
+      expect(refreshMock).toHaveBeenCalled()
+    })
+  })
+
+  it('does not queue other sessions during bootstrap', async () => {
+    let resolveEnsure: (() => void) | undefined
+
+    const ensureLoadedMock = vi.fn(() => new Promise<void>(resolve => {
+      resolveEnsure = resolve
+    }))
+    const refreshMock = vi.fn().mockResolvedValue(undefined)
+
+    useGitHistoryMock.mockReturnValue({
+      snapshot: null,
+      isLoading: false,
+      error: null,
+      isLoadingMore: false,
+      loadMoreError: null,
+      latestHead: null,
+      ensureLoaded: ensureLoadedMock,
+      loadMore: vi.fn(),
+      refresh: refreshMock
+    })
+
+    render(<GitGraphPanel />)
+
+    const handler = fileChangeHandlers[SchaltEvent.FileChanges]
+    expect(handler).toBeDefined()
+
+    await handler?.({
+      session_name: 'session-other',
+      branch_info: {
+        current_branch: 'feature/other',
+        base_branch: 'main',
+        base_commit: 'abc0000',
+        head_commit: 'ffeeddccbbaa99887766554433221100cc'
+      }
+    })
+
+    expect(refreshMock).not.toHaveBeenCalled()
+
+    resolveEnsure?.()
+
+    await waitFor(() => {
+      expect(refreshMock).toHaveBeenCalledTimes(1)
+    })
+
+    await new Promise(resolve => setTimeout(resolve, 10))
+    expect(refreshMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps showing history while a background refresh is loading', async () => {
+    const ensureLoadedMock = vi.fn().mockResolvedValue(undefined)
+    const refreshMock = vi.fn().mockResolvedValue(undefined)
+
+    useGitHistoryMock.mockReturnValue({
+      snapshot: baseSnapshot,
+      isLoading: true,
+      error: null,
+      isLoadingMore: false,
+      loadMoreError: null,
+      latestHead: baseSnapshot.headCommit ?? null,
+      ensureLoaded: ensureLoadedMock,
+      loadMore: vi.fn(),
+      refresh: refreshMock
+    })
+
+    render(<GitGraphPanel />)
+
+    expect(await screen.findByText('Initial commit')).toBeInTheDocument()
+    expect(screen.queryByText('Loading git history...')).not.toBeInTheDocument()
   })
 
   it('uses override repo path and ignores events for other sessions', async () => {
@@ -273,6 +485,11 @@ describe('GitGraphPanel', () => {
 
     render(<GitGraphPanel repoPath="/sessions/test-session" sessionName="session-1" />)
 
+    await waitFor(() => {
+      expect(refreshMock).toHaveBeenCalled()
+    })
+    refreshMock.mockClear()
+
     const handler = fileChangeHandlers[SchaltEvent.FileChanges]
     expect(handler).toBeDefined()
 
@@ -299,6 +516,129 @@ describe('GitGraphPanel', () => {
     })
 
     expect(refreshMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('refreshes when orchestrator file change events arrive', async () => {
+    const ensureLoadedMock = vi.fn()
+    const refreshMock = vi.fn()
+
+    useGitHistoryMock.mockReturnValue({
+      snapshot: baseSnapshot,
+      isLoading: false,
+      error: null,
+      isLoadingMore: false,
+      loadMoreError: null,
+      latestHead: baseSnapshot.headCommit ?? null,
+      ensureLoaded: ensureLoadedMock,
+      loadMore: vi.fn(),
+      refresh: refreshMock
+    })
+
+    mockedInvoke.mockResolvedValue(baseSnapshot as unknown)
+
+    render(<GitGraphPanel />)
+
+    await waitFor(() => {
+      expect(refreshMock).toHaveBeenCalled()
+    })
+    refreshMock.mockClear()
+
+    const handler = fileChangeHandlers[SchaltEvent.FileChanges]
+    expect(handler).toBeDefined()
+
+    await handler?.({
+      session_name: 'orchestrator',
+      branch_info: {
+        current_branch: 'main',
+        base_branch: 'main',
+        base_commit: 'abc0000',
+        head_commit: 'ffeeddccbbaa99887766554433221100aa'
+      }
+    })
+
+    expect(refreshMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('ignores non-orchestrator events while orchestrator history is open', async () => {
+    const ensureLoadedMock = vi.fn()
+    const refreshMock = vi.fn()
+
+    useGitHistoryMock.mockReturnValue({
+      snapshot: baseSnapshot,
+      isLoading: false,
+      error: null,
+      isLoadingMore: false,
+      loadMoreError: null,
+      latestHead: baseSnapshot.headCommit ?? null,
+      ensureLoaded: ensureLoadedMock,
+      loadMore: vi.fn(),
+      refresh: refreshMock
+    })
+
+    mockedInvoke.mockResolvedValue(baseSnapshot as unknown)
+
+    render(<GitGraphPanel />)
+
+    await waitFor(() => {
+      expect(refreshMock).toHaveBeenCalled()
+    })
+    refreshMock.mockClear()
+
+    const handler = fileChangeHandlers[SchaltEvent.FileChanges]
+    expect(handler).toBeDefined()
+
+    await handler?.({
+      session_name: 'session-x',
+      branch_info: {
+        current_branch: 'feature/ignore',
+        base_branch: 'main',
+        base_commit: 'abc0000',
+        head_commit: 'ffeeddccbbaa99887766554433221100aa'
+      }
+    })
+
+    expect(refreshMock).not.toHaveBeenCalled()
+  })
+
+  it('shows error state when initial history fetch fails', async () => {
+    const ensureLoadedMock = vi.fn()
+
+    useGitHistoryMock.mockReturnValue({
+      snapshot: null,
+      isLoading: false,
+      error: 'Boom',
+      isLoadingMore: false,
+      loadMoreError: null,
+      latestHead: null,
+      ensureLoaded: ensureLoadedMock,
+      loadMore: vi.fn(),
+      refresh: vi.fn()
+    })
+
+    render(<GitGraphPanel />)
+
+    expect(await screen.findByText('Failed to load git history')).toBeInTheDocument()
+    expect(screen.getByText('Boom')).toBeInTheDocument()
+  })
+
+  it('shows empty state before any history has loaded', async () => {
+    const ensureLoadedMock = vi.fn()
+
+    useGitHistoryMock.mockReturnValue({
+      snapshot: null,
+      isLoading: false,
+      error: null,
+      isLoadingMore: false,
+      loadMoreError: null,
+      latestHead: null,
+      ensureLoaded: ensureLoadedMock,
+      loadMore: vi.fn(),
+      refresh: vi.fn()
+    })
+
+    render(<GitGraphPanel />)
+
+    expect(await screen.findByText('No git history available')).toBeInTheDocument()
   })
 
   it('logs and swallows errors when event unlisten rejects during cleanup', async () => {
@@ -330,8 +670,8 @@ describe('GitGraphPanel', () => {
 
     unmount()
     await waitFor(() => {
-      expect(logger.warn).toHaveBeenCalledWith(
-        '[GitGraphPanel] Failed to unsubscribe from file change events',
+      expect(logger.debug).toHaveBeenCalledWith(
+        expect.stringContaining('Ignored unlisten error'),
         unlistenError
       )
     })

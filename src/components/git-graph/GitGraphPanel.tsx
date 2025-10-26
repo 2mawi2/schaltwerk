@@ -12,6 +12,7 @@ import { writeClipboard } from '../../utils/clipboard'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import type { EventPayloadMap } from '../../common/events'
 import { useGitHistory } from '../../contexts/GitHistoryContext'
+import { ORCHESTRATOR_SESSION_NAME } from '../../constants/sessions'
 
 interface GitGraphPanelProps {
   onOpenCommitDiff?: (payload: {
@@ -49,30 +50,15 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
   const refreshProcessingRef = useRef(false)
   const pendingRefreshHeadsRef = useRef<string[]>([])
   const activeRefreshHeadRef = useRef<string | null>(null)
-
-  useEffect(() => {
-    refreshProcessingRef.current = false
-    pendingRefreshHeadsRef.current = []
-    activeRefreshHeadRef.current = null
-    hasLoadedRef.current = false
-    latestHeadRef.current = null
-
-    setSelectedCommitId(null)
-    setContextMenu(null)
-    setCommitDetails({})
-    commitDetailsRef.current = {}
-
-    if (!repoPath) {
-      return
-    }
-
-    void ensureLoaded()
-  }, [repoPath, ensureLoaded])
+  const lastManualRefreshRef = useRef(0)
+  const pendingHeadsRef = useRef<Map<string, Set<string>>>(new Map())
+  const unsubscribeRef = useRef<(() => void | Promise<void>) | null>(null)
 
   const historyItems = useMemo(() => {
     return snapshot ? toViewModel(snapshot) : []
   }, [snapshot])
 
+  const hasSnapshot = Boolean(snapshot)
   const hasMore = snapshot?.hasMore ?? false
   const nextCursor = snapshot?.nextCursor
 
@@ -117,6 +103,23 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
     setContextMenu(null)
   }, [contextMenu, pushToast])
 
+  const handlePanelInteraction = useCallback(() => {
+    if (!repoPath || !hasLoadedRef.current) {
+      logger.debug('[GitGraphPanel] Panel interaction ignored', { repoPath, hasLoaded: hasLoadedRef.current })
+      return
+    }
+
+    const now = Date.now()
+    if (now - lastManualRefreshRef.current < 1200) {
+      logger.debug('[GitGraphPanel] Panel interaction throttled', { repoPath })
+      return
+    }
+
+    lastManualRefreshRef.current = now
+    logger.debug('[GitGraphPanel] Panel interaction refresh', { repoPath })
+    void refreshHistory()
+  }, [repoPath, refreshHistory])
+
   const handleOpenCommitDiffInternal = useCallback(async (commit: HistoryItem, filePath?: string) => {
     if (!onOpenCommitDiff || !repoPath) {
       return
@@ -153,10 +156,6 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
   useEffect(() => {
     repoPathRef.current = repoPath ?? null
   }, [repoPath])
-
-  useEffect(() => {
-    hasLoadedRef.current = Boolean(snapshot)
-  }, [snapshot])
 
   useEffect(() => {
     latestHeadRef.current = latestHead ?? null
@@ -207,6 +206,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
       }
 
       if (headsMatch(latestHeadRef.current, head)) {
+        logger.debug('[GitGraphPanel] enqueue skipped (head matches)', { repoPath, head })
         return
       }
 
@@ -223,46 +223,177 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
     [repoPath, processRefreshQueue, headsMatch]
   )
 
+  const flushPendingHeads = useCallback(
+    (session: string, reason: string) => {
+      const pending = pendingHeadsRef.current.get(session)
+      if (!pending || pending.size === 0) {
+        return
+      }
+
+      const queued = Array.from(pending)
+      pendingHeadsRef.current.delete(session)
+      logger.debug('[GitGraphPanel] Flushing queued heads', {
+        repoPath,
+        reason,
+        session,
+        heads: queued,
+      })
+
+      queued.forEach(head => {
+        if (headsMatch(latestHeadRef.current, head)) {
+          logger.debug('[GitGraphPanel] Flush skipped head (matches latest)', { repoPath, head, reason, session })
+          return
+        }
+        enqueueRefreshHead(head)
+      })
+    },
+    [enqueueRefreshHead, headsMatch, repoPath]
+  )
+
+  const queuePendingHead = useCallback(
+    (session: string, head: string) => {
+      if (!head) {
+        return
+      }
+      let bucket = pendingHeadsRef.current.get(session)
+      if (!bucket) {
+        bucket = new Set<string>()
+        pendingHeadsRef.current.set(session, bucket)
+      }
+      bucket.add(head)
+      logger.debug('[GitGraphPanel] File change queued (not ready)', {
+        repoPath,
+        session,
+        head,
+        pendingCount: bucket.size,
+      })
+    },
+    [repoPath]
+  )
+
+  useEffect(() => {
+    refreshProcessingRef.current = false
+    pendingRefreshHeadsRef.current = []
+    activeRefreshHeadRef.current = null
+    hasLoadedRef.current = false
+    latestHeadRef.current = null
+
+    setSelectedCommitId(null)
+    setContextMenu(null)
+    setCommitDetails({})
+    commitDetailsRef.current = {}
+
+    if (!repoPath) {
+      return
+    }
+
+    let cancelled = false
+    const sessionKey = sessionName ?? ORCHESTRATOR_SESSION_NAME
+
+    const bootstrap = async () => {
+      try {
+        await ensureLoaded()
+        if (cancelled) {
+          return
+        }
+        hasLoadedRef.current = true
+        flushPendingHeads(sessionKey, 'after-ensureLoaded')
+        logger.debug('[GitGraphPanel] Bootstrap refresh start', { repoPath })
+        await refreshHistory()
+        logger.debug('[GitGraphPanel] Bootstrap refresh complete', { repoPath })
+        flushPendingHeads(sessionKey, 'after-bootstrap-refresh')
+      } catch (error) {
+        logger.warn('[GitGraphPanel] Failed to bootstrap history load', error)
+      }
+    }
+
+    void bootstrap()
+
+    return () => {
+      cancelled = true
+    }
+  }, [repoPath, ensureLoaded, refreshHistory, flushPendingHeads, sessionName])
+
+  useEffect(() => {
+    if (snapshot) {
+      hasLoadedRef.current = true
+      const sessionKey = sessionName ?? ORCHESTRATOR_SESSION_NAME
+      flushPendingHeads(sessionKey, 'on-snapshot')
+    }
+  }, [snapshot, flushPendingHeads, sessionName])
+
   const handleFileChanges = useCallback(
     (payload: EventPayloadMap[SchaltEvent.FileChanges]) => {
-      if (!repoPath || !hasLoadedRef.current) {
-        return
-      }
-
-      if (sessionName && payload?.session_name !== sessionName) {
-        return
-      }
-
+      const targetSession = sessionName ?? ORCHESTRATOR_SESSION_NAME
+      const eventSession = payload?.session_name
       const nextHead = payload?.branch_info?.head_commit?.trim()
+
+      const sessionKey = eventSession ?? ORCHESTRATOR_SESSION_NAME
+
+      if (eventSession !== targetSession) {
+        logger.debug('[GitGraphPanel] File change ignored (session mismatch)', {
+          repoPath,
+          targetSession,
+          eventSession,
+        })
+        if (!hasLoadedRef.current && nextHead) {
+          queuePendingHead(sessionKey, nextHead)
+        }
+        return
+      }
+
+      if (!repoPath) {
+        logger.debug('[GitGraphPanel] File change ignored (no repo path)', { eventSession })
+        return
+      }
+
+      if (!hasLoadedRef.current) {
+        if (nextHead) {
+          queuePendingHead(sessionKey, nextHead)
+        } else {
+          logger.debug('[GitGraphPanel] File change ignored (not ready)', { repoPath })
+        }
+        return
+      }
+
       if (!nextHead) {
+        logger.debug('[GitGraphPanel] File change ignored (no head)', { repoPath })
         return
       }
 
       if (headsMatch(latestHeadRef.current, nextHead)) {
+        logger.debug('[GitGraphPanel] File change ignored (head matches)', {
+          repoPath,
+          head: nextHead,
+        })
         return
       }
 
+      logger.debug('[GitGraphPanel] File change enqueued refresh', {
+        repoPath,
+        head: nextHead,
+        targetSession,
+      })
       enqueueRefreshHead(nextHead)
     },
-    [repoPath, enqueueRefreshHead, sessionName, headsMatch]
+    [repoPath, enqueueRefreshHead, sessionName, headsMatch, queuePendingHead]
   )
 
   useEffect(() => {
     let isMounted = true
-    let unlisten: (() => void) | null = null
 
     const attach = async () => {
       try {
         const unlistenFileChanges = await listenEvent(SchaltEvent.FileChanges, handleFileChanges)
         if (!isMounted) {
           try {
-            await unlistenFileChanges()
+            await Promise.resolve(unlistenFileChanges())
           } catch (err) {
-            logger.warn('[GitGraphPanel] Failed to unsubscribe from file change events', err)
+            logger.debug('[GitGraphPanel] Ignored unlisten error during mount race', err)
           }
           return
         }
-        unlisten = unlistenFileChanges
+        unsubscribeRef.current = unlistenFileChanges
       } catch (err) {
         logger.warn('[GitGraphPanel] Failed to subscribe to file change events', err)
       }
@@ -272,14 +403,14 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
 
     return () => {
       isMounted = false
-      if (unlisten) {
-        const unlistenFn = unlisten
-        unlisten = null
+      const unlistenFn = unsubscribeRef.current
+      unsubscribeRef.current = null
+      if (unlistenFn) {
         void (async () => {
           try {
-            await unlistenFn()
+            await Promise.resolve(unlistenFn())
           } catch (err) {
-            logger.warn('[GitGraphPanel] Failed to unsubscribe from file change events', err)
+            logger.debug('[GitGraphPanel] Ignored unlisten error during cleanup', err)
           }
         })()
       }
@@ -387,19 +518,27 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
     )
   }
 
-  if (isLoading) {
+  if (!hasSnapshot) {
+    if (isLoading) {
+      return (
+        <div className="flex items-center justify-center h-full text-slate-400 text-xs">
+          Loading git history...
+        </div>
+      )
+    }
+
+    if (error) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full text-red-400 text-xs p-4">
+          <div className="mb-2">Failed to load git history</div>
+          <div className="text-slate-500 text-[10px] max-w-md text-center break-words">{error}</div>
+        </div>
+      )
+    }
+
     return (
       <div className="flex items-center justify-center h-full text-slate-400 text-xs">
-        Loading git history...
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full text-red-400 text-xs p-4">
-        <div className="mb-2">Failed to load git history</div>
-        <div className="text-slate-500 text-[10px] max-w-md text-center break-words">{error}</div>
+        No git history available
       </div>
     )
   }
@@ -413,7 +552,11 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
   }
 
   return (
-    <div className="h-full flex flex-col bg-panel relative">
+    <div
+      className="h-full flex flex-col bg-panel relative"
+      data-testid="git-history-panel"
+      onMouseDown={handlePanelInteraction}
+    >
       <HistoryList
         items={historyItems}
         selectedCommitId={selectedCommitId}
