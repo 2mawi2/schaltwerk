@@ -254,7 +254,7 @@ export function useAttentionNotifications({
 
   useEffect(() => {
     const attentionSessions: AttentionSession[] = (projectPath
-      ? sessions.filter(session => session.info.attention_required)
+      ? sessions.filter(session => session.info.attention_required && !session.info.ready_to_merge)
       : []
     ).map(session => {
       const sessionId = session.info.session_id
