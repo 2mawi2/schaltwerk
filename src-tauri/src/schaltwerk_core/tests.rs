@@ -389,6 +389,26 @@ fn test_archive_limit_enforced() {
 }
 
 #[test]
+fn test_get_session_task_content_returns_empty_after_spec_archive() {
+    let env = TestEnvironment::new().unwrap();
+    let manager = env.get_session_manager().unwrap();
+
+    let spec = manager
+        .create_spec_session("spec-to-archive", "Spec plan content")
+        .unwrap();
+
+    let before_archive = manager.get_session_task_content(&spec.name).unwrap();
+    assert_eq!(before_archive.0.as_deref(), Some("Spec plan content"));
+    assert!(before_archive.1.is_none());
+
+    manager.archive_spec_session(&spec.name).unwrap();
+
+    let after_archive = manager.get_session_task_content(&spec.name).unwrap();
+    assert!(after_archive.0.is_none());
+    assert!(after_archive.1.is_none());
+}
+
+#[test]
 fn test_cancel_session() {
     let env = TestEnvironment::new().unwrap();
     let manager = env.get_session_manager().unwrap();
