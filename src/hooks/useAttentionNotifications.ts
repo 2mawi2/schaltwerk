@@ -52,6 +52,12 @@ interface AttentionSummary {
   totalCount: number
 }
 
+export const shouldCountSessionForAttention = (session: EnrichedSession): boolean => {
+  const requiresAttention = session.info.attention_required === true
+  const isReviewed = session.info.ready_to_merge === true
+  return requiresAttention && !isReviewed
+}
+
 const formatProjectKey = (projectPath: string | null): string => {
   return projectPath && projectPath.trim().length > 0 ? projectPath : 'no-project'
 }
@@ -254,7 +260,7 @@ export function useAttentionNotifications({
 
   useEffect(() => {
     const attentionSessions: AttentionSession[] = (projectPath
-      ? sessions.filter(session => session.info.attention_required)
+      ? sessions.filter(shouldCountSessionForAttention)
       : []
     ).map(session => {
       const sessionId = session.info.session_id
