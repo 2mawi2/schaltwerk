@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode, useEffectEvent } from 'react'
 import { TauriCommands } from '../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { UnlistenFn } from '@tauri-apps/api/event'
@@ -90,13 +90,6 @@ function getErrorMessage(value: unknown): string {
     return 'Unknown error'
 }
 
-function useLatest<T>(value: T) {
-    const ref = useRef(value)
-    useEffect(() => {
-        ref.current = value
-    }, [value])
-    return ref
-}
 
 function isDiffClean(info: SessionInfo): boolean {
     if (info.has_uncommitted_changes === true) {
@@ -215,11 +208,9 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
     const pendingMergePreviewRef = useRef(new Set<string>())
     const pendingSessionsReloadRef = useRef(false)
     const [autoCancelAfterMerge, setAutoCancelAfterMerge] = useState(true)
-    const autoCancelAfterMergeRef = useLatest(autoCancelAfterMerge)
     const applyAutoCancelPreference = useCallback((next: boolean) => {
-        autoCancelAfterMergeRef.current = next
         setAutoCancelAfterMerge(next)
-    }, [autoCancelAfterMergeRef])
+    }, [])
 
     const updateSessionMutation = useCallback((sessionId: string, kind: SessionMutationKind, active: boolean) => {
         setSessionMutations(prev => applySessionMutationState(prev, sessionId, kind, active))
@@ -260,10 +251,6 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         (sessionId: string) => mergeStatuses.get(sessionId) ?? 'idle',
         [mergeStatuses]
     )
-
-    const pushToastRef = useLatest(pushToast)
-    const updateMergeInFlightRef = useLatest(updateMergeInFlight)
-    const mergeDialogStateRef = useLatest(mergeDialogState)
 
     const syncMergeStatuses = useCallback((sessions: EnrichedSession[]) => {
         setMergeStatuses(prev => {
@@ -372,7 +359,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
 
     const confirmMerge = useCallback(
         async (sessionId: string, mode: MergeModeOption, commitMessage?: string) => {
-            const preview = mergeDialogStateRef.current.preview
+            const preview = mergeDialogState.preview
 
             if (preview?.hasConflicts) {
                 setMergeDialogState(prev => {
@@ -447,11 +434,11 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                 })
             }
         },
-        [updateMergeInFlight, mergeDialogStateRef]
+        [updateMergeInFlight, mergeDialogState]
     )
 
     const updateAutoCancelAfterMerge = useCallback(async (next: boolean, persist: boolean = true) => {
-        const previous = autoCancelAfterMergeRef.current
+        const previous = autoCancelAfterMerge
         applyAutoCancelPreference(next)
         if (!persist) {
             return
@@ -463,13 +450,13 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         } catch (error) {
             logger.error('[SessionsContext] Failed to update merge preferences:', error)
             applyAutoCancelPreference(previous)
-            pushToastRef.current({
+            pushToast({
                 tone: 'error',
                 title: 'Failed to update auto-cancel preference',
                 description: getErrorMessage(error),
             })
         }
-    }, [autoCancelAfterMergeRef, pushToastRef, applyAutoCancelPreference])
+    }, [autoCancelAfterMerge, pushToast, applyAutoCancelPreference])
 
     // Note: mapSessionUiState function moved to utils/sessionFilters.ts
 
@@ -1519,6 +1506,110 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
     }, [projectPath, reloadSessions, syncMergeStatuses, autoStartRunningSessions, releaseRemovedSessions])
 
 
+    const handleStarted = useEffectEvent((event: GitOperationPayload) => {
+        mergeErrorCacheRef.current.delete(event.session_name)
+        updateMergeInFlight(event.session_name, true)
+        setMergeStatuses(prev => {
+            if (!prev.has(event.session_name)) {
+                return prev
+            }
+            const next = new Map(prev)
+            next.delete(event.session_name)
+            return next
+        })
+        setMergeDialogState(prev => {
+            if (!prev.isOpen || prev.sessionName !== event.session_name) {
+                return prev
+            }
+            return {
+                ...prev,
+                status: 'running',
+                error: null,
+            }
+        })
+    })
+
+    const handleCompleted = useEffectEvent((event: GitOperationPayload) => {
+        updateMergeInFlight(event.session_name, false)
+        mergeErrorCacheRef.current.delete(event.session_name)
+        setMergeStatuses(prev => {
+            const next = new Map(prev)
+            next.set(event.session_name, 'merged')
+            return next
+        })
+
+        const shortCommit = event.commit ? event.commit.slice(0, 7) : undefined
+        const description = shortCommit
+            ? `Fast-forwarded ${event.parent_branch} to ${shortCommit}`
+            : `Fast-forwarded ${event.parent_branch}`
+
+        pushToast({
+            tone: 'success',
+            title: `Merged ${event.session_name}`,
+            description,
+        })
+
+        if ((event.status === 'success' || event.status === undefined) && event.operation === 'merge' && autoCancelAfterMerge) {
+            void (async () => {
+                try {
+                    await invoke(TauriCommands.SchaltwerkCoreCancelSession, { name: event.session_name })
+                } catch (error) {
+                    logger.error('[SessionsContext] Auto-cancel after merge failed:', error)
+                    pushToast({
+                        tone: 'error',
+                        title: `Failed to cancel ${event.session_name}`,
+                        description: getErrorMessage(error),
+                    })
+                }
+            })()
+        }
+
+        setMergeDialogState(prev => {
+            if (!prev.isOpen || prev.sessionName !== event.session_name) {
+                return prev
+            }
+            return {
+                isOpen: false,
+                status: 'idle',
+                sessionName: null,
+                preview: null,
+                error: null,
+            }
+        })
+    })
+
+    const handleFailed = useEffectEvent((event: GitOperationFailedPayload) => {
+        updateMergeInFlight(event.session_name, false)
+        const previousError = mergeErrorCacheRef.current.get(event.session_name)
+        if (!previousError || previousError !== event.error) {
+            mergeErrorCacheRef.current.set(event.session_name, event.error)
+            pushToast({
+                tone: 'error',
+                title: `Merge failed for ${event.session_name}`,
+                description: event.error,
+            })
+        }
+
+        if (event.status === 'conflict') {
+            setMergeStatuses(prev => {
+                const next = new Map(prev)
+                next.set(event.session_name, 'conflict')
+                return next
+            })
+        }
+
+        setMergeDialogState(prev => {
+            if (!prev.isOpen || prev.sessionName !== event.session_name) {
+                return prev
+            }
+            return {
+                ...prev,
+                status: 'ready',
+                error: event.error ?? 'Merge failed',
+            }
+        })
+    })
+
     useEffect(() => {
         let disposed = false
         const cleanups: Array<() => void> = []
@@ -1541,110 +1632,6 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                 })
         }
 
-        const handleStarted = (event: GitOperationPayload) => {
-            mergeErrorCacheRef.current.delete(event.session_name)
-            updateMergeInFlightRef.current(event.session_name, true)
-            setMergeStatuses(prev => {
-                if (!prev.has(event.session_name)) {
-                    return prev
-                }
-                const next = new Map(prev)
-                next.delete(event.session_name)
-                return next
-            })
-            setMergeDialogState(prev => {
-                if (!prev.isOpen || prev.sessionName !== event.session_name) {
-                    return prev
-                }
-                return {
-                    ...prev,
-                    status: 'running',
-                    error: null,
-                }
-            })
-        }
-
-        const handleCompleted = (event: GitOperationPayload) => {
-            updateMergeInFlightRef.current(event.session_name, false)
-            mergeErrorCacheRef.current.delete(event.session_name)
-            setMergeStatuses(prev => {
-                const next = new Map(prev)
-                next.set(event.session_name, 'merged')
-                return next
-            })
-
-            const shortCommit = event.commit ? event.commit.slice(0, 7) : undefined
-            const description = shortCommit
-                ? `Fast-forwarded ${event.parent_branch} to ${shortCommit}`
-                : `Fast-forwarded ${event.parent_branch}`
-
-            pushToastRef.current({
-                tone: 'success',
-                title: `Merged ${event.session_name}`,
-                description,
-            })
-
-            if ((event.status === 'success' || event.status === undefined) && event.operation === 'merge' && autoCancelAfterMergeRef.current) {
-                void (async () => {
-                    try {
-                        await invoke(TauriCommands.SchaltwerkCoreCancelSession, { name: event.session_name })
-                    } catch (error) {
-                        logger.error('[SessionsContext] Auto-cancel after merge failed:', error)
-                        pushToastRef.current({
-                            tone: 'error',
-                            title: `Failed to cancel ${event.session_name}`,
-                            description: getErrorMessage(error),
-                        })
-                    }
-                })()
-            }
-
-            setMergeDialogState(prev => {
-                if (!prev.isOpen || prev.sessionName !== event.session_name) {
-                    return prev
-                }
-                return {
-                    isOpen: false,
-                    status: 'idle',
-                    sessionName: null,
-                    preview: null,
-                    error: null,
-                }
-            })
-        }
-
-        const handleFailed = (event: GitOperationFailedPayload) => {
-            updateMergeInFlightRef.current(event.session_name, false)
-            const previousError = mergeErrorCacheRef.current.get(event.session_name)
-            if (!previousError || previousError !== event.error) {
-                mergeErrorCacheRef.current.set(event.session_name, event.error)
-                pushToastRef.current({
-                    tone: 'error',
-                    title: `Merge failed for ${event.session_name}`,
-                    description: event.error,
-                })
-            }
-
-            if (event.status === 'conflict') {
-                setMergeStatuses(prev => {
-                    const next = new Map(prev)
-                    next.set(event.session_name, 'conflict')
-                    return next
-                })
-            }
-
-            setMergeDialogState(prev => {
-                if (!prev.isOpen || prev.sessionName !== event.session_name) {
-                    return prev
-                }
-                return {
-                    ...prev,
-                    status: 'ready',
-                    error: event.error ?? 'Merge failed',
-                }
-            })
-        }
-
         register(SchaltEvent.GitOperationStarted, handleStarted)
         register(SchaltEvent.GitOperationCompleted, handleCompleted)
         register(SchaltEvent.GitOperationFailed, handleFailed)
@@ -1659,7 +1646,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                 }
             })
         }
-    }, [pushToastRef, updateMergeInFlightRef, autoCancelAfterMergeRef])
+    }, [])
 
     return (
         <SessionsContext.Provider value={{

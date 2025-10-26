@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useEffectEvent } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
 import clsx from 'clsx'
 import { invoke } from '@tauri-apps/api/core'
@@ -149,7 +149,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         markReadyCooldownRef.current = false
         setIsMarkReadyCoolingDown(false)
     }, [])
-    const fetchOrchestratorBranch = useCallback(async () => {
+    const fetchOrchestratorBranch = useEffectEvent(async () => {
         try {
             const branch = await invoke<string>(TauriCommands.GetCurrentBranchName, { sessionName: null })
             setOrchestratorBranch(branch || "main")
@@ -157,7 +157,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             logger.warn('Failed to get current branch, defaulting to main:', error)
             setOrchestratorBranch("main")
         }
-    }, [])
+    })
     const [keyboardNavigatedFilter, setKeyboardNavigatedFilter] = useState<FilterMode | null>(null)
     const [switchOrchestratorModal, setSwitchOrchestratorModal] = useState<{ open: boolean; initialAgentType?: AgentType; initialSkipPermissions?: boolean; targetSessionId?: string | null }>({ open: false })
     const [switchModelSessionId, setSwitchModelSessionId] = useState<string | null>(null)
@@ -378,12 +378,12 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     }, [sessions, selection, filterMode, ensureProjectMemory, allSessions, setSelection])
 
     // Fetch current branch for orchestrator
-    useEffect(() => { void fetchOrchestratorBranch() }, [fetchOrchestratorBranch])
+    useEffect(() => { void fetchOrchestratorBranch() }, [])
 
     useEffect(() => {
         if (selection.kind !== 'orchestrator') return
         void fetchOrchestratorBranch()
-    }, [selection, fetchOrchestratorBranch])
+    }, [selection])
 
     useEffect(() => {
         let unlistenProjectReady: UnlistenFn | null = null
@@ -419,7 +419,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 unlistenFileChanges()
             }
         }
-    }, [fetchOrchestratorBranch, createSafeUnlistener])
+    }, [createSafeUnlistener])
 
     const handleSelectOrchestrator = async () => {
         await setSelection({ kind: 'orchestrator' }, false, true) // User clicked - intentional
