@@ -4,7 +4,6 @@ use anyhow::{Result, anyhow};
 use chrono::{TimeZone, Utc};
 use log::{info, warn};
 use std::collections::HashMap;
-use std::fs;
 use std::path::{Path, PathBuf};
 const GIT_STATS_STALE_THRESHOLD_SECS: i64 = 60;
 
@@ -63,7 +62,6 @@ use crate::{
         DiffStats, EnrichedSession, FilterMode, GitStats, Session, SessionInfo, SessionState,
         SessionStatus, SessionStatusType, SessionType, SortMode,
     },
-    domains::sessions::process_cleanup::terminate_processes_with_cwd,
     domains::sessions::repository::SessionDbManager,
     domains::sessions::utils::SessionUtils,
     infrastructure::database::{Database, db_archived_specs::ArchivedSpecMethods as _},
@@ -1382,6 +1380,34 @@ impl SessionManager {
         Ok(trimmed.to_string())
     }
 
+    fn ensure_repository_initialized(&self, parent_branch: &str) -> Result<()> {
+        let existing_branches_list =
+            git::list_branches(&self.repo_path).unwrap_or_else(|_| Vec::new());
+        let repo_was_empty = !git::repository_has_commits(&self.repo_path).unwrap_or(false)
+            || existing_branches_list.is_empty();
+
+        log::info!(
+            "Session bootstrap state before worktree creation: repo_was_empty={}, base_branch='{}', repo='{}', branches=[{}]",
+            repo_was_empty,
+            parent_branch,
+            self.repo_path.display(),
+            existing_branches_list.join(", ")
+        );
+
+        if repo_was_empty {
+            log::info!(
+                "Repository has no commits, creating initial commit: '{}'",
+                git::INITIAL_COMMIT_MESSAGE
+            );
+            git::create_initial_commit(&self.repo_path)?;
+
+            log::info!("Ensuring requested base branch '{parent_branch}' exists after initial commit");
+            git::ensure_branch_at_head(&self.repo_path, parent_branch)?;
+        }
+
+        Ok(())
+    }
+
     pub fn new(db: Database, repo_path: PathBuf) -> Self {
         log::debug!(
             "Creating SessionManager with repo path: {}",
@@ -1434,6 +1460,9 @@ impl SessionManager {
     }
 
     pub fn create_session_with_agent(&self, params: SessionCreationParams) -> Result<Session> {
+        use crate::domains::sessions::lifecycle::bootstrapper::{BootstrapConfig, WorktreeBootstrapper};
+        use crate::domains::sessions::lifecycle::finalizer::{FinalizationConfig, SessionFinalizer};
+
         log::info!(
             "Creating session '{}' in repository: {}",
             params.name,
@@ -1487,24 +1516,41 @@ impl SessionManager {
             }
         };
 
-        let repo_name = self.utils.get_repo_name()?;
-        let now = Utc::now();
-
         let default_agent_type = self
             .db_manager
             .get_agent_type()
             .unwrap_or_else(|_| "claude".to_string());
         let global_skip_default = self.db_manager.get_skip_permissions().unwrap_or(false);
 
-        let agent_type_override = params.agent_type.map(|s| s.to_string());
-        let skip_permissions_override = params.skip_permissions;
-
-        let effective_agent_type = agent_type_override
-            .clone()
+        let effective_agent_type = params
+            .agent_type
+            .map(|s| s.to_string())
             .unwrap_or_else(|| default_agent_type.clone());
-        let effective_skip_permissions = skip_permissions_override.unwrap_or(global_skip_default);
-
+        let effective_skip_permissions = params.skip_permissions.unwrap_or(global_skip_default);
         let should_copy_claude_locals = effective_agent_type.eq_ignore_ascii_case("claude");
+
+        self.ensure_repository_initialized(&parent_branch)?;
+
+        let bootstrapper = WorktreeBootstrapper::new(&self.repo_path, &self.utils);
+        let bootstrap_config = BootstrapConfig {
+            session_name: &unique_name,
+            branch_name: &branch,
+            worktree_path: &worktree_path,
+            parent_branch: &parent_branch,
+            custom_branch: params.custom_branch,
+            should_copy_claude_locals,
+        };
+
+        let bootstrap_result = match bootstrapper.bootstrap_worktree(bootstrap_config) {
+            Ok(result) => result,
+            Err(e) => {
+                self.cache_manager.unreserve_name(&unique_name);
+                return Err(e);
+            }
+        };
+
+        let repo_name = self.utils.get_repo_name()?;
+        let now = Utc::now();
 
         let session = Session {
             id: session_id.clone(),
@@ -1514,9 +1560,9 @@ impl SessionManager {
             version_number: params.version_number,
             repository_path: self.repo_path.clone(),
             repository_name: repo_name,
-            branch: branch.clone(),
-            parent_branch: parent_branch.clone(),
-            worktree_path: worktree_path.clone(),
+            branch: bootstrap_result.branch.clone(),
+            parent_branch: bootstrap_result.parent_branch.clone(),
+            worktree_path: bootstrap_result.worktree_path.clone(),
             status: SessionStatus::Active,
             created_at: now,
             updated_at: now,
@@ -1533,195 +1579,39 @@ impl SessionManager {
             amp_thread_id: None,
         };
 
-        let existing_branches_list =
-            git::list_branches(&self.repo_path).unwrap_or_else(|_| Vec::new());
-        let repo_was_empty = !git::repository_has_commits(&self.repo_path).unwrap_or(false)
-            || existing_branches_list.is_empty();
-        log::info!(
-            "Session bootstrap state before worktree creation: repo_was_empty={}, base_branch='{}', repo='{}', branches=[{}]",
-            repo_was_empty,
-            parent_branch,
-            self.repo_path.display(),
-            existing_branches_list.join(", ")
-        );
-        if repo_was_empty {
-            log::info!(
-                "Repository has no commits, creating initial commit: '{}'",
-                git::INITIAL_COMMIT_MESSAGE
-            );
-            git::create_initial_commit(&self.repo_path).map_err(|e| {
-                self.cache_manager.unreserve_name(&unique_name);
-                anyhow!("Failed to create initial commit: {e}")
-            })?;
-            log::info!(
-                "Ensuring requested base branch '{parent_branch}' exists after initial commit"
-            );
-            git::ensure_branch_at_head(&self.repo_path, &parent_branch).map_err(|e| {
-                self.cache_manager.unreserve_name(&unique_name);
-                anyhow!("Failed to bootstrap base branch '{parent_branch}': {e}")
-            })?;
-        }
+        let finalizer = SessionFinalizer::new(&self.db_manager, &self.cache_manager);
+        let finalization_config = FinalizationConfig {
+            session: session.clone(),
+            compute_git_stats: true,
+            update_activity: true,
+        };
 
-        match git::branch_exists(&self.repo_path, &parent_branch) {
-            Ok(true) => {}
-            Ok(false) => {
-                log::info!(
-                    "Base branch '{}' missing before worktree creation. Available branches: [{}]",
-                    parent_branch,
-                    existing_branches_list.join(", ")
-                );
-                if repo_was_empty {
-                    log::info!(
-                        "Base branch '{parent_branch}' missing after bootstrap, retrying creation"
-                    );
-                    git::ensure_branch_at_head(&self.repo_path, &parent_branch).map_err(|e| {
-                        self.cache_manager.unreserve_name(&unique_name);
-                        anyhow!("Failed to finalize base branch '{parent_branch}': {e}")
-                    })?;
-                } else {
-                    self.cache_manager.unreserve_name(&unique_name);
-                    return Err(anyhow!(
-                        "Base branch '{parent_branch}' does not exist in the repository"
-                    ));
-                }
+        let finalization_result = match finalizer.finalize_creation(finalization_config) {
+            Ok(result) => result,
+            Err(e) => {
+                let _ = git::remove_worktree(&self.repo_path, &worktree_path);
+                let _ = git::delete_branch(&self.repo_path, &branch);
+                self.cache_manager.unreserve_name(&unique_name);
+                return Err(e);
             }
-            Err(err) => {
-                self.cache_manager.unreserve_name(&unique_name);
-                return Err(anyhow!(
-                    "Failed to validate base branch '{parent_branch}': {err}"
-                ));
-            }
-        }
+        };
 
-        let create_result = git::create_worktree_from_base(
-            &self.repo_path,
-            &branch,
-            &worktree_path,
-            &parent_branch,
-        );
-
-        if let Err(e) = create_result {
-            self.cache_manager.unreserve_name(&unique_name);
-            return Err(anyhow!("Failed to create worktree: {e}"));
-        }
-
-        // Verify the worktree was created successfully and is valid
-        if !worktree_path.exists() {
-            self.cache_manager.unreserve_name(&unique_name);
-            return Err(anyhow!(
-                "Worktree directory was not created: {}",
-                worktree_path.display()
-            ));
-        }
-
-        let git_dir = worktree_path.join(".git");
-        if !git_dir.exists() {
-            self.cache_manager.unreserve_name(&unique_name);
-            return Err(anyhow!(
-                "Worktree git directory is missing: {}",
-                git_dir.display()
-            ));
-        }
-
-        log::info!("Worktree verified and ready: {}", worktree_path.display());
-
-        if should_copy_claude_locals && let Err(err) = self.copy_claude_local_files(&worktree_path)
-        {
-            warn!("Failed to copy Claude local overrides for session '{unique_name}': {err}");
-        }
-
-        // IMPORTANT: Do not execute project setup script here.
-        // We stream the setup script output directly in the session's top terminal
-        // right before the agent starts (see schaltwerk_core_start_claude). This
-        // keeps session creation fast and provides visible progress to the user.
-
-        if let Err(e) = self.db_manager.create_session(&session) {
-            let _ = git::remove_worktree(&self.repo_path, &worktree_path);
-            let _ = git::delete_branch(&self.repo_path, &branch);
-            self.cache_manager.unreserve_name(&unique_name);
-            return Err(anyhow!("Failed to save session to database: {e}"));
-        }
-        let _ = self.db_manager.set_session_original_settings(
+        if let Err(e) = self.db_manager.set_session_original_settings(
             &session.id,
             &effective_agent_type,
             effective_skip_permissions,
-        );
-
-        let mut git_stats = git::calculate_git_stats_fast(&worktree_path, &parent_branch)?;
-        git_stats.session_id = session_id.clone();
-        self.db_manager.save_git_stats(&git_stats)?;
-        if let Some(ts) = git_stats.last_diff_change_ts
-            && let Some(dt) = Utc.timestamp_opt(ts, 0).single()
-        {
-            let _ = self.db_manager.set_session_activity(&session_id, dt);
+        ) {
+            log::warn!("Failed to set original agent settings: {e}");
         }
 
         self.cache_manager.unreserve_name(&unique_name);
         log::info!("Successfully created session '{unique_name}'");
-        Ok(session)
-    }
-
-    fn copy_claude_local_files(&self, worktree_path: &Path) -> Result<()> {
-        let mut copy_plan: Vec<(PathBuf, PathBuf)> = Vec::new();
-
-        if let Ok(entries) = fs::read_dir(&self.repo_path) {
-            for entry in entries.filter_map(Result::ok) {
-                let path = entry.path();
-                if !path.is_file() {
-                    continue;
-                }
-
-                let name_lower = entry.file_name().to_string_lossy().to_ascii_lowercase();
-                if name_lower.contains("claude.local") || name_lower.contains("local.claude") {
-                    let dest = worktree_path.join(entry.file_name());
-                    copy_plan.push((path, dest));
-                }
-            }
-        }
-
-        let claude_dir = self.repo_path.join(".claude");
-        if claude_dir.is_dir()
-            && let Ok(entries) = fs::read_dir(&claude_dir)
-        {
-            for entry in entries.filter_map(Result::ok) {
-                let path = entry.path();
-                if !path.is_file() {
-                    continue;
-                }
-                let name_lower = entry.file_name().to_string_lossy().to_ascii_lowercase();
-                if !name_lower.contains(".local.") {
-                    continue;
-                }
-                let dest = worktree_path.join(".claude").join(entry.file_name());
-                copy_plan.push((path, dest));
-            }
-        }
-
-        for (source, dest) in copy_plan {
-            if dest.exists() {
-                info!(
-                    "Skipping Claude local override copy; destination already exists: {}",
-                    dest.display()
-                );
-                continue;
-            }
-
-            if let Some(parent) = dest.parent() {
-                fs::create_dir_all(parent)?;
-            }
-
-            fs::copy(&source, &dest)?;
-            info!(
-                "Copied Claude local override from {} to {}",
-                source.display(),
-                dest.display()
-            );
-        }
-
-        Ok(())
+        Ok(finalization_result.session)
     }
 
     pub fn cancel_session(&self, name: &str) -> Result<()> {
+        use crate::domains::sessions::lifecycle::cancellation::{CancellationConfig, CancellationCoordinator};
+
         let session = self.db_manager.get_session_by_name(name)?;
         log::debug!("Cancel {name}: Retrieved session");
 
@@ -1731,193 +1621,80 @@ impl SessionManager {
             return Ok(());
         }
 
-        let has_uncommitted = if session.worktree_path.exists() {
-            git::has_uncommitted_changes(&session.worktree_path).unwrap_or(false)
-        } else {
-            false
+        let coordinator = CancellationCoordinator::new(&self.repo_path, &self.db_manager);
+        let config = CancellationConfig {
+            force: false,
+            skip_process_cleanup: false,
+            skip_branch_deletion: false,
         };
 
-        if has_uncommitted {
-            log::warn!("Canceling session '{name}' with uncommitted changes");
-        }
-
-        if session.worktree_path.exists() {
-            match tauri::async_runtime::block_on(terminate_processes_with_cwd(
-                &session.worktree_path,
-            )) {
-                Ok(pids) => {
-                    if !pids.is_empty() {
-                        log::info!(
-                            "Cancel {name}: terminated {} lingering process(es): {:?}",
-                            pids.len(),
-                            pids
-                        );
-                    }
-                }
-                Err(e) => {
-                    log::warn!("Cancel {name}: failed to terminate lingering processes: {e}");
-                }
-            }
-
-            if let Err(e) = git::remove_worktree(&self.repo_path, &session.worktree_path) {
-                return Err(anyhow!("Failed to remove worktree: {e}"));
-            }
-            log::debug!("Cancel {name}: Removed worktree");
-        } else {
-            log::warn!(
-                "Worktree path missing, continuing cancellation: {}",
-                session.worktree_path.display()
-            );
-        }
-
-        if git::branch_exists(&self.repo_path, &session.branch)? {
-            match git::delete_branch(&self.repo_path, &session.branch) {
-                Ok(()) => {
-                    log::info!("Deleted branch '{}'", session.branch);
-                }
-                Err(e) => {
-                    log::warn!("Failed to delete branch '{}': {}", session.branch, e);
-                }
-            }
-        } else {
-            log::debug!("Cancel {name}: Branch doesn't exist, skipping deletion");
-        }
-
-        self.db_manager
-            .update_session_status(&session.id, SessionStatus::Cancelled)?;
-        // Gate resume until the next fresh start
-        let _ = self
-            .db_manager
-            .set_session_resume_allowed(&session.id, false);
-        log::info!("Cancel {name}: Session cancelled successfully");
+        coordinator.cancel_session(&session, config)?;
         Ok(())
     }
 
     /// Fast asynchronous session cancellation with parallel operations
     pub async fn fast_cancel_session(&self, name: &str) -> Result<()> {
-        use git2::{BranchType, Repository, WorktreePruneOptions};
+        use crate::domains::sessions::lifecycle::cancellation::{CancellationConfig, CancellationCoordinator};
 
         let session = self.db_manager.get_session_by_name(name)?;
-        log::info!("Fast cancel {name}: Starting optimized cancellation");
 
-        // Check uncommitted changes early (non-blocking)
+        let coordinator = CancellationCoordinator::new(&self.repo_path, &self.db_manager);
+        let config = CancellationConfig {
+            force: false,
+            skip_process_cleanup: false,
+            skip_branch_deletion: false,
+        };
+
+        coordinator.cancel_session_async(&session, config).await?;
+        Ok(())
+    }
+
+    pub fn convert_session_to_draft(&self, name: &str) -> Result<()> {
+        use crate::domains::sessions::lifecycle::finalizer::SessionFinalizer;
+
+        let session = self.db_manager.get_session_by_name(name)?;
+
+        if session.session_state != SessionState::Running {
+            return Err(anyhow!("Session '{name}' is not in running state"));
+        }
+
+        log::info!("Converting session '{name}' from running to spec");
+
         let has_uncommitted = if session.worktree_path.exists() {
             git::has_uncommitted_changes(&session.worktree_path).unwrap_or(false)
         } else {
             false
         };
 
-        if session.worktree_path.exists() {
-            match terminate_processes_with_cwd(&session.worktree_path).await {
-                Ok(pids) => {
-                    if !pids.is_empty() {
-                        log::info!(
-                            "Fast cancel {name}: terminated {} lingering process(es): {:?}",
-                            pids.len(),
-                            pids
-                        );
-                    }
-                }
-                Err(e) => {
-                    log::warn!("Fast cancel {name}: failed to terminate lingering processes: {e}");
-                }
-            }
-        }
-
         if has_uncommitted {
-            log::warn!("Fast canceling session '{name}' with uncommitted changes");
+            log::warn!("Converting session '{name}' to spec with uncommitted changes");
         }
 
-        // Start parallel operations
-        let worktree_future = if session.worktree_path.exists() {
-            let repo_path = self.repo_path.clone();
-            let worktree_path = session.worktree_path.clone();
-            Some(tokio::spawn(async move {
-                let res = tokio::task::spawn_blocking(move || {
-                    let repo = Repository::open(&repo_path)?;
-                    let worktrees = repo.worktrees()?;
-                    for wt_name in worktrees.iter().flatten() {
-                        if let Ok(wt) = repo.find_worktree(wt_name)
-                            && wt.path() == worktree_path
-                        {
-                            // Prune the worktree (force removal)
-                            let _ = wt.prune(Some(&mut WorktreePruneOptions::new()));
-                            break;
-                        }
-                    }
-                    // Also try to remove directory if still exists
-                    if worktree_path.exists() {
-                        let _ = std::fs::remove_dir_all(&worktree_path);
-                    }
-                    Ok::<(), anyhow::Error>(())
-                })
-                .await;
-                match res {
-                    Ok(Ok(())) => Ok(()),
-                    Ok(Err(e)) => Err(e),
-                    Err(e) => Err(anyhow::anyhow!("Task join error: {e}")),
-                }
-            }))
-        } else {
-            None
-        };
-
-        let branch_future = if git::branch_exists(&self.repo_path, &session.branch)? {
-            let repo_path = self.repo_path.clone();
-            let branch = session.branch.clone();
-            Some(tokio::spawn(async move {
-                let res = tokio::task::spawn_blocking(move || {
-                    let repo = Repository::open(&repo_path)?;
-                    if let Ok(mut br) = repo.find_branch(&branch, BranchType::Local) {
-                        br.delete().ok();
-                        log::info!("Deleted branch '{branch}'");
-                    }
-                    Ok::<(), anyhow::Error>(())
-                })
-                .await;
-                match res {
-                    Ok(Ok(())) => Ok::<(), anyhow::Error>(()),
-                    Ok(Err(e)) => {
-                        log::warn!("Branch operation error: {e}");
-                        Ok::<(), anyhow::Error>(())
-                    }
-                    Err(e) => {
-                        log::warn!("Task join error: {e}");
-                        Ok::<(), anyhow::Error>(())
-                    }
-                }
-            }))
-        } else {
-            log::debug!("Fast cancel {name}: Branch doesn't exist, skipping deletion");
-            None
-        };
-
-        // Wait for parallel operations
-        if let Some(worktree_handle) = worktree_future
-            && let Err(e) = worktree_handle.await
-        {
-            log::warn!("Fast cancel {name}: Worktree task error: {e}");
+        if session.worktree_path.exists() && let Err(e) = git::remove_worktree(&self.repo_path, &session.worktree_path) {
+            log::warn!(
+                "Failed to remove worktree when converting to spec (will continue anyway): {e}"
+            );
         }
 
-        if let Some(branch_handle) = branch_future
-            && let Err(e) = branch_handle.await
-        {
-            log::warn!("Fast cancel {name}: Branch task error: {e}");
+        if git::branch_exists(&self.repo_path, &session.branch)? && let Err(e) = git::delete_branch(&self.repo_path, &session.branch) {
+            log::warn!("Failed to delete branch '{}': {}", session.branch, e);
         }
 
-        // Update database status
+        let finalizer = SessionFinalizer::new(&self.db_manager, &self.cache_manager);
+        finalizer.finalize_state_transition(&session.id, SessionState::Spec)?;
+
         self.db_manager
-            .update_session_status(&session.id, SessionStatus::Cancelled)?;
-        // Gate resume until the next fresh start
-        let _ = self
-            .db_manager
-            .set_session_resume_allowed(&session.id, false);
-        log::info!("Fast cancel {name}: Successfully completed");
+            .update_session_status(&session.id, SessionStatus::Spec)?;
 
+        if let Err(e) = self.db_manager.set_session_resume_allowed(&session.id, false) {
+            log::warn!("Failed to gate resume for session '{name}': {e}");
+        }
+
+        log::info!("Successfully converted session '{name}' to spec");
         Ok(())
     }
 
-    pub fn convert_session_to_draft(&self, name: &str) -> Result<()> {
+    pub fn convert_session_to_spec_temp_compat(&self, name: &str) -> Result<()> {
         let session = self.db_manager.get_session_by_name(name)?;
 
         if session.session_state != SessionState::Running {
