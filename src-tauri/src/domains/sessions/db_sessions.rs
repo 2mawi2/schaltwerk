@@ -1,5 +1,5 @@
 use crate::domains::sessions::entity::{Session, SessionState, SessionStatus};
-use crate::schaltwerk_core::database::Database;
+use crate::infrastructure::database::Database;
 use anyhow::Result;
 use chrono::{TimeZone, Utc};
 use rusqlite::{Result as SqlResult, ToSql, params};

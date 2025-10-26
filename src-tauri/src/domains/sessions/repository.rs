@@ -3,9 +3,7 @@ use crate::{
     domains::git::service as git,
     domains::sessions::db_sessions::SessionMethods,
     domains::sessions::entity::{GitStats, Session, SessionState, SessionStatus},
-    schaltwerk_core::database::Database,
-    schaltwerk_core::db_app_config::AppConfigMethods,
-    schaltwerk_core::db_project_config::ProjectConfigMethods,
+    infrastructure::database::{AppConfigMethods, Database, ProjectConfigMethods},
 };
 use anyhow::{Result, anyhow};
 use chrono::Utc;

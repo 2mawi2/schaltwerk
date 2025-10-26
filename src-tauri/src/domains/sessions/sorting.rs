@@ -4,7 +4,7 @@ mod session_sorting_tests {
         domains::sessions::db_sessions::SessionMethods,
         domains::sessions::entity::{FilterMode, Session, SessionState, SessionStatus, SortMode},
         domains::sessions::service::SessionManager,
-        schaltwerk_core::database::Database,
+        infrastructure::database::{initialize_schema, Database},
     };
     use chrono::{Duration, Utc};
     use std::path::PathBuf;
@@ -59,7 +59,7 @@ mod session_sorting_tests {
         let db = Database::new(Some(db_path)).unwrap();
 
         // Initialize database schema
-        crate::schaltwerk_core::db_schema::initialize_schema(&db).unwrap();
+        initialize_schema(&db).unwrap();
 
         let manager = SessionManager::new(db.clone(), temp_dir.path().to_path_buf());
 
