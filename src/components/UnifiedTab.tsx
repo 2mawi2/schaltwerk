@@ -82,7 +82,7 @@ export function UnifiedTab({
         paddingRight: '16px',
         paddingTop: '6px',
         paddingBottom: '6px',
-        fontSize: '0.875rem',
+        fontSize: theme.fontSize.body,
         fontWeight: isActive ? '600' : '500',
         minWidth: style?.minWidth || '80px',
         maxWidth: style?.maxWidth || '150px',
@@ -143,7 +143,7 @@ export function UnifiedTab({
               }
             `}
             style={{
-              fontSize: '14px',
+              fontSize: theme.fontSize.body,
               backgroundColor: 'transparent',
               fontWeight: 'bold',
               lineHeight: 1,

@@ -1,14 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { toViewModel, findNodeColor } from './graphLayout'
 import type { HistoryProviderSnapshot, HistoryItem, HistoryItemViewModel } from './types'
+import { theme } from '../../common/theme'
 
-const SWIMLANE_COLORS = [
-  '#FFB000',
-  '#DC267F',
-  '#994F00',
-  '#40B0A6',
-  '#B66DFF',
-]
+const SWIMLANE_COLORS = theme.colors.graph.swimlane
 
 function createSnapshot(items: HistoryItem[]): HistoryProviderSnapshot {
   return {
@@ -229,9 +224,9 @@ describe('graphLayout - toViewModel', () => {
 
   describe('Color Assignment with References', () => {
     it('should use custom colors from references', () => {
-      const customRefColor = '#81b88b'
-      const customRemoteRefColor = '#b180d7'
-      const customBaseRefColor = '#ea5c00'
+      const customRefColor = theme.colors.graph.references.default
+      const customRemoteRefColor = theme.colors.graph.references.remote
+      const customBaseRefColor = theme.colors.graph.references.base
 
       const snapshot = createSnapshot([
         {
@@ -387,6 +382,6 @@ describe('graphLayout - findNodeColor', () => {
       outputSwimlanes: []
     }
 
-    expect(findNodeColor(viewModel)).toBe('#81b88b')
+    expect(findNodeColor(viewModel)).toBe(theme.colors.graph.references.default)
   })
 })

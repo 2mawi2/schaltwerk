@@ -6,8 +6,8 @@ describe('color utilities', () => {
     expect(hexToRgb('#3b82f6')).toEqual([59, 130, 246])
   })
 
-  it('returns rgba string with provided opacity', () => {
-    expect(withOpacity('#0b1220', 0.75)).toBe('rgba(11, 18, 32, 0.75)')
+  it('returns hex string with provided opacity encoded', () => {
+    expect(withOpacity('#0b1220', 0.75)).toBe('#0b1220bf')
   })
 
   it('formats RGB tuples for CSS variables', () => {

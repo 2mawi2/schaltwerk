@@ -31,6 +31,7 @@ import { useSessionPrefill } from './hooks/useSessionPrefill'
 import { useRightPanelPersistence } from './hooks/useRightPanelPersistence'
 import { useAttentionNotifications } from './hooks/useAttentionNotifications'
 import { theme } from './common/theme'
+import { withOpacity } from './common/colorUtils'
 import { GithubIntegrationProvider, useGithubIntegrationContext } from './contexts/GithubIntegrationContext'
 import { resolveOpenPathForOpenButton } from './utils/resolveOpenPath'
 import { waitForSessionsRefreshed } from './utils/waitForSessionsRefreshed'
@@ -1486,7 +1487,7 @@ function AppContent() {
                         <span
                           className="text-xs px-2 py-0.5 rounded transition-opacity group-hover:opacity-100"
                           style={{
-                            backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                            backgroundColor: withOpacity(theme.colors.accent.amber.DEFAULT, 0.15),
                             color: theme.colors.accent.amber.light
                           }}
                         >
