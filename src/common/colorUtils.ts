@@ -25,7 +25,9 @@ export const withOpacity = (hex: string, alpha: number): string => {
   }
 
   const [r, g, b] = hexToRgb(hex)
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+  const toHex = (value: number) => value.toString(16).padStart(2, '0')
+  const alphaHex = toHex(Math.round(alpha * 255))
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}${alphaHex}`
 }
 
 export const formatRgbTuple = ([r, g, b]: RgbTuple): string => `${r} ${g} ${b}`

@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { VscFolderOpened, VscTrash, VscClose } from 'react-icons/vsc'
 import { theme } from '../../common/theme'
+import { withOpacity } from '../../common/colorUtils'
 import { formatDateTime } from '../../utils/dateTime'
 import { useRecentProjects } from '../../hooks/useRecentProjects'
 
@@ -79,7 +80,7 @@ export function ProjectSelectorModal({ open: isOpen, onClose, onOpenProject, ope
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center"
-      style={{ backgroundColor: 'rgba(0, 0, 0, 0.75)' }}
+      style={{ backgroundColor: theme.colors.overlay.strong }}
       onClick={onClose}
     >
       <div
@@ -129,7 +130,7 @@ export function ProjectSelectorModal({ open: isOpen, onClose, onOpenProject, ope
                 color: theme.colors.accent.blue.DEFAULT
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = `${theme.colors.accent.blue.DEFAULT}22`
+                e.currentTarget.style.backgroundColor = withOpacity(theme.colors.accent.blue.DEFAULT, 0.13)
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.backgroundColor = theme.colors.accent.blue.bg

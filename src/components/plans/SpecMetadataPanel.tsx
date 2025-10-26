@@ -82,7 +82,7 @@ export function SpecMetadataPanel({ sessionName }: Props) {
               border: `1px solid ${theme.colors.border.subtle}`
             }}
           >
-            <VscNotebook style={{ color: theme.colors.text.secondary, fontSize: '18px' }} />
+            <VscNotebook style={{ color: theme.colors.text.secondary, fontSize: theme.fontSize.heading }} />
           </div>
           <div>
             <h3 style={{ 
@@ -110,7 +110,7 @@ export function SpecMetadataPanel({ sessionName }: Props) {
         <div className="flex items-start gap-3">
           <VscCalendar 
             className="mt-0.5 flex-shrink-0" 
-            style={{ color: theme.colors.accent.blue.DEFAULT, fontSize: '16px' }} 
+            style={{ color: theme.colors.accent.blue.DEFAULT, fontSize: theme.fontSize.heading }} 
           />
           <div>
             <div style={{ 
@@ -133,7 +133,7 @@ export function SpecMetadataPanel({ sessionName }: Props) {
           <div className="flex items-start gap-3">
             <VscWatch 
               className="mt-0.5 flex-shrink-0" 
-              style={{ color: theme.colors.accent.amber.DEFAULT, fontSize: '16px' }} 
+              style={{ color: theme.colors.accent.amber.DEFAULT, fontSize: theme.fontSize.heading }} 
             />
             <div>
               <div style={{ 

@@ -4,6 +4,7 @@ import { ONBOARDING_STEPS } from './steps'
 import { TauriCommands } from '../../common/tauriCommands'
 import { logger } from '../../utils/logger'
 import { theme } from '../../common/theme'
+import { withOpacity } from '../../common/colorUtils'
 
 function SmartModalOverlay({ highlightElement, highlightRect }: { highlightElement: Element | null, highlightRect: DOMRect | null }) {
     if (!highlightElement || !highlightRect) {
@@ -72,7 +73,7 @@ function HighlightCutout({ highlightRect }: { highlightRect: DOMRect | null }) {
                     height: rect.height + (padding * 2),
                     zIndex: 31,
                     borderColor: theme.colors.accent.blue.DEFAULT,
-                    boxShadow: `0 10px 15px -3px rgba(34, 211, 238, 0.1), 0 4px 6px -2px rgba(34, 211, 238, 0.05)`,
+                    boxShadow: `0 10px 15px -3px ${withOpacity(theme.colors.accent.blue.DEFAULT, 0.1)}, 0 4px 6px -2px ${withOpacity(theme.colors.accent.blue.DEFAULT, 0.05)}`,
                 }}
             />
             <div

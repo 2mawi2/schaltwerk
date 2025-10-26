@@ -296,15 +296,15 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                        disabled={loading}
                          className="px-3 py-1 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm transition-colors"
                          style={{
-                           backgroundColor: '#155e75', // cyan-800
+                           backgroundColor: theme.colors.palette.cyan[800],
                            borderColor: theme.colors.accent.blue.border,
                            color: theme.colors.accent.blue.light,
                          }}
                          onMouseEnter={(e) => {
-                           e.currentTarget.style.backgroundColor = '#0e7490'; // cyan-700
+                           e.currentTarget.style.backgroundColor = theme.colors.palette.cyan[700];
                          }}
                          onMouseLeave={(e) => {
-                           e.currentTarget.style.backgroundColor = '#155e75'; // cyan-800
+                           e.currentTarget.style.backgroundColor = theme.colors.palette.cyan[800];
                          }}
                      >
                        {agent === 'codex' || agent === 'amp' || agent === 'droid' ? 'Enable MCP (global)' : 'Configure MCP for This Project'}
@@ -319,15 +319,15 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                            rel="noopener noreferrer"
                            className="px-3 py-1 border rounded text-sm transition-colors inline-block"
                            style={{
-                             backgroundColor: '#155e75', // cyan-800
+                             backgroundColor: theme.colors.palette.cyan[800],
                              borderColor: theme.colors.accent.blue.border,
                              color: theme.colors.accent.blue.light,
                            }}
                            onMouseEnter={(e) => {
-                             (e.target as HTMLElement).style.backgroundColor = '#0e7490'; // cyan-700
+                             (e.target as HTMLElement).style.backgroundColor = theme.colors.palette.cyan[700];
                            }}
                            onMouseLeave={(e) => {
-                             (e.target as HTMLElement).style.backgroundColor = '#155e75'; // cyan-800
+                             (e.target as HTMLElement).style.backgroundColor = theme.colors.palette.cyan[800];
                            }}
                         >
                          Install Claude Code First

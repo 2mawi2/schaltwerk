@@ -47,7 +47,7 @@ const LinkComponent = memo(function LinkComponent({ href, children }: { href?: s
 const customComponents: Partial<Components> = {
   h1: ({ children }) => (
     <h1 style={{
-      fontSize: '2em',
+      fontSize: theme.fontSize.display,
       fontWeight: 'bold',
       marginTop: '0.67em',
       marginBottom: '0.67em',
@@ -58,7 +58,7 @@ const customComponents: Partial<Components> = {
   ),
   h2: ({ children }) => (
     <h2 style={{
-      fontSize: '1.5em',
+      fontSize: theme.fontSize.headingXLarge,
       fontWeight: 'bold',
       marginTop: '0.83em',
       marginBottom: '0.83em',
@@ -69,7 +69,7 @@ const customComponents: Partial<Components> = {
   ),
   h3: ({ children }) => (
     <h3 style={{
-      fontSize: '1.17em',
+      fontSize: theme.fontSize.headingLarge,
       fontWeight: 'bold',
       marginTop: '1em',
       marginBottom: '1em',
@@ -80,7 +80,7 @@ const customComponents: Partial<Components> = {
   ),
   h4: ({ children }) => (
     <h4 style={{
-      fontSize: '1em',
+      fontSize: theme.fontSize.heading,
       fontWeight: 'bold',
       marginTop: '1.33em',
       marginBottom: '1.33em',
@@ -91,7 +91,7 @@ const customComponents: Partial<Components> = {
   ),
   h5: ({ children }) => (
     <h5 style={{
-      fontSize: '0.83em',
+      fontSize: theme.fontSize.bodyLarge,
       fontWeight: 'bold',
       marginTop: '1.67em',
       marginBottom: '1.67em',
@@ -102,7 +102,7 @@ const customComponents: Partial<Components> = {
   ),
   h6: ({ children }) => (
     <h6 style={{
-      fontSize: '0.67em',
+      fontSize: theme.fontSize.body,
       fontWeight: 'bold',
       marginTop: '2.33em',
       marginBottom: '2.33em',
@@ -135,7 +135,7 @@ const customComponents: Partial<Components> = {
           color: theme.colors.accent.cyan.DEFAULT,
           padding: '2px 4px',
           borderRadius: '3px',
-          fontSize: '0.9em',
+          fontSize: theme.fontSize.code,
           fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace'
         }}>
           {children}
@@ -152,7 +152,7 @@ const customComponents: Partial<Components> = {
           padding: '12px',
           borderRadius: '4px',
           overflowX: 'auto',
-          fontSize: '0.9em',
+          fontSize: theme.fontSize.code,
           lineHeight: '1.5',
           fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace'
         }}
@@ -282,7 +282,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
         height: '100%',
         backgroundColor: theme.colors.background.primary,
         color: theme.colors.text.primary,
-        fontSize: '14px',
+        fontSize: theme.fontSize.body,
         lineHeight: '1.6'
       }}
     >

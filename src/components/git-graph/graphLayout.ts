@@ -1,17 +1,12 @@
 import type { HistoryGraphNode, HistoryItem, HistoryItemRef, HistoryItemViewModel, HistoryProviderSnapshot } from './types'
+import { theme } from '../../common/theme'
 
-const SWIMLANE_COLORS = [
-  '#FFB000',
-  '#DC267F',
-  '#994F00',
-  '#40B0A6',
-  '#B66DFF',
-]
+const SWIMLANE_COLORS = theme.colors.graph.swimlane
 
-const DEFAULT_REF_COLOR = '#81b88b'
-const DEFAULT_REMOTE_REF_COLOR = '#b180d7'
-const DEFAULT_BASE_REF_COLOR = '#ea5c00'
-const DEFAULT_TAG_REF_COLOR = '#e5c07b'
+const DEFAULT_REF_COLOR = theme.colors.graph.references.default
+const DEFAULT_REMOTE_REF_COLOR = theme.colors.graph.references.remote
+const DEFAULT_BASE_REF_COLOR = theme.colors.graph.references.base
+const DEFAULT_TAG_REF_COLOR = theme.colors.graph.references.tag
 
 function getDefaultColorForIcon(icon: string | undefined): string {
   switch (icon) {
@@ -181,5 +176,5 @@ export function findNodeColor(viewModel: HistoryItemViewModel): string {
     return inputSwimlanes[circleIndex].color
   }
 
-  return '#81b88b'
+  return theme.colors.graph.references.default
 }

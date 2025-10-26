@@ -5,6 +5,7 @@ import type { HistoryItemViewModel, HistoryItem, CommitDetailState } from './typ
 import { GitGraphRow, SWIMLANE_WIDTH } from './GitGraphRow'
 import { groupReferences } from './refGrouping'
 import { theme } from '../../common/theme'
+import { withOpacity } from '../../common/colorUtils'
 import { getFileIcon } from '../../utils/fileIcons'
 
 interface HistoryItemRowProps {
@@ -53,10 +54,10 @@ function renderReferences(references: ReturnType<typeof groupReferences>) {
               backgroundColor,
               color: textColor,
               borderRadius: '0.5em',
-              fontSize: '0.9em',
+              fontSize: theme.fontSize.body,
               lineHeight: '1.3em',
               fontWeight: 600,
-              textShadow: '0 1px 3px rgba(0, 0, 0, 0.5), 0 0 1px rgba(0, 0, 0, 0.3)',
+              textShadow: `0 1px 3px ${withOpacity(theme.colors.text.inverse, 0.5)}, 0 0 1px ${withOpacity(theme.colors.text.inverse, 0.3)}`,
               paddingLeft: showIcon || !ref.showDescription ? '0.3em' : '0.45em',
               paddingRight: ref.showDescription || showIcon ? '0.3em' : '0.45em'
             }}
@@ -136,10 +137,13 @@ export const HistoryItemRow = memo(({ viewModel, isSelected, onSelect, onContext
   const detailContainerRef = useRef<HTMLDivElement | null>(null)
   const [detailHeight, setDetailHeight] = useState(0)
 
+  const selectedRowBackground = withOpacity(theme.colors.accent.blue.DEFAULT, 0.25)
+  const currentRowBackground = withOpacity(theme.colors.palette.blue[700], 0.4)
+
   const rowBgColor = isSelected
-    ? theme.colors.accent.blue.DEFAULT + '40'
+    ? selectedRowBackground
     : isCurrent
-      ? 'rgb(30 58 138 / 0.4)'
+      ? currentRowBackground
       : 'transparent'
 
   const headerStyles: CSSProperties & Record<'--hover-bg', string> = {

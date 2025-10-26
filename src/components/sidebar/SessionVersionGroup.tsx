@@ -5,6 +5,7 @@ import { SessionVersionGroup as SessionVersionGroupType } from '../../utils/sess
 import { isSpec } from '../../utils/sessionFilters'
 import { SessionSelection } from '../../hooks/useSessionManagement'
 import { theme, getAgentColorScheme } from '../../common/theme'
+import { withOpacity } from '../../common/colorUtils'
 import type { MergeStatus } from '../../contexts/SessionsContext'
 
 interface SessionVersionGroupProps {
@@ -125,8 +126,8 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
         borderColor: theme.colors.accent.blue.border,
         backgroundColor: theme.colors.accent.blue.bg
       } : {
-        borderColor: 'rgba(71, 85, 105, 0.5)', // slate-700/50
-        backgroundColor: 'rgba(15, 23, 42, 0.2)' // slate-900/20
+        borderColor: withOpacity(theme.colors.border.subtle, 0.5),
+        backgroundColor: withOpacity(theme.colors.background.tertiary, 0.2)
       }}>
         {/* Group header */}
         <button
@@ -138,17 +139,17 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
             borderBottomColor: theme.colors.accent.blue.border,
             backgroundColor: theme.colors.accent.blue.bg
           } : {
-            borderBottomColor: 'rgba(71, 85, 105, 0.3)', // slate-700/30
-            backgroundColor: 'rgba(30, 41, 59, 0.3)' // slate-800/30
+            borderBottomColor: withOpacity(theme.colors.border.subtle, 0.3),
+            backgroundColor: withOpacity(theme.colors.background.elevated, 0.3)
           }}
           onMouseEnter={(e) => {
             if (!hasSelectedVersion) {
-              e.currentTarget.style.backgroundColor = 'rgba(51, 65, 85, 0.4)'; // slate-700/40
+              e.currentTarget.style.backgroundColor = withOpacity(theme.colors.background.hover, 0.4);
             }
           }}
           onMouseLeave={(e) => {
             if (!hasSelectedVersion) {
-              e.currentTarget.style.backgroundColor = 'rgba(30, 41, 59, 0.3)'; // slate-800/30
+              e.currentTarget.style.backgroundColor = withOpacity(theme.colors.background.elevated, 0.3);
             }
           }}
           title={`${group.baseName} (${group.versions.length} versions) - Click to expand/collapse`}
@@ -171,9 +172,9 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
                 color: theme.colors.accent.blue.light,
                 borderColor: theme.colors.accent.blue.border
               } : {
-                backgroundColor: 'rgba(51, 65, 85, 0.5)', // slate-700/50
-                color: 'rgb(203, 213, 225)', // slate-300
-                borderColor: 'rgba(71, 85, 105, 0.5)' // slate-600/50
+                backgroundColor: withOpacity(theme.colors.background.hover, 0.5),
+                color: theme.colors.text.secondary,
+                borderColor: withOpacity(theme.colors.border.subtle, 0.5)
               }}
             >
               {group.versions.length}x

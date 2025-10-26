@@ -2,6 +2,7 @@ import { memo, useState } from 'react'
 import { VscAdd, VscChevronDown, VscChevronRight } from 'react-icons/vsc'
 import clsx from 'clsx'
 import { LineInfo } from '../../types/diff'
+import { theme } from '../../common/theme'
 
 interface DiffLineRowProps {
   line: LineInfo
@@ -138,7 +139,11 @@ function DiffLineRowComponent({
             onMouseDown={(e) => onLineMouseDown({ lineNum, side, filePath, event: e })}
             onMouseEnter={() => onLineMouseEnter?.({ lineNum, side, filePath })}
             onMouseUp={(e) => onLineMouseUp?.({ event: e, filePath })}
-            className={`p-1 rounded bg-[#21D3EE] text-white opacity-0 group-hover:opacity-100 ${isSelected ? '!opacity-100' : ''}`}
+            className={`p-1 rounded text-white opacity-0 group-hover:opacity-100 ${isSelected ? '!opacity-100' : ''}`}
+            style={{
+              backgroundColor: theme.colors.accent.blue.DEFAULT,
+              color: theme.colors.text.primary,
+            }}
             aria-label={`Select line ${lineNum}`}
             title="Click to select line, drag to select range"
           >

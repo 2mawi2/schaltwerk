@@ -68,7 +68,7 @@ const customTheme = EditorView.theme({
   '&': {
     color: editorColors.text,
     backgroundColor: editorColors.background,
-    fontSize: '14px',
+    fontSize: theme.fontSize.body,
   },
   '.cm-editor': {
     backgroundColor: editorColors.background,
@@ -138,17 +138,17 @@ const customTheme = EditorView.theme({
 
 const syntaxHighlighting = EditorView.theme({
   '.cm-header-1': {
-    fontSize: '1.5em',
+    fontSize: theme.fontSize.headingXLarge,
     fontWeight: 'bold',
     color: syntaxColors.keyword,
   },
   '.cm-header-2': {
-    fontSize: '1.3em',
+    fontSize: theme.fontSize.headingLarge,
     fontWeight: 'bold',
     color: syntaxColors.keyword,
   },
   '.cm-header-3': {
-    fontSize: '1.1em',
+    fontSize: theme.fontSize.heading,
     fontWeight: 'bold',
     color: syntaxColors.keyword,
   },

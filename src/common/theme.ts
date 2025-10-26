@@ -132,6 +132,22 @@ export const theme = {
       modifiedBg: 'rgba(245, 158, 11, 0.15)',
       modifiedText: '#f59e0b',
     },
+
+    graph: {
+      swimlane: [
+        '#FFB000',
+        '#DC267F',
+        '#994F00',
+        '#40B0A6',
+        '#B66DFF',
+      ],
+      references: {
+        default: '#81b88b',
+        remote: '#b180d7',
+        base: '#ea5c00',
+        tag: '#e5c07b',
+      },
+    },
     
     scrollbar: {
       track: 'rgba(30, 41, 59, 0.5)',

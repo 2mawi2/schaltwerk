@@ -26,7 +26,7 @@ function renderGraph(viewModel: HistoryItemViewModel): ReactElement {
       ? outputSwimlanes[circleIndex].color
       : circleIndex < inputSwimlanes.length
       ? inputSwimlanes[circleIndex].color
-      : '#81b88b'
+      : theme.colors.graph.references.default
 
   let outputSwimlaneIndex = 0
 
