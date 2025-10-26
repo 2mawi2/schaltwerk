@@ -1,5 +1,4 @@
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
-import { TauriCommands } from '../../common/tauriCommands'
 import React, { useEffect } from 'react'
 import { vi } from 'vitest'
 import { DiffFileList } from './DiffFileList'
@@ -9,6 +8,8 @@ import { TestProviders } from '../../tests/test-utils'
 import { UiEvent, emitUiEvent } from '../../common/uiEvents'
 import type { SessionGitStatsUpdated } from '../../common/events'
 import * as eventSystemModule from '../../common/eventSystem'
+import { TauriCommands } from '../../common/tauriCommands'
+import * as loggerModule from '../../utils/logger'
 
 type MockChangedFile = {
   path: string
@@ -965,19 +966,62 @@ describe('DiffFileList', () => {
       })
     })
 
-    it('does not trigger row selection when open button is clicked', async () => {
-      const onFileSelect = vi.fn()
+  it('does not trigger row selection when open button is clicked', async () => {
+    const onFileSelect = vi.fn()
 
+    render(
+      <Wrapper sessionName="demo">
+        <DiffFileList onFileSelect={onFileSelect} />
+      </Wrapper>
+    )
+
+    const openButton = await screen.findByLabelText('Open src/a.ts')
+    fireEvent.click(openButton)
+
+    expect(onFileSelect).not.toHaveBeenCalled()
+  })
+
+  it('suppresses missing worktree errors after a session is deleted', async () => {
+    const { invoke } = await import('@tauri-apps/api/core')
+    const mockInvoke = invoke as ReturnType<typeof vi.fn>
+    const error = new Error(
+      "Failed to compute changed files: failed to resolve path '/Users/example/.schaltwerk/worktrees/zen_jang': No such file or directory; class=Os (2); code=NotFound (-3)"
+    )
+
+    mockInvoke.mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
+      if (
+        cmd === TauriCommands.GetChangedFilesFromMain ||
+        cmd === TauriCommands.GetCurrentBranchName ||
+        cmd === TauriCommands.GetBaseBranchName ||
+        cmd === TauriCommands.GetCommitComparisonInfo
+      ) {
+        throw error
+      }
+      if (cmd === TauriCommands.StartFileWatcher) return undefined
+      if (cmd === TauriCommands.StopFileWatcher) return undefined
+      return defaultInvokeImplementation(cmd, args)
+    })
+
+    const loggerSpy = vi.spyOn(loggerModule.logger, 'error')
+
+    try {
       render(
         <Wrapper sessionName="demo">
-          <DiffFileList onFileSelect={onFileSelect} />
+          <DiffFileList onFileSelect={() => {}} />
         </Wrapper>
       )
 
-      const openButton = await screen.findByLabelText('Open src/a.ts')
-      fireEvent.click(openButton)
+      await waitFor(() => {
+        expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.StopFileWatcher, { sessionName: 'demo' })
+      })
 
-      expect(onFileSelect).not.toHaveBeenCalled()
-    })
+      const changedFileCalls = mockInvoke.mock.calls.filter(([cmd]) => cmd === TauriCommands.GetChangedFilesFromMain)
+      expect(changedFileCalls).toHaveLength(1)
+      expect(loggerSpy).not.toHaveBeenCalled()
+    } finally {
+      loggerSpy.mockRestore()
+      mockInvoke.mockImplementation(defaultInvokeImplementation)
+    }
   })
+})
 })

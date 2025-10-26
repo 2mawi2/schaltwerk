@@ -98,9 +98,16 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
       return latestKey === sessionKey
     }
 
+    let currentSessionDuringLoad: string | null = null
+    let commanderDuringLoad = false
+
     try {
       const { sessionNameOverride: currentOverride, selection: currentSelection, isCommander: currentIsCommander } = currentPropsRef.current
-      const currentSession = currentOverride ?? (currentSelection.kind === 'session' ? currentSelection.payload : null)
+      const selectionSession =
+        currentSelection.kind === 'session' ? currentSelection.payload ?? null : null
+      const currentSession = (currentOverride ?? selectionSession) ?? null
+      currentSessionDuringLoad = currentSession
+      commanderDuringLoad = Boolean(currentIsCommander)
 
       // Don't try to load files for cancelled sessions
       if (currentSession && cancelledSessionsRef.current.has(currentSession)) {
@@ -108,7 +115,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
       }
 
       // For orchestrator mode (no session), get working changes
-      if (currentIsCommander && !currentSession) {
+      if (commanderDuringLoad && !currentSession) {
         const [changedFiles, currentBranch] = await Promise.all([
           invoke<ChangedFile[]>(TauriCommands.GetOrchestratorWorkingChanges),
           invoke<string>(TauriCommands.GetCurrentBranchName, { sessionName: null })
@@ -181,7 +188,24 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
         setBranchInfo(cachedPayload.branchInfo)
       }
     } catch (error: unknown) {
-      if (!error?.toString()?.includes('not found')) {
+      const message = String(error ?? '')
+      const normalizedMessage = message.toLowerCase()
+      const missingWorktree =
+        normalizedMessage.includes('no such file or directory') ||
+        normalizedMessage.includes('code=notfound') ||
+        normalizedMessage.includes('session not found') ||
+        normalizedMessage.includes('failed to resolve path')
+
+      if (missingWorktree) {
+        if (currentSessionDuringLoad) {
+          cancelledSessionsRef.current.add(currentSessionDuringLoad)
+          try {
+            await invoke(TauriCommands.StopFileWatcher, { sessionName: currentSessionDuringLoad })
+          } catch (stopError) {
+            logger.debug('[DiffFileList] Unable to stop file watcher after session removal', stopError)
+          }
+        }
+      } else {
         logger.error(`Failed to load changed files:`, error)
       }
 

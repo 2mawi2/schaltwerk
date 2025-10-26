@@ -919,7 +919,6 @@ function AppContent() {
       await preserveSelection(async () => {
         // If starting from an existing spec via the modal, convert that spec to active
         if (!data.isSpec && startFromDraftName && startFromDraftName === data.name) {
-                  
           // Ensure the spec content reflects latest prompt before starting
           const contentToUse = data.prompt || ''
           if (contentToUse.trim().length > 0) {
@@ -934,6 +933,15 @@ function AppContent() {
           const count = useAgentTypes ? (data.agentTypes?.length ?? 1) : Math.max(1, Math.min(4, data.versionCount ?? 1))
           let firstSessionName = data.name
 
+          const overallSpecStart = performance.now()
+          logger.info('[SpecStart] Starting agent promotion from spec', {
+            specName: data.name,
+            count,
+            baseBranch: data.baseBranch,
+            agentType: data.agentType,
+            agentTypes: data.agentTypes,
+          })
+
           // Create array of session names and process them
           const sessionNames = Array.from({ length: count }, (_, i) =>
             i === 0 ? data.name : `${data.name}_v${i + 1}`
@@ -943,9 +951,19 @@ function AppContent() {
           const versionGroupId = (globalThis.crypto && 'randomUUID' in globalThis.crypto)
             ? (globalThis.crypto as Crypto & { randomUUID(): string }).randomUUID()
             : `${data.name}-${Date.now()}`
+          const sessionPromotionStartTimes = new Map<string, number>()
 
           for (const [index, sessionName] of sessionNames.entries()) {
             const agentTypeForVersion = useAgentTypes ? (data.agentTypes?.[index] ?? null) : (data.agentType || null)
+            const promotionStart = performance.now()
+            sessionPromotionStartTimes.set(sessionName, promotionStart)
+            logger.info('[SpecStart] Enqueue pending startup', {
+              sessionName,
+              agentType: agentTypeForVersion ?? 'default',
+              versionIndex: index + 1,
+            })
+
+            await enqueuePendingStartup(sessionName, agentTypeForVersion ?? undefined)
 
             if (index === 0) {
               await waitForSessionsRefreshed(() =>
@@ -958,6 +976,10 @@ function AppContent() {
                   skipPermissions: data.skipPermissions ?? null,
                 })
               )
+              logger.info('[SpecStart] StartSpecSession completed', {
+                sessionName,
+                elapsedMs: Math.round(performance.now() - promotionStart),
+              })
             } else {
               await waitForSessionsRefreshed(() =>
                 invoke(TauriCommands.SchaltwerkCoreCreateAndStartSpecSession, {
@@ -970,6 +992,10 @@ function AppContent() {
                   skipPermissions: data.skipPermissions ?? null,
                 })
               )
+              logger.info('[SpecStart] CreateAndStartSpecSession completed', {
+                sessionName,
+                elapsedMs: Math.round(performance.now() - promotionStart),
+              })
             }
           }
 
@@ -980,15 +1006,31 @@ function AppContent() {
           // Dispatch event for other components to know a session was created from spec
           emitUiEvent(UiEvent.SessionCreated, { name: firstSessionName })
 
+          const ensureTerminalStart = performance.now()
           // Agents are already running because StartSpecSession/CreateAndStartSpecSession start them.
           // Only ensure terminals exist, do not start again to avoid duplicate agent processes.
           try {
             for (const sessionName of sessionNames) {
               await createTerminalsForSession(sessionName)
             }
+            logger.info('[SpecStart] Terminal ensure completed', {
+              sessionNames,
+              elapsedMs: Math.round(performance.now() - ensureTerminalStart),
+            })
           } catch (e) {
             logger.warn('[App] Failed to ensure terminals for spec-derived sessions:', e)
           }
+
+          const totalElapsedMs = Math.round(performance.now() - overallSpecStart)
+          logger.info('[SpecStart] Completed spec agent promotion', {
+            sessions: sessionNames,
+            totalElapsedMs,
+            durations: sessionNames.reduce<Record<string, number | undefined>>((acc, name) => {
+              const start = sessionPromotionStartTimes.get(name)
+              acc[name] = start ? Math.round(ensureTerminalStart - start) : undefined
+              return acc
+            }, {}),
+          })
 
           // Don't automatically switch focus when starting spec sessions
           // The user should remain focused on their current session

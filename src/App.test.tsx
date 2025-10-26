@@ -59,6 +59,19 @@ vi.mock('./components/TopBar', () => ({
   ),
 }))
 
+const fetchSessionForPrefillMock = vi.fn(async (name: string) => ({
+  name,
+  prompt: '# Prefill content',
+  draftContent: '# Prefill content',
+  baseBranch: 'main',
+}))
+
+vi.mock('./hooks/useSessionPrefill', () => ({
+  useSessionPrefill: () => ({
+    fetchSessionForPrefill: fetchSessionForPrefillMock,
+  }),
+}))
+
 // ---- Mock: HomeScreen to drive transitions via onOpenProject ----
 vi.mock('./components/home/HomeScreen', () => ({
   HomeScreen: ({ onOpenProject }: { onOpenProject: (path: string) => void }) => (
@@ -180,6 +193,7 @@ describe('App.tsx', () => {
     newSessionModalMock.mockClear()
     settingsModalMock.mockClear()
     startSessionTopMock.mockClear()
+    fetchSessionForPrefillMock.mockClear()
     listenEventHandlers.length = 0
     mockState.isGitRepo = false
     mockState.currentDir = '/Users/me/sample-project'
@@ -605,6 +619,142 @@ describe('validatePanelPercentage', () => {
 
     listenEventHandlers.length = 0
     invokeMock.mockImplementation(defaultInvokeImpl)
+  })
+
+  it('enqueues a pending startup when starting an agent from an existing spec', async () => {
+    const sessionsModule = await import('./contexts/SessionsContext')
+    const originalUseSessions = sessionsModule.useSessions
+    const enqueueSpy = vi.fn()
+
+    const useSessionsSpy = vi.spyOn(sessionsModule, 'useSessions').mockImplementation(() => {
+      const value = originalUseSessions()
+      return {
+        ...value,
+        enqueuePendingStartup: async (sessionId: string, agentType?: string | null) => {
+          enqueueSpy(sessionId, agentType)
+          await value.enqueuePendingStartup(sessionId, agentType)
+        },
+      }
+    })
+
+    const { invoke } = await import('@tauri-apps/api/core')
+    const invokeMock = invoke as unknown as ReturnType<typeof vi.fn>
+    const isoNow = new Date().toISOString()
+    const specSession = {
+      info: {
+        session_id: 'draft-one',
+        display_name: 'Draft One',
+        branch: 'specs/draft-one',
+        worktree_path: '',
+        base_branch: 'main',
+        parent_branch: 'main',
+        status: 'spec',
+        session_state: 'spec' as const,
+        created_at: isoNow,
+        ready_to_merge: false,
+        has_uncommitted_changes: false,
+        has_conflicts: false,
+        is_current: false,
+        session_type: 'worktree' as const,
+      },
+      status: undefined,
+      terminals: [],
+    }
+
+    invokeMock.mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
+        return [specSession]
+      }
+      if (cmd === TauriCommands.SchaltwerkCoreStartSpecSession) {
+        return null
+      }
+      if (cmd === TauriCommands.SchaltwerkCoreCreateAndStartSpecSession) {
+        return null
+      }
+      if (cmd === TauriCommands.SchaltwerkCoreUpdateSpecContent) {
+        return null
+      }
+      return defaultInvokeImpl(cmd, args)
+    })
+
+    try {
+      renderApp()
+
+      fireEvent.click(await screen.findByTestId('open-project'))
+      await waitFor(() => {
+        expect(screen.getByTestId('sidebar-mock')).toBeInTheDocument()
+      })
+
+      await act(async () => {
+        emitUiEvent(UiEvent.StartAgentFromSpec, { name: 'draft-one' })
+      })
+
+      await waitFor(() => {
+        expect(newSessionModalMock).toHaveBeenCalled()
+      })
+
+      const modalCall = newSessionModalMock.mock.calls.at(-1)
+      expect(modalCall).toBeTruthy()
+      const modalProps = modalCall![0] as { onCreate: OnCreateFn }
+      expect(typeof modalProps.onCreate).toBe('function')
+
+      const createPromise = modalProps.onCreate({
+        name: 'draft-one',
+        prompt: '# Spec draft',
+        baseBranch: 'main',
+        versionCount: 1,
+        agentType: 'claude',
+        isSpec: false,
+        userEditedName: true,
+      })
+
+      await waitFor(() => {
+        expect(listenEventHandlers.some(entry => String(entry.event) === String(SchaltEvent.SessionsRefreshed))).toBe(true)
+      })
+
+      const sessionsRefreshedHandlers = listenEventHandlers.filter(
+        entry => String(entry.event) === String(SchaltEvent.SessionsRefreshed)
+      )
+
+      const runningPayload = [
+        {
+          info: {
+            session_id: 'draft-one',
+            display_name: 'Draft One',
+            branch: 'schaltwerk/draft-one',
+            worktree_path: '/tmp/worktrees/draft-one',
+            base_branch: 'main',
+            parent_branch: 'main',
+            status: 'active',
+            session_state: 'running' as const,
+            created_at: isoNow,
+            last_modified: isoNow,
+            ready_to_merge: false,
+            has_uncommitted_changes: false,
+            has_conflicts: false,
+            is_current: false,
+            session_type: 'worktree' as const,
+            original_agent_type: 'claude',
+          },
+          terminals: [],
+        },
+      ]
+
+      await act(async () => {
+        sessionsRefreshedHandlers.forEach(({ handler }) => handler(runningPayload))
+      })
+
+      await waitFor(() => {
+        expect(startSessionTopMock).toHaveBeenCalledWith(expect.objectContaining({ sessionName: 'draft-one' }))
+      })
+
+      await createPromise
+
+      expect(enqueueSpy).toHaveBeenCalledWith('draft-one', 'claude')
+    } finally {
+      useSessionsSpy.mockRestore()
+      invokeMock.mockImplementation(defaultInvokeImpl)
+    }
   })
 
   it('should skip starting agents for sessions cancelled during version group creation', async () => {

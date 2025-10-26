@@ -2093,7 +2093,12 @@ pub async fn schaltwerk_core_start_spec_session(
         }
     }
 
-    // Drop the lock
+    log::info!(
+        "Queueing sessions refresh after starting spec session '{name}' (pre-rename)"
+    );
+    events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SpecSync);
+
+    // Drop the lock before spawning rename work
     drop(core);
 
     // Trigger AI renaming for spec-started sessions with meaningful content
