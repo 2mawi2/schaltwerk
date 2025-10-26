@@ -6,8 +6,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use crate::domains::terminal::TerminalManager;
 use crate::infrastructure::database::Database;
+use crate::shared::terminal_gateway::{ProjectTerminalGateway, TerminalHandle};
 
 #[derive(Clone)]
 pub struct ProjectCore {
@@ -32,7 +32,7 @@ impl ProjectCore {
 /// Represents a single project with its own terminals and sessions
 pub struct Project {
     pub path: PathBuf,
-    pub terminal_manager: Arc<TerminalManager>,
+    pub terminal_gateway: ProjectTerminalGateway,
     pub core: Arc<RwLock<ProjectCore>>,
 }
 
@@ -41,7 +41,7 @@ impl Project {
         info!("Creating new project for path: {}", path.display());
 
         // Each project gets its own terminal manager
-        let terminal_manager = Arc::new(TerminalManager::new());
+        let terminal_gateway = ProjectTerminalGateway::new();
 
         // Get the global app data directory for project databases
         let db_path = Self::get_project_db_path(&path)?;
@@ -58,7 +58,7 @@ impl Project {
 
         Ok(Self {
             path,
-            terminal_manager,
+            terminal_gateway,
             core,
         })
     }
@@ -109,7 +109,7 @@ impl Project {
     #[cfg(test)]
     pub fn new_in_memory(path: PathBuf) -> Result<Self> {
         // Each project gets its own terminal manager
-        let terminal_manager = Arc::new(TerminalManager::new());
+        let terminal_gateway = ProjectTerminalGateway::new();
 
         // Use in-memory database for tests
         let database = Database::new_in_memory()?;
@@ -117,7 +117,7 @@ impl Project {
 
         Ok(Self {
             path,
-            terminal_manager,
+            terminal_gateway,
             core,
         })
     }
@@ -272,7 +272,7 @@ impl ProjectManager {
             debug!("Cleaning up project: {}", path.display());
 
             // Clean up all terminals for this project
-            if let Err(e) = project.terminal_manager.cleanup_all().await {
+            if let Err(e) = project.terminal_gateway.cleanup_all().await {
                 warn!(
                     "Failed to cleanup terminals for project {}: {}",
                     path.display(),
@@ -292,10 +292,10 @@ impl ProjectManager {
             .iter()
             .map(|(path, project)| {
                 let path = path.clone();
-                let tm = project.terminal_manager.clone();
+                let gateway = project.terminal_gateway.clone();
                 async move {
                     debug!("Force killing terminals for project: {}", path.display());
-                    if let Err(e) = tm.force_kill_all().await {
+                    if let Err(e) = gateway.force_kill_all().await {
                         warn!(
                             "Failed to force kill terminals for {}: {}",
                             path.display(),
@@ -311,9 +311,9 @@ impl ProjectManager {
     }
 
     /// Get terminal manager for current project
-    pub async fn current_terminal_manager(&self) -> Result<Arc<TerminalManager>> {
+    pub async fn current_terminal_manager(&self) -> Result<TerminalHandle> {
         let project = self.current_project().await?;
-        Ok(project.terminal_manager.clone())
+        Ok(project.terminal_gateway.handle())
     }
 
     /// Get SchaltwerkCore for current project

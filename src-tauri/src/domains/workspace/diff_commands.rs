@@ -1,7 +1,7 @@
 use std::path::Path;
 use crate::get_project_manager;
 use crate::domains::git::service as git;
-use crate::domains::sessions::entity::ChangedFile;
+use crate::shared::session_metadata_gateway::{ChangedFile, EnrichedSession};
 use crate::domains::workspace::file_utils;
 use crate::domains::workspace::diff_engine::{
     compute_unified_diff, add_collapsible_sections, compute_split_diff,
@@ -815,9 +815,9 @@ pub async fn get_commit_file_contents(
 /// Find a session by name, with fallback support for versioned sessions.
 /// If the exact session name isn't found, attempts to find a related session with the same base name.
 fn find_session_with_fallback<'a>(
-    sessions: &'a [crate::domains::sessions::entity::EnrichedSession], 
-    name: &str
-) -> Option<&'a crate::domains::sessions::entity::EnrichedSession> {
+    sessions: &'a [EnrichedSession],
+    name: &str,
+) -> Option<&'a EnrichedSession> {
     // Try exact match first
     if let Some(session) = sessions.iter().find(|s| s.info.session_id == name) {
         return Some(session);

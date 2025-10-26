@@ -4,7 +4,7 @@ mod session_sorting_tests {
         domains::sessions::db_sessions::SessionMethods,
         domains::sessions::entity::{FilterMode, Session, SessionState, SessionStatus, SortMode},
         domains::sessions::service::SessionManager,
-        infrastructure::database::{initialize_schema, Database},
+        infrastructure::database::{Database, initialize_schema},
     };
     use chrono::{Duration, Utc};
     use std::path::PathBuf;

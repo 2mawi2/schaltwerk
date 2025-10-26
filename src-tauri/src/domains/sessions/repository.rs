@@ -168,15 +168,14 @@ impl SessionDbManager {
             Err(error) => {
                 if error
                     .downcast_ref::<rusqlite::Error>()
-                    .is_some_and(|sql_error| matches!(sql_error, rusqlite::Error::QueryReturnedNoRows))
+                    .is_some_and(|sql_error| {
+                        matches!(sql_error, rusqlite::Error::QueryReturnedNoRows)
+                    })
                 {
                     warn!(
                         "Spec content requested for missing session '{name}', returning empty payload"
                     );
-                    crate::domains::sessions::cache::invalidate_spec_content(
-                        &self.repo_path,
-                        name,
-                    );
+                    crate::domains::sessions::cache::invalidate_spec_content(&self.repo_path, name);
                     return Ok((None, None));
                 }
 
