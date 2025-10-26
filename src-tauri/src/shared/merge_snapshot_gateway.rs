@@ -88,7 +88,14 @@ mod tests {
         let repo = Repository::init(temp.path()).unwrap();
 
         // Initial commit on main.
-        create_commit(&repo, "initial", "README.md", "hello");
+        let initial_oid = create_commit(&repo, "initial", "README.md", "hello");
+
+        // Ensure main branch exists and points to initial commit.
+        if repo.find_branch("main", git2::BranchType::Local).is_err() {
+            repo.branch("main", &repo.find_commit(initial_oid).unwrap(), false)
+                .unwrap();
+        }
+        repo.set_head("refs/heads/main").unwrap();
 
         // Create feature branch and new commit.
         let main_oid = repo.head().unwrap().target().unwrap();
