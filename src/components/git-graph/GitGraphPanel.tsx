@@ -45,6 +45,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; commit: HistoryItem } | null>(null)
   const [commitDetails, setCommitDetails] = useState<Record<string, CommitDetailState>>({})
   const commitDetailsRef = useRef<Record<string, CommitDetailState>>({})
+  const contextMenuRef = useRef<HTMLDivElement | null>(null)
   const latestHeadRef = useRef<string | null>(null)
   const hasLoadedRef = useRef(false)
   const refreshProcessingRef = useRef(false)
@@ -71,6 +72,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
 
   const handleContextMenu = useCallback((event: React.MouseEvent, commit: HistoryItem) => {
     event.preventDefault()
+    event.stopPropagation()
     if (commit.id !== selectedCommitId) {
       setSelectedCommitId(commit.id)
     }
@@ -103,7 +105,29 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
     setContextMenu(null)
   }, [contextMenu, pushToast])
 
-  const handlePanelInteraction = useCallback(() => {
+  const handlePanelInteraction = useCallback((event: React.MouseEvent) => {
+    if (event.defaultPrevented) {
+      return
+    }
+
+    if (contextMenu) {
+      return
+    }
+
+    if (event.button !== 0) {
+      return
+    }
+
+    if (event.target !== event.currentTarget) {
+      return
+    }
+
+    if (contextMenuRef.current && event.target instanceof Node) {
+      if (contextMenuRef.current.contains(event.target)) {
+        return
+      }
+    }
+
     if (!repoPath || !hasLoadedRef.current) {
       logger.debug('[GitGraphPanel] Panel interaction ignored', { repoPath, hasLoaded: hasLoadedRef.current })
       return
@@ -118,7 +142,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
     lastManualRefreshRef.current = now
     logger.debug('[GitGraphPanel] Panel interaction refresh', { repoPath })
     void refreshHistory()
-  }, [repoPath, refreshHistory])
+  }, [contextMenu, repoPath, refreshHistory])
 
   const handleOpenCommitDiffInternal = useCallback(async (commit: HistoryItem, filePath?: string) => {
     if (!onOpenCommitDiff || !repoPath) {
@@ -588,14 +612,26 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
         <>
           <div
             className="fixed inset-0 z-40"
-            onClick={handleCloseContextMenu}
-            onContextMenu={event => {
+            onMouseDown={event => {
+              if (event.button !== 0) {
+                return
+              }
               event.preventDefault()
+              event.stopPropagation()
+              handleCloseContextMenu()
+            }}
+            onContextMenu={event => {
+              if (event.defaultPrevented) {
+                return
+              }
+              event.preventDefault()
+              event.stopPropagation()
               handleCloseContextMenu()
             }}
           />
           <div
             className="fixed z-50 py-0.5 rounded-md shadow-lg"
+            ref={contextMenuRef}
             style={{
               left: `${contextMenu.x}px`,
               top: `${contextMenu.y}px`,
