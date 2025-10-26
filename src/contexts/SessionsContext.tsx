@@ -47,6 +47,7 @@ const PENDING_STARTUP_TTL_MS = 10_000
 interface PendingStartup {
     agentType?: AgentType
     expiresAt: number
+    enqueuedAt: number
 }
 
 function isAgentType(value: string | null | undefined): value is AgentType {
@@ -579,7 +580,8 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
     const enqueuePendingStartup = useCallback(async (sessionId: string, agentType?: string | null) => {
         const normalizedAgentType = isAgentType(agentType) ? agentType : undefined
         const expiresAt = Date.now() + PENDING_STARTUP_TTL_MS
-        pendingStartupsRef.current.set(sessionId, { agentType: normalizedAgentType, expiresAt })
+        const enqueuedAt = Date.now()
+        pendingStartupsRef.current.set(sessionId, { agentType: normalizedAgentType, expiresAt, enqueuedAt })
         suppressedAutoStartRef.current.delete(sessionId)
         logger.info(
             `[AGENT_LAUNCH_TRACE] pending startup enqueued for ${sessionId} (agentType=${normalizedAgentType ?? 'default'}, ttl=${PENDING_STARTUP_TTL_MS}ms)`
@@ -638,7 +640,8 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                 pendingStartupsRef.current.delete(sessionId)
                 suppressedAutoStartRef.current.delete(sessionId)
 
-                logger.info(`[AGENT_LAUNCH_TRACE] pending startup starting ${sessionId}`)
+                const pendingElapsed = Date.now() - pending.enqueuedAt
+                logger.info(`[AGENT_LAUNCH_TRACE] pending startup starting ${sessionId} (queued=${pendingElapsed}ms, reason=${reason})`)
                 const launch = async () => {
                     try {
                         const projectOrchestratorId = computeProjectOrchestratorId(projectPath)
@@ -650,6 +653,13 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                             agentType: pending.agentType ?? fallbackAgent,
                         })
                         logger.info(`[SessionsContext] Started agent for ${sessionId} (pending-start).`)
+                        const totalElapsed = Date.now() - pending.enqueuedAt
+                        logger.info(`[SpecStart] Agent ready after pending start`, {
+                            sessionId,
+                            queuedDurationMs: pendingElapsed,
+                            totalDurationMs: totalElapsed,
+                            agentType: pending.agentType ?? fallbackAgent ?? 'default',
+                        })
                     } catch (error) {
                         const message = getErrorMessage(error)
                         if (message.includes('Permission required for folder:')) {
