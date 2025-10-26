@@ -4132,6 +4132,7 @@ dependencies = [
  "portable-pty",
  "pty_host",
  "r2d2",
+ "regex",
  "rusqlite",
  "serde",
  "serde_json",
