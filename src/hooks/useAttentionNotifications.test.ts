@@ -289,4 +289,68 @@ describe('useAttentionNotifications', () => {
 
     expect(mockRequestDockBounce).toHaveBeenCalledTimes(1)
   })
+
+  it('excludes reviewed sessions from attention count', async () => {
+    const onProjectAttentionChange = vi.fn()
+
+    const runningSession = createSession('running', true)
+    const reviewedSession: EnrichedSession = {
+      ...createSession('reviewed', true),
+      info: {
+        ...createSession('reviewed', true).info,
+        ready_to_merge: true,
+      },
+    }
+
+    const { result } = renderHook(() =>
+      useAttentionNotifications({
+        sessions: [runningSession, reviewedSession],
+        projectPath: '/Users/test/project',
+        onProjectAttentionChange,
+      })
+    )
+
+    await flushPromises()
+
+    expect(result.current.projectAttentionCount).toBe(1)
+    expect(onProjectAttentionChange).toHaveBeenCalledWith(1)
+    expect(mockReportAttentionSnapshot).toHaveBeenCalledWith('main', ['/Users/test/project::running'])
+  })
+
+  it('includes reviewed session in count when it becomes unreviewed', async () => {
+    const onProjectAttentionChange = vi.fn()
+
+    const reviewedSession: EnrichedSession = {
+      ...createSession('session', true),
+      info: {
+        ...createSession('session', true).info,
+        ready_to_merge: true,
+      },
+    }
+
+    const { rerender } = renderHook(({ sessions }) =>
+      useAttentionNotifications({
+        sessions,
+        projectPath: '/Users/test/project',
+        onProjectAttentionChange,
+      })
+    , {
+      initialProps: { sessions: [reviewedSession] },
+    })
+
+    await flushPromises()
+    expect(onProjectAttentionChange).toHaveBeenCalledWith(0)
+
+    mockReportAttentionSnapshot.mockClear()
+    onProjectAttentionChange.mockClear()
+
+    const runningSession = createSession('session', true)
+    await act(async () => {
+      rerender({ sessions: [runningSession] })
+      await flushPromises()
+    })
+
+    expect(onProjectAttentionChange).toHaveBeenCalledWith(1)
+    expect(mockReportAttentionSnapshot).toHaveBeenCalledWith('main', ['/Users/test/project::session'])
+  })
 })
