@@ -29,9 +29,12 @@ pub use super::worktrees::is_worktree_registered;
 #[cfg(test)]
 mod performance_tests {
     use super::*;
+    use crate::domains::git::stats::{
+        clear_stats_cache, get_git_stats_cache_hits, get_git_stats_call_count,
+        reset_git_stats_cache_hits, reset_git_stats_call_count, track_git_stats_on_current_thread,
+    };
     use std::path::PathBuf;
     use std::process::Command as StdCommand;
-    use std::time::Instant;
     use tempfile::TempDir;
 
     fn setup_test_repo_with_many_files(num_files: usize) -> (TempDir, PathBuf, PathBuf) {
@@ -130,67 +133,62 @@ mod performance_tests {
     }
 
     #[test]
-    #[ignore = "Performance tests are flaky in CI environments"]
-    fn test_git_stats_performance_with_many_files() {
+    fn test_git_stats_handles_many_files_without_flaking() {
         let (_temp, repo_path, worktree_path) = setup_test_repo_with_many_files(100);
         let current_branch = get_current_branch(&repo_path).unwrap();
 
-        // Test old version
-        let start = Instant::now();
         let stats = calculate_git_stats_fast(&worktree_path, &current_branch).unwrap();
-        let old_duration = start.elapsed();
-        println!("Old git stats calculation with 100 files took: {old_duration:?}");
 
-        // Test new fast version
-        let start = Instant::now();
-        let fast_stats = calculate_git_stats_fast(&worktree_path, &current_branch).unwrap();
-        let fast_duration = start.elapsed();
-        println!("Fast git stats calculation with 100 files took: {fast_duration:?}");
-
-        assert_eq!(
-            stats.files_changed, fast_stats.files_changed,
-            "Stats should match"
+        assert!(
+            stats.files_changed >= 50,
+            "expected at least 50 files changed, got {}",
+            stats.files_changed
         );
         assert!(
-            fast_duration <= old_duration,
-            "Fast version should be faster or equal"
+            stats.lines_added >= 50,
+            "expected at least 50 lines added, got {}",
+            stats.lines_added
         );
         assert!(
-            fast_duration.as_millis() < 500,
-            "Fast git stats took too long: {fast_duration:?}"
+            stats.has_uncommitted,
+            "expected git stats to flag uncommitted changes"
         );
     }
 
     #[test]
-    #[ignore = "Performance tests are flaky in CI environments"]
-    fn test_git_stats_performance_repeated_calls() {
+    fn test_git_stats_avoids_recomputing_when_inputs_unchanged() {
         let (_temp, repo_path, worktree_path) = setup_test_repo_with_many_files(50);
         let current_branch = get_current_branch(&repo_path).unwrap();
 
-        // Test old version
-        let start = Instant::now();
-        for _ in 0..5 {
-            let _ = calculate_git_stats_fast(&worktree_path, &current_branch).unwrap();
-        }
-        let old_duration = start.elapsed();
-        println!("5 repeated old git stats calculations took: {old_duration:?}");
+        clear_stats_cache();
+        reset_git_stats_call_count();
+        reset_git_stats_cache_hits();
+        let _scope = track_git_stats_on_current_thread();
 
-        // Test new fast version
-        let start = Instant::now();
-        for _ in 0..5 {
-            let _ = calculate_git_stats_fast(&worktree_path, &current_branch).unwrap();
-        }
-        let fast_duration = start.elapsed();
-        println!("5 repeated fast git stats calculations took: {fast_duration:?}");
+        let first = calculate_git_stats_fast(&worktree_path, &current_branch).unwrap();
+        assert_eq!(
+            get_git_stats_call_count(),
+            1,
+            "first call should perform exactly one computation"
+        );
+        assert_eq!(
+            get_git_stats_cache_hits(),
+            0,
+            "cache should be empty before the first call"
+        );
 
-        assert!(
-            fast_duration <= old_duration,
-            "Fast version should be faster or equal"
+        let second = calculate_git_stats_fast(&worktree_path, &current_branch).unwrap();
+        assert_eq!(
+            get_git_stats_call_count(),
+            2,
+            "second invocation should be tracked even when cached"
         );
-        assert!(
-            fast_duration.as_millis() < 1000,
-            "Repeated fast git stats took too long: {fast_duration:?}"
+        assert_eq!(
+            get_git_stats_cache_hits(),
+            1,
+            "second call should be served from cache"
         );
+        assert_eq!(first.files_changed, second.files_changed);
     }
 
     #[test]
@@ -237,19 +235,26 @@ mod performance_tests {
         create_worktree_from_base(&repo_path, "test-branch", &worktree_path, &current_branch)
             .unwrap();
 
-        // Test that fast version is very quick when no changes
-        let start = Instant::now();
-        let stats = calculate_git_stats_fast(&worktree_path, &current_branch).unwrap();
-        let duration = start.elapsed();
+        clear_stats_cache();
+        reset_git_stats_call_count();
+        reset_git_stats_cache_hits();
+        let _scope = track_git_stats_on_current_thread();
 
-        println!("Fast git stats with no changes took: {duration:?}");
+        // Test that fast version returns zeroed stats
+        let stats = calculate_git_stats_fast(&worktree_path, &current_branch).unwrap();
         assert_eq!(stats.files_changed, 0);
         assert_eq!(stats.lines_added, 0);
         assert_eq!(stats.lines_removed, 0);
         assert!(!stats.has_uncommitted);
-        assert!(
-            duration.as_millis() < 150,
-            "Should be very fast with no changes: {duration:?}"
+        assert_eq!(
+            get_git_stats_call_count(),
+            1,
+            "expected a single stats computation for clean worktrees"
+        );
+        assert_eq!(
+            get_git_stats_cache_hits(),
+            0,
+            "no cache hits expected on the first invocation"
         );
     }
 
