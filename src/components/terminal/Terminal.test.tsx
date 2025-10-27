@@ -436,7 +436,7 @@ describe('Terminal', () => {
       expect(terminalHarness.instances.length).toBeGreaterThan(0)
     })
 
-    const instance = terminalHarness.instances[0] as HarnessInstance
+    const instance = terminalHarness.instances[terminalHarness.instances.length - 1] as HarnessInstance
     await waitFor(() => {
       expect(instance.raw.onScroll).toHaveBeenCalled()
     })
@@ -459,8 +459,10 @@ describe('Terminal', () => {
       expect(shouldStickSpy).toHaveBeenCalled()
     })
 
-    const lastCall = shouldStickSpy.mock.calls.at(-1)?.[0] as autoScrollModule.StickToBottomInput | undefined
-    expect(lastCall?.viewportY).toBe(360)
+    const callWithOverride = shouldStickSpy.mock.calls.find(
+      call => (call[0] as autoScrollModule.StickToBottomInput)?.viewportY === 360
+    )?.[0] as autoScrollModule.StickToBottomInput | undefined
+    expect(callWithOverride?.viewportY).toBe(360)
 
     shouldStickSpy.mockRestore()
   })

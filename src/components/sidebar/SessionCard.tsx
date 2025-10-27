@@ -4,7 +4,6 @@ import { formatLastActivity } from '../../utils/time'
 import { SessionActions } from '../session/SessionActions'
 import { SessionInfo, SessionMonitorStatus } from '../../types/session'
 import { UncommittedIndicator } from '../common/UncommittedIndicator'
-import { ProgressIndicator } from '../common/ProgressIndicator'
 import { theme, getAgentColorScheme } from '../../common/theme'
 import type { MergeStatus } from '../../contexts/SessionsContext'
 import { getSessionDisplayName } from '../../utils/sessionDisplayName'
@@ -273,10 +272,6 @@ export const SessionCard = memo<SessionCardProps>(({
                                           style={{ backgroundColor: theme.colors.accent.blue.DEFAULT }}>!</span>
                                 </span>
                             </span>
-                        )}
-
-                        {!s.attention_required && sessionState === 'running' && !isReadyToMerge && (
-                            <ProgressIndicator className="ml-2" size="sm" />
                         )}
 
                         {s.attention_required && (
