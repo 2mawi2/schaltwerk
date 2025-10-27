@@ -1,5 +1,5 @@
 import { render, waitFor } from '@testing-library/react'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest'
 import { act } from 'react'
 import { GitHistoryProvider, useGitHistory } from './GitHistoryContext'
 import { TauriCommands } from '../common/tauriCommands'
@@ -29,10 +29,10 @@ function HistoryHarness({ repoPath, onReady }: { repoPath: string; onReady: (api
 describe('GitHistoryContext', () => {
   beforeEach(() => {
     mockInvoke.mockReset()
-    ;(logger.debug as unknown as vi.Mock).mockReset()
-    ;(logger.info as unknown as vi.Mock).mockReset()
-    ;(logger.warn as unknown as vi.Mock).mockReset()
-    ;(logger.error as unknown as vi.Mock).mockReset()
+    ;(logger.debug as unknown as Mock).mockReset()
+    ;(logger.info as unknown as Mock).mockReset()
+    ;(logger.warn as unknown as Mock).mockReset()
+    ;(logger.error as unknown as Mock).mockReset()
   })
 
   it('deduplicates ensureLoaded calls for the same repo', async () => {
@@ -223,7 +223,6 @@ describe('GitHistoryContext', () => {
       .mockResolvedValueOnce(refreshPage)
 
     let latestApi: ReturnType<typeof useGitHistory> | null = null
-    let currentSnapshot: ReturnType<typeof useGitHistory>['snapshot'] = null
 
     render(
       <GitHistoryProvider>
@@ -231,7 +230,6 @@ describe('GitHistoryContext', () => {
           repoPath="/repo/project"
           onReady={value => {
             latestApi = value
-            currentSnapshot = value.snapshot
           }}
         />
       </GitHistoryProvider>
@@ -248,14 +246,14 @@ describe('GitHistoryContext', () => {
     expect(mockInvoke).toHaveBeenCalledTimes(1)
 
     await waitFor(() => {
-      expect(currentSnapshot?.items?.length).toBe(2)
+      expect(latestApi?.snapshot?.items?.length).toBe(2)
     })
 
-    const appendCursor = currentSnapshot?.nextCursor
+    const appendCursor = latestApi!.snapshot!.nextCursor
     expect(appendCursor).toBe('cursor-1')
 
     await act(async () => {
-      await latestApi!.loadMore(appendCursor)
+      await latestApi!.loadMore(appendCursor!)
     })
 
     expect(mockInvoke).toHaveBeenCalledTimes(2)
@@ -272,7 +270,7 @@ describe('GitHistoryContext', () => {
     expect(mockInvoke).toHaveBeenCalledTimes(3)
 
     await waitFor(() => {
-      expect((logger.debug as unknown as vi.Mock)).toHaveBeenCalledWith(
+      expect((logger.debug as unknown as Mock)).toHaveBeenCalledWith(
         '[GitHistoryContext] Preserving advanced cursor after refresh',
         expect.objectContaining({
           repoPath: '/repo/project',
@@ -321,7 +319,6 @@ describe('GitHistoryContext', () => {
       .mockResolvedValueOnce(duplicatePage)
 
     let latestApi: ReturnType<typeof useGitHistory> | null = null
-    let currentSnapshot: ReturnType<typeof useGitHistory>['snapshot'] = null
 
     render(
       <GitHistoryProvider>
@@ -329,7 +326,6 @@ describe('GitHistoryContext', () => {
           repoPath="/repo/project"
           onReady={value => {
             latestApi = value
-            currentSnapshot = value.snapshot
           }}
         />
       </GitHistoryProvider>
@@ -359,7 +355,7 @@ describe('GitHistoryContext', () => {
     )
 
     await waitFor(() => {
-      expect((logger.debug as unknown as vi.Mock)).toHaveBeenCalledWith(
+      expect((logger.debug as unknown as Mock)).toHaveBeenCalledWith(
         '[GitHistoryContext] Append delivered duplicate page, clearing cursor after backend exhausted history',
         expect.objectContaining({
           previousCursor: 'cursor-2',
