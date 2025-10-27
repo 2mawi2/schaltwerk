@@ -4,7 +4,13 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { useProject } from '../../contexts/ProjectContext'
 import { HistoryList } from './HistoryList'
 import { toViewModel } from './graphLayout'
-import type { CommitDetailState, CommitFileChange, HistoryItem, HistoryItemViewModel } from './types'
+import type {
+  CommitDetailState,
+  CommitFileChange,
+  HistoryItem,
+  HistoryItemViewModel,
+  HistoryProviderSnapshot,
+} from './types'
 import { logger } from '../../utils/logger'
 import { theme } from '../../common/theme'
 import { useToast } from '../../common/toast/ToastProvider'
@@ -44,6 +50,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
   const [selectedCommitId, setSelectedCommitId] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; commit: HistoryItem } | null>(null)
   const [commitDetails, setCommitDetails] = useState<Record<string, CommitDetailState>>({})
+  const [pendingLoadMore, setPendingLoadMore] = useState(false)
   const commitDetailsRef = useRef<Record<string, CommitDetailState>>({})
   const contextMenuRef = useRef<HTMLDivElement | null>(null)
   const latestHeadRef = useRef<string | null>(null)
@@ -54,6 +61,8 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
   const lastManualRefreshRef = useRef(0)
   const pendingHeadsRef = useRef<Map<string, Set<string>>>(new Map())
   const unsubscribeRef = useRef<(() => void | Promise<void>) | null>(null)
+  const snapshotRef = useRef<HistoryProviderSnapshot | null>(null)
+  const lastLoadMoreErrorRef = useRef<string | null>(null)
 
   const historyItems = useMemo(() => {
     return snapshot ? toViewModel(snapshot) : []
@@ -61,14 +70,33 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
 
   const hasSnapshot = Boolean(snapshot)
   const hasMore = snapshot?.hasMore ?? false
-  const nextCursor = snapshot?.nextCursor
-
-  const handleLoadMore = useCallback(() => {
-    if (!nextCursor || isLoadingMore) {
+  const handleLoadMore = useCallback(async () => {
+    if (isLoadingMore || pendingLoadMore) {
       return
     }
-    void loadMoreHistory(nextCursor)
-  }, [nextCursor, isLoadingMore, loadMoreHistory])
+
+    const activeSnapshot = snapshotRef.current
+    const cursor = activeSnapshot?.nextCursor
+    if (!cursor) {
+      return
+    }
+
+    setPendingLoadMore(true)
+
+    try {
+      await loadMoreHistory(cursor)
+    } finally {
+      setPendingLoadMore(false)
+    }
+
+    const updatedCursor = snapshotRef.current?.nextCursor
+    if (updatedCursor && updatedCursor === cursor) {
+      logger.debug('[GitGraphPanel] Load more cursor unchanged after fetch', {
+        repoPath,
+        cursor,
+      })
+    }
+  }, [isLoadingMore, pendingLoadMore, loadMoreHistory, repoPath])
 
   const handleContextMenu = useCallback((event: React.MouseEvent, commit: HistoryItem) => {
     event.preventDefault()
@@ -182,8 +210,36 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
   }, [repoPath])
 
   useEffect(() => {
+    snapshotRef.current = snapshot ?? null
+  }, [snapshot])
+
+  useEffect(() => {
+    if (!isLoadingMore) {
+      setPendingLoadMore(false)
+    }
+  }, [isLoadingMore])
+
+  useEffect(() => {
     latestHeadRef.current = latestHead ?? null
   }, [latestHead])
+
+  useEffect(() => {
+    if (!loadMoreError) {
+      lastLoadMoreErrorRef.current = null
+      return
+    }
+
+    if (lastLoadMoreErrorRef.current === loadMoreError) {
+      return
+    }
+
+    lastLoadMoreErrorRef.current = loadMoreError
+    pushToast({
+      tone: 'error',
+      title: 'Failed to load more commits',
+      description: loadMoreError,
+    })
+  }, [loadMoreError, pushToast])
 
   const headsMatch = useCallback((a?: string | null, b?: string | null) => {
     if (!a || !b) {
@@ -600,11 +656,13 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
             <span>More commits available</span>
           )}
           <button
-            onClick={handleLoadMore}
+            onClick={() => {
+              void handleLoadMore()
+            }}
             className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed border border-slate-700 rounded text-slate-200"
-            disabled={isLoadingMore}
+            disabled={isLoadingMore || pendingLoadMore}
           >
-            {isLoadingMore ? 'Loading…' : 'Load more commits'}
+            {isLoadingMore || pendingLoadMore ? 'Loading…' : 'Load more commits'}
           </button>
         </div>
       )}
