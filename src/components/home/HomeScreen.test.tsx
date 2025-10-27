@@ -30,6 +30,10 @@ describe('HomeScreen', () => {
           return overrides.get_recent_projects ?? []
         case TauriCommands.IsGitRepository:
           return overrides.is_git_repository ?? true
+        case TauriCommands.GetLastProjectParentDirectory:
+          return '/home/user'
+        case TauriCommands.SetLastProjectParentDirectory:
+          return null
         case TauriCommands.AddRecentProject:
         case TauriCommands.RemoveRecentProject:
         case TauriCommands.UpdateRecentProjectTimestamp:
@@ -151,11 +155,20 @@ describe('HomeScreen', () => {
     const { onOpenProject } = setup()
     
     // Mock successful project creation
-    invoke.mockImplementation(async (cmd: string, _args?: unknown) => {
+    invoke.mockImplementation(async (cmd: string, args?: unknown) => {
       switch (cmd) {
         case TauriCommands.GetRecentProjects:
           return []
+        case TauriCommands.GetLastProjectParentDirectory:
+          return '/home/user'
+        case TauriCommands.SetLastProjectParentDirectory:
+          expect(args).toEqual({ path: '/home/user' })
+          return null
         case TauriCommands.CreateNewProject:
+          expect(args).toEqual({
+            name: 'test-project',
+            parentPath: '/home/user'
+          })
           return '/new/project/path'
         default:
           return null
@@ -179,11 +192,11 @@ describe('HomeScreen', () => {
 
     // Should call create command and open the project
     await waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith(TauriCommands.CreateNewProject, {
-        name: 'test-project',
-        parentPath: expect.any(String)
-      })
       expect(onOpenProject).toHaveBeenCalledWith('/new/project/path')
+    })
+
+    expect(invoke).toHaveBeenCalledWith(TauriCommands.SetLastProjectParentDirectory, {
+      path: '/home/user'
     })
   })
 })

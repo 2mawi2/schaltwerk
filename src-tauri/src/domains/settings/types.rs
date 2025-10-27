@@ -239,4 +239,6 @@ pub struct Settings {
     pub amp_mcp_servers: HashMap<String, McpServerConfig>,
     #[serde(default = "default_true")]
     pub dev_error_toasts_enabled: bool,
+    #[serde(default)]
+    pub last_project_parent_directory: Option<String>,
 }

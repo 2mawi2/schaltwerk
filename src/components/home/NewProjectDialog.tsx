@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
@@ -19,16 +19,42 @@ export function NewProjectDialog({ isOpen, onClose, onProjectCreated }: NewProje
   const [isCreating, setIsCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const initializeParentPath = async () => {
-    if (!parentPath) {
+  useEffect(() => {
+    if (!isOpen || parentPath) {
+      return
+    }
+
+    let isCancelled = false
+
+    const hydrateParentPath = async () => {
+      try {
+        const persisted = await invoke<string | null>(TauriCommands.GetLastProjectParentDirectory)
+        if (!isCancelled && persisted && persisted.trim().length > 0) {
+          setParentPath(persisted)
+          return
+        }
+      } catch (err) {
+        logger.error('Failed to load last project parent directory:', err)
+      }
+
       try {
         const home = await homeDir()
-        setParentPath(home)
+        if (!isCancelled) {
+          setParentPath(home)
+        }
       } catch (err) {
-        logger.error('Failed to get home directory:', err)
+        if (!isCancelled) {
+          logger.error('Failed to get home directory:', err)
+        }
       }
     }
-  }
+
+    void hydrateParentPath()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [isOpen, parentPath])
 
   const handleSelectDirectory = async () => {
     try {
@@ -39,7 +65,13 @@ export function NewProjectDialog({ isOpen, onClose, onProjectCreated }: NewProje
       })
 
       if (selected) {
-        setParentPath(selected as string)
+        const selectedPath = selected as string
+        setParentPath(selectedPath)
+        try {
+          await invoke(TauriCommands.SetLastProjectParentDirectory, { path: selectedPath })
+        } catch (persistError) {
+          logger.error('Failed to persist selected parent directory:', persistError)
+        }
       }
     } catch (err) {
       logger.error('Failed to select directory:', err)
@@ -68,6 +100,12 @@ export function NewProjectDialog({ isOpen, onClose, onProjectCreated }: NewProje
     setError(null)
 
     try {
+      try {
+        await invoke(TauriCommands.SetLastProjectParentDirectory, { path: parentPath })
+      } catch (persistError) {
+        logger.error('Failed to persist parent directory before creating project:', persistError)
+      }
+
       const projectPath = await invoke<string>(TauriCommands.CreateNewProject, {
         name: projectName.trim(),
         parentPath
@@ -92,10 +130,6 @@ export function NewProjectDialog({ isOpen, onClose, onProjectCreated }: NewProje
   }
 
   if (!isOpen) return null
-
-  if (isOpen && !parentPath) {
-    initializeParentPath()
-  }
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">

@@ -498,6 +498,26 @@ pub async fn set_dev_error_toasts_enabled(enabled: bool) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub async fn get_last_project_parent_directory() -> Result<Option<String>, String> {
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+
+    let manager = settings_manager.lock().await;
+    Ok(manager.get_last_project_parent_directory())
+}
+
+#[tauri::command]
+pub async fn set_last_project_parent_directory(path: Option<String>) -> Result<(), String> {
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+
+    let mut manager = settings_manager.lock().await;
+    manager.set_last_project_parent_directory(path)
+}
+
+#[tauri::command]
 pub async fn get_keyboard_shortcuts() -> Result<HashMap<String, Vec<String>>, String> {
     let settings_manager = SETTINGS_MANAGER
         .get()

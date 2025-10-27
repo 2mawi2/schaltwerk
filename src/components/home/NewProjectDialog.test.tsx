@@ -19,6 +19,19 @@ describe('NewProjectDialog', () => {
     invoke.mockReset()
     ;(dialog.open as ReturnType<typeof vi.fn>).mockReset()
     ;(path.homeDir as ReturnType<typeof vi.fn>).mockResolvedValue('/home/user')
+
+    invoke.mockImplementation(async (cmd: string) => {
+      switch (cmd) {
+        case TauriCommands.GetLastProjectParentDirectory:
+          return null
+        case TauriCommands.SetLastProjectParentDirectory:
+          return null
+        case TauriCommands.CreateNewProject:
+          return '/home/user/test-project'
+        default:
+          return null
+      }
+    })
   })
 
   function setup(props: Partial<Parameters<typeof NewProjectDialog>[0]> = {}) {
@@ -57,6 +70,10 @@ describe('NewProjectDialog', () => {
     expect(screen.getByRole('button', { name: /browse/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /create project/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith(TauriCommands.GetLastProjectParentDirectory)
+    })
   })
 
   it('disables create button when project name is empty', async () => {
@@ -89,7 +106,18 @@ describe('NewProjectDialog', () => {
     const createPromise = new Promise<string>(resolve => {
       resolvePromise = () => resolve('/home/user/test-project')
     })
-    invoke.mockReturnValue(createPromise)
+    invoke.mockImplementation(async (cmd: string) => {
+      switch (cmd) {
+        case TauriCommands.GetLastProjectParentDirectory:
+          return null
+        case TauriCommands.CreateNewProject:
+          return createPromise
+        case TauriCommands.SetLastProjectParentDirectory:
+          return null
+        default:
+          return null
+      }
+    })
     const { onClose } = setup()
 
     const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
@@ -142,7 +170,23 @@ describe('NewProjectDialog', () => {
   })
 
   it('allows valid project names', async () => {
-    invoke.mockResolvedValue('/home/user/my-project')
+    invoke.mockImplementation(async (cmd: string, args?: unknown) => {
+      switch (cmd) {
+        case TauriCommands.GetLastProjectParentDirectory:
+          return null
+        case TauriCommands.CreateNewProject:
+          expect(args).toEqual({
+            name: 'my-project',
+            parentPath: '/home/user'
+          })
+          return '/home/user/my-project'
+        case TauriCommands.SetLastProjectParentDirectory:
+          expect(args).toEqual({ path: '/home/user' })
+          return null
+        default:
+          return null
+      }
+    })
     const { onClose } = setup()
 
     // Wait for parent path to be initialized
@@ -159,11 +203,11 @@ describe('NewProjectDialog', () => {
     await user.click(createBtn)
 
     await waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith(TauriCommands.CreateNewProject, {
-        name: 'my-project',
-        parentPath: '/home/user'
-      })
       expect(onClose).toHaveBeenCalled()
+    })
+
+    expect(invoke).toHaveBeenCalledWith(TauriCommands.SetLastProjectParentDirectory, {
+      path: '/home/user'
     })
   })
 
@@ -180,7 +224,23 @@ describe('NewProjectDialog', () => {
   })
 
   it('creates project successfully', async () => {
-    invoke.mockResolvedValue('/home/user/test-project')
+    invoke.mockImplementation(async (cmd: string, args?: unknown) => {
+      switch (cmd) {
+        case TauriCommands.GetLastProjectParentDirectory:
+          return null
+        case TauriCommands.CreateNewProject:
+          expect(args).toEqual({
+            name: 'test-project',
+            parentPath: '/home/user'
+          })
+          return '/home/user/test-project'
+        case TauriCommands.SetLastProjectParentDirectory:
+          expect(args).toEqual({ path: '/home/user' })
+          return null
+        default:
+          return null
+      }
+    })
     const { onProjectCreated, onClose } = setup()
 
     const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
@@ -192,17 +252,33 @@ describe('NewProjectDialog', () => {
     await user.click(createBtn)
 
     await waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith(TauriCommands.CreateNewProject, {
-        name: 'test-project',
-        parentPath: '/home/user'
-      })
       expect(onProjectCreated).toHaveBeenCalledWith('/home/user/test-project')
       expect(onClose).toHaveBeenCalled()
+    })
+
+    expect(invoke).toHaveBeenCalledWith(TauriCommands.SetLastProjectParentDirectory, {
+      path: '/home/user'
     })
   })
 
   it('shows error when project creation fails', async () => {
-    invoke.mockRejectedValue('Failed to create project')
+    invoke.mockImplementation(async (cmd: string, args?: unknown) => {
+      switch (cmd) {
+        case TauriCommands.GetLastProjectParentDirectory:
+          return null
+        case TauriCommands.CreateNewProject:
+          expect(args).toEqual({
+            name: 'test-project',
+            parentPath: '/home/user'
+          })
+          throw new Error('Failed to create project')
+        case TauriCommands.SetLastProjectParentDirectory:
+          expect(args).toEqual({ path: '/home/user' })
+          return null
+        default:
+          return null
+      }
+    })
     const { onProjectCreated } = setup()
 
     const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
@@ -242,7 +318,23 @@ describe('NewProjectDialog', () => {
   })
 
   it('creates project on Enter key', async () => {
-    invoke.mockResolvedValue('/home/user/test-project')
+    invoke.mockImplementation(async (cmd: string, args?: unknown) => {
+      switch (cmd) {
+        case TauriCommands.GetLastProjectParentDirectory:
+          return null
+        case TauriCommands.CreateNewProject:
+          expect(args).toEqual({
+            name: 'test-project',
+            parentPath: '/home/user'
+          })
+          return '/home/user/test-project'
+        case TauriCommands.SetLastProjectParentDirectory:
+          expect(args).toEqual({ path: '/home/user' })
+          return null
+        default:
+          return null
+      }
+    })
     const { onProjectCreated } = setup()
 
     const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
@@ -253,16 +345,32 @@ describe('NewProjectDialog', () => {
     await user.keyboard('{Enter}')
 
     await waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith(TauriCommands.CreateNewProject, {
-        name: 'test-project',
-        parentPath: '/home/user'
-      })
       expect(onProjectCreated).toHaveBeenCalledWith('/home/user/test-project')
+    })
+
+    expect(invoke).toHaveBeenCalledWith(TauriCommands.SetLastProjectParentDirectory, {
+      path: '/home/user'
     })
   })
 
   it('trims whitespace from project name', async () => {
-    invoke.mockResolvedValue('/home/user/test-project')
+    invoke.mockImplementation(async (cmd: string, args?: unknown) => {
+      switch (cmd) {
+        case TauriCommands.GetLastProjectParentDirectory:
+          return null
+        case TauriCommands.CreateNewProject:
+          expect(args).toEqual({
+            name: 'test-project',
+            parentPath: '/home/user'
+          })
+          return '/home/user/test-project'
+        case TauriCommands.SetLastProjectParentDirectory:
+          expect(args).toEqual({ path: '/home/user' })
+          return null
+        default:
+          return null
+      }
+    })
     setup()
 
     const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
@@ -274,9 +382,8 @@ describe('NewProjectDialog', () => {
     await user.click(createBtn)
 
     await waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith(TauriCommands.CreateNewProject, {
-        name: 'test-project',
-        parentPath: '/home/user'
+      expect(invoke).toHaveBeenCalledWith(TauriCommands.SetLastProjectParentDirectory, {
+        path: '/home/user'
       })
     })
   })
@@ -290,5 +397,61 @@ describe('NewProjectDialog', () => {
     await user.type(nameInput, 'my-project')
 
     expect(screen.getByText('/home/user/my-project')).toBeInTheDocument()
+  })
+
+  it('initializes with persisted parent directory when available', async () => {
+    invoke.mockImplementation(async (cmd: string) => {
+      switch (cmd) {
+        case TauriCommands.GetLastProjectParentDirectory:
+          return '/persisted/path'
+        case TauriCommands.SetLastProjectParentDirectory:
+          return null
+        default:
+          return null
+      }
+    })
+
+    setup()
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('/persisted/path')).toBeInTheDocument()
+    })
+  })
+
+  it('persists parent directory when creating without browsing if previously stored', async () => {
+    invoke.mockImplementation(async (cmd: string, args?: unknown) => {
+      switch (cmd) {
+        case TauriCommands.GetLastProjectParentDirectory:
+          return '/stored/path'
+        case TauriCommands.CreateNewProject:
+          expect(args).toEqual({
+            name: 'stored-project',
+            parentPath: '/stored/path'
+          })
+          return '/stored/path/stored-project'
+        case TauriCommands.SetLastProjectParentDirectory:
+          expect(args).toEqual({ path: '/stored/path' })
+          return null
+        default:
+          return null
+      }
+    })
+
+    const { onProjectCreated } = setup()
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('/stored/path')).toBeInTheDocument()
+    })
+
+    const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
+    await user.clear(nameInput)
+    await user.type(nameInput, 'stored-project')
+
+    const createBtn = screen.getByRole('button', { name: /create project/i })
+    await user.click(createBtn)
+
+    await waitFor(() => {
+      expect(onProjectCreated).toHaveBeenCalledWith('/stored/path/stored-project')
+    })
   })
 })
