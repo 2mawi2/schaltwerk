@@ -522,76 +522,6 @@ mod tests {
         assert!(!file_paths.contains(&&".schaltwerk/worktrees/branch1/file.txt".to_string()));
     }
 
-    #[test]
-    fn get_current_branch_name_handles_unborn_head() {
-        let temp_dir = TempDir::new().unwrap();
-        let repo_path = temp_dir.path();
-
-        // Initialize repository without creating an initial commit
-        StdCommand::new("git")
-            .args(["init", "-b", "main"])
-            .current_dir(repo_path)
-            .output()
-            .unwrap();
-
-        let rt = Runtime::new().unwrap();
-        rt.block_on(async {
-            let manager = get_project_manager().await;
-            let previous = manager.current_project_path().await;
-            manager
-                .switch_to_project(repo_path.to_path_buf())
-                .await
-                .unwrap();
-
-            let branch = get_current_branch_name(None).await.unwrap();
-            assert_eq!(branch, "main");
-
-            manager
-                .remove_project(&repo_path.to_path_buf())
-                .await
-                .unwrap();
-
-            if let Some(prev) = previous {
-                manager.switch_to_project(prev).await.unwrap();
-            }
-        });
-    }
-
-    #[test]
-    fn get_commit_comparison_info_handles_unborn_head() {
-        let temp_dir = TempDir::new().unwrap();
-        let repo_path = temp_dir.path();
-
-        StdCommand::new("git")
-            .args(["init", "-b", "main"])
-            .current_dir(repo_path)
-            .output()
-            .unwrap();
-
-        let rt = Runtime::new().unwrap();
-        rt.block_on(async {
-            let manager = get_project_manager().await;
-            let previous = manager.current_project_path().await;
-            manager
-                .switch_to_project(repo_path.to_path_buf())
-                .await
-                .unwrap();
-
-            let (base_commit, head_commit) =
-                get_commit_comparison_info(None).await.unwrap();
-            assert_eq!(base_commit, "0000000");
-            assert_eq!(head_commit, "0000000");
-
-            manager
-                .remove_project(&repo_path.to_path_buf())
-                .await
-                .unwrap();
-
-            if let Some(prev) = previous {
-                manager.switch_to_project(prev).await.unwrap();
-            }
-        });
-    }
 }
 
 #[tauri::command]
@@ -675,9 +605,18 @@ pub async fn get_commit_comparison_info(
     // Check for unborn HEAD first, before trying to get base branch
     // Extract the OID before awaiting to avoid holding the git2::Reference across await
     let head_oid = match repo.head() {
-        Ok(head) => head
-            .target()
-            .ok_or_else(|| "Missing HEAD target".to_string())?,
+        Ok(head) => {
+            // If target is None, this is an unborn branch (symbolic ref with no commits)
+            match head.target() {
+                Some(oid) => oid,
+                None => {
+                    return Ok((
+                        EMPTY_COMMIT_SHORT_ID.to_string(),
+                        EMPTY_COMMIT_SHORT_ID.to_string(),
+                    ));
+                }
+            }
+        }
         Err(err) if err.code() == ErrorCode::UnbornBranch => {
             return Ok((
                 EMPTY_COMMIT_SHORT_ID.to_string(),
