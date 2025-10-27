@@ -20,6 +20,9 @@ static GIT_STATS_CALL_COUNT: OnceLock<AtomicUsize> = OnceLock::new();
 static GIT_STATS_THREAD_FILTER: OnceLock<Mutex<Option<std::thread::ThreadId>>> = OnceLock::new();
 
 #[cfg(test)]
+static GIT_STATS_CACHE_HITS: OnceLock<AtomicUsize> = OnceLock::new();
+
+#[cfg(test)]
 fn increment_git_stats_call_count() {
     let filter = GIT_STATS_THREAD_FILTER.get_or_init(|| Mutex::new(None));
     if let Some(target_thread) = *filter.lock().unwrap() {
@@ -34,8 +37,29 @@ fn increment_git_stats_call_count() {
 }
 
 #[cfg(test)]
+fn increment_git_stats_cache_hits() {
+    let filter = GIT_STATS_THREAD_FILTER.get_or_init(|| Mutex::new(None));
+    if let Some(target_thread) = *filter.lock().unwrap() {
+        if std::thread::current().id() != target_thread {
+            return;
+        }
+    }
+
+    GIT_STATS_CACHE_HITS
+        .get_or_init(|| AtomicUsize::new(0))
+        .fetch_add(1, Ordering::Relaxed);
+}
+
+#[cfg(test)]
 pub fn reset_git_stats_call_count() {
     if let Some(counter) = GIT_STATS_CALL_COUNT.get() {
+        counter.store(0, Ordering::Relaxed);
+    }
+}
+
+#[cfg(test)]
+pub fn reset_git_stats_cache_hits() {
+    if let Some(counter) = GIT_STATS_CACHE_HITS.get() {
         counter.store(0, Ordering::Relaxed);
     }
 }
@@ -146,6 +170,13 @@ pub fn build_changed_files_from_diff(diff: &Diff) -> Result<Vec<ChangedFile>> {
 #[cfg(test)]
 pub fn get_git_stats_call_count() -> usize {
     GIT_STATS_CALL_COUNT
+        .get_or_init(|| AtomicUsize::new(0))
+        .load(Ordering::Relaxed)
+}
+
+#[cfg(test)]
+pub fn get_git_stats_cache_hits() -> usize {
+    GIT_STATS_CACHE_HITS
         .get_or_init(|| AtomicUsize::new(0))
         .load(Ordering::Relaxed)
 }
@@ -299,6 +330,8 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
         && *k == key
     {
         let cache_hit_time = start_time.elapsed();
+        #[cfg(test)]
+        increment_git_stats_cache_hits();
         log::debug!(
             "Git stats cache hit for {} ({}ms)",
             worktree_path.display(),
