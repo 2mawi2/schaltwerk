@@ -110,37 +110,24 @@ impl<'a> CancellationCoordinator<'a> {
             result.terminated_processes = self.terminate_session_processes_async(session, &mut result.errors).await;
         }
 
-        let worktree_future = {
-            let repo_path = self.repo_path.to_path_buf();
-            let worktree_path = session.worktree_path.clone();
-            let session_name = session.name.clone();
-            tokio::spawn(async move {
-                Self::remove_worktree_async(&repo_path, &worktree_path, &session_name).await
-            })
-        };
-
-        let branch_future = if !config.skip_branch_deletion {
-            let repo_path = self.repo_path.to_path_buf();
-            let branch = session.branch.clone();
-            let session_name = session.name.clone();
-            Some(tokio::spawn(async move {
-                Self::delete_branch_async(&repo_path, &branch, &session_name).await
-            }))
-        } else {
-            None
-        };
-
-        match worktree_future.await {
-            Ok(Ok(())) => result.worktree_removed = true,
-            Ok(Err(e)) => result.errors.push(format!("Worktree removal failed: {e}")),
-            Err(e) => result.errors.push(format!("Worktree task failed: {e}")),
+        match Self::remove_worktree_async(
+            self.repo_path,
+            &session.worktree_path,
+            &session.name,
+        )
+        .await
+        {
+            Ok(()) => result.worktree_removed = true,
+            Err(e) => result
+                .errors
+                .push(format!("Worktree removal failed: {e}")),
         }
 
-        if let Some(future) = branch_future {
-            match future.await {
-                Ok(Ok(())) => result.branch_deleted = true,
-                Ok(Err(e)) => result.errors.push(format!("Branch deletion failed: {e}")),
-                Err(e) => result.errors.push(format!("Branch task failed: {e}")),
+        if !config.skip_branch_deletion {
+            // The branch remains "checked out" while the worktree exists, so delete it only after pruning succeeds.
+            match Self::delete_branch_async(self.repo_path, &session.branch, &session.name).await {
+                Ok(()) => result.branch_deleted = true,
+                Err(e) => result.errors.push(format!("Branch deletion failed: {e}")),
             }
         }
 
