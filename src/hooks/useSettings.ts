@@ -16,6 +16,18 @@ export type { AgentType }
 export type AttentionNotificationMode = 'off' | 'dock' | 'system' | 'both'
 type EnvVars = Record<string, string>
 
+interface RawAgentPreference {
+    model?: string | null
+    reasoning_effort?: string | null
+}
+
+export interface AgentPreferenceConfig {
+    model?: string
+    reasoningEffort?: string
+}
+
+type AgentPreferenceState = Record<AgentType, AgentPreferenceConfig>
+
 interface ProjectSettings {
     setupScript: string
     branchPrefix: string
@@ -81,7 +93,8 @@ export const useSettings = () => {
     
     const saveAgentSettings = useCallback(async (
         envVars: Record<AgentType, Array<{key: string, value: string}>>,
-        cliArgs: Record<AgentType, string>
+        cliArgs: Record<AgentType, string>,
+        preferences: AgentPreferenceState
     ): Promise<void> => {
         const agents: AgentType[] = [...AGENT_TYPES]
         
@@ -94,6 +107,23 @@ export const useSettings = () => {
             }
             await invoke(TauriCommands.SetAgentEnvVars, { agentType: agent, envVars: vars })
             await invoke(TauriCommands.SetAgentCliArgs, { agentType: agent, cliArgs: cliArgs[agent] })
+            const pref = preferences[agent]
+            const normalized: RawAgentPreference = {
+                model: pref?.model?.trim() ? pref.model.trim() : null,
+                reasoning_effort: pref?.reasoningEffort?.trim() ? pref.reasoningEffort.trim() : null,
+            }
+            try {
+                await invoke(TauriCommands.SetAgentPreferences, {
+                    agentType: agent,
+                    preferences: normalized,
+                })
+            } catch (error) {
+                if (isCommandUnavailableError(error, TauriCommands.SetAgentPreferences)) {
+                    logger.info('Agent preference command unavailable - skipping save', error)
+                } else {
+                    throw error
+                }
+            }
         }
     }, [])
     
@@ -154,6 +184,7 @@ export const useSettings = () => {
     const saveAllSettings = useCallback(async (
         envVars: Record<AgentType, Array<{key: string, value: string}>>,
         cliArgs: Record<AgentType, string>,
+        preferences: AgentPreferenceState,
         projectSettings: ProjectSettings,
         terminalSettings: TerminalSettings,
         sessionPreferences: SessionPreferences,
@@ -165,7 +196,7 @@ export const useSettings = () => {
         const failedSettings: string[] = []
         
         try {
-            await saveAgentSettings(envVars, cliArgs)
+            await saveAgentSettings(envVars, cliArgs, preferences)
             savedSettings.push('agent configurations')
         } catch (error) {
             logger.error('Failed to save agent settings:', error)
@@ -243,6 +274,29 @@ export const useSettings = () => {
         }
         
         return loadedArgs
+    }, [])
+
+    const loadAgentPreferences = useCallback(async (): Promise<AgentPreferenceState> => {
+        const loaded = createAgentRecord<AgentPreferenceConfig>(_agent => ({ model: '', reasoningEffort: '' }))
+
+        for (const agent of AGENT_TYPES) {
+            try {
+                const pref = await invoke<RawAgentPreference | null>(TauriCommands.GetAgentPreferences, { agentType: agent })
+                loaded[agent] = {
+                    model: pref?.model ?? '',
+                    reasoningEffort: pref?.reasoning_effort ?? '',
+                }
+            } catch (error) {
+                if (isCommandUnavailableError(error, TauriCommands.GetAgentPreferences)) {
+                    logger.info('Agent preference command unavailable - using defaults', error)
+                } else {
+                    logger.warn('Failed to load agent preferences', { agent, error })
+                }
+                loaded[agent] = { model: '', reasoningEffort: '' }
+            }
+        }
+
+        return loaded
     }, [])
     
     const loadProjectSettings = useCallback(async (): Promise<ProjectSettings> => {
@@ -347,6 +401,7 @@ export const useSettings = () => {
         saveKeyboardShortcuts,
         loadEnvVars,
         loadCliArgs,
+        loadAgentPreferences,
         loadProjectSettings,
         loadTerminalSettings,
         loadSessionPreferences,

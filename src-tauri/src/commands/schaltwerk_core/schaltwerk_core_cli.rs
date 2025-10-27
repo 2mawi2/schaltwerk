@@ -99,9 +99,33 @@ pub fn fix_codex_single_dash_long_flags(args: &mut [String]) {
 }
 
 // For Codex, ensure `--model`/`-m` appears after any `--profile`
+// and keep associated reasoning flags (`--reasoning-effort`) immediately after the model.
+const REASONING_FLAGS: [&str; 1] = ["--reasoning-effort"];
+const MODEL_REASONING_KEY: &str = "model_reasoning_effort";
+
+#[inline]
+fn is_reasoning_flag_token(s: &str) -> bool {
+    REASONING_FLAGS.contains(&s)
+}
+#[inline]
+fn is_reasoning_eq_token(s: &str) -> bool {
+    s.starts_with("--reasoning-effort=")
+}
+
+#[inline]
+fn is_model_reasoning_config_flag(s: &str) -> bool {
+    s == "--config" || s == "-c"
+}
+
+#[inline]
+fn is_model_reasoning_config_eq_token(s: &str) -> bool {
+    (s.starts_with("--config=") || s.starts_with("-c=")) && s.contains(MODEL_REASONING_KEY)
+}
+
 pub fn reorder_codex_model_after_profile(args: &mut Vec<String>) {
     let mut without_model = Vec::with_capacity(args.len());
     let mut model_flags = Vec::new();
+    let mut reasoning_flags = Vec::new();
     let mut i = 0;
     while i < args.len() {
         let a = &args[i];
@@ -117,18 +141,52 @@ pub fn reorder_codex_model_after_profile(args: &mut Vec<String>) {
         } else if is_model_eq_token(a) {
             model_flags.push(a.clone());
             i += 1;
+        } else if is_reasoning_flag_token(a) {
+            reasoning_flags.push(a.clone());
+            if i + 1 < args.len() {
+                reasoning_flags.push(args[i + 1].clone());
+                i += 2;
+            } else {
+                i += 1;
+            }
+        } else if is_reasoning_eq_token(a) {
+            reasoning_flags.push(a.clone());
+            i += 1;
+        } else if is_model_reasoning_config_flag(a) {
+            if i + 1 < args.len() && args[i + 1].contains(MODEL_REASONING_KEY) {
+                reasoning_flags.push(a.clone());
+                reasoning_flags.push(args[i + 1].clone());
+                i += 2;
+            } else {
+                without_model.push(a.clone());
+                i += 1;
+            }
+        } else if is_model_reasoning_config_eq_token(a) {
+            reasoning_flags.push(a.clone());
+            i += 1;
         } else {
             without_model.push(a.clone());
             i += 1;
         }
     }
     without_model.extend(model_flags);
+    without_model.extend(reasoning_flags);
     *args = without_model;
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn normalize_cli_text_normalizes_dash_and_space_variants() {
+        let fancy = "\u{2014}\u{00A0}foo\u{202F}bar"; // em dash, NBSP, NNBSP
+        let normalized = normalize_cli_text(fancy);
+        assert_eq!(normalized, "- foo bar");
+
+        // Ensure regular ASCII content is left intact
+        assert_eq!(normalize_cli_text("--model"), "--model");
+    }
 
     #[test]
     fn codex_no_prompt_when_just_sandbox_pair() {
@@ -284,6 +342,62 @@ mod tests {
         ];
         reorder_codex_model_after_profile(&mut args);
         assert_eq!(args, vec!["-p", "dev", "-m", "o3"]);
+    }
+
+    #[test]
+    fn test_reorder_codex_model_reasoning_config() {
+        let mut args = vec![
+            "-c".to_string(),
+            "model_reasoning_effort=\"medium\"".to_string(),
+            "--model".to_string(),
+            "gpt-4".to_string(),
+        ];
+        reorder_codex_model_after_profile(&mut args);
+        assert_eq!(
+            args,
+            vec![
+                "--model",
+                "gpt-4",
+                "-c",
+                "model_reasoning_effort=\"medium\""
+            ]
+        );
+
+        let mut args = vec![
+            "--profile".to_string(),
+            "work".to_string(),
+            "--model".to_string(),
+            "gpt-4".to_string(),
+            "--config=model_reasoning_effort=\"high\"".to_string(),
+        ];
+        reorder_codex_model_after_profile(&mut args);
+        assert_eq!(
+            args,
+            vec![
+                "--profile",
+                "work",
+                "--model",
+                "gpt-4",
+                "--config=model_reasoning_effort=\"high\""
+            ]
+        );
+
+        let mut args = vec![
+            "--model".to_string(),
+            "gpt-4".to_string(),
+            "-c".to_string(),
+            "search=true".to_string(),
+        ];
+        reorder_codex_model_after_profile(&mut args);
+        assert_eq!(
+            args,
+            vec![
+                "-c",
+                "search=true",
+                "--model",
+                "gpt-4"
+            ]
+        );
     }
 
     #[test]

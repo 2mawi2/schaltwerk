@@ -193,6 +193,55 @@ impl SettingsService {
         }
     }
 
+    fn get_agent_preferences_ref(&self, agent_type: &str) -> Option<&AgentPreference> {
+        match agent_type {
+            "claude" => Some(&self.settings.agent_preferences.claude),
+            "opencode" => Some(&self.settings.agent_preferences.opencode),
+            "gemini" => Some(&self.settings.agent_preferences.gemini),
+            "codex" => Some(&self.settings.agent_preferences.codex),
+            "droid" => Some(&self.settings.agent_preferences.droid),
+            "qwen" => Some(&self.settings.agent_preferences.qwen),
+            "amp" => Some(&self.settings.agent_preferences.amp),
+            "terminal" => Some(&self.settings.agent_preferences.terminal),
+            _ => None,
+        }
+    }
+
+    fn get_agent_preferences_mut(
+        &mut self,
+        agent_type: &str,
+    ) -> Result<&mut AgentPreference, SettingsServiceError> {
+        match agent_type {
+            "claude" => Ok(&mut self.settings.agent_preferences.claude),
+            "opencode" => Ok(&mut self.settings.agent_preferences.opencode),
+            "gemini" => Ok(&mut self.settings.agent_preferences.gemini),
+            "codex" => Ok(&mut self.settings.agent_preferences.codex),
+            "droid" => Ok(&mut self.settings.agent_preferences.droid),
+            "qwen" => Ok(&mut self.settings.agent_preferences.qwen),
+            "amp" => Ok(&mut self.settings.agent_preferences.amp),
+            "terminal" => Ok(&mut self.settings.agent_preferences.terminal),
+            _ => Err(SettingsServiceError::UnknownAgentType(
+                agent_type.to_string(),
+            )),
+        }
+    }
+
+    pub fn get_agent_preferences(&self, agent_type: &str) -> AgentPreference {
+        self.get_agent_preferences_ref(agent_type)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    pub fn set_agent_preferences(
+        &mut self,
+        agent_type: &str,
+        preferences: AgentPreference,
+    ) -> Result<(), SettingsServiceError> {
+        let target = self.get_agent_preferences_mut(agent_type)?;
+        *target = preferences;
+        self.save()
+    }
+
     pub fn set_agent_initial_command(
         &mut self,
         agent_type: &str,

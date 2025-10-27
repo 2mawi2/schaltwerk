@@ -13,11 +13,11 @@ describe('useSettings', () => {
   const mockInvoke = invoke as MockedFunction<typeof invoke>
 
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
   })
 
   describe('saveAgentSettings', () => {
-    it('saves environment variables and CLI args for all agents', async () => {
+    it('saves environment variables, CLI args, and agent preferences for all agents', async () => {
       const { result } = renderHook(() => useSettings())
       
       const envVars: Record<AgentType, Array<{key: string, value: string}>> = {
@@ -42,8 +42,19 @@ describe('useSettings', () => {
         terminal: ''
       }
 
+      const preferences: Record<AgentType, { model: string; reasoningEffort: string }> = {
+        claude: { model: '', reasoningEffort: '' },
+        opencode: { model: '', reasoningEffort: '' },
+        gemini: { model: '', reasoningEffort: '' },
+        codex: { model: 'gpt-5-codex high ', reasoningEffort: ' high' },
+        droid: { model: '', reasoningEffort: '' },
+        qwen: { model: '', reasoningEffort: '' },
+        amp: { model: '', reasoningEffort: '' },
+        terminal: { model: '', reasoningEffort: '' },
+      }
+
       await act(async () => {
-        await result.current.saveAgentSettings(envVars, cliArgs)
+        await result.current.saveAgentSettings(envVars, cliArgs, preferences)
       })
 
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetAgentEnvVars, {
@@ -86,7 +97,21 @@ describe('useSettings', () => {
         agentType: 'amp',
         cliArgs: '--mode free'
       })
-      expect(mockInvoke).toHaveBeenCalledTimes(16)
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetAgentPreferences, {
+        agentType: 'codex',
+        preferences: {
+          model: 'gpt-5-codex high',
+          reasoning_effort: 'high',
+        },
+      })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetAgentPreferences, {
+        agentType: 'claude',
+        preferences: {
+          model: null,
+          reasoning_effort: null,
+        },
+      })
+      expect(mockInvoke).toHaveBeenCalledTimes(24)
     })
 
     it('filters out empty environment variable keys', async () => {
@@ -118,14 +143,62 @@ describe('useSettings', () => {
         terminal: ''
       }
 
+      const preferences: Record<AgentType, { model: string; reasoningEffort: string }> = {
+        claude: { model: '', reasoningEffort: '' },
+        opencode: { model: '', reasoningEffort: '' },
+        gemini: { model: '', reasoningEffort: '' },
+        codex: { model: '', reasoningEffort: '' },
+        droid: { model: '', reasoningEffort: '' },
+        qwen: { model: '', reasoningEffort: '' },
+        amp: { model: '', reasoningEffort: '' },
+        terminal: { model: '', reasoningEffort: '' },
+      }
+
       await act(async () => {
-        await result.current.saveAgentSettings(envVars, cliArgs)
+        await result.current.saveAgentSettings(envVars, cliArgs, preferences)
       })
 
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetAgentEnvVars, {
         agentType: 'claude',
         envVars: { VALID_KEY: 'value' }
       })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetAgentPreferences, {
+        agentType: 'claude',
+        preferences: {
+          model: null,
+          reasoning_effort: null,
+        },
+      })
+    })
+  })
+
+  describe('loadAgentPreferences', () => {
+    it('loads preferences for all agents', async () => {
+      const { result } = renderHook(() => useSettings())
+
+      mockInvoke.mockImplementation(async (_command: string, args?: InvokeArgs) => {
+        const agentType = (args as { agentType: AgentType }).agentType
+        return { model: `${agentType}-model`, reasoning_effort: 'medium' }
+      })
+
+      const prefs = await act(async () => {
+        return await result.current.loadAgentPreferences()
+      })
+
+      expect(prefs.codex).toEqual({ model: 'codex-model', reasoningEffort: 'medium' })
+      expect(prefs.amp).toEqual({ model: 'amp-model', reasoningEffort: 'medium' })
+    })
+
+    it('returns blanks when command is unavailable', async () => {
+      const { result } = renderHook(() => useSettings())
+
+      mockInvoke.mockRejectedValue(new Error('command "get_agent_preferences" not found'))
+
+      const prefs = await act(async () => {
+        return await result.current.loadAgentPreferences()
+      })
+
+      expect(prefs.codex).toEqual({ model: '', reasoningEffort: '' })
     })
   })
 
@@ -265,7 +338,18 @@ describe('useSettings', () => {
         amp: '',
         terminal: ''
       }
-      
+
+      const preferences: Record<AgentType, { model: string; reasoningEffort: string }> = {
+        claude: { model: '', reasoningEffort: '' },
+        opencode: { model: '', reasoningEffort: '' },
+        gemini: { model: '', reasoningEffort: '' },
+        codex: { model: '', reasoningEffort: '' },
+        droid: { model: '', reasoningEffort: '' },
+        qwen: { model: '', reasoningEffort: '' },
+        amp: { model: '', reasoningEffort: '' },
+        terminal: { model: '', reasoningEffort: '' },
+      }
+
       const projectSettings = {
         setupScript: '',
         environmentVariables: [],
@@ -294,6 +378,7 @@ describe('useSettings', () => {
         return await result.current.saveAllSettings(
           envVars,
           cliArgs,
+          preferences,
           projectSettings,
           terminalSettings,
           sessionPreferences,
@@ -343,7 +428,18 @@ describe('useSettings', () => {
         amp: '',
         terminal: ''
       }
-      
+
+      const preferences: Record<AgentType, { model: string; reasoningEffort: string }> = {
+        claude: { model: '', reasoningEffort: '' },
+        opencode: { model: '', reasoningEffort: '' },
+        gemini: { model: '', reasoningEffort: '' },
+        codex: { model: '', reasoningEffort: '' },
+        droid: { model: '', reasoningEffort: '' },
+        qwen: { model: '', reasoningEffort: '' },
+        amp: { model: '', reasoningEffort: '' },
+        terminal: { model: '', reasoningEffort: '' },
+      }
+
       const projectSettings = {
         setupScript: '',
         environmentVariables: [],
@@ -371,6 +467,7 @@ describe('useSettings', () => {
         return await result.current.saveAllSettings(
           envVars,
           cliArgs,
+          preferences,
           projectSettings,
           terminalSettings,
           sessionPreferences,
@@ -417,6 +514,17 @@ describe('useSettings', () => {
         terminal: ''
       }
 
+      const preferences: Record<AgentType, { model: string; reasoningEffort: string }> = {
+        claude: { model: '', reasoningEffort: '' },
+        opencode: { model: '', reasoningEffort: '' },
+        gemini: { model: '', reasoningEffort: '' },
+        codex: { model: '', reasoningEffort: '' },
+        droid: { model: '', reasoningEffort: '' },
+        qwen: { model: '', reasoningEffort: '' },
+        amp: { model: '', reasoningEffort: '' },
+        terminal: { model: '', reasoningEffort: '' },
+      }
+
       const projectSettings = {
         setupScript: '',
         environmentVariables: [],
@@ -444,6 +552,7 @@ describe('useSettings', () => {
         return await result.current.saveAllSettings(
           envVars,
           cliArgs,
+          preferences,
           projectSettings,
           terminalSettings,
           sessionPreferences,

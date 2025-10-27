@@ -4,7 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { useFontSize } from '../../contexts/FontSizeContext'
 import { useSettings } from '../../hooks/useSettings'
-import type { AgentType, ProjectMergePreferences, AttentionNotificationMode } from '../../hooks/useSettings'
+import type { AgentType, ProjectMergePreferences, AttentionNotificationMode, AgentPreferenceConfig } from '../../hooks/useSettings'
 import { useSessions } from '../../contexts/SessionsContext'
 import { useActionButtons } from '../../contexts/ActionButtonsContext'
 import type { HeaderActionConfig } from '../../types/actionButton'
@@ -201,6 +201,51 @@ const CATEGORIES: CategoryConfig[] = [
 const PROJECT_CATEGORY_ORDER: SettingsCategory[] = ['projectGeneral', 'projectRun', 'projectActions', 'archives']
 const PROJECT_CATEGORY_SET = new Set<SettingsCategory>(PROJECT_CATEGORY_ORDER)
 
+interface AgentPreferenceMetadataOption {
+    value: string
+    label: string
+}
+
+interface AgentPreferenceMetadata {
+    modelOptions?: AgentPreferenceMetadataOption[]
+    reasoningOptions?: AgentPreferenceMetadataOption[]
+    modelPlaceholder?: string
+    reasoningPlaceholder?: string
+}
+
+const CODEX_MODEL_SUGGESTIONS: AgentPreferenceMetadataOption[] = [
+    { value: 'gpt-5-codex high', label: 'gpt-5-codex high' },
+    { value: 'gpt-5-codex medium', label: 'gpt-5-codex medium' },
+    { value: 'gpt-5-codex low', label: 'gpt-5-codex low' },
+    { value: 'gpt-5 high', label: 'gpt-5 high' },
+    { value: 'gpt-5 medium', label: 'gpt-5 medium' },
+    { value: 'gpt-5 low', label: 'gpt-5 low' },
+    { value: 'gpt-5 minimal', label: 'gpt-5 minimal' },
+]
+
+const CODEX_REASONING_OPTIONS: AgentPreferenceMetadataOption[] = [
+    { value: 'minimal', label: 'Minimal' },
+    { value: 'low', label: 'Low' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'high', label: 'High' },
+]
+
+const AGENT_PREFERENCE_METADATA: Record<AgentType, AgentPreferenceMetadata> = {
+    claude: {},
+    opencode: {},
+    gemini: {},
+    codex: {
+        modelOptions: CODEX_MODEL_SUGGESTIONS,
+        reasoningOptions: CODEX_REASONING_OPTIONS,
+        modelPlaceholder: 'e.g. gpt-5-codex high',
+        reasoningPlaceholder: 'Select reasoning effort',
+    },
+    droid: {},
+    qwen: {},
+    amp: {},
+    terminal: {},
+}
+
 interface ProjectSettings {
     setupScript: string
     branchPrefix: string
@@ -349,6 +394,9 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
     const [cliArgs, setCliArgs] = useState<Record<AgentType, string>>(() =>
         createAgentRecord(_agent => '')
     )
+    const [agentPreferences, setAgentPreferences] = useState<Record<AgentType, AgentPreferenceConfig>>(() =>
+        createAgentRecord(_agent => ({ model: '', reasoningEffort: '' }))
+    )
     const [binaryConfigs, setBinaryConfigs] = useState<Record<AgentType, AgentBinaryConfig>>(() =>
         createAgentRecord((agent) => ({
             agent_name: agent,
@@ -384,6 +432,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
         saveAllSettings,
         loadEnvVars,
         loadCliArgs,
+        loadAgentPreferences = async () => createAgentRecord<AgentPreferenceConfig>(() => ({ model: '', reasoningEffort: '' })),
         loadProjectSettings,
         loadTerminalSettings,
         loadSessionPreferences,
@@ -573,9 +622,10 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
     
     const loadAllSettings = useCallback(async () => {
         // Load application-level settings (always available)
-        const [loadedEnvVars, loadedCliArgs, loadedSessionPreferences, loadedShortcuts] = await Promise.all([
+        const [loadedEnvVars, loadedCliArgs, loadedAgentPrefs, loadedSessionPreferences, loadedShortcuts] = await Promise.all([
             loadEnvVars(),
             loadCliArgs(),
+            loadAgentPreferences(),
             loadSessionPreferences(),
             loadKeyboardShortcuts(),
         ])
@@ -628,6 +678,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
         setRunScript(loadedRunScript)
         setDevErrorToastsEnabled(loadedDevErrorToasts)
         setInitialDevErrorToastsEnabled(loadedDevErrorToasts)
+        setAgentPreferences(loadedAgentPrefs)
         const normalizedShortcuts = mergeShortcutConfig(loadedShortcuts)
         setKeyboardShortcutsState(normalizedShortcuts)
         setEditableKeyboardShortcuts(normalizedShortcuts)
@@ -635,7 +686,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
         applyShortcutOverrides(normalizedShortcuts)
         
         loadBinaryConfigs()
-    }, [loadEnvVars, loadCliArgs, loadSessionPreferences, loadKeyboardShortcuts, loadProjectSettings, loadTerminalSettings, loadRunScript, loadMergePreferences, loadBinaryConfigs, applyShortcutOverrides])
+    }, [loadEnvVars, loadCliArgs, loadAgentPreferences, loadSessionPreferences, loadKeyboardShortcuts, loadProjectSettings, loadTerminalSettings, loadRunScript, loadMergePreferences, loadBinaryConfigs, applyShortcutOverrides])
 
     useEffect(() => {
         if (!open) return
@@ -791,6 +842,17 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
         }
     }
 
+    const handleAgentPreferenceChange = (agent: AgentType, field: 'model' | 'reasoningEffort', value: string) => {
+        setAgentPreferences(prev => ({
+            ...prev,
+            [agent]: {
+                ...prev[agent],
+                [field]: value,
+            },
+        }))
+        setHasUnsavedChanges(true)
+    }
+
     const handleRefreshBinaryDetection = async (agent: AgentType) => {
         try {
             const updatedConfig = await invoke<AgentBinaryConfig>(TauriCommands.RefreshAgentBinaryDetection, { agentName: agent })
@@ -839,7 +901,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
     }
 
     const handleSave = async () => {
-        const result = await saveAllSettings(envVars, cliArgs, projectSettings, terminalSettings, sessionPreferences, mergePreferences)
+        const result = await saveAllSettings(envVars, cliArgs, agentPreferences, projectSettings, terminalSettings, sessionPreferences, mergePreferences)
 
         if (devErrorToastsEnabled !== initialDevErrorToastsEnabled) {
             try {
@@ -1530,10 +1592,79 @@ fi`}
                                         ))}
                                     </div>
                                 </div>
-                            )}
-                        </div>
-                    </div>
                     )}
+                </div>
+            </div>
+            )}
+
+                    {activeAgentTab !== 'terminal' && (() => {
+                        const metadata = AGENT_PREFERENCE_METADATA[activeAgentTab]
+                        const currentPrefs = agentPreferences[activeAgentTab] ?? { model: '', reasoningEffort: '' }
+                        const modelListId = metadata.modelOptions && metadata.modelOptions.length > 0
+                            ? `agent-model-options-${activeAgentTab}`
+                            : undefined
+                        const reasoningListId = metadata.reasoningOptions && metadata.reasoningOptions.length > 0
+                            ? `agent-reasoning-options-${activeAgentTab}`
+                            : undefined
+                        const modelPlaceholder = metadata.modelPlaceholder ?? `Optional ${displayNameForAgent(activeAgentTab)} model`
+                        const reasoningPlaceholder = metadata.reasoningPlaceholder ?? 'Optional reasoning effort (e.g. medium)'
+
+                        return (
+                            <div className="border-t border-slate-700 pt-6">
+                                <h3 className="text-body font-medium text-slate-200 mb-2">Model &amp; Reasoning</h3>
+                                <div className="text-body text-slate-400 mb-4">
+                                    Set default parameters for {displayNameForAgent(activeAgentTab)} launches. Leave blank to use the agent&apos;s built-in defaults.
+                                </div>
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <div className="space-y-2">
+                                        <label className="block text-caption text-slate-400">Model</label>
+                                        <input
+                                            type="text"
+                                            value={currentPrefs.model ?? ''}
+                                            onChange={(e) => handleAgentPreferenceChange(activeAgentTab, 'model', e.target.value)}
+                                            placeholder={modelPlaceholder}
+                                            list={modelListId}
+                                            className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-body"
+                                            autoCorrect="off"
+                                            autoCapitalize="off"
+                                            spellCheck={false}
+                                        />
+                                        {modelListId && (
+                                            <datalist id={modelListId}>
+                                                {metadata.modelOptions!.map(option => (
+                                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                                ))}
+                                            </datalist>
+                                        )}
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="block text-caption text-slate-400">Reasoning Effort</label>
+                                        <input
+                                            type="text"
+                                            value={currentPrefs.reasoningEffort ?? ''}
+                                            onChange={(e) => handleAgentPreferenceChange(activeAgentTab, 'reasoningEffort', e.target.value)}
+                                            placeholder={reasoningPlaceholder}
+                                            list={reasoningListId}
+                                            className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 text-body"
+                                            autoCorrect="off"
+                                            autoCapitalize="off"
+                                            spellCheck={false}
+                                        />
+                                        {reasoningListId && (
+                                            <datalist id={reasoningListId}>
+                                                {metadata.reasoningOptions!.map(option => (
+                                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                                ))}
+                                            </datalist>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="mt-2 text-caption text-slate-500">
+                                    Preferences apply when launching new processes for this agent. Existing CLI arguments still run afterwards.
+                                </div>
+                            </div>
+                        )
+                    })()}
 
                     {activeAgentTab !== 'terminal' && (
                     <div className="border-t border-slate-700 pt-6">

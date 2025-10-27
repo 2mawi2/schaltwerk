@@ -68,6 +68,11 @@ impl AgentAdapter for CodexAdapter {
             sandbox_mode,
             Some(&config),
         );
+        log::info!(
+            "[CodexAdapter] Launch command prepared for worktree {}: {}",
+            ctx.worktree_path.display(),
+            command
+        );
         AgentLaunchSpec::new(command, ctx.worktree_path.to_path_buf())
     }
 }

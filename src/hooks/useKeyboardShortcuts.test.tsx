@@ -426,6 +426,25 @@ describe('useKeyboardShortcuts', () => {
       expect(onNavigateToPrevFilter).toHaveBeenCalledTimes(1)
     })
 
+    it('does not navigate to previous filter when a modal is open', () => {
+      const onNavigateToPrevFilter = vi.fn()
+      const onSelectOrchestrator = vi.fn()
+      const onSelectSession = vi.fn()
+
+      renderHook(() =>
+        useKeyboardShortcuts({
+          onSelectOrchestrator,
+          onSelectSession,
+          onNavigateToPrevFilter,
+          sessionCount: 3,
+          isModalOpen: true,
+        })
+      )
+
+      pressKey('ArrowLeft', { metaKey: true })
+      expect(onNavigateToPrevFilter).not.toHaveBeenCalled()
+    })
+
     it('navigates to next filter with Cmd+ArrowRight', () => {
       const onNavigateToNextFilter = vi.fn()
       const onSelectOrchestrator = vi.fn()
@@ -440,6 +459,25 @@ describe('useKeyboardShortcuts', () => {
 
       pressKey('ArrowRight', { metaKey: true })
       expect(onNavigateToNextFilter).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not navigate to next filter when a modal is open', () => {
+      const onNavigateToNextFilter = vi.fn()
+      const onSelectOrchestrator = vi.fn()
+      const onSelectSession = vi.fn()
+
+      renderHook(() =>
+        useKeyboardShortcuts({
+          onSelectOrchestrator,
+          onSelectSession,
+          onNavigateToNextFilter,
+          sessionCount: 3,
+          isModalOpen: true,
+        })
+      )
+
+      pressKey('ArrowRight', { metaKey: true })
+      expect(onNavigateToNextFilter).not.toHaveBeenCalled()
     })
 
     it('does not prevent default when callbacks are undefined', () => {

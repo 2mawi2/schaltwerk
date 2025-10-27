@@ -15,6 +15,7 @@ vi.mock('../../hooks/useGithubIssueSearch', () => ({
 }))
 
 import { NewSessionModal } from './NewSessionModal'
+import { getCodexModelMetadata } from '../../common/codexModels'
 
 // Mock Tauri
 vi.mock('@tauri-apps/api/core', () => ({
@@ -49,7 +50,12 @@ vi.mock('../shared/SessionConfigurationPanel', () => ({
         onSkipPermissionsChange,
         initialBaseBranch,
         initialAgentType,
-        initialSkipPermissions
+        initialSkipPermissions,
+        codexModel,
+        codexModelOptions,
+        onCodexModelChange,
+        codexReasoningEffort,
+        onCodexReasoningChange,
     }: {
         onBaseBranchChange?: (branch: string) => void
         onAgentTypeChange?: (type: string) => void
@@ -57,29 +63,66 @@ vi.mock('../shared/SessionConfigurationPanel', () => ({
         initialBaseBranch?: string
         initialAgentType?: string
         initialSkipPermissions?: boolean
+        codexModel?: string
+        codexModelOptions?: string[]
+        onCodexModelChange?: (model: string) => void
+        codexReasoningEffort?: string
+        onCodexReasoningChange?: (effort: string) => void
     }) => {
+        const resolvedModel = codexModel || codexModelOptions?.[0] || 'gpt-5-codex'
+        const modelMeta = getCodexModelMetadata(resolvedModel)
+        const reasoningIds = modelMeta?.reasoningOptions?.map(option => option.id) ?? []
+        const nextModel = (() => {
+            if (codexModelOptions && codexModelOptions.length > 0) {
+                const found = codexModelOptions.find(option => option !== resolvedModel)
+                return found ?? codexModelOptions[0]
+            }
+            return resolvedModel === 'gpt-5-codex' ? 'gpt-5' : 'gpt-5-codex'
+        })()
+        const nextReasoning = reasoningIds.includes('high') ? 'high' : reasoningIds[0] ?? 'medium'
+
         return (
             <div data-testid="session-config-panel">
                 <div data-testid="initial-branch">{initialBaseBranch || ''}</div>
                 <div data-testid="initial-agent">{initialAgentType || 'claude'}</div>
                 <div data-testid="initial-skip-perms">{initialSkipPermissions?.toString() || 'false'}</div>
-                <button 
+                <div data-testid="codex-model-value">{codexModel || ''}</div>
+                <div data-testid="codex-reasoning-value">{codexReasoningEffort || ''}</div>
+                <button
                     onClick={() => onBaseBranchChange?.('develop')}
                     data-testid="change-branch"
                 >
                     Change Branch
                 </button>
-                <button 
+                <button
                     onClick={() => onAgentTypeChange?.('opencode')}
                     data-testid="change-agent"
                 >
                     Change Agent
                 </button>
-                <button 
+                <button
+                    onClick={() => onAgentTypeChange?.('codex')}
+                    data-testid="change-agent-codex"
+                >
+                    Change Agent Codex
+                </button>
+                <button
+                    onClick={() => onCodexModelChange?.(nextModel)}
+                    data-testid="change-codex-model"
+                >
+                    Change Codex Model
+                </button>
+                <button
                     onClick={() => onSkipPermissionsChange?.(true)}
                     data-testid="change-permissions"
                 >
                     Change Permissions
+                </button>
+                <button
+                    onClick={() => onCodexReasoningChange?.(nextReasoning)}
+                    data-testid="change-codex-reasoning"
+                >
+                    Change Codex Reasoning
                 </button>
             </div>
         )
@@ -122,8 +165,51 @@ function defaultInvokeHandler(command: string, args?: unknown) {
                 }
             }
             return Promise.resolve('')
+        case TauriCommands.GetAgentPreferences:
+            if (args && typeof args === 'object' && 'agentType' in args) {
+                const agentType = (args as { agentType: string }).agentType
+                if (agentType === 'codex') {
+                    return Promise.resolve({
+                        model: 'o4-mini',
+                        reasoning_effort: 'minimal'
+                    })
+                }
+            }
+            return Promise.resolve({})
+        case TauriCommands.SchaltwerkCoreListCodexModels:
+            return Promise.resolve({
+                models: [
+                    {
+                        id: 'gpt-5-codex',
+                        label: 'GPT-5 Codex',
+                        description: 'Optimized for coding',
+                        defaultReasoning: 'medium',
+                        reasoningOptions: [
+                            { id: 'low', label: 'Low', description: 'Low effort' },
+                            { id: 'medium', label: 'Medium', description: 'Balanced' },
+                            { id: 'high', label: 'High', description: 'Deep reasoning' }
+                        ],
+                        isDefault: true
+                    },
+                    {
+                        id: 'gpt-5',
+                        label: 'GPT-5',
+                        description: 'Generalist model',
+                        defaultReasoning: 'medium',
+                        reasoningOptions: [
+                            { id: 'minimal', label: 'Minimal', description: 'Minimal effort' },
+                            { id: 'low', label: 'Low', description: 'Low effort' },
+                            { id: 'medium', label: 'Medium', description: 'Balanced' },
+                            { id: 'high', label: 'High', description: 'Deep reasoning' }
+                        ],
+                        isDefault: false
+                    }
+                ],
+                defaultModelId: 'gpt-5-codex'
+            })
         case TauriCommands.SetAgentEnvVars:
         case TauriCommands.SetAgentCliArgs:
+        case TauriCommands.SetAgentPreferences:
             return Promise.resolve()
         case TauriCommands.SchaltwerkCoreListProjectFiles:
             return Promise.resolve(['README.md'])
@@ -222,6 +308,141 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
         expect(screen.getByTestId('initial-branch')).toHaveTextContent('main')
         expect(screen.getByTestId('initial-agent')).toHaveTextContent('claude')
         expect(screen.getByTestId('initial-skip-perms')).toHaveTextContent('false')
+    })
+
+    test('normalizes persisted Codex preferences using discovered models', async () => {
+        render(
+            <TestProviders>
+                <NewSessionModal open={true} onClose={vi.fn()} onCreate={vi.fn()} />
+            </TestProviders>
+        )
+
+        fireEvent.click(await screen.findByTestId('change-agent-codex'))
+
+        await waitFor(() => {
+            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreListCodexModels)
+        })
+
+        await waitFor(() => {
+            const codexPreferenceCalls = mockInvoke.mock.calls.filter(([command, payload]) => {
+                if (command !== TauriCommands.SetAgentPreferences) {
+                    return false
+                }
+                if (!payload || typeof payload !== 'object') {
+                    return false
+                }
+                return (payload as { agentType?: string }).agentType === 'codex'
+            })
+            const latest = codexPreferenceCalls.at(-1)
+            expect(latest).toBeTruthy()
+            const payload = latest?.[1] as { preferences?: { model?: string; reasoning_effort?: string } }
+            expect(payload?.preferences?.model).toBe('gpt-5-codex')
+            expect(payload?.preferences?.reasoning_effort).toBe('medium')
+        })
+    })
+
+    test('allows selecting Codex model without conflicting CLI args', async () => {
+        render(
+            <TestProviders>
+                <NewSessionModal open={true} onClose={vi.fn()} onCreate={vi.fn()} />
+            </TestProviders>
+        )
+
+        await waitFor(() => {
+            expect(screen.getByTestId('initial-branch')).toHaveTextContent('main')
+        })
+
+        fireEvent.click(screen.getByTestId('change-agent-codex'))
+
+        await waitFor(() => {
+            expect(screen.getByTestId('codex-model-value').textContent).toBe('gpt-5-codex')
+            expect(screen.getByTestId('codex-reasoning-value').textContent).toBe('medium')
+        })
+
+        fireEvent.click(screen.getByTestId('change-codex-model'))
+
+        await waitFor(() => {
+            const preferenceCalls = mockInvoke.mock.calls.filter(([command]) => command === TauriCommands.SetAgentPreferences)
+            expect(preferenceCalls.length).toBeGreaterThan(0)
+            const lastCall = preferenceCalls[preferenceCalls.length - 1]
+            expect(lastCall[1]).toEqual({
+                agentType: 'codex',
+                preferences: {
+                    model: 'gpt-5',
+                    reasoning_effort: 'medium',
+                },
+            })
+        })
+
+        await waitFor(() => {
+            expect(screen.getByTestId('codex-model-value').textContent).toBe('gpt-5')
+            expect(screen.getByTestId('codex-reasoning-value').textContent).toBe('medium')
+        })
+
+        fireEvent.click(screen.getByTestId('change-codex-reasoning'))
+
+        await waitFor(() => {
+            const preferenceCalls = mockInvoke.mock.calls.filter(([command]) => command === TauriCommands.SetAgentPreferences)
+            const lastCall = preferenceCalls[preferenceCalls.length - 1]
+            expect(lastCall[1]).toEqual({
+                agentType: 'codex',
+                preferences: {
+                    model: 'gpt-5',
+                    reasoning_effort: 'high',
+                },
+            })
+        })
+
+        await waitFor(() => {
+            expect(screen.getByTestId('codex-reasoning-value').textContent).toBe('high')
+        })
+    })
+
+    test('cycles Codex reasoning with keyboard shortcuts', async () => {
+        render(
+            <TestProviders>
+                <NewSessionModal open={true} onClose={vi.fn()} onCreate={vi.fn()} />
+            </TestProviders>
+        )
+
+        await waitFor(() => {
+            expect(screen.getByTestId('initial-branch')).toHaveTextContent('main')
+        })
+
+        fireEvent.click(screen.getByTestId('change-agent-codex'))
+
+        await waitFor(() => {
+            expect(screen.getByTestId('codex-model-value').textContent).toBe('gpt-5-codex')
+        })
+
+        act(() => {
+            fireEvent.keyDown(window, { key: 'ArrowRight', metaKey: true })
+        })
+
+        await waitFor(() => {
+            expect(screen.getByTestId('codex-model-value').textContent).toBe('gpt-5-codex')
+            expect(screen.getByTestId('codex-reasoning-value').textContent).toBe('high')
+        })
+
+        act(() => {
+            fireEvent.keyDown(window, { key: 'ArrowLeft', metaKey: true })
+        })
+
+        await waitFor(() => {
+            expect(screen.getByTestId('codex-model-value').textContent).toBe('gpt-5-codex')
+            expect(screen.getByTestId('codex-reasoning-value').textContent).toBe('medium')
+        })
+
+        const codexPreferenceCalls = mockInvoke.mock.calls.filter(([command, payload]) => {
+            if (command !== TauriCommands.SetAgentPreferences) {
+                return false
+            }
+            if (!payload || typeof payload !== 'object') {
+                return false
+            }
+            return (payload as { agentType?: string }).agentType === 'codex'
+        })
+        expect(codexPreferenceCalls.length).toBeGreaterThanOrEqual(3)
     })
 
     test('populates agent defaults from saved configuration', async () => {

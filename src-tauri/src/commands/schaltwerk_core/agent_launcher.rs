@@ -38,10 +38,11 @@ pub async fn launch_in_terminal(
     terminals::ensure_cwd_access(&cwd)?;
 
     let agent_kind = agent_ctx::infer_agent_kind(&agent_name);
-    let (env_vars, cli_text) =
+    let (env_vars, cli_text, preferences) =
         agent_ctx::collect_agent_env_and_cli(&agent_kind, repo_path, db).await;
     let merged_env = merge_env_vars(env_vars, &launch_spec.env_vars);
-    let final_args = agent_ctx::build_final_args(&agent_kind, agent_args, &cli_text);
+    let final_args =
+        agent_ctx::build_final_args(&agent_kind, agent_args, &cli_text, &preferences);
 
     let manager = get_terminal_manager().await?;
     if manager.terminal_exists(&terminal_id).await? {

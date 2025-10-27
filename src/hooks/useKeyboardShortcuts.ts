@@ -126,13 +126,13 @@ export function useKeyboardShortcuts(
         return
       }
 
-      if (!isDiffViewerOpen && onNavigateToPrevFilter && isShortcutForAction(event, KeyboardShortcutAction.NavigatePrevFilter, shortcutConfig, { platform })) {
+      if (!isDiffViewerOpen && !isModalOpen && onNavigateToPrevFilter && isShortcutForAction(event, KeyboardShortcutAction.NavigatePrevFilter, shortcutConfig, { platform })) {
         event.preventDefault()
         onNavigateToPrevFilter()
         return
       }
 
-      if (!isDiffViewerOpen && onNavigateToNextFilter && isShortcutForAction(event, KeyboardShortcutAction.NavigateNextFilter, shortcutConfig, { platform })) {
+      if (!isDiffViewerOpen && !isModalOpen && onNavigateToNextFilter && isShortcutForAction(event, KeyboardShortcutAction.NavigateNextFilter, shortcutConfig, { platform })) {
         event.preventDefault()
         onNavigateToNextFilter()
         return

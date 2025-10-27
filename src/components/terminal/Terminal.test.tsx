@@ -277,7 +277,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
   const id = setTimeout(() => {
     raf(cb)
-  }, 0)
+  }, 16)
   return id
 })
 
@@ -447,23 +447,28 @@ describe('Terminal', () => {
 
     instance.raw.buffer.active.baseY = 360
     instance.raw.buffer.active.viewportY = 240
+
+    await new Promise(resolve => setTimeout(resolve, 20))
     shouldStickSpy.mockClear()
 
-    await act(async () => {
-      scrollHandler!(360)
-    })
+    try {
+      await act(async () => {
+        scrollHandler!(360)
+        await new Promise(resolve => setTimeout(resolve, 0))
+      })
 
-    instance.raw.buffer.active.viewportY = 360
+      instance.raw.buffer.active.viewportY = 360
 
-    await waitFor(() => {
-      expect(shouldStickSpy).toHaveBeenCalled()
-    })
+      await waitFor(() => {
+        expect(shouldStickSpy).toHaveBeenCalled()
+      })
 
-    const callWithOverride = shouldStickSpy.mock.calls.find(
-      call => (call[0] as autoScrollModule.StickToBottomInput)?.viewportY === 360
-    )?.[0] as autoScrollModule.StickToBottomInput | undefined
-    expect(callWithOverride?.viewportY).toBe(360)
-
-    shouldStickSpy.mockRestore()
+      const callWithOverride = shouldStickSpy.mock.calls.find(
+        call => (call[0] as autoScrollModule.StickToBottomInput)?.viewportY === 360
+      )?.[0] as autoScrollModule.StickToBottomInput | undefined
+      expect(callWithOverride?.viewportY).toBe(360)
+    } finally {
+      shouldStickSpy.mockRestore()
+    }
   })
 })
