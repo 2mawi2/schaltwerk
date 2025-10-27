@@ -1,5 +1,12 @@
 use http_body_util::BodyExt;
-use hyper::{Method, Request, Response, StatusCode, body::Incoming};
+use hyper::{
+    Method,
+    Request,
+    Response,
+    StatusCode,
+    body::Incoming,
+    header::{HeaderValue, CONTENT_TYPE},
+};
 use log::{error, info, warn};
 use serde::Serialize;
 use url::form_urlencoded;
@@ -159,7 +166,7 @@ fn json_response(status: StatusCode, json: String) -> Response<String> {
     *response.status_mut() = status;
     response
         .headers_mut()
-        .insert("Content-Type", "application/json".parse().unwrap());
+        .insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
     response
 }
 

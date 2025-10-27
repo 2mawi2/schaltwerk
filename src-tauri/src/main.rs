@@ -1,4 +1,8 @@
 #![deny(dead_code)]
+#![cfg_attr(
+    not(test),
+    deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
+)]
 #![warn(unused_imports)]
 #![warn(unused_variables)]
 #![deny(clippy::match_wild_err_arm)] // Deny catch-all error patterns without proper handling
@@ -527,11 +531,16 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                         let timestamp = payload
                             .get("timestamp")
                             .and_then(|v| v.as_u64())
-                            .unwrap_or_else(|| {
-                                std::time::SystemTime::now()
-                                    .duration_since(std::time::UNIX_EPOCH)
-                                    .unwrap()
-                                    .as_millis() as u64
+                            .unwrap_or_else(|| match std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                            {
+                                Ok(duration) => duration.as_millis() as u64,
+                                Err(err) => {
+                                    log::warn!(
+                                        "System clock error when computing follow-up timestamp: {err}"
+                                    );
+                                    0
+                                }
                             });
 
                         // Move reviewed sessions back to running upon follow-up (only if reviewed)
@@ -834,7 +843,7 @@ fn main() {
     // Create cleanup guard that will run on exit
     let _cleanup_guard = cleanup::TerminalCleanupGuard;
 
-    tauri::Builder::default()
+    let run_result = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_os::init())
@@ -1243,8 +1252,12 @@ fn main() {
                 std::process::exit(0);
             }
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .run(tauri::generate_context!());
+
+    if let Err(err) = run_result {
+        log::error!("Error while running tauri application: {err}");
+        std::process::exit(1);
+    }
 }
 
 #[cfg(test)]

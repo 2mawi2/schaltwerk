@@ -531,13 +531,16 @@ mod client {
         }
 
         // Add or update Schaltwerk MCP server
-        let mcp_section = config.get_mut("mcp").unwrap();
         let schaltwerk_config = serde_json::json!({
             "type": "local",
             "command": ["node", mcp_server_path],
             "enabled": true
         });
-        mcp_section["schaltwerk"] = schaltwerk_config;
+        let mcp_section = config
+            .get_mut("mcp")
+            .and_then(|value| value.as_object_mut())
+            .ok_or_else(|| "OpenCode config 'mcp' section must be a JSON object".to_string())?;
+        mcp_section.insert("schaltwerk".to_string(), schaltwerk_config);
 
         // Write updated config
         if let Some(dir) = config_path.parent() {
@@ -569,15 +572,19 @@ mod client {
             .map_err(|e| format!("Failed to parse OpenCode config JSON: {e}"))?;
 
         // Remove Schaltwerk from MCP section
+        let mut remove_mcp_section = false;
         if let Some(mcp_section) = config.get_mut("mcp")
             && let Some(mcp_obj) = mcp_section.as_object_mut()
         {
             mcp_obj.remove("schaltwerk");
+            remove_mcp_section = mcp_obj.is_empty();
+        }
 
-            // If MCP section is empty, remove it entirely
-            if mcp_obj.is_empty() {
-                config.as_object_mut().unwrap().remove("mcp");
-            }
+        if remove_mcp_section {
+            let root = config
+                .as_object_mut()
+                .ok_or_else(|| "OpenCode config root must be a JSON object".to_string())?;
+            root.remove("mcp");
         }
 
         let updated_content = serde_json::to_string_pretty(&config)
@@ -641,15 +648,19 @@ mod client {
             .map_err(|e| format!("Failed to parse Amp config JSON: {e}"))?;
 
         // Remove schaltwerk from amp.mcpServers
+        let mut remove_amp_section = false;
         if let Some(mcp_servers) = config.get_mut("amp.mcpServers")
             && let Some(obj) = mcp_servers.as_object_mut()
         {
             obj.remove("schaltwerk");
+            remove_amp_section = obj.is_empty();
+        }
 
-            // If no MCP servers left, remove the section
-            if obj.is_empty() {
-                config.as_object_mut().unwrap().remove("amp.mcpServers");
-            }
+        if remove_amp_section {
+            let root = config
+                .as_object_mut()
+                .ok_or_else(|| "Amp config root must be a JSON object".to_string())?;
+            root.remove("amp.mcpServers");
         }
 
         let updated_content = serde_json::to_string_pretty(&config)
@@ -712,14 +723,22 @@ mod client {
         let mut config: serde_json::Value = serde_json::from_str(&content)
             .map_err(|e| format!("Failed to parse Factory Droid config JSON: {e}"))?;
 
+        let mut remove_droid_section = false;
         if let Some(mcp_servers) = config.get_mut("mcpServers")
             && let Some(obj) = mcp_servers.as_object_mut()
         {
             obj.remove("schaltwerk");
 
             if obj.is_empty() {
-                config.as_object_mut().unwrap().remove("mcpServers");
+                remove_droid_section = true;
             }
+        }
+
+        if remove_droid_section {
+            let root = config
+                .as_object_mut()
+                .ok_or_else(|| "Factory Droid config root must be a JSON object".to_string())?;
+            root.remove("mcpServers");
         }
 
         let updated_content = serde_json::to_string_pretty(&config)
@@ -747,16 +766,21 @@ fn detect_mcp_server_location(exe_path: &std::path::Path) -> Result<(PathBuf, bo
 fn get_app_bundle_mcp_path(exe_path: &std::path::Path) -> Result<(PathBuf, bool), String> {
     log::debug!("Running from app bundle: {}", exe_path.display());
     let mcp_embedded = if cfg!(target_os = "macos") {
-        exe_path
+        let macos_dir = exe_path
             .parent()
-            .unwrap() // MacOS
+            .ok_or_else(|| "Executable path missing macOS bundle parent".to_string())?;
+        let contents_dir = macos_dir
             .parent()
-            .unwrap() // Contents
+            .ok_or_else(|| "Executable path missing Contents directory".to_string())?;
+        contents_dir
             .join("Resources")
             .join(MCP_SERVER_PATH)
     } else {
         // For other platforms, adjust path as needed
-        exe_path.parent().unwrap().join(MCP_SERVER_PATH)
+        let parent = exe_path
+            .parent()
+            .ok_or_else(|| "Executable path missing parent directory".to_string())?;
+        parent.join(MCP_SERVER_PATH)
     };
 
     if !mcp_embedded.exists() {
@@ -770,8 +794,11 @@ fn get_app_bundle_mcp_path(exe_path: &std::path::Path) -> Result<(PathBuf, bool)
 
 fn get_development_mcp_path() -> Result<(PathBuf, bool), String> {
     log::debug!("Running in development mode");
-    let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    let project_root = PathBuf::from(manifest_dir).parent().unwrap().to_path_buf();
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let project_root = manifest_dir
+        .parent()
+        .ok_or_else(|| "Unable to resolve project root for development MCP path".to_string())?
+        .to_path_buf();
     let mcp_dev_path = project_root.join(MCP_SERVER_PATH);
 
     if mcp_dev_path.exists() {
@@ -791,7 +818,10 @@ fn get_release_mcp_path(exe_path: &std::path::Path) -> Result<(PathBuf, bool), S
         "Running in release mode outside app bundle: {}",
         exe_path.display()
     );
-    let mcp_embedded = exe_path.parent().unwrap().join(MCP_SERVER_PATH);
+    let parent = exe_path
+        .parent()
+        .ok_or_else(|| "Executable path missing parent directory".to_string())?;
+    let mcp_embedded = parent.join(MCP_SERVER_PATH);
 
     if !mcp_embedded.exists() {
         log::error!("MCP server not found at: {mcp_embedded:?}");
