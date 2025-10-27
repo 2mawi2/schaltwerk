@@ -287,6 +287,13 @@ describe('NewSessionModal', () => {
     const requireToggle = screen.getByRole('button', { name: /Require permissions/i })
     expect(requireToggle).toHaveAttribute('aria-pressed', 'true')
 
+    // Wait for button to be enabled (branches loaded, session config initialized)
+    await waitFor(() => {
+      const btn = screen.queryByTitle('Start agent (Cmd+Enter)')
+      expect(btn).toBeTruthy()
+      expect((btn as HTMLButtonElement).disabled).toBe(false)
+    })
+
     // Create should submit with current name value
     fireEvent.click(screen.getByTitle('Start agent (Cmd+Enter)'))
 
