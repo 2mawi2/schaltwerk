@@ -41,6 +41,11 @@ const DEFAULT_ENTRY: RepoHistoryEntry = Object.freeze({
 })
 
 const HISTORY_PAGE_SIZE = 100
+const MAX_HISTORY_ITEMS = 1000
+
+function getHistoryItemKey(item: HistoryProviderSnapshot['items'][number]): string {
+  return item.fullHash ?? item.id
+}
 
 const GitHistoryContext = createContext<GitHistoryContextValue | undefined>(undefined)
 
@@ -48,6 +53,7 @@ function buildUpdatedEntry(
   entry: RepoHistoryEntry,
   snapshot: HistoryProviderSnapshot,
   mode: FetchMode,
+  repoPath: string,
 ): RepoHistoryEntry {
   if (snapshot.unchanged) {
     return {
@@ -64,12 +70,10 @@ function buildUpdatedEntry(
   const previousSnapshot = entry.snapshot
 
   if (mode === 'append' && previousSnapshot) {
-    const existingKeys = new Set(
-      previousSnapshot.items.map(item => item.fullHash ?? item.id),
-    )
+    const existingKeys = new Set(previousSnapshot.items.map(getHistoryItemKey))
 
     const deduped = snapshot.items.filter(item => {
-      const key = item.fullHash ?? item.id
+      const key = getHistoryItemKey(item)
       if (existingKeys.has(key)) {
         return false
       }
@@ -77,11 +81,22 @@ function buildUpdatedEntry(
       return true
     })
 
+    const mergedNextCursor =
+      snapshot.hasMore === false ? undefined : snapshot.nextCursor ?? undefined
+
+    if (deduped.length === 0 && previousSnapshot.nextCursor && !mergedNextCursor) {
+      logger.debug('[GitHistoryContext] Append delivered duplicate page, clearing cursor after backend exhausted history', {
+        repoPath,
+        previousCursor: previousSnapshot.nextCursor,
+      })
+    }
+
     const merged: HistoryProviderSnapshot = {
       ...previousSnapshot,
       items: [...previousSnapshot.items, ...deduped],
-      nextCursor: snapshot.nextCursor,
-      hasMore: snapshot.hasMore,
+      nextCursor: mergedNextCursor,
+      hasMore:
+        snapshot.hasMore ?? (mergedNextCursor ? previousSnapshot.hasMore ?? false : false),
       currentRef: snapshot.currentRef ?? previousSnapshot.currentRef,
       currentRemoteRef: snapshot.currentRemoteRef ?? previousSnapshot.currentRemoteRef,
       currentBaseRef: snapshot.currentBaseRef ?? previousSnapshot.currentBaseRef,
@@ -100,6 +115,117 @@ function buildUpdatedEntry(
         merged.items[0]?.fullHash ??
         entry.latestHead,
     }
+  }
+
+  if (mode === 'refresh' && previousSnapshot) {
+    const refreshKeys = new Set(snapshot.items.map(getHistoryItemKey))
+    const previousHeadKey = previousSnapshot.items[0]
+      ? getHistoryItemKey(previousSnapshot.items[0])
+      : null
+
+    const forceRewrite = Boolean(previousHeadKey && !refreshKeys.has(previousHeadKey))
+
+    if (!forceRewrite) {
+      const seen = new Set<string>()
+      const mergedItems = [] as typeof previousSnapshot.items
+
+      for (const item of snapshot.items) {
+        const key = getHistoryItemKey(item)
+        if (seen.has(key)) {
+          continue
+        }
+        seen.add(key)
+        mergedItems.push(item)
+      }
+
+      for (const item of previousSnapshot.items) {
+        const key = getHistoryItemKey(item)
+        if (seen.has(key)) {
+          continue
+        }
+        seen.add(key)
+        mergedItems.push(item)
+      }
+
+      let trimmed = false
+      let limitedItems = mergedItems
+      if (mergedItems.length > MAX_HISTORY_ITEMS) {
+        limitedItems = mergedItems.slice(0, MAX_HISTORY_ITEMS)
+        trimmed = true
+      }
+
+      const hadOlderItems = previousSnapshot.items.some(item => !refreshKeys.has(getHistoryItemKey(item)))
+
+      const previousCursor = previousSnapshot.nextCursor ?? null
+      const incomingCursor = snapshot.nextCursor ?? null
+      let mergedCursor: string | null = incomingCursor
+      if (hadOlderItems && previousCursor) {
+        mergedCursor = previousCursor
+      } else if (!mergedCursor && previousCursor) {
+        mergedCursor = previousCursor
+      }
+
+      if (trimmed) {
+        mergedCursor = mergedCursor ?? previousCursor
+      }
+
+      const resolvedHead =
+        snapshot.headCommit ??
+        snapshot.items[0]?.fullHash ??
+        previousSnapshot.headCommit ??
+        entry.latestHead
+
+      if (incomingCursor !== mergedCursor) {
+        logger.debug('[GitHistoryContext] Preserving advanced cursor after refresh', {
+          repoPath,
+          incomingCursor,
+          mergedCursor,
+          hadOlderItems,
+          trimmed,
+        })
+      }
+
+      if (trimmed) {
+        logger.debug('[GitHistoryContext] Trimmed merged git history snapshot', {
+          repoPath,
+          limit: MAX_HISTORY_ITEMS,
+          total: mergedItems.length,
+        })
+      }
+
+      const merged: HistoryProviderSnapshot = {
+        ...previousSnapshot,
+        ...snapshot,
+        items: limitedItems,
+        nextCursor: mergedCursor ?? undefined,
+        hasMore:
+          trimmed || hadOlderItems
+            ? true
+            : snapshot.hasMore ?? previousSnapshot.hasMore ?? false,
+        currentRef: snapshot.currentRef ?? previousSnapshot.currentRef,
+        currentRemoteRef:
+          snapshot.currentRemoteRef ?? previousSnapshot.currentRemoteRef,
+        currentBaseRef:
+          snapshot.currentBaseRef ?? previousSnapshot.currentBaseRef,
+        headCommit: resolvedHead ?? snapshot.headCommit,
+        unchanged: snapshot.unchanged,
+      }
+
+      return {
+        snapshot: merged,
+        isLoading: false,
+        isLoadingMore: false,
+        error: null,
+        loadMoreError: null,
+        latestHead: resolvedHead ?? null,
+      }
+    }
+
+    logger.info('[GitHistoryContext] Refresh detected divergent head, resetting history snapshot', {
+      repoPath,
+      previousHead: previousHeadKey,
+      incomingHead: snapshot.headCommit ?? snapshot.items[0]?.fullHash ?? null,
+    })
   }
 
   const resolvedHead =
@@ -148,6 +274,7 @@ export function GitHistoryProvider({ children }: { children: React.ReactNode }) 
         didChange = true
         const updated = new Map(prev)
         updated.set(repoPath, nextEntry)
+        entriesRef.current = updated
         return updated
       })
       if (didChange) {
@@ -212,7 +339,7 @@ export function GitHistoryProvider({ children }: { children: React.ReactNode }) 
           )
 
           updateEntry(repoPath, entry =>
-            buildUpdatedEntry(entry, snapshot, mode),
+            buildUpdatedEntry(entry, snapshot, mode, repoPath),
           )
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error)

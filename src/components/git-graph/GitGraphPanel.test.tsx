@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { vi } from 'vitest'
 import { invoke } from '@tauri-apps/api/core'
@@ -815,5 +815,165 @@ describe('GitGraphPanel', () => {
     await user.click(screen.getByText('Copy commit ID'))
 
     expect(refreshMock.mock.calls.length).toBe(baselineCalls)
+  })
+
+  it('keeps appended commits when a refresh races with pagination', async () => {
+    const initialSnapshot: HistoryProviderSnapshot = {
+      items: [
+        {
+          id: 'a1',
+          parentIds: [],
+          subject: 'Commit A',
+          author: 'Alice',
+          timestamp: 1720000000000,
+          references: [],
+          fullHash: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+        },
+        {
+          id: 'b1',
+          parentIds: ['a1'],
+          subject: 'Commit B',
+          author: 'Bob',
+          timestamp: 1719000000000,
+          references: [],
+          fullHash: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+        }
+      ],
+      hasMore: true,
+      nextCursor: 'cursor-1',
+      headCommit: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+    }
+
+    const appendedSnapshot: HistoryProviderSnapshot = {
+      ...initialSnapshot,
+      items: [
+        ...initialSnapshot.items,
+        {
+          id: 'c1',
+          parentIds: ['b1'],
+          subject: 'Older Commit',
+          author: 'Carol',
+          timestamp: 1718000000000,
+          references: [],
+          fullHash: 'cccccccccccccccccccccccccccccccccccccccc'
+        }
+      ],
+      nextCursor: 'cursor-2'
+    }
+
+    const mergedSnapshot: HistoryProviderSnapshot = {
+      items: [
+        {
+          id: 'hotfix',
+          parentIds: ['a1'],
+          subject: 'Hotfix Commit',
+          author: 'Dana',
+          timestamp: 1721000000000,
+          references: [],
+          fullHash: 'dddddddddddddddddddddddddddddddddddddddd'
+        },
+        ...appendedSnapshot.items
+      ],
+      hasMore: true,
+      nextCursor: 'cursor-2',
+      headCommit: 'dddddddddddddddddddddddddddddddddddddddd'
+    }
+
+    let snapshotState: HistoryProviderSnapshot | null = initialSnapshot
+
+    const ensureLoadedMock = vi.fn()
+    const loadMoreMock = vi.fn(async () => {
+      snapshotState = appendedSnapshot
+      rerender(<GitGraphPanel />)
+    })
+    const refreshMock = vi.fn(async () => {
+      snapshotState = mergedSnapshot
+      rerender(<GitGraphPanel />)
+    })
+
+    useGitHistoryMock.mockImplementation(() => ({
+      snapshot: snapshotState,
+      isLoading: false,
+      error: null,
+      isLoadingMore: false,
+      loadMoreError: null,
+      latestHead: snapshotState?.headCommit ?? null,
+      ensureLoaded: ensureLoadedMock,
+      loadMore: loadMoreMock,
+      refresh: refreshMock
+    }))
+
+    const user = userEvent.setup()
+
+    const { rerender } = render(<GitGraphPanel />)
+
+    await waitFor(() => {
+      expect(ensureLoadedMock).toHaveBeenCalled()
+    })
+
+    const loadMoreButton = screen.getByRole('button', { name: 'Load more commits' })
+    await user.click(loadMoreButton)
+
+    await waitFor(() => {
+      expect(loadMoreMock).toHaveBeenCalled()
+    })
+
+    expect(snapshotState).toBe(appendedSnapshot)
+
+    await act(async () => {
+      await refreshMock()
+    })
+
+    expect(snapshotState).toBe(mergedSnapshot)
+    expect(mergedSnapshot.items.map(item => item.subject)).toEqual([
+      'Hotfix Commit',
+      'Commit A',
+      'Commit B',
+      'Older Commit'
+    ])
+  })
+
+  it('shows load-more progress while a request is in flight', async () => {
+    const ensureLoadedMock = vi.fn()
+    let resolveLoad: (() => void) | null = null
+    const loadMoreMock = vi.fn(() => new Promise<void>(resolve => {
+      resolveLoad = resolve
+    }))
+
+    useGitHistoryMock.mockReturnValue({
+      snapshot: {
+        ...baseSnapshot,
+        hasMore: true,
+        nextCursor: 'cursor-1'
+      },
+      isLoading: false,
+      error: null,
+      isLoadingMore: false,
+      loadMoreError: null,
+      latestHead: baseSnapshot.headCommit ?? null,
+      ensureLoaded: ensureLoadedMock,
+      loadMore: loadMoreMock,
+      refresh: vi.fn()
+    })
+
+    const user = userEvent.setup()
+    render(<GitGraphPanel />)
+
+    const button = await screen.findByRole('button', { name: 'Load more commits' })
+    await user.click(button)
+
+    expect(loadMoreMock).toHaveBeenCalledWith('cursor-1')
+    expect(button).toBeDisabled()
+    expect(button).toHaveTextContent('Loading…')
+
+    await act(async () => {
+      resolveLoad?.()
+      await Promise.resolve()
+    })
+
+    await waitFor(() => {
+      expect(button).not.toBeDisabled()
+      expect(button).toHaveTextContent('Load more commits')
+    })
   })
 })
