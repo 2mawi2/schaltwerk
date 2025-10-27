@@ -453,11 +453,10 @@ describe('Terminal', () => {
 
     try {
       await act(async () => {
+        instance.raw.buffer.active.viewportY = 360
         scrollHandler!(360)
         await new Promise(resolve => setTimeout(resolve, 0))
       })
-
-      instance.raw.buffer.active.viewportY = 360
 
       await waitFor(() => {
         expect(shouldStickSpy).toHaveBeenCalled()
