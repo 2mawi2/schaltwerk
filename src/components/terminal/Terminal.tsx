@@ -127,6 +127,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const [agentLoading, setAgentLoading] = useState(false);
     const [agentStopped, setAgentStopped] = useState(false);
     const terminalEverStartedRef = useRef<boolean>(false);
+    const [restartInFlight, setRestartInFlight] = useState(false);
     const hydratedOnceRef = useRef<boolean>(existingInstance);
     // Tracks user-initiated interrupt signal to distinguish from startup/other exits.
     const lastSigintAtRef = useRef<number | null>(null);
@@ -459,6 +460,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
     const restartAgent = useCallback(async () => {
         if (!isAgentTopTerminal) return;
+        setRestartInFlight(true);
         setAgentLoading(true);
         sessionStorage.removeItem(`schaltwerk:agent-stopped:${terminalId}`);
         clearTerminalStartedTracking([terminalId]); // clears startedGlobal + inflights/background marks
@@ -488,6 +490,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
              setAgentStopped(true);
          } finally {
              setAgentLoading(false);
+             setRestartInFlight(false);
          }
      }, [agentType, isAgentTopTerminal, isCommander, sessionName, terminalId]);
 
@@ -588,6 +591,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                          sessionStorage.removeItem(`schaltwerk:agent-stopped:${terminalId}`);
                          setAgentStopped(false);
                          terminalEverStartedRef.current = true;
+                         setRestartInFlight(false);
                      }
                  });
              } catch (e) {
@@ -1698,6 +1702,11 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         return () => document.removeEventListener('selectionchange', handleSelectionChange);
     }, [isUserSelectingInTerminal]);
 
+    const showLoadingOverlay =
+        !hydrated
+        || (!terminalEverStartedRef.current && agentLoading)
+        || (restartInFlight && agentLoading);
+
     return (
         <div
             ref={containerRef}
@@ -1712,7 +1721,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                  ref={termRef}
                  className={`h-full w-full overflow-hidden transition-opacity duration-150 ${!hydrated ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
              />
-              {isAgentTopTerminal && agentStopped && hydrated && terminalEverStartedRef.current && (
+             {isAgentTopTerminal && agentStopped && hydrated && terminalEverStartedRef.current && (
                  <div className="absolute inset-0 flex items-center justify-center z-30">
                      <div className="flex items-center gap-2 bg-slate-800/90 border border-slate-700 rounded px-3 py-2 shadow-lg">
                          <span className="text-sm text-slate-300">Agent stopped</span>
@@ -1734,7 +1743,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                      </div>
                  </div>
              )}
-             <TerminalLoadingOverlay visible={!hydrated || agentLoading} />
+             <TerminalLoadingOverlay visible={showLoadingOverlay} />
             {/* Search UI opens via keyboard shortcut only (Modifier+F) */}
             {isSearchVisible && (
                 <TerminalSearchPanel
