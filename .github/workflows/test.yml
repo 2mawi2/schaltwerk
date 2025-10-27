@@ -153,10 +153,23 @@ jobs:
             ~/.cargo/git/db/
           key: cargo-home-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Install cargo tools
-        run: |
-          cargo install cargo-shear || true
-          cargo install cargo-nextest --locked || true
+      - name: Restore cargo target cache
+        id: cache_target_restore
+        if: ${{ !env.ACT }}
+        uses: actions/cache/restore@v4
+        with:
+          path: src-tauri/target/
+          key: cargo-target-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+
+      - uses: taiki-e/install-action@0c5db7f7f897c03b771660e91d065338615679f4
+        with:
+          tool: cargo-shear
+          version: 1.5.2
+
+      - uses: taiki-e/install-action@0c5db7f7f897c03b771660e91d065338615679f4
+        with:
+          tool: nextest
+          version: 0.9.108
 
       - name: Run Rust checks
         run: |
@@ -177,6 +190,14 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
           key: cargo-home-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Save cargo target cache
+        if: always() && !cancelled() && steps.cache_target_restore.outputs.cache-hit != 'true' && !env.ACT
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: src-tauri/target/
+          key: cargo-target-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
 
   results:
     name: CI Results (required)
