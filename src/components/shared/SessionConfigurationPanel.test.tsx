@@ -5,6 +5,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { describe, test, expect, vi, beforeEach } from 'vitest'
 import type { MockedFunction } from 'vitest'
 import { useState } from 'react'
+import { FALLBACK_CODEX_MODELS } from '../../common/codexModels'
 
 // Mock Tauri
 vi.mock('@tauri-apps/api/core', () => ({
@@ -136,6 +137,7 @@ describe('SessionConfigurationPanel', () => {
                 onBaseBranchChange={vi.fn()}
                 onAgentTypeChange={vi.fn()}
                 onSkipPermissionsChange={vi.fn()}
+                codexModels={FALLBACK_CODEX_MODELS}
             />
         )
 
@@ -149,6 +151,45 @@ describe('SessionConfigurationPanel', () => {
         expect(screen.getByText('Agent')).toBeInTheDocument()
     })
 
+    test('renders Codex model and reasoning selectors when provided with options', async () => {
+        const onCodexModelChange = vi.fn()
+        const onCodexReasoningChange = vi.fn()
+
+        render(
+            <SessionConfigurationPanel
+                variant="modal"
+                onBaseBranchChange={vi.fn()}
+                onAgentTypeChange={vi.fn()}
+                onSkipPermissionsChange={vi.fn()}
+                initialAgentType="codex"
+                codexModel="gpt-5-codex"
+                codexModelOptions={["gpt-5-codex", "gpt-5"]}
+                codexModels={FALLBACK_CODEX_MODELS}
+                onCodexModelChange={onCodexModelChange}
+                codexReasoningEffort="medium"
+                onCodexReasoningChange={onCodexReasoningChange}
+            />
+        )
+
+        await waitFor(() => {
+            expect(screen.getByTestId('codex-model-selector')).toBeInTheDocument()
+            expect(screen.getByTestId('codex-reasoning-selector')).toBeInTheDocument()
+        })
+
+        expect(screen.getByText('⌘← · ⌘→')).toBeInTheDocument()
+
+        fireEvent.click(screen.getByTestId('codex-model-selector'))
+        const option = await screen.findByText('GPT-5')
+        fireEvent.click(option)
+
+        expect(onCodexModelChange).toHaveBeenCalledWith('gpt-5')
+
+        fireEvent.click(screen.getByTestId('codex-reasoning-selector'))
+        const reasoningOption = await screen.findByText('High')
+        fireEvent.click(reasoningOption)
+        expect(onCodexReasoningChange).toHaveBeenCalledWith('high')
+    })
+
     test('renders in compact variant', async () => {
         render(
             <SessionConfigurationPanel 
@@ -156,6 +197,7 @@ describe('SessionConfigurationPanel', () => {
                 onBaseBranchChange={vi.fn()}
                 onAgentTypeChange={vi.fn()}
                 onSkipPermissionsChange={vi.fn()}
+                codexModels={FALLBACK_CODEX_MODELS}
                 hideLabels={false}
             />
         )

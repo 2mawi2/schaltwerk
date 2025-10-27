@@ -137,12 +137,24 @@ const createEmptyCliArgs = () => ({
   codex: '',
 })
 
+const createEmptyPreferences = () => ({
+  claude: { model: '', reasoningEffort: '' },
+  opencode: { model: '', reasoningEffort: '' },
+  gemini: { model: '', reasoningEffort: '' },
+  codex: { model: '', reasoningEffort: '' },
+  droid: { model: '', reasoningEffort: '' },
+  qwen: { model: '', reasoningEffort: '' },
+  amp: { model: '', reasoningEffort: '' },
+  terminal: { model: '', reasoningEffort: '' },
+})
+
 const createDefaultUseSettingsValue = () => ({
   loading: false,
   saving: false,
   saveAllSettings: vi.fn().mockResolvedValue({ success: true, savedSettings: [], failedSettings: [] }),
   loadEnvVars: vi.fn().mockResolvedValue(createEmptyEnvVars()),
   loadCliArgs: vi.fn().mockResolvedValue(createEmptyCliArgs()),
+  loadAgentPreferences: vi.fn().mockResolvedValue(createEmptyPreferences()),
   loadProjectSettings: vi.fn().mockResolvedValue({ setupScript: '', branchPrefix: 'schaltwerk', environmentVariables: [] }),
   loadTerminalSettings: vi.fn().mockResolvedValue({ shell: null, shellArgs: [], fontFamily: null }),
   loadSessionPreferences: vi.fn().mockResolvedValue({

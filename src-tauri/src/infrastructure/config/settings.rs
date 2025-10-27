@@ -1,4 +1,4 @@
-use crate::domains::settings::{Settings, SettingsRepository, SettingsService};
+use crate::domains::settings::{AgentPreference, Settings, SettingsRepository, SettingsService};
 use std::fs;
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
@@ -144,6 +144,20 @@ impl SettingsManager {
     ) -> Result<(), String> {
         self.service
             .set_agent_initial_command(agent_type, initial_command)
+            .map_err(|e| e.to_string())
+    }
+
+    pub fn get_agent_preferences(&self, agent_type: &str) -> AgentPreference {
+        self.service.get_agent_preferences(agent_type)
+    }
+
+    pub fn set_agent_preferences(
+        &mut self,
+        agent_type: &str,
+        preferences: AgentPreference,
+    ) -> Result<(), String> {
+        self.service
+            .set_agent_preferences(agent_type, preferences)
             .map_err(|e| e.to_string())
     }
 

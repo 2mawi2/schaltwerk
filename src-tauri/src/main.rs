@@ -955,6 +955,7 @@ fn main() {
             schaltwerk_core_get_archive_max_entries,
             schaltwerk_core_set_archive_max_entries,
             schaltwerk_core_list_project_files,
+            schaltwerk_core_list_codex_models,
             // Open apps commands
             get_default_open_app,
             set_default_open_app,
@@ -996,6 +997,8 @@ fn main() {
             set_agent_env_vars,
             get_agent_cli_args,
             set_agent_cli_args,
+            get_agent_preferences,
+            set_agent_preferences,
             get_agent_initial_command,
             set_agent_initial_command,
             get_terminal_ui_preferences,

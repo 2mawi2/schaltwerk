@@ -56,6 +56,34 @@ pub struct AgentEnvVars {
     pub terminal: HashMap<String, String>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, Eq)]
+pub struct AgentPreference {
+    #[serde(default)]
+    pub model: Option<String>,
+    #[serde(default)]
+    pub reasoning_effort: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct AgentPreferences {
+    #[serde(default)]
+    pub claude: AgentPreference,
+    #[serde(default)]
+    pub opencode: AgentPreference,
+    #[serde(default)]
+    pub gemini: AgentPreference,
+    #[serde(default)]
+    pub codex: AgentPreference,
+    #[serde(default)]
+    pub droid: AgentPreference,
+    #[serde(default)]
+    pub qwen: AgentPreference,
+    #[serde(default)]
+    pub amp: AgentPreference,
+    #[serde(default)]
+    pub terminal: AgentPreference,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct TerminalUIPreferences {
     pub is_collapsed: bool,
@@ -222,6 +250,8 @@ pub struct Settings {
     pub agent_cli_args: AgentCliArgs,
     #[serde(default)]
     pub agent_initial_commands: AgentInitialCommands,
+    #[serde(default)]
+    pub agent_preferences: AgentPreferences,
     pub terminal_ui: TerminalUIPreferences,
     pub terminal: TerminalSettings,
     #[serde(default)]

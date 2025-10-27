@@ -1,13 +1,15 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
 import React from 'react'
 import { BranchAutocomplete } from '../inputs/BranchAutocomplete'
 import { ModelSelector } from '../inputs/ModelSelector'
+import { Dropdown } from '../inputs/Dropdown'
 import { useClaudeSession } from '../../hooks/useClaudeSession'
 import { invoke } from '@tauri-apps/api/core'
 import { theme } from '../../common/theme'
 import { logger } from '../../utils/logger'
 import { AgentType, AGENT_TYPES, AGENT_SUPPORTS_SKIP_PERMISSIONS } from '../../types/session'
+import { FALLBACK_CODEX_MODELS, CodexModelMetadata } from '../../common/codexModels'
 
 interface SessionConfigurationPanelProps {
     variant?: 'modal' | 'compact'
@@ -19,6 +21,12 @@ interface SessionConfigurationPanelProps {
     initialAgentType?: AgentType
     initialSkipPermissions?: boolean
     initialCustomBranch?: string
+    codexModel?: string
+    codexModelOptions?: string[]
+    codexModels?: CodexModelMetadata[]
+    onCodexModelChange?: (model: string) => void
+    codexReasoningEffort?: string
+    onCodexReasoningChange?: (effort: string) => void
     sessionName?: string
     disabled?: boolean
     hideLabels?: boolean
@@ -43,6 +51,12 @@ export function SessionConfigurationPanel({
     initialAgentType = 'claude',
     initialSkipPermissions = false,
     initialCustomBranch = '',
+    codexModel,
+    codexModelOptions,
+    codexModels,
+    onCodexModelChange,
+    codexReasoningEffort,
+    onCodexReasoningChange,
     sessionName = '',
     disabled = false,
     hideLabels = false,
@@ -205,6 +219,25 @@ export function SessionConfigurationPanel({
         onCustomBranchChangeRef.current?.(branch)
     }, [])
 
+    const effectiveCodexModels = useMemo(() => {
+        if (codexModels && codexModels.length > 0) {
+            return codexModels
+        }
+        return FALLBACK_CODEX_MODELS
+    }, [codexModels])
+
+    const effectiveCodexModelOptions = useMemo(() => {
+        if (codexModelOptions && codexModelOptions.length > 0) {
+            return codexModelOptions
+        }
+        return effectiveCodexModels.map(model => model.id)
+    }, [codexModelOptions, effectiveCodexModels])
+
+    const selectedCodexMetadata = useMemo(() => {
+        if (!codexModel) return undefined
+        return effectiveCodexModels.find(model => model.id === codexModel)
+    }, [codexModel, effectiveCodexModels])
+
     // Ensure isValidBranch is considered "used" by TypeScript
     React.useEffect(() => {
         // This effect ensures the validation state is properly tracked
@@ -358,17 +391,232 @@ export function SessionConfigurationPanel({
                     <label className="block text-sm mb-2" style={{ color: theme.colors.text.secondary }}>
                         Agent
                     </label>
-                    <ModelSelector
-                        value={agentType}
-                        onChange={handleAgentTypeChange}
-                        disabled={disabled}
-                        skipPermissions={skipPermissions}
-                        onSkipPermissionsChange={handleSkipPermissionsChange}
-                        showShortcutHint={shouldShowShortcutHint}
-                    />
+                    <div className="space-y-3">
+                        <ModelSelector
+                            value={agentType}
+                            onChange={handleAgentTypeChange}
+                            disabled={disabled}
+                            skipPermissions={skipPermissions}
+                            onSkipPermissionsChange={handleSkipPermissionsChange}
+                            showShortcutHint={shouldShowShortcutHint}
+                        />
+                        {agentType === 'codex' && effectiveCodexModelOptions && onCodexModelChange && (
+                            <CodexModelSelector
+                                disabled={disabled}
+                                options={effectiveCodexModelOptions}
+                                codexModels={effectiveCodexModels}
+                                value={codexModel}
+                                onChange={onCodexModelChange}
+                                showShortcutHint={shouldShowShortcutHint}
+                                reasoningValue={codexReasoningEffort}
+                                onReasoningChange={onCodexReasoningChange}
+                                selectedModelMetadata={selectedCodexMetadata}
+                            />
+                        )}
+                    </div>
                     <p className="text-xs mt-2" style={{ color: theme.colors.text.muted }}>
                         AI agent to use for this session
                     </p>
+                </div>
+            )}
+        </div>
+    )
+}
+
+interface CodexModelSelectorProps {
+    options: string[]
+    codexModels: CodexModelMetadata[]
+    value?: string
+    onChange: (value: string) => void
+    disabled?: boolean
+    showShortcutHint?: boolean
+    reasoningValue?: string
+    onReasoningChange?: (value: string) => void
+    selectedModelMetadata?: CodexModelMetadata
+}
+
+function CodexModelSelector({
+    options,
+    codexModels,
+    value,
+    onChange,
+    disabled,
+    showShortcutHint = false,
+    reasoningValue,
+    onReasoningChange,
+    selectedModelMetadata
+}: CodexModelSelectorProps) {
+    const [open, setOpen] = useState(false)
+    const [reasoningOpen, setReasoningOpen] = useState(false)
+    const normalizedOptions = useMemo(
+        () => options.filter(option => option && option.trim().length > 0),
+        [options]
+    )
+
+    const codexMetadataById = useMemo(() => {
+        const map = new Map<string, CodexModelMetadata>()
+        codexModels.forEach(model => {
+            map.set(model.id, model)
+        })
+        return map
+    }, [codexModels])
+
+    const selectedKey = useMemo(() => {
+        if (!value) return undefined
+        return normalizedOptions.includes(value) ? value : undefined
+    }, [normalizedOptions, value])
+
+    const hasOptions = normalizedOptions.length > 0
+    const placeholder = hasOptions ? 'Select Codex model' : 'No models available'
+    const buttonDisabled = disabled || !hasOptions
+    const modelItems = useMemo(
+        () =>
+            normalizedOptions.map(option => {
+                const meta = codexMetadataById.get(option)
+                return {
+                    key: option,
+                    label: (
+                        <span className="flex flex-col text-left">
+                            <span>{meta?.label ?? option}</span>
+                            {meta?.description && (
+                                <span className="text-xs" style={{ color: theme.colors.text.muted }}>
+                                    {meta.description}
+                                </span>
+                            )}
+                        </span>
+                    ),
+                    title: meta?.description,
+                }
+            }),
+        [normalizedOptions, codexMetadataById]
+    )
+
+    const reasoningMetadata = useMemo(
+        () => selectedModelMetadata?.reasoningOptions ?? [],
+        [selectedModelMetadata]
+    )
+
+    const reasoningItems = useMemo(
+        () =>
+            reasoningMetadata.map(option => ({
+                key: option.id,
+                label: (
+                    <span className="flex flex-col text-left">
+                        <span>{option.label}</span>
+                        <span className="text-xs" style={{ color: theme.colors.text.muted }}>
+                            {option.description}
+                        </span>
+                    </span>
+                ),
+                title: option.description
+            })),
+        [reasoningMetadata]
+    )
+
+    const selectedReasoningKey = useMemo(() => {
+        if (!reasoningValue) return undefined
+        return reasoningMetadata.some(option => option.id === reasoningValue) ? reasoningValue : undefined
+    }, [reasoningMetadata, reasoningValue])
+
+    const reasoningButtonDisabled =
+        disabled || reasoningMetadata.length === 0 || !onReasoningChange
+    const reasoningPlaceholder = reasoningMetadata.length > 0 ? 'Select reasoning effort' : 'No reasoning options available'
+    const selectedModelLabel = selectedKey
+        ? codexMetadataById.get(selectedKey)?.label ?? selectedKey
+        : placeholder
+    const showReasoningSelector = reasoningMetadata.length > 0 && !!onReasoningChange
+
+    useEffect(() => {
+        if (reasoningButtonDisabled && reasoningOpen) {
+            setReasoningOpen(false)
+        }
+    }, [reasoningButtonDisabled, reasoningOpen])
+
+    return (
+        <div className="space-y-3">
+            <div className="space-y-1">
+                <span className="block text-sm" style={{ color: theme.colors.text.secondary }}>
+                    Model
+                </span>
+                <Dropdown
+                open={!buttonDisabled && open}
+                onOpenChange={(next) => setOpen(!buttonDisabled && next)}
+                items={modelItems}
+                selectedKey={selectedKey}
+                align="stretch"
+                onSelect={key => onChange(key)}
+            >
+                {({ toggle, open: dropdownOpen }) => (
+                    <button
+                        type="button"
+                        data-testid="codex-model-selector"
+                        onClick={() => !buttonDisabled && toggle()}
+                        className={`w-full px-3 py-1.5 text-sm rounded border flex items-center justify-between ${
+                            buttonDisabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:opacity-80'
+                        }`}
+                        style={{
+                            backgroundColor: theme.colors.background.elevated,
+                            borderColor: dropdownOpen ? theme.colors.border.default : theme.colors.border.subtle,
+                            color: theme.colors.text.primary
+                        }}
+                        disabled={buttonDisabled}
+                    >
+                        <span>{selectedModelLabel}</span>
+                        <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clipRule="evenodd" />
+                        </svg>
+                    </button>
+                )}
+                </Dropdown>
+            </div>
+            {showReasoningSelector && (
+                <div className="space-y-1">
+                    <span className="block text-sm" style={{ color: theme.colors.text.secondary }}>
+                        Reasoning effort
+                    </span>
+                    <Dropdown
+                        open={!reasoningButtonDisabled && reasoningOpen}
+                        onOpenChange={(next) => setReasoningOpen(!reasoningButtonDisabled && next)}
+                        items={reasoningItems}
+                        selectedKey={selectedReasoningKey}
+                        align="stretch"
+                        onSelect={key => onReasoningChange?.(key)}
+                    >
+                        {({ toggle, open: dropdownOpen }) => (
+                            <button
+                                type="button"
+                                data-testid="codex-reasoning-selector"
+                                onClick={() => !reasoningButtonDisabled && toggle()}
+                                className={`w-full px-3 py-1.5 text-sm rounded border flex items-center justify-between ${
+                                    reasoningButtonDisabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:opacity-80'
+                                }`}
+                                style={{
+                                    backgroundColor: theme.colors.background.elevated,
+                                    borderColor: dropdownOpen ? theme.colors.border.default : theme.colors.border.subtle,
+                                    color: theme.colors.text.primary
+                                }}
+                                disabled={reasoningButtonDisabled}
+                            >
+                                <span className="flex items-center gap-2">
+                                    {selectedReasoningKey
+                                        ? reasoningMetadata.find(option => option.id === selectedReasoningKey)?.label ??
+                                          selectedReasoningKey
+                                        : reasoningPlaceholder}
+                                    {showShortcutHint && (
+                                        <span
+                                            aria-hidden="true"
+                                            style={{ color: theme.colors.text.muted, fontSize: theme.fontSize.caption }}
+                                        >
+                                            ⌘← · ⌘→
+                                        </span>
+                                    )}
+                                </span>
+                                <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clipRule="evenodd" />
+                                </svg>
+                            </button>
+                        )}
+                    </Dropdown>
                 </div>
             )}
         </div>
@@ -389,4 +637,3 @@ export function useSessionConfiguration(): [SessionConfiguration, (config: Parti
 
     return [config, updateConfig]
 }
-

@@ -27,8 +27,12 @@ use tauri::State;
 mod agent_ctx;
 pub mod agent_launcher;
 pub mod events;
+mod codex_model_commands;
+mod codex_models;
 mod schaltwerk_core_cli;
 pub mod terminals;
+
+pub use codex_model_commands::schaltwerk_core_list_codex_models;
 
 // Helper functions for session name parsing
 fn is_version_suffix(s: &str) -> bool {
@@ -95,7 +99,14 @@ fn emit_terminal_agent_started(
     }
 }
 
-fn get_agent_env_and_cli_args(agent_type: &str) -> (Vec<(String, String)>, String, Option<String>) {
+fn get_agent_env_and_cli_args(
+    agent_type: &str,
+) -> (
+    Vec<(String, String)>,
+    String,
+    Option<String>,
+    schaltwerk::domains::settings::AgentPreference,
+) {
     if let Some(settings_manager) = SETTINGS_MANAGER.get() {
         let manager = futures::executor::block_on(settings_manager.lock());
         let env_vars = manager
@@ -104,9 +115,15 @@ fn get_agent_env_and_cli_args(agent_type: &str) -> (Vec<(String, String)>, Strin
             .collect::<Vec<(String, String)>>();
         let cli_args = manager.get_agent_cli_args(agent_type);
         let binary_path = manager.get_effective_binary_path(agent_type).ok();
-        (env_vars, cli_args, binary_path)
+        let preferences = manager.get_agent_preferences(agent_type);
+        (env_vars, cli_args, binary_path, preferences)
     } else {
-        (vec![], String::new(), None)
+        (
+            vec![],
+            String::new(),
+            None,
+            schaltwerk::domains::settings::AgentPreference::default(),
+        )
     }
 }
 
@@ -754,7 +771,8 @@ pub async fn schaltwerk_core_rename_version_group(
         .unwrap_or_else(|| db.get_agent_type().unwrap_or_else(|_| "claude".to_string()));
 
     // Get environment variables for the agent
-    let (mut env_vars, cli_args, binary_path) = get_agent_env_and_cli_args(&agent_type);
+    let (mut env_vars, cli_args, binary_path, _preferences) =
+        get_agent_env_and_cli_args(&agent_type);
 
     // Add project-specific environment variables
     if let Ok(project_env_vars) = db.get_project_environment_variables(&repo_path) {
@@ -1233,7 +1251,7 @@ pub async fn schaltwerk_core_start_claude_with_restart(
             .await?;
     }
 
-    let (mut env_vars, cli_args) =
+    let (mut env_vars, cli_args, preferences) =
         agent_ctx::collect_agent_env_and_cli(&agent_kind, &core.repo_path, &core.db).await;
     log::info!(
         "Creating terminal with {agent_name} directly: {terminal_id} with {} env vars and CLI args: '{cli_args}'",
@@ -1323,7 +1341,8 @@ pub async fn schaltwerk_core_start_claude_with_restart(
     }
 
     // Build final args using centralized logic (handles Codex ordering/normalization)
-    let final_args = agent_ctx::build_final_args(&agent_kind, agent_args.clone(), &cli_args);
+    let final_args =
+        agent_ctx::build_final_args(&agent_kind, agent_args.clone(), &cli_args, &preferences);
 
     // Codex prompt ordering is now handled in the CLI args section above
 
@@ -1912,7 +1931,8 @@ pub async fn schaltwerk_core_create_spec_session(
             };
 
             let agent = agent_type_clone.unwrap_or_else(|| "claude".to_string());
-            let (mut env_vars, cli_args, binary_path) = get_agent_env_and_cli_args(&agent);
+            let (mut env_vars, cli_args, binary_path, _preferences) =
+                get_agent_env_and_cli_args(&agent);
 
             if let Ok(project_env_vars) = db_clone.get_project_environment_variables(&repo_path) {
                 for (key, value) in project_env_vars {

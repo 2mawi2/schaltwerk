@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{PROJECT_MANAGER, SETTINGS_MANAGER, get_core_read, get_core_write};
 use schaltwerk::domains::settings::{
-    DiffViewPreferences, McpServerConfig, SessionPreferences, TerminalSettings,
+    AgentPreference, DiffViewPreferences, McpServerConfig, SessionPreferences, TerminalSettings,
     TerminalUIPreferences,
 };
 use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
@@ -125,6 +125,42 @@ pub async fn set_agent_cli_args(agent_type: String, cli_args: String) -> Result<
             Err(e)
         }
     }
+}
+
+#[tauri::command]
+pub async fn get_agent_preferences(agent_type: String) -> Result<AgentPreference, String> {
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+
+    let manager = settings_manager.lock().await;
+    Ok(manager.get_agent_preferences(&agent_type))
+}
+
+#[tauri::command]
+pub async fn set_agent_preferences(
+    agent_type: String,
+    preferences: AgentPreference,
+) -> Result<(), String> {
+    log::info!(
+        "Setting agent preferences for '{agent_type}': model={:?}, reasoning={:?}",
+        preferences.model,
+        preferences.reasoning_effort
+    );
+
+    let settings_manager = SETTINGS_MANAGER.get().ok_or_else(|| {
+        let error = "Settings manager not initialized".to_string();
+        log::error!("Failed to set agent preferences: {error}");
+        error
+    })?;
+
+    let mut manager = settings_manager.lock().await;
+    manager
+        .set_agent_preferences(&agent_type, preferences)
+        .map_err(|e| {
+            log::error!("Failed to save agent preferences for '{agent_type}': {e}");
+            e
+        })
 }
 
 #[tauri::command]

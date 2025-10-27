@@ -40,6 +40,7 @@ pub use schaltwerk_core::{
     schaltwerk_core_has_uncommitted_changes, schaltwerk_core_list_archived_specs,
     schaltwerk_core_list_enriched_sessions, schaltwerk_core_list_enriched_sessions_sorted,
     schaltwerk_core_list_project_files, schaltwerk_core_list_sessions,
+    schaltwerk_core_list_codex_models,
     schaltwerk_core_list_sessions_by_state, schaltwerk_core_mark_session_ready,
     schaltwerk_core_merge_session_to_main, schaltwerk_core_rename_draft_session,
     schaltwerk_core_rename_version_group, schaltwerk_core_reset_orchestrator,

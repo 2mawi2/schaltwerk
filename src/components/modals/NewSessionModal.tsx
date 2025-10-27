@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useLayoutEffect, lazy, Suspense } from 'react'
+import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo, lazy, Suspense } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
 import { generateDockerStyleName } from '../../utils/dockerNames'
 import { invoke } from '@tauri-apps/api/core'
@@ -8,7 +8,7 @@ import { getPersistedSessionDefaults } from '../../utils/sessionConfig'
 import { Dropdown } from '../inputs/Dropdown'
 import { logger } from '../../utils/logger'
 import { useModal } from '../../contexts/ModalContext'
-import { AgentType, AGENT_TYPES, AGENT_SUPPORTS_SKIP_PERMISSIONS } from '../../types/session'
+import { AgentType, AGENT_TYPES, AGENT_SUPPORTS_SKIP_PERMISSIONS, createAgentRecord } from '../../types/session'
 import { UiEvent, listenUiEvent, NewSessionPrefillDetail } from '../../common/uiEvents'
 import { useAgentAvailability } from '../../hooks/useAgentAvailability'
 import {
@@ -25,8 +25,20 @@ import { ResizableModal } from '../shared/ResizableModal'
 import { GitHubIssuePromptSection } from './GitHubIssuePromptSection'
 import type { GithubIssueSelectionResult } from '../../types/githubIssues'
 import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
+import { FALLBACK_CODEX_MODELS, getCodexModelMetadata } from '../../common/codexModels'
+import { loadCodexModelCatalog, CodexModelCatalog } from '../../services/codexModelCatalog'
 
 const MarkdownEditor = lazy(() => import('../plans/MarkdownEditor').then(m => ({ default: m.MarkdownEditor })))
+
+type AgentPreferenceField = 'model' | 'reasoningEffort'
+
+interface AgentPreferenceState {
+    model?: string
+    reasoningEffort?: string
+}
+
+const createEmptyPreferenceState = () =>
+    createAgentRecord<AgentPreferenceState>(() => ({ model: '', reasoningEffort: '' }))
 
 interface Props {
     open: boolean
@@ -71,6 +83,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
     const [originalSpecName, setOriginalSpecName] = useState<string>('')
     const [agentEnvVars, setAgentEnvVars] = useState<AgentEnvVarState>(createEmptyEnvVarState)
     const [agentCliArgs, setAgentCliArgs] = useState<AgentCliArgsState>(createEmptyCliArgsState)
+    const [agentPreferences, setAgentPreferences] = useState<Record<AgentType, AgentPreferenceState>>(createEmptyPreferenceState)
     const [agentConfigLoading, setAgentConfigLoading] = useState(false)
     const [ignorePersistedAgentType, setIgnorePersistedAgentType] = useState(false)
     const [promptSource, setPromptSource] = useState<'custom' | 'github_issue'>('custom')
@@ -89,6 +102,14 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
     const lastSupportedSkipPermissionsRef = useRef(false)
     const lastOpenStateRef = useRef(false)
     const githubPromptReady = githubIntegration.canCreatePr && !githubIntegration.loading
+    const preferencesInitializedRef = useRef(false)
+    const agentPreferencesRef = useRef(agentPreferences)
+    const [codexCatalog, setCodexCatalog] = useState<CodexModelCatalog>(() => ({
+        models: FALLBACK_CODEX_MODELS,
+        defaultModelId: FALLBACK_CODEX_MODELS[0]?.id ?? ''
+    }))
+    const codexModelIds = useMemo(() => codexCatalog.models.map(meta => meta.id), [codexCatalog.models])
+    const defaultCodexModelId = codexCatalog.defaultModelId
 
     const updateManualPrompt = useCallback(
         (value: string) => {
@@ -209,6 +230,23 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
         }
     }, [])
 
+    const persistAgentPreferences = useCallback(async (agent: AgentType, preferences: AgentPreferenceState) => {
+        try {
+            const normalizedModel = preferences.model?.trim() || ''
+            const normalizedReasoning = preferences.reasoningEffort?.trim() || ''
+
+            await invoke(TauriCommands.SetAgentPreferences, {
+                agentType: agent,
+                preferences: {
+                    model: normalizedModel ? normalizedModel : null,
+                    reasoning_effort: normalizedReasoning ? normalizedReasoning : null,
+                },
+            })
+        } catch (error) {
+            logger.warn('[NewSessionModal] Failed to persist agent preferences', agent, error)
+        }
+    }, [])
+
     const updateEnvVarsForAgent = useCallback(
         (updater: (vars: AgentEnvVar[]) => AgentEnvVar[]) => {
             setAgentEnvVars(prev => {
@@ -243,6 +281,47 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
         },
         [updateEnvVarsForAgent]
     )
+
+    const handleAgentPreferenceChange = useCallback(
+        (agent: AgentType, field: AgentPreferenceField, value: string) => {
+            setAgentPreferences(prev => {
+                const current = prev[agent] ?? { model: '', reasoningEffort: '' }
+                const updated = {
+                    ...current,
+                    [field]: value,
+                }
+
+                if (agent === 'codex' && field === 'model') {
+                    const meta = getCodexModelMetadata(value, codexCatalog.models)
+                    const supportedEfforts = meta?.reasoningOptions?.map(option => option.id) ?? []
+                    if (supportedEfforts.length > 0 && !supportedEfforts.includes(updated.reasoningEffort ?? '')) {
+                        updated.reasoningEffort = meta?.defaultReasoning ?? supportedEfforts[0]
+                    }
+                }
+
+                if (agent === 'codex' && field === 'reasoningEffort') {
+                    const modelId = (prev.codex?.model ?? updated.model) || ''
+                    const meta = getCodexModelMetadata(modelId, codexCatalog.models)
+                    const supportedEfforts = meta?.reasoningOptions?.map(option => option.id) ?? []
+                    if (supportedEfforts.length > 0 && !supportedEfforts.includes(value)) {
+                        return prev
+                    }
+                }
+
+                const nextState = {
+                    ...prev,
+                    [agent]: updated,
+                }
+                void persistAgentPreferences(agent, nextState[agent])
+                return nextState
+            })
+        },
+        [persistAgentPreferences, codexCatalog.models]
+    )
+
+    useEffect(() => {
+        agentPreferencesRef.current = agentPreferences
+    }, [agentPreferences])
 
     const handleAddEnvVar = useCallback(() => {
         updateEnvVarsForAgent(current => [...current, { key: '', value: '' }])
@@ -387,6 +466,21 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                     })
                 )
 
+                const preferenceResults = await Promise.all(
+                    AGENT_TYPES.map(async agent => {
+                        try {
+                            const result = await invoke<{ model?: string | null; reasoning_effort?: string | null }>(
+                                TauriCommands.GetAgentPreferences,
+                                { agentType: agent }
+                            )
+                            return result ?? {}
+                        } catch (error) {
+                            logger.warn('[NewSessionModal] Failed to load agent preferences', agent, error)
+                            return {}
+                        }
+                    })
+                )
+
                 if (cancelled) {
                     return
                 }
@@ -408,15 +502,29 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                     })
                     return next
                 })
+
+                setAgentPreferences(() => {
+                    const next = createEmptyPreferenceState()
+                    AGENT_TYPES.forEach((agent, index) => {
+                        const raw = preferenceResults[index] || {}
+                        next[agent] = {
+                            model: raw.model ?? '',
+                            reasoningEffort: raw.reasoning_effort ?? '',
+                        }
+                    })
+                    return next
+                })
             } catch (error) {
                 if (!cancelled) {
                     logger.warn('[NewSessionModal] Failed to load agent defaults', error)
                     setAgentEnvVars(createEmptyEnvVarState())
                     setAgentCliArgs(createEmptyCliArgsState())
+                    setAgentPreferences(createEmptyPreferenceState())
                 }
             } finally {
                 if (!cancelled) {
                     setAgentConfigLoading(false)
+                    preferencesInitializedRef.current = true
                 }
             }
         }
@@ -427,6 +535,72 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
             cancelled = true
         }
     }, [open])
+
+    useEffect(() => {
+        if (!open) {
+            return
+        }
+
+        let cancelled = false
+
+        const loadCatalog = async () => {
+            try {
+                const catalog = await loadCodexModelCatalog()
+                if (!cancelled) {
+                    setCodexCatalog(catalog)
+                }
+            } catch (error) {
+                logger.warn('[NewSessionModal] Failed to refresh Codex model catalog', error)
+            }
+        }
+
+        void loadCatalog()
+
+        return () => {
+            cancelled = true
+        }
+    }, [open])
+
+    useEffect(() => {
+        if (agentType !== 'codex') {
+            return
+        }
+        if (agentConfigLoading) {
+            return
+        }
+        if (!preferencesInitializedRef.current) {
+            return
+        }
+
+        const currentPrefs = agentPreferencesRef.current.codex ?? { model: '', reasoningEffort: '' }
+
+        const currentModel = currentPrefs.model?.trim() ?? ''
+        if (!currentModel || !codexModelIds.includes(currentModel)) {
+            if (defaultCodexModelId && defaultCodexModelId !== currentModel) {
+                handleAgentPreferenceChange('codex', 'model', defaultCodexModelId)
+                return
+            }
+        }
+
+        const activeModel = currentModel && codexModelIds.includes(currentModel)
+            ? currentModel
+            : defaultCodexModelId
+        const modelMeta = activeModel ? getCodexModelMetadata(activeModel, codexCatalog.models) : undefined
+        const supportedEfforts = modelMeta?.reasoningOptions?.map(option => option.id) ?? []
+        const currentReasoning = currentPrefs.reasoningEffort?.trim() ?? ''
+
+        if (supportedEfforts.length === 0) {
+            if (currentReasoning) {
+                handleAgentPreferenceChange('codex', 'reasoningEffort', '')
+            }
+            return
+        }
+
+        if (!supportedEfforts.includes(currentReasoning)) {
+            const fallbackReasoning = modelMeta?.defaultReasoning ?? supportedEfforts[0]
+            handleAgentPreferenceChange('codex', 'reasoningEffort', fallbackReasoning)
+        }
+    }, [agentType, agentPreferences, agentConfigLoading, handleAgentPreferenceChange, codexModelIds, defaultCodexModelId, codexCatalog.models])
 
     // Register/unregister modal with context using layout effect to minimize timing gaps
     useLayoutEffect(() => {
@@ -693,6 +867,43 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                 }
 
                 handleAgentTypeChange(availableAgents[nextIndex])
+            } else if (
+                agentType === 'codex' &&
+                (e.key === 'ArrowLeft' || e.key === 'ArrowRight') &&
+                e.metaKey
+            ) {
+                e.preventDefault()
+                e.stopPropagation()
+                if (typeof e.stopImmediatePropagation === 'function') {
+                    e.stopImmediatePropagation()
+                }
+
+                if (codexModelIds.length === 0) {
+                    return
+                }
+
+                const currentPrefs = agentPreferencesRef.current.codex ?? { model: '', reasoningEffort: '' }
+                const currentModel = currentPrefs.model?.trim() || defaultCodexModelId || codexModelIds[0] || ''
+                const modelMeta = currentModel ? getCodexModelMetadata(currentModel, codexCatalog.models) : undefined
+                const reasoningOptions = modelMeta?.reasoningOptions?.map(option => option.id) ?? []
+                if (reasoningOptions.length === 0) {
+                    return
+                }
+
+                const currentReasoning = currentPrefs.reasoningEffort?.trim() ?? ''
+                let currentIndex = reasoningOptions.indexOf(currentReasoning)
+                if (currentIndex === -1) {
+                    currentIndex = e.key === 'ArrowLeft' ? reasoningOptions.length - 1 : 0
+                }
+
+                const nextIndex = e.key === 'ArrowLeft'
+                    ? (currentIndex === 0 ? reasoningOptions.length - 1 : currentIndex - 1)
+                    : (currentIndex === reasoningOptions.length - 1 ? 0 : currentIndex + 1)
+
+                const nextEffort = reasoningOptions[nextIndex]
+                if (nextEffort !== currentReasoning) {
+                    handleAgentPreferenceChange('codex', 'reasoningEffort', nextEffort)
+                }
             }
         }
 
@@ -706,7 +917,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
             window.removeEventListener('keydown', handleKeyDown, true)
             window.removeEventListener('schaltwerk:new-session:set-spec', setDraftHandler)
         }
-    }, [open, onClose, agentType, handleAgentTypeChange, isAvailable])
+    }, [open, onClose, agentType, handleAgentTypeChange, handleAgentPreferenceChange, isAvailable, codexModelIds, codexCatalog, defaultCodexModelId])
 
     if (!open) return null
 
@@ -1052,6 +1263,12 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                 initialAgentType={agentType}
                                 initialSkipPermissions={skipPermissions}
                                 initialCustomBranch={customBranch}
+                                codexModel={agentPreferences.codex?.model}
+                                codexModelOptions={codexModelIds}
+                                codexModels={codexCatalog.models}
+                                onCodexModelChange={(model) => handleAgentPreferenceChange('codex', 'model', model)}
+                                codexReasoningEffort={agentPreferences.codex?.reasoningEffort}
+                                onCodexReasoningChange={(effort) => handleAgentPreferenceChange('codex', 'reasoningEffort', effort)}
                                 sessionName={name}
                                 ignorePersistedAgentType={ignorePersistedAgentType}
                             />

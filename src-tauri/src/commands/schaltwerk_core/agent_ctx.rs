@@ -3,6 +3,7 @@ use crate::commands::schaltwerk_core::schaltwerk_core_cli::extract_codex_prompt_
 use crate::commands::schaltwerk_core::schaltwerk_core_cli::{
     fix_codex_single_dash_long_flags, normalize_cli_text, reorder_codex_model_after_profile,
 };
+use schaltwerk::domains::settings::AgentPreference;
 use schaltwerk::schaltwerk_core::db_project_config::ProjectConfigMethods;
 use std::path::Path;
 
@@ -52,7 +53,7 @@ pub async fn collect_agent_env_and_cli(
     agent_kind: &AgentKind,
     repo_path: &Path,
     db: &schaltwerk::schaltwerk_core::Database,
-) -> (Vec<(String, String)>, String) {
+) -> (Vec<(String, String)>, String, AgentPreference) {
     let agent_str = match agent_kind {
         AgentKind::Claude => "claude",
         AgentKind::Codex => "codex",
@@ -63,7 +64,7 @@ pub async fn collect_agent_env_and_cli(
         AgentKind::Fallback => "claude",
     };
 
-    let (env_vars, cli_args) = if let Some(settings_manager) = SETTINGS_MANAGER.get() {
+    let (env_vars, cli_args, preferences) = if let Some(settings_manager) = SETTINGS_MANAGER.get() {
         let mgr = settings_manager.lock().await;
         let mut env = mgr
             .get_agent_env_vars(agent_str)
@@ -72,12 +73,16 @@ pub async fn collect_agent_env_and_cli(
         if let Ok(project_env) = db.get_project_environment_variables(repo_path) {
             env.extend(project_env.into_iter());
         }
-        (env, mgr.get_agent_cli_args(agent_str))
+        (
+            env,
+            mgr.get_agent_cli_args(agent_str),
+            mgr.get_agent_preferences(agent_str),
+        )
     } else {
-        (vec![], String::new())
+        (vec![], String::new(), AgentPreference::default())
     };
 
-    (env_vars, cli_args)
+    (env_vars, cli_args, preferences)
 }
 
 fn harness_manages_codex_sandbox() -> bool {
@@ -128,14 +133,16 @@ pub fn build_final_args(
     agent_kind: &AgentKind,
     mut parsed_agent_args: Vec<String>,
     cli_args_text: &str,
+    preferences: &AgentPreference,
 ) -> Vec<String> {
-    if cli_args_text.is_empty() {
-        return parsed_agent_args;
-    }
+    let mut additional = if cli_args_text.trim().is_empty() {
+        Vec::new()
+    } else {
+        let normalized = normalize_cli_text(cli_args_text);
+        shell_words::split(&normalized).unwrap_or_else(|_| vec![cli_args_text.to_string()])
+    };
 
-    let normalized = normalize_cli_text(cli_args_text);
-    let mut additional =
-        shell_words::split(&normalized).unwrap_or_else(|_| vec![cli_args_text.to_string()]);
+    apply_agent_preferences(agent_kind, &parsed_agent_args, &mut additional, preferences);
 
     match agent_kind {
         AgentKind::Codex => {
@@ -162,6 +169,87 @@ pub fn build_final_args(
             parsed_agent_args
         }
     }
+}
+
+fn apply_agent_preferences(
+    agent_kind: &AgentKind,
+    existing_args: &[String],
+    additional_args: &mut Vec<String>,
+    preferences: &AgentPreference,
+) {
+    if matches!(agent_kind, AgentKind::Codex) {
+        match preferences
+            .model
+            .as_ref()
+            .map(|m| m.trim())
+            .filter(|m| !m.is_empty())
+        {
+            Some(model) if !has_flag(existing_args, additional_args, &["--model", "-m"]) => {
+                additional_args.push("--model".to_string());
+                additional_args.push(model.to_string());
+            }
+            _ => {}
+        }
+
+        match preferences
+            .reasoning_effort
+            .as_ref()
+            .map(|r| r.trim())
+            .filter(|r| !r.is_empty())
+        {
+            Some(reasoning)
+                if !has_config_override(existing_args, additional_args, "model_reasoning_effort") =>
+            {
+                additional_args.push("-c".to_string());
+                additional_args.push(format!(r#"model_reasoning_effort="{reasoning}""#));
+            }
+            _ => {}
+        }
+    }
+}
+
+fn has_flag(existing_args: &[String], additional_args: &[String], names: &[&str]) -> bool {
+    let mut combined: Vec<&String> = Vec::with_capacity(existing_args.len() + additional_args.len());
+    combined.extend(existing_args.iter());
+    combined.extend(additional_args.iter());
+
+    for token in combined {
+        for name in names {
+            if token == name {
+                return true;
+            }
+            if name.starts_with("--") && token.starts_with(&format!("{name}=")) {
+                return true;
+            }
+            if name.starts_with('-')
+                && name.len() == 2
+                && token.starts_with(name)
+                && token.len() > name.len()
+            {
+                return true;
+            }
+        }
+    }
+
+    false
+}
+
+fn has_config_override(existing_args: &[String], additional_args: &[String], key: &str) -> bool {
+    let mut iter = existing_args.iter().chain(additional_args.iter()).peekable();
+
+    while let Some(token) = iter.next() {
+        let token_str = token.as_str();
+
+        if (matches!(token_str, "-c" | "--config")
+            && iter.next().is_some_and(|value| value.contains(key)))
+            || ((token_str.starts_with("--config=") || token_str.starts_with("-c="))
+                && token_str.contains(key))
+        {
+            return true;
+        }
+    }
+
+    false
 }
 
 #[cfg(test)]
@@ -225,7 +313,12 @@ mod tests {
 
     #[test]
     fn test_build_final_args_non_codex() {
-        let args = build_final_args(&AgentKind::Claude, vec!["--flag".into()], "--extra one");
+        let args = build_final_args(
+            &AgentKind::Claude,
+            vec!["--flag".into()],
+            "--extra one",
+            &AgentPreference::default(),
+        );
         assert_eq!(args, vec!["--flag", "--extra", "one"]);
     }
 
@@ -235,6 +328,7 @@ mod tests {
             &AgentKind::Codex,
             vec!["--sandbox".into(), "workspace-write".into()],
             "-profile work --model gpt-4",
+            &AgentPreference::default(),
         );
         // single-dash long flag fixed and model after profile
         assert_eq!(
@@ -269,6 +363,7 @@ mod tests {
             &AgentKind::Codex,
             vec!["--sandbox".into(), "workspace-write".into()],
             "--sandbox danger-full-access --model gpt-4",
+            &AgentPreference::default(),
         );
 
         assert_eq!(
@@ -285,12 +380,102 @@ mod tests {
             &AgentKind::Codex,
             vec!["--sandbox".into(), "workspace-write".into()],
             "--sandbox=danger-full-access --profile work",
+            &AgentPreference::default(),
         );
 
         assert_eq!(
             args,
             vec!["--sandbox", "workspace-write", "--profile", "work"]
         );
+    }
+
+    #[test]
+    fn codex_appends_preferences_when_missing() {
+        let prefs = AgentPreference {
+            model: Some("o4-mini".to_string()),
+            reasoning_effort: Some("high".to_string()),
+        };
+
+        let args = build_final_args(
+            &AgentKind::Codex,
+            vec!["--sandbox".into(), "workspace-write".into()],
+            "",
+            &prefs,
+        );
+
+        assert_eq!(
+            args,
+            vec![
+                "--sandbox",
+                "workspace-write",
+                "--model",
+                "o4-mini",
+                "-c",
+                r#"model_reasoning_effort="high""#,
+            ]
+        );
+    }
+
+    #[test]
+    fn codex_preferences_do_not_duplicate_existing_flags() {
+        let prefs = AgentPreference {
+            model: Some("o4-mini".to_string()),
+            reasoning_effort: Some("medium".to_string()),
+        };
+
+        let args = build_final_args(
+            &AgentKind::Codex,
+            vec![
+                "--sandbox".into(),
+                "workspace-write".into(),
+                "--model".into(),
+                "custom".into(),
+            ],
+            "-c model_reasoning_effort=\"low\"",
+            &prefs,
+        );
+
+        assert_eq!(
+            args,
+            vec![
+                "--sandbox",
+                "workspace-write",
+                "--model",
+                "custom",
+                "-c",
+                "model_reasoning_effort=low"
+            ]
+        );
+    }
+
+    #[test]
+    fn has_flag_detects_existing_flags_and_aliases() {
+        let existing = vec!["--model".to_string(), "gpt-5".to_string()];
+        assert!(has_flag(&existing, &[], &["--model", "-m"]));
+
+        let existing_inline = vec!["--model=gpt-5".to_string()];
+        assert!(has_flag(&existing_inline, &[], &["--model"]));
+
+        let short_packed = vec!["-msomething".to_string()];
+        assert!(has_flag(&short_packed, &[], &["-m"]));
+
+        let additional = vec!["--config".to_string(), "search=true".to_string()];
+        assert!(!has_flag(&existing, &additional, &["--profile"]));
+
+        let additional_profile = vec!["--profile".to_string(), "team".to_string()];
+        assert!(has_flag(&[], &additional_profile, &["--profile"]));
+    }
+
+    #[test]
+    fn has_config_override_detects_various_config_forms() {
+        let existing = vec!["-c".to_string(), "model_reasoning_effort=high".to_string()];
+        assert!(has_config_override(&existing, &[], "model_reasoning_effort"));
+
+        let packed = vec!["--config=model_reasoning_effort=medium".to_string()];
+        assert!(has_config_override(&[], &packed, "model_reasoning_effort"));
+
+        let unrelated = vec!["-c".to_string(), "search=true".to_string()];
+        assert!(!has_config_override(&[], &unrelated, "model_reasoning_effort"));
     }
 
     #[test]
@@ -302,6 +487,7 @@ mod tests {
             &AgentKind::Codex,
             vec!["--sandbox".into(), "workspace-write".into()],
             "--sandbox danger-full-access",
+            &AgentPreference::default(),
         );
 
         assert_eq!(
