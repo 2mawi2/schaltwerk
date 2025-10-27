@@ -235,25 +235,32 @@ describe('GitHistoryContext', () => {
       </GitHistoryProvider>
     )
 
+    const getApi = () => {
+      if (!latestApi) {
+        throw new Error('git history api not ready')
+      }
+      return latestApi
+    }
+
     await waitFor(() => {
       expect(latestApi).not.toBeNull()
     })
 
     await act(async () => {
-      await latestApi!.ensureLoaded()
+      await getApi().ensureLoaded()
     })
 
     expect(mockInvoke).toHaveBeenCalledTimes(1)
 
     await waitFor(() => {
-      expect(latestApi?.snapshot?.items?.length).toBe(2)
+      expect(getApi().snapshot?.items?.length).toBe(2)
     })
 
-    const appendCursor = latestApi!.snapshot!.nextCursor
+    const appendCursor = getApi().snapshot?.nextCursor
     expect(appendCursor).toBe('cursor-1')
 
     await act(async () => {
-      await latestApi!.loadMore(appendCursor!)
+      await getApi().loadMore(appendCursor!)
     })
 
     expect(mockInvoke).toHaveBeenCalledTimes(2)
@@ -264,7 +271,7 @@ describe('GitHistoryContext', () => {
     )
 
     await act(async () => {
-      await latestApi!.refresh()
+      await getApi().refresh()
     })
 
     expect(mockInvoke).toHaveBeenCalledTimes(3)
@@ -331,21 +338,28 @@ describe('GitHistoryContext', () => {
       </GitHistoryProvider>
     )
 
+    const getApi = () => {
+      if (!latestApi) {
+        throw new Error('git history api not ready')
+      }
+      return latestApi
+    }
+
     await waitFor(() => {
       expect(latestApi).not.toBeNull()
     })
 
     await act(async () => {
-      await latestApi!.ensureLoaded()
+      await getApi().ensureLoaded()
     })
 
     await waitFor(() => {
-      expect(latestApi?.snapshot?.items?.length).toBe(2)
-      expect(latestApi?.snapshot?.nextCursor).toBe('cursor-2')
+      expect(getApi().snapshot?.items?.length).toBe(2)
+      expect(getApi().snapshot?.nextCursor).toBe('cursor-2')
     })
 
     await act(async () => {
-      await latestApi!.loadMore('cursor-2')
+      await getApi().loadMore('cursor-2')
     })
 
     expect(mockInvoke).toHaveBeenNthCalledWith(
