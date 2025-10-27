@@ -1,6 +1,8 @@
 use crate::commands::session_lookup_cache::{current_repo_cache_key, global_session_lookup_cache};
 use crate::get_core_read;
-use git2::{Delta, DiffFindOptions, DiffOptions, ObjectType, Oid, Repository, Sort, Tree};
+use git2::{
+    Delta, DiffFindOptions, DiffOptions, ErrorCode, ObjectType, Oid, Repository, Sort, Tree,
+};
 use schaltwerk::binary_detection::{get_unsupported_reason, is_binary_file_by_extension};
 use schaltwerk::domains::git;
 use schaltwerk::domains::git::stats::build_changed_files_from_diff;
@@ -519,6 +521,77 @@ mod tests {
         assert!(!file_paths.contains(&&".schaltwerk/config.json".to_string()));
         assert!(!file_paths.contains(&&".schaltwerk/worktrees/branch1/file.txt".to_string()));
     }
+
+    #[test]
+    fn get_current_branch_name_handles_unborn_head() {
+        let temp_dir = TempDir::new().unwrap();
+        let repo_path = temp_dir.path();
+
+        // Initialize repository without creating an initial commit
+        StdCommand::new("git")
+            .args(["init", "-b", "main"])
+            .current_dir(repo_path)
+            .output()
+            .unwrap();
+
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let manager = get_project_manager().await;
+            let previous = manager.current_project_path().await;
+            manager
+                .switch_to_project(repo_path.to_path_buf())
+                .await
+                .unwrap();
+
+            let branch = get_current_branch_name(None).await.unwrap();
+            assert_eq!(branch, "main");
+
+            manager
+                .remove_project(&repo_path.to_path_buf())
+                .await
+                .unwrap();
+
+            if let Some(prev) = previous {
+                manager.switch_to_project(prev).await.unwrap();
+            }
+        });
+    }
+
+    #[test]
+    fn get_commit_comparison_info_handles_unborn_head() {
+        let temp_dir = TempDir::new().unwrap();
+        let repo_path = temp_dir.path();
+
+        StdCommand::new("git")
+            .args(["init", "-b", "main"])
+            .current_dir(repo_path)
+            .output()
+            .unwrap();
+
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let manager = get_project_manager().await;
+            let previous = manager.current_project_path().await;
+            manager
+                .switch_to_project(repo_path.to_path_buf())
+                .await
+                .unwrap();
+
+            let (base_commit, head_commit) =
+                get_commit_comparison_info(None).await.unwrap();
+            assert_eq!(base_commit, "0000000");
+            assert_eq!(head_commit, "0000000");
+
+            manager
+                .remove_project(&repo_path.to_path_buf())
+                .await
+                .unwrap();
+
+            if let Some(prev) = previous {
+                manager.switch_to_project(prev).await.unwrap();
+            }
+        });
+    }
 }
 
 #[tauri::command]
@@ -580,23 +653,36 @@ pub async fn get_current_branch_name(session_name: Option<String>) -> Result<Str
     let repo_path = get_repo_path(session_name).await?;
     let repo =
         Repository::open(&repo_path).map_err(|e| format!("Failed to open repository: {e}"))?;
-    let head = repo
-        .head()
-        .map_err(|e| format!("Failed to get HEAD: {e}"))?;
-    Ok(head.shorthand().unwrap_or("").to_string())
+    match repo.head() {
+        Ok(head) => Ok(head.shorthand().unwrap_or("").to_string()),
+        Err(err) if err.code() == ErrorCode::UnbornBranch => {
+            schaltwerk::domains::git::repository::get_unborn_head_branch(Path::new(&repo_path))
+                .map_err(|e| format!("Failed to resolve unborn HEAD branch: {e}"))
+        }
+        Err(err) => Err(format!("Failed to get HEAD: {err}")),
+    }
 }
 
 #[tauri::command]
 pub async fn get_commit_comparison_info(
     session_name: Option<String>,
 ) -> Result<(String, String), String> {
+    const EMPTY_COMMIT_SHORT_ID: &str = "0000000";
     let repo_path = get_repo_path(session_name.clone()).await?;
     let base_branch = get_base_branch(session_name).await?;
     let repo =
         Repository::open(&repo_path).map_err(|e| format!("Failed to open repository: {e}"))?;
-    let head_oid = repo
-        .head()
-        .map_err(|e| format!("Failed to get HEAD: {e}"))?
+    let head_ref = match repo.head() {
+        Ok(head) => head,
+        Err(err) if err.code() == ErrorCode::UnbornBranch => {
+            return Ok((
+                EMPTY_COMMIT_SHORT_ID.to_string(),
+                EMPTY_COMMIT_SHORT_ID.to_string(),
+            ));
+        }
+        Err(err) => return Err(format!("Failed to get HEAD: {err}")),
+    };
+    let head_oid = head_ref
         .target()
         .ok_or_else(|| "Missing HEAD target".to_string())?;
     let base_commit = repo
