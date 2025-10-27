@@ -325,6 +325,20 @@ impl SettingsService {
         self.save()
     }
 
+    pub fn get_last_project_parent_directory(&self) -> Option<String> {
+        self.settings.last_project_parent_directory.clone()
+    }
+
+    pub fn set_last_project_parent_directory(
+        &mut self,
+        directory: Option<String>,
+    ) -> Result<(), SettingsServiceError> {
+        self.settings.last_project_parent_directory = directory
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+        self.save()
+    }
+
     pub fn get_agent_binary_config(&self, agent_name: &str) -> Option<AgentBinaryConfig> {
         match agent_name {
             "claude" => self.settings.agent_binaries.claude.clone(),

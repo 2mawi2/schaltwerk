@@ -1005,6 +1005,8 @@ fn main() {
             set_auto_commit_on_review,
             set_auto_update_enabled,
             set_dev_error_toasts_enabled,
+            get_last_project_parent_directory,
+            set_last_project_parent_directory,
             get_keyboard_shortcuts,
             set_keyboard_shortcuts,
             get_project_settings,

@@ -239,6 +239,19 @@ impl SettingsManager {
             .map_err(|e| e.to_string())
     }
 
+    pub fn get_last_project_parent_directory(&self) -> Option<String> {
+        self.service.get_last_project_parent_directory()
+    }
+
+    pub fn set_last_project_parent_directory(
+        &mut self,
+        directory: Option<String>,
+    ) -> Result<(), String> {
+        self.service
+            .set_last_project_parent_directory(directory)
+            .map_err(|e| e.to_string())
+    }
+
     pub fn get_agent_binary_config(
         &self,
         agent_name: &str,
