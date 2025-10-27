@@ -8,7 +8,12 @@ export function TerminalLoadingOverlay({ visible }: Props) {
   if (!visible) return null
 
   return (
-    <div className="absolute inset-0 flex items-center justify-center bg-background-secondary z-20">
+    <div
+      className="absolute inset-0 flex items-center justify-center bg-background-secondary z-20"
+      role="status"
+      aria-live="polite"
+      aria-label="Terminal loading"
+    >
       <AnimatedText
         text="loading"
         colorClassName="text-slate-500"

@@ -411,4 +411,20 @@ describe('Terminal', () => {
       vi.useRealTimers()
     }
   })
+
+  it('does not render the loading overlay when the terminal is already hydrated', async () => {
+    registryMocks.hasTerminalInstance.mockReturnValue(true)
+    terminalHarness.setNextIsNew(false)
+
+    const { queryByLabelText } = render(
+      <Terminal terminalId="session-prehydrated-top" sessionName="prehydrated" />
+    )
+
+    await waitFor(() => {
+      expect(terminalHarness.acquireMock).toHaveBeenCalled()
+    })
+
+    expect(queryByLabelText('Terminal loading')).toBeNull()
+  })
+
 })
