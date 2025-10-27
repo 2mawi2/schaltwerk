@@ -669,11 +669,15 @@ pub async fn get_commit_comparison_info(
 ) -> Result<(String, String), String> {
     const EMPTY_COMMIT_SHORT_ID: &str = "0000000";
     let repo_path = get_repo_path(session_name.clone()).await?;
-    let base_branch = get_base_branch(session_name).await?;
     let repo =
         Repository::open(&repo_path).map_err(|e| format!("Failed to open repository: {e}"))?;
-    let head_ref = match repo.head() {
-        Ok(head) => head,
+
+    // Check for unborn HEAD first, before trying to get base branch
+    // Extract the OID before awaiting to avoid holding the git2::Reference across await
+    let head_oid = match repo.head() {
+        Ok(head) => head
+            .target()
+            .ok_or_else(|| "Missing HEAD target".to_string())?,
         Err(err) if err.code() == ErrorCode::UnbornBranch => {
             return Ok((
                 EMPTY_COMMIT_SHORT_ID.to_string(),
@@ -682,9 +686,9 @@ pub async fn get_commit_comparison_info(
         }
         Err(err) => return Err(format!("Failed to get HEAD: {err}")),
     };
-    let head_oid = head_ref
-        .target()
-        .ok_or_else(|| "Missing HEAD target".to_string())?;
+
+    // Only get base branch if HEAD is not unborn
+    let base_branch = get_base_branch(session_name).await?;
     let base_commit = repo
         .revparse_single(&base_branch)
         .map_err(|e| format!("Failed to resolve base branch: {e}"))?
