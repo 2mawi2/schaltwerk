@@ -1292,7 +1292,14 @@ pub async fn schaltwerk_core_start_claude_with_restart(
             let is_piped_cmd = use_shell_chain && shell_cmd.is_some();
             let exec_cmd = if is_piped_cmd {
                 // Amp with pipe: wrap the piped command with setup (no exec prefix needed)
-                shell_cmd.take().unwrap()
+                if let Some(existing_cmd) = shell_cmd.as_ref() {
+                    existing_cmd.clone()
+                } else {
+                    log::error!(
+                        "Shell command missing while attempting to chain piped Amp command"
+                    );
+                    return Err("Failed to build chained shell command".to_string());
+                }
             } else {
                 // Regular agent: build exec command from agent_name and args
                 let mut exec_cmd = String::new();
@@ -1337,7 +1344,11 @@ pub async fn schaltwerk_core_start_claude_with_restart(
     // Create terminal with initial size if provided
     if use_shell_chain {
         let sh_cmd = "sh".to_string();
-        let mut sh_args: Vec<String> = vec!["-lc".to_string(), shell_cmd.unwrap()];
+        let Some(chained_command) = shell_cmd.take() else {
+            log::error!("Shell chain requested without prepared command");
+            return Err("Failed to construct shell command chain".to_string());
+        };
+        let mut sh_args: Vec<String> = vec!["-lc".to_string(), chained_command];
         if let (Some(c), Some(r)) = (cols, rows) {
             use schaltwerk::domains::terminal::manager::CreateTerminalWithAppAndSizeParams;
             terminal_manager

@@ -98,9 +98,16 @@ pub async fn github_authenticate(_app: AppHandle) -> Result<GitHubStatusPayload,
     }
 
     info!("GitHub CLI authentication requires manual setup");
-    let err = cli.authenticate().unwrap_err();
-    error!("GitHub authentication requires user action: {err}");
-    Err(format_cli_error(err))
+    match cli.authenticate() {
+        Err(err) => {
+            error!("GitHub authentication requires user action: {err}");
+            Err(format_cli_error(err))
+        }
+        Ok(()) => {
+            info!("GitHub CLI reported successful authentication");
+            build_status().await
+        }
+    }
 }
 
 #[tauri::command]
