@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, waitFor, cleanup } from '@testing-library/react'
+import { render, waitFor, cleanup, act } from '@testing-library/react'
 import { Terminal } from './Terminal'
+import * as autoScrollModule from './autoScroll'
 
 const ATLAS_CONTRAST_BASE = 1.1
 
@@ -422,9 +423,45 @@ describe('Terminal', () => {
 
     await waitFor(() => {
       expect(terminalHarness.acquireMock).toHaveBeenCalled()
+      expect(queryByLabelText('Terminal loading')).toBeNull()
     })
-
-    expect(queryByLabelText('Terminal loading')).toBeNull()
   })
 
+  it('sticks back to the buffer base after manual scroll once the viewport catches up', async () => {
+    const shouldStickSpy = vi.spyOn(autoScrollModule, 'shouldStickToBottom')
+    render(<Terminal terminalId="session-scroll-stick" sessionName="scroll-stick" />)
+
+    await waitFor(() => {
+      expect(terminalHarness.acquireMock).toHaveBeenCalled()
+      expect(terminalHarness.instances.length).toBeGreaterThan(0)
+    })
+
+    const instance = terminalHarness.instances[0] as HarnessInstance
+    await waitFor(() => {
+      expect(instance.raw.onScroll).toHaveBeenCalled()
+    })
+
+    const scrollCalls = instance.raw.onScroll.mock.calls
+    const scrollHandler = scrollCalls[scrollCalls.length - 1]?.[0] as ((position: number) => void) | undefined
+    expect(typeof scrollHandler).toBe('function')
+
+    instance.raw.buffer.active.baseY = 360
+    instance.raw.buffer.active.viewportY = 240
+    shouldStickSpy.mockClear()
+
+    await act(async () => {
+      scrollHandler!(360)
+    })
+
+    instance.raw.buffer.active.viewportY = 360
+
+    await waitFor(() => {
+      expect(shouldStickSpy).toHaveBeenCalled()
+    })
+
+    const lastCall = shouldStickSpy.mock.calls.at(-1)?.[0] as autoScrollModule.StickToBottomInput | undefined
+    expect(lastCall?.viewportY).toBe(360)
+
+    shouldStickSpy.mockRestore()
+  })
 })

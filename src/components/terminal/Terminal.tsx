@@ -170,6 +170,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const selectionActiveRef = useRef<boolean>(false);
     const skipNextFocusCallbackRef = useRef<boolean>(false);
     const shiftEnterPrefixRef = useRef<Promise<void> | null>(null);
+    const scrollStickRafRef = useRef<number | null>(null);
+    const pendingScrollViewportRef = useRef<number | undefined>(undefined);
 
     const beginClaudeShiftEnter = useCallback(() => {
         const prefixWrite = writeTerminalBackend(terminalId, CLAUDE_SHIFT_ENTER_SEQUENCE)
@@ -429,14 +431,19 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         terminal.current?.scrollToBottom();
     }, []);
 
-    const stickToBottomIfNeeded = useCallback((reason?: string) => {
+    const stickToBottomIfNeeded = useCallback((reason?: string, viewportOverride?: number) => {
         const term = terminal.current;
         if (!term) return;
         try {
             const buf = term.buffer?.active;
             if (!buf) return;
             const base = typeof buf.baseY === 'number' ? buf.baseY : 0;
-            const viewport = typeof buf.viewportY === 'number' ? buf.viewportY : 0;
+            const hasOverride = typeof viewportOverride === 'number' && Number.isFinite(viewportOverride);
+            const viewport = hasOverride
+                ? viewportOverride
+                : typeof buf.viewportY === 'number'
+                    ? buf.viewportY
+                    : 0;
             const shouldStick = shouldStickToBottom({
                 baseY: base,
                 viewportY: viewport,
@@ -1143,8 +1150,27 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             }
 
             if (typeof terminal.current.onScroll === 'function') {
-                const scrollDisposable = terminal.current.onScroll(() => {
-                    stickToBottomIfNeeded('scroll');
+                const scrollDisposable = terminal.current.onScroll((position?: number) => {
+                    const viewportHint = typeof position === 'number' && Number.isFinite(position)
+                        ? position
+                        : undefined;
+                    pendingScrollViewportRef.current = viewportHint;
+                    if (scrollStickRafRef.current !== null) {
+                        return;
+                    }
+
+                    const runStick = () => {
+                        const hint = pendingScrollViewportRef.current;
+                        pendingScrollViewportRef.current = undefined;
+                        scrollStickRafRef.current = null;
+                        stickToBottomIfNeeded('scroll', hint);
+                    };
+
+                    try {
+                        scrollStickRafRef.current = requestAnimationFrame(runStick);
+                    } catch {
+                        runStick();
+                    }
                 });
                 if (scrollDisposable && typeof scrollDisposable === 'object' && typeof (scrollDisposable as { dispose?: () => void }).dispose === 'function') {
                     outputDisposables.push(scrollDisposable as IDisposable);
@@ -1304,6 +1330,16 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             mountedRef.current = false;
             cancelled = true;
             rendererReadyRef.current = false;
+
+            if (scrollStickRafRef.current !== null) {
+                try {
+                    cancelAnimationFrame(scrollStickRafRef.current);
+                } catch {
+                    // ignore cancellation errors during teardown
+                }
+                scrollStickRafRef.current = null;
+            }
+            pendingScrollViewportRef.current = undefined;
 
             outputDisposables.forEach(disposable => {
                 try {
