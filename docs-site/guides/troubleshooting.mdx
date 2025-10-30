@@ -180,6 +180,25 @@ This guide covers common issues you might encounter and how to resolve them.
     4. Check agent-specific logs
   </Accordion>
 
+  <Accordion title="Agent fails with 'ReadableStream is not defined' or similar errors">
+    **Symptom:** Error like "ReferenceError: ReadableStream is not defined" when starting agent
+
+    **Solution:**
+    This occurs when using Node version managers (fnm, nvm, n) that set paths via shell config files. Schaltwerk spawns agents without loading `.zshrc`/`.bashrc`, so falls back to system Node, which may be outdated.
+
+    Install Node via Homebrew to set a global default:
+    ```bash
+    brew install node
+    ```
+
+    Verify system Node version (what Schaltwerk uses):
+    ```bash
+    fnm use system && node --version  # For fnm users
+    nvm use system && node --version  # For nvm users
+    # Should show v18+
+    ```
+  </Accordion>
+
   <Accordion title="Agent hangs or becomes unresponsive">
     **Symptom:** Agent stops responding, no output
 
