@@ -1401,7 +1401,9 @@ impl SessionManager {
             );
             git::create_initial_commit(&self.repo_path)?;
 
-            log::info!("Ensuring requested base branch '{parent_branch}' exists after initial commit");
+            log::info!(
+                "Ensuring requested base branch '{parent_branch}' exists after initial commit"
+            );
             git::ensure_branch_at_head(&self.repo_path, parent_branch)?;
         }
 
@@ -1460,8 +1462,12 @@ impl SessionManager {
     }
 
     pub fn create_session_with_agent(&self, params: SessionCreationParams) -> Result<Session> {
-        use crate::domains::sessions::lifecycle::bootstrapper::{BootstrapConfig, WorktreeBootstrapper};
-        use crate::domains::sessions::lifecycle::finalizer::{FinalizationConfig, SessionFinalizer};
+        use crate::domains::sessions::lifecycle::bootstrapper::{
+            BootstrapConfig, WorktreeBootstrapper,
+        };
+        use crate::domains::sessions::lifecycle::finalizer::{
+            FinalizationConfig, SessionFinalizer,
+        };
 
         log::info!(
             "Creating session '{}' in repository: {}",
@@ -1610,7 +1616,9 @@ impl SessionManager {
     }
 
     pub fn cancel_session(&self, name: &str) -> Result<()> {
-        use crate::domains::sessions::lifecycle::cancellation::{CancellationConfig, CancellationCoordinator};
+        use crate::domains::sessions::lifecycle::cancellation::{
+            CancellationConfig, CancellationCoordinator,
+        };
 
         let session = self.db_manager.get_session_by_name(name)?;
         log::debug!("Cancel {name}: Retrieved session");
@@ -1634,7 +1642,9 @@ impl SessionManager {
 
     /// Fast asynchronous session cancellation with parallel operations
     pub async fn fast_cancel_session(&self, name: &str) -> Result<()> {
-        use crate::domains::sessions::lifecycle::cancellation::{CancellationConfig, CancellationCoordinator};
+        use crate::domains::sessions::lifecycle::cancellation::{
+            CancellationConfig, CancellationCoordinator,
+        };
 
         let session = self.db_manager.get_session_by_name(name)?;
 
@@ -1670,13 +1680,17 @@ impl SessionManager {
             log::warn!("Converting session '{name}' to spec with uncommitted changes");
         }
 
-        if session.worktree_path.exists() && let Err(e) = git::remove_worktree(&self.repo_path, &session.worktree_path) {
+        if session.worktree_path.exists()
+            && let Err(e) = git::remove_worktree(&self.repo_path, &session.worktree_path)
+        {
             log::warn!(
                 "Failed to remove worktree when converting to spec (will continue anyway): {e}"
             );
         }
 
-        if git::branch_exists(&self.repo_path, &session.branch)? && let Err(e) = git::delete_branch(&self.repo_path, &session.branch) {
+        if git::branch_exists(&self.repo_path, &session.branch)?
+            && let Err(e) = git::delete_branch(&self.repo_path, &session.branch)
+        {
             log::warn!("Failed to delete branch '{}': {}", session.branch, e);
         }
 
@@ -1686,7 +1700,10 @@ impl SessionManager {
         self.db_manager
             .update_session_status(&session.id, SessionStatus::Spec)?;
 
-        if let Err(e) = self.db_manager.set_session_resume_allowed(&session.id, false) {
+        if let Err(e) = self
+            .db_manager
+            .set_session_resume_allowed(&session.id, false)
+        {
             log::warn!("Failed to gate resume for session '{name}': {e}");
         }
 

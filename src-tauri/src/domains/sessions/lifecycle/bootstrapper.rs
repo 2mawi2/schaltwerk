@@ -35,8 +35,7 @@ impl<'a> WorktreeBootstrapper<'a> {
             config.session_name, config.branch_name
         );
 
-        self.utils
-            .cleanup_existing_worktree(config.worktree_path)?;
+        self.utils.cleanup_existing_worktree(config.worktree_path)?;
 
         let final_branch = if let Some(custom) = config.custom_branch {
             self.resolve_custom_branch(custom)?
@@ -136,7 +135,10 @@ impl<'a> WorktreeBootstrapper<'a> {
         }
 
         if !worktree_path.join(".git").exists() {
-            warn!("Worktree at {} exists but .git is missing", worktree_path.display());
+            warn!(
+                "Worktree at {} exists but .git is missing",
+                worktree_path.display()
+            );
         }
 
         Ok(())
@@ -161,7 +163,9 @@ impl<'a> WorktreeBootstrapper<'a> {
         }
 
         let claude_dir = self.repo_path.join(".claude");
-        if claude_dir.is_dir() && let Ok(entries) = std::fs::read_dir(&claude_dir) {
+        if claude_dir.is_dir()
+            && let Ok(entries) = std::fs::read_dir(&claude_dir)
+        {
             for entry in entries.filter_map(Result::ok) {
                 let path = entry.path();
                 if !path.is_file() {
@@ -185,7 +189,9 @@ impl<'a> WorktreeBootstrapper<'a> {
                 continue;
             }
 
-            if let Some(parent) = dest.parent() && let Err(e) = std::fs::create_dir_all(parent) {
+            if let Some(parent) = dest.parent()
+                && let Err(e) = std::fs::create_dir_all(parent)
+            {
                 warn!("Failed to create directory for Claude local override: {e}");
                 continue;
             }
@@ -336,11 +342,19 @@ mod tests {
     #[serial]
     fn test_copy_claude_locals_when_exists() {
         let (_temp, repo_path) = setup_test_repo();
-        std::fs::write(repo_path.join("CLAUDE.local.md"), "# Claude Local Instructions").unwrap();
+        std::fs::write(
+            repo_path.join("CLAUDE.local.md"),
+            "# Claude Local Instructions",
+        )
+        .unwrap();
 
         let claude_dir = repo_path.join(".claude");
         std::fs::create_dir_all(&claude_dir).unwrap();
-        std::fs::write(claude_dir.join("settings.local.json"), "{\"key\":\"value\"}").unwrap();
+        std::fs::write(
+            claude_dir.join("settings.local.json"),
+            "{\"key\":\"value\"}",
+        )
+        .unwrap();
 
         let db = Database::new(Some(repo_path.join("test.db"))).unwrap();
         let db_manager = SessionDbManager::new(db.clone(), repo_path.clone());

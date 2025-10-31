@@ -26,9 +26,9 @@ use std::path::PathBuf;
 use tauri::State;
 mod agent_ctx;
 pub mod agent_launcher;
-pub mod events;
 mod codex_model_commands;
 mod codex_models;
+pub mod events;
 mod schaltwerk_core_cli;
 pub mod terminals;
 
@@ -2124,9 +2124,7 @@ pub async fn schaltwerk_core_start_spec_session(
         }
     }
 
-    log::info!(
-        "Queueing sessions refresh after starting spec session '{name}' (pre-rename)"
-    );
+    log::info!("Queueing sessions refresh after starting spec session '{name}' (pre-rename)");
     events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SpecSync);
 
     // Drop the lock before spawning rename work

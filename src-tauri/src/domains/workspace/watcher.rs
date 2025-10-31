@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use std::time::Duration;
+use std::sync::{Arc, OnceLock, RwLock};
+use std::time::{Duration, Instant};
 
 use crate::infrastructure::events::{SchaltEvent, emit_event};
 use log::{debug, error, info, trace, warn};
@@ -10,6 +10,10 @@ use notify_debouncer_mini::{DebounceEventResult, Debouncer, new_debouncer};
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 use tokio::sync::{Mutex, mpsc};
+use tokio::task::spawn_blocking;
+use tokio::time::sleep;
+
+use super::file_index::refresh_project_files;
 
 use crate::domains::git::service as git;
 use crate::shared::merge_snapshot_gateway::MergeSnapshotGateway;
@@ -40,6 +44,55 @@ pub struct BranchInfo {
     pub base_branch: String,
     pub base_commit: String,
     pub head_commit: String,
+}
+
+const ORCHESTRATOR_REFRESH_INTERVAL: Duration = Duration::from_millis(750);
+
+const ORCHESTRATOR_WATCHER_KEY: &str = "__orchestrator__";
+const ORCHESTRATOR_SESSION_NAME: &str = "orchestrator";
+static ORCHESTRATOR_REFRESH_PROVIDER: OnceLock<RwLock<Option<Arc<dyn OrchestratorIndexRefresh>>>> =
+    OnceLock::new();
+
+fn orchestrator_refresh_provider() -> &'static RwLock<Option<Arc<dyn OrchestratorIndexRefresh>>> {
+    ORCHESTRATOR_REFRESH_PROVIDER.get_or_init(|| RwLock::new(None))
+}
+
+trait OrchestratorIndexRefresh: Send + Sync {
+    fn request_refresh(&self, repo_path: PathBuf);
+}
+
+fn trigger_orchestrator_index_refresh_if_needed(
+    session_name: &str,
+    _saw_index: bool,
+    saw_head: bool,
+    saw_refs: bool,
+    _changed_files_count: usize,
+    worktree_path: &Path,
+) {
+    if session_name != ORCHESTRATOR_SESSION_NAME {
+        return;
+    }
+
+    if !(saw_head || saw_refs) {
+        return;
+    }
+
+    let provider_opt = orchestrator_refresh_provider()
+        .read()
+        .expect("refresh provider lock poisoned")
+        .clone();
+
+    match provider_opt {
+        Some(provider) => provider.request_refresh(worktree_path.to_path_buf()),
+        None => trace!("Project file index refresh skipped; no provider registered"),
+    }
+}
+
+#[derive(Debug)]
+struct OrchestratorRefreshState {
+    last_refresh: Option<Instant>,
+    task_running: bool,
+    pending_path: Option<PathBuf>,
 }
 
 pub struct FileWatcher {
@@ -257,6 +310,15 @@ impl FileWatcher {
 
         emit_event(app_handle, SchaltEvent::FileChanges, &file_change_event)
             .map_err(|e| format!("Failed to emit file change event: {e}"))?;
+
+        trigger_orchestrator_index_refresh_if_needed(
+            session_name,
+            saw_index,
+            saw_head,
+            saw_refs,
+            file_change_event.changed_files.len(),
+            worktree_path,
+        );
 
         // Also emit fresh git stats immediately so the session list updates without waiting for polling
         match git::calculate_git_stats_fast(worktree_path, base_branch) {
@@ -492,12 +554,10 @@ impl FileWatcher {
     }
 }
 
-const ORCHESTRATOR_WATCHER_KEY: &str = "__orchestrator__";
-const ORCHESTRATOR_SESSION_NAME: &str = "orchestrator";
-
 pub struct FileWatcherManager {
     watchers: Arc<Mutex<HashMap<String, FileWatcher>>>,
     app_handle: AppHandle,
+    orchestrator_state: Arc<Mutex<OrchestratorRefreshState>>,
 }
 
 impl FileWatcherManager {
@@ -505,7 +565,101 @@ impl FileWatcherManager {
         Self {
             watchers: Arc::new(Mutex::new(HashMap::new())),
             app_handle,
+            orchestrator_state: Arc::new(Mutex::new(OrchestratorRefreshState {
+                last_refresh: None,
+                task_running: false,
+                pending_path: None,
+            })),
         }
+    }
+
+    pub fn register_global(instance: &Arc<Self>) {
+        let mut guard = orchestrator_refresh_provider()
+            .write()
+            .expect("refresh provider lock poisoned");
+        let provider_arc = Arc::clone(instance);
+        let provider: Arc<dyn OrchestratorIndexRefresh> = provider_arc;
+        *guard = Some(provider);
+    }
+
+    pub fn request_orchestrator_index_refresh(&self, repo_path: PathBuf) {
+        let state = Arc::clone(&self.orchestrator_state);
+        let app_handle = self.app_handle.clone();
+
+        tokio::spawn(async move {
+            let mut guard = state.lock().await;
+            guard.pending_path = Some(repo_path);
+            if guard.task_running {
+                return;
+            }
+            guard.task_running = true;
+
+            loop {
+                let (path, delay) = {
+                    let now = Instant::now();
+                    let Some(path) = guard.pending_path.take() else {
+                        guard.task_running = false;
+                        break;
+                    };
+
+                    let wait_duration = guard
+                        .last_refresh
+                        .map(|last| {
+                            let target = last + ORCHESTRATOR_REFRESH_INTERVAL;
+                            if now >= target {
+                                Duration::ZERO
+                            } else {
+                                target - now
+                            }
+                        })
+                        .unwrap_or(Duration::ZERO);
+
+                    (path, wait_duration)
+                };
+
+                drop(guard);
+
+                if !delay.is_zero() {
+                    sleep(delay).await;
+                }
+
+                if let Err(err) = Self::perform_orchestrator_index_refresh(&app_handle, &path).await
+                {
+                    warn!(
+                        "Orchestrator project index refresh failed for {}: {err}",
+                        path.display()
+                    );
+                }
+
+                guard = state.lock().await;
+                guard.last_refresh = Some(Instant::now());
+                if guard.pending_path.is_none() {
+                    guard.task_running = false;
+                    break;
+                }
+            }
+        });
+    }
+
+    async fn perform_orchestrator_index_refresh(
+        app_handle: &AppHandle,
+        repo_path: &Path,
+    ) -> Result<(), String> {
+        let repo_path_owned = repo_path.to_path_buf();
+        let files = spawn_blocking(move || refresh_project_files(&repo_path_owned))
+            .await
+            .map_err(|err| format!("Project file index refresh task failed: {err}"))?
+            .map_err(|err| format!("Failed to refresh project files: {err}"))?;
+
+        debug!(
+            "Orchestrator project file index refreshed with {} entries",
+            files.len()
+        );
+
+        emit_event(app_handle, SchaltEvent::ProjectFilesUpdated, &files)
+            .map_err(|err| format!("Failed to emit ProjectFilesUpdated event: {err}"))?;
+
+        Ok(())
     }
 
     pub async fn start_watching_session(
@@ -580,13 +734,16 @@ impl FileWatcherManager {
 
         let watcher = FileWatcher::new(
             ORCHESTRATOR_SESSION_NAME.to_string(),
-            repo_path,
+            repo_path.clone(),
             base_branch,
             self.app_handle.clone(),
         )?;
 
         watchers.insert(ORCHESTRATOR_WATCHER_KEY.to_string(), watcher);
         info!("Started orchestrator file watcher");
+
+        // Ensure the initial index reflects the current branch state.
+        self.request_orchestrator_index_refresh(repo_path);
         Ok(())
     }
 
@@ -603,11 +760,29 @@ impl FileWatcherManager {
     }
 }
 
+impl OrchestratorIndexRefresh for FileWatcherManager {
+    fn request_refresh(&self, repo_path: PathBuf) {
+        self.request_orchestrator_index_refresh(repo_path);
+    }
+}
+
+#[cfg(test)]
+pub(crate) async fn perform_orchestrator_index_refresh_for_tests(
+    repo_path: &Path,
+) -> Result<Vec<String>, String> {
+    let repo_path_owned = repo_path.to_path_buf();
+    spawn_blocking(move || refresh_project_files(&repo_path_owned))
+        .await
+        .map_err(|err| format!("Project file index refresh task failed: {err}"))?
+        .map_err(|err| format!("Failed to refresh project files: {err}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::fs;
     use std::process::Command;
+    use std::sync::{Arc, Mutex as StdMutex};
     use tempfile::TempDir;
 
     fn create_test_git_repo(temp_dir: &TempDir) -> PathBuf {
@@ -1154,6 +1329,126 @@ mod tests {
         assert!(!FileWatcher::should_ignore_path(
             &repo_path.join("src/main.rs")
         ));
+    }
+
+    #[derive(Default)]
+    struct TestRefreshCollector {
+        calls: StdMutex<Vec<PathBuf>>,
+    }
+
+    impl OrchestratorIndexRefresh for TestRefreshCollector {
+        fn request_refresh(&self, repo_path: PathBuf) {
+            self.calls.lock().unwrap().push(repo_path);
+        }
+    }
+
+    fn with_refresh_provider<T>(
+        provider: Option<Arc<dyn OrchestratorIndexRefresh>>,
+        f: impl FnOnce() -> T,
+    ) -> T {
+        let mut guard = orchestrator_refresh_provider()
+            .write()
+            .expect("refresh provider lock poisoned");
+        let previous = guard.take();
+        *guard = provider;
+        drop(guard);
+
+        let result = f();
+
+        let mut guard = orchestrator_refresh_provider()
+            .write()
+            .expect("refresh provider lock poisoned");
+        *guard = previous;
+        drop(guard);
+
+        result
+    }
+
+    #[test]
+    fn orchestrator_refresh_triggers_on_commit_signals() {
+        let collector = Arc::new(TestRefreshCollector::default());
+        let provider: Arc<dyn OrchestratorIndexRefresh> = collector.clone();
+
+        with_refresh_provider(Some(provider), || {
+            let temp_dir = TempDir::new().unwrap();
+            let repo_path = create_test_git_repo(&temp_dir);
+
+            trigger_orchestrator_index_refresh_if_needed(
+                ORCHESTRATOR_SESSION_NAME,
+                true,
+                true,
+                false,
+                0,
+                &repo_path,
+            );
+
+            let calls = collector.calls.lock().unwrap();
+            assert_eq!(calls.len(), 1);
+            assert_eq!(calls[0], repo_path);
+        });
+    }
+
+    #[test]
+    fn orchestrator_refresh_ignores_worktree_only_changes() {
+        let collector = Arc::new(TestRefreshCollector::default());
+        let provider: Arc<dyn OrchestratorIndexRefresh> = collector.clone();
+
+        with_refresh_provider(Some(provider), || {
+            let temp_dir = TempDir::new().unwrap();
+            let repo_path = create_test_git_repo(&temp_dir);
+
+            trigger_orchestrator_index_refresh_if_needed(
+                ORCHESTRATOR_SESSION_NAME,
+                true,
+                false,
+                false,
+                2,
+                &repo_path,
+            );
+
+            let calls = collector.calls.lock().unwrap();
+            assert!(
+                calls.is_empty(),
+                "worktree-only changes should not trigger refresh"
+            );
+        });
+    }
+
+    #[tokio::test]
+    async fn perform_refresh_for_tests_returns_tracked_files() {
+        let temp_dir = TempDir::new().unwrap();
+        let repo_path = create_test_git_repo(&temp_dir);
+
+        let files = perform_orchestrator_index_refresh_for_tests(&repo_path)
+            .await
+            .expect("refresh project files");
+
+        assert!(
+            files.iter().any(|entry| entry == "initial.txt"),
+            "expected tracked file list to include initial.txt: {files:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn perform_refresh_excludes_uncommitted_files() {
+        let temp_dir = TempDir::new().unwrap();
+        let repo_path = create_test_git_repo(&temp_dir);
+
+        fs::write(repo_path.join("staged_only.txt"), "temporary content").unwrap();
+        Command::new("git")
+            .args(["add", "staged_only.txt"])
+            .current_dir(&repo_path)
+            .output()
+            .expect("Failed to stage staged_only.txt");
+
+        let files = perform_orchestrator_index_refresh_for_tests(&repo_path)
+            .await
+            .expect("refresh project files");
+
+        assert!(
+            !files.iter().any(|entry| entry == "staged_only.txt"),
+            "staged but uncommitted files should not appear in the orchestrator index"
+        );
     }
 
     // Note: FileWatcherManager tests require a real Tauri AppHandle and are better

@@ -1190,7 +1190,13 @@ fn main() {
 
             // Initialize file watcher manager
             let file_watcher_handle = app.handle().clone();
-            let _ = FILE_WATCHER_MANAGER.set(Arc::new(schaltwerk::domains::workspace::FileWatcherManager::new(file_watcher_handle)));
+            let file_watcher_manager = Arc::new(
+                schaltwerk::domains::workspace::FileWatcherManager::new(file_watcher_handle),
+            );
+            schaltwerk::domains::workspace::FileWatcherManager::register_global(
+                &file_watcher_manager,
+            );
+            let _ = FILE_WATCHER_MANAGER.set(Arc::clone(&file_watcher_manager));
 
             // Defer non-critical services to improve startup performance
             let app_handle = app.handle().clone();

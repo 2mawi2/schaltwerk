@@ -1,11 +1,8 @@
 use http_body_util::BodyExt;
 use hyper::{
-    Method,
-    Request,
-    Response,
-    StatusCode,
+    Method, Request, Response, StatusCode,
     body::Incoming,
-    header::{HeaderValue, CONTENT_TYPE},
+    header::{CONTENT_TYPE, HeaderValue},
 };
 use log::{error, info, warn};
 use serde::Serialize;

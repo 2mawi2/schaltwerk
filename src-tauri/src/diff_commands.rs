@@ -521,7 +521,6 @@ mod tests {
         assert!(!file_paths.contains(&&".schaltwerk/config.json".to_string()));
         assert!(!file_paths.contains(&&".schaltwerk/worktrees/branch1/file.txt".to_string()));
     }
-
 }
 
 #[tauri::command]

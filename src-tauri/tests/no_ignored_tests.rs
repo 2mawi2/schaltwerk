@@ -3,7 +3,10 @@ use walkdir::WalkDir;
 
 fn should_skip(path: &Path) -> bool {
     if let Some(name) = path.file_name().and_then(|s| s.to_str()) {
-        matches!(name, "target" | ".git" | "node_modules" | ".schaltwerk" | "dist")
+        matches!(
+            name,
+            "target" | ".git" | "node_modules" | ".schaltwerk" | "dist"
+        )
     } else {
         false
     }
@@ -20,8 +23,7 @@ fn rust_tests_must_not_be_ignored() {
         .filter_map(Result::ok)
         .filter(|e| {
             e.file_type().is_file()
-                && e
-                    .path()
+                && e.path()
                     .extension()
                     .and_then(|ext| ext.to_str())
                     .map_or(false, |ext| ext == "rs")

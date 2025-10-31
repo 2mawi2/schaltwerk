@@ -13,7 +13,23 @@ fn cache_key(repo_path: &Path) -> PathBuf {
         .unwrap_or_else(|_| repo_path.to_path_buf())
 }
 
-/// Execute `git ls-files` to collect the tracked file list. Internal helper exposed for tests.
+fn ensure_head_exists(repo_path: &Path) -> Result<bool> {
+    let status = Command::new("git")
+        .args(["rev-parse", "--verify", "HEAD"])
+        .current_dir(repo_path)
+        .output()
+        .with_context(|| format!("Failed to verify git HEAD in '{}'", repo_path.display()))?;
+
+    if status.status.success() {
+        Ok(true)
+    } else {
+        // No commits yet – treat as empty index rather than erroring
+        Ok(false)
+    }
+}
+
+/// Execute `git ls-tree` to collect the committed file list for the current HEAD.
+/// Internal helper exposed for tests.
 pub fn list_project_files(repo_path: &Path) -> Result<Vec<String>> {
     if !repo_path.exists() {
         return Err(anyhow!(
@@ -22,16 +38,15 @@ pub fn list_project_files(repo_path: &Path) -> Result<Vec<String>> {
         ));
     }
 
+    if !ensure_head_exists(repo_path)? {
+        return Ok(Vec::new());
+    }
+
     let output = Command::new("git")
-        .args(["ls-files"])
+        .args(["ls-tree", "-r", "--full-tree", "--name-only", "HEAD"])
         .current_dir(repo_path)
         .output()
-        .with_context(|| {
-            format!(
-                "Failed to execute git ls-files in '{}'",
-                repo_path.display()
-            )
-        })?;
+        .with_context(|| format!("Failed to execute git ls-tree in '{}'", repo_path.display()))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
