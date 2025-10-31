@@ -13,7 +13,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import { KeyboardShortcutsProvider } from './contexts/KeyboardShortcutsContext'
 import { ToastProvider } from './common/toast/ToastProvider'
 import { GithubIntegrationProvider } from './contexts/GithubIntegrationContext'
-import { SpecEditorStateProvider } from './contexts/SpecEditorStateContext'
+import { Provider as JotaiProvider } from 'jotai'
 
 // Loading wrapper component
 const AppLoader: React.FC = () => {
@@ -33,9 +33,9 @@ const AppLoader: React.FC = () => {
       <ErrorBoundary name="Root">
         <ToastProvider>
           <KeyboardShortcutsProvider>
-            <GithubIntegrationProvider>
-              <SessionsProvider>
-                <SpecEditorStateProvider>
+            <JotaiProvider>
+              <GithubIntegrationProvider>
+                <SessionsProvider>
                   <ModalProvider>
                     <SelectionProvider>
                       <FocusProvider>
@@ -49,9 +49,9 @@ const AppLoader: React.FC = () => {
                       </FocusProvider>
                     </SelectionProvider>
                   </ModalProvider>
-                </SpecEditorStateProvider>
-              </SessionsProvider>
-            </GithubIntegrationProvider>
+                </SessionsProvider>
+              </GithubIntegrationProvider>
+            </JotaiProvider>
           </KeyboardShortcutsProvider>
         </ToastProvider>
       </ErrorBoundary>

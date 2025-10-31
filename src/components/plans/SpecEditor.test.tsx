@@ -82,6 +82,18 @@ describe('SpecEditor keyboard shortcuts', () => {
       if (cmd === TauriCommands.SchaltwerkCoreUpdateSpecContent) {
         return undefined
       }
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
+        return []
+      }
+      if (cmd === TauriCommands.GetProjectSessionsSettings) {
+        return { filter_mode: 'all', sort_mode: 'name' }
+      }
+      if (cmd === TauriCommands.SetProjectSessionsSettings) {
+        return undefined
+      }
+      if (cmd === TauriCommands.GetProjectMergePreferences) {
+        return { auto_cancel_after_merge: false }
+      }
       return undefined
     })
 

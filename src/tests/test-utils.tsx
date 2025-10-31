@@ -10,7 +10,6 @@ import { ModalProvider } from '../contexts/ModalContext'
 import { ToastProvider } from '../common/toast/ToastProvider'
 import { GithubIntegrationContext } from '../contexts/GithubIntegrationContext'
 import type { GithubIntegrationValue } from '../hooks/useGithubIntegration'
-import { SpecEditorStateProvider } from '../contexts/SpecEditorStateContext'
 import type { ChangedFile } from '../common/events'
 import { Provider, createStore, useSetAtom } from 'jotai'
 import { projectPathAtom } from '../store/atoms/project'
@@ -66,17 +65,16 @@ interface ProviderTreeProps {
 
 function ProviderTree({ children, githubOverrides, includeTestInitializer = false }: ProviderTreeProps) {
   const store = useMemo(() => createStore(), [])
+
   const inner = (
     <SessionsProvider>
       <SelectionProvider>
         <FocusProvider>
           <ReviewProvider>
             <RunProvider>
-              <SpecEditorStateProvider>
-                <GithubIntegrationTestProvider overrides={githubOverrides}>
-                  {children}
-                </GithubIntegrationTestProvider>
-              </SpecEditorStateProvider>
+              <GithubIntegrationTestProvider overrides={githubOverrides}>
+                {children}
+              </GithubIntegrationTestProvider>
             </RunProvider>
           </ReviewProvider>
         </FocusProvider>

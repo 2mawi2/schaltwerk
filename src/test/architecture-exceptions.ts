@@ -25,13 +25,10 @@ export const STATE_MANAGEMENT_EXCEPTIONS: ArchitectureException[] = [
   { file: 'src/contexts/FocusContext.tsx', reason: 'UI coordination - focus management (acceptable use)' },
   { file: 'src/contexts/ReviewContext.tsx', reason: 'UI coordination - review workflow state (acceptable use)' },
   { file: 'src/contexts/RunContext.tsx', reason: 'UI coordination - run workflow state (acceptable use)' },
-  { file: 'src/contexts/ActionButtonsContext.tsx', reason: 'Needs evaluation - composite action panel state' },
   { file: 'src/contexts/GithubIntegrationContext.tsx', reason: 'Needs evaluation - might be dependency injection' },
   { file: 'src/contexts/KeyboardShortcutsContext.tsx', reason: 'Needs evaluation - might not need reactive state' },
-  { file: 'src/contexts/ProjectContext.tsx', reason: 'Needs evaluation - project switching side effects' },
   { file: 'src/contexts/SelectionContext.tsx', reason: 'Pending migration to Jotai' },
   { file: 'src/contexts/SessionsContext.tsx', reason: 'Pending migration to Jotai' },
-  { file: 'src/contexts/SpecEditorStateContext.tsx', reason: 'Needs evaluation - editor integration state' },
 ];
 
 export function isException(

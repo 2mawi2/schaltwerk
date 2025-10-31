@@ -11,10 +11,17 @@ import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
 import { detectPlatformSafe, isShortcutForAction } from '../../keyboardShortcuts/helpers'
 import { useSpecContent } from '../../hooks/useSpecContent'
 import { MarkdownRenderer } from './MarkdownRenderer'
-import { useSpecEditorState } from '../../contexts/SpecEditorStateContext'
 import { useSelection } from '../../contexts/SelectionContext'
+import { useSessions } from '../../contexts/SessionsContext'
 import { emitSpecRefine, buildSpecRefineReference } from '../../utils/specRefine'
 import { theme } from '../../common/theme'
+import { useAtom, useSetAtom } from 'jotai'
+import {
+  markSpecEditorSessionSavedAtom,
+  specEditorContentAtomFamily,
+  specEditorSavedContentAtomFamily,
+  specEditorViewModeAtomFamily,
+} from '../../store/atoms/specEditor'
 
 interface Props {
   sessionName: string
@@ -23,7 +30,6 @@ interface Props {
 }
 
 export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false }: Props) {
-  const [currentContent, setCurrentContent] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -39,10 +45,12 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
   const projectFileIndex = useProjectFileIndex()
 
   const { content: cachedContent, displayName: cachedDisplayName, hasData: hasCachedData } = useSpecContent(sessionName)
-  const { getViewMode, setViewMode } = useSpecEditorState()
   const { setSelection } = useSelection()
-
-  const viewMode = getViewMode(sessionName)
+  const { updateSessionSpecContent } = useSessions()
+  const [currentContent, setCurrentContent] = useAtom(specEditorContentAtomFamily(sessionName))
+  const [viewMode, setViewMode] = useAtom(specEditorViewModeAtomFamily(sessionName))
+  const markSessionSaved = useSetAtom(markSpecEditorSessionSavedAtom)
+  const setSavedContent = useSetAtom(specEditorSavedContentAtomFamily(sessionName))
 
   useEffect(() => {
     setError(null)
@@ -71,6 +79,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
 
         const text = draftContent ?? initialPrompt ?? ''
         setCurrentContent(text)
+        setSavedContent(text)
         setDisplayName(sessionName)
         setLoading(false)
       } catch (e) {
@@ -84,14 +93,17 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
     return () => {
       cancelled = true
     }
-  }, [sessionName, hasCachedData])
+  }, [sessionName, hasCachedData, setCurrentContent, setSavedContent])
 
   useEffect(() => {
     if (hasCachedData) {
       setLoading(false)
+      const serverContent = cachedContent ?? ''
       setDisplayName(cachedDisplayName ?? sessionName)
+      setSavedContent(serverContent)
+      setCurrentContent(serverContent)
     }
-  }, [cachedDisplayName, hasCachedData, sessionName])
+  }, [cachedContent, cachedDisplayName, hasCachedData, sessionName, setCurrentContent, setSavedContent])
 
   useEffect(() => {
     if (!hasCachedData) return
@@ -104,7 +116,8 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
     const serverContent = cachedContent ?? ''
     logger.info('[SpecEditor] Updating content from server')
     setCurrentContent(serverContent)
-  }, [cachedContent, hasCachedData])
+    setSavedContent(serverContent)
+  }, [cachedContent, hasCachedData, setCurrentContent, setSavedContent])
 
   const ensureProjectFiles = projectFileIndex.ensureIndex
 
@@ -138,6 +151,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
           content: newContent
         })
         logger.info('[SpecEditor] Spec saved automatically')
+        updateSessionSpecContent(sessionName, newContent)
       } catch (e) {
         logger.error('[SpecEditor] Failed to save spec:', e)
         setError(String(e))
@@ -145,6 +159,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
         saveCountRef.current--
         if (saveCountRef.current === 0) {
           setSaving(false)
+          markSessionSaved(sessionName)
         }
       }
     }, 400)
@@ -195,7 +210,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
 
         if (viewMode === 'preview') {
           shouldFocusAfterModeSwitch.current = true
-          setViewMode(sessionName, 'edit')
+          setViewMode('edit')
           logger.info('[SpecEditor] Switched to edit mode via shortcut')
         } else if (markdownEditorRef.current) {
           markdownEditorRef.current.focusEnd()
@@ -242,7 +257,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
             Refine
           </button>
           <button
-            onClick={() => setViewMode(sessionName, viewMode === 'edit' ? 'preview' : 'edit')}
+            onClick={() => setViewMode(viewMode === 'edit' ? 'preview' : 'edit')}
             className="px-2 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600 text-white flex items-center gap-1"
             title={viewMode === 'edit' ? 'Preview markdown' : 'Edit markdown'}
           >

@@ -161,6 +161,7 @@ interface SessionsContextValue {
     updateSessionStatus: (sessionId: string, newStatus: string) => Promise<void>
     createDraft: (name: string, content: string) => Promise<void>
     enqueuePendingStartup: (sessionId: string, agentType?: string | null) => Promise<void>
+    updateSessionSpecContent: (sessionId: string, content: string) => void
     mergeDialogState: MergeDialogState
     openMergeDialog: (sessionId: string) => Promise<void>
     closeMergeDialog: () => void
@@ -587,6 +588,40 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         logger.info(
             `[AGENT_LAUNCH_TRACE] pending startup enqueued for ${sessionId} (agentType=${normalizedAgentType ?? 'default'}, ttl=${PENDING_STARTUP_TTL_MS}ms)`
         )
+    }, [])
+
+    const updateSessionSpecContent = useCallback((sessionId: string, content: string) => {
+        setAllSessions(prev => {
+            let changed = false
+            const next = prev.map(session => {
+                const { info } = session
+                const matches =
+                    info.session_id === sessionId ||
+                    info.branch === sessionId ||
+                    info.display_name === sessionId
+
+                if (!matches) {
+                    return session
+                }
+
+                const existingContent = info.spec_content ?? info.current_task ?? ''
+                if (existingContent === content) {
+                    return session
+                }
+
+                changed = true
+                return {
+                    ...session,
+                    info: {
+                        ...info,
+                        spec_content: content,
+                        current_task: info.session_state === 'spec' ? content : info.current_task,
+                    }
+                }
+            })
+
+            return changed ? next : prev
+        })
     }, [])
 
     const reloadInFlightRef = useRef<Promise<void> | null>(null)
@@ -1680,6 +1715,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             updateSessionStatus,
             createDraft,
             enqueuePendingStartup,
+            updateSessionSpecContent,
             mergeDialogState,
             openMergeDialog,
             closeMergeDialog,
