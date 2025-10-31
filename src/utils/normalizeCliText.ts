@@ -24,6 +24,16 @@ export function installSmartDashGuards(root: Document = document): void {
     const target = event.target as HTMLElement | null
     if (!target || !shouldGuard(target)) return
 
+    const inputType = event.inputType || ''
+    const isCompositionInput =
+      event.isComposing ||
+      inputType.startsWith('insertComposition') ||
+      inputType === 'insertFromComposition'
+
+    if (isCompositionInput) {
+      return
+    }
+
     // Intercept text insertions that contain smart punctuation
     const data = event.data as string | null
     if (event.inputType === 'insertText' && data && containsSmartPunctuation(data)) {

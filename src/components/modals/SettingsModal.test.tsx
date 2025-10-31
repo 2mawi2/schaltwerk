@@ -255,7 +255,7 @@ describe('SettingsModal loading indicators', () => {
     const testButton = await screen.findByText('Test notification')
     await user.click(testButton)
 
-    expect(requestDockBounceMock).toHaveBeenCalled()
+    await waitFor(() => expect(requestDockBounceMock).toHaveBeenCalled())
   })
 
   it('disables remember idle baseline toggle when notifications are off', async () => {
