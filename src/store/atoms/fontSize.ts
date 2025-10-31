@@ -9,7 +9,6 @@ const DEFAULT_UI_FONT_SIZE = 14
 const MIN_FONT_SIZE = 8
 const MAX_FONT_SIZE = 24
 const FONT_SIZE_STEP = 1
-const SAVE_DEBOUNCE_MS = 400
 
 interface FontSizes {
   terminal: number
@@ -23,32 +22,57 @@ const fontSizesAtom = atom<FontSizes>({
 
 const initializedAtom = atom(false)
 
-let saveTimeoutId: ReturnType<typeof setTimeout> | null = null
 let lastSavedSizes: FontSizes | null = null
+let pendingSaveSizes: FontSizes | null = null
+let saveScheduled = false
 
-function debouncedSave(sizes: FontSizes) {
-  if (lastSavedSizes &&
-      lastSavedSizes.terminal === sizes.terminal &&
-      lastSavedSizes.ui === sizes.ui) {
+function scheduleSave(sizes: FontSizes) {
+  if (
+    lastSavedSizes &&
+    lastSavedSizes.terminal === sizes.terminal &&
+    lastSavedSizes.ui === sizes.ui
+  ) {
     return
   }
 
-  if (saveTimeoutId !== null) {
-    clearTimeout(saveTimeoutId)
+  pendingSaveSizes = sizes
+
+  if (saveScheduled) {
+    return
   }
 
-  saveTimeoutId = setTimeout(() => {
-    if (lastSavedSizes &&
-        lastSavedSizes.terminal === sizes.terminal &&
-        lastSavedSizes.ui === sizes.ui) {
+  saveScheduled = true
+  const flushSave = () => {
+    saveScheduled = false
+    const nextSizes = pendingSaveSizes
+    pendingSaveSizes = null
+
+    if (!nextSizes) {
       return
     }
-    lastSavedSizes = sizes
+
+    if (
+      lastSavedSizes &&
+      lastSavedSizes.terminal === nextSizes.terminal &&
+      lastSavedSizes.ui === nextSizes.ui
+    ) {
+      return
+    }
+
+    lastSavedSizes = nextSizes
     invoke(TauriCommands.SchaltwerkCoreSetFontSizes, {
-      terminalFontSize: sizes.terminal,
-      uiFontSize: sizes.ui
+      terminalFontSize: nextSizes.terminal,
+      uiFontSize: nextSizes.ui,
     }).catch(err => logger.error('Failed to save font sizes:', err))
-  }, SAVE_DEBOUNCE_MS)
+  }
+
+  if (typeof queueMicrotask === 'function') {
+    queueMicrotask(flushSave)
+  } else {
+    Promise.resolve().then(flushSave).catch(err => {
+      logger.error('Failed to schedule font size save:', err)
+    })
+  }
 }
 
 export const terminalFontSizeAtom = atom(
@@ -63,7 +87,7 @@ export const terminalFontSizeAtom = atom(
       emitUiEvent(UiEvent.FontSizeChanged, { terminalFontSize: newSize, uiFontSize: current.ui })
 
       if (get(initializedAtom)) {
-        debouncedSave(newSizes)
+        scheduleSave(newSizes)
       }
     }
   }
@@ -81,7 +105,7 @@ export const uiFontSizeAtom = atom(
       emitUiEvent(UiEvent.FontSizeChanged, { terminalFontSize: current.terminal, uiFontSize: newSize })
 
       if (get(initializedAtom)) {
-        debouncedSave(newSizes)
+        scheduleSave(newSizes)
       }
     }
   }
@@ -102,7 +126,7 @@ export const increaseFontSizesActionAtom = atom(
     emitUiEvent(UiEvent.FontSizeChanged, { terminalFontSize: newTerminal, uiFontSize: newUi })
 
     if (get(initializedAtom)) {
-      debouncedSave(newSizes)
+      scheduleSave(newSizes)
     }
   }
 )
@@ -122,7 +146,7 @@ export const decreaseFontSizesActionAtom = atom(
     emitUiEvent(UiEvent.FontSizeChanged, { terminalFontSize: newTerminal, uiFontSize: newUi })
 
     if (get(initializedAtom)) {
-      debouncedSave(newSizes)
+      scheduleSave(newSizes)
     }
   }
 )
@@ -141,7 +165,7 @@ export const resetFontSizesActionAtom = atom(
     })
 
     if (get(initializedAtom)) {
-      debouncedSave(newSizes)
+      scheduleSave(newSizes)
     }
   }
 )

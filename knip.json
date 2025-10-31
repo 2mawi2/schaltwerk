@@ -14,23 +14,7 @@
     "src/test-utils/**",
     "src/test/**"
   ],
-  "ignoreDependencies": [
-    "@tauri-apps/cli",
-    "@testing-library/dom",
-    "@vitest/ui",
-    "eslint",
-    "npm-run-all2",
-    "terser"
-  ],
-  "ignoreBinaries": [
-    "vite",
-    "tsc",
-    "tauri",
-    "eslint",
-    "vitest",
-    "knip",
-    "run-s",
-    "run-p"
-  ],
+  "ignoreDependencies": [],
+  "ignoreBinaries": [],
   "ignoreExportsUsedInFile": true
 }

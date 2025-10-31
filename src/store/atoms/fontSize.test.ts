@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { createStore } from 'jotai'
 import {
   terminalFontSizeAtom,
@@ -31,16 +31,14 @@ vi.mock('../../common/uiEvents', () => ({
 
 describe('fontSize atoms', () => {
   let store: ReturnType<typeof createStore>
+  const flushScheduledSave = async () => {
+    await Promise.resolve()
+    await Promise.resolve()
+  }
 
   beforeEach(() => {
     store = createStore()
     vi.clearAllMocks()
-    vi.useFakeTimers()
-  })
-
-  afterEach(() => {
-    vi.clearAllTimers()
-    vi.useRealTimers()
   })
 
   describe('terminalFontSizeAtom', () => {
@@ -146,8 +144,8 @@ describe('fontSize atoms', () => {
     })
   })
 
-  describe('debouncing', () => {
-    it('debounces backend saves by 400ms', async () => {
+  describe('save scheduling', () => {
+    it('saves font sizes after scheduling without timers', async () => {
       const { invoke } = await import('@tauri-apps/api/core')
 
       await store.set(initializeFontSizesActionAtom)
@@ -156,34 +154,28 @@ describe('fontSize atoms', () => {
       store.set(terminalFontSizeAtom, 16)
       expect(invoke).not.toHaveBeenCalled()
 
-      vi.advanceTimersByTime(200)
-      expect(invoke).not.toHaveBeenCalled()
-
-      vi.advanceTimersByTime(200)
+      await flushScheduledSave()
       expect(invoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreSetFontSizes, {
         terminalFontSize: 16,
         uiFontSize: 16,
       })
     })
 
-    it('resets debounce timer on subsequent changes', async () => {
+    it('only saves once per batch of updates', async () => {
       const { invoke } = await import('@tauri-apps/api/core')
 
       await store.set(initializeFontSizesActionAtom)
       vi.clearAllMocks()
 
       store.set(terminalFontSizeAtom, 16)
-      vi.advanceTimersByTime(300)
-
       store.set(terminalFontSizeAtom, 17)
-      vi.advanceTimersByTime(300)
-      expect(invoke).not.toHaveBeenCalled()
+      store.set(uiFontSizeAtom, 18)
 
-      vi.advanceTimersByTime(100)
+      await flushScheduledSave()
       expect(invoke).toHaveBeenCalledTimes(1)
       expect(invoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreSetFontSizes, {
         terminalFontSize: 17,
-        uiFontSize: 16,
+        uiFontSize: 18,
       })
     })
 
@@ -194,12 +186,12 @@ describe('fontSize atoms', () => {
       vi.clearAllMocks()
 
       store.set(terminalFontSizeAtom, 16)
-      vi.advanceTimersByTime(400)
+      await flushScheduledSave()
       expect(invoke).toHaveBeenCalledTimes(1)
 
       vi.clearAllMocks()
       store.set(terminalFontSizeAtom, 16)
-      vi.advanceTimersByTime(400)
+      await flushScheduledSave()
       expect(invoke).not.toHaveBeenCalled()
     })
   })
