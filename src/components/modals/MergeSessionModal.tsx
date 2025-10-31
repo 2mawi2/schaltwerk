@@ -24,6 +24,8 @@ interface MergeSessionModalProps {
   error?: string | null
   onClose: () => void
   onConfirm: (mode: MergeModeOption, commitMessage?: string) => void
+  cachedCommitMessage?: string
+  onCommitMessageChange?: (value: string) => void
   autoCancelEnabled: boolean
   onToggleAutoCancel: (next: boolean) => void
 }
@@ -51,12 +53,14 @@ export function MergeSessionModal({
   error,
   onClose,
   onConfirm,
+  cachedCommitMessage,
+  onCommitMessageChange,
   autoCancelEnabled,
   onToggleAutoCancel,
 }: MergeSessionModalProps) {
   const { registerModal, unregisterModal } = useModal()
   const [mode, setMode] = useState<MergeModeOption>('squash')
-  const [commitMessage, setCommitMessage] = useState('')
+  const [commitMessage, setCommitMessage] = useState(() => cachedCommitMessage ?? '')
   const commitMessageInputRef = useRef<HTMLInputElement | null>(null)
 
   const focusCommitMessage = useCallback(() => {
@@ -82,12 +86,24 @@ export function MergeSessionModal({
   useLayoutEffect(() => {
     if (!open) {
       setMode('squash')
-      setCommitMessage('')
       return
     }
 
     focusCommitMessage()
   }, [open, mode, focusCommitMessage])
+
+  useEffect(() => {
+    if (!open) {
+      return
+    }
+    const nextMessage = cachedCommitMessage ?? ''
+    setCommitMessage(prev => {
+      if (prev === nextMessage) {
+        return prev
+      }
+      return nextMessage
+    })
+  }, [open, cachedCommitMessage, sessionName])
 
   const handleModeChange = (nextMode: MergeModeOption) => {
     setMode(nextMode)
@@ -95,6 +111,14 @@ export function MergeSessionModal({
       focusCommitMessage()
     }
   }
+
+  const handleCommitMessageChange = useCallback(
+    (value: string) => {
+      setCommitMessage(value)
+      onCommitMessageChange?.(value)
+    },
+    [onCommitMessageChange]
+  )
 
   const parentBranch = preview?.parentBranch ?? '—'
   const sessionBranch = preview?.sessionBranch ?? '—'
@@ -280,7 +304,7 @@ export function MergeSessionModal({
                     ref={commitMessageInputRef}
                     autoFocus={mode === 'squash'}
                     value={commitMessage}
-                    onChange={(event) => setCommitMessage(event.target.value)}
+                    onChange={(event) => handleCommitMessageChange(event.target.value)}
                     className="mt-1 w-full rounded px-3 py-2 text-sm"
                     style={{
                       backgroundColor: theme.colors.background.tertiary,
