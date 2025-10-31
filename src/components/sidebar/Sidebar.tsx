@@ -25,6 +25,7 @@ import { useShortcutDisplay } from '../../keyboardShortcuts/useShortcutDisplay'
 import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
 import { VscRefresh, VscCode } from 'react-icons/vsc'
 import { IconButton } from '../common/IconButton'
+import { ProgressIndicator } from '../common/ProgressIndicator'
 import { clearTerminalStartedTracking } from '../terminal/Terminal'
 import { logger } from '../../utils/logger'
 import { UiEvent, emitUiEvent, listenUiEvent } from '../../common/uiEvents'
@@ -1038,17 +1039,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                         <div className="font-medium text-slate-100 flex items-center gap-2">
                             orchestrator
                             {orchestratorRunning && (
-                                <span className={clsx(
-                                    'text-[10px] px-1.5 py-0.5 rounded border'
-                                )}
-                                style={{
-                                    backgroundColor: theme.colors.accent.magenta.bg,
-                                    color: theme.colors.accent.magenta.DEFAULT,
-                                    borderColor: theme.colors.accent.magenta.border
-                                }}
-                                >
-                                    Running
-                                </span>
+                                <ProgressIndicator size="sm" />
                             )}
                         </div>
                         <div className="flex items-center gap-2">
