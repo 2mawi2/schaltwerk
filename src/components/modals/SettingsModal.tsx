@@ -7,7 +7,7 @@ import { terminalFontSizeAtom, uiFontSizeAtom } from '../../store/atoms/fontSize
 import { useSettings } from '../../hooks/useSettings'
 import type { AgentType, ProjectMergePreferences, AttentionNotificationMode, AgentPreferenceConfig } from '../../hooks/useSettings'
 import { useSessions } from '../../contexts/SessionsContext'
-import { useActionButtons } from '../../contexts/ActionButtonsContext'
+import { useActionButtons } from '../../hooks/useActionButtons'
 import type { HeaderActionConfig } from '../../types/actionButton'
 import { SpecContentModal } from '../SpecContentModal'
 import { MCPConfigPanel } from '../settings/MCPConfigPanel'

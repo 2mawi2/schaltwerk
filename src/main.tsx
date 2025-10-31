@@ -8,7 +8,6 @@ import { FocusProvider } from './contexts/FocusContext'
 import { ReviewProvider } from './contexts/ReviewContext'
 import { RunProvider } from './contexts/RunContext'
 import { SessionsProvider } from './contexts/SessionsContext'
-import { ActionButtonsProvider } from './contexts/ActionButtonsContext'
 import { ModalProvider } from './contexts/ModalContext'
 import ErrorBoundary from './components/ErrorBoundary'
 import { KeyboardShortcutsProvider } from './contexts/KeyboardShortcutsContext'
@@ -39,21 +38,19 @@ const AppLoader: React.FC = () => {
               <SessionsProvider>
                 <SpecEditorStateProvider>
                   <GitHistoryProvider>
-                    <ActionButtonsProvider>
-                      <ModalProvider>
-                        <SelectionProvider>
-                          <FocusProvider>
-                            <ReviewProvider>
-                              <RunProvider>
-                                <div className="h-screen w-screen">
-                                  <App />
-                                </div>
-                              </RunProvider>
-                            </ReviewProvider>
-                          </FocusProvider>
-                        </SelectionProvider>
-                      </ModalProvider>
-                    </ActionButtonsProvider>
+                    <ModalProvider>
+                      <SelectionProvider>
+                        <FocusProvider>
+                          <ReviewProvider>
+                            <RunProvider>
+                              <div className="h-screen w-screen">
+                                <App />
+                              </div>
+                            </RunProvider>
+                          </ReviewProvider>
+                        </FocusProvider>
+                      </SelectionProvider>
+                    </ModalProvider>
                   </GitHistoryProvider>
                 </SpecEditorStateProvider>
               </SessionsProvider>

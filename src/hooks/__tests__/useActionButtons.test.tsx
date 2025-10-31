@@ -1,11 +1,11 @@
 import React from 'react'
-import { TauriCommands } from '../common/tauriCommands'
 import { describe, it, expect, vi, beforeEach, Mock } from 'vitest'
 import { render, waitFor } from '@testing-library/react'
-import { ActionButtonsProvider, useActionButtons } from './ActionButtonsContext'
 import { Provider, useSetAtom } from 'jotai'
 import { createStore } from 'jotai'
-import { projectPathAtom } from '../store/atoms/project'
+import { projectPathAtom } from '../../store/atoms/project'
+import { useActionButtons } from '../useActionButtons'
+import { TauriCommands } from '../../common/tauriCommands'
 
 const mockInvoke = vi.hoisted(() => vi.fn())
 
@@ -36,14 +36,12 @@ function TestWrapper({ children }: { children: React.ReactNode }) {
   const store = React.useMemo(() => createStore(), [])
   return (
     <Provider store={store}>
-      <ActionButtonsProvider>
-        {children}
-      </ActionButtonsProvider>
+      {children}
     </Provider>
   )
 }
 
-describe('ActionButtonsContext', () => {
+describe('useActionButtons', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -102,14 +100,12 @@ describe('ActionButtonsContext', () => {
       </TestWrapper>
     )
 
-    // Wait for initial load
     await waitFor(() => {
       expect(getByTestId('loading')).toHaveTextContent('false')
     })
-    
+
     expect(getByTestId('first-button-label')).toHaveTextContent('Project A')
 
-    // Switch project by re-rendering with different path
     rerender(
       <TestWrapper>
         <TestComponent initialPath="/test/project-b" />

@@ -5,7 +5,6 @@ import { SelectionProvider } from '../contexts/SelectionContext'
 import { FocusProvider } from '../contexts/FocusContext'
 import { ReviewProvider } from '../contexts/ReviewContext'
 import { SessionsProvider } from '../contexts/SessionsContext'
-import { ActionButtonsProvider } from '../contexts/ActionButtonsContext'
 import { RunProvider } from '../contexts/RunContext'
 import { ModalProvider } from '../contexts/ModalContext'
 import { ToastProvider } from '../common/toast/ToastProvider'
@@ -69,21 +68,19 @@ function ProviderTree({ children, githubOverrides, includeTestInitializer = fals
   const store = useMemo(() => createStore(), [])
   const inner = (
     <SessionsProvider>
-      <ActionButtonsProvider>
-        <SelectionProvider>
-          <FocusProvider>
-            <ReviewProvider>
-              <RunProvider>
-                <SpecEditorStateProvider>
-                  <GithubIntegrationTestProvider overrides={githubOverrides}>
-                    {children}
-                  </GithubIntegrationTestProvider>
-                </SpecEditorStateProvider>
-              </RunProvider>
-            </ReviewProvider>
-          </FocusProvider>
-        </SelectionProvider>
-      </ActionButtonsProvider>
+      <SelectionProvider>
+        <FocusProvider>
+          <ReviewProvider>
+            <RunProvider>
+              <SpecEditorStateProvider>
+                <GithubIntegrationTestProvider overrides={githubOverrides}>
+                  {children}
+                </GithubIntegrationTestProvider>
+              </SpecEditorStateProvider>
+            </RunProvider>
+          </ReviewProvider>
+        </FocusProvider>
+      </SelectionProvider>
     </SessionsProvider>
   )
 
