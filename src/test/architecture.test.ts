@@ -463,8 +463,8 @@ describe('State Management Architecture', () => {
     const pendingMigration = STATE_MANAGEMENT_EXCEPTIONS.filter(
       ex => ex.reason.includes('Pending migration')
     );
-    const totalToMigrate = pendingMigration.length;
-    const migratedContexts = 2;
+    const migratedContexts = 4;
+    const totalToMigrate = migratedContexts + pendingMigration.length;
     const migrationProgress = ((migratedContexts / totalToMigrate) * 100).toFixed(1);
 
     console.log(`\nState Management Migration Progress: ${migratedContexts}/${totalToMigrate} contexts migrated (${migrationProgress}%)`);

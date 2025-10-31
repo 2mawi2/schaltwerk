@@ -50,7 +50,7 @@ vi.mock('../../common/eventSystem', async importOriginal => {
   }
 })
 
-vi.mock('../../contexts/GitHistoryContext', () => ({
+vi.mock('../../store/atoms/gitHistory', () => ({
   useGitHistory: (repoPath?: string | null) => useGitHistoryMock(repoPath ?? null)
 }))
 
