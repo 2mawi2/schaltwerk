@@ -30,6 +30,8 @@ import { loadCodexModelCatalog, CodexModelCatalog } from '../../services/codexMo
 
 const MarkdownEditor = lazy(() => import('../plans/MarkdownEditor').then(m => ({ default: m.MarkdownEditor })))
 
+const SESSION_NAME_ALLOWED_PATTERN = /^[\p{L}\p{N}_\- ]+$/u
+
 type AgentPreferenceField = 'model' | 'reasoningEffort'
 
 interface AgentPreferenceState {
@@ -341,8 +343,8 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
         if (sessionName.length > 100) {
             return 'Agent name must be 100 characters or less'
         }
-        if (!/^[a-zA-Z0-9_\- ]+$/.test(sessionName)) {
-            return 'Agent name can only contain letters, numbers, hyphens, and underscores'
+        if (!SESSION_NAME_ALLOWED_PATTERN.test(sessionName)) {
+            return 'Agent name can only contain letters, numbers, hyphens, underscores, and spaces'
         }
         return null
     }, [])

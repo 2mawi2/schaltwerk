@@ -1,3 +1,5 @@
+const SESSION_NAME_ALLOWED_PATTERN = /^[\p{L}\p{N}_\- ]+$/u
+
 export function validateSessionName(sessionName: string): string | null {
   if (!sessionName.trim()) {
     return 'Session name is required'

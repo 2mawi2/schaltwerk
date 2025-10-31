@@ -703,10 +703,21 @@ describe('NewSessionModal', () => {
     fireEvent.change(nameInput, { target: { value: 'bad/name' } })
     fireEvent.click(screen.getByTitle('Start agent (Cmd+Enter)'))
     expect(onCreate).not.toHaveBeenCalled()
-    expect(await screen.findByText('Agent name can only contain letters, numbers, hyphens, and underscores')).toBeInTheDocument()
+    expect(await screen.findByText('Agent name can only contain letters, numbers, hyphens, underscores, and spaces')).toBeInTheDocument()
     // User types again -> error clears
     fireEvent.change(nameInput, { target: { value: 'good_name' } })
-    await waitFor(() => expect(screen.queryByText('Agent name can only contain letters, numbers, hyphens, and underscores')).toBeNull())
+    await waitFor(() => expect(screen.queryByText('Agent name can only contain letters, numbers, hyphens, underscores, and spaces')).toBeNull())
+  })
+
+  it('allows Unicode letters in the session name', async () => {
+    const { onCreate } = openModal()
+    const nameInput = await screen.findByPlaceholderText('eager_cosmos')
+
+    fireEvent.change(nameInput, { target: { value: '테스트세션' } })
+    fireEvent.click(screen.getByTitle('Start agent (Cmd+Enter)'))
+
+    await waitFor(() => expect(onCreate).toHaveBeenCalled())
+    expect(onCreate.mock.calls[0][0].name).toBe('테스트세션')
   })
 
   it('validates max length of 100 characters', async () => {

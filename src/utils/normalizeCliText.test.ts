@@ -1,4 +1,4 @@
-import { normalizeSmartPunctuation, containsSmartPunctuation } from './normalizeCliText'
+import { normalizeSmartPunctuation, containsSmartPunctuation, installSmartDashGuards } from './normalizeCliText'
 
 describe('normalizeSmartPunctuation', () => {
   it('replaces em dash with double hyphen', () => {
@@ -28,6 +28,187 @@ describe('normalizeSmartPunctuation', () => {
     expect(normalizeSmartPunctuation('--model gpt-4')).toBe('--model gpt-4')
     expect(normalizeSmartPunctuation('-v "test"')).toBe('-v "test"')
     expect(normalizeSmartPunctuation("it's")).toBe("it's")
+  })
+})
+
+describe('installSmartDashGuards', () => {
+  let originalExecCommand: (typeof document.execCommand) | undefined
+  let execCommandCalls: Array<[string, boolean | undefined, string | undefined]> = []
+
+  beforeAll(() => {
+    installSmartDashGuards(document)
+  })
+
+  beforeEach(() => {
+    const doc = document as unknown as { execCommand?: typeof document.execCommand }
+    originalExecCommand = doc.execCommand
+    execCommandCalls = []
+    doc.execCommand = ((commandId: string, showUI?: boolean, value?: string) => {
+      execCommandCalls.push([commandId, showUI, value])
+      return true
+    }) as typeof document.execCommand
+  })
+
+  afterEach(() => {
+    const doc = document as unknown as { execCommand?: typeof document.execCommand }
+    if (originalExecCommand) {
+      doc.execCommand = originalExecCommand
+    } else {
+      delete doc.execCommand
+    }
+    originalExecCommand = undefined
+    document.body.innerHTML = ''
+  })
+
+  it('normalizes smart punctuation for regular beforeinput events', () => {
+    const input = document.createElement('input')
+    document.body.appendChild(input)
+
+    const event = new InputEvent('beforeinput', {
+      data: '—',
+      inputType: 'insertText',
+      bubbles: true,
+      cancelable: true
+    })
+
+    input.dispatchEvent(event)
+
+    expect(event.defaultPrevented).toBe(true)
+    expect(execCommandCalls).toEqual([['insertText', false, '--']])
+  })
+
+  it('allows composition events to pass through unchanged', () => {
+    const input = document.createElement('input')
+    document.body.appendChild(input)
+
+    const event = new InputEvent('beforeinput', {
+      data: '한',
+      inputType: 'insertCompositionText',
+      isComposing: true,
+      bubbles: true,
+      cancelable: true
+    })
+
+    const result = input.dispatchEvent(event)
+
+    expect(result).toBe(true)
+    expect(event.defaultPrevented).toBe(false)
+    expect(execCommandCalls).toHaveLength(0)
+  })
+})
+
+  beforeEach(() => {
+    const doc = document as unknown as { execCommand?: typeof document.execCommand }
+    originalExecCommand = doc.execCommand
+    execCommandMock = vi.fn<[string, boolean | undefined, string | undefined], boolean>().mockReturnValue(true)
+    doc.execCommand = execCommandMock as unknown as typeof document.execCommand
+  })
+
+  afterEach(() => {
+    const doc = document as unknown as { execCommand?: typeof document.execCommand }
+    if (originalExecCommand) {
+      doc.execCommand = originalExecCommand
+    } else {
+      delete doc.execCommand
+    }
+    execCommandMock = undefined
+    originalExecCommand = undefined
+    document.body.innerHTML = ''
+  })
+
+  it('normalizes smart punctuation for regular beforeinput events', () => {
+    const input = document.createElement('input')
+    document.body.appendChild(input)
+
+    const event = new InputEvent('beforeinput', {
+      data: '—',
+      inputType: 'insertText',
+      bubbles: true,
+      cancelable: true
+    })
+
+    input.dispatchEvent(event)
+
+    expect(event.defaultPrevented).toBe(true)
+    expect(execCommandMock).toHaveBeenCalledWith('insertText', false, '--')
+  })
+
+  it('allows composition events to pass through unchanged', () => {
+    const input = document.createElement('input')
+    document.body.appendChild(input)
+
+    const event = new InputEvent('beforeinput', {
+      data: '한',
+      inputType: 'insertCompositionText',
+      isComposing: true,
+      bubbles: true,
+      cancelable: true
+    })
+
+    const result = input.dispatchEvent(event)
+
+    expect(result).toBe(true)
+    expect(event.defaultPrevented).toBe(false)
+    expect(execCommandMock).not.toHaveBeenCalled()
+  })
+})
+
+  beforeEach(() => {
+    const doc = document as unknown as { execCommand?: typeof document.execCommand }
+    originalExecCommand = typeof doc.execCommand === 'function' ? doc.execCommand : undefined
+    if (typeof doc.execCommand !== 'function') {
+      doc.execCommand = vi.fn() as unknown as typeof document.execCommand
+    }
+    execCommandSpy = vi.spyOn(doc, 'execCommand').mockReturnValue(true)
+  })
+
+  afterEach(() => {
+    execCommandSpy?.mockRestore()
+    const doc = document as unknown as { execCommand?: typeof document.execCommand }
+    if (originalExecCommand) {
+      doc.execCommand = originalExecCommand
+    } else {
+      delete doc.execCommand
+    }
+    execCommandSpy = undefined
+    originalExecCommand = undefined
+    document.body.innerHTML = ''
+  })
+
+  it('normalizes smart punctuation for regular beforeinput events', () => {
+    const input = document.createElement('input')
+    document.body.appendChild(input)
+
+    const event = new InputEvent('beforeinput', {
+      data: '—',
+      inputType: 'insertText',
+      bubbles: true,
+      cancelable: true
+    })
+
+    input.dispatchEvent(event)
+
+    expect(event.defaultPrevented).toBe(true)
+    expect(execCommandSpy).toHaveBeenCalledWith('insertText', false, '--')
+  })
+
+  it('allows composition events to pass through unchanged', () => {
+    const input = document.createElement('input')
+    document.body.appendChild(input)
+
+    const event = new InputEvent('beforeinput', {
+      data: '한',
+      inputType: 'insertCompositionText',
+      isComposing: true,
+      bubbles: true,
+      cancelable: true
+    })
+
+    const result = input.dispatchEvent(event)
+
+    expect(result).toBe(true)
+    expect(event.defaultPrevented).toBe(false)
+    expect(execCommandSpy).not.toHaveBeenCalled()
   })
 })
 
