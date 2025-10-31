@@ -198,7 +198,11 @@ fn apply_agent_preferences(
             .filter(|r| !r.is_empty())
         {
             Some(reasoning)
-                if !has_config_override(existing_args, additional_args, "model_reasoning_effort") =>
+                if !has_config_override(
+                    existing_args,
+                    additional_args,
+                    "model_reasoning_effort",
+                ) =>
             {
                 additional_args.push("-c".to_string());
                 additional_args.push(format!(r#"model_reasoning_effort="{reasoning}""#));
@@ -209,7 +213,8 @@ fn apply_agent_preferences(
 }
 
 fn has_flag(existing_args: &[String], additional_args: &[String], names: &[&str]) -> bool {
-    let mut combined: Vec<&String> = Vec::with_capacity(existing_args.len() + additional_args.len());
+    let mut combined: Vec<&String> =
+        Vec::with_capacity(existing_args.len() + additional_args.len());
     combined.extend(existing_args.iter());
     combined.extend(additional_args.iter());
 
@@ -235,7 +240,10 @@ fn has_flag(existing_args: &[String], additional_args: &[String], names: &[&str]
 }
 
 fn has_config_override(existing_args: &[String], additional_args: &[String], key: &str) -> bool {
-    let mut iter = existing_args.iter().chain(additional_args.iter()).peekable();
+    let mut iter = existing_args
+        .iter()
+        .chain(additional_args.iter())
+        .peekable();
 
     while let Some(token) = iter.next() {
         let token_str = token.as_str();
@@ -469,13 +477,21 @@ mod tests {
     #[test]
     fn has_config_override_detects_various_config_forms() {
         let existing = vec!["-c".to_string(), "model_reasoning_effort=high".to_string()];
-        assert!(has_config_override(&existing, &[], "model_reasoning_effort"));
+        assert!(has_config_override(
+            &existing,
+            &[],
+            "model_reasoning_effort"
+        ));
 
         let packed = vec!["--config=model_reasoning_effort=medium".to_string()];
         assert!(has_config_override(&[], &packed, "model_reasoning_effort"));
 
         let unrelated = vec!["-c".to_string(), "search=true".to_string()];
-        assert!(!has_config_override(&[], &unrelated, "model_reasoning_effort"));
+        assert!(!has_config_override(
+            &[],
+            &unrelated,
+            "model_reasoning_effort"
+        ));
     }
 
     #[test]

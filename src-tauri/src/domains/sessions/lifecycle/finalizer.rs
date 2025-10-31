@@ -26,10 +26,7 @@ pub struct FinalizationResult {
 }
 
 impl<'a> SessionFinalizer<'a> {
-    pub fn new(
-        db_manager: &'a SessionDbManager,
-        cache_manager: &'a SessionCacheManager,
-    ) -> Self {
+    pub fn new(db_manager: &'a SessionDbManager, cache_manager: &'a SessionCacheManager) -> Self {
         Self {
             db_manager,
             cache_manager,
@@ -37,10 +34,7 @@ impl<'a> SessionFinalizer<'a> {
     }
 
     pub fn finalize_creation(&self, config: FinalizationConfig) -> Result<FinalizationResult> {
-        info!(
-            "Finalizing session creation for '{}'",
-            config.session.name
-        );
+        info!("Finalizing session creation for '{}'", config.session.name);
 
         self.persist_session(&config.session)
             .with_context(|| format!("Failed to persist session '{}'", config.session.name))?;
@@ -48,14 +42,19 @@ impl<'a> SessionFinalizer<'a> {
         let git_stats = if config.compute_git_stats {
             self.compute_and_save_git_stats(&config.session, &config.session.parent_branch)
                 .unwrap_or_else(|e| {
-                    warn!("Failed to compute git stats for '{}': {}", config.session.name, e);
+                    warn!(
+                        "Failed to compute git stats for '{}': {}",
+                        config.session.name, e
+                    );
                     None
                 })
         } else {
             None
         };
 
-        if config.update_activity && let Err(e) = self.update_activity(&config.session.id) {
+        if config.update_activity
+            && let Err(e) = self.update_activity(&config.session.id)
+        {
             warn!(
                 "Failed to update activity for '{}': {}",
                 config.session.name, e
@@ -76,16 +75,12 @@ impl<'a> SessionFinalizer<'a> {
         new_state: SessionState,
     ) -> Result<()> {
         let state_str = format!("{:?}", &new_state);
-        info!(
-            "Finalizing state transition for session '{session_id}' to {state_str}"
-        );
+        info!("Finalizing state transition for session '{session_id}' to {state_str}");
 
         self.db_manager
             .update_session_state(session_id, new_state)
             .with_context(|| {
-                format!(
-                    "Failed to update session state for '{session_id}' to {state_str}"
-                )
+                format!("Failed to update session state for '{session_id}' to {state_str}")
             })?;
 
         self.update_activity(session_id).ok();
@@ -157,7 +152,8 @@ impl<'a> SessionFinalizer<'a> {
                 let is_stale = Utc::now().timestamp() - existing.calculated_at.timestamp()
                     > GIT_STATS_STALE_THRESHOLD_SECS;
                 if is_stale {
-                    let updated = self.compute_fresh_git_stats(session_id, worktree_path, parent_branch)?;
+                    let updated =
+                        self.compute_fresh_git_stats(session_id, worktree_path, parent_branch)?;
                     Ok(Some(updated.unwrap_or_else(|| existing.clone())))
                 } else {
                     Ok(Some(existing.clone()))
@@ -173,8 +169,8 @@ impl<'a> SessionFinalizer<'a> {
         worktree_path: &Path,
         parent_branch: &str,
     ) -> Result<Option<GitStats>> {
-        let mut stats = git::calculate_git_stats_fast(worktree_path, parent_branch)
-            .with_context(|| {
+        let mut stats =
+            git::calculate_git_stats_fast(worktree_path, parent_branch).with_context(|| {
                 format!(
                     "Failed to calculate git stats for worktree at {}",
                     worktree_path.display()
@@ -320,7 +316,9 @@ mod tests {
         let mut session = create_test_session(PathBuf::from("/tmp/worktree"));
         session.session_state = SessionState::Spec;
 
-        let result = finalizer.compute_and_save_git_stats(&session, "main").unwrap();
+        let result = finalizer
+            .compute_and_save_git_stats(&session, "main")
+            .unwrap();
         assert!(result.is_none());
     }
 
@@ -335,7 +333,9 @@ mod tests {
 
         let session = create_test_session(PathBuf::from("/nonexistent/worktree"));
 
-        let result = finalizer.compute_and_save_git_stats(&session, "main").unwrap();
+        let result = finalizer
+            .compute_and_save_git_stats(&session, "main")
+            .unwrap();
         assert!(result.is_none());
     }
 

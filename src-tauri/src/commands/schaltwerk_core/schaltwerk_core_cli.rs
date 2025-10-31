@@ -389,15 +389,7 @@ mod tests {
             "search=true".to_string(),
         ];
         reorder_codex_model_after_profile(&mut args);
-        assert_eq!(
-            args,
-            vec![
-                "-c",
-                "search=true",
-                "--model",
-                "gpt-4"
-            ]
-        );
+        assert_eq!(args, vec!["-c", "search=true", "--model", "gpt-4"]);
     }
 
     #[test]

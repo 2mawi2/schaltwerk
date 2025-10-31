@@ -6,8 +6,8 @@ use crate::{
 use schaltwerk::domains::agents::manifest::AgentManifest;
 
 #[tauri::command]
-pub async fn schaltwerk_core_list_codex_models(
-) -> Result<codex_models::CodexModelCatalog, String> {
+pub async fn schaltwerk_core_list_codex_models() -> Result<codex_models::CodexModelCatalog, String>
+{
     use codex_models::{builtin_codex_model_catalog, fetch_codex_model_catalog};
 
     let (repo_path, db) = {
@@ -15,12 +15,8 @@ pub async fn schaltwerk_core_list_codex_models(
         (core.repo_path.clone(), core.db.clone())
     };
 
-    let (env_vars, cli_args_text, _) = agent_ctx::collect_agent_env_and_cli(
-        &agent_ctx::AgentKind::Codex,
-        &repo_path,
-        &db,
-    )
-    .await;
+    let (env_vars, cli_args_text, _) =
+        agent_ctx::collect_agent_env_and_cli(&agent_ctx::AgentKind::Codex, &repo_path, &db).await;
 
     let cli_args = if cli_args_text.trim().is_empty() {
         Vec::new()
@@ -50,9 +46,7 @@ pub async fn schaltwerk_core_list_codex_models(
     match fetch_codex_model_catalog(&binary_path, &env_vars, &cli_args).await {
         Ok(catalog) => Ok(catalog),
         Err(err) => {
-            log::warn!(
-                "Falling back to built-in Codex models after discovery error: {err}"
-            );
+            log::warn!("Falling back to built-in Codex models after discovery error: {err}");
             Ok(builtin_codex_model_catalog())
         }
     }

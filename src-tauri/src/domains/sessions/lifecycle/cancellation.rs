@@ -11,8 +11,7 @@ pub struct CancellationCoordinator<'a> {
     db_manager: &'a SessionDbManager,
 }
 
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct CancellationConfig {
     pub force: bool,
     pub skip_process_cleanup: bool,
@@ -59,7 +58,8 @@ impl<'a> CancellationCoordinator<'a> {
         self.check_uncommitted_changes(session);
 
         if !config.skip_process_cleanup {
-            result.terminated_processes = self.terminate_session_processes_sync(session, &mut result.errors);
+            result.terminated_processes =
+                self.terminate_session_processes_sync(session, &mut result.errors);
         }
 
         result.worktree_removed = self.remove_session_worktree(session, &mut result.errors);
@@ -107,20 +107,16 @@ impl<'a> CancellationCoordinator<'a> {
         self.check_uncommitted_changes(session);
 
         if !config.skip_process_cleanup {
-            result.terminated_processes = self.terminate_session_processes_async(session, &mut result.errors).await;
+            result.terminated_processes = self
+                .terminate_session_processes_async(session, &mut result.errors)
+                .await;
         }
 
-        match Self::remove_worktree_async(
-            self.repo_path,
-            &session.worktree_path,
-            &session.name,
-        )
-        .await
+        match Self::remove_worktree_async(self.repo_path, &session.worktree_path, &session.name)
+            .await
         {
             Ok(()) => result.worktree_removed = true,
-            Err(e) => result
-                .errors
-                .push(format!("Worktree removal failed: {e}")),
+            Err(e) => result.errors.push(format!("Worktree removal failed: {e}")),
         }
 
         if !config.skip_branch_deletion {
@@ -160,7 +156,11 @@ impl<'a> CancellationCoordinator<'a> {
         }
     }
 
-    fn terminate_session_processes_sync(&self, session: &Session, errors: &mut Vec<String>) -> Vec<i32> {
+    fn terminate_session_processes_sync(
+        &self,
+        session: &Session,
+        errors: &mut Vec<String>,
+    ) -> Vec<i32> {
         if !session.worktree_path.exists() {
             return Vec::new();
         }
@@ -186,7 +186,11 @@ impl<'a> CancellationCoordinator<'a> {
         }
     }
 
-    async fn terminate_session_processes_async(&self, session: &Session, errors: &mut Vec<String>) -> Vec<i32> {
+    async fn terminate_session_processes_async(
+        &self,
+        session: &Session,
+        errors: &mut Vec<String>,
+    ) -> Vec<i32> {
         if !session.worktree_path.exists() {
             return Vec::new();
         }
@@ -247,7 +251,10 @@ impl<'a> CancellationCoordinator<'a> {
         };
 
         if !branch_exists {
-            info!("Cancel {}: Branch doesn't exist, skipping deletion", session.name);
+            info!(
+                "Cancel {}: Branch doesn't exist, skipping deletion",
+                session.name
+            );
             return false;
         }
 
@@ -326,11 +333,7 @@ impl<'a> CancellationCoordinator<'a> {
         .map_err(|e| anyhow!("Task join error: {e}"))?
     }
 
-    async fn delete_branch_async(
-        repo_path: &Path,
-        branch: &str,
-        session_name: &str,
-    ) -> Result<()> {
+    async fn delete_branch_async(repo_path: &Path, branch: &str, session_name: &str) -> Result<()> {
         use git2::{BranchType, Repository};
 
         let branch_exists = git::branch_exists(repo_path, branch)?;
@@ -344,7 +347,8 @@ impl<'a> CancellationCoordinator<'a> {
 
         tokio::task::spawn_blocking(move || {
             let repo = Repository::open(&repo_path)?;
-            let mut br = repo.find_branch(&branch, BranchType::Local)
+            let mut br = repo
+                .find_branch(&branch, BranchType::Local)
                 .with_context(|| format!("Failed to find branch '{branch}' for deletion"))?;
             br.delete()?;
             info!("Deleted branch '{branch}'");
@@ -442,12 +446,18 @@ mod tests {
         let db_manager = SessionDbManager::new(db, repo_path.clone());
         let coordinator = CancellationCoordinator::new(&repo_path, &db_manager);
 
-        let mut session = create_test_session(&repo_path, repo_path.join(".schaltwerk/worktrees/test"));
+        let mut session =
+            create_test_session(&repo_path, repo_path.join(".schaltwerk/worktrees/test"));
         session.session_state = SessionState::Spec;
 
         let result = coordinator.cancel_session(&session, CancellationConfig::default());
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Cannot cancel spec session"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Cannot cancel spec session")
+        );
     }
 
     #[test]
@@ -457,11 +467,16 @@ mod tests {
         let db = Database::new(Some(repo_path.join("test.db"))).unwrap();
         let db_manager = SessionDbManager::new(db, repo_path.clone());
 
-        let session = create_test_session(&repo_path, repo_path.join(".schaltwerk/worktrees/nonexistent"));
+        let session = create_test_session(
+            &repo_path,
+            repo_path.join(".schaltwerk/worktrees/nonexistent"),
+        );
         db_manager.create_session(&session).unwrap();
 
         let coordinator = CancellationCoordinator::new(&repo_path, &db_manager);
-        let result = coordinator.cancel_session(&session, CancellationConfig::default()).unwrap();
+        let result = coordinator
+            .cancel_session(&session, CancellationConfig::default())
+            .unwrap();
 
         assert!(!result.worktree_removed);
         assert_eq!(result.terminated_processes.len(), 0);
@@ -475,7 +490,13 @@ mod tests {
         let db_manager = SessionDbManager::new(db, repo_path.clone());
 
         let worktree_path = repo_path.join(".schaltwerk/worktrees/test");
-        git::create_worktree_from_base(&repo_path, "schaltwerk/test-session", &worktree_path, "master").unwrap();
+        git::create_worktree_from_base(
+            &repo_path,
+            "schaltwerk/test-session",
+            &worktree_path,
+            "master",
+        )
+        .unwrap();
 
         let session = create_test_session(&repo_path, worktree_path.clone());
         db_manager.create_session(&session).unwrap();
@@ -503,7 +524,9 @@ mod tests {
 
         let coordinator = CancellationCoordinator::new(&repo_path, &db_manager);
         let mut errors = Vec::new();
-        coordinator.finalize_cancellation(&session.id, &mut errors).unwrap();
+        coordinator
+            .finalize_cancellation(&session.id, &mut errors)
+            .unwrap();
 
         let updated = db_manager.get_session_by_id(&session.id).unwrap();
         assert_eq!(updated.status, SessionStatus::Cancelled);
@@ -518,13 +541,22 @@ mod tests {
         let db_manager = SessionDbManager::new(db, repo_path.clone());
 
         let worktree_path = repo_path.join(".schaltwerk/worktrees/test");
-        git::create_worktree_from_base(&repo_path, "schaltwerk/test-session", &worktree_path, "master").unwrap();
+        git::create_worktree_from_base(
+            &repo_path,
+            "schaltwerk/test-session",
+            &worktree_path,
+            "master",
+        )
+        .unwrap();
 
         let session = create_test_session(&repo_path, worktree_path.clone());
         db_manager.create_session(&session).unwrap();
 
         let coordinator = CancellationCoordinator::new(&repo_path, &db_manager);
-        let result = coordinator.cancel_session_async(&session, CancellationConfig::default()).await.unwrap();
+        let result = coordinator
+            .cancel_session_async(&session, CancellationConfig::default())
+            .await
+            .unwrap();
 
         assert!(result.worktree_removed);
         assert!(result.branch_deleted);

@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use serde::Serialize;
 use std::path::Path;
 use std::process::Stdio;
@@ -199,8 +199,9 @@ pub async fn fetch_codex_model_catalog<P: AsRef<Path>>(
     }
     command.arg("app-server");
 
-    let mut child =
-        command.spawn().context("Failed to spawn Codex CLI for model discovery")?;
+    let mut child = command
+        .spawn()
+        .context("Failed to spawn Codex CLI for model discovery")?;
 
     let mut stdin = child
         .stdin
@@ -245,8 +246,8 @@ pub async fn fetch_codex_model_catalog<P: AsRef<Path>>(
                 continue;
             }
 
-            let value: serde_json::Value = serde_json::from_str(trimmed)
-                .context("Failed to parse Codex stdout as JSON")?;
+            let value: serde_json::Value =
+                serde_json::from_str(trimmed).context("Failed to parse Codex stdout as JSON")?;
             if value
                 .get("id")
                 .and_then(|v| v.as_i64())

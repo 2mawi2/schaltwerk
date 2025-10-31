@@ -772,9 +772,7 @@ fn get_app_bundle_mcp_path(exe_path: &std::path::Path) -> Result<(PathBuf, bool)
         let contents_dir = macos_dir
             .parent()
             .ok_or_else(|| "Executable path missing Contents directory".to_string())?;
-        contents_dir
-            .join("Resources")
-            .join(MCP_SERVER_PATH)
+        contents_dir.join("Resources").join(MCP_SERVER_PATH)
     } else {
         // For other platforms, adjust path as needed
         let parent = exe_path
