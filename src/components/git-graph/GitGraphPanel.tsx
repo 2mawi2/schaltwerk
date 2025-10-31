@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, memo, useCallback, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
-import { useProject } from '../../contexts/ProjectContext'
 import { HistoryList } from './HistoryList'
 import { toViewModel } from './graphLayout'
 import type {
@@ -19,6 +18,8 @@ import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import type { EventPayloadMap } from '../../common/events'
 import { useGitHistory } from '../../contexts/GitHistoryContext'
 import { ORCHESTRATOR_SESSION_NAME } from '../../constants/sessions'
+import { useAtomValue } from 'jotai'
+import { projectPathAtom } from '../../store/atoms/project'
 
 interface GitGraphPanelProps {
   onOpenCommitDiff?: (payload: {
@@ -32,7 +33,7 @@ interface GitGraphPanelProps {
 }
 
 export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverride, sessionName }: GitGraphPanelProps = {}) => {
-  const { projectPath } = useProject()
+  const projectPath = useAtomValue(projectPathAtom)
   const repoPath = repoPathOverride ?? projectPath
   const { pushToast } = useToast()
   const {

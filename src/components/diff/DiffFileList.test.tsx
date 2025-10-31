@@ -3,13 +3,14 @@ import React, { useEffect } from 'react'
 import { vi } from 'vitest'
 import { DiffFileList } from './DiffFileList'
 import { useSelection } from '../../contexts/SelectionContext'
-import { useProject } from '../../contexts/ProjectContext'
 import { TestProviders } from '../../tests/test-utils'
 import { UiEvent, emitUiEvent } from '../../common/uiEvents'
 import type { SessionGitStatsUpdated } from '../../common/events'
 import * as eventSystemModule from '../../common/eventSystem'
 import { TauriCommands } from '../../common/tauriCommands'
 import * as loggerModule from '../../utils/logger'
+import { useSetAtom } from 'jotai'
+import { projectPathAtom } from '../../store/atoms/project'
 
 type MockChangedFile = {
   path: string
@@ -81,7 +82,7 @@ function TestWrapper({
   children: React.ReactNode
   sessionName?: string 
 }) {
-  const { setProjectPath } = useProject()
+  const setProjectPath = useSetAtom(projectPathAtom)
   const { setSelection } = useSelection()
   
   useEffect(() => {

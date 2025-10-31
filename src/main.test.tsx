@@ -15,7 +15,6 @@ vi.mock('./App', () => ({ default: () => <div data-testid="app" /> }))
 vi.mock('./contexts/SelectionContext', () => ({ SelectionProvider: ({ children }: { children: React.ReactNode }) => <div data-testid="selection-provider">{children}</div> }))
 vi.mock('./contexts/FocusContext', () => ({ FocusProvider: ({ children }: { children: React.ReactNode }) => <div data-testid="focus-provider">{children}</div> }))
 vi.mock('./contexts/ReviewContext', () => ({ ReviewProvider: ({ children }: { children: React.ReactNode }) => <div data-testid="review-provider">{children}</div> }))
-vi.mock('./contexts/ProjectContext', () => ({ ProjectProvider: ({ children }: { children: React.ReactNode }) => <div data-testid="project-provider">{children}</div> }))
 vi.mock('./contexts/FontSizeContext', () => ({ FontSizeProvider: ({ children }: { children: React.ReactNode }) => <div data-testid="font-size-provider">{children}</div> }))
 
 // Need to mock styles imported in main

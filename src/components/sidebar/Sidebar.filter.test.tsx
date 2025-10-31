@@ -29,18 +29,7 @@ const emitEvent = async (eventName: string, payload?: unknown) => {
   await Promise.all(handlers.map(handler => Promise.resolve(handler({ payload }))))
 }
 
-// Mock the useProject hook to always return a project path
-vi.mock('../../contexts/ProjectContext', async () => {
-  const actual = await vi.importActual<typeof import('../../contexts/ProjectContext')>('../../contexts/ProjectContext')
-  return {
-    ...actual,
-    useProject: () => ({
-      projectPath: '/test/project',
-      setProjectPath: vi.fn()
-    })
-  }
-})
-
+// TestProviders supplies a default project path for Sidebar
 
 
 const createSession = (id: string, readyToMerge = false, sessionState?: 'spec' | 'active'): EnrichedSession => ({

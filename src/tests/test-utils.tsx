@@ -4,7 +4,6 @@ import type { RenderOptions } from '@testing-library/react'
 import { SelectionProvider } from '../contexts/SelectionContext'
 import { FocusProvider } from '../contexts/FocusContext'
 import { ReviewProvider } from '../contexts/ReviewContext'
-import { ProjectProvider, useProject } from '../contexts/ProjectContext'
 import { SessionsProvider } from '../contexts/SessionsContext'
 import { ActionButtonsProvider } from '../contexts/ActionButtonsContext'
 import { RunProvider } from '../contexts/RunContext'
@@ -14,6 +13,8 @@ import { GithubIntegrationContext } from '../contexts/GithubIntegrationContext'
 import type { GithubIntegrationValue } from '../hooks/useGithubIntegration'
 import { SpecEditorStateProvider } from '../contexts/SpecEditorStateContext'
 import type { ChangedFile } from '../common/events'
+import { Provider, createStore, useSetAtom } from 'jotai'
+import { projectPathAtom } from '../store/atoms/project'
 
 type GithubOverrides = Partial<GithubIntegrationValue>
 
@@ -65,6 +66,7 @@ interface ProviderTreeProps {
 }
 
 function ProviderTree({ children, githubOverrides, includeTestInitializer = false }: ProviderTreeProps) {
+  const store = useMemo(() => createStore(), [])
   const inner = (
     <SessionsProvider>
       <ActionButtonsProvider>
@@ -85,18 +87,20 @@ function ProviderTree({ children, githubOverrides, includeTestInitializer = fals
     </SessionsProvider>
   )
 
+  const content = includeTestInitializer ? (
+    <TestProjectInitializer>{inner}</TestProjectInitializer>
+  ) : (
+    inner
+  )
+
   return (
-    <ToastProvider>
-      <ModalProvider>
-        <ProjectProvider>
-          {includeTestInitializer ? (
-            <TestProjectInitializer>{inner}</TestProjectInitializer>
-          ) : (
-            inner
-          )}
-        </ProjectProvider>
-      </ModalProvider>
-    </ToastProvider>
+    <Provider store={store}>
+      <ToastProvider>
+        <ModalProvider>
+          {content}
+        </ModalProvider>
+      </ToastProvider>
+    </Provider>
   )
 }
 
@@ -117,7 +121,7 @@ export function renderWithProviders(
 
 // Component to set project path for tests
 function TestProjectInitializer({ children }: { children: React.ReactNode }) {
-  const { setProjectPath } = useProject()
+  const setProjectPath = useSetAtom(projectPathAtom)
   
   useEffect(() => {
     // Set a test project path immediately

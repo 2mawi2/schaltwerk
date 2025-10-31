@@ -42,7 +42,10 @@ vi.mock('react-split', () => {
   }
 })
 
+import { Provider, createStore } from 'jotai'
 import { RightPanelTabs } from './RightPanelTabs'
+import { projectPathAtom } from '../../store/atoms/project'
+import type { ReactElement } from 'react'
 
 // Mock contexts used by RightPanelTabs
 vi.mock('../../contexts/SelectionContext', () => ({
@@ -51,10 +54,6 @@ vi.mock('../../contexts/SelectionContext', () => ({
     isSpec: false,
     setSelection: vi.fn()
   })
-}))
-
-vi.mock('../../contexts/ProjectContext', () => ({
-  useProject: () => ({ projectPath: '/tmp/project' })
 }))
 
 vi.mock('../../contexts/FocusContext', () => ({
@@ -96,6 +95,18 @@ vi.mock('./CopyBundleBar', () => ({
   CopyBundleBar: () => <div data-testid="copy-bundle-bar" />
 }))
 
+function renderWithProject(ui: ReactElement, projectPath: string | null = '/tmp/project') {
+  const store = createStore()
+  store.set(projectPathAtom, projectPath)
+  const result = render(<Provider store={store}>{ui}</Provider>)
+  return {
+    ...result,
+    rerender(nextUi: ReactElement) {
+      result.rerender(<Provider store={store}>{nextUi}</Provider>)
+    },
+  }
+}
+
 describe('RightPanelTabs split layout', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -110,7 +121,7 @@ describe('RightPanelTabs split layout', () => {
       branch: 'feature/test'
     }))
 
-    render(
+    renderWithProject(
       <RightPanelTabs
         onFileSelect={vi.fn()}
         selectionOverride={{ kind: 'session', payload: 'test-session', worktreePath: '/tmp/session-worktree' }}
@@ -141,7 +152,7 @@ describe('RightPanelTabs split layout', () => {
       branch: 'feature/test'
     }))
 
-    render(
+    renderWithProject(
       <RightPanelTabs
         onFileSelect={vi.fn()}
         selectionOverride={{ kind: 'session', payload: 'test-session', worktreePath: '/tmp/session-worktree' }}
@@ -164,7 +175,7 @@ describe('RightPanelTabs split layout', () => {
       worktree_path: '/tmp/run-1',
       branch: 'feature/run-1'
     }))
-    const { rerender } = render(
+    const { rerender } = renderWithProject(
       <RightPanelTabs
         onFileSelect={vi.fn()}
         selectionOverride={{ kind: 'orchestrator' }}
@@ -209,7 +220,7 @@ describe('RightPanelTabs split layout', () => {
       branch: 'feature/test'
     }))
 
-    render(
+    renderWithProject(
       <RightPanelTabs
         onFileSelect={vi.fn()}
         selectionOverride={{ kind: 'session', payload: 'test-session' }}
@@ -241,7 +252,7 @@ describe('RightPanelTabs split layout', () => {
       branch: 'feature/test'
     }))
 
-    render(
+    renderWithProject(
       <RightPanelTabs
         onFileSelect={vi.fn()}
         selectionOverride={{ kind: 'session', payload: 'test-session', worktreePath: '/tmp/session-worktree' }}
@@ -267,7 +278,7 @@ describe('RightPanelTabs split layout', () => {
       branch: 'feature/alias-branch'
     }))
 
-    render(
+    renderWithProject(
       <RightPanelTabs
         onFileSelect={vi.fn()}
         selectionOverride={{ kind: 'session', payload: 'feature/alias-branch', worktreePath: '/tmp/alias-worktree' }}
@@ -286,7 +297,7 @@ describe('RightPanelTabs split layout', () => {
   it('passes null session name to history panel in orchestrator view', async () => {
     const user = userEvent.setup()
 
-    render(
+    renderWithProject(
       <RightPanelTabs
         onFileSelect={vi.fn()}
         selectionOverride={{ kind: 'orchestrator' }}
@@ -317,7 +328,7 @@ describe('RightPanelTabs split layout', () => {
       })
     )
 
-    const { rerender } = render(
+    const { rerender } = renderWithProject(
       <RightPanelTabs
         onFileSelect={vi.fn()}
         selectionOverride={{ kind: 'session', payload: 'run-session', worktreePath: '/tmp/run-session' }}
@@ -361,7 +372,7 @@ describe('RightPanelTabs split layout', () => {
       })
     )
 
-    render(
+    renderWithProject(
       <RightPanelTabs
         onFileSelect={vi.fn()}
         selectionOverride={{ kind: 'session', payload: 'spec-session', worktreePath: '/tmp/spec-session' }}

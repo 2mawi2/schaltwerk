@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react'
 import { SimpleDiffPanel } from '../diff/SimpleDiffPanel'
 import { useSelection, type Selection } from '../../contexts/SelectionContext'
-import { useProject } from '../../contexts/ProjectContext'
 import { useFocus } from '../../contexts/FocusContext'
 import { useSessions } from '../../contexts/SessionsContext'
 import { SpecContentView as SpecContentView } from '../plans/SpecContentView'
@@ -24,6 +23,8 @@ import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
 import { detectPlatformSafe, isShortcutForAction } from '../../keyboardShortcuts/helpers'
 import { RightPanelTabsHeader } from './RightPanelTabsHeader'
 import type { TabKey } from './RightPanelTabs.types'
+import { useAtomValue } from 'jotai'
+import { projectPathAtom } from '../../store/atoms/project'
 
 interface RightPanelTabsProps {
   onFileSelect: (filePath: string) => void
@@ -35,7 +36,7 @@ interface RightPanelTabsProps {
 
 const RightPanelTabsComponent = ({ onFileSelect, onOpenHistoryDiff, selectionOverride, isSpecOverride, isDragging = false }: RightPanelTabsProps) => {
   const { selection, isSpec, setSelection } = useSelection()
-  const { projectPath } = useProject()
+  const projectPath = useAtomValue(projectPathAtom)
   const { setFocusForSession, currentFocus } = useFocus()
   const { allSessions } = useSessions()
   const [userSelectedTab, setUserSelectedTabRaw] = useState<TabKey | null>(null)

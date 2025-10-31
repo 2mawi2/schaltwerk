@@ -7,6 +7,9 @@ import { SchaltEvent } from '../../common/eventSystem'
 import type { HistoryProviderSnapshot } from './types'
 import { GitGraphPanel } from './GitGraphPanel'
 import { logger } from '../../utils/logger'
+import { Provider, createStore } from 'jotai'
+import { projectPathAtom } from '../../store/atoms/project'
+import type { ReactElement } from 'react'
 
 const useGitHistoryMock = vi.fn()
 
@@ -25,10 +28,6 @@ const { fileChangeHandlers, defaultListenImplementation, listenEventMock } = vi.
     listenEventMock: vi.fn(defaultImpl)
   }
 })
-
-vi.mock('../../contexts/ProjectContext', () => ({
-  useProject: () => ({ projectPath: '/repo/path' })
-}))
 
 vi.mock('../../common/toast/ToastProvider', () => ({
   useToast: () => ({ pushToast: vi.fn() })
@@ -98,6 +97,18 @@ beforeEach(() => {
   global.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver
 })
 
+function renderWithProject(ui: ReactElement, projectPath: string | null = '/repo/path') {
+  const store = createStore()
+  store.set(projectPathAtom, projectPath)
+  const result = render(<Provider store={store}>{ui}</Provider>)
+  return {
+    ...result,
+    rerender(nextUi: ReactElement) {
+      result.rerender(<Provider store={store}>{nextUi}</Provider>)
+    },
+  }
+}
+
 describe('GitGraphPanel', () => {
   it('renders commits and toggles file details on demand', async () => {
     const ensureLoadedMock = vi.fn()
@@ -139,7 +150,7 @@ describe('GitGraphPanel', () => {
       throw new Error(`Unexpected command ${String(command)}`)
     })
 
-    render(<GitGraphPanel />)
+    renderWithProject(<GitGraphPanel />)
 
     expect(ensureLoadedMock).toHaveBeenCalled()
     expect(screen.getByText('Add git graph dropdown')).toBeInTheDocument()
@@ -187,7 +198,7 @@ describe('GitGraphPanel', () => {
     })
 
     const handleOpenCommitDiff = vi.fn()
-    render(<GitGraphPanel onOpenCommitDiff={handleOpenCommitDiff} />)
+    renderWithProject(<GitGraphPanel onOpenCommitDiff={handleOpenCommitDiff} />)
 
     expect(ensureLoadedMock).toHaveBeenCalled()
 
@@ -219,7 +230,7 @@ describe('GitGraphPanel', () => {
 
     mockedInvoke.mockResolvedValue(baseSnapshot as unknown)
 
-    render(<GitGraphPanel sessionName="session-1" />)
+    renderWithProject(<GitGraphPanel sessionName="session-1" />)
 
     await waitFor(() => {
       expect(refreshMock).toHaveBeenCalled()
@@ -260,7 +271,7 @@ describe('GitGraphPanel', () => {
       refresh: refreshMock
     })
 
-    render(<GitGraphPanel />)
+    renderWithProject(<GitGraphPanel />)
 
     await waitFor(() => {
       expect(refreshMock).toHaveBeenCalled()
@@ -286,7 +297,7 @@ describe('GitGraphPanel', () => {
     })
 
     const user = userEvent.setup()
-    render(<GitGraphPanel />)
+    renderWithProject(<GitGraphPanel />)
 
     await waitFor(() => {
       expect(refreshMock).toHaveBeenCalled()
@@ -327,7 +338,7 @@ describe('GitGraphPanel', () => {
 
     mockedInvoke.mockResolvedValue(baseSnapshot as unknown)
 
-    render(<GitGraphPanel />)
+    renderWithProject(<GitGraphPanel />)
 
     await waitFor(() => {
       expect(refreshMock).toHaveBeenCalled()
@@ -368,7 +379,7 @@ describe('GitGraphPanel', () => {
 
     mockedInvoke.mockResolvedValue(baseSnapshot as unknown)
 
-    render(<GitGraphPanel />)
+    renderWithProject(<GitGraphPanel />)
 
     await waitFor(() => {
       expect(ensureLoadedMock).toHaveBeenCalled()
@@ -414,7 +425,7 @@ describe('GitGraphPanel', () => {
       refresh: refreshMock
     })
 
-    render(<GitGraphPanel />)
+    renderWithProject(<GitGraphPanel />)
 
     const handler = fileChangeHandlers[SchaltEvent.FileChanges]
     expect(handler).toBeDefined()
@@ -457,7 +468,7 @@ describe('GitGraphPanel', () => {
       refresh: refreshMock
     })
 
-    render(<GitGraphPanel />)
+    renderWithProject(<GitGraphPanel />)
 
     expect(await screen.findByText('Initial commit')).toBeInTheDocument()
     expect(screen.queryByText('Loading git history...')).not.toBeInTheDocument()
@@ -493,7 +504,7 @@ describe('GitGraphPanel', () => {
 
     mockedInvoke.mockResolvedValue(overrideSnapshot as unknown)
 
-    render(<GitGraphPanel repoPath="/sessions/test-session" sessionName="session-1" />)
+    renderWithProject(<GitGraphPanel repoPath="/sessions/test-session" sessionName="session-1" />)
 
     await waitFor(() => {
       expect(refreshMock).toHaveBeenCalled()
@@ -546,7 +557,7 @@ describe('GitGraphPanel', () => {
 
     mockedInvoke.mockResolvedValue(baseSnapshot as unknown)
 
-    render(<GitGraphPanel />)
+    renderWithProject(<GitGraphPanel />)
 
     await waitFor(() => {
       expect(refreshMock).toHaveBeenCalled()
@@ -587,7 +598,7 @@ describe('GitGraphPanel', () => {
 
     mockedInvoke.mockResolvedValue(baseSnapshot as unknown)
 
-    render(<GitGraphPanel />)
+    renderWithProject(<GitGraphPanel />)
 
     await waitFor(() => {
       expect(refreshMock).toHaveBeenCalled()
@@ -625,7 +636,7 @@ describe('GitGraphPanel', () => {
       refresh: vi.fn()
     })
 
-    render(<GitGraphPanel />)
+    renderWithProject(<GitGraphPanel />)
 
     expect(await screen.findByText('Failed to load git history')).toBeInTheDocument()
     expect(screen.getByText('Boom')).toBeInTheDocument()
@@ -646,7 +657,7 @@ describe('GitGraphPanel', () => {
       refresh: vi.fn()
     })
 
-    render(<GitGraphPanel />)
+    renderWithProject(<GitGraphPanel />)
 
     expect(await screen.findByText('No git history available')).toBeInTheDocument()
   })
@@ -675,7 +686,7 @@ describe('GitGraphPanel', () => {
       }
     })
 
-    const { unmount } = render(<GitGraphPanel />)
+    const { unmount } = renderWithProject(<GitGraphPanel />)
     expect(ensureLoadedMock).toHaveBeenCalled()
 
     unmount()
@@ -703,7 +714,7 @@ describe('GitGraphPanel', () => {
       refresh: refreshMock
     })
 
-    render(<GitGraphPanel />)
+    renderWithProject(<GitGraphPanel />)
 
     await waitFor(() => {
       expect(ensureLoadedMock).toHaveBeenCalled()
@@ -749,7 +760,7 @@ describe('GitGraphPanel', () => {
 
     const user = userEvent.setup()
 
-    render(<GitGraphPanel />)
+    renderWithProject(<GitGraphPanel />)
 
     await waitFor(() => {
       expect(ensureLoadedMock).toHaveBeenCalled()
@@ -792,7 +803,7 @@ describe('GitGraphPanel', () => {
 
     const user = userEvent.setup()
 
-    render(<GitGraphPanel />)
+    renderWithProject(<GitGraphPanel />)
 
     await waitFor(() => {
       expect(ensureLoadedMock).toHaveBeenCalled()
@@ -882,13 +893,14 @@ describe('GitGraphPanel', () => {
     let snapshotState: HistoryProviderSnapshot | null = initialSnapshot
 
     const ensureLoadedMock = vi.fn()
+    let rerender: ((ui: ReactElement) => void) | undefined
     const loadMoreMock = vi.fn(async () => {
       snapshotState = appendedSnapshot
-      rerender(<GitGraphPanel />)
+      rerender?.(<GitGraphPanel />)
     })
     const refreshMock = vi.fn(async () => {
       snapshotState = mergedSnapshot
-      rerender(<GitGraphPanel />)
+      rerender?.(<GitGraphPanel />)
     })
 
     useGitHistoryMock.mockImplementation(() => ({
@@ -905,7 +917,7 @@ describe('GitGraphPanel', () => {
 
     const user = userEvent.setup()
 
-    const { rerender } = render(<GitGraphPanel />)
+    ;({ rerender } = renderWithProject(<GitGraphPanel />))
 
     await waitFor(() => {
       expect(ensureLoadedMock).toHaveBeenCalled()
@@ -957,7 +969,7 @@ describe('GitGraphPanel', () => {
     })
 
     const user = userEvent.setup()
-    render(<GitGraphPanel />)
+    renderWithProject(<GitGraphPanel />)
 
     const button = await screen.findByRole('button', { name: 'Load more commits' })
     await user.click(button)

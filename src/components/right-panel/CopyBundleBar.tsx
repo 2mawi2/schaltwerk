@@ -2,13 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
 import { theme } from '../../common/theme'
-import { useProject } from '../../contexts/ProjectContext'
 import { useToast } from '../../common/toast/ToastProvider'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import type { ChangedFile } from '../../common/events'
 import { logger } from '../../utils/logger'
 import type { DiffResponse } from '../../types/diff'
 import { writeClipboard } from '../../utils/clipboard'
+import { useAtomValue } from 'jotai'
+import { projectPathAtom } from '../../store/atoms/project'
 
 import {
   wrapBlock,
@@ -73,7 +74,7 @@ function formatSectionSummary(sections: SectionName[], fileCount: number) {
 }
 
 export function CopyBundleBar({ sessionName }: CopyBundleBarProps) {
-  const { projectPath } = useProject()
+  const projectPath = useAtomValue(projectPathAtom)
   const { pushToast } = useToast()
 
   const [availability, setAvailability] = useState<AvailabilityState>({ spec: false, diff: false, files: false })

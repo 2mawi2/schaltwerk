@@ -3,10 +3,11 @@ import { TauriCommands } from '../common/tauriCommands'
 import { waitFor } from '@testing-library/react'
 import { renderHook, act } from '@testing-library/react'
 import { useSelection } from './SelectionContext'
-import { useProject } from './ProjectContext'
 import React from 'react'
 import { MockTauriInvokeArgs } from '../types/testing'
 import { TestProviders } from '../tests/test-utils'
+import { useSetAtom } from 'jotai'
+import { projectPathAtom } from '../store/atoms/project'
 
 // Mock Tauri API
 vi.mock('@tauri-apps/api/core', () => ({
@@ -105,7 +106,7 @@ describe('Project Switching Selection Behavior', () => {
             const { result } = renderHook(
                 () => ({
                     selection: useSelection(),
-                    project: useProject()
+                    setProjectPath: useSetAtom(projectPathAtom)
                 }),
                 { wrapper: TestWrapper }
             )
@@ -114,7 +115,7 @@ describe('Project Switching Selection Behavior', () => {
 
             // Set project and wait for initialization
             await act(async () => {
-                result.current.project.setProjectPath(project)
+                result.current.setProjectPath(project)
             })
             await waitFor(() => {
                 expect(result.current.selection.isReady).toBe(true)
@@ -131,7 +132,7 @@ describe('Project Switching Selection Behavior', () => {
 
             // Switch to the same project again - this should be synchronous
             act(() => {
-                result.current.project.setProjectPath(project)
+                result.current.setProjectPath(project)
             })
 
             // Selection should remain unchanged (synchronous check)
@@ -142,14 +143,14 @@ describe('Project Switching Selection Behavior', () => {
             const { result } = renderHook(
                 () => ({
                     selection: useSelection(),
-                    project: useProject()
+                    setProjectPath: useSetAtom(projectPathAtom)
                 }),
                 { wrapper: TestWrapper }
             )
 
             // Start with a project
             act(() => {
-                result.current.project.setProjectPath('/some/project')
+                result.current.setProjectPath('/some/project')
             })
 
             act(() => {
@@ -158,7 +159,7 @@ describe('Project Switching Selection Behavior', () => {
 
             // Set project to null (e.g., going to home screen)
             act(() => {
-                result.current.project.setProjectPath(null)
+                result.current.setProjectPath(null)
             })
 
             // Should handle null gracefully

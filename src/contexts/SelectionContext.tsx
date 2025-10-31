@@ -2,7 +2,6 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { TauriCommands } from '../common/tauriCommands'
 import { SchaltEvent, listenEvent } from '../common/eventSystem'
 import { invoke } from '@tauri-apps/api/core'
-import { useProject } from './ProjectContext'
 import { useSessions } from './SessionsContext'
 import { FilterMode } from '../types/sessionFilters'
 import { RawSession, EnrichedSession } from '../types/session'
@@ -16,6 +15,8 @@ import {
 } from '../terminal/transport/backend'
 import { sessionTerminalGroup } from '../common/terminalIdentity'
 import { ORCHESTRATOR_SESSION_NAME } from '../constants/sessions'
+import { useAtomValue } from 'jotai'
+import { projectPathAtom } from '../store/atoms/project'
 
 type NormalizedSessionState = 'spec' | 'running' | 'reviewed'
 
@@ -102,7 +103,7 @@ const SelectionContext = createContext<SelectionContextType>({
 })
 
 export function SelectionProvider({ children }: { children: React.ReactNode }) {
-    const { projectPath } = useProject()
+    const projectPath = useAtomValue(projectPathAtom)
     const { setCurrentSelection, filterMode, allSessions } = useSessions()
     const [selection, setSelectionState] = useState<Selection>({ kind: 'orchestrator' })
     const [terminals, setTerminals] = useState<TerminalSet>({
