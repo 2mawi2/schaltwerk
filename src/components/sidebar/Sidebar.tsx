@@ -206,6 +206,31 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         versionGroup: null,
         selectedSessionId: ''
     })
+    const [mergeCommitDrafts, setMergeCommitDrafts] = useState<Record<string, string>>({})
+    const activeMergeSessionId = mergeDialogState.sessionName
+    const activeMergeCommitDraft = activeMergeSessionId ? mergeCommitDrafts[activeMergeSessionId] ?? '' : ''
+
+    const updateActiveMergeCommitDraft = useCallback(
+        (value: string) => {
+            if (!activeMergeSessionId) {
+                return
+            }
+            setMergeCommitDrafts(prev => {
+                if (!value) {
+                    if (!(activeMergeSessionId in prev)) {
+                        return prev
+                    }
+                    const { [activeMergeSessionId]: _removed, ...rest } = prev
+                    return rest
+                }
+                if (prev[activeMergeSessionId] === value) {
+                    return prev
+                }
+                return { ...prev, [activeMergeSessionId]: value }
+            })
+        },
+        [activeMergeSessionId]
+    )
     const sidebarRef = useRef<HTMLDivElement>(null)
     const isProjectSwitching = useRef(false)
     const previousProjectPathRef = useRef<string | null>(null)
@@ -1416,6 +1441,8 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 preview={mergeDialogState.preview}
                 error={mergeDialogState.error ?? undefined}
                 onClose={closeMergeDialog}
+                cachedCommitMessage={activeMergeCommitDraft}
+                onCommitMessageChange={updateActiveMergeCommitDraft}
                 onConfirm={(mode, commitMessage) => {
                     if (mergeDialogState.sessionName) {
                         void confirmMerge(mergeDialogState.sessionName, mode, commitMessage)

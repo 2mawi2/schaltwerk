@@ -97,6 +97,17 @@ describe('MergeSessionModal', () => {
     expect(onToggleAutoCancel).toHaveBeenCalledWith(true)
   })
 
+  it('restores cached commit message and syncs updates', () => {
+    const cached = 'Cached commit message'
+    const onCommitMessageChange = vi.fn()
+    renderModal({ cachedCommitMessage: cached, onCommitMessageChange })
+    const input = screen.getByLabelText('Commit message') as HTMLInputElement
+    expect(input.value).toBe(cached)
+
+    fireEvent.change(input, { target: { value: 'Updated commit' } })
+    expect(onCommitMessageChange).toHaveBeenCalledWith('Updated commit')
+  })
+
   it('marks toggle as pressed when enabled', () => {
     renderModal({ autoCancelEnabled: true })
     const toggle = screen.getByRole('checkbox', { name: 'Auto-cancel after merge' }) as HTMLInputElement
