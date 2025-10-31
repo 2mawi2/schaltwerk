@@ -19,7 +19,13 @@ import { invoke } from '@tauri-apps/api/core'
 import { useSelection } from './contexts/SelectionContext'
 import { clearTerminalStartedTracking } from './components/terminal/Terminal'
 import { useProject } from './contexts/ProjectContext'
-import { useFontSize } from './contexts/FontSizeContext'
+import { useSetAtom } from 'jotai'
+import {
+  increaseFontSizesActionAtom,
+  decreaseFontSizesActionAtom,
+  resetFontSizesActionAtom,
+  initializeFontSizesActionAtom,
+} from './store/atoms/fontSize'
 import { useSessions } from './contexts/SessionsContext'
 import { HomeScreen } from './components/home/HomeScreen'
 import { ProjectTab, determineNextActiveTab } from './common/projectTabs'
@@ -72,7 +78,10 @@ function getBasename(path: string): string {
 function AppContent() {
   const { selection, clearTerminalTracking } = useSelection()
   const { projectPath, setProjectPath } = useProject()
-  const { increaseFontSizes, decreaseFontSizes, resetFontSizes } = useFontSize()
+  const increaseFontSizes = useSetAtom(increaseFontSizesActionAtom)
+  const decreaseFontSizes = useSetAtom(decreaseFontSizesActionAtom)
+  const resetFontSizes = useSetAtom(resetFontSizesActionAtom)
+  const initializeFontSizes = useSetAtom(initializeFontSizesActionAtom)
   const { isOnboardingOpen, completeOnboarding, closeOnboarding, openOnboarding } = useOnboarding()
   const { fetchSessionForPrefill } = useSessionPrefill()
   const github = useGithubIntegrationContext()
@@ -82,6 +91,10 @@ function AppContent() {
   const [devErrorToastsEnabled, setDevErrorToastsEnabled] = useState(false)
   const [attentionCounts, setAttentionCounts] = useState<Record<string, number>>({})
   const { openFeedback } = useFeedback({ selection })
+
+  useEffect(() => {
+    initializeFontSizes()
+  }, [initializeFontSizes])
 
   useEffect(() => {
     if (typeof window === 'undefined') {

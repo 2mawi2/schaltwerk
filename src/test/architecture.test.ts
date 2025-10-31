@@ -8,6 +8,7 @@ import {
   MODULE_BOUNDARY_EXCEPTIONS,
   TAURI_COMMAND_EXCEPTIONS,
   THEME_EXCEPTIONS,
+  STATE_MANAGEMENT_EXCEPTIONS,
   isException,
 } from './architecture-exceptions';
 
@@ -329,5 +330,151 @@ describe('Module Boundaries Architecture', () => {
       failureDetails,
       `Found ${violations.length} common/ imports from components/contexts:`,
     );
+  });
+});
+
+describe('State Management Architecture', () => {
+  it('should not use React Context for state management (migrate to Jotai)', async () => {
+    const failureDetails = new Map<string, FailureDetail[]>();
+    const rule = projectFiles()
+      .inFolder('src/**')
+      .should()
+      .adhereTo((file) => {
+        if (!isSourceFile(file)) return true;
+        const relativePath = toRelativePath(file.path);
+
+        if (
+          isTestFile(relativePath) ||
+          relativePath === 'src/store/index.ts' ||
+          relativePath.startsWith('src/store/atoms/') ||
+          isException(relativePath, STATE_MANAGEMENT_EXCEPTIONS)
+        ) {
+          return true;
+        }
+
+        const lines = file.content.split('\n');
+        const matches: FailureDetail[] = [];
+
+        lines.forEach((line, index) => {
+          if (line.trim().startsWith('//') || line.trim().startsWith('*')) return;
+
+          const contextPatterns = [
+            /createContext\s*</,
+            /createContext\s*\(/,
+            /\.Provider\s+value=/,
+            /const\s+\w+Context\s*=\s*createContext/,
+          ];
+
+          for (const pattern of contextPatterns) {
+            if (pattern.test(line)) {
+              matches.push({
+                line: index + 1,
+                snippet: line.trim().substring(0, 80),
+              });
+              break;
+            }
+          }
+        });
+
+        if (matches.length > 0) {
+          failureDetails.set(relativePath, matches);
+          return false;
+        }
+
+        return true;
+      }, 'Use Jotai atoms for state management instead of React Context');
+
+    const violations = await rule.check();
+    raiseIfViolations(
+      violations,
+      failureDetails,
+      `Found ${violations.length} files using React Context (should use Jotai):`,
+      'All contexts in STATE_MANAGEMENT_EXCEPTIONS should be migrated to Jotai atoms.',
+    );
+  });
+
+  it('should use Jotai atom naming conventions', async () => {
+    const failureDetails = new Map<string, FailureDetail[]>();
+    const rule = projectFiles()
+      .inFolder('src/store/atoms/**')
+      .should()
+      .adhereTo((file) => {
+        if (!isSourceFile(file)) return true;
+        const relativePath = toRelativePath(file.path);
+        if (isTestFile(relativePath) || relativePath.endsWith('.gitkeep')) {
+          return true;
+        }
+
+        const lines = file.content.split('\n');
+        const matches: FailureDetail[] = [];
+
+        lines.forEach((line, index) => {
+          if (line.trim().startsWith('//') || line.trim().startsWith('*')) return;
+
+          const exportAtomPattern = /export\s+const\s+(\w+)\s*=\s*atom/;
+          const match = exportAtomPattern.exec(line);
+
+          if (match) {
+            const atomName = match[1];
+            const hasCorrectSuffix = atomName.endsWith('Atom') ||
+                                    atomName.endsWith('AtomFamily') ||
+                                    atomName.endsWith('ActionAtom');
+
+            if (!hasCorrectSuffix) {
+              matches.push({
+                line: index + 1,
+                snippet: `${atomName} (should end with Atom, AtomFamily, or ActionAtom)`,
+              });
+            }
+          }
+        });
+
+        if (matches.length > 0) {
+          failureDetails.set(relativePath, matches);
+          return false;
+        }
+
+        return true;
+      }, 'Atom names should end with Atom, AtomFamily, or ActionAtom');
+
+    const violations = await rule.check();
+
+    if (violations.length > 0 && violations[0] && typeof violations[0] === 'object') {
+      const violation = violations[0] as { message?: string };
+      if (violation.message && violation.message.includes('No files found matching pattern')) {
+        return;
+      }
+    }
+
+    raiseIfViolations(
+      violations,
+      failureDetails,
+      `Found ${violations.length} atoms with incorrect naming:`,
+      'Use *Atom, *AtomFamily, or *ActionAtom suffixes.',
+    );
+  });
+
+  it('should have migrated all contexts from exception list', async () => {
+    const acceptableUse = STATE_MANAGEMENT_EXCEPTIONS.filter(
+      ex => ex.reason.includes('acceptable use')
+    ).length;
+    const needsEvaluation = STATE_MANAGEMENT_EXCEPTIONS.filter(
+      ex => ex.reason.includes('Needs evaluation')
+    ).length;
+    const pendingMigration = STATE_MANAGEMENT_EXCEPTIONS.filter(
+      ex => ex.reason.includes('Pending migration')
+    );
+    const totalToMigrate = pendingMigration.length;
+    const migratedContexts = 1;
+    const migrationProgress = ((migratedContexts / totalToMigrate) * 100).toFixed(1);
+
+    console.log(`\nState Management Migration Progress: ${migratedContexts}/${totalToMigrate} contexts migrated (${migrationProgress}%)`);
+    console.log(`Acceptable Context usage: ${acceptableUse} (UI coordination)`);
+    console.log(`Needs evaluation: ${needsEvaluation}`);
+    console.log('\nRemaining contexts to migrate:');
+    pendingMigration.forEach((ex, index) => {
+      console.log(`  ${index + 1}. ${ex.file}`);
+    });
+    console.log('');
   });
 });

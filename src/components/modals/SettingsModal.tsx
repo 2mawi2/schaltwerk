@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback, useMemo, useRef, ReactElement 
 import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
-import { useFontSize } from '../../contexts/FontSizeContext'
+import { useAtom } from 'jotai'
+import { terminalFontSizeAtom, uiFontSizeAtom } from '../../store/atoms/fontSize'
 import { useSettings } from '../../hooks/useSettings'
 import type { AgentType, ProjectMergePreferences, AttentionNotificationMode, AgentPreferenceConfig } from '../../hooks/useSettings'
 import { useSessions } from '../../contexts/SessionsContext'
@@ -274,7 +275,8 @@ interface SessionPreferences {
 }
 
 export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Props) {
-    const { terminalFontSize, uiFontSize, setTerminalFontSize, setUiFontSize } = useFontSize()
+    const [terminalFontSize, setTerminalFontSize] = useAtom(terminalFontSizeAtom)
+    const [uiFontSize, setUiFontSize] = useAtom(uiFontSizeAtom)
     const { applyOverrides: applyShortcutOverrides } = useKeyboardShortcutsConfig()
     const [activeCategory, setActiveCategory] = useState<SettingsCategory>(initialTab || 'appearance')
     const [activeAgentTab, setActiveAgentTab] = useState<AgentType>('claude')

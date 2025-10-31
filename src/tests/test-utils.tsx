@@ -5,7 +5,6 @@ import { SelectionProvider } from '../contexts/SelectionContext'
 import { FocusProvider } from '../contexts/FocusContext'
 import { ReviewProvider } from '../contexts/ReviewContext'
 import { ProjectProvider, useProject } from '../contexts/ProjectContext'
-import { FontSizeProvider } from '../contexts/FontSizeContext'
 import { SessionsProvider } from '../contexts/SessionsContext'
 import { ActionButtonsProvider } from '../contexts/ActionButtonsContext'
 import { RunProvider } from '../contexts/RunContext'
@@ -89,15 +88,13 @@ function ProviderTree({ children, githubOverrides, includeTestInitializer = fals
   return (
     <ToastProvider>
       <ModalProvider>
-        <FontSizeProvider>
-          <ProjectProvider>
-            {includeTestInitializer ? (
-              <TestProjectInitializer>{inner}</TestProjectInitializer>
-            ) : (
-              inner
-            )}
-          </ProjectProvider>
-        </FontSizeProvider>
+        <ProjectProvider>
+          {includeTestInitializer ? (
+            <TestProjectInitializer>{inner}</TestProjectInitializer>
+          ) : (
+            inner
+          )}
+        </ProjectProvider>
       </ModalProvider>
     </ToastProvider>
   )
