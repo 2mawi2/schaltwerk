@@ -345,7 +345,6 @@ describe('State Management Architecture', () => {
 
         if (
           isTestFile(relativePath) ||
-          relativePath === 'src/store/index.ts' ||
           relativePath.startsWith('src/store/atoms/') ||
           isException(relativePath, STATE_MANAGEMENT_EXCEPTIONS)
         ) {
