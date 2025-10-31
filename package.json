@@ -75,6 +75,8 @@
     "clsx": "^2.1.1",
     "gpt-tokenizer": "^3.2.0",
     "highlight.js": "^11.11.1",
+    "jotai": "^2.15.0",
+    "jotai-devtools": "^0.13.0",
     "minimatch": "^10.0.3",
     "postcss": "^8.5.6",
     "react": "^19.2.0",

@@ -3,7 +3,6 @@ import { TauriCommands } from '../common/tauriCommands'
 import { SchaltEvent, listenEvent } from '../common/eventSystem'
 import { invoke } from '@tauri-apps/api/core'
 import { useProject } from './ProjectContext'
-import { useFontSize } from './FontSizeContext'
 import { useSessions } from './SessionsContext'
 import { FilterMode } from '../types/sessionFilters'
 import { RawSession, EnrichedSession } from '../types/session'
@@ -104,7 +103,6 @@ const SelectionContext = createContext<SelectionContextType>({
 
 export function SelectionProvider({ children }: { children: React.ReactNode }) {
     const { projectPath } = useProject()
-    const { terminalFontSize: _terminalFontSize } = useFontSize()
     const { setCurrentSelection, filterMode, allSessions } = useSessions()
     const [selection, setSelectionState] = useState<Selection>({ kind: 'orchestrator' })
     const [terminals, setTerminals] = useState<TerminalSet>({

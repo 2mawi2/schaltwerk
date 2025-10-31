@@ -12,7 +12,8 @@ import { schedulePtyResize } from '../../common/ptyResizeScheduler'
 import { sessionTerminalBase, stableSessionTerminalId } from '../../common/terminalIdentity'
 import { clearInflights } from '../../utils/singleflight'
 import { UnlistenFn } from '@tauri-apps/api/event';
-import { useFontSize } from '../../contexts/FontSizeContext';
+import { useAtomValue } from 'jotai'
+import { terminalFontSizeAtom } from '../../store/atoms/fontSize'
 import { useCleanupRegistry } from '../../hooks/useCleanupRegistry';
 import { theme } from '../../common/theme';
 import '@xterm/xterm/css/xterm.css';
@@ -80,7 +81,7 @@ export interface TerminalHandle {
 }
 
 const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalId, className = '', sessionName, isCommander = false, agentType, readOnly = false, onTerminalClick, isBackground = false, onReady, inputFilter }, ref) => {
-    const { terminalFontSize } = useFontSize();
+    const terminalFontSize = useAtomValue(terminalFontSizeAtom);
     const { addEventListener, addResizeObserver } = useCleanupRegistry();
     const { isAnyModalOpen } = useModal();
     const containerRef = useRef<HTMLDivElement | null>(null);

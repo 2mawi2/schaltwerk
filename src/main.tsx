@@ -8,7 +8,6 @@ import { FocusProvider } from './contexts/FocusContext'
 import { ReviewProvider } from './contexts/ReviewContext'
 import { RunProvider } from './contexts/RunContext'
 import { ProjectProvider } from './contexts/ProjectContext'
-import { FontSizeProvider } from './contexts/FontSizeContext'
 import { SessionsProvider } from './contexts/SessionsContext'
 import { ActionButtonsProvider } from './contexts/ActionButtonsContext'
 import { ModalProvider } from './contexts/ModalContext'
@@ -36,35 +35,33 @@ const AppLoader: React.FC = () => {
     <EntryAnimation>
       <ErrorBoundary name="Root">
         <ToastProvider>
-          <FontSizeProvider>
-            <KeyboardShortcutsProvider>
-              <ProjectProvider>
-                <GithubIntegrationProvider>
-                  <SessionsProvider>
-                    <SpecEditorStateProvider>
-                      <GitHistoryProvider>
-                        <ActionButtonsProvider>
-                          <ModalProvider>
-                            <SelectionProvider>
-                              <FocusProvider>
-                                <ReviewProvider>
-                                  <RunProvider>
-                                    <div className="h-screen w-screen">
-                                      <App />
-                                    </div>
-                                  </RunProvider>
-                                </ReviewProvider>
-                              </FocusProvider>
-                            </SelectionProvider>
-                          </ModalProvider>
-                        </ActionButtonsProvider>
-                      </GitHistoryProvider>
-                    </SpecEditorStateProvider>
-                  </SessionsProvider>
-                </GithubIntegrationProvider>
-              </ProjectProvider>
-            </KeyboardShortcutsProvider>
-          </FontSizeProvider>
+          <KeyboardShortcutsProvider>
+            <ProjectProvider>
+              <GithubIntegrationProvider>
+                <SessionsProvider>
+                  <SpecEditorStateProvider>
+                    <GitHistoryProvider>
+                      <ActionButtonsProvider>
+                        <ModalProvider>
+                          <SelectionProvider>
+                            <FocusProvider>
+                              <ReviewProvider>
+                                <RunProvider>
+                                  <div className="h-screen w-screen">
+                                    <App />
+                                  </div>
+                                </RunProvider>
+                              </ReviewProvider>
+                            </FocusProvider>
+                          </SelectionProvider>
+                        </ModalProvider>
+                      </ActionButtonsProvider>
+                    </GitHistoryProvider>
+                  </SpecEditorStateProvider>
+                </SessionsProvider>
+              </GithubIntegrationProvider>
+            </ProjectProvider>
+          </KeyboardShortcutsProvider>
         </ToastProvider>
       </ErrorBoundary>
     </EntryAnimation>
