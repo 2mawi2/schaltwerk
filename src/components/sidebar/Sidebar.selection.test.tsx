@@ -14,17 +14,6 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn()
 }))
 
-vi.mock('../../contexts/ProjectContext', async () => {
-  const actual = await vi.importActual<typeof import('../../contexts/ProjectContext')>('../../contexts/ProjectContext')
-  return {
-    ...actual,
-    useProject: () => ({
-      projectPath: '/test/project',
-      setProjectPath: vi.fn()
-    })
-  }
-})
-
 const listeners: Record<string, Array<(event: Event) => void>> = {}
 
 vi.mock('@tauri-apps/api/event', () => ({

@@ -15,18 +15,6 @@ vi.mock('@tauri-apps/api/event', () => ({
   UnlistenFn: vi.fn()
 }))
 
-// Mock the useProject hook to always return a project path
-vi.mock('../../contexts/ProjectContext', async () => {
-  const actual = await vi.importActual<typeof import('../../contexts/ProjectContext')>('../../contexts/ProjectContext')
-  return {
-    ...actual,
-    useProject: () => ({
-      projectPath: '/test/project',
-      setProjectPath: vi.fn()
-    })
-  }
-})
-
 import { invoke } from '@tauri-apps/api/core'
 import { EnrichedSession, SessionInfo } from '../../types/session'
 import { listen } from '@tauri-apps/api/event'

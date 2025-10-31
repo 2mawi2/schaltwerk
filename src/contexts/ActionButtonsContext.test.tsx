@@ -2,8 +2,10 @@ import React from 'react'
 import { TauriCommands } from '../common/tauriCommands'
 import { describe, it, expect, vi, beforeEach, Mock } from 'vitest'
 import { render, waitFor } from '@testing-library/react'
-import { ProjectProvider, useProject } from './ProjectContext'
 import { ActionButtonsProvider, useActionButtons } from './ActionButtonsContext'
+import { Provider, useSetAtom } from 'jotai'
+import { createStore } from 'jotai'
+import { projectPathAtom } from '../store/atoms/project'
 
 const mockInvoke = vi.hoisted(() => vi.fn())
 
@@ -13,7 +15,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 
 function TestComponent({ initialPath }: { initialPath?: string }) {
   const { actionButtons, loading } = useActionButtons()
-  const { setProjectPath } = useProject()
+  const setProjectPath = useSetAtom(projectPathAtom)
 
   React.useEffect(() => {
     if (initialPath) {
@@ -31,12 +33,13 @@ function TestComponent({ initialPath }: { initialPath?: string }) {
 }
 
 function TestWrapper({ children }: { children: React.ReactNode }) {
+  const store = React.useMemo(() => createStore(), [])
   return (
-    <ProjectProvider>
+    <Provider store={store}>
       <ActionButtonsProvider>
         {children}
       </ActionButtonsProvider>
-    </ProjectProvider>
+    </Provider>
   )
 }
 

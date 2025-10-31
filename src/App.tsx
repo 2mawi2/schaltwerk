@@ -18,14 +18,14 @@ import { ProjectSelectorModal } from './components/modals/ProjectSelectorModal'
 import { invoke } from '@tauri-apps/api/core'
 import { useSelection } from './contexts/SelectionContext'
 import { clearTerminalStartedTracking } from './components/terminal/Terminal'
-import { useProject } from './contexts/ProjectContext'
-import { useSetAtom } from 'jotai'
+import { useAtom, useSetAtom } from 'jotai'
 import {
   increaseFontSizesActionAtom,
   decreaseFontSizesActionAtom,
   resetFontSizesActionAtom,
   initializeFontSizesActionAtom,
 } from './store/atoms/fontSize'
+import { projectPathAtom } from './store/atoms/project'
 import { useSessions } from './contexts/SessionsContext'
 import { HomeScreen } from './components/home/HomeScreen'
 import { ProjectTab, determineNextActiveTab } from './common/projectTabs'
@@ -77,7 +77,7 @@ function getBasename(path: string): string {
 
 function AppContent() {
   const { selection, clearTerminalTracking } = useSelection()
-  const { projectPath, setProjectPath } = useProject()
+  const [projectPath, setProjectPath] = useAtom(projectPathAtom)
   const increaseFontSizes = useSetAtom(increaseFontSizesActionAtom)
   const decreaseFontSizes = useSetAtom(decreaseFontSizesActionAtom)
   const resetFontSizes = useSetAtom(resetFontSizesActionAtom)

@@ -9,17 +9,6 @@ import { logger } from '../../utils/logger'
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }))
 
-vi.mock('../../contexts/ProjectContext', async () => {
-  const actual = await vi.importActual<typeof import('../../contexts/ProjectContext')>('../../contexts/ProjectContext')
-  return {
-    ...actual,
-    useProject: () => ({
-      projectPath: '/test/project',
-      setProjectPath: vi.fn()
-    })
-  }
-})
-
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 

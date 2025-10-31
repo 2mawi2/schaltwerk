@@ -3,7 +3,6 @@ import { TauriCommands } from '../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { UnlistenFn } from '@tauri-apps/api/event'
 import { listenEvent, SchaltEvent } from '../common/eventSystem'
-import { useProject } from './ProjectContext'
 import { SortMode, FilterMode, getDefaultSortMode, getDefaultFilterMode, isValidSortMode, isValidFilterMode } from '../types/sessionFilters'
 import { mapSessionUiState, searchSessions as searchSessionsUtil } from '../utils/sessionFilters'
 import { EnrichedSession, SessionInfo, SessionState, RawSession, AgentType, AGENT_TYPES } from '../types/session'
@@ -16,6 +15,8 @@ import { EventPayloadMap, GitOperationFailedPayload, GitOperationPayload } from 
 import { areSessionInfosEqual } from '../utils/sessionComparison'
 import { stableSessionTerminalId, isTopTerminalId } from '../common/terminalIdentity'
 import { releaseSessionTerminals } from '../terminal/registry/terminalRegistry'
+import { useAtomValue } from 'jotai'
+import { projectPathAtom } from '../store/atoms/project'
 
 type MergeModeOption = 'squash' | 'reapply'
 
@@ -180,7 +181,7 @@ export type MergeStatus = 'idle' | 'merged' | 'conflict'
 const noopToast = () => {}
 
 export function SessionsProvider({ children }: { children: ReactNode }) {
-    const { projectPath } = useProject()
+    const projectPath = useAtomValue(projectPathAtom)
     const toast = useOptionalToast()
     const pushToast = toast?.pushToast ?? noopToast
     const [allSessions, setAllSessions] = useState<EnrichedSession[]>([])

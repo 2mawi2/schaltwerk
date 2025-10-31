@@ -13,18 +13,6 @@ vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn(() => Promise.resolve(() => {}))
 }))
 
-// Mock the useProject hook to always return a project path
-vi.mock('../../contexts/ProjectContext', async () => {
-  const actual = await vi.importActual<typeof import('../../contexts/ProjectContext')>('../../contexts/ProjectContext')
-  return {
-    ...actual,
-    useProject: () => ({
-      projectPath: '/test/project',
-      setProjectPath: vi.fn()
-    })
-  }
-})
-
 
 
 const createSession = (id: string, lastModified?: string, createdAt?: string, readyToMerge = false): EnrichedSession => ({

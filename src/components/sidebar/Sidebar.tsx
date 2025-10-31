@@ -33,11 +33,12 @@ import { AGENT_TYPES, AgentType, EnrichedSession, SessionInfo } from '../../type
 import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
 import { useRun } from '../../contexts/RunContext'
 import { useModal } from '../../contexts/ModalContext'
-import { useProject } from '../../contexts/ProjectContext'
 import { getSessionDisplayName } from '../../utils/sessionDisplayName'
 import { theme } from '../../common/theme'
 import { useClaudeSession } from '../../hooks/useClaudeSession'
 import { ORCHESTRATOR_SESSION_NAME } from '../../constants/sessions'
+import { useAtomValue } from 'jotai'
+import { projectPathAtom } from '../../store/atoms/project'
 
 // Normalize backend states to UI categories
 function mapSessionUiState(info: SessionInfo): 'spec' | 'running' | 'reviewed' {
@@ -60,7 +61,7 @@ interface SidebarProps {
 
 export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, onSelectNextProject }: SidebarProps) {
     const { selection, setSelection, terminals, clearTerminalTracking } = useSelection()
-    const { projectPath } = useProject()
+    const projectPath = useAtomValue(projectPathAtom)
     const { setFocusForSession, setCurrentFocus } = useFocus()
     const { isSessionRunning } = useRun()
     const { isAnyModalOpen } = useModal()

@@ -68,18 +68,7 @@ vi.mock('@tauri-apps/api/event', () => ({
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 
-// Mock the useProject hook to provide a project path
-vi.mock('../../contexts/ProjectContext', async () => {
-    const actual = await vi.importActual<typeof import('../../contexts/ProjectContext')>('../../contexts/ProjectContext')
-    return {
-        ...actual,
-        useProject: () => ({
-            projectPath: '/test/project',
-            setProjectPath: vi.fn()
-        })
-    }
-})
-
+// TestProviders supplies a default project path for Sidebar
 const mockInvoke = vi.mocked(invoke)
 const mockListen = vi.mocked(listen)
 const mockUnlisten = vi.fn()

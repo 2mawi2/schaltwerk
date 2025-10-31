@@ -1,13 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { TauriCommands } from '../common/tauriCommands'
 import { renderHook, act, waitFor } from '@testing-library/react'
-import { ReactNode, useEffect } from 'react'
+import { ReactNode, useEffect, useMemo } from 'react'
 import { SessionsProvider, useSessions, applySessionMutationState } from './SessionsContext'
-import { ProjectProvider, useProject } from './ProjectContext'
 import { FilterMode, SortMode } from '../types/sessionFilters'
 import type { Event } from '@tauri-apps/api/event'
 import { SchaltEvent } from '../common/eventSystem'
 import { stableSessionTerminalId } from '../common/terminalIdentity'
+import { Provider, createStore, useSetAtom } from 'jotai'
+import { projectPathAtom } from '../store/atoms/project'
 
 // Mock Tauri API
 vi.mock('@tauri-apps/api/core', () => ({
@@ -110,7 +111,7 @@ const mockSessions = [
 ]
 
 const ProjectSetter = ({ path }: { path: string }) => {
-    const { setProjectPath } = useProject()
+    const setProjectPath = useSetAtom(projectPathAtom)
     useEffect(() => {
         setProjectPath(path)
     }, [path, setProjectPath])
@@ -155,21 +156,18 @@ describe('SessionsContext', () => {
         pushToastMock.mockReset()
     })
 
-    const wrapper = ({ children }: { children: ReactNode }) => (
-        <ProjectProvider>
-            <SessionsProvider>{children}</SessionsProvider>
-        </ProjectProvider>
-    )
-
-    const wrapperWithProject = ({ children }: { children: ReactNode }) => (
-        <ProjectProvider>
-            <ProjectSetter path="/test/project" />
-            <SessionsProvider>{children}</SessionsProvider>
-        </ProjectProvider>
-    )
+    function WrapperWithProject({ children }: { children: ReactNode }) {
+        const store = useMemo(() => createStore(), [])
+        return (
+            <Provider store={store}>
+                <ProjectSetter path="/test/project" />
+                <SessionsProvider>{children}</SessionsProvider>
+            </Provider>
+        )
+    }
 
     it('should provide initial empty state when no project is selected', async () => {
-        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+        const { result } = renderHook(() => useSessions(), { wrapper: WrapperWithProject })
         
         // Wait for initialization to complete
         await waitFor(() => {
@@ -189,7 +187,7 @@ describe('SessionsContext', () => {
             return undefined
         })
 
-        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+        const { result } = renderHook(() => useSessions(), { wrapper: WrapperWithProject })
 
         await waitFor(() => {
             expect(result.current.loading).toBe(false)
@@ -212,7 +210,7 @@ describe('SessionsContext', () => {
             return undefined
         })
 
-        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+        const { result } = renderHook(() => useSessions(), { wrapper: WrapperWithProject })
 
         await waitFor(() => {
             expect(result.current.loading).toBe(false)
@@ -231,7 +229,7 @@ describe('SessionsContext', () => {
             return undefined
         })
 
-        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+        const { result } = renderHook(() => useSessions(), { wrapper: WrapperWithProject })
 
         await waitFor(() => {
             expect(result.current.loading).toBe(false)
@@ -253,7 +251,7 @@ describe('SessionsContext', () => {
             return undefined
         })
 
-        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+        const { result } = renderHook(() => useSessions(), { wrapper: WrapperWithProject })
 
         await act(async () => {
             await result.current.updateSessionStatus('test-spec', 'active')
@@ -274,7 +272,7 @@ describe('SessionsContext', () => {
             return undefined
         })
 
-        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+        const { result } = renderHook(() => useSessions(), { wrapper: WrapperWithProject })
 
         await act(async () => {
             await result.current.updateSessionStatus('test-active', 'spec')
@@ -294,7 +292,7 @@ describe('SessionsContext', () => {
             return undefined
         })
 
-        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+        const { result } = renderHook(() => useSessions(), { wrapper: WrapperWithProject })
 
         await act(async () => {
             await result.current.updateSessionStatus('test-active', 'dirty')
@@ -314,7 +312,7 @@ describe('SessionsContext', () => {
             return undefined
         })
 
-        const { result } = renderHook(() => useSessions(), { wrapper })
+        const { result } = renderHook(() => useSessions(), { wrapper: WrapperWithProject })
 
         await act(async () => {
             await result.current.createDraft('new-spec', '# New Spec')
@@ -343,7 +341,7 @@ describe('SessionsContext', () => {
             return undefined
         })
 
-        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+        const { result } = renderHook(() => useSessions(), { wrapper: WrapperWithProject })
 
         await waitFor(() => {
             expect(listeners[SchaltEvent.SessionGitStats]).toBeTruthy()
@@ -389,7 +387,7 @@ describe('SessionsContext', () => {
             return undefined
         })
 
-        const { result } = renderHook(() => useSessions(), { wrapper })
+        const { result } = renderHook(() => useSessions(), { wrapper: WrapperWithProject })
 
         const newSessions = [...mockSessions, {
             info: {
@@ -443,7 +441,7 @@ describe('SessionsContext', () => {
             return undefined
         })
 
-        const { result } = renderHook(() => useSessions(), { wrapper })
+        const { result } = renderHook(() => useSessions(), { wrapper: WrapperWithProject })
 
         await waitFor(() => {
             expect(listeners['schaltwerk:sessions-refreshed']).toBeTruthy()
@@ -502,7 +500,7 @@ describe('SessionsContext', () => {
             return undefined
         })
 
-        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+        const { result } = renderHook(() => useSessions(), { wrapper: WrapperWithProject })
 
         await waitFor(() => {
             expect(result.current.loading).toBe(false)
@@ -537,7 +535,7 @@ describe('SessionsContext', () => {
             return undefined
         })
 
-        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+        const { result } = renderHook(() => useSessions(), { wrapper: WrapperWithProject })
 
         await waitFor(() => {
             expect(result.current.loading).toBe(false)
@@ -567,7 +565,7 @@ describe('SessionsContext', () => {
             return undefined
         })
 
-        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+        const { result } = renderHook(() => useSessions(), { wrapper: WrapperWithProject })
 
         await waitFor(() => {
             expect(listeners[SchaltEvent.SessionGitStats]).toBeTruthy()
@@ -610,7 +608,7 @@ describe('SessionsContext', () => {
             return undefined
         })
 
-        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+        const { result } = renderHook(() => useSessions(), { wrapper: WrapperWithProject })
 
         await waitFor(() => {
             expect(listeners[SchaltEvent.SessionGitStats]).toBeTruthy()
@@ -661,7 +659,7 @@ describe('SessionsContext', () => {
             return undefined
         })
 
-        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+        const { result } = renderHook(() => useSessions(), { wrapper: WrapperWithProject })
 
         await waitFor(() => {
             expect(result.current.getMergeStatus('test-ready')).toBe('conflict')
@@ -704,7 +702,7 @@ describe('SessionsContext', () => {
             return undefined
         })
 
-        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+        const { result } = renderHook(() => useSessions(), { wrapper: WrapperWithProject })
 
         await waitFor(() => {
             expect(listeners[SchaltEvent.SessionsRefreshed]).toBeTruthy()
@@ -756,7 +754,7 @@ describe('SessionsContext', () => {
             return undefined
         })
 
-        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+        const { result } = renderHook(() => useSessions(), { wrapper: WrapperWithProject })
 
         await waitFor(() => {
             expect(listeners[SchaltEvent.SessionsRefreshed]).toBeTruthy()
@@ -805,7 +803,7 @@ describe('SessionsContext', () => {
             return undefined
         })
 
-        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+        const { result } = renderHook(() => useSessions(), { wrapper: WrapperWithProject })
 
         await waitFor(() => {
             expect(listeners[SchaltEvent.SessionsRefreshed]).toBeTruthy()
@@ -858,7 +856,7 @@ describe('SessionsContext', () => {
             return undefined
         })
 
-        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+        const { result } = renderHook(() => useSessions(), { wrapper: WrapperWithProject })
 
         await waitFor(() => {
             expect(result.current.sessions.length).toBeGreaterThan(0)
@@ -894,7 +892,7 @@ describe('SessionsContext', () => {
             return undefined
         })
 
-        const { result } = renderHook(() => useSessions(), { wrapper })
+        const { result } = renderHook(() => useSessions(), { wrapper: WrapperWithProject })
 
         // Seed initial sessions via refresh event to avoid relying on backend fetch timing
         act(() => {
@@ -966,7 +964,7 @@ describe('SessionsContext', () => {
             return undefined
         })
 
-        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+        const { result } = renderHook(() => useSessions(), { wrapper: WrapperWithProject })
 
         await waitFor(() => {
             expect(result.current.loading).toBe(false)
@@ -1005,7 +1003,7 @@ describe('SessionsContext', () => {
             return undefined
         })
 
-        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+        const { result } = renderHook(() => useSessions(), { wrapper: WrapperWithProject })
 
         await waitFor(() => {
             expect(result.current.loading).toBe(false)
@@ -1064,7 +1062,7 @@ describe('SessionsContext', () => {
             return undefined
         })
 
-        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+        const { result } = renderHook(() => useSessions(), { wrapper: WrapperWithProject })
         await waitFor(() => expect(result.current.loading).toBe(false))
 
         const { listen } = await import('@tauri-apps/api/event')
@@ -1118,7 +1116,7 @@ describe('SessionsContext', () => {
 
         clearBackgroundStarts(__debug_getBackgroundStartIds())
 
-        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+        const { result } = renderHook(() => useSessions(), { wrapper: WrapperWithProject })
         await waitFor(() => expect(result.current.loading).toBe(false))
 
         const pendingSessionId = 'queued-session'
@@ -1205,7 +1203,7 @@ describe('SessionsContext', () => {
 
         clearBackgroundStarts(__debug_getBackgroundStartIds())
 
-        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+        const { result } = renderHook(() => useSessions(), { wrapper: WrapperWithProject })
         await waitFor(() => expect(result.current.loading).toBe(false))
 
         const pendingSessionId = 'spec-first'
@@ -1311,7 +1309,7 @@ describe('SessionsContext', () => {
 
         clearBackgroundStarts(__debug_getBackgroundStartIds())
 
-        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+        const { result } = renderHook(() => useSessions(), { wrapper: WrapperWithProject })
         await waitFor(() => expect(result.current.loading).toBe(false))
 
         const pendingSessionId = 'slow-start'
@@ -1390,7 +1388,7 @@ describe('SessionsContext', () => {
             return undefined
         })
 
-        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+        const { result } = renderHook(() => useSessions(), { wrapper: WrapperWithProject })
 
         await waitFor(() => {
             expect(result.current.loading).toBe(false)
@@ -1417,7 +1415,7 @@ describe('SessionsContext', () => {
 
         const { markBackgroundStart, __debug_getBackgroundStartIds } = await import('../common/uiEvents')
 
-        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+        const { result } = renderHook(() => useSessions(), { wrapper: WrapperWithProject })
         await waitFor(() => expect(result.current.loading).toBe(false))
 
         const { listen } = await import('@tauri-apps/api/event')
@@ -1473,7 +1471,7 @@ describe('SessionsContext', () => {
             return undefined
         })
 
-        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+        const { result } = renderHook(() => useSessions(), { wrapper: WrapperWithProject })
         await waitFor(() => expect(result.current.loading).toBe(false))
 
         // Initial auto-start from the first load is expected; ignore it for this regression scenario.
@@ -1551,7 +1549,7 @@ describe('SessionsContext', () => {
             return undefined
         })
 
-        const { result } = renderHook(() => useSessions(), { wrapper })
+        const { result } = renderHook(() => useSessions(), { wrapper: WrapperWithProject })
 
         await waitFor(() => {
             expect(listeners['schaltwerk:git-operation-failed']).toBeTruthy()
@@ -1608,7 +1606,7 @@ describe('SessionsContext', () => {
             return undefined
         })
 
-        const { result } = renderHook(() => useSessions(), { wrapper })
+        const { result } = renderHook(() => useSessions(), { wrapper: WrapperWithProject })
 
         await waitFor(() => {
             expect(listeners['schaltwerk:git-operation-completed']).toBeTruthy()
@@ -1667,7 +1665,7 @@ describe('SessionsContext', () => {
             return undefined
         })
 
-        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+        const { result } = renderHook(() => useSessions(), { wrapper: WrapperWithProject })
 
         await waitFor(() => {
             expect(result.current.loading).toBe(false)
@@ -1704,7 +1702,7 @@ describe('SessionsContext', () => {
             return undefined
         })
 
-        renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+        renderHook(() => useSessions(), { wrapper: WrapperWithProject })
 
         await waitFor(() => {
             expect(listeners['schaltwerk:git-operation-completed']).toBeTruthy()

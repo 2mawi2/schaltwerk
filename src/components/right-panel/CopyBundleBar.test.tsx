@@ -5,6 +5,9 @@ import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
 import type { ChangedFile } from '../../common/events'
 import { CopyBundleBar } from './CopyBundleBar'
+import { Provider, createStore } from 'jotai'
+import { projectPathAtom } from '../../store/atoms/project'
+import type { ReactElement } from 'react'
 
 const countTokensMock = vi.hoisted(() => vi.fn<(text: string) => number>())
 const listenEventMock = vi.hoisted(() => vi.fn(async () => () => {}))
@@ -19,10 +22,6 @@ vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 
 vi.mock('gpt-tokenizer', () => ({
   countTokens: (text: string) => countTokensMock(text),
-}))
-
-vi.mock('../../contexts/ProjectContext', () => ({
-  useProject: () => ({ projectPath: '/tmp/project-path' })
 }))
 
 const pushToastMock = vi.fn()
@@ -125,7 +124,7 @@ describe('CopyBundleBar', () => {
   it('renders checkboxes and defaults to spec only when available', async () => {
     listenEventMock.mockResolvedValue(() => {})
     
-    render(<CopyBundleBar sessionName="s1" />)
+    renderWithProject(<CopyBundleBar sessionName="s1" />)
 
     const specToggle = await screen.findByRole('checkbox', { name: /spec/i })
     const diffToggle = await screen.findByRole('checkbox', { name: /diff/i })
@@ -162,7 +161,7 @@ describe('CopyBundleBar', () => {
       return undefined
     })
 
-    render(<CopyBundleBar sessionName="s2" />)
+    renderWithProject(<CopyBundleBar sessionName="s2" />)
 
     const specToggle = await screen.findByRole('checkbox', { name: /spec/i })
     const diffToggle = await screen.findByRole('checkbox', { name: /diff/i })
@@ -187,7 +186,7 @@ describe('CopyBundleBar', () => {
       return undefined
     })
 
-    render(<CopyBundleBar sessionName="s3" />)
+    renderWithProject(<CopyBundleBar sessionName="s3" />)
 
     const diffToggle = await screen.findByRole('checkbox', { name: /diff/i })
     const filesToggle = await screen.findByRole('checkbox', { name: /files/i })
@@ -197,7 +196,7 @@ describe('CopyBundleBar', () => {
   })
 
   it('copies bundle and reports success', async () => {
-    render(<CopyBundleBar sessionName="s4" />)
+    renderWithProject(<CopyBundleBar sessionName="s4" />)
 
     const button = await screen.findByRole('button', { name: /copy to clipboard/i })
     await user.click(button)
@@ -247,7 +246,7 @@ describe('CopyBundleBar', () => {
       }
     })
 
-    render(<CopyBundleBar sessionName="s-diff-tokens" />)
+    renderWithProject(<CopyBundleBar sessionName="s-diff-tokens" />)
 
     const specToggle = await screen.findByRole('checkbox', { name: /spec/i })
     const diffToggle = await screen.findByRole('checkbox', { name: /diff/i })
@@ -295,7 +294,7 @@ describe('CopyBundleBar', () => {
       })
       .mockImplementationOnce(async () => () => {})
 
-    const { unmount } = render(<CopyBundleBar sessionName="cleanup-session" />)
+    const { unmount } = renderWithProject(<CopyBundleBar sessionName="cleanup-session" />)
 
     await screen.findByRole('checkbox', { name: /spec/i })
 
@@ -309,3 +308,15 @@ describe('CopyBundleBar', () => {
     })
   })
 })
+
+function renderWithProject(ui: ReactElement, projectPath: string | null = '/tmp/project-path') {
+  const store = createStore()
+  store.set(projectPathAtom, projectPath)
+  const result = render(<Provider store={store}>{ui}</Provider>)
+  return {
+    ...result,
+    rerender(nextUi: ReactElement) {
+      result.rerender(<Provider store={store}>{nextUi}</Provider>)
+    },
+  }
+}

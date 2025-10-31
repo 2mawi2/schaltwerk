@@ -1,10 +1,11 @@
 import React from 'react'
 import { describe, it, expect, vi, beforeEach, Mock } from 'vitest'
 import { render, waitFor, fireEvent } from '@testing-library/react'
-import { ProjectProvider, useProject } from './ProjectContext'
 import { ActionButtonsProvider, useActionButtons } from './ActionButtonsContext'
 import { TauriCommands } from '../common/tauriCommands'
 import { getActionButtonColorClasses } from '../constants/actionButtonColors'
+import { Provider, createStore, useSetAtom } from 'jotai'
+import { projectPathAtom } from '../store/atoms/project'
 
 const mockInvoke = vi.hoisted(() => vi.fn())
 
@@ -38,20 +39,21 @@ function TestComponent() {
 }
 
 function TestWrapper({ children }: { children: React.ReactNode }) {
-  // Minimal providers required: Project + ActionButtons
+  const store = React.useMemo(() => createStore(), [])
+  // Minimal providers required: projectPath atom + ActionButtons
   return (
-    <ProjectProvider>
+    <Provider store={store}>
       <ActionButtonsProvider>
         <ProjectInitializer>
           {children}
         </ProjectInitializer>
       </ActionButtonsProvider>
-    </ProjectProvider>
+    </Provider>
   )
 }
 
 function ProjectInitializer({ children }: { children: React.ReactNode }) {
-  const { setProjectPath } = useProject()
+  const setProjectPath = useSetAtom(projectPathAtom)
   React.useEffect(() => {
     setProjectPath('/test/project')
   }, [setProjectPath])

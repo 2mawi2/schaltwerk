@@ -465,7 +465,7 @@ describe('State Management Architecture', () => {
       ex => ex.reason.includes('Pending migration')
     );
     const totalToMigrate = pendingMigration.length;
-    const migratedContexts = 1;
+    const migratedContexts = 2;
     const migrationProgress = ((migratedContexts / totalToMigrate) * 100).toFixed(1);
 
     console.log(`\nState Management Migration Progress: ${migratedContexts}/${totalToMigrate} contexts migrated (${migrationProgress}%)`);

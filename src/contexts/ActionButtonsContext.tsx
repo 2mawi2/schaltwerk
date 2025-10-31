@@ -2,8 +2,9 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 import { TauriCommands } from '../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import type { HeaderActionConfig } from '../types/actionButton'
-import { useProject } from './ProjectContext'
 import { logger } from '../utils/logger'
+import { useAtomValue } from 'jotai'
+import { projectPathAtom } from '../store/atoms/project'
 
 interface ActionButtonsContextType {
   actionButtons: HeaderActionConfig[]
@@ -17,7 +18,7 @@ interface ActionButtonsContextType {
 const ActionButtonsContext = createContext<ActionButtonsContextType | undefined>(undefined)
 
 export function ActionButtonsProvider({ children }: { children: ReactNode }) {
-  const { projectPath } = useProject()
+  const projectPath = useAtomValue(projectPathAtom)
   const [actionButtons, setActionButtons] = useState<HeaderActionConfig[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
