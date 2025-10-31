@@ -30,7 +30,7 @@ import { loadCodexModelCatalog, CodexModelCatalog } from '../../services/codexMo
 
 const MarkdownEditor = lazy(() => import('../plans/MarkdownEditor').then(m => ({ default: m.MarkdownEditor })))
 
-const SESSION_NAME_ALLOWED_PATTERN = /^[\p{L}\p{N}_\- ]+$/u
+const SESSION_NAME_ALLOWED_PATTERN = /^[\p{L}\p{M}\p{N}_\- ]+$/u
 
 type AgentPreferenceField = 'model' | 'reasoningEffort'
 

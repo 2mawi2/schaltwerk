@@ -1,4 +1,4 @@
-const SESSION_NAME_ALLOWED_PATTERN = /^[\p{L}\p{N}_\- ]+$/u
+const SESSION_NAME_ALLOWED_PATTERN = /^[\p{L}\p{M}\p{N}_\- ]+$/u
 
 export function validateSessionName(sessionName: string): string | null {
   if (!sessionName.trim()) {

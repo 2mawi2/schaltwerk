@@ -32,6 +32,9 @@ describe('Session Name Utilities', () => {
     it('should accept Unicode letters', () => {
       expect(validateSessionName('테스트세션')).toBeNull()
       expect(validateSessionName('セッション名')).toBeNull()
+      expect(validateSessionName('สวัสดี')).toBeNull()
+      expect(validateSessionName('काले')).toBeNull()
+      expect(validateSessionName('Cafe\u0301')).toBeNull()
     })
   })
 
