@@ -14,7 +14,6 @@ import { KeyboardShortcutsProvider } from './contexts/KeyboardShortcutsContext'
 import { ToastProvider } from './common/toast/ToastProvider'
 import { GithubIntegrationProvider } from './contexts/GithubIntegrationContext'
 import { SpecEditorStateProvider } from './contexts/SpecEditorStateContext'
-import { GitHistoryProvider } from './contexts/GitHistoryContext'
 
 // Loading wrapper component
 const AppLoader: React.FC = () => {
@@ -37,21 +36,19 @@ const AppLoader: React.FC = () => {
             <GithubIntegrationProvider>
               <SessionsProvider>
                 <SpecEditorStateProvider>
-                  <GitHistoryProvider>
-                    <ModalProvider>
-                      <SelectionProvider>
-                        <FocusProvider>
-                          <ReviewProvider>
-                            <RunProvider>
-                              <div className="h-screen w-screen">
-                                <App />
-                              </div>
-                            </RunProvider>
-                          </ReviewProvider>
-                        </FocusProvider>
-                      </SelectionProvider>
-                    </ModalProvider>
-                  </GitHistoryProvider>
+                  <ModalProvider>
+                    <SelectionProvider>
+                      <FocusProvider>
+                        <ReviewProvider>
+                          <RunProvider>
+                            <div className="h-screen w-screen">
+                              <App />
+                            </div>
+                          </RunProvider>
+                        </ReviewProvider>
+                      </FocusProvider>
+                    </SelectionProvider>
+                  </ModalProvider>
                 </SpecEditorStateProvider>
               </SessionsProvider>
             </GithubIntegrationProvider>
