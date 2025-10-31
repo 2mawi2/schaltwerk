@@ -65,6 +65,12 @@ Tauri-based desktop app for managing AI coding sessions using git worktrees. Eac
 - `events.rs`: Backend event emission
 - `mcp_api.rs`: REST API for external MCP clients
 
+### State Management (MANDATORY)
+- Shared UI/application state lives in Jotai atoms under `src/store/atoms`; expose read-only atoms plus action atoms when updates require side effects.
+- Example: `src/store/atoms/fontSize.ts` stores terminal/UI font sizes, updates CSS variables, emits `UiEvent.FontSizeChanged`, and persists via `SchaltwerkCoreSetFontSizes`.
+- Reach for Jotai when state crosses components, needs persistence, or must be accessed from tests using the Jotai `Provider`/`createStore`; keep purely local state in React `useState`.
+- Access atoms with `useAtomValue`, `useSetAtom`, or `useAtom` instead of creating new context providers for the same data.
+
 ## Essential Commands
 
 ### Before Completing ANY Task
