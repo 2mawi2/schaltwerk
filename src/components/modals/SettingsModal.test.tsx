@@ -120,7 +120,7 @@ const actionButtonsValue = {
   reloadActionButtons: vi.fn().mockResolvedValue(undefined),
 }
 
-vi.mock('../../contexts/ActionButtonsContext', () => ({
+vi.mock('../../hooks/useActionButtons', () => ({
   useActionButtons: () => actionButtonsValue,
 }))
 

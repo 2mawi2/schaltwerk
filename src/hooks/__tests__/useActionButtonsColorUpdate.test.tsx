@@ -1,11 +1,11 @@
-import React from 'react'
+import React, { useEffect, useMemo } from 'react'
 import { describe, it, expect, vi, beforeEach, Mock } from 'vitest'
 import { render, waitFor, fireEvent } from '@testing-library/react'
-import { ActionButtonsProvider, useActionButtons } from './ActionButtonsContext'
-import { TauriCommands } from '../common/tauriCommands'
-import { getActionButtonColorClasses } from '../constants/actionButtonColors'
 import { Provider, createStore, useSetAtom } from 'jotai'
-import { projectPathAtom } from '../store/atoms/project'
+import { projectPathAtom } from '../../store/atoms/project'
+import { useActionButtons } from '../useActionButtons'
+import { TauriCommands } from '../../common/tauriCommands'
+import { getActionButtonColorClasses } from '../../constants/actionButtonColors'
 
 const mockInvoke = vi.hoisted(() => vi.fn())
 
@@ -38,29 +38,26 @@ function TestComponent() {
   )
 }
 
-function TestWrapper({ children }: { children: React.ReactNode }) {
-  const store = React.useMemo(() => createStore(), [])
-  // Minimal providers required: projectPath atom + ActionButtons
-  return (
-    <Provider store={store}>
-      <ActionButtonsProvider>
-        <ProjectInitializer>
-          {children}
-        </ProjectInitializer>
-      </ActionButtonsProvider>
-    </Provider>
-  )
-}
-
 function ProjectInitializer({ children }: { children: React.ReactNode }) {
   const setProjectPath = useSetAtom(projectPathAtom)
-  React.useEffect(() => {
+  useEffect(() => {
     setProjectPath('/test/project')
   }, [setProjectPath])
   return <>{children}</>
 }
 
-describe('Action buttons color updates reflect in UI after save', () => {
+function TestWrapper({ children }: { children: React.ReactNode }) {
+  const store = useMemo(() => createStore(), [])
+  return (
+    <Provider store={store}>
+      <ProjectInitializer>
+        {children}
+      </ProjectInitializer>
+    </Provider>
+  )
+}
+
+describe('useActionButtons color updates', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -97,21 +94,17 @@ describe('Action buttons color updates reflect in UI after save', () => {
       </TestWrapper>
     )
 
-    // initial classes reflect blue
     await waitFor(() => {
       expect(getByTestId('btn-label')).toHaveTextContent('Squash Merge Main')
       expect(getByTestId('btn-classes').textContent || '').toContain('text-blue-200')
     })
 
-    // trigger save to green
     fireEvent.click(getByText('save-green'))
 
-    // classes should update to green after reload
     await waitFor(() => {
       expect(getByTestId('btn-classes').textContent || '').toContain('text-green-200')
     })
 
-    // Calls: get -> set -> get
     expect(mockInvoke).toHaveBeenCalledTimes(3)
   })
 
@@ -153,6 +146,59 @@ describe('Action buttons color updates reflect in UI after save', () => {
 
     await waitFor(() => {
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.ResetProjectActionButtonsToDefaults)
+    })
+  })
+
+  it('resetToDefaults retries load for the active project after a failed fetch', async () => {
+    const backendDefaults = [
+      {
+        id: 'squash-merge-main',
+        label: 'Squash Merge Main',
+        prompt: 'Task: Squash-merge all reviewed Schaltwerk sessions',
+        color: 'green'
+      }
+    ]
+
+    let getCalls = 0
+
+    ;(mockInvoke as Mock).mockImplementation((command: string, args?: unknown) => {
+      switch (command) {
+        case TauriCommands.GetProjectActionButtons: {
+          getCalls += 1
+          if (getCalls === 1) {
+            return Promise.reject(new Error('backend unavailable'))
+          }
+          return Promise.resolve(backendDefaults)
+        }
+        case TauriCommands.ResetProjectActionButtonsToDefaults: {
+          expect(args).toBeUndefined()
+          return Promise.resolve(backendDefaults)
+        }
+        default:
+          throw new Error(`Unexpected command invoked: ${command}`)
+      }
+    })
+
+    const { getByText, getByTestId } = render(
+      <TestWrapper>
+        <TestComponent />
+      </TestWrapper>
+    )
+
+    await waitFor(() => {
+      expect(mockInvoke).toHaveBeenCalledTimes(1)
+      expect(mockInvoke).toHaveBeenLastCalledWith(TauriCommands.GetProjectActionButtons)
+    })
+
+    fireEvent.click(getByText('reset-defaults'))
+
+    await waitFor(() => {
+      expect(mockInvoke).toHaveBeenNthCalledWith(2, TauriCommands.ResetProjectActionButtonsToDefaults)
+    })
+
+    await waitFor(() => {
+      expect(mockInvoke).toHaveBeenNthCalledWith(3, TauriCommands.GetProjectActionButtons)
+      expect(getByTestId('btn-label')).toHaveTextContent('Squash Merge Main')
     })
   })
 })
