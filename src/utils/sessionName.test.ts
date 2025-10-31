@@ -28,6 +28,14 @@ describe('Session Name Utilities', () => {
       const longName = 'a'.repeat(101)
       expect(validateSessionName(longName)).toBe('Session name must be 100 characters or less')
     })
+
+    it('should accept Unicode letters', () => {
+      expect(validateSessionName('테스트세션')).toBeNull()
+      expect(validateSessionName('セッション名')).toBeNull()
+      expect(validateSessionName('สวัสดี')).toBeNull()
+      expect(validateSessionName('काले')).toBeNull()
+      expect(validateSessionName('Cafe\u0301')).toBeNull()
+    })
   })
 
   describe('normalizeSessionName', () => {
