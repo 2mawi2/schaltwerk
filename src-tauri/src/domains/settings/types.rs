@@ -94,19 +94,14 @@ fn default_true() -> bool {
     true
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum AttentionNotificationMode {
     Off,
+    #[default]
     Dock,
     System,
     Both,
-}
-
-impl Default for AttentionNotificationMode {
-    fn default() -> Self {
-        Self::Dock
-    }
 }
 
 fn default_attention_mode() -> AttentionNotificationMode {

@@ -4,7 +4,6 @@ import { vi } from 'vitest'
 import { SettingsModal } from './SettingsModal'
 import { defaultShortcutConfig } from '../../keyboardShortcuts/config'
 import { TauriCommands } from '../../common/tauriCommands'
-import { requestDockBounce } from '../../utils/attentionBridge'
 
 const baseInvokeImplementation = async (command: string, _args?: unknown) => {
   switch (command) {
@@ -75,8 +74,10 @@ vi.mock('../settings/SettingsArchivesSection', () => ({
   SettingsArchivesSection: () => null,
 }))
 
+const requestDockBounceMock = vi.fn()
+
 vi.mock('../../utils/attentionBridge', () => ({
-  requestDockBounce: vi.fn(),
+  requestDockBounce: requestDockBounceMock,
 }))
 
 vi.mock('./FontPicker', () => ({
@@ -179,8 +180,6 @@ const createDefaultUseSessionsValue = () => ({
 
 const useSessionsMock = vi.fn(createDefaultUseSessionsValue)
 
-const mockedRequestDockBounce = vi.mocked(requestDockBounce)
-
 vi.mock('../../hooks/useSettings', () => ({
   useSettings: () => useSettingsMock(),
   AgentType: undefined,
@@ -198,7 +197,7 @@ describe('SettingsModal loading indicators', () => {
     useSessionsMock.mockReturnValue(createDefaultUseSessionsValue())
     invokeMock.mockClear()
     invokeMock.mockImplementation(baseInvokeImplementation)
-    mockedRequestDockBounce.mockReset()
+    requestDockBounceMock.mockReset()
   })
 
   it('renders textual loader when settings are loading', async () => {
@@ -256,7 +255,7 @@ describe('SettingsModal loading indicators', () => {
     const testButton = await screen.findByText('Test notification')
     await user.click(testButton)
 
-    expect(mockedRequestDockBounce).toHaveBeenCalled()
+    expect(requestDockBounceMock).toHaveBeenCalled()
   })
 
   it('disables remember idle baseline toggle when notifications are off', async () => {
@@ -297,7 +296,7 @@ describe('SettingsModal initial tab handling', () => {
       }
       return baseInvokeImplementation(command, args)
     })
-    mockedRequestDockBounce.mockReset()
+    requestDockBounceMock.mockReset()
   })
 
   it('opens the specified initial tab when provided', async () => {
@@ -370,7 +369,7 @@ describe('SettingsModal version settings', () => {
     useSessionsMock.mockReturnValue(createDefaultUseSessionsValue())
     invokeMock.mockClear()
     invokeMock.mockImplementation(baseInvokeImplementation)
-    mockedRequestDockBounce.mockReset()
+    requestDockBounceMock.mockReset()
   })
 
   it('loads auto update preference on mount', async () => {
@@ -425,7 +424,7 @@ describe('SettingsModal appearance settings', () => {
     useSessionsMock.mockReturnValue(createDefaultUseSessionsValue())
     invokeMock.mockClear()
     invokeMock.mockImplementation(baseInvokeImplementation)
-    mockedRequestDockBounce.mockReset()
+    requestDockBounceMock.mockReset()
   })
 
   it('loads dev error toast preference on mount', async () => {
@@ -477,7 +476,7 @@ describe('SettingsModal project settings navigation', () => {
     useSessionsMock.mockReturnValue(createDefaultUseSessionsValue())
     invokeMock.mockClear()
     invokeMock.mockImplementation(baseInvokeImplementation)
-    mockedRequestDockBounce.mockReset()
+    requestDockBounceMock.mockReset()
   })
 
   it('nests run script and action buttons under Project Settings sub-navigation', async () => {
