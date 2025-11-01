@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { waitFor } from '@testing-library/react'
 import { createStore } from 'jotai'
 import {
   selectionValueAtom,
@@ -16,6 +17,7 @@ import {
 } from './selection'
 import { TauriCommands } from '../../common/tauriCommands'
 import { FilterMode } from '../../types/sessionFilters'
+import { stableSessionTerminalId } from '../../common/terminalIdentity'
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
@@ -422,5 +424,88 @@ describe('selection atoms', () => {
 
     const restoredSelection = store.get(selectionValueAtom)
     expect(restoredSelection.payload).toBe('initial-session')
+  })
+
+  it('clears session terminals when SessionsRefreshed converts to spec', async () => {
+    const backend = await import('../../terminal/transport/backend')
+    const closeMock = vi.mocked(backend.closeTerminalBackend)
+    closeMock.mockClear()
+
+    await store.set(setSelectionActionAtom, {
+      selection: {
+        kind: 'session',
+        payload: 'session-1',
+      },
+    })
+
+    await store.set(initializeSelectionEventsActionAtom)
+    await waitForSelectionAsyncEffectsForTest()
+
+    nextSessionResponse = createRawSession({
+      session_state: 'spec',
+      status: 'spec',
+      ready_to_merge: false,
+    })
+
+    const payload = [
+      {
+        info: {
+          session_id: 'session-1',
+          session_state: 'spec',
+          status: 'spec',
+          ready_to_merge: false,
+        },
+      },
+    ]
+
+    expect(sessionsRefreshedHandlers.length).toBeGreaterThan(0)
+    await sessionsRefreshedHandlers[0](payload)
+    await waitForSelectionAsyncEffectsForTest()
+
+    const topId = stableSessionTerminalId('session-1', 'top')
+    const bottomId = stableSessionTerminalId('session-1', 'bottom')
+
+    await waitFor(() => {
+      expect(closeMock).toHaveBeenCalledWith(topId)
+    })
+    await waitFor(() => {
+      expect(closeMock).toHaveBeenCalledWith(bottomId)
+    })
+  })
+
+  it('clears session terminals when SessionStateChanged converts to spec', async () => {
+    const backend = await import('../../terminal/transport/backend')
+    const closeMock = vi.mocked(backend.closeTerminalBackend)
+    closeMock.mockClear()
+
+    await store.set(setSelectionActionAtom, {
+      selection: {
+        kind: 'session',
+        payload: 'session-1',
+      },
+    })
+
+    await store.set(initializeSelectionEventsActionAtom)
+    await waitForSelectionAsyncEffectsForTest()
+
+    nextSessionResponse = createRawSession({
+      session_state: 'spec',
+      status: 'spec',
+      ready_to_merge: false,
+    })
+
+    expect(sessionStateHandlers.length).toBeGreaterThan(0)
+    sessionStateHandlers[0]({ sessionId: 'session-1' })
+    await waitForSelectionAsyncEffectsForTest()
+
+    const topId = stableSessionTerminalId('session-1', 'top')
+    const bottomId = stableSessionTerminalId('session-1', 'bottom')
+
+    await waitFor(() => {
+      expect(closeMock).toHaveBeenCalledWith(topId)
+    })
+    await waitFor(() => {
+      expect(closeMock).toHaveBeenCalledWith(bottomId)
+    })
   })
 })

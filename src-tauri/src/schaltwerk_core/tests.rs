@@ -1290,12 +1290,19 @@ fn test_convert_running_session_to_draft() {
     assert_eq!(running_session.status, SessionStatus::Active);
 
     // Convert the running session back to spec
-    manager.convert_session_to_draft("auth-feature").unwrap();
+    let new_spec_name = manager.convert_session_to_draft("auth-feature").unwrap();
+    assert_ne!(new_spec_name, "auth-feature");
 
-    // Verify it's back to spec state
-    let converted_session = manager
+    // Original session should no longer exist
+    assert!(manager
         .db_ref()
         .get_session_by_name(&env.repo_path, "auth-feature")
+        .is_err());
+
+    // Verify newly created spec session state and content
+    let converted_session = manager
+        .db_ref()
+        .get_session_by_name(&env.repo_path, &new_spec_name)
         .unwrap();
     assert_eq!(converted_session.session_state, SessionState::Spec);
     assert_eq!(converted_session.status, SessionStatus::Spec);
@@ -1330,12 +1337,18 @@ fn test_convert_session_to_draft_preserves_content() {
         .unwrap();
 
     // Convert back to spec
-    manager.convert_session_to_draft("auth-system").unwrap();
+    let new_spec_name = manager.convert_session_to_draft("auth-system").unwrap();
+    assert_ne!(new_spec_name, "auth-system");
 
-    // Verify content is preserved
-    let converted = manager
+    assert!(manager
         .db_ref()
         .get_session_by_name(&env.repo_path, "auth-system")
+        .is_err());
+
+    // Verify content is preserved on the recreated spec
+    let converted = manager
+        .db_ref()
+        .get_session_by_name(&env.repo_path, &new_spec_name)
         .unwrap();
     assert_eq!(converted.spec_content, Some(spec_content.to_string()));
     assert_eq!(converted.session_state, SessionState::Spec);

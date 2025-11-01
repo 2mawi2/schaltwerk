@@ -70,6 +70,18 @@ pub fn emit_selection_running(app: &AppHandle, name: &str) {
     );
 }
 
+pub fn emit_selection_spec(app: &AppHandle, name: &str) {
+    let _ = emit_event(
+        app,
+        SchaltEvent::Selection,
+        &SelectionPayload {
+            kind: "session",
+            payload: name.to_string(),
+            session_state: "spec",
+        },
+    );
+}
+
 pub fn emit_archive_updated(app: &AppHandle, repo: &str, count: usize) {
     let _ = emit_event(
         app,

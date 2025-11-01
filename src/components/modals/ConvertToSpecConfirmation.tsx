@@ -11,7 +11,7 @@ interface ConvertToDraftConfirmationProps {
   sessionDisplayName?: string
   hasUncommittedChanges: boolean
   onClose: () => void
-  onSuccess: () => void
+  onSuccess: (newSpecName?: string) => void
 }
 
 export function ConvertToSpecConfirmation({ 
@@ -29,11 +29,12 @@ export function ConvertToSpecConfirmation({
     
     setLoading(true)
     try {
-      await invoke(TauriCommands.SchaltwerkCoreConvertSessionToDraft, {
+      const result = await invoke<string | void>(TauriCommands.SchaltwerkCoreConvertSessionToDraft, {
         name: sessionName
       })
-      
-      onSuccess()
+      const newSpecName = typeof result === 'string' ? result : undefined
+
+      onSuccess(newSpecName)
       onClose()
     } catch (error) {
       logger.error('Failed to convert session to spec:', error)

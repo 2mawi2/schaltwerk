@@ -114,9 +114,11 @@ describe('Sidebar status indicators and actions', () => {
           ? 'running'
           : currentSessionState
         const statusForResponse = stateForResponse === 'spec' ? 'spec' : 'active'
+        const sessionNameForResponse = stateForResponse === 'spec' ? 's1-spec' : 's1'
         const response: EnrichedSession = {
           info: {
-            session_id: 's1',
+            session_id: sessionNameForResponse,
+            display_name: sessionNameForResponse,
             branch: 'para/s1',
             worktree_path: '/p/s1',
             base_branch: 'main',
@@ -140,8 +142,8 @@ describe('Sidebar status indicators and actions', () => {
           return [
             {
               id: 's1-id',
-              name: 's1',
-              display_name: 's1',
+              name: 's1-spec',
+              display_name: 's1-spec',
               version_group_id: null,
               version_number: null,
               repository_path: '/repo',
@@ -171,7 +173,7 @@ describe('Sidebar status indicators and actions', () => {
         currentSessionState = 'spec'
         hasUncommitted = false
         serveStaleSnapshot = true // First reload returns stale data to emulate backend cache
-        return undefined
+        return 's1-spec'
       }
       if (cmd === TauriCommands.GetCurrentDirectory) return '/cwd'
       if (cmd === TauriCommands.TerminalExists) return false
@@ -205,7 +207,7 @@ describe('Sidebar status indicators and actions', () => {
     fireEvent.click(confirmButton)
 
     await waitFor(() => {
-      const sessionButton = screen.getAllByRole('button').find(b => /s1/.test(b.textContent || ''))
+      const sessionButton = screen.getAllByRole('button').find(b => /s1-spec/.test(b.textContent || ''))
       expect(sessionButton).toBeTruthy()
       expect(sessionButton).toHaveTextContent('Spec')
     })
@@ -214,7 +216,7 @@ describe('Sidebar status indicators and actions', () => {
     fireEvent.click(screen.getByTitle('Show spec agents'))
 
     await waitFor(() => {
-      const specButtons = screen.getAllByRole('button').filter(b => /s1/.test(b.textContent || ''))
+      const specButtons = screen.getAllByRole('button').filter(b => /s1-spec/.test(b.textContent || ''))
       expect(specButtons).toHaveLength(1)
       expect(specButtons[0]).toHaveTextContent('Spec')
     })

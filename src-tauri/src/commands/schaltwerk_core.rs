@@ -1059,18 +1059,19 @@ pub async fn schaltwerk_core_cancel_session(
 pub async fn schaltwerk_core_convert_session_to_draft(
     app: tauri::AppHandle,
     name: String,
-) -> Result<(), String> {
+) -> Result<String, String> {
     log::info!("Converting session to spec: {name}");
 
     let core = get_core_write().await?;
     let manager = core.session_manager();
+    let repo_path_str = core.repo_path.to_string_lossy().to_string();
 
     // Close associated terminals BEFORE removing the worktree to avoid leaving shells
     // pointing at a deleted directory (which triggers getcwd errors).
     terminals::close_session_terminals_if_any(&name).await;
 
     match manager.convert_session_to_draft(&name) {
-        Ok(()) => {
+        Ok(new_spec_name) => {
             log::info!("Successfully converted session to spec: {name}");
 
             // Close associated terminals
@@ -1090,8 +1091,10 @@ pub async fn schaltwerk_core_convert_session_to_draft(
             // Emit event to notify frontend of the change
             log::info!("Queueing sessions refresh after converting session to spec");
             events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SpecSync);
+            evict_session_cache_entry_for_repo(&repo_path_str, &name).await;
+            events::emit_selection_spec(&app, &new_spec_name);
 
-            Ok(())
+            Ok(new_spec_name)
         }
         Err(e) => {
             log::error!("Failed to convert session '{name}' to spec: {e}");

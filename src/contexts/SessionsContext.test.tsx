@@ -267,7 +267,7 @@ describe('SessionsContext', () => {
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {
             if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
             if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
-            if (cmd === TauriCommands.SchaltwerkCoreConvertSessionToDraft) return undefined
+            if (cmd === TauriCommands.SchaltwerkCoreConvertSessionToDraft) return 'converted-spec'
             if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
             return undefined
         })
@@ -867,10 +867,7 @@ describe('SessionsContext', () => {
         })
 
         await waitFor(() => {
-            const session = result.current.allSessions.find(s => s.info.session_id === 'test-active')
-            expect(session?.info.session_state).toBe('spec')
-            expect(session?.info.status).toBe('spec')
-            expect(session?.info.ready_to_merge).toBe(false)
+            expect(result.current.allSessions.find(s => s.info.session_id === 'test-active')).toBeUndefined()
         })
     })
 
