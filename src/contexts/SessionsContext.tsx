@@ -15,8 +15,9 @@ import { EventPayloadMap, GitOperationFailedPayload, GitOperationPayload } from 
 import { areSessionInfosEqual } from '../utils/sessionComparison'
 import { stableSessionTerminalId, isTopTerminalId } from '../common/terminalIdentity'
 import { releaseSessionTerminals } from '../terminal/registry/terminalRegistry'
-import { useAtomValue } from 'jotai'
+import { useAtomValue, useSetAtom } from 'jotai'
 import { projectPathAtom } from '../store/atoms/project'
+import { setSelectionFilterModeActionAtom } from '../store/atoms/selection'
 
 type MergeModeOption = 'squash' | 'reapply'
 
@@ -211,6 +212,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
     const pendingMergePreviewRef = useRef(new Set<string>())
     const pendingSessionsReloadRef = useRef(false)
     const [autoCancelAfterMerge, setAutoCancelAfterMerge] = useState(true)
+    const setSelectionFilterMode = useSetAtom(setSelectionFilterModeActionAtom)
     const applyAutoCancelPreference = useCallback((next: boolean) => {
         setAutoCancelAfterMerge(next)
     }, [])
@@ -533,7 +535,11 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
     // Sessions is the final result (searched, filtered, and sorted)
     const sessions = sortedSessions
 
-    // Function to update the current selection (used by SelectionContext)
+    useEffect(() => {
+        setSelectionFilterMode(filterMode)
+    }, [filterMode, setSelectionFilterMode])
+
+    // Function to update the current selection (consumed by selection atoms)
     const setCurrentSelection = useCallback((sessionId: string | null) => {
         currentSelectionRef.current = sessionId
     }, [])
@@ -1058,7 +1064,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
     }, [projectPath, applyAutoCancelPreference])
 
     // Ensure a backend watcher is active for each running session so git stats update instantly
-    // Note: file watchers are managed per active selection in SelectionContext to
+    // Note: file watchers are managed per active selection by selection atoms to
     // avoid global watcher churn from the UI layer.
 
     const updateSessionStatus = useCallback(async (sessionId: string, newStatus: string) => {

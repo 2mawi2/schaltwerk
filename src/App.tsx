@@ -16,7 +16,7 @@ import { DeleteSpecConfirmation } from './components/modals/DeleteSpecConfirmati
 import { SettingsModal } from './components/modals/SettingsModal'
 import { ProjectSelectorModal } from './components/modals/ProjectSelectorModal'
 import { invoke } from '@tauri-apps/api/core'
-import { useSelection } from './contexts/SelectionContext'
+import { useSelection } from './hooks/useSelection'
 import { clearTerminalStartedTracking } from './components/terminal/Terminal'
 import { useAtom, useSetAtom } from 'jotai'
 import {
@@ -25,6 +25,10 @@ import {
   resetFontSizesActionAtom,
   initializeFontSizesActionAtom,
 } from './store/atoms/fontSize'
+import {
+  initializeSelectionEventsActionAtom,
+  setProjectPathActionAtom,
+} from './store/atoms/selection'
 import { projectPathAtom } from './store/atoms/project'
 import { useSessions } from './contexts/SessionsContext'
 import { HomeScreen } from './components/home/HomeScreen'
@@ -82,6 +86,8 @@ function AppContent() {
   const decreaseFontSizes = useSetAtom(decreaseFontSizesActionAtom)
   const resetFontSizes = useSetAtom(resetFontSizesActionAtom)
   const initializeFontSizes = useSetAtom(initializeFontSizesActionAtom)
+  const initializeSelectionEvents = useSetAtom(initializeSelectionEventsActionAtom)
+  const setSelectionProjectPath = useSetAtom(setProjectPathActionAtom)
   const { isOnboardingOpen, completeOnboarding, closeOnboarding, openOnboarding } = useOnboarding()
   const { fetchSessionForPrefill } = useSessionPrefill()
   const github = useGithubIntegrationContext()
@@ -95,6 +101,14 @@ function AppContent() {
   useEffect(() => {
     initializeFontSizes()
   }, [initializeFontSizes])
+
+  useEffect(() => {
+    initializeSelectionEvents()
+  }, [initializeSelectionEvents])
+
+  useEffect(() => {
+    setSelectionProjectPath(projectPath ?? null)
+  }, [projectPath, setSelectionProjectPath])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -1199,7 +1213,7 @@ function AppContent() {
       setActiveTabPath(path)
       setProjectPath(path)
       setShowHome(false)
-      // SelectionContext will automatically update orchestrator when projectPath changes
+      // Selection atoms will automatically update orchestrator when projectPath changes
     } catch (error) {
       logger.error('Failed to open project:', error)
       alert(`Failed to open project: ${error}`)
@@ -1319,7 +1333,7 @@ function AppContent() {
     try {
       await invoke(TauriCommands.CloseProject, { path })
       // Also clear frontend terminal tracking to avoid stale state on reopen
-      // Compute orchestrator terminal IDs for this project (must match SelectionContext logic)
+      // Compute orchestrator terminal IDs for this project (must match selection atom logic)
       try {
         const dirName = path.split(/[/\\]/).pop() || 'unknown'
         const sanitizedDirName = dirName.replace(/[^a-zA-Z0-9_-]/g, '_')

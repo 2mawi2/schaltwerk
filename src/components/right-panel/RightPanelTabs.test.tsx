@@ -48,7 +48,7 @@ import { projectPathAtom } from '../../store/atoms/project'
 import type { ReactElement } from 'react'
 
 // Mock contexts used by RightPanelTabs
-vi.mock('../../contexts/SelectionContext', () => ({
+vi.mock('../../hooks/useSelection', () => ({
   useSelection: () => ({
     selection: { kind: 'session', payload: 'test-session', worktreePath: '/tmp/session-worktree' },
     isSpec: false,

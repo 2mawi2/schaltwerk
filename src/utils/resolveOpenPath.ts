@@ -1,4 +1,4 @@
-import type { Selection } from '../contexts/SelectionContext'
+import type { Selection } from '../hooks/useSelection'
 import { TauriCommands } from '../common/tauriCommands'
 import { logger } from '../utils/logger'
 

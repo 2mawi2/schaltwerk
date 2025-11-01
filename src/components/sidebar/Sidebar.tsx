@@ -7,7 +7,7 @@ import { useFocus } from '../../contexts/FocusContext'
 import { UnlistenFn } from '@tauri-apps/api/event'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import { EventPayloadMap, GitOperationPayload } from '../../common/events'
-import { useSelection } from '../../contexts/SelectionContext'
+import { useSelection } from '../../hooks/useSelection'
 import { useSessions } from '../../contexts/SessionsContext'
 import { captureSelectionSnapshot, SelectionMemoryEntry } from '../../utils/selectionMemory'
 import { computeSelectionCandidate } from '../../utils/selectionPostMerge'
@@ -937,7 +937,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         return cleanup
     }, [selection, sessions, handleMarkSelectedSessionReady])
 
-    // Selection is now restored by SelectionContext itself
+    // Selection is now restored by the selection state atoms
 
     // No longer need to listen for events - context handles everything
 

@@ -10,8 +10,8 @@ const invoke = (await import('@tauri-apps/api/core')).invoke as ReturnType<typeo
 
 // Mutable selection used by mocked hook
 let currentSelection: Record<string, unknown> = { kind: 'orchestrator' }
-vi.mock('../../contexts/SelectionContext', async () => {
-  const actual = await vi.importActual<Record<string, unknown>>('../../contexts/SelectionContext')
+vi.mock('../../hooks/useSelection', async () => {
+  const actual = await vi.importActual<Record<string, unknown>>('../../hooks/useSelection')
   return {
     ...actual,
     useSelection: () => ({ selection: currentSelection })

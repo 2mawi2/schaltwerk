@@ -462,10 +462,12 @@ describe('Terminal', () => {
         expect(shouldStickSpy).toHaveBeenCalled()
       })
 
-      const callWithOverride = shouldStickSpy.mock.calls.find(
-        call => (call[0] as autoScrollModule.StickToBottomInput)?.viewportY === 360
-      )?.[0] as autoScrollModule.StickToBottomInput | undefined
-      expect(callWithOverride?.viewportY).toBe(360)
+      await waitFor(() => {
+        const matches = shouldStickSpy.mock.calls.some(
+          call => (call[0] as autoScrollModule.StickToBottomInput)?.viewportY === 360,
+        )
+        expect(matches).toBe(true)
+      })
     } finally {
       shouldStickSpy.mockRestore()
     }

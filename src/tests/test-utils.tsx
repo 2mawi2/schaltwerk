@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo } from 'react'
 import { render } from '@testing-library/react'
 import type { RenderOptions } from '@testing-library/react'
-import { SelectionProvider } from '../contexts/SelectionContext'
 import { FocusProvider } from '../contexts/FocusContext'
 import { ReviewProvider } from '../contexts/ReviewContext'
 import { SessionsProvider } from '../contexts/SessionsContext'
@@ -13,6 +12,11 @@ import type { GithubIntegrationValue } from '../hooks/useGithubIntegration'
 import type { ChangedFile } from '../common/events'
 import { Provider, createStore, useSetAtom } from 'jotai'
 import { projectPathAtom } from '../store/atoms/project'
+import {
+  initializeSelectionEventsActionAtom,
+  resetSelectionAtomsForTest,
+  setProjectPathActionAtom,
+} from '../store/atoms/selection'
 
 type GithubOverrides = Partial<GithubIntegrationValue>
 
@@ -68,22 +72,22 @@ function ProviderTree({ children, githubOverrides, includeTestInitializer = fals
 
   const inner = (
     <SessionsProvider>
-      <SelectionProvider>
-        <FocusProvider>
-          <ReviewProvider>
-            <RunProvider>
-              <GithubIntegrationTestProvider overrides={githubOverrides}>
-                {children}
-              </GithubIntegrationTestProvider>
-            </RunProvider>
-          </ReviewProvider>
-        </FocusProvider>
-      </SelectionProvider>
+      <FocusProvider>
+        <ReviewProvider>
+          <RunProvider>
+            <GithubIntegrationTestProvider overrides={githubOverrides}>
+              {children}
+            </GithubIntegrationTestProvider>
+          </RunProvider>
+        </ReviewProvider>
+      </FocusProvider>
     </SessionsProvider>
   )
 
   const content = includeTestInitializer ? (
-    <TestProjectInitializer>{inner}</TestProjectInitializer>
+    <SelectionTestInitializer>
+      <TestProjectInitializer>{inner}</TestProjectInitializer>
+    </SelectionTestInitializer>
   ) : (
     inner
   )
@@ -117,12 +121,28 @@ export function renderWithProviders(
 // Component to set project path for tests
 function TestProjectInitializer({ children }: { children: React.ReactNode }) {
   const setProjectPath = useSetAtom(projectPathAtom)
-  
+
   useEffect(() => {
     // Set a test project path immediately
     setProjectPath('/test/project')
   }, [setProjectPath])
-  
+
+  return <>{children}</>
+}
+
+function SelectionTestInitializer({ children }: { children: React.ReactNode }) {
+  const initializeSelectionEvents = useSetAtom(initializeSelectionEventsActionAtom)
+  const setSelectionProjectPath = useSetAtom(setProjectPathActionAtom)
+
+  useEffect(() => {
+    void initializeSelectionEvents()
+    setSelectionProjectPath('/test/project')
+
+    return () => {
+      resetSelectionAtomsForTest()
+    }
+  }, [initializeSelectionEvents, setSelectionProjectPath])
+
   return <>{children}</>
 }
 

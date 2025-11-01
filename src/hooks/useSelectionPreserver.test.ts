@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
-import type { Selection } from '../contexts/SelectionContext'
+import type { Selection } from '../hooks/useSelection'
 import { useSelectionPreserver } from './useSelectionPreserver'
 
 vi.mock('../utils/logger', () => ({
@@ -13,7 +13,7 @@ vi.mock('../utils/logger', () => ({
 let selectionState: Selection = { kind: 'session', payload: 'alpha', worktreePath: '/tmp/alpha' }
 const setSelectionMock = vi.fn(async () => {})
 
-vi.mock('../contexts/SelectionContext', () => ({
+vi.mock('../hooks/useSelection', () => ({
   useSelection: () => ({
     selection: selectionState,
     setSelection: setSelectionMock,

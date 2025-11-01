@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react'
 import { SimpleDiffPanel } from '../diff/SimpleDiffPanel'
-import { useSelection, type Selection } from '../../contexts/SelectionContext'
+import { useSelection, type Selection } from '../../hooks/useSelection'
 import { useFocus } from '../../contexts/FocusContext'
 import { useSessions } from '../../contexts/SessionsContext'
 import { SpecContentView as SpecContentView } from '../plans/SpecContentView'
