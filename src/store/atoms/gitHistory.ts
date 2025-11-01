@@ -23,6 +23,10 @@ export interface GitHistoryFilter {
   author: string | null
 }
 
+export interface GitHistoryRefreshOptions {
+  sinceHeadOverride?: string | null
+}
+
 const DEFAULT_ENTRY: RepoHistoryEntry = Object.freeze({
   snapshot: null,
   isLoading: false,
@@ -266,6 +270,7 @@ async function runFetch(
   repoPath: string,
   mode: FetchMode,
   cursor?: string,
+  sinceHeadOverride?: string | null,
 ) {
   if (!repoPath) {
     return
@@ -275,7 +280,7 @@ async function runFetch(
   if (existing) {
     await existing
     if (mode === 'refresh') {
-      await runFetch(get, set, repoPath, 'refresh')
+      await runFetch(get, set, repoPath, 'refresh', undefined, sinceHeadOverride)
     }
     return
   }
@@ -304,10 +309,13 @@ async function runFetch(
     }
   })
 
-  const sinceHead =
+  const currentEntries = get(gitHistoryEntriesAtom)
+  const defaultSinceHead =
     mode === 'refresh'
-      ? (get(gitHistoryEntriesAtom).get(repoPath)?.latestHead ?? null)
+      ? currentEntries.get(repoPath)?.latestHead ?? null
       : null
+  const sinceHead =
+    sinceHeadOverride === undefined ? defaultSinceHead : sinceHeadOverride
 
   const request = (async () => {
     try {
@@ -459,14 +467,29 @@ export const loadMoreGitHistoryActionAtom = atom(
   },
 )
 
+type RefreshGitHistoryActionInput =
+  | string
+  | null
+  | undefined
+  | { repoPath: string | null | undefined; sinceHeadOverride?: string | null }
+
 export const refreshGitHistoryActionAtom = atom(
   null,
-  async (get, set, repoPath: string | null | undefined) => {
+  async (get, set, payload: RefreshGitHistoryActionInput) => {
+    const repoPath =
+      typeof payload === 'string' || payload === null || payload === undefined
+        ? payload
+        : payload.repoPath
+    const sinceHeadOverride =
+      typeof payload === 'string' || payload === null || payload === undefined
+        ? undefined
+        : payload.sinceHeadOverride
+
     if (!repoPath) {
       return
     }
 
-    await runFetch(get, set, repoPath, 'refresh')
+    await runFetch(get, set, repoPath, 'refresh', undefined, sinceHeadOverride)
   },
 )
 
@@ -501,12 +524,20 @@ export function useGitHistory(repoPath: string | null | undefined) {
     [loadMoreAction, normalized],
   )
 
-  const refreshForRepo = useCallback(() => {
-    if (!normalized) {
-      return noopPromise()
-    }
-    return refreshAction(normalized)
-  }, [refreshAction, normalized])
+  const refreshForRepo = useCallback(
+    (options?: GitHistoryRefreshOptions) => {
+      if (!normalized) {
+        return noopPromise()
+      }
+
+      if (!options) {
+        return refreshAction(normalized)
+      }
+
+      return refreshAction({ repoPath: normalized, ...options })
+    },
+    [refreshAction, normalized],
+  )
 
   const setFilterForRepo = useCallback(
     (next: GitHistoryFilter | ((prev: GitHistoryFilter) => GitHistoryFilter)) => {

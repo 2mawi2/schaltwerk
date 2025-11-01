@@ -32,6 +32,19 @@ interface GitGraphPanelProps {
   sessionName?: string | null
 }
 
+type RefreshRequest = {
+  head: string
+  forced: boolean
+  sinceHeadOverride: string | null | undefined
+}
+
+type PendingHeadInfo = {
+  forced: boolean
+  sinceHeadOverride: string | null | undefined
+}
+
+type PendingHeadBucket = Map<string, PendingHeadInfo>
+
 export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverride, sessionName }: GitGraphPanelProps = {}) => {
   const projectPath = useAtomValue(projectPathAtom)
   const repoPath = repoPathOverride ?? projectPath
@@ -55,12 +68,13 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
   const commitDetailsRef = useRef<Record<string, CommitDetailState>>({})
   const contextMenuRef = useRef<HTMLDivElement | null>(null)
   const latestHeadRef = useRef<string | null>(null)
+  const previousHeadRef = useRef<string | null>(null)
   const hasLoadedRef = useRef(false)
   const refreshProcessingRef = useRef(false)
-  const pendingRefreshHeadsRef = useRef<string[]>([])
+  const pendingRefreshHeadsRef = useRef<RefreshRequest[]>([])
   const activeRefreshHeadRef = useRef<string | null>(null)
   const lastManualRefreshRef = useRef(0)
-  const pendingHeadsRef = useRef<Map<string, Set<string>>>(new Map())
+  const pendingHeadsRef = useRef<Map<string, PendingHeadBucket>>(new Map())
   const unsubscribeRef = useRef<(() => void | Promise<void>) | null>(null)
   const snapshotRef = useRef<HistoryProviderSnapshot | null>(null)
   const lastLoadMoreErrorRef = useRef<string | null>(null)
@@ -76,7 +90,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
       return
     }
 
-    const activeSnapshot = snapshotRef.current
+    const activeSnapshot = snapshotRef.current ?? snapshot ?? null
     const cursor = activeSnapshot?.nextCursor
     if (!cursor) {
       return
@@ -97,7 +111,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
         cursor,
       })
     }
-  }, [isLoadingMore, pendingLoadMore, loadMoreHistory, repoPath])
+  }, [isLoadingMore, pendingLoadMore, loadMoreHistory, repoPath, snapshot])
 
   const handleContextMenu = useCallback((event: React.MouseEvent, commit: HistoryItem) => {
     event.preventDefault()
@@ -221,6 +235,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
   }, [isLoadingMore])
 
   useEffect(() => {
+    previousHeadRef.current = latestHeadRef.current
     latestHeadRef.current = latestHead ?? null
   }, [latestHead])
 
@@ -260,13 +275,26 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
 
       try {
         while (pendingRefreshHeadsRef.current.length > 0) {
-          const head = pendingRefreshHeadsRef.current.shift()
-          if (!head) {
+          const request = pendingRefreshHeadsRef.current.shift()
+          if (!request) {
             continue
           }
 
-          activeRefreshHeadRef.current = head
-          await refreshHistory()
+          activeRefreshHeadRef.current = request.head
+          const options = request.sinceHeadOverride === undefined
+            ? undefined
+            : { sinceHeadOverride: request.sinceHeadOverride }
+          await refreshHistory(options)
+
+          if (request.forced && !headsMatch(latestHeadRef.current, request.head)) {
+            logger.debug('[GitGraphPanel] Forced refresh did not reach target head, retrying full refresh', {
+              repoPath,
+              requestedHead: request.head,
+              latestKnownHead: latestHeadRef.current,
+            })
+            await refreshHistory()
+          }
+
           activeRefreshHeadRef.current = null
         }
       } finally {
@@ -277,27 +305,45 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
         }
       }
     },
-    [repoPath, refreshHistory]
+    [repoPath, refreshHistory, headsMatch]
   )
 
   const enqueueRefreshHead = useCallback(
-    (head: string) => {
+    (head: string, options?: { force?: boolean; sinceHeadOverride?: string | null }) => {
       if (!repoPath) {
         return
       }
 
-      if (headsMatch(latestHeadRef.current, head)) {
+      const forced = Boolean(options?.force)
+      const sinceHeadOverride = options?.sinceHeadOverride
+
+      if (!forced && headsMatch(latestHeadRef.current, head)) {
         logger.debug('[GitGraphPanel] enqueue skipped (head matches)', { repoPath, head })
         return
       }
 
-      if (activeRefreshHeadRef.current === head) {
+      if (!forced && activeRefreshHeadRef.current === head) {
         return
       }
 
       const queue = pendingRefreshHeadsRef.current
-      if (!queue.includes(head)) {
-        queue.push(head)
+      const existingIndex = queue.findIndex(request => request.head === head)
+      if (existingIndex >= 0) {
+        const existing = queue[existingIndex]
+        const nextForced = existing.forced || forced
+        const nextSinceHeadOverride =
+          sinceHeadOverride === undefined ? existing.sinceHeadOverride : sinceHeadOverride
+        queue[existingIndex] = {
+          head,
+          forced: nextForced,
+          sinceHeadOverride: nextSinceHeadOverride,
+        }
+      } else {
+        queue.push({
+          head,
+          forced,
+          sinceHeadOverride,
+        })
       }
       void processRefreshQueue()
     },
@@ -311,42 +357,60 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
         return
       }
 
-      const queued = Array.from(pending)
+      const queued = Array.from(pending.entries()).map(([head, info]) => ({ head, ...info }))
       pendingHeadsRef.current.delete(session)
       logger.debug('[GitGraphPanel] Flushing queued heads', {
         repoPath,
         reason,
         session,
-        heads: queued,
+        heads: queued.map(entry => entry.head),
+        forced: queued.filter(entry => entry.forced).map(entry => entry.head),
       })
 
-      queued.forEach(head => {
-        if (headsMatch(latestHeadRef.current, head)) {
+      queued.forEach(({ head, forced, sinceHeadOverride }) => {
+        if (!forced && headsMatch(latestHeadRef.current, head)) {
           logger.debug('[GitGraphPanel] Flush skipped head (matches latest)', { repoPath, head, reason, session })
           return
         }
-        enqueueRefreshHead(head)
+
+        const snapshotHead = snapshotRef.current?.headCommit ?? null
+        const firstItem = snapshotRef.current?.items?.[0]
+        const resolvedSinceHeadOverride = forced
+          ? sinceHeadOverride ?? snapshotHead ?? firstItem?.fullHash ?? firstItem?.id ?? latestHeadRef.current ?? previousHeadRef.current ?? null
+          : undefined
+
+        enqueueRefreshHead(head, { force: forced, sinceHeadOverride: resolvedSinceHeadOverride })
       })
     },
     [enqueueRefreshHead, headsMatch, repoPath]
   )
 
   const queuePendingHead = useCallback(
-    (session: string, head: string) => {
+    (session: string, head: string, options?: { force?: boolean; sinceHeadOverride?: string | null }) => {
       if (!head) {
         return
       }
       let bucket = pendingHeadsRef.current.get(session)
       if (!bucket) {
-        bucket = new Set<string>()
+        bucket = new Map<string, PendingHeadInfo>()
         pendingHeadsRef.current.set(session, bucket)
       }
-      bucket.add(head)
+      const forced = Boolean(options?.force)
+      const existing = bucket.get(head)
+      const nextForced = (existing?.forced ?? false) || forced
+      const suppliedOverride = options?.sinceHeadOverride
+      const fallbackOverride = suppliedOverride ?? existing?.sinceHeadOverride ?? latestHeadRef.current ?? snapshotRef.current?.headCommit ?? previousHeadRef.current ?? null
+      bucket.set(head, {
+        forced: nextForced,
+        sinceHeadOverride: nextForced ? fallbackOverride : existing?.sinceHeadOverride ?? null,
+      })
       logger.debug('[GitGraphPanel] File change queued (not ready)', {
         repoPath,
         session,
         head,
         pendingCount: bucket.size,
+        forced: nextForced,
+        sinceHeadOverride: fallbackOverride,
       })
     },
     [repoPath]
@@ -358,6 +422,8 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
     activeRefreshHeadRef.current = null
     hasLoadedRef.current = false
     latestHeadRef.current = null
+    previousHeadRef.current = null
+    snapshotRef.current = null
 
     setSelectedCommitId(null)
     setContextMenu(null)
@@ -418,7 +484,10 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
           eventSession,
         })
         if (!hasLoadedRef.current && nextHead) {
-          queuePendingHead(sessionKey, nextHead)
+          queuePendingHead(sessionKey, nextHead, {
+            force: true,
+            sinceHeadOverride: snapshotRef.current?.headCommit ?? latestHeadRef.current ?? previousHeadRef.current ?? null,
+          })
         }
         return
       }
@@ -430,7 +499,10 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
 
       if (!hasLoadedRef.current) {
         if (nextHead) {
-          queuePendingHead(sessionKey, nextHead)
+          queuePendingHead(sessionKey, nextHead, {
+            force: true,
+            sinceHeadOverride: snapshotRef.current?.headCommit ?? latestHeadRef.current ?? previousHeadRef.current ?? null,
+          })
         } else {
           logger.debug('[GitGraphPanel] File change ignored (not ready)', { repoPath })
         }
