@@ -1,9 +1,9 @@
 import { atom } from 'jotai'
 import type { WritableAtom } from 'jotai'
-type SetAtomFunction = <Value>(
-  atom: WritableAtom<unknown, [Value], unknown>,
+type SetAtomFunction = <Value, Result>(
+  atom: WritableAtom<unknown, [Value], Result>,
   value: Value,
-) => Promise<void> | void
+) => Result
 import { invoke } from '@tauri-apps/api/core'
 import { sessionTerminalGroup } from '../../common/terminalIdentity'
 import { TauriCommands } from '../../common/tauriCommands'
