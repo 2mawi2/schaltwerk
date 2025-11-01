@@ -4,7 +4,7 @@ import type { EnrichedSession } from '../types/session'
 
 const useSessionsMock = vi.fn()
 
-vi.mock('../contexts/SessionsContext', () => ({
+vi.mock('../hooks/useSessions', () => ({
   useSessions: () => useSessionsMock(),
 }))
 

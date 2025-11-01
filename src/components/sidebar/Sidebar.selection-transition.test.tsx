@@ -14,7 +14,7 @@ import { SessionState, type EnrichedSession, type RawSession } from '../../types
 import { Sidebar } from './Sidebar'
 import { TestProviders } from '../../tests/test-utils'
 import { useSelection } from '../../hooks/useSelection'
-import { useSessions } from '../../contexts/SessionsContext'
+import { useSessions } from '../../hooks/useSessions'
 import { FilterMode } from '../../types/sessionFilters'
 
 const mockInvoke = invoke as MockedFunction<typeof invoke>

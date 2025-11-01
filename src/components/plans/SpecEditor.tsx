@@ -12,7 +12,7 @@ import { detectPlatformSafe, isShortcutForAction } from '../../keyboardShortcuts
 import { useSpecContent } from '../../hooks/useSpecContent'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { useSelection } from '../../hooks/useSelection'
-import { useSessions } from '../../contexts/SessionsContext'
+import { useSessions } from '../../hooks/useSessions'
 import { emitSpecRefine, buildSpecRefineReference } from '../../utils/specRefine'
 import { theme } from '../../common/theme'
 import { useAtom, useSetAtom } from 'jotai'

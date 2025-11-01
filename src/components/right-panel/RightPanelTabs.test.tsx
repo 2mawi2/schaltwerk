@@ -60,7 +60,7 @@ vi.mock('../../contexts/FocusContext', () => ({
   useFocus: () => ({ setFocusForSession: vi.fn(), currentFocus: null })
 }))
 
-vi.mock('../../contexts/SessionsContext', () => ({
+vi.mock('../../hooks/useSessions', () => ({
   useSessions: () => ({ allSessions: mockSessions })
 }))
 

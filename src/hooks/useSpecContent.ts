@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useSessions } from '../contexts/SessionsContext'
+import { useSessions } from '../hooks/useSessions'
 
 export interface SpecContentSnapshot {
   content: string

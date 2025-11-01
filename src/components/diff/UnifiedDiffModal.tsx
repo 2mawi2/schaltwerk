@@ -18,7 +18,7 @@ import {
 import { SearchBox } from '../common/SearchBox'
 import '../../styles/vscode-dark-theme.css'
 import { logger } from '../../utils/logger'
-import { useSessions } from '../../contexts/SessionsContext'
+import { useSessions } from '../../hooks/useSessions'
 import { mapSessionUiState } from '../../utils/sessionFilters'
 import { DiffSessionActions } from './DiffSessionActions'
 import { useKeyboardShortcutsConfig } from '../../contexts/KeyboardShortcutsContext'

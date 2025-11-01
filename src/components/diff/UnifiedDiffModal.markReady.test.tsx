@@ -31,8 +31,8 @@ vi.mock('../../hooks/useSelection', async () => {
   }
 })
 
-vi.mock('../../contexts/SessionsContext', async () => {
-  const actual = await vi.importActual<typeof import('../../contexts/SessionsContext')>('../../contexts/SessionsContext')
+vi.mock('../../hooks/useSessions', async () => {
+  const actual = await vi.importActual<typeof import('../../hooks/useSessions')>('../../hooks/useSessions')
   return {
     ...actual,
     useSessions: () => ({

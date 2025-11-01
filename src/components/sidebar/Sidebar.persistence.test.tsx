@@ -7,6 +7,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { FilterMode, SortMode } from '../../types/sessionFilters'
 import { EnrichedSession } from '../../types/session'
 import { MockTauriInvokeArgs } from '../../types/testing'
+import { logger } from '../../utils/logger'
 
 vi.mock('@tauri-apps/api/core')
 vi.mock('@tauri-apps/api/event', () => ({
@@ -228,7 +229,7 @@ describe('Sidebar sort mode persistence', () => {
   })
 
   it('should handle backend errors gracefully during saving', async () => {
-    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {})
     
     render(<TestProviders><Sidebar /></TestProviders>)
 
@@ -266,8 +267,8 @@ describe('Sidebar sort mode persistence', () => {
     fireEvent.click(sortButton)
 
     await waitFor(() => {
-      expect(consoleSpy).toHaveBeenCalledWith(
-        'Failed to save sessions settings:',
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[SessionsAtoms] Failed to save sessions settings:',
         expect.any(Error)
       )
     })
@@ -275,7 +276,7 @@ describe('Sidebar sort mode persistence', () => {
     // Component should still work despite localStorage error
     expect(sortButton).toHaveAttribute('title', expect.stringContaining('Creation Time'))
     
-    consoleSpy.mockRestore()
+    warnSpy.mockRestore()
   })
 
   it('should ignore invalid backend values and use default', async () => {

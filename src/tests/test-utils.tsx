@@ -3,7 +3,6 @@ import { render } from '@testing-library/react'
 import type { RenderOptions } from '@testing-library/react'
 import { FocusProvider } from '../contexts/FocusContext'
 import { ReviewProvider } from '../contexts/ReviewContext'
-import { SessionsProvider } from '../contexts/SessionsContext'
 import { RunProvider } from '../contexts/RunContext'
 import { ModalProvider } from '../contexts/ModalContext'
 import { ToastProvider } from '../common/toast/ToastProvider'
@@ -17,6 +16,12 @@ import {
   resetSelectionAtomsForTest,
   setProjectPathActionAtom,
 } from '../store/atoms/selection'
+import {
+  initializeSessionsEventsActionAtom,
+  initializeSessionsSettingsActionAtom,
+  refreshSessionsActionAtom,
+  __resetSessionsTestingState,
+} from '../store/atoms/sessions'
 
 type GithubOverrides = Partial<GithubIntegrationValue>
 
@@ -71,17 +76,15 @@ function ProviderTree({ children, githubOverrides, includeTestInitializer = fals
   const store = useMemo(() => createStore(), [])
 
   const inner = (
-    <SessionsProvider>
-      <FocusProvider>
-        <ReviewProvider>
-          <RunProvider>
-            <GithubIntegrationTestProvider overrides={githubOverrides}>
-              {children}
-            </GithubIntegrationTestProvider>
-          </RunProvider>
-        </ReviewProvider>
-      </FocusProvider>
-    </SessionsProvider>
+    <FocusProvider>
+      <ReviewProvider>
+        <RunProvider>
+          <GithubIntegrationTestProvider overrides={githubOverrides}>
+            {children}
+          </GithubIntegrationTestProvider>
+        </RunProvider>
+      </ReviewProvider>
+    </FocusProvider>
   )
 
   const content = includeTestInitializer ? (
@@ -133,15 +136,28 @@ function TestProjectInitializer({ children }: { children: React.ReactNode }) {
 function SelectionTestInitializer({ children }: { children: React.ReactNode }) {
   const initializeSelectionEvents = useSetAtom(initializeSelectionEventsActionAtom)
   const setSelectionProjectPath = useSetAtom(setProjectPathActionAtom)
+  const initializeSessionsEvents = useSetAtom(initializeSessionsEventsActionAtom)
+  const initializeSessionsSettings = useSetAtom(initializeSessionsSettingsActionAtom)
+  const refreshSessions = useSetAtom(refreshSessionsActionAtom)
 
   useEffect(() => {
     void initializeSelectionEvents()
     setSelectionProjectPath('/test/project')
+    void initializeSessionsEvents()
+    void initializeSessionsSettings()
+    void refreshSessions()
 
     return () => {
       resetSelectionAtomsForTest()
+      __resetSessionsTestingState()
     }
-  }, [initializeSelectionEvents, setSelectionProjectPath])
+  }, [
+    initializeSelectionEvents,
+    setSelectionProjectPath,
+    initializeSessionsEvents,
+    initializeSessionsSettings,
+    refreshSessions,
+  ])
 
   return <>{children}</>
 }

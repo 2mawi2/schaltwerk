@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { useSessions } from './SessionsContext'
+import { useSessions } from '../hooks/useSessions'
 import { isRunning } from '../utils/sessionFilters'
 
 interface RunContextType {

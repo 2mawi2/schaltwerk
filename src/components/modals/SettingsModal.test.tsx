@@ -185,7 +185,7 @@ vi.mock('../../hooks/useSettings', () => ({
   AgentType: undefined,
 }))
 
-vi.mock('../../contexts/SessionsContext', () => ({
+vi.mock('../../hooks/useSessions', () => ({
   useSessions: () => useSessionsMock(),
 }))
 
