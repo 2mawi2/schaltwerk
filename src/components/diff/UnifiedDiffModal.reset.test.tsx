@@ -3,8 +3,8 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { UnifiedDiffModal } from './UnifiedDiffModal'
 import { TestProviders } from '../../tests/test-utils'
 
-vi.mock('../../contexts/SelectionContext', async () => {
-  const actual = await vi.importActual<Record<string, unknown>>('../../contexts/SelectionContext')
+vi.mock('../../hooks/useSelection', async () => {
+  const actual = await vi.importActual<Record<string, unknown>>('../../hooks/useSelection')
   return {
     ...actual,
     useSelection: () => ({

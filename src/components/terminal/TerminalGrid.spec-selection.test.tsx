@@ -9,7 +9,7 @@ import { TauriCommands } from '../../common/tauriCommands'
 import type { MockTauriInvokeArgs } from '../../types/testing'
 import type { RawSession } from '../../types/session'
 import { invoke } from '@tauri-apps/api/core'
-import { useSelection } from '../../contexts/SelectionContext'
+import { useSelection } from '../../hooks/useSelection'
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn()
@@ -35,7 +35,7 @@ vi.mock('./RunTerminal', () => ({
 
 vi.mock('../plans/SpecPlaceholder', async () => {
   const React = await import('react')
-  const { useSelection } = await import('../../contexts/SelectionContext')
+  const { useSelection } = await import('../../hooks/useSelection')
   return {
     SpecPlaceholder: () => {
       const { selection } = useSelection()

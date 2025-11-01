@@ -49,8 +49,8 @@ vi.mock('../../hooks/useLineSelection', () => ({
   useLineSelection: () => lineSelectionMock
 }))
 
-vi.mock('../../contexts/SelectionContext', async () => {
-  const actual = await vi.importActual<Record<string, unknown>>('../../contexts/SelectionContext')
+vi.mock('../../hooks/useSelection', async () => {
+  const actual = await vi.importActual<Record<string, unknown>>('../../hooks/useSelection')
   return {
     ...actual,
     useSelection: () => ({

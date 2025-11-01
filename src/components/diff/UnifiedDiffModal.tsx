@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
-import { useSelection } from '../../contexts/SelectionContext'
+import { useSelection } from '../../hooks/useSelection'
 import { useReview } from '../../contexts/ReviewContext'
 import { useFocus } from '../../contexts/FocusContext'
 import { useLineSelection, type LineSelection } from '../../hooks/useLineSelection'

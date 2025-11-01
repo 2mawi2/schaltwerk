@@ -13,7 +13,7 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { SessionState, type EnrichedSession, type RawSession } from '../../types/session'
 import { Sidebar } from './Sidebar'
 import { TestProviders } from '../../tests/test-utils'
-import { useSelection } from '../../contexts/SelectionContext'
+import { useSelection } from '../../hooks/useSelection'
 import { useSessions } from '../../contexts/SessionsContext'
 import { FilterMode } from '../../types/sessionFilters'
 

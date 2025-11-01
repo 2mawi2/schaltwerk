@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react'
-import { useSelection } from '../contexts/SelectionContext'
-import type { Selection } from '../contexts/SelectionContext'
+import { useSelection } from '../hooks/useSelection'
+import type { Selection } from '../hooks/useSelection'
 import { logger } from '../utils/logger'
 
 function cloneSelection(selection: Selection | undefined): Selection | undefined {

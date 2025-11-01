@@ -42,6 +42,8 @@ export enum UiEvent {
   ProjectSwitchComplete = 'schaltwerk:project-switch-complete',
   TerminalDimensionRefresh = 'schaltwerk:terminal-dimension-refresh',
   OpenSettings = 'schaltwerk:open-settings',
+  SelectionChanged = 'schaltwerk:selection-changed',
+  SessionStateChanged = 'schaltwerk:session-state-changed',
 }
 
 export interface TerminalResizeRequestDetail {
@@ -56,6 +58,13 @@ export type TerminalResetDetail =
 export type SelectionResizeDetail =
   | { kind: 'session'; sessionId: string }
   | { kind: 'orchestrator' }
+
+export interface SelectionChangedDetail {
+  kind: 'session' | 'orchestrator'
+  payload?: string
+  worktreePath?: string
+  sessionState?: 'spec' | 'running' | 'reviewed'
+}
 
 export interface FocusTerminalDetail {
   terminalId?: string
@@ -212,6 +221,8 @@ export type UiEventPayloads = {
   [UiEvent.OpenSpecInOrchestrator]: OpenSpecInOrchestratorDetail
   [UiEvent.ProjectSwitchComplete]: ProjectSwitchCompleteDetail
   [UiEvent.TerminalDimensionRefresh]: TerminalDimensionRefreshDetail
+  [UiEvent.SelectionChanged]: SelectionChangedDetail
+  [UiEvent.SessionStateChanged]: { sessionId: string }
   [UiEvent.InsertTerminalText]: InsertTerminalTextDetail
   [UiEvent.OpenSettings]: OpenSettingsDetail | undefined
 }

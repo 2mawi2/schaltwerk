@@ -12,8 +12,8 @@ let sessionsState: EnrichedSession[]
 const reloadSessionsMock = vi.fn(async () => {})
 const demoTerminals = sessionTerminalGroup('demo')
 
-vi.mock('../../contexts/SelectionContext', async () => {
-  const actual = await vi.importActual<Record<string, unknown>>('../../contexts/SelectionContext')
+vi.mock('../../hooks/useSelection', async () => {
+  const actual = await vi.importActual<Record<string, unknown>>('../../hooks/useSelection')
   return {
     ...actual,
     useSelection: () => ({

@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { useSelection } from '../../contexts/SelectionContext'
+import { useSelection } from '../../hooks/useSelection'
 import { SpecEditor } from './SpecEditor'
 
 export function SpecPlaceholder() {

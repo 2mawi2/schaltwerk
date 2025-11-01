@@ -4,8 +4,8 @@ import { UnifiedDiffModal } from './UnifiedDiffModal'
 import { TestProviders } from '../../tests/test-utils'
 import { TauriCommands } from '../../common/tauriCommands'
 
-vi.mock('../../contexts/SelectionContext', async () => {
-  const actual = await vi.importActual<Record<string, unknown>>('../../contexts/SelectionContext')
+vi.mock('../../hooks/useSelection', async () => {
+  const actual = await vi.importActual<Record<string, unknown>>('../../hooks/useSelection')
   return {
     ...actual,
     useSelection: () => ({

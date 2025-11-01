@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Selection } from '../contexts/SelectionContext'
+import { Selection } from '../hooks/useSelection'
 import { EnrichedSession } from '../types/session'
 import { isSpec } from '../utils/sessionFilters'
 import { FilterMode } from '../types/sessionFilters'

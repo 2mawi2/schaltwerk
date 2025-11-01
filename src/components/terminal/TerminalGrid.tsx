@@ -6,7 +6,7 @@ import { UnifiedBottomBar } from './UnifiedBottomBar'
 import { SpecPlaceholder } from '../plans/SpecPlaceholder'
 import TerminalErrorBoundary from '../TerminalErrorBoundary'
 import Split from 'react-split'
-import { useSelection } from '../../contexts/SelectionContext'
+import { useSelection } from '../../hooks/useSelection'
 import { useFocus } from '../../contexts/FocusContext'
 import { useRun } from '../../contexts/RunContext'
 import { useClaudeSession } from '../../hooks/useClaudeSession'
@@ -172,7 +172,8 @@ const TerminalGridComponent = () => {
     const toggleTerminalCollapsed = () => {
         const newCollapsed = !isBottomCollapsed
         setIsBottomCollapsed(newCollapsed)
-        
+        sessionStorage.setItem(`schaltwerk:terminal-grid:collapsed:${sessionKey}`, String(newCollapsed))
+
         if (newCollapsed) {
             // When collapsing, save current size and set to collapsed size
             const currentBottom = sizes[1]
@@ -326,18 +327,24 @@ const TerminalGridComponent = () => {
             const config = await loadRunScriptConfiguration(currentSessionKey)
 
             setHasRunScripts(config.hasRunScripts)
-            persistRunModeState(currentSessionKey, config.shouldActivateRunMode)
+            if (config.hasRunScripts) {
+                if (config.shouldActivateRunMode && !runModeActive) {
+                    persistRunModeState(currentSessionKey, true)
+                } else if (!config.shouldActivateRunMode && !runModeActive) {
+                    persistRunModeState(currentSessionKey, false)
+                }
+            }
 
             if (config.savedActiveTab !== null) {
                 const savedTab = config.savedActiveTab
                 syncActiveTab(savedTab)
-            } else if (!config.shouldActivateRunMode) {
+            } else if (config.hasRunScripts && !config.shouldActivateRunMode && !runModeActive) {
                 syncActiveTab(0, state => state.activeTab === RUN_TAB_INDEX)
             }
         } catch (error) {
             logger.error('[TerminalGrid] Failed to load run script configuration:', error)
         }
-    }, [getSessionKey, persistRunModeState, syncActiveTab, RUN_TAB_INDEX])
+    }, [getSessionKey, persistRunModeState, syncActiveTab, RUN_TAB_INDEX, runModeActive])
 
     // Load run script availability and manage run mode state
     useEffect(() => {
@@ -505,6 +512,7 @@ const TerminalGridComponent = () => {
                         sessionStorage.setItem(activeTabKey, String(RUN_TAB_INDEX))
                         return next
                     })
+                    sessionStorage.setItem(activeTabKey, String(RUN_TAB_INDEX))
                     if (isBottomCollapsed) {
                         const expandedSize = lastExpandedBottomPercent || 28
                         setSizes([100 - expandedSize, expandedSize])

@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client'
 import './index.css'
 import App from './App'
 import { EntryAnimation } from './components/EntryAnimation'
-import { SelectionProvider } from './contexts/SelectionContext'
+import { Provider as JotaiProvider } from 'jotai'
 import { FocusProvider } from './contexts/FocusContext'
 import { ReviewProvider } from './contexts/ReviewContext'
 import { RunProvider } from './contexts/RunContext'
@@ -13,7 +13,6 @@ import ErrorBoundary from './components/ErrorBoundary'
 import { KeyboardShortcutsProvider } from './contexts/KeyboardShortcutsContext'
 import { ToastProvider } from './common/toast/ToastProvider'
 import { GithubIntegrationProvider } from './contexts/GithubIntegrationContext'
-import { Provider as JotaiProvider } from 'jotai'
 
 // Loading wrapper component
 const AppLoader: React.FC = () => {
@@ -37,17 +36,15 @@ const AppLoader: React.FC = () => {
               <GithubIntegrationProvider>
                 <SessionsProvider>
                   <ModalProvider>
-                    <SelectionProvider>
-                      <FocusProvider>
-                        <ReviewProvider>
-                          <RunProvider>
-                            <div className="h-screen w-screen">
-                              <App />
-                            </div>
-                          </RunProvider>
-                        </ReviewProvider>
-                      </FocusProvider>
-                    </SelectionProvider>
+                    <FocusProvider>
+                      <ReviewProvider>
+                        <RunProvider>
+                          <div className="h-screen w-screen">
+                            <App />
+                          </div>
+                        </RunProvider>
+                      </ReviewProvider>
+                    </FocusProvider>
                   </ModalProvider>
                 </SessionsProvider>
               </GithubIntegrationProvider>

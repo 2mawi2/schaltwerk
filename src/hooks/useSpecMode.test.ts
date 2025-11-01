@@ -1,6 +1,6 @@
 import { renderHook, act, waitFor } from '@testing-library/react'
 import { useSpecMode, getSpecToSelect } from './useSpecMode'
-import { Selection } from '../contexts/SelectionContext'
+import { Selection } from '../hooks/useSelection'
 import { EnrichedSession } from '../types/session'
 import { FilterMode } from '../types/sessionFilters'
 import { UiEvent } from '../common/uiEvents'
