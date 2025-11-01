@@ -4,7 +4,7 @@
 Tauri-based desktop app for managing AI coding sessions using git worktrees. Each session gets an isolated branch/worktree where AI agents (Claude, Gemini, OpenCode, Codex, Factory Droid, etc.) can work without affecting the main codebase.
 
 ## Platform Support
-- macOS only. Windows and Linux are not supported at this time.
+- macOS 11+ supported; Linux beta builds ship via releases. Windows unsupported.
 
 > **Tooling Note:** Examples in this guide default to `bun`. Replace them with the equivalent `npm` commands (`npm install`, `npm run …`, etc.) if you prefer npm.
 
@@ -34,7 +34,7 @@ Tauri-based desktop app for managing AI coding sessions using git worktrees. Eac
 
 **Session Creation → Agent Startup:**
 1. `App.tsx:handleCreateSession()` → Tauri command `schaltwerk_core_create_session`
-2. `session_core.rs:SessionManager::create_session()` → Creates DB entry + git worktree
+2. `domains/sessions/service.rs:SessionManager::create_session()` → Creates DB entry + worktree
 3. Frontend switches via `SelectionContext` → Lazy terminal creation
 4. Agent starts in terminal with worktree as working directory
 
@@ -56,9 +56,9 @@ Tauri-based desktop app for managing AI coding sessions using git worktrees. Eac
 
 **Backend Core:**
 - `main.rs`: Tauri commands entry point
-- `session_core.rs`: Session CRUD operations + state management
-- `terminal/manager.rs`: PTY lifecycle management
-- `git/worktrees.rs`: Git worktree operations
+- `schaltwerk_core/mod.rs`: Session gateway + database access
+- `domains/terminal/manager.rs`: PTY lifecycle management
+- `domains/git/worktrees.rs`: Git worktree operations
 
 **Communication Layer:**
 - `eventSystem.ts`: Type-safe frontend event handling
@@ -78,12 +78,7 @@ Tauri-based desktop app for managing AI coding sessions using git worktrees. Eac
 just test          # Run ALL validations: TypeScript, Rust lints, tests, and build
 # Or: bun run test  # Same as 'just test'
 ```
-**Why:** Ensures code quality and prevents broken commits. This command runs:
-- TypeScript linting (`bun run lint`)
-- Rust clippy checks (`cargo clippy --all-features -- -D warnings`)
-- Rust dependency hygiene (`cargo shear`)
-- Rust tests (`cargo nextest run --all-features`)
-- Rust build verification (`cargo build`)
+**Why:** Ensures code quality and prevents broken commits. The script runs TypeScript lint + type-checking, MCP lint/tests, frontend vitest, Rust clippy, dependency hygiene (`cargo shear`), `knip`, Rust tests (`cargo nextest`), and a Rust build.
 
 ### Autonomy for Tests (MANDATORY)
 - Codex and Factory Droid may run `just test`, `bun run test`, `bun run lint`, `bun run lint:rust`, `bun run test:rust`, and `cargo` checks without asking for user approval, even when the CLI approval mode is set to “on-request”.
@@ -136,15 +131,15 @@ just release major      # Create major release (x.0.0) - creates DRAFT
 ## How Things Actually Work
 
 ### Session Storage
-Sessions are stored in SQLite at `~/Library/Application Support/schaltwerk/{project-name}/database.db`. Each session tracks:
+Sessions use SQLite `sessions.db` under `~/Library/Application Support/schaltwerk/projects/{project-name_hash}` (macOS) or `~/.local/share/schaltwerk/projects/{project-name_hash}` (Linux) to store:
 - Git branch + worktree path (`.schaltwerk/worktrees/{session-name}/`)
 - Session state (Spec/Running/Reviewed)
 - Spec content (markdown planning docs)
 - Git stats (files changed, lines added/removed)
 
 ### Configuration Storage
-- Application-wide settings (tutorial completion, agent binaries, terminal preferences, etc.) live in `~/Library/Application Support/<bundle-id>/settings.json` (default bundle id `com.mariuswichtner.schaltwerk`).
-- Project-scoped data (sessions, specs, git stats, project config) live in the per-project SQLite at `~/Library/Application Support/schaltwerk/projects/{project-name_hash}/sessions.db`.
+- Application settings live in OS config (`~/Library/Application Support/com.mariuswichtner.schaltwerk/settings.json` on macOS, `~/.config/schaltwerk/settings.json` on Linux).
+- Project-scoped data (sessions, specs, git stats, project config) reuse the same `sessions.db`.
 
 ### Terminal Management
 - **Creation**: Lazy - only when session is selected in UI
