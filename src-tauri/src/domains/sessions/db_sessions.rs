@@ -52,6 +52,7 @@ pub trait SessionMethods {
         group_id: Option<&str>,
         version_number: Option<i32>,
     ) -> Result<()>;
+    fn delete_session(&self, id: &str) -> Result<()>;
 }
 
 const SQLITE_MAX_VARIABLE_NUMBER: usize = 999;
@@ -789,6 +790,12 @@ impl SessionMethods for Database {
             ],
         )?;
 
+        Ok(())
+    }
+
+    fn delete_session(&self, id: &str) -> Result<()> {
+        let conn = self.get_conn()?;
+        conn.execute("DELETE FROM sessions WHERE id = ?1", params![id])?;
         Ok(())
     }
 }

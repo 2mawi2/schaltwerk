@@ -1414,11 +1414,22 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 sessionDisplayName={convertToSpecModal.sessionDisplayName}
                 hasUncommittedChanges={convertToSpecModal.hasUncommitted}
                 onClose={() => setConvertToDraftModal({ open: false, sessionName: '', hasUncommitted: false })}
-                onSuccess={async () => {
+                onSuccess={async (newSpecName) => {
                     if (convertToSpecModal.sessionName) {
                         optimisticallyConvertSessionToSpec(convertToSpecModal.sessionName)
                     }
                     await reloadSessionsAndRefreshIdle()
+                    if (newSpecName) {
+                        await setSelection(
+                            {
+                                kind: 'session',
+                                payload: newSpecName,
+                                sessionState: 'spec',
+                            },
+                            true,
+                            true,
+                        )
+                    }
                 }}
             />
             <PromoteVersionConfirmation

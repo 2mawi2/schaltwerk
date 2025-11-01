@@ -1,4 +1,9 @@
 import { atom } from 'jotai'
+import type { WritableAtom } from 'jotai'
+type SetAtomFunction = <Value>(
+  atom: WritableAtom<unknown, [Value], unknown>,
+  value: Value,
+) => Promise<void> | void
 import { invoke } from '@tauri-apps/api/core'
 import { sessionTerminalGroup } from '../../common/terminalIdentity'
 import { TauriCommands } from '../../common/tauriCommands'
@@ -188,6 +193,7 @@ const sessionFetchPromises = new Map<string, Promise<SessionSnapshot | null>>()
 const terminalsCache = new Map<string, Set<string>>()
 const terminalToSelectionKey = new Map<string, string>()
 const selectionsNeedingRecreate = new Set<string>()
+const lastKnownSessionState = new Map<string, NormalizedSessionState>()
 const lastSelectionByProject = new Map<string, Selection>()
 let pendingAsyncEffect: Promise<void> | null = null
 
@@ -240,6 +246,7 @@ function selectionCacheKey(selection: Selection): string {
   }
   return `session:${selection.payload ?? 'unknown'}`
 }
+
 
 async function ensureTerminal(
   id: string,
@@ -428,6 +435,22 @@ export const clearTerminalTrackingActionAtom = atom(
   },
 )
 
+async function handleSessionStateUpdate(
+  set: SetAtomFunction,
+  sessionId: string,
+  nextState: NormalizedSessionState,
+): Promise<void> {
+  const previous = lastKnownSessionState.get(sessionId)
+  lastKnownSessionState.set(sessionId, nextState)
+
+  if (nextState === 'spec' && previous !== 'spec') {
+    const group = sessionTerminalGroup(sessionId)
+    await set(clearTerminalTrackingActionAtom, [group.top, group.bottomBase])
+    const cacheKey = selectionCacheKey({ kind: 'session', payload: sessionId })
+    selectionsNeedingRecreate.add(cacheKey)
+  }
+}
+
 export const setProjectPathActionAtom = atom(
   null,
   async (get, set, path: string | null) => {
@@ -584,6 +607,16 @@ export const initializeSelectionEventsActionAtom = atom(
 
     const sessionsRefreshedUnlisten = await listenEvent(SchaltEvent.SessionsRefreshed, async payload => {
       const sessions = (payload as { info?: unknown }[] | undefined) ?? []
+      if (Array.isArray(sessions)) {
+        for (const item of sessions) {
+          const info = (item as { info?: { session_id?: string; session_state?: string | null; status?: string; ready_to_merge?: boolean } })?.info
+          if (!info?.session_id) {
+            continue
+          }
+          const nextState = normalizeSessionState(info.session_state, info.status, info.ready_to_merge)
+          await handleSessionStateUpdate(set as SetAtomFunction, info.session_id, nextState)
+        }
+      }
       const currentSelection = get(selectionAtom)
       if (currentSelection.kind !== 'session' || !currentSelection.payload) {
         return
@@ -648,6 +681,9 @@ export const initializeSelectionEventsActionAtom = atom(
       const refreshPromise = (async () => {
         const snapshot = await set(getSessionSnapshotActionAtom, { sessionId, refresh: true })
         if (!snapshot) return
+        if (snapshot.sessionState) {
+          await handleSessionStateUpdate(set as SetAtomFunction, sessionId, snapshot.sessionState)
+        }
         const latest = get(selectionAtom)
         if (latest.kind !== 'session' || latest.payload !== sessionId) {
           return
@@ -690,6 +726,7 @@ export function resetSelectionAtomsForTest(): void {
   terminalToSelectionKey.clear()
   selectionsNeedingRecreate.clear()
   lastSelectionByProject.clear()
+  lastKnownSessionState.clear()
   cachedProjectPath = null
   cachedProjectId = 'default'
   currentFilterMode = FilterMode.All

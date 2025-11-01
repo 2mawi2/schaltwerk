@@ -913,46 +913,25 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
     }, [executeReload])
 
     const optimisticallyConvertSessionToSpec = useCallback((sessionId: string) => {
-        let updated = false
+        let removed = false
         setAllSessions(prev => {
-            let changed = false
-            const next = prev.map(session => {
-                if (session.info.session_id !== sessionId) {
-                    return session
-                }
-                changed = true
-                const nextInfo: SessionInfo = {
-                    ...session.info,
-                    session_state: 'spec',
-                    status: 'spec',
-                    ready_to_merge: false,
-                    has_uncommitted_changes: false,
-                    has_conflicts: false,
-                    diff_stats: undefined,
-                    merge_has_conflicts: undefined,
-                    merge_conflicting_paths: undefined,
-                    merge_is_up_to_date: undefined,
-                }
-                return {
-                    ...session,
-                    info: nextInfo,
-                }
-            })
-
-            if (!changed) {
+            const next = prev.filter(session => session.info.session_id !== sessionId)
+            if (next.length === prev.length) {
                 return prev
             }
-
-            updated = true
+            removed = true
             return next
         })
 
-        if (!updated) {
+        if (!removed) {
             logger.debug(`[SessionsContext] Optimistic convert skipped; session ${sessionId} not found`)
             return
         }
 
-        prevStatesRef.current.set(sessionId, 'spec')
+        prevStatesRef.current.delete(sessionId)
+        pendingStartupsRef.current.delete(sessionId)
+        suppressedAutoStartRef.current.delete(sessionId)
+
         setMergeStatuses(prev => {
             if (!prev.has(sessionId)) {
                 return prev

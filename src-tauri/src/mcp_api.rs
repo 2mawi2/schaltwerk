@@ -1418,11 +1418,11 @@ async fn convert_session_to_spec(
 
     // Use the manager method that encapsulates all validation and business logic
     match manager.convert_session_to_spec(name) {
-        Ok(()) => {
+        Ok(new_spec_name) => {
             info!("Converted session '{name}' to spec via API");
             request_sessions_refresh(&app, SessionsRefreshReason::SpecSync);
 
-            Ok(Response::new("OK".to_string()))
+            Ok(Response::new(new_spec_name))
         }
         Err(e) => {
             error!("Failed to convert session '{name}' to spec: {e}");

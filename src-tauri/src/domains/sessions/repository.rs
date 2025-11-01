@@ -257,6 +257,12 @@ impl SessionDbManager {
             .map_err(|e| anyhow!("Failed to rename spec session: {e}"))
     }
 
+    pub fn delete_session(&self, session_id: &str) -> Result<()> {
+        self.db
+            .delete_session(session_id)
+            .map_err(|e| anyhow!("Failed to delete session '{session_id}': {e}"))
+    }
+
     pub fn save_git_stats(&self, stats: &GitStats) -> Result<()> {
         self.db
             .save_git_stats(stats)

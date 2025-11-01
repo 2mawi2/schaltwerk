@@ -1659,9 +1659,7 @@ impl SessionManager {
         Ok(())
     }
 
-    pub fn convert_session_to_draft(&self, name: &str) -> Result<()> {
-        use crate::domains::sessions::lifecycle::finalizer::SessionFinalizer;
-
+    pub fn convert_session_to_draft(&self, name: &str) -> Result<String> {
         let session = self.db_manager.get_session_by_name(name)?;
 
         if session.session_state != SessionState::Running {
@@ -1694,11 +1692,13 @@ impl SessionManager {
             log::warn!("Failed to delete branch '{}': {}", session.branch, e);
         }
 
-        let finalizer = SessionFinalizer::new(&self.db_manager, &self.cache_manager);
-        finalizer.finalize_state_transition(&session.id, SessionState::Spec)?;
-
-        self.db_manager
-            .update_session_status(&session.id, SessionStatus::Spec)?;
+        let (spec_content, initial_prompt) = self
+            .db_manager
+            .get_session_task_content(&session.name)
+            .unwrap_or((None, None));
+        let preserved_content = spec_content
+            .or(initial_prompt)
+            .unwrap_or_default();
 
         if let Err(e) = self
             .db_manager
@@ -1707,8 +1707,34 @@ impl SessionManager {
             log::warn!("Failed to gate resume for session '{name}': {e}");
         }
 
-        log::info!("Successfully converted session '{name}' to spec");
-        Ok(())
+        if let Err(e) = self.db_manager.clear_session_run_state(&session.id) {
+            log::warn!("Failed to clear run state for session '{name}': {e}");
+        }
+
+        crate::domains::sessions::cache::invalidate_spec_content(&self.repo_path, &session.name);
+
+        if let Err(e) = self.db_manager.delete_session(&session.id) {
+            return Err(anyhow!(
+                "Failed to remove session '{name}' while converting to spec: {e}"
+            ));
+        }
+
+        self.cache_manager.unreserve_name(&session.name);
+
+        let base_name = format!("{name}-spec");
+        let new_session = self.create_spec_session_with_agent(
+            &base_name,
+            &preserved_content,
+            session.original_agent_type.as_deref(),
+            session.original_skip_permissions,
+        )?;
+
+        log::info!(
+            "Successfully converted session '{name}' to spec '{}'",
+            new_session.name
+        );
+
+        Ok(new_session.name)
     }
 
     pub fn convert_session_to_spec_temp_compat(&self, name: &str) -> Result<()> {
@@ -2674,7 +2700,7 @@ impl SessionManager {
         Ok(())
     }
 
-    pub fn convert_session_to_spec(&self, session_name: &str) -> Result<()> {
+    pub fn convert_session_to_spec(&self, session_name: &str) -> Result<String> {
         // Get session and validate state
         let session = self.db_manager.get_session_by_name(session_name)?;
 
@@ -2684,8 +2710,7 @@ impl SessionManager {
         }
 
         // Use existing convert_session_to_draft logic
-        self.convert_session_to_draft(session_name)?;
-        Ok(())
+        self.convert_session_to_draft(session_name)
     }
 
     pub fn start_spec_session_with_config(
