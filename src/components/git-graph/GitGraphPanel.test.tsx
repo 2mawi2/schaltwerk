@@ -539,6 +539,95 @@ describe('GitGraphPanel', () => {
     expect(refreshMock).toHaveBeenCalledTimes(1)
   })
 
+  it('applies queued heads captured during bootstrap so the first commit appears once loading completes', async () => {
+    let ensureLoadedResolve: (() => void) | undefined
+    const ensureLoadedMock = vi.fn(() => new Promise<void>(resolve => {
+      ensureLoadedResolve = resolve
+    }))
+
+    const oldHead = baseSnapshot.headCommit!
+    const newHead = 'feedbeeffeedbeeffeedbeeffeedbeeffeedbeef'
+
+    const staleSnapshot: HistoryProviderSnapshot = {
+      ...baseSnapshot,
+      headCommit: newHead
+    }
+
+    const refreshedSnapshot: HistoryProviderSnapshot = {
+      ...baseSnapshot,
+      headCommit: newHead,
+      items: [
+        {
+          id: 'new-commit',
+          parentIds: [baseSnapshot.items[0].id],
+          subject: 'Queued commit',
+          author: 'Bob',
+          timestamp: baseSnapshot.items[0].timestamp + 1000,
+          references: [],
+          fullHash: newHead
+        },
+        ...baseSnapshot.items
+      ]
+    }
+
+    let snapshotState: HistoryProviderSnapshot | null = null
+    let latestHeadState: string | null = null
+    let rerender: ((ui: ReactElement) => void) | undefined
+
+    const refreshMock = vi.fn(async (_options?: { sinceHeadOverride?: string | null }) => {})
+
+    useGitHistoryMock.mockImplementation(() => ({
+      snapshot: snapshotState,
+      isLoading: !snapshotState,
+      error: null,
+      isLoadingMore: false,
+      loadMoreError: null,
+      latestHead: latestHeadState,
+      ensureLoaded: ensureLoadedMock,
+      loadMore: vi.fn(),
+      refresh: refreshMock
+    }))
+
+    ;({ rerender } = renderWithProject(<GitGraphPanel repoPath="/sessions/test-session" sessionName="session-1" />))
+
+    expect(ensureLoadedMock).toHaveBeenCalled()
+
+    const handler = fileChangeHandlers[SchaltEvent.FileChanges]
+    expect(handler).toBeDefined()
+
+    await handler?.({
+      session_name: 'session-1',
+      branch_info: {
+        current_branch: 'feature/bootstrap-race',
+        base_branch: 'main',
+        base_commit: oldHead,
+        head_commit: newHead
+      }
+    })
+
+    await act(async () => {
+      snapshotState = staleSnapshot
+      latestHeadState = newHead
+      rerender?.(<GitGraphPanel repoPath="/sessions/test-session" sessionName="session-1" />)
+    })
+
+    await act(async () => {
+      ensureLoadedResolve?.()
+    })
+
+    await waitFor(() => {
+      expect(
+        refreshMock.mock.calls.some(call => call[0] && Object.prototype.hasOwnProperty.call(call[0], 'sinceHeadOverride'))
+      ).toBe(true)
+    })
+
+    snapshotState = refreshedSnapshot
+    latestHeadState = newHead
+    rerender?.(<GitGraphPanel repoPath="/sessions/test-session" sessionName="session-1" />)
+
+    expect(snapshotState?.items[0]?.subject).toBe('Queued commit')
+  })
+
   it('refreshes when orchestrator file change events arrive', async () => {
     const ensureLoadedMock = vi.fn()
     const refreshMock = vi.fn()
