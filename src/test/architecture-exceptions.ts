@@ -27,7 +27,6 @@ export const STATE_MANAGEMENT_EXCEPTIONS: ArchitectureException[] = [
   { file: 'src/contexts/RunContext.tsx', reason: 'UI coordination - run workflow state (acceptable use)' },
   { file: 'src/contexts/GithubIntegrationContext.tsx', reason: 'Needs evaluation - might be dependency injection' },
   { file: 'src/contexts/KeyboardShortcutsContext.tsx', reason: 'Needs evaluation - might not need reactive state' },
-  { file: 'src/contexts/SessionsContext.tsx', reason: 'Pending migration to Jotai' },
 ];
 
 export function isException(

@@ -7,7 +7,6 @@ import { Provider as JotaiProvider } from 'jotai'
 import { FocusProvider } from './contexts/FocusContext'
 import { ReviewProvider } from './contexts/ReviewContext'
 import { RunProvider } from './contexts/RunContext'
-import { SessionsProvider } from './contexts/SessionsContext'
 import { ModalProvider } from './contexts/ModalContext'
 import ErrorBoundary from './components/ErrorBoundary'
 import { KeyboardShortcutsProvider } from './contexts/KeyboardShortcutsContext'
@@ -34,19 +33,17 @@ const AppLoader: React.FC = () => {
           <KeyboardShortcutsProvider>
             <JotaiProvider>
               <GithubIntegrationProvider>
-                <SessionsProvider>
-                  <ModalProvider>
-                    <FocusProvider>
-                      <ReviewProvider>
-                        <RunProvider>
-                          <div className="h-screen w-screen">
-                            <App />
-                          </div>
-                        </RunProvider>
-                      </ReviewProvider>
-                    </FocusProvider>
-                  </ModalProvider>
-                </SessionsProvider>
+                <ModalProvider>
+                  <FocusProvider>
+                    <ReviewProvider>
+                      <RunProvider>
+                        <div className="h-screen w-screen">
+                          <App />
+                        </div>
+                      </RunProvider>
+                    </ReviewProvider>
+                  </FocusProvider>
+                </ModalProvider>
               </GithubIntegrationProvider>
             </JotaiProvider>
           </KeyboardShortcutsProvider>

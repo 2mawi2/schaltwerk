@@ -1,12 +1,29 @@
 import React from 'react'
 import { TauriCommands } from './common/tauriCommands'
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
-import { TestProviders } from './tests/test-utils'
-import App from './App'
-import { validatePanelPercentage } from './utils/panel'
 import { vi, type MockInstance } from 'vitest'
 import { UiEvent, emitUiEvent } from './common/uiEvents'
 import { SchaltEvent } from './common/eventSystem'
+
+const listenEventHandlers = vi.hoisted(
+  () => [] as Array<{ event: unknown; handler: (detail: unknown) => void }>
+)
+
+vi.mock('./common/eventSystem', async () => {
+  const actual = await vi.importActual<typeof import('./common/eventSystem')>('./common/eventSystem')
+  return {
+    ...actual,
+    listenEvent: vi.fn(async (event, handler) => {
+      listenEventHandlers.push({ event, handler: handler as (detail: unknown) => void })
+      return () => {}
+    }),
+  }
+})
+
+import { TestProviders } from './tests/test-utils'
+import App from './App'
+import { validatePanelPercentage } from './utils/panel'
+import { __getSessionsEventHandlerForTest } from './store/atoms/sessions'
 
 // ---- Mock: react-split (layout only) ----
 vi.mock('react-split', () => ({
@@ -82,19 +99,6 @@ vi.mock('./components/home/HomeScreen', () => ({
 }))
 
 // ---- Mock helpers ----
-const listenEventHandlers: Array<{ event: unknown; handler: (detail: unknown) => void }> = []
-
-vi.mock('./common/eventSystem', async () => {
-  const actual = await vi.importActual<typeof import('./common/eventSystem')>('./common/eventSystem')
-  return {
-    ...actual,
-    listenEvent: vi.fn(async (event, handler) => {
-      listenEventHandlers.push({ event, handler: handler as (detail: unknown) => void })
-      return () => {}
-    }),
-  }
-})
-
 type StartSessionTopParams = {
   sessionName: string
   topId: string
@@ -504,19 +508,30 @@ describe('validatePanelPercentage', () => {
       userEditedName: true,
     })
 
+    await Promise.resolve()
+    await act(async () => { await Promise.resolve() })
+
     await waitFor(() => {
-      const hasHandler = listenEventHandlers.some(entry => String(entry.event) === String(SchaltEvent.SessionsRefreshed))
-      expect(hasHandler).toBe(true)
+      const handler = __getSessionsEventHandlerForTest(SchaltEvent.SessionsRefreshed)
+      expect(typeof handler).toBe('function')
     })
+
+    const sessionsHandler = __getSessionsEventHandlerForTest(SchaltEvent.SessionsRefreshed)
+    expect(sessionsHandler).toBeDefined()
+    sessionsHandler?.([
+      { info: { session_id: 'feature-unique', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } },
+      { info: { session_id: 'feature-unique_v2', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } },
+      { info: { session_id: 'feature-unique_v3', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } }
+    ])
+
     const sessionsRefreshedHandlers = listenEventHandlers.filter(entry => String(entry.event) === String(SchaltEvent.SessionsRefreshed))
-    for (const { handler } of sessionsRefreshedHandlers) {
+    sessionsRefreshedHandlers.forEach(({ handler }) => {
       handler([
-        { info: { session_id: 'feature-unique', status: 'Active', session_state: 'Running' } },
-        { info: { session_id: 'feature-unique_v2', status: 'Active', session_state: 'Running' } },
-        { info: { session_id: 'feature-unique_v3', status: 'Active', session_state: 'Running' } }
+        { info: { session_id: 'feature-unique', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } },
+        { info: { session_id: 'feature-unique_v2', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } },
+        { info: { session_id: 'feature-unique_v3', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } }
       ])
-    }
-    listenEventHandlers.length = 0
+    })
 
     await createPromise
 
@@ -584,28 +599,45 @@ describe('validatePanelPercentage', () => {
       userEditedName: true,
     })
 
+    await Promise.resolve()
+    await act(async () => { await Promise.resolve() })
+
     await waitFor(() => {
-      const hasHandler = listenEventHandlers.some(entry => String(entry.event) === String(SchaltEvent.SessionsRefreshed))
-      expect(hasHandler).toBe(true)
+      const handler = __getSessionsEventHandlerForTest(SchaltEvent.SessionsRefreshed)
+      expect(typeof handler).toBe('function')
     })
 
-    const sessionsRefreshedHandlers = listenEventHandlers
-      .filter(entry => String(entry.event) === String(SchaltEvent.SessionsRefreshed))
-      .map(entry => entry.handler)
+    const sessionsHandler = __getSessionsEventHandlerForTest(SchaltEvent.SessionsRefreshed)
+    expect(sessionsHandler).toBeDefined()
 
     startSessionTopMock.mockClear()
 
-    for (const handler of sessionsRefreshedHandlers) {
+    sessionsHandler?.([
+      {
+        info: {
+          session_id: 'feature',
+          status: 'Active',
+          session_state: 'Running',
+          original_agent_type: 'codex',
+        }
+      }
+    ])
+
+    const sessionsRefreshedHandlers = listenEventHandlers
+      .filter(entry => String(entry.event) === String(SchaltEvent.SessionsRefreshed))
+
+    sessionsRefreshedHandlers.forEach(({ handler }) => {
       handler([
         {
           info: {
             session_id: 'feature',
             status: 'Active',
             session_state: 'Running',
+            original_agent_type: 'codex',
           }
         }
       ])
-    }
+    })
 
     await waitFor(() => {
       expect(startSessionTopMock).toHaveBeenCalledTimes(1)
@@ -617,12 +649,11 @@ describe('validatePanelPercentage', () => {
     pendingResolvers.forEach(resolve => resolve())
     await createPromise
 
-    listenEventHandlers.length = 0
     invokeMock.mockImplementation(defaultInvokeImpl)
   })
 
   it('enqueues a pending startup when starting an agent from an existing spec', async () => {
-    const sessionsModule = await import('./contexts/SessionsContext')
+    const sessionsModule = await import('./hooks/useSessions')
     const originalUseSessions = sessionsModule.useSessions
     const enqueueSpy = vi.fn()
 
@@ -708,8 +739,12 @@ describe('validatePanelPercentage', () => {
         userEditedName: true,
       })
 
+      await Promise.resolve()
+      await act(async () => { await Promise.resolve() })
+
       await waitFor(() => {
-        expect(listenEventHandlers.some(entry => String(entry.event) === String(SchaltEvent.SessionsRefreshed))).toBe(true)
+        const handler = __getSessionsEventHandlerForTest(SchaltEvent.SessionsRefreshed)
+        expect(typeof handler).toBe('function')
       })
 
       const sessionsRefreshedHandlers = listenEventHandlers.filter(
@@ -741,6 +776,9 @@ describe('validatePanelPercentage', () => {
       ]
 
       await act(async () => {
+        const sessionsHandler = __getSessionsEventHandlerForTest(SchaltEvent.SessionsRefreshed)
+        expect(sessionsHandler).toBeDefined()
+        sessionsHandler?.(runningPayload)
         sessionsRefreshedHandlers.forEach(({ handler }) => handler(runningPayload))
       })
 
@@ -805,19 +843,28 @@ describe('validatePanelPercentage', () => {
       userEditedName: true,
     })
 
+    await Promise.resolve()
+    await act(async () => { await Promise.resolve() })
+
     await waitFor(() => {
-      const hasHandler = listenEventHandlers.some(entry => String(entry.event) === String(SchaltEvent.SessionsRefreshed))
-      expect(hasHandler).toBe(true)
+      const handler = __getSessionsEventHandlerForTest(SchaltEvent.SessionsRefreshed)
+      expect(typeof handler).toBe('function')
     })
+    const sessionsHandler = __getSessionsEventHandlerForTest(SchaltEvent.SessionsRefreshed)
+    expect(sessionsHandler).toBeDefined()
+
+    sessionsHandler?.([
+      { info: { session_id: 'session-b', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } }
+    ])
 
     const sessionsRefreshedHandlers = listenEventHandlers.filter(entry => String(entry.event) === String(SchaltEvent.SessionsRefreshed))
 
-    for (const { handler } of sessionsRefreshedHandlers) {
+    sessionsRefreshedHandlers.forEach(({ handler }) => {
       handler([
-        { info: { session_id: 'session-b', status: 'Active', session_state: 'Running' } }
+        { info: { session_id: 'session-b', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } }
       ])
-    }
-    listenEventHandlers.length = 0
+    })
+
 
     await createPromise
 

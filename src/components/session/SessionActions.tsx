@@ -16,7 +16,7 @@ import {
 import { FaGithub } from 'react-icons/fa'
 import { IconButton } from '../common/IconButton';
 import { theme } from '../../common/theme';
-import type { MergeStatus } from '../../contexts/SessionsContext';
+import type { MergeStatus } from '../../store/atoms/sessions';
 import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
 import { useToast } from '../../common/toast/ToastProvider'
 import { UiEvent, listenUiEvent } from '../../common/uiEvents'

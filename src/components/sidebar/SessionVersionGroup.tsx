@@ -6,7 +6,7 @@ import { isSpec } from '../../utils/sessionFilters'
 import { SessionSelection } from '../../hooks/useSessionManagement'
 import { theme, getAgentColorScheme } from '../../common/theme'
 import { withOpacity } from '../../common/colorUtils'
-import type { MergeStatus } from '../../contexts/SessionsContext'
+import type { MergeStatus } from '../../store/atoms/sessions'
 
 interface SessionVersionGroupProps {
   group: SessionVersionGroupType

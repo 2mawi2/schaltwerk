@@ -30,7 +30,12 @@ import {
   setProjectPathActionAtom,
 } from './store/atoms/selection'
 import { projectPathAtom } from './store/atoms/project'
-import { useSessions } from './contexts/SessionsContext'
+import {
+  initializeSessionsEventsActionAtom,
+  initializeSessionsSettingsActionAtom,
+  refreshSessionsActionAtom,
+} from './store/atoms/sessions'
+import { useSessions } from './hooks/useSessions'
 import { HomeScreen } from './components/home/HomeScreen'
 import { ProjectTab, determineNextActiveTab } from './common/projectTabs'
 import { TopBar } from './components/TopBar'
@@ -88,6 +93,9 @@ function AppContent() {
   const initializeFontSizes = useSetAtom(initializeFontSizesActionAtom)
   const initializeSelectionEvents = useSetAtom(initializeSelectionEventsActionAtom)
   const setSelectionProjectPath = useSetAtom(setProjectPathActionAtom)
+  const initializeSessionsEvents = useSetAtom(initializeSessionsEventsActionAtom)
+  const initializeSessionsSettings = useSetAtom(initializeSessionsSettingsActionAtom)
+  const refreshSessions = useSetAtom(refreshSessionsActionAtom)
   const { isOnboardingOpen, completeOnboarding, closeOnboarding, openOnboarding } = useOnboarding()
   const { fetchSessionForPrefill } = useSessionPrefill()
   const github = useGithubIntegrationContext()
@@ -105,6 +113,18 @@ function AppContent() {
   useEffect(() => {
     initializeSelectionEvents()
   }, [initializeSelectionEvents])
+
+  useEffect(() => {
+    void initializeSessionsEvents()
+  }, [initializeSessionsEvents])
+
+  useEffect(() => {
+    void initializeSessionsSettings()
+  }, [initializeSessionsSettings, projectPath])
+
+  useEffect(() => {
+    void refreshSessions()
+  }, [refreshSessions, projectPath])
 
   useEffect(() => {
     setSelectionProjectPath(projectPath ?? null)

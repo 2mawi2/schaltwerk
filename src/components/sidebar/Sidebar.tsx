@@ -8,7 +8,7 @@ import { UnlistenFn } from '@tauri-apps/api/event'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import { EventPayloadMap, GitOperationPayload } from '../../common/events'
 import { useSelection } from '../../hooks/useSelection'
-import { useSessions } from '../../contexts/SessionsContext'
+import { useSessions } from '../../hooks/useSessions'
 import { captureSelectionSnapshot, SelectionMemoryEntry } from '../../utils/selectionMemory'
 import { computeSelectionCandidate } from '../../utils/selectionPostMerge'
 import { MarkReadyConfirmation } from '../modals/MarkReadyConfirmation'
@@ -291,6 +291,8 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             return
         }
 
+        const allSessionsSnapshot = allSessions.length > 0 ? allSessions : latestSessionsRef.current
+
         const memory = ensureProjectMemory();
         const entry = memory[filterMode];
 
@@ -304,7 +306,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         const mergedCandidate = lastMergedReviewedSessionRef.current
 
         const mergedSessionInfo = mergedCandidate
-            ? allSessions.find(s => s.info.session_id === mergedCandidate)
+            ? allSessionsSnapshot.find(s => s.info.session_id === mergedCandidate)
             : undefined
         const mergedStillReviewed = mergedSessionInfo?.info.ready_to_merge ?? false
 
@@ -319,7 +321,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         }
 
         const wasReviewedSession = removalCandidateFromEvent ?
-            allSessions.find(s => s.info.session_id === removalCandidateFromEvent)?.info.ready_to_merge : false
+            allSessionsSnapshot.find(s => s.info.session_id === removalCandidateFromEvent)?.info.ready_to_merge : false
         const shouldPreserveForReviewedRemoval = Boolean(wasReviewedSession && removalCandidateFromEvent && filterMode !== FilterMode.Reviewed)
 
         const filterModeChanged = previousFilterModeRef.current !== filterMode
@@ -329,7 +331,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             !filterModeChanged &&
             currentSelectionId &&
             !visibleIds.has(currentSelectionId) &&
-            allSessions.find(s => s.info.session_id === currentSelectionId)?.info.ready_to_merge &&
+            allSessionsSnapshot.find(s => s.info.session_id === currentSelectionId)?.info.ready_to_merge &&
             filterMode === FilterMode.Running
         )
 
@@ -374,14 +376,14 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             mergedCandidate,
             shouldAdvanceFromMerged,
             shouldPreserveForReviewedRemoval,
-            allSessions
+            allSessions: allSessionsSnapshot
         })
 
         if (candidateId) {
             entry.lastSelection = candidateId
             if (candidateId !== currentSelectionId) {
                 const targetSession = visibleSessions.find(s => s.info.session_id === candidateId)
-                    ?? allSessions.find(s => s.info.session_id === candidateId)
+                    ?? allSessionsSnapshot.find(s => s.info.session_id === candidateId)
                 if (targetSession) {
                     void setSelection({
                         kind: 'session',
@@ -929,7 +931,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         isModalOpen: isAnyModalOpen()
     })
 
-    // Sessions are now managed by SessionsContext with integrated sorting/filtering
+    // Sessions are now managed by Jotai sessions atoms with integrated sorting/filtering
     
     // Global shortcut from terminal for Mark Reviewed (⌘R)
     useEffect(() => {
@@ -991,7 +993,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             }
         }
 
-        // Activity and git stats updates are handled by SessionsContext
+        // Activity and git stats updates are handled by the sessions atoms layer
 
         void register(SchaltEvent.SessionRemoved, (event) => {
             lastRemovedSessionRef.current = event.session_name
