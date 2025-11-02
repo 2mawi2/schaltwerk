@@ -859,6 +859,8 @@ fn main() {
             github_create_reviewed_pr,
             github_search_issues,
             github_get_issue_details,
+            github_search_prs,
+            github_get_pr_details,
             // Permission commands
             permissions::check_folder_access,
             permissions::trigger_folder_permission_request,

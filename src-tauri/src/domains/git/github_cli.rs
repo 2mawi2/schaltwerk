@@ -88,6 +88,29 @@ pub struct GitHubIssueDetails {
     pub comments: Vec<GitHubIssueComment>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GitHubPrSummary {
+    pub number: u64,
+    pub title: String,
+    pub state: String,
+    pub updated_at: String,
+    pub author_login: Option<String>,
+    pub labels: Vec<GitHubIssueLabel>,
+    pub url: String,
+    pub head_ref_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GitHubPrDetails {
+    pub number: u64,
+    pub title: String,
+    pub url: String,
+    pub body: String,
+    pub labels: Vec<GitHubIssueLabel>,
+    pub comments: Vec<GitHubIssueComment>,
+    pub head_ref_name: String,
+}
+
 #[derive(Debug)]
 pub enum GitHubCliError {
     NotInstalled,
@@ -564,6 +587,181 @@ impl<R: CommandRunner> GitHubCli<R> {
             body: parsed.body.unwrap_or_default(),
             labels,
             comments,
+        })
+    }
+
+    pub fn search_prs(
+        &self,
+        project_path: &Path,
+        query: &str,
+        limit: usize,
+    ) -> Result<Vec<GitHubPrSummary>, GitHubCliError> {
+        debug!(
+            "[GitHubCli] Searching PRs for project={}, query='{}', limit={}",
+            project_path.display(),
+            query,
+            limit
+        );
+        ensure_git_remote_exists(project_path)?;
+
+        let env = [("GH_PROMPT_DISABLED", "1"), ("NO_COLOR", "1")];
+        let constrained_limit = limit.clamp(1, 100);
+        let trimmed_query = query.trim();
+
+        let mut args_vec = vec![
+            "pr".to_string(),
+            "list".to_string(),
+            "--json".to_string(),
+            "number,title,state,updatedAt,author,labels,url,headRefName".to_string(),
+            "--limit".to_string(),
+            constrained_limit.to_string(),
+        ];
+
+        if trimmed_query.is_empty() {
+            args_vec.push("--state".to_string());
+            args_vec.push("open".to_string());
+        } else {
+            args_vec.push("--search".to_string());
+            args_vec.push(trimmed_query.to_string());
+            args_vec.push("--state".to_string());
+            args_vec.push("all".to_string());
+        }
+
+        let arg_refs: Vec<&str> = args_vec.iter().map(|entry| entry.as_str()).collect();
+        let output = self
+            .runner
+            .run(&self.program, &arg_refs, Some(project_path), &env)
+            .map_err(map_runner_error)?;
+
+        if !output.success() {
+            return Err(command_failure(&self.program, &args_vec, output));
+        }
+
+        let clean_output = strip_ansi_codes(&output.stdout);
+        let parsed: Vec<PrListResponse> =
+            serde_json::from_str(clean_output.trim()).map_err(|err| {
+                log::error!(
+                    "[GitHubCli] Failed to parse PR search response: {err}; raw={}, cleaned={}",
+                    output.stdout.trim(),
+                    clean_output.trim()
+                );
+                GitHubCliError::InvalidOutput(
+                    "GitHub CLI returned PR data in an unexpected format.".to_string(),
+                )
+            })?;
+
+        let mut results: Vec<GitHubPrSummary> = parsed
+            .into_iter()
+            .map(|pr| GitHubPrSummary {
+                number: pr.number,
+                title: pr.title,
+                state: pr.state,
+                updated_at: pr.updated_at,
+                author_login: pr.author.and_then(|actor| actor.login),
+                labels: pr
+                    .labels
+                    .into_iter()
+                    .map(|label| GitHubIssueLabel {
+                        name: label.name,
+                        color: label.color,
+                    })
+                    .collect(),
+                url: pr.url,
+                head_ref_name: pr.head_ref_name,
+            })
+            .collect();
+
+        fn parse_timestamp(value: &str) -> i64 {
+            chrono::DateTime::parse_from_rfc3339(value)
+                .map(|dt| dt.timestamp())
+                .unwrap_or(i64::MIN)
+        }
+
+        results.sort_by(|a, b| {
+            let b_key = parse_timestamp(&b.updated_at);
+            let a_key = parse_timestamp(&a.updated_at);
+            b_key.cmp(&a_key).then_with(|| a.number.cmp(&b.number))
+        });
+
+        Ok(results)
+    }
+
+    pub fn get_pr_with_comments(
+        &self,
+        project_path: &Path,
+        number: u64,
+    ) -> Result<GitHubPrDetails, GitHubCliError> {
+        debug!(
+            "[GitHubCli] Fetching PR details for project={}, number={}",
+            project_path.display(),
+            number
+        );
+        ensure_git_remote_exists(project_path)?;
+
+        let env = [("GH_PROMPT_DISABLED", "1"), ("NO_COLOR", "1")];
+        let args_vec = vec![
+            "pr".to_string(),
+            "view".to_string(),
+            number.to_string(),
+            "--json".to_string(),
+            "number,title,body,url,labels,comments,headRefName".to_string(),
+        ];
+
+        let arg_refs: Vec<&str> = args_vec.iter().map(|entry| entry.as_str()).collect();
+        let output = self
+            .runner
+            .run(&self.program, &arg_refs, Some(project_path), &env)
+            .map_err(map_runner_error)?;
+
+        if !output.success() {
+            return Err(command_failure(&self.program, &args_vec, output));
+        }
+
+        let clean_output = strip_ansi_codes(&output.stdout);
+        let parsed: PrDetailsResponse =
+            serde_json::from_str(clean_output.trim()).map_err(|err| {
+                log::error!(
+                    "[GitHubCli] Failed to parse PR detail response: {err}; raw={}, cleaned={}",
+                    output.stdout.trim(),
+                    clean_output.trim()
+                );
+                GitHubCliError::InvalidOutput(
+                    "GitHub CLI returned PR detail data in an unexpected format.".to_string(),
+                )
+            })?;
+
+        let labels = parsed
+            .labels
+            .into_iter()
+            .map(|label| GitHubIssueLabel {
+                name: label.name,
+                color: label.color,
+            })
+            .collect();
+
+        let comment_nodes = match parsed.comments.unwrap_or(IssueComments::None) {
+            IssueComments::Connection { nodes } => nodes,
+            IssueComments::List(nodes) => nodes,
+            IssueComments::None => Vec::new(),
+        };
+
+        let comments = comment_nodes
+            .into_iter()
+            .map(|comment| GitHubIssueComment {
+                author_login: comment.author.and_then(|actor| actor.login),
+                created_at: comment.created_at.unwrap_or_default(),
+                body: comment.body.unwrap_or_default(),
+            })
+            .collect();
+
+        Ok(GitHubPrDetails {
+            number: parsed.number,
+            title: parsed.title,
+            url: parsed.url,
+            body: parsed.body.unwrap_or_default(),
+            labels,
+            comments,
+            head_ref_name: parsed.head_ref_name,
         })
     }
 
@@ -1148,6 +1346,34 @@ enum IssueComments {
     },
     List(Vec<IssueCommentNode>),
     None,
+}
+
+#[derive(Debug, Deserialize)]
+struct PrListResponse {
+    number: u64,
+    title: String,
+    state: String,
+    #[serde(rename = "updatedAt")]
+    updated_at: String,
+    author: Option<IssueActor>,
+    #[serde(default)]
+    labels: Vec<IssueLabel>,
+    url: String,
+    #[serde(rename = "headRefName")]
+    head_ref_name: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct PrDetailsResponse {
+    number: u64,
+    title: String,
+    url: String,
+    body: Option<String>,
+    #[serde(default)]
+    labels: Vec<IssueLabel>,
+    comments: Option<IssueComments>,
+    #[serde(rename = "headRefName")]
+    head_ref_name: String,
 }
 
 #[cfg(test)]
