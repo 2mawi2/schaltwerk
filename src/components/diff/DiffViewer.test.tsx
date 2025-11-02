@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import React from 'react'
 import { DiffViewer, DiffViewerProps } from './DiffViewer'
 import { createChangedFile } from '../../tests/test-utils'
@@ -187,6 +187,53 @@ describe('DiffViewer', () => {
     
     // Mouse events would be handled by DiffLineRow components
     expect(handleLineMouseDown).not.toHaveBeenCalled() // Not called until user interacts
+  })
+
+  it('collapses deleted file diffs by default but allows expanding', () => {
+    const deletedFile = createChangedFile({ path: 'src/deleted.ts', change_type: 'deleted', deletions: 3 })
+    const deletedDiff = {
+      ...mockFileDiff,
+      file: deletedFile
+    }
+    const onToggleFileExpanded = vi.fn()
+    const props = {
+      ...mockProps,
+      files: [deletedFile],
+      selectedFile: 'src/deleted.ts',
+      allFileDiffs: new Map([['src/deleted.ts', deletedDiff]]),
+      onToggleFileExpanded
+    }
+
+    render(<DiffViewer {...props as DiffViewerProps} />)
+
+    expect(screen.getByText('Click to expand')).toBeInTheDocument()
+    expect(screen.queryByText('removed line')).not.toBeInTheDocument()
+
+    const expandButton = screen.getByText('Click to expand').closest('button')
+    expect(expandButton).toBeTruthy()
+    if (!expandButton) throw new Error('Expected Click to expand button')
+    fireEvent.click(expandButton)
+    expect(onToggleFileExpanded).toHaveBeenCalledWith('src/deleted.ts')
+  })
+
+  it('renders deleted file diff when expanded', () => {
+    const deletedFile = createChangedFile({ path: 'src/deleted-explicit.ts', change_type: 'deleted', deletions: 2 })
+    const deletedDiff = {
+      ...mockFileDiff,
+      file: deletedFile
+    }
+    const props = {
+      ...mockProps,
+      files: [deletedFile],
+      selectedFile: 'src/deleted-explicit.ts',
+      allFileDiffs: new Map([['src/deleted-explicit.ts', deletedDiff]]),
+      expandedFiles: new Set(['src/deleted-explicit.ts'])
+    }
+
+    render(<DiffViewer {...props as DiffViewerProps} />)
+
+    expect(screen.queryByText('Click to expand')).not.toBeInTheDocument()
+    expect(screen.getByText('removed line')).toBeInTheDocument()
   })
 
   it('toggles collapsed sections', () => {

@@ -28,7 +28,7 @@ export interface DiffFilterResult {
   isGenerated: boolean
   isLarge: boolean
   shouldCollapse: boolean
-  reason?: 'generated' | 'large' | 'both'
+  reason?: 'generated' | 'large' | 'both' | 'deleted'
   lineCount?: number
   sizeBytes?: number
 }

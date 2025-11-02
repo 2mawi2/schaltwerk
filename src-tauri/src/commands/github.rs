@@ -2,7 +2,7 @@ use crate::get_project_manager;
 use log::{error, info};
 use schaltwerk::services::{
     CommandRunner, CreatePrOptions, GitHubCli, GitHubCliError, GitHubIssueComment,
-    GitHubIssueDetails, GitHubIssueLabel, GitHubIssueSummary,
+    GitHubIssueDetails, GitHubIssueLabel, GitHubIssueSummary, GitHubPrDetails, GitHubPrSummary,
 };
 use schaltwerk::domains::git::github_cli::{GitHubPrDetails, GitHubPrSummary};
 use schaltwerk::infrastructure::events::{SchaltEvent, emit_event};

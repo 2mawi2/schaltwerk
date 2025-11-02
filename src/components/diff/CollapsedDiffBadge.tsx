@@ -17,6 +17,8 @@ export function CollapsedDiffBadge({ filterResult, onClick }: CollapsedDiffBadge
     badgeText = `Large diff (${lineCount.toLocaleString()} lines, ${formatDiffSize(sizeBytes)})`
   } else if (reason === 'both' && lineCount && sizeBytes) {
     badgeText = `Generated file • Large diff (${lineCount.toLocaleString()} lines, ${formatDiffSize(sizeBytes)})`
+  } else if (reason === 'deleted') {
+    badgeText = 'Deleted file'
   }
 
   return (
