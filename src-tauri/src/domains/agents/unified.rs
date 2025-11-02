@@ -534,7 +534,7 @@ mod tests {
             let adapter = DroidAdapter;
             let manifest = AgentManifest::get("droid").unwrap();
 
-            let ctx_new = AgentLaunchContext {
+            let ctx_new_with_prompt = AgentLaunchContext {
                 worktree_path: Path::new("/tmp/work"),
                 session_id: None,
                 initial_prompt: Some("review the code"),
@@ -542,11 +542,14 @@ mod tests {
                 binary_override: Some("droid"),
                 manifest: &manifest,
             };
-            let spec_new = adapter.build_launch_spec(ctx_new);
-            println!("New session with prompt: {}", spec_new.shell_command);
-            assert_eq!(spec_new.shell_command, r#"cd /tmp/work && droid "review the code""#);
+            let spec_new_with_prompt = adapter.build_launch_spec(ctx_new_with_prompt);
+            assert_eq!(
+                spec_new_with_prompt.shell_command,
+                r#"cd /tmp/work && droid "review the code""#,
+                "Case 1: New session with initial prompt should use: droid 'initial prompt'"
+            );
 
-            let ctx_resume = AgentLaunchContext {
+            let ctx_resume_no_prompt = AgentLaunchContext {
                 worktree_path: Path::new("/tmp/work"),
                 session_id: Some("abc123"),
                 initial_prompt: None,
@@ -554,9 +557,27 @@ mod tests {
                 binary_override: Some("droid"),
                 manifest: &manifest,
             };
-            let spec_resume = adapter.build_launch_spec(ctx_resume);
-            println!("Resume session: {}", spec_resume.shell_command);
-            assert_eq!(spec_resume.shell_command, "cd /tmp/work && droid -r abc123");
+            let spec_resume = adapter.build_launch_spec(ctx_resume_no_prompt);
+            assert_eq!(
+                spec_resume.shell_command,
+                "cd /tmp/work && droid -r abc123",
+                "Case 2: Resume existing session should use: droid -r [sessionId]"
+            );
+
+            let ctx_new_no_prompt = AgentLaunchContext {
+                worktree_path: Path::new("/tmp/work"),
+                session_id: None,
+                initial_prompt: None,
+                skip_permissions: false,
+                binary_override: Some("droid"),
+                manifest: &manifest,
+            };
+            let spec_new_no_prompt = adapter.build_launch_spec(ctx_new_no_prompt);
+            assert_eq!(
+                spec_new_no_prompt.shell_command,
+                "cd /tmp/work && droid",
+                "Case 3: New session without prompt should use: droid"
+            );
         }
 
         #[test]

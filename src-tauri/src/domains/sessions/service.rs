@@ -629,6 +629,171 @@ mod service_unified_tests {
 
     #[test]
     #[serial_test::serial]
+    fn test_droid_receives_initial_prompt_on_fresh_start() {
+        use std::process::Command;
+        let (manager, temp_dir) = create_test_session_manager();
+
+        let repo = temp_dir.path().join("repo");
+        Command::new("git")
+            .args(["init"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.email", "test@example.com"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.name", "Test User"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        std::fs::write(repo.join("README.md"), "Initial").unwrap();
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "-m", "init"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+
+        let spec_name = "droid_spec";
+        let spec_content = "Review the codebase and suggest improvements";
+        manager
+            .create_spec_session(spec_name, spec_content)
+            .unwrap();
+
+        manager
+            .start_spec_session_with_config(spec_name, None, None, None, Some("droid"), None)
+            .unwrap();
+
+        let running = manager.db_manager.get_session_by_name(spec_name).unwrap();
+
+        let cmd = manager
+            .start_claude_in_session(&running.name)
+            .expect("expected start command");
+        let shell_command = &cmd.shell_command;
+
+        assert!(
+            shell_command.contains(" droid ") || shell_command.ends_with(" droid"),
+            "expected droid binary in command: {}",
+            shell_command
+        );
+        assert!(
+            shell_command.contains(spec_content),
+            "expected spec content to be passed as initial prompt on fresh start: {}",
+            shell_command
+        );
+        assert!(
+            !shell_command.contains(" -r "),
+            "should not have resume flag on fresh start: {}",
+            shell_command
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_droid_resumes_without_prompt_when_session_exists() {
+        use std::process::Command;
+        let (manager, temp_dir) = create_test_session_manager();
+
+        let repo = temp_dir.path().join("repo");
+        Command::new("git")
+            .args(["init"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.email", "test@example.com"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.name", "Test User"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        std::fs::write(repo.join("README.md"), "Initial").unwrap();
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "-m", "init"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+
+        let spec_name = "droid_resume_spec";
+        let spec_content = "Continue the work";
+        manager
+            .create_spec_session(spec_name, spec_content)
+            .unwrap();
+
+        manager
+            .start_spec_session_with_config(spec_name, None, None, None, Some("droid"), None)
+            .unwrap();
+
+        let running = manager.db_manager.get_session_by_name(spec_name).unwrap();
+
+        let home_dir = tempfile::TempDir::new().unwrap();
+        let sessions_dir = home_dir.path().join(".factory/sessions");
+        std::fs::create_dir_all(&sessions_dir).unwrap();
+        
+        let session_file = sessions_dir.join("droid-session-123.jsonl");
+        use std::io::Write;
+        let mut f = std::fs::File::create(&session_file).unwrap();
+        writeln!(f, "{{\"id\":\"droid-session-123\",\"timestamp\":\"2025-11-02T00:00:00.000Z\"}}").unwrap();
+        writeln!(
+            f,
+            "{{\"message\":{{\"content\":[{{\"text\":\"% pwd\\n{}\\n\"}}]}}}}",
+            running.worktree_path.display()
+        )
+        .unwrap();
+
+        let prev_home = std::env::var("HOME").ok();
+        EnvAdapter::set_var("HOME", &home_dir.path().to_string_lossy());
+
+        manager
+            .db_manager
+            .set_session_resume_allowed(&running.id, true)
+            .unwrap();
+
+        let cmd = manager
+            .start_claude_in_session(&running.name)
+            .expect("expected start command");
+        let shell_command = &cmd.shell_command;
+
+        assert!(
+            shell_command.contains(" droid ") || shell_command.ends_with(" droid"),
+            "expected droid binary in command: {}",
+            shell_command
+        );
+        assert!(
+            shell_command.contains(" -r droid-session-123"),
+            "expected resume flag with session ID when session exists: {}",
+            shell_command
+        );
+        assert!(
+            !shell_command.contains(spec_content),
+            "should not pass prompt when resuming: {}",
+            shell_command
+        );
+
+        if let Some(h) = prev_home {
+            EnvAdapter::set_var("HOME", &h);
+        } else {
+            EnvAdapter::remove_var("HOME");
+        }
+    }
+
+    #[test]
+    #[serial_test::serial]
     fn test_start_spec_with_config_preserves_version_group_metadata() {
         use std::process::Command;
         let (manager, temp_dir) = create_test_session_manager();
@@ -2480,12 +2645,6 @@ impl SessionManager {
         // For all other agents, use the registry directly
         self.cache_manager
             .mark_session_prompted(&session.worktree_path);
-        
-        let prompt_to_use = if agent_type == "droid" {
-            None
-        } else {
-            session.initial_prompt.as_deref()
-        };
 
         let binary_path = self.utils.get_effective_binary_path_with_override(
             &agent_type,
@@ -2501,6 +2660,12 @@ impl SessionManager {
         };
 
         let did_start_fresh = session_id.is_none();
+        
+        let prompt_to_use = if session_id.is_some() {
+            None
+        } else {
+            session.initial_prompt.as_deref()
+        };
 
         if let Some(spec) = registry.build_launch_spec(
             &agent_type,
