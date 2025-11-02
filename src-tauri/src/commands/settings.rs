@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 
 use crate::{PROJECT_MANAGER, SETTINGS_MANAGER, get_core_read, get_core_write};
-use schaltwerk::services::{
-    AgentPreference, DiffViewPreferences, McpServerConfig, SessionPreferences, TerminalSettings,
-    TerminalUIPreferences,
-};
 use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
 use schaltwerk::schaltwerk_core::db_project_config::{
     HeaderActionConfig, ProjectConfigMethods, ProjectMergePreferences, ProjectSessionsSettings,
     RunScript, default_action_buttons,
+};
+use schaltwerk::services::{
+    AgentPreference, DiffViewPreferences, McpServerConfig, SessionPreferences, TerminalSettings,
+    TerminalUIPreferences,
 };
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]

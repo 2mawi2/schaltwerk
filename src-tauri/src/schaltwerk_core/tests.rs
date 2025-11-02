@@ -1294,10 +1294,12 @@ fn test_convert_running_session_to_draft() {
     assert_ne!(new_spec_name, "auth-feature");
 
     // Original session should no longer exist
-    assert!(manager
-        .db_ref()
-        .get_session_by_name(&env.repo_path, "auth-feature")
-        .is_err());
+    assert!(
+        manager
+            .db_ref()
+            .get_session_by_name(&env.repo_path, "auth-feature")
+            .is_err()
+    );
 
     // Verify newly created spec session state and content
     let converted_session = manager
@@ -1340,10 +1342,12 @@ fn test_convert_session_to_draft_preserves_content() {
     let new_spec_name = manager.convert_session_to_draft("auth-system").unwrap();
     assert_ne!(new_spec_name, "auth-system");
 
-    assert!(manager
-        .db_ref()
-        .get_session_by_name(&env.repo_path, "auth-system")
-        .is_err());
+    assert!(
+        manager
+            .db_ref()
+            .get_session_by_name(&env.repo_path, "auth-system")
+            .is_err()
+    );
 
     // Verify content is preserved on the recreated spec
     let converted = manager

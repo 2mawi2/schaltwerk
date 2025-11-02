@@ -2,24 +2,24 @@ use crate::{
     PROJECT_MANAGER, SETTINGS_MANAGER, commands::session_lookup_cache::global_session_lookup_cache,
     get_core_read, get_core_write, get_file_watcher_manager, get_terminal_manager,
 };
-use schaltwerk::services::{AgentManifest, naming, parse_agent_command};
-use schaltwerk::services::repository;
-use schaltwerk::services::MergeStateSnapshot;
-use schaltwerk::services::{MergeMode, MergeOutcome, MergePreview, MergeService};
-use schaltwerk::services::SessionMethods;
-use schaltwerk::services::{
-    EnrichedSessionEntity as EnrichedSession, FilterMode, Session, SessionState, SortMode,
-};
-use schaltwerk::services::{
-    build_login_shell_invocation_with_shell, get_effective_shell, sh_quote_string,
-    shell_invocation_to_posix,
-};
-use schaltwerk::services::get_project_files_with_status;
 use schaltwerk::infrastructure::events::{SchaltEvent, emit_event};
 use schaltwerk::schaltwerk_core::SessionManager;
 use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
 use schaltwerk::schaltwerk_core::db_project_config::{DEFAULT_BRANCH_PREFIX, ProjectConfigMethods};
+use schaltwerk::services::MergeStateSnapshot;
 use schaltwerk::services::ServiceHandles;
+use schaltwerk::services::SessionMethods;
+use schaltwerk::services::get_project_files_with_status;
+use schaltwerk::services::repository;
+use schaltwerk::services::{AgentManifest, naming, parse_agent_command};
+use schaltwerk::services::{
+    EnrichedSessionEntity as EnrichedSession, FilterMode, Session, SessionState, SortMode,
+};
+use schaltwerk::services::{MergeMode, MergeOutcome, MergePreview, MergeService};
+use schaltwerk::services::{
+    build_login_shell_invocation_with_shell, get_effective_shell, sh_quote_string,
+    shell_invocation_to_posix,
+};
 use schaltwerk::utils::env_adapter::EnvAdapter;
 use std::collections::HashSet;
 use std::path::PathBuf;

@@ -248,19 +248,13 @@ mod tests {
     fn extract_cwd_from_json_escaped_newline() {
         let line =
             r#"{"message":{"content":[{"text":"Current folder: /path/to/worktree\nNext line"}]}}"#;
-        assert_eq!(
-            extract_cwd(line),
-            Some("/path/to/worktree".to_string())
-        );
+        assert_eq!(extract_cwd(line), Some("/path/to/worktree".to_string()));
     }
 
     #[test]
     fn extract_cwd_from_actual_newline() {
         let line = "Current folder: /path/to/worktree\nNext line";
-        assert_eq!(
-            extract_cwd(line),
-            Some("/path/to/worktree".to_string())
-        );
+        assert_eq!(extract_cwd(line), Some("/path/to/worktree".to_string()));
     }
 
     #[test]

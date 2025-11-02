@@ -744,11 +744,15 @@ mod service_unified_tests {
         let home_dir = tempfile::TempDir::new().unwrap();
         let sessions_dir = home_dir.path().join(".factory/sessions");
         std::fs::create_dir_all(&sessions_dir).unwrap();
-        
+
         let session_file = sessions_dir.join("droid-session-123.jsonl");
         use std::io::Write;
         let mut f = std::fs::File::create(&session_file).unwrap();
-        writeln!(f, "{{\"id\":\"droid-session-123\",\"timestamp\":\"2025-11-02T00:00:00.000Z\"}}").unwrap();
+        writeln!(
+            f,
+            "{{\"id\":\"droid-session-123\",\"timestamp\":\"2025-11-02T00:00:00.000Z\"}}"
+        )
+        .unwrap();
         writeln!(
             f,
             "{{\"message\":{{\"content\":[{{\"text\":\"% pwd\\n{}\\n\"}}]}}}}",
@@ -1861,9 +1865,7 @@ impl SessionManager {
             .db_manager
             .get_session_task_content(&session.name)
             .unwrap_or((None, None));
-        let preserved_content = spec_content
-            .or(initial_prompt)
-            .unwrap_or_default();
+        let preserved_content = spec_content.or(initial_prompt).unwrap_or_default();
 
         if let Err(e) = self
             .db_manager
@@ -2660,7 +2662,7 @@ impl SessionManager {
         };
 
         let did_start_fresh = session_id.is_none();
-        
+
         let prompt_to_use = if session_id.is_some() {
             None
         } else {
