@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo, lazy, Suspense } from 'react'
+import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
 import { generateDockerStyleName } from '../../utils/dockerNames'
 import { invoke } from '@tauri-apps/api/core'
@@ -20,7 +20,7 @@ import {
 } from '../shared/agentDefaults'
 import { AgentDefaultsSection } from '../shared/AgentDefaultsSection'
 import { useProjectFileIndex } from '../../hooks/useProjectFileIndex'
-import type { MarkdownEditorRef } from '../plans/MarkdownEditor'
+import { MarkdownEditor, type MarkdownEditorRef } from '../plans/MarkdownEditor'
 import { ResizableModal } from '../shared/ResizableModal'
 import { GitHubIssuePromptSection } from './GitHubIssuePromptSection'
 import { GitHubPrPromptSection } from './GitHubPrPromptSection'
@@ -28,8 +28,6 @@ import type { GithubIssueSelectionResult, GithubPrSelectionResult } from '../../
 import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
 import { FALLBACK_CODEX_MODELS, getCodexModelMetadata } from '../../common/codexModels'
 import { loadCodexModelCatalog, CodexModelCatalog } from '../../services/codexModelCatalog'
-
-const MarkdownEditor = lazy(() => import('../plans/MarkdownEditor').then(m => ({ default: m.MarkdownEditor })))
 
 const SESSION_NAME_ALLOWED_PATTERN = /^[\p{L}\p{M}\p{N}_\- ]+$/u
 
@@ -1241,34 +1239,25 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                         </div>
                         <div className="flex-1 min-h-0 overflow-hidden">
                             {promptSource === 'custom' ? (
-                                <Suspense
-                                    fallback={
-                                        <div
-                                            className="h-full rounded border border-slate-700"
-                                            style={{ backgroundColor: theme.colors.background.elevated }}
-                                        />
-                                    }
-                                >
-                                    <div className="h-full" data-testid="session-task-editor">
-                                        <MarkdownEditor
-                                            ref={markdownEditorRef}
-                                            value={taskContent}
-                                            onChange={value => {
-                                                updateManualPrompt(value)
-                                                if (validationError) {
-                                                    setValidationError('')
-                                                }
-                                            }}
-                                            placeholder={
-                                                createAsDraft
-                                                    ? 'Enter spec content in markdown...'
-                                                    : 'Describe the agent for the Claude session'
+                                <div className="h-full" data-testid="session-task-editor">
+                                    <MarkdownEditor
+                                        ref={markdownEditorRef}
+                                        value={taskContent}
+                                        onChange={value => {
+                                            updateManualPrompt(value)
+                                            if (validationError) {
+                                                setValidationError('')
                                             }
-                                            className="h-full"
-                                            fileReferenceProvider={projectFileIndex}
-                                        />
-                                    </div>
-                                </Suspense>
+                                        }}
+                                        placeholder={
+                                            createAsDraft
+                                                ? 'Enter spec content in markdown...'
+                                                : 'Describe the agent for the Claude session'
+                                        }
+                                        className="h-full"
+                                        fileReferenceProvider={projectFileIndex}
+                                    />
+                                </div>
                             ) : promptSource === 'github_issue' ? (
                                 <GitHubIssuePromptSection
                                     selection={githubIssueSelection}

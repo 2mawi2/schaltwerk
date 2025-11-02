@@ -1,14 +1,12 @@
-import { useEffect, useRef, useState, lazy, Suspense } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { VscEye, VscEdit } from 'react-icons/vsc'
 import { AnimatedText } from '../common/AnimatedText'
 import { logger } from '../../utils/logger'
-import type { MarkdownEditorRef } from './MarkdownEditor'
+import { MarkdownEditor, type MarkdownEditorRef } from './MarkdownEditor'
 import { useSpecContentCache } from '../../hooks/useSpecContentCache'
 import { MarkdownRenderer } from './MarkdownRenderer'
-
-const MarkdownEditor = lazy(() => import('./MarkdownEditor').then(m => ({ default: m.MarkdownEditor })))
 
 interface Props {
   sessionName: string
@@ -95,19 +93,13 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
           </button>
         </div>
         {viewMode === 'edit' ? (
-          <Suspense fallback={
-            <div className="flex-1 flex items-center justify-center">
-              <AnimatedText text="loading" size="md" />
-            </div>
-          }>
-            <MarkdownEditor
-              ref={markdownEditorRef}
-              value={content}
-              onChange={updateContent}
-              placeholder="Enter agent description in markdown…"
-              className="flex-1"
-            />
-          </Suspense>
+          <MarkdownEditor
+            ref={markdownEditorRef}
+            value={content}
+            onChange={updateContent}
+            placeholder="Enter agent description in markdown…"
+            className="flex-1"
+          />
         ) : (
           <div className="flex-1 overflow-hidden">
             <MarkdownRenderer content={content} className="h-full" />
