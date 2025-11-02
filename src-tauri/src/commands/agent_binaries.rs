@@ -1,7 +1,7 @@
 use crate::SETTINGS_MANAGER;
 use log::{debug, info};
 use schaltwerk::binary_detector::{BinaryDetector, DetectedBinary};
-use schaltwerk::domains::settings::AgentBinaryConfig;
+use schaltwerk::services::AgentBinaryConfig;
 
 #[tauri::command]
 pub async fn detect_agent_binaries(agent_name: String) -> Result<Vec<DetectedBinary>, String> {

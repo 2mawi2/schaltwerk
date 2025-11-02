@@ -18,6 +18,37 @@ use terminals::{
 
 use crate::project_manager::ProjectManager;
 
+pub use crate::domains::settings::{
+    AgentPreference, AgentBinaryConfig, DiffViewPreferences, McpServerConfig, SessionPreferences, TerminalSettings,
+    TerminalUIPreferences,
+};
+pub use crate::domains::sessions::entity::EnrichedSession;
+pub use crate::domains::terminal::TerminalSnapshot;
+pub use crate::domains::attention::AttentionStateRegistry;
+pub use crate::domains::git::{
+    CommitFileChange, HistoryProviderSnapshot, 
+    get_commit_file_changes, get_git_history, get_git_history_with_head,
+    github_cli::{
+        CommandRunner, CreatePrOptions, GitHubCli, GitHubCliError, 
+        GitHubIssueComment, GitHubIssueDetails, GitHubIssueLabel, GitHubIssueSummary, CommandOutput
+    }
+};
+pub use crate::domains::agents::{
+    manifest::AgentManifest, naming, parse_agent_command, AgentLaunchSpec
+};
+pub use crate::domains::terminal::{
+    manager::CreateTerminalWithAppAndSizeParams,
+    build_login_shell_invocation_with_shell, get_effective_shell, sh_quote_string, shell_invocation_to_posix,
+};
+pub use crate::domains::sessions::entity::{EnrichedSession as EnrichedSessionEntity, FilterMode, Session, SessionState, SortMode};
+pub use crate::domains::sessions::db_sessions::SessionMethods;
+pub use crate::domains::merge::{
+    MergeMode, MergeOutcome, MergePreview, MergeService,
+    types::MergeStateSnapshot,
+};
+pub use crate::domains::git::{repository, worktrees};
+pub use crate::domains::workspace::get_project_files_with_status;
+
 pub type DynSessionsService = Arc<dyn SessionsServiceTrait>;
 pub type DynTerminalsService = Arc<dyn TerminalsServiceTrait>;
 pub type DynProjectsService = Arc<dyn ProjectsServiceTrait>;

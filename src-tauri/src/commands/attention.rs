@@ -1,5 +1,5 @@
 use crate::ATTENTION_REGISTRY;
-use schaltwerk::domains::attention::AttentionStateRegistry;
+use schaltwerk::services::AttentionStateRegistry;
 use serde::Serialize;
 use tauri::AppHandle;
 #[cfg(target_os = "macos")]

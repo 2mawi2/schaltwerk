@@ -1,6 +1,6 @@
 use crate::get_project_manager;
 use log::{error, info};
-use schaltwerk::domains::git::github_cli::{
+use schaltwerk::services::{
     CommandRunner, CreatePrOptions, GitHubCli, GitHubCliError, GitHubIssueComment,
     GitHubIssueDetails, GitHubIssueLabel, GitHubIssueSummary,
 };
@@ -472,7 +472,7 @@ fn format_cli_error(err: GitHubCliError) -> String {
 mod tests {
     use super::*;
     use git2::Repository;
-    use schaltwerk::domains::git::github_cli::CommandOutput;
+    use schaltwerk::services::CommandOutput;
     use schaltwerk::project_manager::ProjectManager;
     use std::collections::VecDeque;
     use std::io;
