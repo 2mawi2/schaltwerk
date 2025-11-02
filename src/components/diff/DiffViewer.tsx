@@ -586,6 +586,20 @@ export function DiffViewer({
                     alwaysShowLargeDiffs
                   )
                   const isFileExpanded = expandedFiles.has(file.path)
+                  const isDeletedFile = file.change_type === 'deleted'
+
+                  if (isDeletedFile && !isFileExpanded) {
+                    return (
+                      <CollapsedDiffBadge
+                        filterResult={{
+                          ...filterResult,
+                          shouldCollapse: true,
+                          reason: 'deleted'
+                        }}
+                        onClick={() => onToggleFileExpanded(file.path)}
+                      />
+                    )
+                  }
 
                   if (filterResult.shouldCollapse && !isFileExpanded) {
                     return (
@@ -782,6 +796,20 @@ export function DiffViewer({
                     alwaysShowLargeDiffs
                   )
                   const isFileExpanded = expandedFiles.has(file.path)
+                  const isDeletedFile = file.change_type === 'deleted'
+
+                  if (isDeletedFile && !isFileExpanded) {
+                    return (
+                      <CollapsedDiffBadge
+                        filterResult={{
+                          ...filterResult,
+                          shouldCollapse: true,
+                          reason: 'deleted'
+                        }}
+                        onClick={() => onToggleFileExpanded(file.path)}
+                      />
+                    )
+                  }
 
                   if (filterResult.shouldCollapse && !isFileExpanded) {
                     return (

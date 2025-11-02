@@ -29,8 +29,8 @@ pub use crate::domains::git::{
     CommitFileChange, HistoryProviderSnapshot, 
     get_commit_file_changes, get_git_history, get_git_history_with_head,
     github_cli::{
-        CommandRunner, CreatePrOptions, GitHubCli, GitHubCliError, 
-        GitHubIssueComment, GitHubIssueDetails, GitHubIssueLabel, GitHubIssueSummary, CommandOutput
+        CommandRunner, CommandOutput, CreatePrOptions, GitHubCli, GitHubCliError, GitHubIssueComment,
+        GitHubIssueDetails, GitHubIssueLabel, GitHubIssueSummary, GitHubPrDetails, GitHubPrSummary,
     }
 };
 pub use crate::domains::agents::{
