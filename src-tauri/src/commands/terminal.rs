@@ -200,7 +200,7 @@ pub async fn resume_session_terminals(
 mod tests {
     use super::*;
     use async_trait::async_trait;
-    use schaltwerk::domains::terminal::TerminalSnapshot;
+    use schaltwerk::services::TerminalSnapshot;
     use schaltwerk::services::terminals::{TerminalsBackend, TerminalsServiceImpl};
     use std::sync::{Arc, Mutex};
 

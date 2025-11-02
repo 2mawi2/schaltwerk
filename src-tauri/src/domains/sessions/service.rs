@@ -3597,11 +3597,7 @@ impl SessionManager {
         self.db_manager.db.insert_archived_spec(&archived)?;
 
         // Physically remove spec session from DB to declutter
-        {
-            let conn = self.db_manager.db.get_conn()?;
-            use rusqlite::params;
-            conn.execute("DELETE FROM sessions WHERE id = ?1", params![session.id])?;
-        }
+        self.db_manager.db.delete_session(&session.id)?;
 
         // Enforce archive limit for this repository
         self.db_manager.db.enforce_archive_limit(&self.repo_path)?;

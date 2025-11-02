@@ -3,7 +3,7 @@ use crate::{
     commands::schaltwerk_core::{agent_ctx, codex_models, schaltwerk_core_cli},
     get_core_read,
 };
-use schaltwerk::domains::agents::manifest::AgentManifest;
+use schaltwerk::services::AgentManifest;
 
 #[tauri::command]
 pub async fn schaltwerk_core_list_codex_models() -> Result<codex_models::CodexModelCatalog, String>
