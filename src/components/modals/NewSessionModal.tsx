@@ -454,7 +454,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
         } catch (_e) {
             setCreating(false)
         }
-    }, [creating, name, taskContent, baseBranch, customBranch, onCreate, validateSessionName, createAsDraft, versionCount, agentType, skipPermissions, promptSource, githubIssueSelection])
+    }, [creating, name, taskContent, baseBranch, customBranch, onCreate, validateSessionName, createAsDraft, versionCount, agentType, skipPermissions, promptSource, githubIssueSelection, githubPrSelection])
 
     // Keep ref in sync immediately on render to avoid stale closures in tests
     createRef.current = handleCreate

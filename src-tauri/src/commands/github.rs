@@ -1,12 +1,11 @@
 use crate::get_project_manager;
 use log::{error, info};
-use schaltwerk::domains::git::github_cli::{GitHubPrDetails, GitHubPrSummary};
 use schaltwerk::infrastructure::events::{SchaltEvent, emit_event};
 use schaltwerk::project_manager::ProjectManager;
 use schaltwerk::schaltwerk_core::db_project_config::{ProjectConfigMethods, ProjectGithubConfig};
 use schaltwerk::services::{
     CommandRunner, CreatePrOptions, GitHubCli, GitHubCliError, GitHubIssueComment,
-    GitHubIssueDetails, GitHubIssueLabel, GitHubIssueSummary,
+    GitHubIssueDetails, GitHubIssueLabel, GitHubIssueSummary, GitHubPrDetails, GitHubPrSummary,
 };
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
