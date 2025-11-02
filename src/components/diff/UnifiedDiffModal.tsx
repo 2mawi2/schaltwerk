@@ -1577,12 +1577,13 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
 
     // Determine agent type to decide if we should use bracketed paste
     // Claude Code doesn't handle bracketed paste correctly (causes image attachment)
+    // Factory Droid requires non-bracketed input for multi-line submissions to arrive in chat intact
     // Other agents (gemini, opencode, codex, etc.) work fine with bracketed paste
     let useBracketedPaste = true
     if (sessionName) {
       const session = sessions.find(s => s.info.session_id === sessionName)
       const agentType = session?.info?.original_agent_type as string | undefined
-      if (agentType === 'claude') {
+      if (agentType === 'claude' || agentType === 'droid') {
         useBracketedPaste = false
       }
     }
