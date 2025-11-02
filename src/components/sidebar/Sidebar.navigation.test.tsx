@@ -225,11 +225,17 @@ describe('Sidebar navigation with arrow keys including orchestrator', () => {
   })
 
   it('Cmd+Y resets a running session', async () => {
-    const { findAllByLabelText } = render(<TestProviders><Sidebar /></TestProviders>)
+    const { findAllByLabelText, getByLabelText } = render(<TestProviders><Sidebar /></TestProviders>)
 
     await findAllByLabelText(/Select session \(⌘/i)
 
     pressKey('ArrowDown', { metaKey: true })
+
+    // Wait for selection to update to first session
+    await waitFor(() => {
+      const selectedElement = getByLabelText(/Selected session/)
+      expect(selectedElement).toBeTruthy()
+    })
 
     pressKey('y', { metaKey: true })
 
