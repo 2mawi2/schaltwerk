@@ -54,6 +54,12 @@ export default defineConfig(({ command }) => ({
           if (id.includes('highlight.js')) {
             return 'highlight-vendor';
           }
+          if (id.includes('jotai')) {
+            return 'jotai-vendor';
+          }
+          if (id.includes('react-markdown') || id.includes('remark-') || id.includes('rehype-')) {
+            return 'markdown-vendor';
+          }
           if (id.includes('clsx') || id.includes('react-icons') || id.includes('react-split')) {
             return 'ui-vendor';
           }

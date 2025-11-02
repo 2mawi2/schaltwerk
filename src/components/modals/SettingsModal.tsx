@@ -32,6 +32,7 @@ import { emitUiEvent, UiEvent } from '../../common/uiEvents'
 import { useOptionalToast } from '../../common/toast/ToastProvider'
 import { AppUpdateResultPayload } from '../../common/events'
 import type { SettingsCategory } from '../../types/settings'
+import { requestDockBounce } from '../../utils/attentionBridge'
 
 const shortcutArraysEqual = (a: string[] = [], b: string[] = []) => {
     if (a.length !== b.length) return false
@@ -2273,7 +2274,6 @@ fi`}
                                     <button
                                         type="button"
                                         onClick={async () => {
-                                            const { requestDockBounce } = await import('../../utils/attentionBridge')
                                             await requestDockBounce()
                                         }}
                                         className="mt-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-body text-slate-300 transition-colors"

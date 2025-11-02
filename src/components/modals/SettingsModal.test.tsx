@@ -74,11 +74,11 @@ vi.mock('../settings/SettingsArchivesSection', () => ({
   SettingsArchivesSection: () => null,
 }))
 
-const requestDockBounceMock = vi.fn()
-
 vi.mock('../../utils/attentionBridge', () => ({
-  requestDockBounce: requestDockBounceMock,
+  requestDockBounce: vi.fn(),
 }))
+
+const requestDockBounceMock = vi.mocked((await import('../../utils/attentionBridge')).requestDockBounce)
 
 vi.mock('./FontPicker', () => ({
   FontPicker: () => null,
