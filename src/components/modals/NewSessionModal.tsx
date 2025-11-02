@@ -23,7 +23,8 @@ import { useProjectFileIndex } from '../../hooks/useProjectFileIndex'
 import type { MarkdownEditorRef } from '../plans/MarkdownEditor'
 import { ResizableModal } from '../shared/ResizableModal'
 import { GitHubIssuePromptSection } from './GitHubIssuePromptSection'
-import type { GithubIssueSelectionResult } from '../../types/githubIssues'
+import { GitHubPrPromptSection } from './GitHubPrPromptSection'
+import type { GithubIssueSelectionResult, GithubPrSelectionResult } from '../../types/githubIssues'
 import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
 import { FALLBACK_CODEX_MODELS, getCodexModelMetadata } from '../../common/codexModels'
 import { loadCodexModelCatalog, CodexModelCatalog } from '../../services/codexModelCatalog'
@@ -88,10 +89,12 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
     const [agentPreferences, setAgentPreferences] = useState<Record<AgentType, AgentPreferenceState>>(createEmptyPreferenceState)
     const [agentConfigLoading, setAgentConfigLoading] = useState(false)
     const [ignorePersistedAgentType, setIgnorePersistedAgentType] = useState(false)
-    const [promptSource, setPromptSource] = useState<'custom' | 'github_issue'>('custom')
+    const [promptSource, setPromptSource] = useState<'custom' | 'github_issue' | 'github_pull_request'>('custom')
     const [manualPromptDraft, setManualPromptDraft] = useState(cachedPrompt)
     const [githubIssueSelection, setGithubIssueSelection] = useState<GithubIssueSelectionResult | null>(null)
+    const [githubPrSelection, setGithubPrSelection] = useState<GithubPrSelectionResult | null>(null)
     const [githubIssueLoading, setGithubIssueLoading] = useState(false)
+    const [githubPrLoading, setGithubPrLoading] = useState(false)
     const nameInputRef = useRef<HTMLInputElement>(null)
     const markdownEditorRef = useRef<MarkdownEditorRef>(null)
     const hasFocusedDuringOpenRef = useRef(false)
@@ -123,11 +126,11 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
     )
 
     const handlePromptSourceChange = useCallback(
-        (next: 'custom' | 'github_issue') => {
+        (next: 'custom' | 'github_issue' | 'github_pull_request') => {
             if (next === promptSource) {
                 return
             }
-            if (next === 'github_issue' && !githubPromptReady) {
+            if ((next === 'github_issue' || next === 'github_pull_request') && !githubPromptReady) {
                 return
             }
 
@@ -139,15 +142,24 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                 } else {
                     setTaskContent('')
                 }
+            } else if (next === 'github_pull_request') {
+                setManualPromptDraft(taskContent)
+                setPromptSource('github_pull_request')
+                if (githubPrSelection) {
+                    setTaskContent(githubPrSelection.prompt)
+                } else {
+                    setTaskContent('')
+                }
             } else {
                 setPromptSource('custom')
                 setGithubIssueLoading(false)
+                setGithubPrLoading(false)
                 setTaskContent(manualPromptDraft)
                 onPromptChange?.(manualPromptDraft)
             }
             setValidationError('')
         },
-        [promptSource, githubPromptReady, taskContent, githubIssueSelection, manualPromptDraft, onPromptChange]
+        [promptSource, githubPromptReady, taskContent, githubIssueSelection, githubPrSelection, manualPromptDraft, onPromptChange]
     )
 
     const handleBranchChange = (branch: string) => {
@@ -375,11 +387,21 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
         }
         
         const issuePrompt = githubIssueSelection?.prompt ?? ''
+        const prPrompt = githubPrSelection?.prompt ?? ''
         const currentPrompt =
-            promptSource === 'github_issue' ? issuePrompt : taskContent
+            promptSource === 'github_issue' 
+                ? issuePrompt 
+                : promptSource === 'github_pull_request'
+                    ? prPrompt
+                    : taskContent
 
         if (promptSource === 'github_issue' && !githubIssueSelection) {
             setValidationError('Select a GitHub issue to continue')
+            return
+        }
+
+        if (promptSource === 'github_pull_request' && !githubPrSelection) {
+            setValidationError('Select a GitHub pull request to continue')
             return
         }
 
@@ -405,11 +427,15 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
         try {
             setCreating(true)
 
+            const prHeadBranch = promptSource === 'github_pull_request' && githubPrSelection 
+                ? githubPrSelection.details.headRefName 
+                : undefined
+            
             const createData = {
                 name: finalName,
                 prompt: createAsDraft ? undefined : (currentPrompt || undefined),
                 baseBranch: createAsDraft ? '' : baseBranch,
-                customBranch: customBranch.trim() || undefined,
+                customBranch: prHeadBranch || customBranch.trim() || undefined,
                 userEditedName: !!userEdited,
                 isSpec: createAsDraft,
                 draftContent: createAsDraft ? currentPrompt : undefined,
@@ -651,7 +677,9 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                 wasEditedRef.current = false
                 setPromptSource('custom')
                 setGithubIssueSelection(null)
+                setGithubPrSelection(null)
                 setGithubIssueLoading(false)
+                setGithubPrLoading(false)
                 setManualPromptDraft(cachedPrompt)
                 setTaskContent(cachedPrompt)
                 setValidationError('')
@@ -793,7 +821,9 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                 logger.info('[NewSessionModal] Setting agent content from prefill:', taskContentFromDraft.substring(0, 100), '...')
                 setPromptSource('custom')
                 setGithubIssueSelection(null)
+                setGithubPrSelection(null)
                 setGithubIssueLoading(false)
+                setGithubPrLoading(false)
                 setManualPromptDraft(taskContentFromDraft)
                 setTaskContent(taskContentFromDraft)
             }
@@ -927,16 +957,21 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
     const hasSpecContent =
         promptSource === 'github_issue'
             ? Boolean(githubIssueSelection?.prompt.trim())
-            : Boolean(taskContent.trim())
+            : promptSource === 'github_pull_request'
+                ? Boolean(githubPrSelection?.prompt.trim())
+                : Boolean(taskContent.trim())
     const requiresIssueSelection = promptSource === 'github_issue' && !githubIssueSelection
+    const requiresPrSelection = promptSource === 'github_pull_request' && !githubPrSelection
     const isStartDisabled =
         !name.trim() ||
         (!createAsDraft && !baseBranch) ||
         creating ||
         githubIssueLoading ||
+        githubPrLoading ||
         (createAsDraft && !hasSpecContent) ||
         (!createAsDraft && !canStartAgent) ||
-        requiresIssueSelection
+        requiresIssueSelection ||
+        requiresPrSelection
 
     const getStartButtonTitle = () => {
         if (createAsDraft) {
@@ -945,8 +980,14 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
         if (githubIssueLoading) {
             return 'Fetching issue details...'
         }
+        if (githubPrLoading) {
+            return 'Fetching pull request details...'
+        }
         if (requiresIssueSelection) {
             return 'Select a GitHub issue to generate a prompt'
+        }
+        if (requiresPrSelection) {
+            return 'Select a GitHub pull request to generate a prompt'
         }
         if (!canStartAgent) {
             return `${agentType} is not installed. Please install it to use this agent.`
@@ -1162,6 +1203,40 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                 >
                                     GitHub issue
                                 </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (githubPromptReady) {
+                                            handlePromptSourceChange('github_pull_request')
+                                        }
+                                    }}
+                                    title={
+                                        githubPromptReady
+                                            ? 'Use a GitHub pull request as the agent prompt'
+                                            : 'Connect GitHub to enable GitHub PR prompts'
+                                    }
+                                    aria-pressed={promptSource === 'github_pull_request'}
+                                    disabled={!githubPromptReady}
+                                    className="px-3 py-1 text-xs rounded transition-colors"
+                                    style={{
+                                        backgroundColor:
+                                            promptSource === 'github_pull_request'
+                                                ? theme.colors.background.elevated
+                                                : theme.colors.background.primary,
+                                        color: githubPromptReady
+                                            ? theme.colors.text.primary
+                                            : theme.colors.text.secondary,
+                                        border: `1px solid ${
+                                            promptSource === 'github_pull_request'
+                                                ? theme.colors.accent.blue.DEFAULT
+                                                : theme.colors.border.subtle
+                                        }`,
+                                        opacity: githubPromptReady ? 1 : 0.6,
+                                        cursor: githubPromptReady ? 'pointer' : 'not-allowed',
+                                    }}
+                                >
+                                    GitHub PR
+                                </button>
                             </div>
                         </div>
                         <div className="flex-1 min-h-0 overflow-hidden">
@@ -1194,7 +1269,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                         />
                                     </div>
                                 </Suspense>
-                            ) : (
+                            ) : promptSource === 'github_issue' ? (
                                 <GitHubIssuePromptSection
                                     selection={githubIssueSelection}
                                     onIssueLoaded={selection => {
@@ -1212,12 +1287,32 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                     }}
                                     onLoadingChange={setGithubIssueLoading}
                                 />
+                            ) : (
+                                <GitHubPrPromptSection
+                                    selection={githubPrSelection}
+                                    onPrLoaded={selection => {
+                                        setGithubPrSelection(selection)
+                                        setTaskContent(selection.prompt)
+                                        onPromptChange?.(selection.prompt)
+                                        if (validationError) {
+                                            setValidationError('')
+                                        }
+                                    }}
+                                    onClearSelection={() => {
+                                        setGithubPrSelection(null)
+                                        setTaskContent('')
+                                        onPromptChange?.('')
+                                    }}
+                                    onLoadingChange={setGithubPrLoading}
+                                />
                             )}
                         </div>
                         <p className="text-xs text-slate-400 mt-1">
                             {promptSource === 'github_issue'
                                 ? 'Select an issue to pull its description and comments into the agent prompt.'
-                                : createAsDraft
+                                : promptSource === 'github_pull_request'
+                                    ? 'Select a pull request to pull its description and comments into the agent prompt. The session will start on the PR branch.'
+                                    : createAsDraft
                                     ? (
                                         <>
                                             <svg className="inline-block w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">

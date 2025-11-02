@@ -2,7 +2,7 @@ use crate::get_project_manager;
 use log::{error, info};
 use schaltwerk::services::{
     CommandRunner, CreatePrOptions, GitHubCli, GitHubCliError, GitHubIssueComment,
-    GitHubIssueDetails, GitHubIssueLabel, GitHubIssueSummary,
+    GitHubIssueDetails, GitHubIssueLabel, GitHubIssueSummary, GitHubPrDetails, GitHubPrSummary,
 };
 use schaltwerk::infrastructure::events::{SchaltEvent, emit_event};
 use schaltwerk::project_manager::ProjectManager;
@@ -73,6 +73,31 @@ pub struct GitHubIssueDetailsPayload {
     pub body: String,
     pub labels: Vec<GitHubIssueLabelPayload>,
     pub comments: Vec<GitHubIssueCommentPayload>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubPrSummaryPayload {
+    pub number: u64,
+    pub title: String,
+    pub state: String,
+    pub updated_at: String,
+    pub author: Option<String>,
+    pub labels: Vec<GitHubIssueLabelPayload>,
+    pub url: String,
+    pub head_ref_name: String,
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubPrDetailsPayload {
+    pub number: u64,
+    pub title: String,
+    pub url: String,
+    pub body: String,
+    pub labels: Vec<GitHubIssueLabelPayload>,
+    pub comments: Vec<GitHubIssueCommentPayload>,
+    pub head_ref_name: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -267,6 +292,26 @@ pub async fn github_get_issue_details(
     github_get_issue_details_impl(Arc::clone(&manager), &cli, number).await
 }
 
+#[tauri::command]
+pub async fn github_search_prs(
+    _app: AppHandle,
+    query: Option<String>,
+) -> Result<Vec<GitHubPrSummaryPayload>, String> {
+    let manager = get_project_manager().await;
+    let cli = GitHubCli::new();
+    github_search_prs_impl(Arc::clone(&manager), &cli, query, 50).await
+}
+
+#[tauri::command]
+pub async fn github_get_pr_details(
+    _app: AppHandle,
+    number: u64,
+) -> Result<GitHubPrDetailsPayload, String> {
+    let manager = get_project_manager().await;
+    let cli = GitHubCli::new();
+    github_get_pr_details_impl(Arc::clone(&manager), &cli, number).await
+}
+
 async fn github_search_issues_impl<R: CommandRunner>(
     project_manager: Arc<ProjectManager>,
     cli: &GitHubCli<R>,
@@ -309,6 +354,50 @@ async fn github_get_issue_details_impl<R: CommandRunner>(
         })?;
 
     Ok(map_issue_details_payload(details))
+}
+
+async fn github_search_prs_impl<R: CommandRunner>(
+    project_manager: Arc<ProjectManager>,
+    cli: &GitHubCli<R>,
+    query: Option<String>,
+    limit: usize,
+) -> Result<Vec<GitHubPrSummaryPayload>, String> {
+    let project_path = resolve_project_path(project_manager).await?;
+
+    if let Err(err) = cli.ensure_installed() {
+        return Err(format_cli_error(err));
+    }
+
+    let search_query = query.unwrap_or_default();
+    let prs = cli
+        .search_prs(&project_path, search_query.trim(), limit)
+        .map_err(|err| {
+            error!("GitHub PR search failed: {err}");
+            format_cli_error(err)
+        })?;
+
+    Ok(prs.into_iter().map(map_pr_summary_payload).collect())
+}
+
+async fn github_get_pr_details_impl<R: CommandRunner>(
+    project_manager: Arc<ProjectManager>,
+    cli: &GitHubCli<R>,
+    number: u64,
+) -> Result<GitHubPrDetailsPayload, String> {
+    let project_path = resolve_project_path(project_manager).await?;
+
+    if let Err(err) = cli.ensure_installed() {
+        return Err(format_cli_error(err));
+    }
+
+    let details = cli
+        .get_pr_with_comments(&project_path, number)
+        .map_err(|err| {
+            error!("GitHub PR detail fetch failed: {err}");
+            format_cli_error(err)
+        })?;
+
+    Ok(map_pr_details_payload(details))
 }
 
 async fn resolve_project_path(project_manager: Arc<ProjectManager>) -> Result<PathBuf, String> {
@@ -380,6 +469,43 @@ fn map_issue_details_payload(details: GitHubIssueDetails) -> GitHubIssueDetailsP
             .into_iter()
             .map(map_issue_comment_payload)
             .collect(),
+    }
+}
+
+fn map_pr_summary_payload(pr: GitHubPrSummary) -> GitHubPrSummaryPayload {
+    GitHubPrSummaryPayload {
+        number: pr.number,
+        title: pr.title,
+        state: pr.state,
+        updated_at: pr.updated_at,
+        author: pr.author_login,
+        labels: pr
+            .labels
+            .into_iter()
+            .map(map_issue_label_payload)
+            .collect(),
+        url: pr.url,
+        head_ref_name: pr.head_ref_name,
+    }
+}
+
+fn map_pr_details_payload(details: GitHubPrDetails) -> GitHubPrDetailsPayload {
+    GitHubPrDetailsPayload {
+        number: details.number,
+        title: details.title,
+        url: details.url,
+        body: details.body,
+        labels: details
+            .labels
+            .into_iter()
+            .map(map_issue_label_payload)
+            .collect(),
+        comments: details
+            .comments
+            .into_iter()
+            .map(map_issue_comment_payload)
+            .collect(),
+        head_ref_name: details.head_ref_name,
     }
 }
 
