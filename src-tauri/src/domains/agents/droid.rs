@@ -1,6 +1,9 @@
+use std::collections::HashMap;
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use std::sync::{LazyLock, RwLock};
+use std::time::SystemTime;
 
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
@@ -24,6 +27,138 @@ fi
 
 exit 0
 "#;
+
+static DROID_CACHE: LazyLock<RwLock<SessionCache>> =
+    LazyLock::new(|| RwLock::new(SessionCache::default()));
+
+#[derive(Default)]
+struct SessionCache {
+    cwd_to_session: HashMap<String, (String, SystemTime)>,
+    sessions_dir_mtime: Option<SystemTime>,
+}
+
+impl SessionCache {
+    fn needs_refresh(&self) -> bool {
+        let Some(home) = dirs::home_dir() else {
+            return false;
+        };
+        let sessions_dir = home.join(".factory/sessions");
+
+        if !sessions_dir.exists() {
+            return false;
+        }
+
+        let Ok(meta) = fs::metadata(&sessions_dir) else {
+            return false;
+        };
+        let Ok(dir_mtime) = meta.modified() else {
+            return false;
+        };
+
+        Some(dir_mtime) != self.sessions_dir_mtime
+    }
+
+    fn refresh(&mut self) {
+        let Some(home) = dirs::home_dir() else { return };
+        let sessions_dir = home.join(".factory/sessions");
+
+        if !sessions_dir.exists() {
+            return;
+        }
+
+        if let Ok(meta) = fs::metadata(&sessions_dir) {
+            self.sessions_dir_mtime = meta.modified().ok();
+        }
+
+        let mut candidates: HashMap<String, (String, SystemTime)> = HashMap::new();
+
+        let Ok(entries) = fs::read_dir(&sessions_dir) else {
+            return;
+        };
+
+        for entry in entries.flatten() {
+            let path = entry.path();
+
+            if path.extension().and_then(|s| s.to_str()) != Some("jsonl") {
+                continue;
+            }
+
+            let Some(session_id) = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .map(|s| s.to_string())
+            else {
+                continue;
+            };
+
+            let Ok(meta) = entry.metadata() else { continue };
+            let Ok(mtime) = meta.modified() else { continue };
+
+            let Ok(contents) = fs::read_to_string(&path) else {
+                continue;
+            };
+            let Some(second_line) = contents.lines().nth(1) else {
+                continue;
+            };
+
+            if let Some(cwd) = extract_cwd(second_line) {
+                candidates
+                    .entry(cwd)
+                    .and_modify(|(id, time)| {
+                        if mtime > *time {
+                            *id = session_id.clone();
+                            *time = mtime;
+                        }
+                    })
+                    .or_insert((session_id, mtime));
+            }
+        }
+
+        self.cwd_to_session = candidates;
+
+        log::debug!(
+            "Droid session cache refreshed: {} CWDs indexed",
+            self.cwd_to_session.len()
+        );
+    }
+}
+
+fn extract_cwd(line: &str) -> Option<String> {
+    if let Some(start) = line.find("% pwd\\n") {
+        let after = &line[start + 7..];
+        if let Some(end) = after.find("\\n") {
+            let path = after[..end].trim();
+            if !path.is_empty() {
+                return Some(path.to_string());
+            }
+        }
+    }
+
+    if let Some(start) = line.find("Current folder: ") {
+        let after = &line[start + 16..];
+        if let Some(end) = after.find("\\n").or_else(|| after.find('\n')) {
+            return Some(after[..end].to_string());
+        }
+    }
+
+    None
+}
+
+pub fn find_droid_session_for_worktree(worktree_path: &Path) -> Option<String> {
+    let Ok(mut cache) = DROID_CACHE.write() else {
+        return None;
+    };
+
+    if cache.needs_refresh() {
+        cache.refresh();
+    }
+
+    let cwd = worktree_path.to_string_lossy().to_string();
+    cache.cwd_to_session.get(&cwd).map(|(id, _)| {
+        log::info!("Found Droid session '{id}' for worktree {cwd}");
+        id.clone()
+    })
+}
 
 fn shim_directory(worktree_path: &Path) -> PathBuf {
     worktree_path.join(SHIM_RELATIVE_PATH)
@@ -104,5 +239,54 @@ mod tests {
 
         let shim_binary = shim_directory(worktree).join(SHIM_BINARY_NAME);
         assert!(shim_binary.exists(), "shim binary should exist");
+    }
+
+    #[test]
+    fn extract_cwd_from_json_escaped_newline() {
+        let line =
+            r#"{"message":{"content":[{"text":"Current folder: /path/to/worktree\nNext line"}]}}"#;
+        assert_eq!(
+            extract_cwd(line),
+            Some("/path/to/worktree".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_cwd_from_actual_newline() {
+        let line = "Current folder: /path/to/worktree\nNext line";
+        assert_eq!(
+            extract_cwd(line),
+            Some("/path/to/worktree".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_cwd_returns_none_when_marker_missing() {
+        let line = r#"{"message":{"content":[{"text":"Some other content"}]}}"#;
+        assert_eq!(extract_cwd(line), None);
+    }
+
+    #[test]
+    fn extract_cwd_returns_none_when_no_newline() {
+        let line = "Current folder: /path/to/worktree";
+        assert_eq!(extract_cwd(line), None);
+    }
+
+    #[test]
+    fn extract_cwd_from_pwd_command() {
+        let line = r#"% pwd\n/Users/marius/Documents/git/project\n\n% ls"#;
+        assert_eq!(
+            extract_cwd(line),
+            Some("/Users/marius/Documents/git/project".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_cwd_handles_pwd_with_spaces() {
+        let line = r#"% pwd\n/Users/marius/Documents/my project/worktree\n"#;
+        assert_eq!(
+            extract_cwd(line),
+            Some("/Users/marius/Documents/my project/worktree".to_string())
+        );
     }
 }

@@ -40,7 +40,7 @@ display_name = "Droid"
 binary_name = "droid"
 default_binary_path = "/Users/marius.wichtner/.local/bin/droid"
 auto_send_initial_command = true
-supports_resume = false
+supports_resume = true
 ready_marker = "You are standing in an open terminal. An AI awaits your commands."
 
 [agents.qwen]
