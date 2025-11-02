@@ -2480,21 +2480,41 @@ impl SessionManager {
         // For all other agents, use the registry directly
         self.cache_manager
             .mark_session_prompted(&session.worktree_path);
-        let prompt_to_use = session.initial_prompt.as_deref();
+        
+        let prompt_to_use = if agent_type == "droid" {
+            None
+        } else {
+            session.initial_prompt.as_deref()
+        };
 
         let binary_path = self.utils.get_effective_binary_path_with_override(
             &agent_type,
             binary_paths.get(&agent_type).map(|s| s.as_str()),
         );
 
+        let session_id = if !force_restart && session.resume_allowed {
+            registry
+                .get(&agent_type)
+                .and_then(|adapter| adapter.find_session(&session.worktree_path))
+        } else {
+            None
+        };
+
+        let did_start_fresh = session_id.is_none();
+
         if let Some(spec) = registry.build_launch_spec(
             &agent_type,
             &session.worktree_path,
-            None,
+            session_id.as_deref(),
             prompt_to_use,
             skip_permissions,
             Some(&binary_path),
         ) {
+            if did_start_fresh && !session.resume_allowed {
+                let _ = self
+                    .db_manager
+                    .set_session_resume_allowed(&session.id, true);
+            }
             Ok(spec)
         } else {
             log::error!("Unknown agent type '{agent_type}' for session '{session_name}'");

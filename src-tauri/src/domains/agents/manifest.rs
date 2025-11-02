@@ -96,7 +96,7 @@ mod tests {
             "/Users/marius.wichtner/.local/bin/droid"
         );
         assert!(droid.auto_send_initial_command);
-        assert!(!droid.supports_resume);
+        assert!(droid.supports_resume);
         assert_eq!(
             droid.ready_marker.as_deref(),
             Some("You are standing in an open terminal. An AI awaits your commands.")

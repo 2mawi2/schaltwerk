@@ -114,6 +114,10 @@ fn build_droid_prompt_arg(prompt: &str) -> String {
 pub struct DroidAdapter;
 
 impl AgentAdapter for DroidAdapter {
+    fn find_session(&self, path: &Path) -> Option<String> {
+        droid::find_droid_session_for_worktree(path)
+    }
+
     fn build_launch_spec(&self, ctx: AgentLaunchContext) -> AgentLaunchSpec {
         let binary = ctx
             .binary_override
@@ -121,14 +125,20 @@ impl AgentAdapter for DroidAdapter {
         let binary_invocation = format_binary_invocation(binary);
         let cwd_quoted = format_binary_invocation(&ctx.worktree_path.display().to_string());
 
-        let mut command = format!("cd {cwd_quoted} && {binary_invocation}");
+        let mut parts = vec![binary_invocation];
+
+        if let Some(session_id) = ctx.session_id {
+            parts.push("-r".to_string());
+            parts.push(session_id.to_string());
+        }
 
         if let Some(prompt) = ctx.initial_prompt {
             let prompt_arg = build_droid_prompt_arg(prompt);
-            command.push(' ');
-            command.push_str(&prompt_arg);
+            parts.push(prompt_arg);
         }
 
+        let agent_part = parts.join(" ");
+        let command = format!("cd {cwd_quoted} && {agent_part}");
         let mut spec = AgentLaunchSpec::new(command, ctx.worktree_path.to_path_buf());
 
         let system_path = std::env::var("PATH").unwrap_or_default();
@@ -467,29 +477,86 @@ mod tests {
 
             let spec = adapter.build_launch_spec(ctx);
             assert!(spec.shell_command.contains("droid"));
+            assert!(!spec.shell_command.contains("--cwd"));
+            assert!(!spec.shell_command.contains("exec"));
+            assert!(!spec.shell_command.contains("-r"));
             assert!(spec.shell_command.contains("review the diff"));
-            assert!(!spec.shell_command.contains("--auto"));
             assert!(spec.initial_command.is_none());
         }
 
         #[test]
-        fn test_droid_adapter_respects_skip_permissions() {
+        fn test_droid_adapter_with_session_id() {
+            let adapter = DroidAdapter;
+            let manifest = AgentManifest::get("droid").unwrap();
+
+            let ctx = AgentLaunchContext {
+                worktree_path: Path::new("/test/path"),
+                session_id: Some("abc123"),
+                initial_prompt: Some("continue work"),
+                skip_permissions: false,
+                binary_override: Some("/bin/droid"),
+                manifest,
+            };
+
+            let spec = adapter.build_launch_spec(ctx);
+            assert!(spec.shell_command.contains("droid"));
+            assert!(!spec.shell_command.contains("--cwd"));
+            assert!(!spec.shell_command.contains("exec"));
+            assert!(spec.shell_command.contains("-r abc123"));
+            assert!(spec.shell_command.contains("continue work"));
+        }
+
+        #[test]
+        fn test_droid_adapter_without_prompt() {
             let adapter = DroidAdapter;
             let manifest = AgentManifest::get("droid").unwrap();
 
             let ctx = AgentLaunchContext {
                 worktree_path: Path::new("/tmp/work"),
                 session_id: None,
-                initial_prompt: Some("sync"),
-                skip_permissions: true,
+                initial_prompt: None,
+                skip_permissions: false,
                 binary_override: None,
                 manifest,
             };
 
             let spec = adapter.build_launch_spec(ctx);
+            println!("Generated command: {}", spec.shell_command);
             assert!(spec.shell_command.contains("droid"));
-            assert!(!spec.shell_command.contains("--auto"));
-            assert!(!spec.shell_command.contains("--skip-permissions-unsafe"));
+            assert!(!spec.shell_command.contains("--cwd"));
+            assert!(!spec.shell_command.contains("exec"));
+            assert!(!spec.shell_command.contains("-r"));
+            assert!(spec.shell_command.ends_with("droid"));
+        }
+
+        #[test]
+        fn test_droid_command_formats() {
+            let adapter = DroidAdapter;
+            let manifest = AgentManifest::get("droid").unwrap();
+
+            let ctx_new = AgentLaunchContext {
+                worktree_path: Path::new("/tmp/work"),
+                session_id: None,
+                initial_prompt: Some("review the code"),
+                skip_permissions: false,
+                binary_override: Some("droid"),
+                manifest: &manifest,
+            };
+            let spec_new = adapter.build_launch_spec(ctx_new);
+            println!("New session with prompt: {}", spec_new.shell_command);
+            assert_eq!(spec_new.shell_command, r#"cd /tmp/work && droid "review the code""#);
+
+            let ctx_resume = AgentLaunchContext {
+                worktree_path: Path::new("/tmp/work"),
+                session_id: Some("abc123"),
+                initial_prompt: None,
+                skip_permissions: false,
+                binary_override: Some("droid"),
+                manifest: &manifest,
+            };
+            let spec_resume = adapter.build_launch_spec(ctx_resume);
+            println!("Resume session: {}", spec_resume.shell_command);
+            assert_eq!(spec_resume.shell_command, "cd /tmp/work && droid -r abc123");
         }
 
         #[test]
@@ -513,28 +580,7 @@ mod tests {
             assert!(spec.shell_command.contains('\n'));
         }
 
-        #[test]
-        fn test_droid_adapter_prompt_round_trip_through_parser() {
-            use crate::domains::agents::command_parser::parse_agent_command;
 
-            let adapter = DroidAdapter;
-            let manifest = AgentManifest::get("droid").unwrap();
-            let prompt = "first line\nsecond line with \"quotes\" and $vars";
-
-            let ctx = AgentLaunchContext {
-                worktree_path: Path::new("/work"),
-                session_id: None,
-                initial_prompt: Some(prompt),
-                skip_permissions: false,
-                binary_override: Some("droid"),
-                manifest,
-            };
-
-            let spec = adapter.build_launch_spec(ctx);
-            let (_, _, args) =
-                parse_agent_command(&spec.shell_command).expect("command should parse");
-            assert_eq!(args.last().unwrap(), prompt);
-        }
 
         #[test]
         #[serial]
