@@ -9,7 +9,7 @@ use crate::{
     commands::session_lookup_cache::{current_repo_cache_key, global_session_lookup_cache},
     get_core_read,
 };
-use schaltwerk::domains::sessions::EnrichedSession;
+use schaltwerk::services::EnrichedSession;
 use schaltwerk::infrastructure::events::{SchaltEvent, emit_event};
 
 const DEFAULT_COOLDOWN: Duration = Duration::from_millis(125);

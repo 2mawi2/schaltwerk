@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{PROJECT_MANAGER, SETTINGS_MANAGER, get_core_read, get_core_write};
-use schaltwerk::domains::settings::{
+use schaltwerk::services::{
     AgentPreference, DiffViewPreferences, McpServerConfig, SessionPreferences, TerminalSettings,
     TerminalUIPreferences,
 };

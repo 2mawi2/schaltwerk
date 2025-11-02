@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use schaltwerk::domains::sessions::entity::EnrichedSession;
+use schaltwerk::services::EnrichedSession;
 use tokio::sync::RwLock;
 
 use crate::get_project_manager;

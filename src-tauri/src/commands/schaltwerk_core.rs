@@ -2,19 +2,19 @@ use crate::{
     PROJECT_MANAGER, SETTINGS_MANAGER, commands::session_lookup_cache::global_session_lookup_cache,
     get_core_read, get_core_write, get_file_watcher_manager, get_terminal_manager,
 };
-use schaltwerk::domains::agents::{manifest::AgentManifest, naming, parse_agent_command};
-use schaltwerk::domains::git::repository;
-use schaltwerk::domains::merge::types::MergeStateSnapshot;
-use schaltwerk::domains::merge::{MergeMode, MergeOutcome, MergePreview, MergeService};
-use schaltwerk::domains::sessions::db_sessions::SessionMethods;
-use schaltwerk::domains::sessions::entity::{
-    EnrichedSession, FilterMode, Session, SessionState, SortMode,
+use schaltwerk::services::{AgentManifest, naming, parse_agent_command};
+use schaltwerk::services::repository;
+use schaltwerk::services::MergeStateSnapshot;
+use schaltwerk::services::{MergeMode, MergeOutcome, MergePreview, MergeService};
+use schaltwerk::services::SessionMethods;
+use schaltwerk::services::{
+    EnrichedSessionEntity as EnrichedSession, FilterMode, Session, SessionState, SortMode,
 };
-use schaltwerk::domains::terminal::{
+use schaltwerk::services::{
     build_login_shell_invocation_with_shell, get_effective_shell, sh_quote_string,
     shell_invocation_to_posix,
 };
-use schaltwerk::domains::workspace::get_project_files_with_status;
+use schaltwerk::services::get_project_files_with_status;
 use schaltwerk::infrastructure::events::{SchaltEvent, emit_event};
 use schaltwerk::schaltwerk_core::SessionManager;
 use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
@@ -851,7 +851,7 @@ pub async fn schaltwerk_core_rename_version_group(
                     );
 
                     // Update worktree to use new branch
-                    if let Err(e) = schaltwerk::domains::git::worktrees::update_worktree_branch(
+                    if let Err(e) = schaltwerk::services::worktrees::update_worktree_branch(
                         &session.worktree_path,
                         &new_branch_name,
                     ) {
@@ -1372,7 +1372,7 @@ pub async fn schaltwerk_core_start_claude_with_restart(
         };
         let mut sh_args: Vec<String> = vec!["-lc".to_string(), chained_command];
         if let (Some(c), Some(r)) = (cols, rows) {
-            use schaltwerk::domains::terminal::manager::CreateTerminalWithAppAndSizeParams;
+            use schaltwerk::services::CreateTerminalWithAppAndSizeParams;
             terminal_manager
                 .create_terminal_with_app_and_size(CreateTerminalWithAppAndSizeParams {
                     id: terminal_id.clone(),
@@ -1392,7 +1392,7 @@ pub async fn schaltwerk_core_start_claude_with_restart(
     } else {
         match (cols, rows) {
             (Some(c), Some(r)) => {
-                use schaltwerk::domains::terminal::manager::CreateTerminalWithAppAndSizeParams;
+                use schaltwerk::services::CreateTerminalWithAppAndSizeParams;
                 terminal_manager
                     .create_terminal_with_app_and_size(CreateTerminalWithAppAndSizeParams {
                         id: terminal_id.clone(),

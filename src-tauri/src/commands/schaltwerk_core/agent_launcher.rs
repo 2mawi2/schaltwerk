@@ -1,7 +1,7 @@
 use super::{agent_ctx, terminals};
 use crate::get_terminal_manager;
-use schaltwerk::domains::agents::{AgentLaunchSpec, parse_agent_command};
-use schaltwerk::domains::terminal::manager::CreateTerminalWithAppAndSizeParams;
+use schaltwerk::services::{AgentLaunchSpec, parse_agent_command};
+use schaltwerk::services::CreateTerminalWithAppAndSizeParams;
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock};
 use tokio::sync::Mutex as AsyncMutex;

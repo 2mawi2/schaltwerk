@@ -14,7 +14,7 @@ fn resolve_node_command_path() -> Option<PathBuf> {
 mod client {
     use super::*;
     use schaltwerk::binary_detector::BinaryDetector;
-    use schaltwerk::domains::settings::AgentBinaryConfig;
+    use schaltwerk::services::AgentBinaryConfig;
     use schaltwerk::utils::binary_utils::DetectedBinary;
     use std::collections::HashSet;
     use std::fs;
@@ -144,7 +144,7 @@ mod client {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use schaltwerk::domains::settings::AgentBinaryConfig;
+        use schaltwerk::services::AgentBinaryConfig;
         use schaltwerk::utils::binary_utils::{DetectedBinary, InstallationMethod};
         use std::fs;
         use std::os::unix::fs::PermissionsExt;
