@@ -235,10 +235,7 @@ mod arch_test_utils {
         )]
     }
 
-    pub fn validate_domains_upward_imports(
-        _path: &Path,
-        import: &str,
-    ) -> Vec<(String, String)> {
+    pub fn validate_domains_upward_imports(_path: &Path, import: &str) -> Vec<(String, String)> {
         let mut violations = Vec::new();
 
         if import.contains("crate::commands::") {
@@ -291,10 +288,7 @@ mod arch_test_utils {
         )]
     }
 
-    pub fn validate_rusqlite_restricted_usage(
-        path: &Path,
-        import: &str,
-    ) -> Vec<(String, String)> {
+    pub fn validate_rusqlite_restricted_usage(path: &Path, import: &str) -> Vec<(String, String)> {
         if !import.contains("rusqlite::") {
             return Vec::new();
         }
@@ -323,9 +317,8 @@ mod arch_test_utils {
         }
 
         static EMIT_REGEX: OnceLock<Regex> = OnceLock::new();
-        let regex = EMIT_REGEX.get_or_init(|| {
-            Regex::new(r#"(?:app|handle)\.emit\s*\(\s*"([^"]+)""#).unwrap()
-        });
+        let regex = EMIT_REGEX
+            .get_or_init(|| Regex::new(r#"(?:app|handle)\.emit\s*\(\s*"([^"]+)""#).unwrap());
 
         let mut violations = Vec::new();
 
@@ -395,11 +388,7 @@ mod arch_test_utils {
         Some(relative.to_string_lossy().replace('\\', "/"))
     }
 
-    fn is_layering_exception(
-        path: &Path,
-        import: &str,
-        exceptions: &[(&str, &str, &str)],
-    ) -> bool {
+    fn is_layering_exception(path: &Path, import: &str, exceptions: &[(&str, &str, &str)]) -> bool {
         let Some(relative_file) = relative_path_str(path) else {
             return false;
         };

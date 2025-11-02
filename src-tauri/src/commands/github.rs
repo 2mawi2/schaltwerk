@@ -1,13 +1,13 @@
 use crate::get_project_manager;
 use log::{error, info};
-use schaltwerk::services::{
-    CommandRunner, CreatePrOptions, GitHubCli, GitHubCliError, GitHubIssueComment,
-    GitHubIssueDetails, GitHubIssueLabel, GitHubIssueSummary,
-};
 use schaltwerk::domains::git::github_cli::{GitHubPrDetails, GitHubPrSummary};
 use schaltwerk::infrastructure::events::{SchaltEvent, emit_event};
 use schaltwerk::project_manager::ProjectManager;
 use schaltwerk::schaltwerk_core::db_project_config::{ProjectConfigMethods, ProjectGithubConfig};
+use schaltwerk::services::{
+    CommandRunner, CreatePrOptions, GitHubCli, GitHubCliError, GitHubIssueComment,
+    GitHubIssueDetails, GitHubIssueLabel, GitHubIssueSummary,
+};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -480,11 +480,7 @@ fn map_pr_summary_payload(pr: GitHubPrSummary) -> GitHubPrSummaryPayload {
         state: pr.state,
         updated_at: pr.updated_at,
         author: pr.author_login,
-        labels: pr
-            .labels
-            .into_iter()
-            .map(map_issue_label_payload)
-            .collect(),
+        labels: pr.labels.into_iter().map(map_issue_label_payload).collect(),
         url: pr.url,
         head_ref_name: pr.head_ref_name,
     }
@@ -599,8 +595,8 @@ fn format_cli_error(err: GitHubCliError) -> String {
 mod tests {
     use super::*;
     use git2::Repository;
-    use schaltwerk::services::CommandOutput;
     use schaltwerk::project_manager::ProjectManager;
+    use schaltwerk::services::CommandOutput;
     use std::collections::VecDeque;
     use std::io;
     use std::path::{Path, PathBuf};

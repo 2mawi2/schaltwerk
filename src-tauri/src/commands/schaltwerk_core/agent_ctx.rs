@@ -3,8 +3,8 @@ use crate::commands::schaltwerk_core::schaltwerk_core_cli::extract_codex_prompt_
 use crate::commands::schaltwerk_core::schaltwerk_core_cli::{
     fix_codex_single_dash_long_flags, normalize_cli_text, reorder_codex_model_after_profile,
 };
-use schaltwerk::services::AgentPreference;
 use schaltwerk::schaltwerk_core::db_project_config::ProjectConfigMethods;
+use schaltwerk::services::AgentPreference;
 use std::path::Path;
 
 pub enum AgentKind {

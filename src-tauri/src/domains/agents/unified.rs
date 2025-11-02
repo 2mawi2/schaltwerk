@@ -544,8 +544,7 @@ mod tests {
             };
             let spec_new_with_prompt = adapter.build_launch_spec(ctx_new_with_prompt);
             assert_eq!(
-                spec_new_with_prompt.shell_command,
-                r#"cd /tmp/work && droid "review the code""#,
+                spec_new_with_prompt.shell_command, r#"cd /tmp/work && droid "review the code""#,
                 "Case 1: New session with initial prompt should use: droid 'initial prompt'"
             );
 
@@ -559,8 +558,7 @@ mod tests {
             };
             let spec_resume = adapter.build_launch_spec(ctx_resume_no_prompt);
             assert_eq!(
-                spec_resume.shell_command,
-                "cd /tmp/work && droid -r abc123",
+                spec_resume.shell_command, "cd /tmp/work && droid -r abc123",
                 "Case 2: Resume existing session should use: droid -r [sessionId]"
             );
 
@@ -574,8 +572,7 @@ mod tests {
             };
             let spec_new_no_prompt = adapter.build_launch_spec(ctx_new_no_prompt);
             assert_eq!(
-                spec_new_no_prompt.shell_command,
-                "cd /tmp/work && droid",
+                spec_new_no_prompt.shell_command, "cd /tmp/work && droid",
                 "Case 3: New session without prompt should use: droid"
             );
         }
@@ -600,8 +597,6 @@ mod tests {
             assert!(spec.shell_command.contains("line2"));
             assert!(spec.shell_command.contains('\n'));
         }
-
-
 
         #[test]
         #[serial]

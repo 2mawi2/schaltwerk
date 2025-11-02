@@ -4,7 +4,7 @@ use serde::Serialize;
 use std::sync::Arc;
 use tauri::AppHandle;
 use tauri_plugin_updater::{Error as UpdaterError, UpdaterExt};
-use tokio::sync::{Mutex, OnceCell};
+use tokio::sync::{Mutex, MutexGuard, OnceCell};
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -112,6 +112,20 @@ async fn acquire_lock() -> Arc<Mutex<()>> {
         .clone()
 }
 
+async fn obtain_update_guard<'a>(
+    lock: &'a Mutex<()>,
+    current_version: String,
+    initiated_by: UpdateInitiator,
+) -> Result<MutexGuard<'a, ()>, UpdateResultPayload> {
+    match initiated_by {
+        UpdateInitiator::Auto => match lock.try_lock() {
+            Ok(guard) => Ok(guard),
+            Err(_) => Err(UpdateResultPayload::busy(current_version, initiated_by)),
+        },
+        UpdateInitiator::Manual => Ok(lock.lock().await),
+    }
+}
+
 fn classify_error(error: &UpdaterError) -> UpdateErrorKind {
     match error {
         UpdaterError::Network(_) | UpdaterError::Reqwest(_) => UpdateErrorKind::Network,
@@ -136,10 +150,9 @@ pub async fn check_for_updates(
     let version = current_version(app);
     let lock = acquire_lock().await;
 
-    let guard = match lock.try_lock() {
+    let guard = match obtain_update_guard(&lock, version.clone(), initiated_by).await {
         Ok(guard) => guard,
-        Err(_) => {
-            let payload = UpdateResultPayload::busy(version, initiated_by);
+        Err(payload) => {
             if initiated_by == UpdateInitiator::Manual {
                 let _ = emit_event(app, SchaltEvent::AppUpdateResult, &payload);
             }
@@ -252,4 +265,58 @@ pub async fn run_auto_update(app: &AppHandle, enabled: bool) {
 
 pub async fn run_manual_update(app: &AppHandle) -> UpdateResultPayload {
     check_for_updates(app, UpdateInitiator::Manual).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+    use tokio::sync::{Mutex, oneshot};
+
+    #[tokio::test]
+    async fn manual_requests_wait_for_lock_instead_of_reporting_busy() {
+        let lock = Arc::new(Mutex::new(()));
+        let guard = lock.lock().await;
+
+        let (tx, rx) = oneshot::channel();
+        {
+            let lock = Arc::clone(&lock);
+            tokio::spawn(async move {
+                let outcome = obtain_update_guard(
+                    lock.as_ref(),
+                    "1.0.0".to_string(),
+                    UpdateInitiator::Manual,
+                )
+                .await;
+                let acquired = outcome.is_ok();
+                if let Ok(guard) = outcome {
+                    drop(guard);
+                }
+                let _ = tx.send(acquired);
+            });
+        }
+
+        drop(guard);
+
+        let acquired = rx.await.expect("manual task dropped without notifying");
+        assert!(
+            acquired,
+            "manual initiators should wait for the ongoing update and acquire the lock"
+        );
+    }
+
+    #[tokio::test]
+    async fn auto_requests_return_busy_when_update_running() {
+        let lock = Arc::new(Mutex::new(()));
+        let guard = lock.lock().await;
+
+        let result =
+            obtain_update_guard(lock.as_ref(), "1.0.0".to_string(), UpdateInitiator::Auto).await;
+        assert!(
+            matches!(result, Err(payload) if payload.status == UpdateStatus::Busy),
+            "auto initiators should not queue behind another update check"
+        );
+
+        drop(guard);
+    }
 }
