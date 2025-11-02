@@ -221,6 +221,9 @@ fn write_if_different(path: &Path, contents: &str) -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
+    use std::ffi::OsString;
+    use std::fs;
     use tempfile::tempdir;
 
     #[test]
@@ -287,6 +290,80 @@ mod tests {
         assert_eq!(
             extract_cwd(line),
             Some("/Users/marius/Documents/my project/worktree".to_string())
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn finds_resumable_sessions_for_multiple_worktrees() {
+        let temp = tempdir().unwrap();
+
+        let home_dir = temp.path().join("home");
+        fs::create_dir_all(&home_dir).unwrap();
+
+        struct HomeGuard(Option<OsString>);
+
+        impl Drop for HomeGuard {
+            fn drop(&mut self) {
+                unsafe {
+                    if let Some(ref value) = self.0 {
+                        std::env::set_var("HOME", value);
+                    } else {
+                        std::env::remove_var("HOME");
+                    }
+                }
+            }
+        }
+
+        let original_home = std::env::var_os("HOME");
+        let _guard = HomeGuard(original_home);
+        unsafe {
+            std::env::set_var("HOME", &home_dir);
+        }
+
+        let sessions_dir = home_dir.join(".factory/sessions");
+        fs::create_dir_all(&sessions_dir).unwrap();
+
+        let worktree_root = temp.path().join("worktrees");
+        fs::create_dir_all(&worktree_root).unwrap();
+        let worktree_a = worktree_root.join("alpha");
+        let worktree_b = worktree_root.join("bravo");
+        fs::create_dir_all(&worktree_a).unwrap();
+        fs::create_dir_all(&worktree_b).unwrap();
+
+        let session_a_path = sessions_dir.join("session-alpha.jsonl");
+        let session_b_path = sessions_dir.join("session-bravo.jsonl");
+        let contents_a = format!(
+            "{{}}\nCurrent folder: {}\\nNext line\n",
+            worktree_a.to_string_lossy()
+        );
+        let contents_b = format!(
+            "{{}}\nCurrent folder: {}\\nNext line\n",
+            worktree_b.to_string_lossy()
+        );
+        fs::write(&session_a_path, contents_a).unwrap();
+        fs::write(&session_b_path, contents_b).unwrap();
+
+        {
+            let mut cache = DROID_CACHE.write().unwrap();
+            *cache = SessionCache::default();
+        }
+
+        let found_a =
+            find_droid_session_for_worktree(&worktree_a).expect("missing session for worktree A");
+        let found_b =
+            find_droid_session_for_worktree(&worktree_b).expect("missing session for worktree B");
+
+        assert_eq!(found_a, "session-alpha");
+        assert_eq!(found_b, "session-bravo");
+
+        assert_eq!(
+            find_droid_session_for_worktree(&worktree_a).as_deref(),
+            Some("session-alpha")
+        );
+        assert_eq!(
+            find_droid_session_for_worktree(&worktree_b).as_deref(),
+            Some("session-bravo")
         );
     }
 }
