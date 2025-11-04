@@ -98,10 +98,10 @@ const focusSpies = new Map<string, ReturnType<typeof vi.fn>>()
 vi.mock('./Terminal', () => {
   const TerminalMock = forwardRef<MockTerminalRef, { terminalId: string; className?: string; sessionName?: string; isCommander?: boolean }>(function TerminalMock(props, ref) {
     const { terminalId, className = '', sessionName, isCommander } = props
-    const focusRef = useRef<ReturnType<typeof vi.fn> | null>(null)
-    if (!focusRef.current) focusRef.current = vi.fn()
+    const focusRef = useRef<(() => void) | null>(null)
+    if (!focusRef.current) focusRef.current = vi.fn<() => void>()
     const focus = focusRef.current
-    focusSpies.set(terminalId, focus)
+    focusSpies.set(terminalId, focus as ReturnType<typeof vi.fn>)
     useEffect(() => {
       mountCount.set(terminalId, (mountCount.get(terminalId) || 0) + 1)
       return () => {
@@ -110,10 +110,10 @@ vi.mock('./Terminal', () => {
       }
     }, [terminalId])
 
-    useImperativeHandle(ref, () => ({ 
+    useImperativeHandle(ref, () => ({
       focus: focusRef.current!,
-      showSearch: vi.fn(),
-      scrollToBottom: vi.fn()
+      showSearch: vi.fn<() => void>(),
+      scrollToBottom: vi.fn<() => void>()
     }), [])
 
     const handleClick = () => {
@@ -172,14 +172,14 @@ vi.mock('./TerminalTabs', () => {
     const { baseTerminalId, isCommander, onTerminalClick } = props
     // For orchestrator, add -0 suffix; for sessions, no suffix
     const terminalId = isCommander ? `${baseTerminalId}-0` : baseTerminalId
-    const focusRef = useRef<ReturnType<typeof vi.fn> | null>(null)
-    if (!focusRef.current) focusRef.current = vi.fn()
+    const focusRef = useRef<(() => void) | null>(null)
+    if (!focusRef.current) focusRef.current = vi.fn<() => void>()
     const focus = focusRef.current
-    
+
     // Track mount for the tab terminal and register focus spy
     useEffect(() => {
       mountCount.set(terminalId, (mountCount.get(terminalId) || 0) + 1)
-      focusSpies.set(terminalId, focus) // Register focus spy directly
+      focusSpies.set(terminalId, focus as ReturnType<typeof vi.fn>) // Register focus spy directly
       return () => {
         unmountCount.set(terminalId, (unmountCount.get(terminalId) || 0) + 1)
         focusSpies.delete(terminalId)

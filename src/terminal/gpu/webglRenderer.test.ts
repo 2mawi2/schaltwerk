@@ -11,7 +11,7 @@ const mockWebglAddonInstance = {
 };
 const mockWebglAddonCtor = vi.fn(() => mockWebglAddonInstance);
 
-let importAddonMock: ReturnType<typeof vi.fn>;
+let importAddonMock: ReturnType<typeof vi.fn<(name: string) => Promise<typeof mockWebglAddonCtor>>>;
 
 vi.mock('./webglCapability', () => ({
     isWebGLSupported: () => mockIsWebGLSupported(),
@@ -26,7 +26,7 @@ vi.mock('../xterm/xtermAddonImporter', () => ({
     }
 }));
 
-importAddonMock = vi.fn(async (name: string) => {
+importAddonMock = vi.fn<(name: string) => Promise<typeof mockWebglAddonCtor>>(async (name: string) => {
     if (name === 'webgl') {
         return mockWebglAddonCtor;
     }
