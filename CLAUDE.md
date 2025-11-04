@@ -381,6 +381,8 @@ Automatically updates versions, commits, tags, and triggers GitHub Actions.
 
 - Store all plan MD files in the `plans/` directory, not at the repository root
 - This keeps the root clean and organizes planning documents
+- If you create plans research the codebase or requested details first before making a plan for the implementation
+- Don't make plans for making plans, rather do the planning ahead and then implement
 
 ## Documentation
 
