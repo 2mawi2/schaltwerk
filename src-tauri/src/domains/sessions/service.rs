@@ -5,7 +5,18 @@ use chrono::{TimeZone, Utc};
 use log::{info, warn};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use which::which;
 const GIT_STATS_STALE_THRESHOLD_SECS: i64 = 60;
+const AGENT_FALLBACK_ORDER: &[&str] = &[
+    "claude",
+    "codex",
+    "opencode",
+    "gemini",
+    "droid",
+    "qwen",
+    "amp",
+    "terminal",
+];
 
 fn get_or_compute_git_stats(
     session_id: &str,
@@ -38,6 +49,81 @@ fn get_or_compute_git_stats(
             computed
         }
     }
+}
+
+fn normalize_binary_path(raw: &str) -> Option<String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let unquoted = if trimmed.len() >= 2
+        && ((trimmed.starts_with('"') && trimmed.ends_with('"'))
+            || (trimmed.starts_with('\'') && trimmed.ends_with('\'')))
+    {
+        trimmed[1..trimmed.len() - 1].to_string()
+    } else {
+        trimmed.to_string()
+    };
+
+    if unquoted.starts_with("~/") {
+        if let Ok(home) = std::env::var("HOME") {
+            return Some(format!("{home}/{}", &unquoted[2..]));
+        }
+    }
+
+    Some(unquoted)
+}
+
+fn binary_invocation_exists(raw: &str) -> bool {
+    let Some(spec) = normalize_binary_path(raw) else {
+        return false;
+    };
+
+    if spec.contains('/') {
+        Path::new(&spec).exists()
+    } else {
+        which(&spec).is_ok()
+    }
+}
+
+fn agent_binary_available(agent: &str, binary_paths: &HashMap<String, String>) -> bool {
+    if agent == "terminal" || binary_paths.is_empty() {
+        return true;
+    }
+
+    binary_paths
+        .get(agent)
+        .map(|path| binary_invocation_exists(path))
+        .unwrap_or(false)
+}
+
+fn resolve_launch_agent(
+    preferred: &str,
+    binary_paths: &HashMap<String, String>,
+) -> (String, bool) {
+    let preferred_normalized = preferred.trim();
+    let desired = if preferred_normalized.is_empty() {
+        "claude".to_string()
+    } else {
+        preferred_normalized.to_lowercase()
+    };
+
+    if agent_binary_available(&desired, binary_paths) {
+        return (desired, false);
+    }
+
+    for &candidate in AGENT_FALLBACK_ORDER {
+        if candidate == desired {
+            continue;
+        }
+
+        if agent_binary_available(candidate, binary_paths) {
+            return (candidate.to_string(), true);
+        }
+    }
+
+    (desired, false)
 }
 
 pub struct SessionCreationParams<'a> {
@@ -78,6 +164,44 @@ mod service_unified_tests {
     use serial_test::serial;
     use std::collections::HashMap;
     use tempfile::TempDir;
+
+    fn create_temp_executable(dir: &TempDir, name: &str) -> String {
+        let path = dir.path().join(name);
+        std::fs::write(&path, "#!/bin/sh\necho test\n").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = std::fs::metadata(&path).unwrap().permissions();
+            perms.set_mode(0o755);
+            std::fs::set_permissions(&path, perms).unwrap();
+        }
+        path.to_string_lossy().to_string()
+    }
+
+    #[test]
+    fn resolve_launch_agent_respects_custom_path() {
+        let temp_dir = TempDir::new().unwrap();
+        let custom_path = create_temp_executable(&temp_dir, "claude");
+        let mut binaries = HashMap::new();
+        binaries.insert("claude".to_string(), custom_path);
+
+        let (agent, used_fallback) = super::resolve_launch_agent("claude", &binaries);
+        assert_eq!(agent, "claude");
+        assert!(!used_fallback);
+    }
+
+    #[test]
+    fn resolve_launch_agent_falls_back_when_preferred_missing() {
+        let temp_dir = TempDir::new().unwrap();
+        let codex_path = create_temp_executable(&temp_dir, "codex");
+        let mut binaries = HashMap::new();
+        binaries.insert("claude".to_string(), "/nonexistent/claude".to_string());
+        binaries.insert("codex".to_string(), codex_path);
+
+        let (agent, used_fallback) = super::resolve_launch_agent("claude", &binaries);
+        assert_eq!(agent, "codex");
+        assert!(used_fallback);
+    }
     use uuid::Uuid;
 
     fn create_test_session_manager() -> (SessionManager, TempDir) {
@@ -2299,10 +2423,21 @@ impl SessionManager {
         let skip_permissions = session
             .original_skip_permissions
             .unwrap_or(self.db_manager.get_skip_permissions()?);
-        let agent_type = session
+        let requested_agent_type = session
             .original_agent_type
             .clone()
             .unwrap_or(self.db_manager.get_agent_type()?);
+        let (agent_type, used_fallback) =
+            resolve_launch_agent(&requested_agent_type, binary_paths);
+
+        if used_fallback {
+            log::warn!(
+                "Session manager: Agent '{}' is unavailable; falling back to '{}' for session '{}'",
+                requested_agent_type,
+                agent_type,
+                session_name
+            );
+        }
 
         let registry = crate::domains::agents::unified::AgentRegistry::new();
 
@@ -2729,7 +2864,17 @@ impl SessionManager {
         }
 
         let skip_permissions = self.db_manager.get_orchestrator_skip_permissions()?;
-        let agent_type = self.db_manager.get_orchestrator_agent_type()?;
+        let requested_agent_type = self.db_manager.get_orchestrator_agent_type()?;
+        let (agent_type, used_fallback) =
+            resolve_launch_agent(&requested_agent_type, binary_paths);
+
+        if used_fallback {
+            log::warn!(
+                "Orchestrator: Agent '{}' unavailable; falling back to '{}'",
+                requested_agent_type,
+                agent_type
+            );
+        }
 
         log::info!(
             "Fresh orchestrator agent type: {agent_type}, skip_permissions: {skip_permissions}"
@@ -2777,7 +2922,17 @@ impl SessionManager {
         }
 
         let skip_permissions = self.db_manager.get_orchestrator_skip_permissions()?;
-        let agent_type = self.db_manager.get_orchestrator_agent_type()?;
+        let requested_agent_type = self.db_manager.get_orchestrator_agent_type()?;
+        let (agent_type, used_fallback) =
+            resolve_launch_agent(&requested_agent_type, binary_paths);
+
+        if used_fallback {
+            log::warn!(
+                "Orchestrator: Agent '{}' unavailable; falling back to '{}'",
+                requested_agent_type,
+                agent_type
+            );
+        }
 
         log::info!("Orchestrator agent type: {agent_type}, skip_permissions: {skip_permissions}");
 

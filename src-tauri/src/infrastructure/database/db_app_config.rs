@@ -1,183 +1,7 @@
 use super::connection::Database;
-use crate::binary_detector::BinaryDetector;
 use anyhow::Result;
-use log::warn;
 use rusqlite::params;
 
-const AGENT_FALLBACK_ORDER: &[&str] = &[
-    "claude",
-    "codex",
-    "opencode",
-    "gemini",
-    "droid",
-    "qwen",
-    "amp",
-    "terminal",
-];
-
-fn is_agent_available(agent: &str) -> bool {
-    if agent.eq_ignore_ascii_case("terminal") {
-        return true;
-    }
-
-    #[cfg(test)]
-    {
-        if let Some(override_map) = AGENT_AVAILABILITY_OVERRIDE
-            .lock()
-            .expect("agent availability lock poisoned")
-            .as_ref()
-        {
-            return override_map
-                .get(&agent.to_string())
-                .copied()
-                .unwrap_or(false);
-        }
-    }
-
-    let normalized = agent.to_lowercase();
-    !BinaryDetector::detect_agent_binaries(&normalized).is_empty()
-}
-
-fn resolve_agent_type_with_fallback(preferred: Option<String>, context: &str) -> String {
-    let normalized_preferred = preferred
-        .as_ref()
-        .and_then(|value| {
-            let trimmed = value.trim();
-            if trimmed.is_empty() {
-                None
-            } else {
-                Some(trimmed.to_lowercase())
-            }
-        });
-
-    if let Some(agent) = normalized_preferred.as_deref() {
-        if is_agent_available(agent) {
-            return agent.to_string();
-        }
-    }
-
-    for &candidate in AGENT_FALLBACK_ORDER {
-        if normalized_preferred.as_deref() == Some(candidate) {
-            continue;
-        }
-
-        if is_agent_available(candidate) {
-            match normalized_preferred.as_deref() {
-                Some(missing) => warn!(
-                    "Preferred {context} '{missing}' is not installed; falling back to '{candidate}'"
-                ),
-                None => warn!(
-                    "No {context} configured; selecting '{candidate}' because it is available"
-                ),
-            }
-            return candidate.to_string();
-        }
-    }
-
-    let fallback = normalized_preferred.unwrap_or_else(|| "terminal".to_string());
-    warn!(
-        "Failed to find any installed agents while resolving {context}; returning '{fallback}'"
-    );
-    fallback
-}
-
-#[cfg(test)]
-use once_cell::sync::Lazy;
-#[cfg(test)]
-use std::collections::HashMap;
-#[cfg(test)]
-use std::sync::Mutex;
-#[cfg(test)]
-static AGENT_AVAILABILITY_OVERRIDE: Lazy<Mutex<Option<HashMap<String, bool>>>> =
-    Lazy::new(|| Mutex::new(None));
-
-#[cfg(test)]
-fn set_agent_availability_override(map: Option<HashMap<String, bool>>) {
-    let mut guard = AGENT_AVAILABILITY_OVERRIDE
-        .lock()
-        .expect("agent availability lock poisoned");
-    *guard = map;
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn availability_map(entries: &[(&str, bool)]) -> HashMap<String, bool> {
-        entries
-            .iter()
-            .map(|(agent, available)| (agent.to_string(), *available))
-            .collect()
-    }
-
-    fn with_availability<F, T>(entries: &[(&str, bool)], test_fn: F) -> T
-    where
-        F: FnOnce() -> T,
-    {
-        set_agent_availability_override(Some(availability_map(entries)));
-        let result = test_fn();
-        set_agent_availability_override(None);
-        result
-    }
-
-    #[test]
-    fn preserves_configured_agent_when_available() {
-        with_availability(&[("claude", true)], || {
-            let resolved = resolve_agent_type_with_fallback(
-                Some("claude".to_string()),
-                "default agent",
-            );
-            assert_eq!(resolved, "claude");
-        });
-    }
-
-    #[test]
-    fn falls_back_to_next_available_agent() {
-        with_availability(&[("claude", false), ("codex", true)], || {
-            let resolved = resolve_agent_type_with_fallback(
-                Some("claude".to_string()),
-                "default agent",
-            );
-            assert_eq!(resolved, "codex");
-        });
-    }
-
-    #[test]
-    fn selects_first_available_when_no_preference() {
-        with_availability(
-            &[
-                ("claude", false),
-                ("codex", false),
-                ("opencode", true),
-                ("gemini", true),
-            ],
-            || {
-                let resolved = resolve_agent_type_with_fallback(None, "default agent");
-                assert_eq!(resolved, "opencode");
-            },
-        );
-    }
-
-    #[test]
-    fn falls_back_to_terminal_when_no_cli_agents() {
-        with_availability(
-            &[
-                ("claude", false),
-                ("codex", false),
-                ("opencode", false),
-                ("gemini", false),
-                ("terminal", true),
-            ],
-            || {
-                let resolved = resolve_agent_type_with_fallback(
-                    Some("claude".to_string()),
-                    "default agent",
-                );
-                assert_eq!(resolved, "terminal");
-            },
-        );
-    }
-}
 
 pub trait AppConfigMethods {
     fn get_skip_permissions(&self) -> Result<bool>;
@@ -265,10 +89,10 @@ impl AppConfigMethods for Database {
             |row| row.get(0),
         );
 
-        Ok(resolve_agent_type_with_fallback(
-            result.ok(),
-            "default agent",
-        ))
+        match result {
+            Ok(value) => Ok(value),
+            Err(_) => Ok("claude".to_string()),
+        }
     }
 
     fn set_agent_type(&self, agent_type: &str) -> Result<()> {
@@ -293,10 +117,7 @@ impl AppConfigMethods for Database {
         };
 
         match result {
-            Ok(value) => Ok(resolve_agent_type_with_fallback(
-                Some(value),
-                "orchestrator agent",
-            )),
+            Ok(value) => Ok(value),
             Err(_) => self.get_agent_type(),
         }
     }
