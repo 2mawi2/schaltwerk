@@ -2,10 +2,10 @@ cask "schaltwerk" do
   version "0.1.0"
   sha256 :no_check
 
-  url "file:///Users/marius.wichtner/Documents/git/para-ui/.schaltwerk/worktrees/thirsty_mcnulty/src-tauri/target/release/bundle/macos/Schaltwerk-#{version}-universal.dmg"
+  url "https://github.com/2mawi2/schaltwerk/releases/download/v#{version}/Schaltwerk-#{version}-universal.dmg"
   name "Schaltwerk"
   desc "Visual interface for managing Para sessions"
-  homepage "https://github.com/2mawi2/para-ui"
+  homepage "https://github.com/2mawi2/schaltwerk"
 
   uninstall_preflight do
     staged_app = staged_path/"Schaltwerk.app"
