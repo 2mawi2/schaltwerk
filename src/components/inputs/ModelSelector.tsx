@@ -19,6 +19,7 @@ interface ModelSelectorProps {
     value: AgentType
     onChange: (value: AgentType) => void
     disabled?: boolean
+    agentSelectionDisabled?: boolean
     skipPermissions?: boolean
     onSkipPermissionsChange?: (value: boolean) => void
     onDropdownOpenChange?: (open: boolean) => void
@@ -30,6 +31,7 @@ export function ModelSelector({
     value,
     onChange,
     disabled = false,
+    agentSelectionDisabled = false,
     skipPermissions,
     onSkipPermissionsChange,
     onDropdownOpenChange,
@@ -54,10 +56,10 @@ export function ModelSelector({
     const canConfigurePermissions = selectedSupportsPermissions && typeof skipPermissions === 'boolean' && typeof onSkipPermissionsChange === 'function'
 
     const handleSelect = useCallback((modelValue: AgentType) => {
-        if (!isAvailable(modelValue)) return
+        if (agentSelectionDisabled || !isAvailable(modelValue)) return
         onChange(modelValue)
         setIsOpen(false)
-    }, [onChange, isAvailable])
+    }, [onChange, isAvailable, agentSelectionDisabled])
 
     const getTooltipText = useCallback((modelValue: AgentType) => {
         if (loading) return 'Checking availability...'
@@ -69,7 +71,8 @@ export function ModelSelector({
     }, [loading, isAvailable, getRecommendedPath, getInstallationMethod])
 
     const selectedAvailable = isAvailable(selectedModel.value)
-    const selectedDisabled = disabled || (!selectedAvailable && !loading)
+    const dropdownDisabled = disabled || agentSelectionDisabled
+    const selectedDisabled = dropdownDisabled || (!selectedAvailable && !loading)
 
     useEffect(() => {
         if (!selectedSupportsPermissions && typeof skipPermissions === 'boolean' && skipPermissions && onSkipPermissionsChange) {
@@ -128,13 +131,13 @@ export function ModelSelector({
         }
     })
 
-    const dropdownOpen = isOpen && !disabled
+    const dropdownOpen = isOpen && !dropdownDisabled
 
     useEffect(() => {
-        if (disabled && isOpen) {
+        if (dropdownDisabled && isOpen) {
             setIsOpen(false)
         }
-    }, [disabled, isOpen])
+    }, [dropdownDisabled, isOpen])
 
     useEffect(() => {
         if (onDropdownOpenChange) {
@@ -150,15 +153,18 @@ export function ModelSelector({
                 items={items}
                 selectedKey={selectedModel.value}
                 align="stretch"
-                onSelect={(key) => handleSelect(key as typeof selectedModel.value)}
+                onSelect={(key) => {
+                    if (agentSelectionDisabled) return
+                    handleSelect(key as typeof selectedModel.value)
+                }}
             >
                 {({ open, toggle }) => (
                     <button
                         type="button"
-                        onClick={() => !disabled && toggle()}
-                        disabled={disabled}
+                        onClick={() => !dropdownDisabled && toggle()}
+                        disabled={dropdownDisabled}
                         className={`w-full px-3 py-1.5 text-sm rounded border flex items-center justify-between ${
-                            disabled
+                            dropdownDisabled
                                 ? 'cursor-not-allowed'
                                 : 'cursor-pointer'
                         } ${
