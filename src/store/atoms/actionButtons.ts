@@ -70,7 +70,7 @@ export const loadActionButtonsAtom = atom(
       set(actionButtonsLoadingAtom, false)
       set(actionButtonsErrorAtom, null)
       set(lastLoadedProjectPathAtom, null)
-      logger.info('No project path available, skipping action buttons load')
+      logger.debug('No project path available, skipping action buttons load')
       return
     }
 
@@ -79,9 +79,9 @@ export const loadActionButtonsAtom = atom(
     try {
       set(actionButtonsLoadingAtom, true)
       set(actionButtonsErrorAtom, null)
-      logger.info('Loading action buttons for project:', projectPath)
+      logger.debug('Loading action buttons for project:', projectPath)
       const buttons = await invoke<HeaderActionConfig[]>(TauriCommands.GetProjectActionButtons)
-      logger.info('Action buttons loaded:', buttons)
+      logger.debug('Action buttons loaded:', buttons)
       set(actionButtonsMapAtom, mapButtons(buttons))
     } catch (error) {
       logger.error('Failed to load action buttons:', error)
@@ -103,10 +103,10 @@ export const saveActionButtonsAtom = atom(
   null,
   async (get, set, payload: SavePayload) => {
     try {
-      logger.info('Saving action buttons payload:', payload.buttons)
+      logger.debug('Saving action buttons payload:', payload.buttons)
       await invoke(TauriCommands.SetProjectActionButtons, { actions: payload.buttons })
       const projectPath = payload.projectPath ?? get(lastLoadedProjectPathAtom)
-      logger.info('Action buttons saved, reloading for project:', projectPath)
+      logger.debug('Action buttons saved, reloading for project:', projectPath)
       await set(loadActionButtonsAtom, { projectPath: projectPath ?? null })
       return true
     } catch (error) {

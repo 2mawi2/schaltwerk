@@ -1181,7 +1181,7 @@ pub async fn schaltwerk_core_start_claude_with_restart(
         ] {
             match settings.get_effective_binary_path(agent) {
                 Ok(path) => {
-                    log::debug!("Cached binary path for {agent}: {path}");
+                    log::trace!("Cached binary path for {agent}: {path}");
                     paths.insert(agent.to_string(), path);
                 }
                 Err(e) => log::warn!("Failed to get cached binary path for {agent}: {e}"),
@@ -1492,7 +1492,7 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
         ] {
             match settings.get_effective_binary_path(agent) {
                 Ok(path) => {
-                    log::debug!("Cached binary path for {agent}: {path}");
+                    log::trace!("Cached binary path for {agent}: {path}");
                     paths.insert(agent.to_string(), path);
                 }
                 Err(e) => log::warn!("Failed to get cached binary path for {agent}: {e}"),
@@ -2478,7 +2478,7 @@ pub async fn schaltwerk_core_start_fresh_orchestrator(
         ] {
             match settings.get_effective_binary_path(agent) {
                 Ok(path) => {
-                    log::debug!("Cached binary path for {agent}: {path}");
+                    log::trace!("Cached binary path for {agent}: {path}");
                     paths.insert(agent.to_string(), path);
                 }
                 Err(e) => log::warn!("Failed to get cached binary path for {agent}: {e}"),

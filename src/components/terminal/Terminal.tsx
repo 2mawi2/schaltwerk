@@ -591,7 +591,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
          const setupListener = async () => {
              try {
                  unlistenAgentStarted = await listenEvent(SchaltEvent.TerminalAgentStarted, (payload) => {
-                     logger.info(`[Terminal] Received terminal-agent-started event for ${payload.terminal_id}`);
+                     logger.debug(`[Terminal] Received terminal-agent-started event for ${payload.terminal_id}`);
 
                      startedGlobal.add(payload.terminal_id);
 

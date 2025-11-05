@@ -797,7 +797,7 @@ fn main() {
     // Initialize logging
     schaltwerk::infrastructure::logging::init_logging();
     log::info!("Schaltwerk starting...");
-    log::info!(
+    log::debug!(
         "[startup] Effective PATH: {}",
         std::env::var("PATH").unwrap_or_default()
     );

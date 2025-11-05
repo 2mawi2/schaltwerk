@@ -2,10 +2,11 @@ use std::env;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command as StdCommand;
+use std::sync::OnceLock;
 
 use anyhow::Error as AnyhowError;
 use git2::Repository;
-use log::{debug, info};
+use log::{debug, info, warn};
 use serde::Deserialize;
 
 use super::branches::branch_exists;
@@ -269,7 +270,11 @@ impl<R: CommandRunner> GitHubCli<R> {
         match self.runner.run(&self.program, &["--version"], None, &[]) {
             Ok(output) => {
                 if output.success() {
-                    info!("GitHub CLI detected: {}", output.stdout.trim());
+                    if GITHUB_CLI_VERSION_LOGGED.set(()).is_ok() {
+                        info!("GitHub CLI detected: {}", output.stdout.trim());
+                    } else {
+                        debug!("GitHub CLI detected: {}", output.stdout.trim());
+                    }
                     Ok(())
                 } else {
                     debug!(
@@ -321,14 +326,22 @@ impl<R: CommandRunner> GitHubCli<R> {
                     let login = serde_json::from_str::<UserResponse>(&clean_output)
                         .ok()
                         .map(|u| u.login);
-                    info!("GitHub authentication verified for {login:?}");
+                    if GITHUB_AUTH_LOGGED.set(()).is_ok() {
+                        info!("GitHub authentication verified for {login:?}");
+                    } else {
+                        debug!("GitHub authentication verified for {login:?}");
+                    }
                     return Ok(GitHubAuthStatus {
                         authenticated: true,
                         user_login: login,
                     });
                 }
                 Ok(_) => {
-                    info!("GitHub authentication verified but failed to get user info");
+                    if GITHUB_AUTH_LOGGED.set(()).is_ok() {
+                        info!("GitHub authentication verified but failed to get user info");
+                    } else {
+                        debug!("GitHub authentication verified but failed to get user info");
+                    }
                     return Ok(GitHubAuthStatus {
                         authenticated: true,
                         user_login: None,
@@ -1017,7 +1030,17 @@ fn ensure_git_remote_exists(project_path: &Path) -> Result<(), GitHubCliError> {
     }
 }
 
+static GH_PROGRAM_CACHE: OnceLock<String> = OnceLock::new();
+static GITHUB_CLI_VERSION_LOGGED: OnceLock<()> = OnceLock::new();
+static GITHUB_AUTH_LOGGED: OnceLock<()> = OnceLock::new();
+
 fn resolve_github_cli_program() -> String {
+    GH_PROGRAM_CACHE
+        .get_or_init(resolve_github_cli_program_uncached)
+        .clone()
+}
+
+fn resolve_github_cli_program_uncached() -> String {
     if let Ok(custom) = env::var("GITHUB_CLI_PATH") {
         let trimmed = custom.trim();
         if !trimmed.is_empty() {
@@ -1074,11 +1097,11 @@ fn resolve_github_cli_program() -> String {
                 }
             }
         } else if let Ok(err) = String::from_utf8(output.stderr) {
-            log::warn!("[GitHubCli] 'which gh' failed: {err}");
+            warn!("[GitHubCli] 'which gh' failed: {err}");
         }
     }
 
-    log::warn!("[GitHubCli] Falling back to plain 'gh' - binary may not be found");
+    warn!("[GitHubCli] Falling back to plain 'gh' - binary may not be found");
     command.to_string()
 }
 
