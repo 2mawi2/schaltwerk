@@ -277,8 +277,3 @@ export function clearBackgroundStartsByPrefix(prefix: string): void {
   }
   clearBackgroundStarts(toDelete)
 }
-
-/** @internal test/debug only */
-export function __debug_getBackgroundStartIds(): string[] {
-  return Array.from(bgStarted)
-}
