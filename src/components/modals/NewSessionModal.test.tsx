@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { useState } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react'
 import { NewSessionModal } from './NewSessionModal'
 import { ModalProvider } from '../../contexts/ModalContext'
 import { UiEvent, emitUiEvent } from '../../common/uiEvents'
@@ -630,10 +630,135 @@ describe('NewSessionModal', () => {
     fireEvent.click(option3)
 
     // Start agent and expect payload to include versionCount: 3
-    fireEvent.click(screen.getByText('Start Agent'))
+    fireEvent.click(screen.getByRole('button', { name: /Start Agent/i }))
     await waitFor(() => expect(onCreate).toHaveBeenCalled())
     const payload = onCreate.mock.calls[0][0]
     expect(payload.versionCount).toBe(3)
+  })
+
+  it('allows enabling multi-agent mode and configures per-agent counts', async () => {
+    const onCreate = vi.fn()
+    render(
+      <ModalProvider>
+        <NewSessionModal open={true} onClose={vi.fn()} onCreate={onCreate} />
+      </ModalProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('version-selector')).toBeInTheDocument()
+    })
+
+    const selector = screen.getByTestId('version-selector')
+    fireEvent.click(selector)
+    const menu = await screen.findByTestId('version-selector-menu')
+    const multiOption = within(menu).getByRole('button', { name: 'Use Multiple Agents' })
+    fireEvent.click(multiOption)
+
+    const configButton = await screen.findByTestId('multi-agent-config-button')
+    fireEvent.click(configButton)
+    const picker = await screen.findByTestId('multi-agent-config-menu')
+    expect(picker).toBeInTheDocument()
+    expect(selector).toHaveTextContent('1x Claude')
+
+    const codexCheckbox = within(picker).getByRole('checkbox', { name: 'Codex' })
+    fireEvent.click(codexCheckbox)
+
+    const claudeCountButton = screen.getByTestId('agent-count-claude')
+    fireEvent.click(claudeCountButton)
+    const claudeMenu = await screen.findByTestId('agent-count-menu-claude')
+    const option2 = within(claudeMenu).getByRole('button', { name: '2x' })
+    fireEvent.click(option2)
+
+    fireEvent.click(screen.getByRole('button', { name: /Start Agent/i }))
+    await waitFor(() => expect(onCreate).toHaveBeenCalled())
+    const payload = onCreate.mock.calls[0][0]
+    expect(payload.agentTypes).toEqual(['claude', 'claude', 'codex'])
+    expect(payload.versionCount).toBe(3)
+  })
+
+  it('disables agent selector when multi-agent mode is active', async () => {
+    render(
+      <ModalProvider>
+        <NewSessionModal open={true} onClose={vi.fn()} onCreate={vi.fn()} />
+      </ModalProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('version-selector')).toBeInTheDocument())
+
+    const [agentButtonBefore] = screen.getAllByRole('button', { name: 'Claude' })
+    expect(agentButtonBefore).not.toBeDisabled()
+
+    fireEvent.click(screen.getByTestId('version-selector'))
+    const menu = await screen.findByTestId('version-selector-menu')
+    fireEvent.click(within(menu).getByRole('button', { name: 'Use Multiple Agents' }))
+
+    await waitFor(() => {
+      const [agentButton] = screen.getAllByRole('button', { name: 'Claude' })
+      expect(agentButton).toBeDisabled()
+    })
+
+    fireEvent.click(screen.getByTestId('version-selector'))
+    const resetMenu = await screen.findByTestId('version-selector-menu')
+    fireEvent.click(within(resetMenu).getByRole('button', { name: '1 version' }))
+
+    await waitFor(() => {
+      const [agentButton] = screen.getAllByRole('button', { name: 'Claude' })
+      expect(agentButton).not.toBeDisabled()
+    })
+  })
+
+  it('keeps skip permissions toggle active in multi-agent mode', async () => {
+    render(
+      <ModalProvider>
+        <NewSessionModal open={true} onClose={vi.fn()} onCreate={vi.fn()} />
+      </ModalProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('version-selector')).toBeInTheDocument())
+    const skipButton = await screen.findByRole('button', { name: /Skip permissions/i })
+    expect(skipButton).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('version-selector'))
+    const menu = await screen.findByTestId('version-selector-menu')
+    fireEvent.click(within(menu).getByRole('button', { name: 'Use Multiple Agents' }))
+
+    const skipButtonInMultiMode = await screen.findByRole('button', { name: /Skip permissions/i })
+    expect(skipButtonInMultiMode).not.toBeDisabled()
+    fireEvent.click(skipButtonInMultiMode)
+    await waitFor(() => expect(skipButtonInMultiMode).toHaveAttribute('aria-pressed', 'true'))
+  })
+
+  it('disables start when multi-agent mode has no allocations', async () => {
+    const onCreate = vi.fn()
+    render(
+      <ModalProvider>
+        <NewSessionModal open={true} onClose={vi.fn()} onCreate={onCreate} />
+      </ModalProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('version-selector')).toBeInTheDocument()
+    })
+
+    const selector = screen.getByTestId('version-selector')
+    fireEvent.click(selector)
+    const menu = await screen.findByTestId('version-selector-menu')
+    const multiOption = within(menu).getByRole('button', { name: 'Use Multiple Agents' })
+    fireEvent.click(multiOption)
+
+    const configButton = await screen.findByTestId('multi-agent-config-button')
+    fireEvent.click(configButton)
+    const configMenu = await screen.findByTestId('multi-agent-config-menu')
+
+    const claudeCheckbox = within(configMenu).getByRole('checkbox', { name: 'Claude' })
+    expect(claudeCheckbox).toBeChecked()
+    fireEvent.click(claudeCheckbox)
+    expect(claudeCheckbox).not.toBeChecked()
+
+    const startButton = screen.getByRole('button', { name: /Start Agent/i })
+    await waitFor(() => expect(startButton).toBeDisabled())
+    fireEvent.click(startButton)
+    expect(onCreate).not.toHaveBeenCalled()
   })
 
   it('hides version selector when creating a spec', async () => {
