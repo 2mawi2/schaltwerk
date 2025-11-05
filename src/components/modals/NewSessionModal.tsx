@@ -17,6 +17,7 @@ import {
     AgentEnvVarState,
     createEmptyCliArgsState,
     createEmptyEnvVarState,
+    displayNameForAgent,
 } from '../shared/agentDefaults'
 import { AgentDefaultsSection } from '../shared/AgentDefaultsSection'
 import { useProjectFileIndex } from '../../hooks/useProjectFileIndex'
@@ -28,6 +29,15 @@ import type { GithubIssueSelectionResult, GithubPrSelectionResult } from '../../
 import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
 import { FALLBACK_CODEX_MODELS, getCodexModelMetadata } from '../../common/codexModels'
 import { loadCodexModelCatalog, CodexModelCatalog } from '../../services/codexModelCatalog'
+import {
+    MAX_VERSION_COUNT,
+    MULTI_AGENT_TYPES,
+    VERSION_DROPDOWN_ITEMS,
+    MultiAgentAllocationDropdown,
+    type MultiAgentAllocations,
+    sumAllocations,
+    normalizeAllocations,
+} from './MultiAgentAllocationDropdown'
 
 const SESSION_NAME_ALLOWED_PATTERN = /^[\p{L}\p{M}\p{N}_\- ]+$/u
 
@@ -57,9 +67,12 @@ interface Props {
         draftContent?: string
         versionCount?: number
         agentType?: AgentType
+        agentTypes?: AgentType[]
         skipPermissions?: boolean
     }) => void | Promise<void>
 }
+
+type CreateSessionPayload = Parameters<Props['onCreate']>[0]
 
 export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '', onPromptChange, onClose, onCreate }: Props) {
     const { registerModal, unregisterModal } = useModal()
@@ -76,6 +89,8 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
     const [creating, setCreating] = useState(false)
     const [createAsDraft, setCreateAsDraft] = useState(false)
     const [versionCount, setVersionCount] = useState<number>(1)
+    const [multiAgentMode, setMultiAgentMode] = useState(false)
+    const [multiAgentAllocations, setMultiAgentAllocations] = useState<MultiAgentAllocations>({})
     const [showVersionMenu, setShowVersionMenu] = useState<boolean>(false)
     const [nameLocked, setNameLocked] = useState(false)
     const [repositoryIsEmpty, setRepositoryIsEmpty] = useState(false)
@@ -113,6 +128,25 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
     }))
     const codexModelIds = useMemo(() => codexCatalog.models.map(meta => meta.id), [codexCatalog.models])
     const defaultCodexModelId = codexCatalog.defaultModelId
+    const normalizedAgentTypes = useMemo<AgentType[]>(
+        () => (multiAgentMode ? normalizeAllocations(multiAgentAllocations) : []),
+        [multiAgentMode, multiAgentAllocations]
+    )
+    const totalMultiAgentCount = multiAgentMode ? normalizedAgentTypes.length : 0
+    const multiAgentSummaryLabel = useMemo(() => {
+        const parts: string[] = []
+        MULTI_AGENT_TYPES.forEach(agent => {
+            const count = multiAgentAllocations[agent]
+            if (count && count > 0) {
+                parts.push(`${count}x ${displayNameForAgent(agent)}`)
+            }
+        })
+        return parts.length > 0 ? parts.join(', ') : 'Multiple agents'
+    }, [multiAgentAllocations])
+    const resetMultiAgentSelections = useCallback(() => {
+        setMultiAgentMode(false)
+        setMultiAgentAllocations({})
+    }, [])
 
     const updateManualPrompt = useCallback(
         (value: string) => {
@@ -159,6 +193,71 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
         },
         [promptSource, githubPromptReady, taskContent, githubIssueSelection, githubPrSelection, manualPromptDraft, onPromptChange]
     )
+
+    const handleVersionSelect = useCallback((key: string) => {
+        if (key === 'multi') {
+            if (!multiAgentMode) {
+                setMultiAgentMode(true)
+            }
+            setMultiAgentAllocations(prev => {
+                if (sumAllocations(prev) > 0 || agentType === 'terminal') {
+                    return prev
+                }
+                return { ...prev, [agentType]: 1 }
+            })
+            return
+        }
+
+        const parsed = parseInt(key, 10)
+        const nextCount = Number.isNaN(parsed) ? 1 : Math.max(1, Math.min(MAX_VERSION_COUNT, parsed))
+        resetMultiAgentSelections()
+        setVersionCount(nextCount)
+    }, [agentType, multiAgentMode, resetMultiAgentSelections])
+
+    const handleAgentToggle = useCallback((agent: AgentType, enabled: boolean) => {
+        if (agent === 'terminal') {
+            return
+        }
+        setMultiAgentAllocations(prev => {
+            if (!enabled) {
+                if (!prev[agent]) {
+                    return prev
+                }
+                const next = { ...prev }
+                delete next[agent]
+                return next
+            }
+
+            const otherTotal = sumAllocations(prev)
+            const availableSlots = MAX_VERSION_COUNT - otherTotal
+            if (availableSlots <= 0) {
+                return prev
+            }
+            return { ...prev, [agent]: 1 }
+        })
+    }, [])
+
+    const handleAgentCountChange = useCallback((agent: AgentType, requestedCount: number) => {
+        if (agent === 'terminal') {
+            return
+        }
+        setMultiAgentAllocations(prev => {
+            if (!prev[agent]) {
+                return prev
+            }
+            const otherTotal = sumAllocations(prev, agent)
+            const allowed = Math.max(0, Math.min(requestedCount, MAX_VERSION_COUNT - otherTotal))
+            if (allowed <= 0) {
+                const next = { ...prev }
+                delete next[agent]
+                return next
+            }
+            if (prev[agent] === allowed) {
+                return prev
+            }
+            return { ...prev, [agent]: allowed }
+        })
+    }, [])
 
     const handleBranchChange = (branch: string) => {
         setBaseBranch(branch)
@@ -414,6 +513,10 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
              setValidationError('Please enter spec content')
              return
          }
+        if (!createAsDraft && multiAgentMode && normalizedAgentTypes.length === 0) {
+            setValidationError('Select at least one agent to continue')
+            return
+        }
 
         // Replace spaces with underscores for the actual session name
         finalName = finalName.replace(/ /g, '_')
@@ -428,8 +531,19 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
             const prHeadBranch = promptSource === 'github_pull_request' && githubPrSelection 
                 ? githubPrSelection.details.headRefName 
                 : undefined
+
+            const useMultiAgentTypes = !createAsDraft && multiAgentMode && normalizedAgentTypes.length > 0
+            const agentTypesPayload = useMultiAgentTypes ? normalizedAgentTypes : undefined
+            const effectiveVersionCount = createAsDraft
+                ? 1
+                : useMultiAgentTypes
+                    ? normalizedAgentTypes.length
+                    : versionCount
+            const primaryAgentType = useMultiAgentTypes
+                ? (normalizedAgentTypes[0] ?? agentType)
+                : agentType
             
-            const createData = {
+            const createData: CreateSessionPayload = {
                 name: finalName,
                 prompt: createAsDraft ? undefined : (currentPrompt || undefined),
                 baseBranch: createAsDraft ? '' : baseBranch,
@@ -437,9 +551,12 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                 userEditedName: !!userEdited,
                 isSpec: createAsDraft,
                 draftContent: createAsDraft ? currentPrompt : undefined,
-                versionCount: createAsDraft ? 1 : versionCount,
-                agentType,
+                versionCount: effectiveVersionCount,
+                agentType: primaryAgentType,
                 skipPermissions: createAsDraft ? skipPermissions : undefined,
+            }
+            if (agentTypesPayload) {
+                createData.agentTypes = agentTypesPayload
             }
 
             logger.info('[NewSessionModal] Creating session with data:', {
@@ -452,7 +569,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
         } catch (_e) {
             setCreating(false)
         }
-    }, [creating, name, taskContent, baseBranch, customBranch, onCreate, validateSessionName, createAsDraft, versionCount, agentType, skipPermissions, promptSource, githubIssueSelection, githubPrSelection])
+    }, [creating, name, taskContent, baseBranch, customBranch, onCreate, validateSessionName, createAsDraft, versionCount, agentType, skipPermissions, promptSource, githubIssueSelection, githubPrSelection, multiAgentMode, normalizedAgentTypes])
 
     // Keep ref in sync immediately on render to avoid stale closures in tests
     createRef.current = handleCreate
@@ -636,7 +753,19 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
             unregisterModal('NewSessionModal')
         }
     }, [open, registerModal, unregisterModal])
-    
+
+    useEffect(() => {
+        if (!open) {
+            resetMultiAgentSelections()
+        }
+    }, [open, resetMultiAgentSelections])
+
+    useEffect(() => {
+        if (createAsDraft || agentType === 'terminal') {
+            resetMultiAgentSelections()
+        }
+    }, [createAsDraft, agentType, resetMultiAgentSelections])
+
     useLayoutEffect(() => {
         const openedThisRender = open && !lastOpenStateRef.current
         const closedThisRender = !open && lastOpenStateRef.current
@@ -951,7 +1080,9 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
 
     if (!open) return null
 
-    const canStartAgent = agentType === 'terminal' || isAvailable(agentType)
+    const canStartAgent = multiAgentMode
+        ? normalizedAgentTypes.length > 0 && normalizedAgentTypes.every(selectedAgent => selectedAgent === 'terminal' || isAvailable(selectedAgent))
+        : agentType === 'terminal' || isAvailable(agentType)
     const hasSpecContent =
         promptSource === 'github_issue'
             ? Boolean(githubIssueSelection?.prompt.trim())
@@ -960,6 +1091,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                 : Boolean(taskContent.trim())
     const requiresIssueSelection = promptSource === 'github_issue' && !githubIssueSelection
     const requiresPrSelection = promptSource === 'github_pull_request' && !githubPrSelection
+    const multiAgentSelectionInvalid = !createAsDraft && multiAgentMode && normalizedAgentTypes.length === 0
     const isStartDisabled =
         !name.trim() ||
         (!createAsDraft && !baseBranch) ||
@@ -967,6 +1099,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
         githubIssueLoading ||
         githubPrLoading ||
         (createAsDraft && !hasSpecContent) ||
+        multiAgentSelectionInvalid ||
         (!createAsDraft && !canStartAgent) ||
         requiresIssueSelection ||
         requiresPrSelection
@@ -987,22 +1120,39 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
         if (requiresPrSelection) {
             return 'Select a GitHub pull request to generate a prompt'
         }
+        if (multiAgentMode && normalizedAgentTypes.length === 0) {
+            return 'Select at least one agent to continue'
+        }
         if (!canStartAgent) {
-            return `${agentType} is not installed. Please install it to use this agent.`
+            return multiAgentMode
+                ? 'One or more selected agents are not installed. Please install them to continue.'
+                : `${agentType} is not installed. Please install it to use this agent.`
         }
         return "Start agent (Cmd+Enter)"
     }
 
     const footer = (
         <>
+            {!createAsDraft && agentType !== 'terminal' && multiAgentMode && (
+                <MultiAgentAllocationDropdown
+                    allocations={multiAgentAllocations}
+                    selectableAgents={MULTI_AGENT_TYPES}
+                    totalCount={totalMultiAgentCount}
+                    maxCount={MAX_VERSION_COUNT}
+                    summaryLabel={multiAgentSummaryLabel}
+                    isAgentAvailable={isAvailable}
+                    onToggleAgent={handleAgentToggle}
+                    onChangeCount={handleAgentCountChange}
+                />
+            )}
             {!createAsDraft && agentType !== 'terminal' && (
                 <Dropdown
                   open={showVersionMenu}
                   onOpenChange={setShowVersionMenu}
-                  items={([1,2,3,4] as const).map(n => ({ key: String(n), label: `${n} ${n === 1 ? 'version' : 'versions'}` }))}
-                  selectedKey={String(versionCount)}
+                  items={VERSION_DROPDOWN_ITEMS}
+                  selectedKey={multiAgentMode ? 'multi' : String(versionCount)}
                   align="right"
-                  onSelect={(key) => setVersionCount(parseInt(key))}
+                  onSelect={handleVersionSelect}
                   menuTestId="version-selector-menu"
                 >
                   {({ open, toggle }) => (
@@ -1016,14 +1166,16 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                         color: theme.colors.text.primary,
                         border: `1px solid ${open ? theme.colors.border.default : theme.colors.border.subtle}`,
                       }}
-                      title="Number of parallel versions"
+                      title={multiAgentMode ? 'Configure multiple agents' : 'Number of parallel versions'}
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'block', verticalAlign: 'middle' }}>
                         <path d="M12 2L3 6l9 4 9-4-9-4z" fill={theme.colors.text.primary} fillOpacity={0.9}/>
                         <path d="M3 10l9 4 9-4" stroke={theme.colors.text.primary} strokeOpacity={0.5} strokeWidth={1.2}/>
                         <path d="M3 14l9 4 9-4" stroke={theme.colors.text.primary} strokeOpacity={0.35} strokeWidth={1.2}/>
                       </svg>
-                      <span style={{ lineHeight: 1 }}>{versionCount}x</span>
+                      <span style={{ lineHeight: 1 }}>
+                        {multiAgentMode ? multiAgentSummaryLabel : `${versionCount}x`}
+                      </span>
                       <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 120ms ease' }}>
                         <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clipRule="evenodd" />
                       </svg>
@@ -1357,6 +1509,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                 onCodexReasoningChange={(effort) => handleAgentPreferenceChange('codex', 'reasoningEffort', effort)}
                                 sessionName={name}
                                 ignorePersistedAgentType={ignorePersistedAgentType}
+                                agentControlsDisabled={multiAgentMode}
                             />
                             <AgentDefaultsSection
                                 agentType={agentType}

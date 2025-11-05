@@ -32,6 +32,7 @@ interface SessionConfigurationPanelProps {
     hideLabels?: boolean
     hideAgentType?: boolean
     ignorePersistedAgentType?: boolean
+    agentControlsDisabled?: boolean
 }
 
 export interface SessionConfiguration {
@@ -61,7 +62,8 @@ export function SessionConfigurationPanel({
     disabled = false,
     hideLabels = false,
     hideAgentType = false,
-    ignorePersistedAgentType = false
+    ignorePersistedAgentType = false,
+    agentControlsDisabled = false
 }: SessionConfigurationPanelProps) {
     const [baseBranch, setBaseBranch] = useState(initialBaseBranch)
     const [branches, setBranches] = useState<string[]>([])
@@ -88,6 +90,7 @@ export function SessionConfigurationPanel({
     const saveAgentTypeRef = useRef(saveAgentType)
     const saveSkipPermissionsRef = useRef(saveSkipPermissions)
     const prevInitialBaseBranchRef = useRef(initialBaseBranch)
+    const agentSelectionDisabled = agentControlsDisabled
 
     useEffect(() => { onBaseBranchChangeRef.current = onBaseBranchChange }, [onBaseBranchChange])
     useEffect(() => { onAgentTypeChangeRef.current = onAgentTypeChange }, [onAgentTypeChange])
@@ -317,6 +320,7 @@ export function SessionConfigurationPanel({
                             value={agentType}
                             onChange={handleAgentTypeChange}
                             disabled={disabled}
+                            agentSelectionDisabled={agentSelectionDisabled}
                             skipPermissions={skipPermissions}
                             onSkipPermissionsChange={handleSkipPermissionsChange}
                             showShortcutHint={shouldShowShortcutHint}
@@ -396,13 +400,14 @@ export function SessionConfigurationPanel({
                             value={agentType}
                             onChange={handleAgentTypeChange}
                             disabled={disabled}
+                            agentSelectionDisabled={agentSelectionDisabled}
                             skipPermissions={skipPermissions}
                             onSkipPermissionsChange={handleSkipPermissionsChange}
                             showShortcutHint={shouldShowShortcutHint}
                         />
                         {agentType === 'codex' && effectiveCodexModelOptions && onCodexModelChange && (
                             <CodexModelSelector
-                                disabled={disabled}
+                                disabled={disabled || agentSelectionDisabled}
                                 options={effectiveCodexModelOptions}
                                 codexModels={effectiveCodexModels}
                                 value={codexModel}
