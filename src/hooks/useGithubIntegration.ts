@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import { useAtomValue } from 'jotai'
 import { listenEvent, SchaltEvent } from '../common/eventSystem'
 import { TauriCommands } from '../common/tauriCommands'
 import { GitHubStatusPayload, GitHubPrPayload, GitHubRepositoryPayload } from '../common/events'
 import { logger } from '../utils/logger'
+import { projectPathAtom } from '../store/atoms/project'
 
 export interface CreateReviewedPrArgs {
   sessionId: string
@@ -48,10 +50,23 @@ export function useGithubIntegration(): GithubIntegrationValue {
   const [creating, setCreating] = useState<Record<string, boolean>>({})
   const [lastPrUrls, setLastPrUrls] = useState<Record<string, string>>({})
   const unlistenRef = useRef<(() => void) | null>(null)
+  const projectPath = useAtomValue(projectPathAtom)
+
+  const ensureProjectRegistration = useCallback(async () => {
+    if (!projectPath) return false
+    try {
+      await invoke(TauriCommands.InitializeProject, { path: projectPath })
+      return true
+    } catch (error) {
+      logger.warn('[useGithubIntegration] Failed to reinitialize active project', error)
+      return false
+    }
+  }, [projectPath])
 
   const refreshStatus = useCallback(async () => {
     setLoading(true)
     try {
+      await ensureProjectRegistration()
       const result = await invoke<GitHubStatusPayload>(TauriCommands.GitHubGetStatus)
       setStatus(result)
     } catch (error) {
@@ -59,7 +74,7 @@ export function useGithubIntegration(): GithubIntegrationValue {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [ensureProjectRegistration])
 
   useEffect(() => {
     let mounted = true
@@ -100,6 +115,7 @@ export function useGithubIntegration(): GithubIntegrationValue {
   const authenticate = useCallback(async () => {
     setIsAuthenticating(true)
     try {
+      await ensureProjectRegistration()
       const result = await invoke<GitHubStatusPayload>(TauriCommands.GitHubAuthenticate)
       setStatus(result)
       setLoading(false)
@@ -111,11 +127,12 @@ export function useGithubIntegration(): GithubIntegrationValue {
     } finally {
       setIsAuthenticating(false)
     }
-  }, [])
+  }, [ensureProjectRegistration])
 
   const connectProject = useCallback(async () => {
     setIsConnecting(true)
     try {
+      await ensureProjectRegistration()
       const repository = await invoke<GitHubRepositoryPayload>(TauriCommands.GitHubConnectProject)
       setStatus((prev) => ({
         installed: prev?.installed ?? true,
@@ -132,7 +149,7 @@ export function useGithubIntegration(): GithubIntegrationValue {
     } finally {
       setIsConnecting(false)
     }
-  }, [])
+  }, [ensureProjectRegistration])
 
   const createReviewedPr = useCallback(
     async (args: CreateReviewedPrArgs) => {
