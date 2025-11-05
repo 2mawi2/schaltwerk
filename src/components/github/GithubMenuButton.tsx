@@ -25,6 +25,8 @@ const dividerStyle: CSSProperties = {
   opacity: 0.6,
 }
 
+type MenuButtonKey = 'connect' | 'reconnect' | 'refresh'
+
 function useOutsideDismiss(ref: React.RefObject<HTMLElement | null>, onDismiss: () => void) {
   useEffect(() => {
     const listener = (event: MouseEvent) => {
@@ -44,6 +46,8 @@ export function GithubMenuButton({ className, hasActiveProject = false }: Github
   const [open, setOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
   useOutsideDismiss(menuRef, () => setOpen(false))
+  const [hoveredButton, setHoveredButton] = useState<MenuButtonKey | null>(null)
+  const [focusedButton, setFocusedButton] = useState<MenuButtonKey | null>(null)
 
   const installed = github.status?.installed ?? false
   const authenticated = installed && (github.status?.authenticated ?? false)
@@ -118,6 +122,49 @@ export function GithubMenuButton({ className, hasActiveProject = false }: Github
   }, [closeMenu, github, pushToast])
 
   const canConnectProject = installed && authenticated && !repository && hasActiveProject
+  const connectDisabled = !canConnectProject || github.isConnecting
+
+  const buildMenuButtonStyle = useCallback(
+    (
+      key: MenuButtonKey,
+      {
+        disabled = false,
+        withIcon = false,
+      }: {
+        disabled?: boolean
+        withIcon?: boolean
+      } = {}
+    ): CSSProperties => {
+      const isHovered = hoveredButton === key && !disabled
+      const isFocused = focusedButton === key && !disabled
+      return {
+        backgroundColor: isHovered ? theme.colors.background.hover : theme.colors.background.secondary,
+        borderColor: (isHovered || isFocused) ? theme.colors.border.focus : theme.colors.border.subtle,
+        color: disabled ? theme.colors.text.muted : theme.colors.text.primary,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        fontSize: theme.fontSize.button,
+        fontWeight: 500,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderStyle: 'solid',
+        width: '100%',
+        padding: withIcon ? '10px 14px' : '10px 16px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        transition: 'background-color 120ms ease, border-color 120ms ease, color 120ms ease',
+        boxShadow: isFocused ? `0 0 0 2px ${withOpacity(theme.colors.border.focus, 0.45)}` : 'none',
+      }
+    },
+    [focusedButton, hoveredButton]
+  )
+
+  useEffect(() => {
+    if (!open) {
+      setHoveredButton(null)
+      setFocusedButton(null)
+    }
+  }, [open])
 
   return (
     <div className={`relative ${className ?? ''}`} ref={menuRef}>
@@ -195,52 +242,54 @@ export function GithubMenuButton({ className, hasActiveProject = false }: Github
 
           <div style={dividerStyle} />
 
-          <button
-            type="button"
-            role="menuitem"
-            onClick={handleConnectProject}
-            disabled={!canConnectProject || github.isConnecting}
-            className="w-full px-3 py-2 text-left text-xs flex items-center gap-2"
-            style={{
-              color: canConnectProject ? theme.colors.text.primary : theme.colors.text.muted,
-              cursor: canConnectProject ? 'pointer' : 'not-allowed',
-              opacity: canConnectProject ? 1 : 0.5,
-              backgroundColor: 'transparent',
-            }}
-          >
-            <span>Connect active project</span>
-          </button>
-
-          {repository && hasActiveProject && (
+          <div className="px-3 pb-3 pt-2 space-y-2">
             <button
               type="button"
               role="menuitem"
               onClick={handleConnectProject}
-              disabled={github.isConnecting}
-              className="w-full px-3 py-2 text-left text-xs flex items-center gap-2"
-              style={{
-                color: theme.colors.text.primary,
-                cursor: 'pointer',
-                backgroundColor: 'transparent',
-              }}
+              disabled={connectDisabled}
+              className="text-left text-xs"
+              style={buildMenuButtonStyle('connect', { disabled: connectDisabled })}
+              onMouseEnter={() => !connectDisabled && setHoveredButton('connect')}
+              onMouseLeave={() => setHoveredButton((prev) => (prev === 'connect' ? null : prev))}
+              onFocus={() => !connectDisabled && setFocusedButton('connect')}
+              onBlur={() => setFocusedButton((prev) => (prev === 'connect' ? null : prev))}
             >
-              <span>Reconnect project</span>
+              <span>Connect active project</span>
             </button>
-          )}
 
-          <button
-            type="button"
-            role="menuitem"
-            onClick={handleRefreshStatus}
-            className="w-full px-3 py-2 text-left text-xs flex items-center gap-2"
-            style={{
-              color: theme.colors.text.primary,
-              backgroundColor: 'transparent',
-            }}
-          >
-            <VscRefresh className="text-[13px]" />
-            <span>Refresh status</span>
-          </button>
+            {repository && hasActiveProject && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={handleConnectProject}
+                disabled={github.isConnecting}
+                className="text-left text-xs"
+                style={buildMenuButtonStyle('reconnect', { disabled: github.isConnecting })}
+                onMouseEnter={() => !github.isConnecting && setHoveredButton('reconnect')}
+                onMouseLeave={() => setHoveredButton((prev) => (prev === 'reconnect' ? null : prev))}
+                onFocus={() => !github.isConnecting && setFocusedButton('reconnect')}
+                onBlur={() => setFocusedButton((prev) => (prev === 'reconnect' ? null : prev))}
+              >
+                <span>Reconnect project</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              role="menuitem"
+              onClick={handleRefreshStatus}
+              className="text-left text-xs"
+              style={buildMenuButtonStyle('refresh', { withIcon: true })}
+              onMouseEnter={() => setHoveredButton('refresh')}
+              onMouseLeave={() => setHoveredButton((prev) => (prev === 'refresh' ? null : prev))}
+              onFocus={() => setFocusedButton('refresh')}
+              onBlur={() => setFocusedButton((prev) => (prev === 'refresh' ? null : prev))}
+            >
+              <VscRefresh className="text-[13px]" />
+              <span>Refresh status</span>
+            </button>
+          </div>
         </div>
       )}
     </div>
