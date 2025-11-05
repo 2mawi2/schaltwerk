@@ -19,7 +19,7 @@
     "build": "tsc --noEmit --skipLibCheck && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "tauri:dev": "SCHALTWERK_START_DIR=$HOME tauri dev",
+    "tauri:dev": "tauri dev",
     "lint": "eslint src scripts --ext .ts,.tsx,.js",
     "lint:ts": "tsc --noEmit",
     "lint:rust": "cd src-tauri && CARGO_TERM_PROGRESS_WHEN=never cargo --quiet clippy --all-features --message-format=short -- -D warnings",

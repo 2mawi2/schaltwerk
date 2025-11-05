@@ -11,13 +11,6 @@ pub fn path_exists(path: String) -> Result<bool, String> {
 
 #[tauri::command]
 pub async fn get_current_directory() -> Result<String, String> {
-    // First check if a specific start directory was set via environment variable
-    // This is used by 'just run' to ensure the app always starts from HOME
-    if let Ok(start_dir) = std::env::var("SCHALTWERK_START_DIR") {
-        log::info!("Using SCHALTWERK_START_DIR: {start_dir}");
-        return Ok(start_dir);
-    }
-
     let manager = get_project_manager().await;
     if let Ok(project) = manager.current_project().await {
         Ok(project.path.to_string_lossy().to_string())
@@ -61,6 +54,31 @@ pub async fn open_in_vscode(worktree_path: String) -> Result<(), String> {
 #[tauri::command]
 pub fn get_app_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
+}
+
+#[cfg(test)]
+mod current_directory_tests {
+    use super::*;
+    use schaltwerk::utils::env_adapter::EnvAdapter;
+    use serial_test::serial;
+
+    #[tokio::test]
+    #[serial]
+    async fn get_current_directory_ignores_env_override() {
+        EnvAdapter::remove_var("SCHALTWERK_START_DIR");
+        let baseline = get_current_directory()
+            .await
+            .expect("baseline current directory");
+        EnvAdapter::set_var("SCHALTWERK_START_DIR", "/tmp/schaltwerk_should_ignore");
+
+        let actual = get_current_directory().await.expect("current directory");
+
+        EnvAdapter::remove_var("SCHALTWERK_START_DIR");
+        assert_eq!(
+            actual, baseline,
+            "should ignore SCHALTWERK_START_DIR override"
+        );
+    }
 }
 
 #[tauri::command]
