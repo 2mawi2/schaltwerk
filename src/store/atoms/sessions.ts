@@ -593,10 +593,6 @@ export function __getSessionsEventHandlerForTest(event: SchaltEvent): ((payload:
     return sessionsEventHandlersForTests.get(event)
 }
 
-export function __clearSessionsEventHandlersForTest(): void {
-    sessionsEventHandlersForTests.clear()
-}
-
 export const autoCancelAfterMergeAtom = atom((get) => get(autoCancelAfterMergeStateAtom))
 export const sessionsLoadingAtom = atom((get) => get(loadingStateAtom))
 
