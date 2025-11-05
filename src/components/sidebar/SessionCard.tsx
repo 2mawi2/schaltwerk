@@ -6,6 +6,7 @@ import { SessionInfo, SessionMonitorStatus } from '../../types/session'
 import { UncommittedIndicator } from '../common/UncommittedIndicator'
 import { ProgressIndicator } from '../common/ProgressIndicator'
 import { theme, getAgentColorScheme } from '../../common/theme'
+import { typography } from '../../common/typography'
 import type { MergeStatus } from '../../store/atoms/sessions'
 import { getSessionDisplayName } from '../../utils/sessionDisplayName'
 import { useMultipleShortcutDisplays } from '../../keyboardShortcuts/useShortcutDisplay'
@@ -56,6 +57,43 @@ function getSessionStateColor(state?: string): 'green' | 'violet' | 'gray' {
         case 'stale':
         default: return 'gray'
     }
+}
+
+const sessionText = {
+    title: {
+        ...typography.heading,
+        fontWeight: 600,
+        color: theme.colors.text.primary,
+    },
+    badge: {
+        ...typography.caption,
+        fontWeight: 600,
+        lineHeight: theme.lineHeight.compact,
+    },
+    meta: {
+        ...typography.caption,
+        color: theme.colors.text.tertiary,
+    },
+    metaEmphasis: {
+        ...typography.caption,
+        color: theme.colors.text.secondary,
+    },
+    agent: {
+        ...typography.body,
+        color: theme.colors.text.secondary,
+    },
+    agentMuted: {
+        ...typography.caption,
+        color: theme.colors.text.secondary,
+    },
+    statsLabel: {
+        ...typography.caption,
+        color: theme.colors.text.tertiary,
+    },
+    statsNumber: {
+        ...typography.caption,
+        fontWeight: 600,
+    },
 }
 
 export const SessionCard = memo<SessionCardProps>(({ 
@@ -228,33 +266,57 @@ export const SessionCard = memo<SessionCardProps>(({
             )}
             <div className="flex items-start justify-between gap-2" style={{ marginBottom: '8px' }}>
                 <div className="flex-1 min-w-0">
-                    <div className="font-medium text-slate-100 truncate flex items-center gap-2">
+                    <div className="truncate flex items-center gap-2" style={sessionText.title}>
                         {sessionName}
                         {isReadyToMerge && (
-                            <span className="ml-2 text-xs text-green-400">
+                            <span
+                                className="ml-2"
+                                style={{
+                                    ...sessionText.badge,
+                                    color: theme.colors.accent.green.light,
+                                }}
+                            >
                                 ✓ Reviewed
                             </span>
                         )}
                         {/* State pill */}
                          {isRunning && isReadyToMerge && (
-                             <span className={clsx(
-                                 'text-[10px] px-1.5 py-0.5 rounded border ml-2'
-                             )}
-                             style={{
-                                 backgroundColor: theme.colors.accent.magenta.bg,
-                                 color: theme.colors.accent.magenta.DEFAULT,
-                                 borderColor: theme.colors.accent.magenta.border
-                             }}
+                             <span
+                                 className="ml-2 px-1.5 py-0.5 rounded border"
+                                 style={{
+                                     ...sessionText.badge,
+                                     backgroundColor: theme.colors.accent.magenta.bg,
+                                     color: theme.colors.accent.magenta.DEFAULT,
+                                     borderColor: theme.colors.accent.magenta.border
+                                 }}
                              >
                                  Running
                              </span>
                          )}
                         {!isReadyToMerge && !isRunning && sessionState === 'spec' && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded border bg-amber-900/30 text-amber-300 border-amber-700/50">
+                            <span
+                                className="px-1.5 py-0.5 rounded border"
+                                style={{
+                                    ...sessionText.badge,
+                                    backgroundColor: theme.colors.accent.amber.bg,
+                                    color: theme.colors.accent.amber.light,
+                                    borderColor: theme.colors.accent.amber.border
+                                }}
+                            >
                                 Spec
                             </span>
                         )}
-                        {isBlocked && <span className="ml-2 text-xs text-red-400">⚠ blocked</span>}
+                        {isBlocked && (
+                            <span
+                                className="ml-2"
+                                style={{
+                                    ...sessionText.badge,
+                                    color: theme.colors.accent.red.light,
+                                }}
+                            >
+                                ⚠ blocked
+                            </span>
+                        )}
 
                         {showReviewedDirtyBadge && (
                             <UncommittedIndicator
@@ -269,8 +331,12 @@ export const SessionCard = memo<SessionCardProps>(({
                                 <span className="flex h-4 w-4 relative">
                                     <span className="absolute inline-flex h-full w-full rounded-full opacity-75"
                                           style={{ backgroundColor: theme.colors.accent.blue.light }}></span>
-                                    <span className="relative inline-flex rounded-full h-4 w-4 text-white text-[9px] items-center justify-center font-bold"
-                                          style={{ backgroundColor: theme.colors.accent.blue.DEFAULT }}>!</span>
+                                    <span className="relative inline-flex rounded-full h-4 w-4 text-white items-center justify-center font-bold"
+                                          style={{
+                                              ...sessionText.badge,
+                                              fontSize: '0.5625rem',
+                                              backgroundColor: theme.colors.accent.blue.DEFAULT
+                                          }}>!</span>
                                 </span>
                             </span>
                         )}
@@ -280,7 +346,13 @@ export const SessionCard = memo<SessionCardProps>(({
                         )}
 
                         {s.attention_required && (
-                            <span className="ml-2 text-xs text-yellow-400">
+                            <span
+                                className="ml-2"
+                                style={{
+                                    ...sessionText.badge,
+                                    color: theme.colors.accent.yellow.light,
+                                }}
+                            >
                                 ⏸ Idle
                             </span>
                         )}
@@ -288,7 +360,10 @@ export const SessionCard = memo<SessionCardProps>(({
                 </div>
                 <div className="flex items-start gap-2 flex-shrink-0">
                     {index < 8 && (
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400">
+                        <span
+                            className="px-1.5 py-0.5 rounded bg-slate-700/50"
+                            style={sessionText.meta}
+                        >
                             {(() => {
                                 const sessionActions = [
                                     KeyboardShortcutAction.SwitchToSession1,
@@ -308,7 +383,12 @@ export const SessionCard = memo<SessionCardProps>(({
             </div>
             {sessionState !== 'spec' && (
                 <div className="flex items-center justify-between gap-2">
-                    <div className="text-[11px] text-slate-400 truncate max-w-[50%]">{s.branch}</div>
+                    <div
+                        className="truncate max-w-[50%]"
+                        style={sessionText.meta}
+                    >
+                        {s.branch}
+                    </div>
                     <div className="flex items-center gap-2">
                         <SessionActions
                             sessionState={sessionState as 'spec' | 'running' | 'reviewed'}
@@ -373,7 +453,7 @@ export const SessionCard = memo<SessionCardProps>(({
                     />
                 </div>
             )}
-            <div className="mt-2 text-[12px] text-slate-400 truncate">{currentAgent}</div>
+            <div className="mt-2 truncate" style={sessionText.agent}>{currentAgent}</div>
             {progressPercent > 0 && (
                 <>
                     <div className="mt-3 h-2 bg-slate-800 rounded">
@@ -384,11 +464,11 @@ export const SessionCard = memo<SessionCardProps>(({
                             style={{ width: `${progressPercent}%` }}
                         />
                     </div>
-                    <div className="mt-1 text-[10px] text-slate-500">{progressPercent}% complete</div>
+                    <div className="mt-1" style={sessionText.meta}>{progressPercent}% complete</div>
                 </>
             )}
-            <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
-                <div>
+            <div className="mt-2 flex items-center justify-between" style={sessionText.meta}>
+                <div style={sessionText.meta}>
                     {sessionState !== 'spec' && (
                         <>
                             {filesChanged > 0 && <span>{filesChanged} files, </span>}
@@ -400,9 +480,9 @@ export const SessionCard = memo<SessionCardProps>(({
                 <div className="flex items-center gap-2">
                     {agentType && sessionState !== 'spec' && !isWithinVersionGroup && (
                         <span
-                             className="inline-flex items-center gap-1 px-1.5 py-[1px] rounded text-[10px] border"
+                             className="inline-flex items-center gap-1 px-1.5 py-[1px] rounded border"
                              style={{
-                               lineHeight: theme.lineHeight.badge,
+                               ...sessionText.badge,
                                backgroundColor: colorScheme.bg,
                                color: colorScheme.light,
                                borderColor: colorScheme.border
@@ -416,7 +496,7 @@ export const SessionCard = memo<SessionCardProps>(({
                             {agentLabel}
                         </span>
                     )}
-                    <div>Last: {lastActivity}</div>
+                    <div style={sessionText.meta}>Last: {lastActivity}</div>
                 </div>
             </div>
         </div>

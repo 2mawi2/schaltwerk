@@ -1,5 +1,9 @@
 /* CSS Variables for Theme Colors */
 :root {
+  /* Font Families */
+  --font-family-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Ubuntu', 'Helvetica Neue', system-ui, sans-serif;
+  --font-family-mono: 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'DejaVu Sans Mono', ui-monospace, monospace;
+
   /* Background Colors */
   --color-bg-primary: #020617;
   --color-bg-primary-rgb: 2 6 23;

@@ -316,6 +316,11 @@ export const theme = {
     compact: 1.15,     // compact stacks (badges, pills)
     badge: 1.2,        // inline badges with mixed text/emoji
   },
+
+  fontFamily: {
+    sans: 'var(--font-family-sans)',
+    mono: 'var(--font-family-mono)',
+  },
   
   borderRadius: {
     none: '0',

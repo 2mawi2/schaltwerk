@@ -1,5 +1,6 @@
 import React from 'react'
 import { theme } from '../common/theme'
+import { typography } from '../common/typography'
 
 export interface UnifiedTabProps {
   id: string | number
@@ -82,7 +83,7 @@ export function UnifiedTab({
         paddingRight: '16px',
         paddingTop: '6px',
         paddingBottom: '6px',
-        fontSize: theme.fontSize.body,
+        ...typography.body,
         fontWeight: isActive ? '600' : '500',
         minWidth: style?.minWidth || '80px',
         maxWidth: style?.maxWidth || '150px',
@@ -105,7 +106,7 @@ export function UnifiedTab({
       {/* Active tab background gradient */}
       {isActive && (
         <div
-          className="absolute inset-0 rounded-t-md opacity-20"
+            className="absolute inset-0 rounded-t-md opacity-20"
           style={{
             background: isRunTab && isRunning
               ? `linear-gradient(135deg, ${theme.colors.accent.cyan.bg} 0%, ${theme.colors.accent.cyan.border} 100%)`
@@ -116,14 +117,15 @@ export function UnifiedTab({
 
       {/* Tab content */}
       <div className="relative z-10 flex items-center w-full gap-2">
-        <span className="truncate flex-1 font-medium">
+        <span className="truncate flex-1 font-medium" style={typography.body}>
           {label}
         </span>
 
         {badgeContent && (
           <span
-            className="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[11px] font-semibold"
+            className="inline-flex items-center justify-center px-2 py-0.5 rounded-full font-semibold"
             style={{
+              ...typography.caption,
               backgroundColor: theme.colors.accent.yellow.bg,
               color: theme.colors.accent.yellow.DEFAULT,
             }}
@@ -143,7 +145,7 @@ export function UnifiedTab({
               }
             `}
             style={{
-              fontSize: theme.fontSize.body,
+              ...typography.caption,
               backgroundColor: 'transparent',
               fontWeight: 'bold',
               lineHeight: 1,

@@ -1,14 +1,13 @@
 export function buildTerminalFontFamily(custom?: string | null): string {
   const base = [
+    'SFMono-Regular',
     'Menlo',
     'Monaco',
-    'ui-monospace',
-    'SFMono-Regular',
+    'Consolas',
     'DejaVu Sans Mono',
     'Liberation Mono',
     'Noto Sans Mono',
     'Ubuntu Mono',
-    'JetBrains Mono',
     'Fira Code',
     'Source Code Pro',
     'MesloLGS NF',
@@ -17,6 +16,7 @@ export function buildTerminalFontFamily(custom?: string | null): string {
     'Symbols Nerd Font',
     'Noto Color Emoji',
     'Apple Color Emoji',
+    'ui-monospace',
     'monospace',
   ]
 
