@@ -66,10 +66,8 @@ fn normalize_binary_path(raw: &str) -> Option<String> {
         trimmed.to_string()
     };
 
-    if unquoted.starts_with("~/") {
-        if let Ok(home) = std::env::var("HOME") {
-            return Some(format!("{home}/{}", &unquoted[2..]));
-        }
+    if let (Some(path_after_tilde), Ok(home)) = (unquoted.strip_prefix("~/"), std::env::var("HOME")) {
+        return Some(format!("{home}/{path_after_tilde}"));
     }
 
     Some(unquoted)
@@ -2432,10 +2430,7 @@ impl SessionManager {
 
         if used_fallback {
             log::warn!(
-                "Session manager: Agent '{}' is unavailable; falling back to '{}' for session '{}'",
-                requested_agent_type,
-                agent_type,
-                session_name
+                "Session manager: Agent '{requested_agent_type}' is unavailable; falling back to '{agent_type}' for session '{session_name}'"
             );
         }
 
@@ -2870,9 +2865,7 @@ impl SessionManager {
 
         if used_fallback {
             log::warn!(
-                "Orchestrator: Agent '{}' unavailable; falling back to '{}'",
-                requested_agent_type,
-                agent_type
+                "Orchestrator: Agent '{requested_agent_type}' unavailable; falling back to '{agent_type}'"
             );
         }
 
@@ -2928,9 +2921,7 @@ impl SessionManager {
 
         if used_fallback {
             log::warn!(
-                "Orchestrator: Agent '{}' unavailable; falling back to '{}'",
-                requested_agent_type,
-                agent_type
+                "Orchestrator: Agent '{requested_agent_type}' unavailable; falling back to '{agent_type}'"
             );
         }
 
