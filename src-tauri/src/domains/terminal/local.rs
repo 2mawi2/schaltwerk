@@ -45,7 +45,7 @@ impl TerminalState {
             response.extend_from_slice(sequence.as_bytes());
         }
 
-        debug!("Responding to {count} cursor position query(ies) for {id} at row {row}, col {col}");
+        trace!("Responding to {count} cursor position query(ies) for {id} at row {row}, col {col}");
 
         Some(response)
     }

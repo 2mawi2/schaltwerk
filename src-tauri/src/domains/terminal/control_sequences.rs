@@ -104,17 +104,17 @@ pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
 
                 match action {
                     ControlSequenceAction::Respond(reply) => {
-                        log::debug!("Handled terminal query {:?}", &input[i..=cursor]);
+                        log::trace!("Handled terminal query {:?}", &input[i..=cursor]);
                         responses.push(SequenceResponse::Immediate(reply.to_vec()));
                         i = cursor + 1;
                     }
                     ControlSequenceAction::RespondCursorPosition => {
-                        log::debug!("Captured cursor position query {:?}", &input[i..=cursor]);
+                        log::trace!("Captured cursor position query {:?}", &input[i..=cursor]);
                         cursor_query_offsets.push(data.len());
                         i = cursor + 1;
                     }
                     ControlSequenceAction::Drop => {
-                        log::debug!("Dropped terminal handshake {:?}", &input[i..=cursor]);
+                        log::trace!("Dropped terminal handshake {:?}", &input[i..=cursor]);
                         i = cursor + 1;
                     }
                     ControlSequenceAction::Pass => {
@@ -148,13 +148,13 @@ pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
                 if let Some(term_idx) = terminator_index {
                     if let Ok(text) = std::str::from_utf8(&input[i + 2..term_idx]) {
                         if text.starts_with("10;?") {
-                            log::debug!("Responding to OSC foreground query {text:?}");
+                            log::trace!("Responding to OSC foreground query {text:?}");
                             responses.push(SequenceResponse::Immediate(
                                 b"\x1b]10;rgb:ef/ef/ef\x07".to_vec(),
                             ));
                             i = term_idx + terminator_len;
                         } else if text.starts_with("11;?") {
-                            log::debug!("Responding to OSC background query {text:?}");
+                            log::trace!("Responding to OSC background query {text:?}");
                             responses.push(SequenceResponse::Immediate(
                                 b"\x1b]11;rgb:1e/1e/1e\x07".to_vec(),
                             ));

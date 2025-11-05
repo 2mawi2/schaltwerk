@@ -1702,7 +1702,7 @@ impl SessionManager {
     }
 
     pub fn new(db: Database, repo_path: PathBuf) -> Self {
-        log::debug!(
+        log::trace!(
             "Creating SessionManager with repo path: {}",
             repo_path.display()
         );
