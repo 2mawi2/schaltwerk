@@ -42,6 +42,7 @@ pub async fn create_run_terminal(
             env,
             cols,
             rows,
+            shell: None,
         })
         .await
 }
@@ -477,6 +478,7 @@ mod tests {
                 env: None,
                 cols: None,
                 rows: None,
+                shell: None,
             })
             .await;
 
@@ -504,6 +506,7 @@ mod tests {
                 env: Some(env.clone()),
                 cols: None,
                 rows: None,
+                shell: None,
             })
             .await;
 
@@ -526,6 +529,7 @@ mod tests {
                 env: None,
                 cols: Some(80),
                 rows: Some(24),
+                shell: None,
             })
             .await;
 
@@ -983,6 +987,7 @@ mod tests {
                 env: None,
                 cols: None,
                 rows: None,
+                shell: None,
             })
             .await;
 
