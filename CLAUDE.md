@@ -187,6 +187,10 @@ Common mappings:
 - UI-specific: button, input, label, code, terminal
 - Import: `theme.fontSize.body` or `var(--font-body)`
 
+**Typography helpers**
+- All non-code UI text must use the shared system sans stack (`var(--font-family-sans)`, i.e., `-apple-system`, `BlinkMacSystemFont`, `Segoe UI`, etc.) and code/terminal text must use the mono stack (`var(--font-family-mono)`, i.e., `SFMono-Regular`, Menlo, Consolas, etc.). These stacks are wired through `theme.fontFamily`.
+- Prefer the helpers in `src/common/typography.ts` to pair semantic sizes with the correct line heights. Session cards, spec headings, and terminal labels are guarded by `local/no-tailwind-font-sizes` so Tailwind `text-*` utilities are rejected—reuse those helpers when touching those files.
+
 ## Testing Requirements
 
 ### TDD (MANDATORY)
