@@ -19,7 +19,7 @@ export function shouldStickToBottom({
   if (!Number.isFinite(distance)) {
     return false
   }
-  if (distance > 1) {
+  if (distance > 0) {
     return false
   }
   if (isSearchVisible) {
