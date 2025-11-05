@@ -334,7 +334,7 @@ export const SessionCard = memo<SessionCardProps>(({
                                     <span className="relative inline-flex rounded-full h-4 w-4 text-white items-center justify-center font-bold"
                                           style={{
                                               ...sessionText.badge,
-                                              fontSize: '0.5625rem',
+                                              fontSize: theme.fontSize.caption,
                                               backgroundColor: theme.colors.accent.blue.DEFAULT
                                           }}>!</span>
                                 </span>
