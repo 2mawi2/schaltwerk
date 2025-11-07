@@ -86,6 +86,8 @@ export function IconButton({
     }
   };
 
+  const portalTarget = typeof document === 'undefined' ? null : document.body;
+
   return (
     <>
       <button
@@ -114,6 +116,7 @@ export function IconButton({
       
       {showTooltip &&
         tooltip &&
+        portalTarget &&
         createPortal(
           <div
             role="tooltip"
@@ -130,7 +133,7 @@ export function IconButton({
           >
             {tooltip}
           </div>,
-          document.body
+          portalTarget
         )}
     </>
   );
