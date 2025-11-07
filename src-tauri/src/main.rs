@@ -843,13 +843,22 @@ fn main() {
     // Create cleanup guard that will run on exit
     let _cleanup_guard = cleanup::TerminalCleanupGuard;
 
-    let run_result = tauri::Builder::default()
+    let mut app_builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_os::init())
-        .plugin(tauri_plugin_updater::Builder::new()
-            .pubkey(UPDATER_PUBLIC_KEY.trim())
-        .build())
+        .plugin(tauri_plugin_os::init());
+
+    if std::env::var_os("FLATPAK_ID").is_none() {
+        app_builder = app_builder.plugin(
+            tauri_plugin_updater::Builder::new()
+                .pubkey(UPDATER_PUBLIC_KEY.trim())
+                .build(),
+        );
+    } else {
+        log::info!("Skipping updater plugin inside Flatpak sandbox (FLATPAK_ID detected)");
+    }
+
+    let run_result = app_builder
         .invoke_handler(tauri::generate_handler![
             // Development info
             get_development_info,

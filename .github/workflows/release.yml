@@ -118,6 +118,132 @@ jobs:
       - name: Run full test suite
         run: node scripts/package-manager.mjs run test
 
+  build-linux:
+    name: Build Linux Packages
+    runs-on: ubuntu-latest
+    needs: [test]
+    if: always() && (needs.test.result == 'success' || needs.test.result == 'skipped')
+    env:
+      SCHALTWERK_PM: bun
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Cache apt packages
+        uses: actions/cache@v4
+        id: apt-cache-linux
+        with:
+          path: /var/cache/apt/archives
+          key: ${{ runner.os }}-apt-${{ hashFiles('.github/workflows/release.yml') }}-linux
+          restore-keys: |
+            ${{ runner.os }}-apt-
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            flatpak \
+            flatpak-builder \
+            ostree \
+            bubblewrap
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.16'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            src-tauri/target/
+          key: ${{ runner.os }}-cargo-linux-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-linux-
+            ${{ runner.os }}-cargo-
+
+      - name: Install dependencies
+        run: |
+          node scripts/package-manager.mjs cache-clean || true
+          rm -rf node_modules
+          node scripts/package-manager.mjs install --frozen-lockfile
+          if [ -d "mcp-server" ]; then
+            cd mcp-server
+            node ../scripts/package-manager.mjs install --frozen-lockfile
+            node ../scripts/package-manager.mjs run build
+            node ../scripts/package-manager.mjs install --production --frozen-lockfile
+            cd ..
+          fi
+
+      - name: Embed MCP assets into resources
+        run: node scripts/embed-mcp-server.js
+
+      - name: Build Linux bundles
+        run: node scripts/package-manager.mjs run tauri -- build --bundles deb rpm appimage
+
+      - name: Prepare Linux artifacts
+        run: |
+          set -euo pipefail
+          VERSION="${{ github.event.inputs.version || github.ref_name }}"
+          VERSION="${VERSION#v}"
+          mkdir -p linux-artifacts
+          shopt -s nullglob
+          for file in src-tauri/target/release/bundle/deb/*.deb; do
+            cp "$file" linux-artifacts/
+          done
+          for file in src-tauri/target/release/bundle/rpm/*.rpm; do
+            cp "$file" linux-artifacts/
+          done
+          for file in src-tauri/target/release/bundle/appimage/*.AppImage; do
+            cp "$file" linux-artifacts/
+          done
+
+      - name: Setup Flatpak runtime
+        run: |
+          set -euo pipefail
+          flatpak --version
+          flatpak --noninteractive remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak --noninteractive install --or-update flathub \
+            org.gnome.Platform//47 \
+            org.gnome.Sdk//47 \
+            org.freedesktop.Sdk.Extension.node20//24.08 \
+            org.freedesktop.Sdk.Extension.rust-stable//24.08
+
+      - name: Build Flatpak bundle
+        run: |
+          set -euo pipefail
+          VERSION="${{ github.event.inputs.version || github.ref_name }}"
+          VERSION="${VERSION#v}"
+          flatpak-builder --force-clean --install-deps-from=flathub \
+            --default-branch=stable \
+            --repo flatpak-repo flatpak-build flatpak/com.mariuswichtner.schaltwerk.yml
+          flatpak build-bundle flatpak-repo "linux-artifacts/Schaltwerk-${VERSION}.flatpak" com.mariuswichtner.schaltwerk stable
+          tar -C flatpak-repo -czf "linux-artifacts/Schaltwerk-${VERSION}.flatpakrepo.tar.gz" .
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v5
+        with:
+          name: linux-packages
+          path: linux-artifacts/**
+
   build-macos:
     name: Build macOS Universal Binary
     runs-on: macos-latest
@@ -182,6 +308,9 @@ jobs:
           node ../scripts/package-manager.mjs install --production --frozen-lockfile
           cd ..
           echo "✅ MCP server built with dependencies"
+
+      - name: Embed MCP assets into resources
+        run: node scripts/embed-mcp-server.js
 
       - name: Build for Intel and Apple Silicon with CI profile
         env:
@@ -375,7 +504,7 @@ jobs:
 
   create-release:
     name: Create GitHub Release
-    needs: build-macos
+    needs: [build-macos, build-linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -384,11 +513,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
-      - name: Download artifacts
+      - name: Download macOS artifacts
         uses: actions/download-artifact@v6
         with:
           name: macos-universal
-          path: artifacts
+          path: artifacts/macos
+
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v6
+        with:
+          name: linux-packages
+          path: artifacts/linux
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -398,7 +533,8 @@ jobs:
           draft: true
           prerelease: false
           files: |
-            artifacts/*.dmg
-            artifacts/*.app.tar.gz
-            artifacts/checksums.txt
-            artifacts/latest.json
+            artifacts/macos/*.dmg
+            artifacts/macos/*.app.tar.gz
+            artifacts/macos/checksums.txt
+            artifacts/macos/latest.json
+            artifacts/linux/*

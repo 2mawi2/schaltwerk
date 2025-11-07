@@ -8,12 +8,12 @@
   "packageManager": "bun@1.2.16",
   "repository": {
     "type": "git",
-    "url": "https://github.com/schaltwerk/schaltwerk.git"
+    "url": "https://github.com/2mawi2/schaltwerk.git"
   },
   "bugs": {
-    "url": "https://github.com/schaltwerk/schaltwerk/issues"
+    "url": "https://github.com/2mawi2/schaltwerk/issues"
   },
-  "homepage": "https://github.com/schaltwerk/schaltwerk#readme",
+  "homepage": "https://github.com/2mawi2/schaltwerk#readme",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit --skipLibCheck && vite build",
@@ -43,7 +43,8 @@
     "build:rust": "cd src-tauri && cargo build --message-format=short",
     "check": "run-s test",
     "migrate-events": "node scripts/migrate-events.cjs",
-    "validate-migration": "node scripts/validate-migration.cjs"
+    "validate-migration": "node scripts/validate-migration.cjs",
+    "mcp:embed": "node scripts/embed-mcp-server.js"
   },
   "overrides": {},
   "optionalDependencies": {

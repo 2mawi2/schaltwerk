@@ -1,0 +1,48 @@
+app-id: com.mariuswichtner.schaltwerk
+runtime: org.gnome.Platform
+runtime-version: '47'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.node20//24.08
+  - org.freedesktop.Sdk.Extension.rust-stable//24.08
+command: schaltwerk
+finish-args:
+  - --share=network
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  - --device=dri
+  - --filesystem=home
+  - --talk-name=org.freedesktop.Notifications
+  - --socket=ssh-auth
+default-branch: stable
+modules:
+  - name: schaltwerk
+    buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/node20/bin:/usr/lib/sdk/rust-stable/bin
+      env:
+        SCHALTWERK_PM: npm
+        TMPDIR: /run/build/schaltwerk/tmp
+    sources:
+      - type: dir
+        path: ..
+    build-commands:
+      - mkdir -p tmp
+      - npm install
+      - npm run build
+      - node scripts/embed-mcp-server.js
+      - (cd mcp-server && npm install && npm run build && npm prune --omit=dev)
+      - npm run tauri -- build --bundles app
+      - install -Dm755 src-tauri/target/release/schaltwerk /app/bin/schaltwerk
+      - install -d /app/bin/resources
+      - cp -R src-tauri/target/release/bundle/app/schaltwerk/resources/. /app/bin/resources/
+      - install -d /app/bin/mcp-server
+      - cp -R mcp-server/build /app/bin/mcp-server/
+      - cp mcp-server/package.json /app/bin/mcp-server/
+      - cp -R mcp-server/node_modules /app/bin/mcp-server/
+      - install -Dm644 flatpak/com.mariuswichtner.schaltwerk.desktop /app/share/applications/com.mariuswichtner.schaltwerk.desktop
+      - install -Dm644 flatpak/com.mariuswichtner.schaltwerk.metainfo.xml /app/share/metainfo/com.mariuswichtner.schaltwerk.metainfo.xml
+      - install -Dm644 app_icon.png /app/share/icons/hicolor/256x256/apps/com.mariuswichtner.schaltwerk.png
+      - install -Dm644 src-tauri/icons/128x128.png /app/share/icons/hicolor/128x128/apps/com.mariuswichtner.schaltwerk.png
+      - install -Dm644 src-tauri/icons/32x32.png /app/share/icons/hicolor/32x32/apps/com.mariuswichtner.schaltwerk.png

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.mariuswichtner.schaltwerk</id>
+  <name>Schaltwerk</name>
+  <summary>Manage AI coding sessions from an isolated desktop client</summary>
+  <description>
+    <p>Schaltwerk gives every AI coding agent its own git worktree so you can run multiple sessions in parallel without touching your main branch. The desktop app orchestrates worktree creation, MCP integrations, and dual-terminal layouts for agents and humans.</p>
+  </description>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <developer_name>Marius Wichtner</developer_name>
+  <launchable type="desktop-id">com.mariuswichtner.schaltwerk.desktop</launchable>
+  <provides>
+    <binary>schaltwerk</binary>
+  </provides>
+  <url type="homepage">https://github.com/2mawi2/schaltwerk</url>
+  <url type="bugtracker">https://github.com/2mawi2/schaltwerk/issues</url>
+  <content_rating type="oars-1.1"/>
+  <categories>
+    <category>Development</category>
+    <category>Utility</category>
+  </categories>
+</component>
