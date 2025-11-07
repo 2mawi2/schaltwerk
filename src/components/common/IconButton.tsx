@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import clsx from 'clsx';
 import { theme } from '../../common/theme';
 
@@ -111,23 +112,26 @@ export function IconButton({
         </span>
       </button>
       
-      {showTooltip && tooltip && (
-        <div
-          role="tooltip"
-          className="fixed z-50 px-2 py-1 text-xs rounded shadow-lg pointer-events-none animate-fadeIn"
-          style={{
-            top: `${tooltipPosition.top}px`,
-            left: `${tooltipPosition.left}px`,
-            transform: 'translateX(-50%)',
-            backgroundColor: theme.colors.background.elevated,
-            color: theme.colors.text.primary,
-            border: `1px solid ${theme.colors.border.subtle}`,
-            animation: 'fadeIn 150ms ease-out',
-          }}
-        >
-          {tooltip}
-        </div>
-      )}
+      {showTooltip &&
+        tooltip &&
+        createPortal(
+          <div
+            role="tooltip"
+            className="fixed z-50 px-2 py-1 text-xs rounded shadow-lg pointer-events-none animate-fadeIn"
+            style={{
+              top: `${tooltipPosition.top}px`,
+              left: `${tooltipPosition.left}px`,
+              transform: 'translateX(-50%)',
+              backgroundColor: theme.colors.background.elevated,
+              color: theme.colors.text.primary,
+              border: `1px solid ${theme.colors.border.subtle}`,
+              animation: 'fadeIn 150ms ease-out',
+            }}
+          >
+            {tooltip}
+          </div>,
+          document.body
+        )}
     </>
   );
 }
