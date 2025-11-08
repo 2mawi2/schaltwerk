@@ -1,10 +1,60 @@
 use serde::{Deserialize, Serialize};
 use serde_json;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use which::which;
 
 const MCP_SERVER_PATH: &str = "mcp-server/build/schaltwerk-mcp-server.js";
+
+fn resolve_embedded_mcp(base_dir: &Path) -> Option<PathBuf> {
+    let direct = base_dir.join(MCP_SERVER_PATH);
+    if direct.exists() {
+        return Some(direct);
+    }
+
+    let nested = base_dir.join("resources").join(MCP_SERVER_PATH);
+    if nested.exists() {
+        return Some(nested);
+    }
+
+    None
+}
+
+#[cfg(test)]
+mod embedded_mcp_path_tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    fn write_placeholder(path: &Path) {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        fs::write(path, b"stub").unwrap();
+    }
+
+    #[test]
+    fn resolve_embedded_prefers_direct_path() {
+        let temp_dir = TempDir::new().unwrap();
+        let direct = temp_dir.path().join(MCP_SERVER_PATH);
+        let nested = temp_dir.path().join("resources").join(MCP_SERVER_PATH);
+        write_placeholder(&direct);
+        write_placeholder(&nested);
+
+        let resolved = resolve_embedded_mcp(temp_dir.path()).expect("embedded path");
+        assert_eq!(resolved, direct);
+    }
+
+    #[test]
+    fn resolve_embedded_falls_back_to_resources_dir() {
+        let temp_dir = TempDir::new().unwrap();
+        let nested = temp_dir.path().join("resources").join(MCP_SERVER_PATH);
+        write_placeholder(&nested);
+
+        let resolved = resolve_embedded_mcp(temp_dir.path()).expect("embedded path");
+        assert_eq!(resolved, nested);
+    }
+}
 
 fn resolve_node_command_path() -> Option<PathBuf> {
     which("node").ok()
@@ -772,19 +822,33 @@ fn get_app_bundle_mcp_path(exe_path: &std::path::Path) -> Result<(PathBuf, bool)
         let contents_dir = macos_dir
             .parent()
             .ok_or_else(|| "Executable path missing Contents directory".to_string())?;
-        contents_dir.join("Resources").join(MCP_SERVER_PATH)
+        let resources_dir = contents_dir.join("Resources");
+        resolve_embedded_mcp(&resources_dir).ok_or_else(|| {
+            log::error!(
+                "MCP server not found in macOS app bundle resources under {}",
+                resources_dir.display()
+            );
+            format!(
+                "MCP server not found in app bundle resources under {}",
+                resources_dir.display()
+            )
+        })?
     } else {
         // For other platforms, adjust path as needed
         let parent = exe_path
             .parent()
             .ok_or_else(|| "Executable path missing parent directory".to_string())?;
-        parent.join(MCP_SERVER_PATH)
+        resolve_embedded_mcp(parent).ok_or_else(|| {
+            log::error!(
+                "MCP server not found near executable {} (checked direct and resources subdir)",
+                parent.display()
+            );
+            format!(
+                "MCP server not found near executable (checked {} and resources subdirectory)",
+                parent.display()
+            )
+        })?
     };
-
-    if !mcp_embedded.exists() {
-        log::error!("MCP server not found in app bundle at: {mcp_embedded:?}");
-        return Err("MCP server not found in app bundle".to_string());
-    }
 
     log::debug!("Using embedded MCP server at: {mcp_embedded:?}");
     Ok((mcp_embedded, true))
@@ -819,12 +883,15 @@ fn get_release_mcp_path(exe_path: &std::path::Path) -> Result<(PathBuf, bool), S
     let parent = exe_path
         .parent()
         .ok_or_else(|| "Executable path missing parent directory".to_string())?;
-    let mcp_embedded = parent.join(MCP_SERVER_PATH);
-
-    if !mcp_embedded.exists() {
-        log::error!("MCP server not found at: {mcp_embedded:?}");
-        return Err("MCP server not found in release build".to_string());
-    }
+    let mcp_embedded = resolve_embedded_mcp(parent).ok_or_else(|| {
+        log::error!(
+            "MCP server not found under {} (checked {} and resources/{})",
+            parent.display(),
+            MCP_SERVER_PATH,
+            MCP_SERVER_PATH
+        );
+        "MCP server not found in release build".to_string()
+    })?;
 
     log::debug!("Using release MCP server at: {mcp_embedded:?}");
     Ok((mcp_embedded, true))

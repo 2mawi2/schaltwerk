@@ -31,8 +31,8 @@ modules:
       - mkdir -p tmp
       - npm install
       - npm run build
-      - node scripts/embed-mcp-server.js
       - (cd mcp-server && npm install && npm run build && npm prune --omit=dev)
+      - node scripts/embed-mcp-server.js
       - npm run tauri -- build --bundles app
       - install -Dm755 src-tauri/target/release/schaltwerk /app/bin/schaltwerk
       - install -d /app/bin/resources
