@@ -29,6 +29,17 @@ interface TerminalStream {
   decoder?: TextDecoder
 }
 
+const RECORD_BUTTON_BASE = '\u23fa'
+const RECORD_BUTTON_TEXT_VARIANT = '\u23fa\uFE0E'
+const RECORD_BUTTON_PATTERN = /\u23fa(?:\ufe0f|\ufe0e)?/g
+
+function enforceTextPresentation(chunk: string): string {
+  if (!chunk.includes(RECORD_BUTTON_BASE)) {
+    return chunk
+  }
+  return chunk.replace(RECORD_BUTTON_PATTERN, RECORD_BUTTON_TEXT_VARIANT)
+}
+
 function createStream(): TerminalStream {
   return {
     started: false,
@@ -175,9 +186,10 @@ class TerminalOutputManager {
   private dispatch(id: string, chunk: string): void {
     const stream = this.streams.get(id)
     if (!stream) return
+    const normalized = enforceTextPresentation(chunk)
     for (const listener of stream.listeners) {
       try {
-        listener(chunk)
+        listener(normalized)
       } catch (error) {
         logger.debug(`[TerminalOutput] listener error for ${id}`, error)
       }
