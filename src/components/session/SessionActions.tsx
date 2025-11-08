@@ -297,7 +297,7 @@ export function SessionActions({
                 icon={<VscGitMerge />}
                 onClick={() => onMerge(sessionId)}
                 ariaLabel="Merge session"
-                tooltip="Merge session (⌘⇧M)"
+                tooltip="Merge session (⌘⇧M merges instantly)"
                 disabled={disableMerge}
               />
             )
