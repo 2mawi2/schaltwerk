@@ -53,7 +53,7 @@ function findConfirmButton(): HTMLButtonElement {
 }
 
 describe('MergeSessionModal', () => {
-  it('renders an empty, focused commit message field even when a default is provided', () => {
+  it('starts with an empty commit message and focuses the field', () => {
     renderModal()
     const input = screen.getByLabelText('Commit message') as HTMLInputElement
     expect(input.value).toBe('')

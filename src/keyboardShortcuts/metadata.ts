@@ -71,7 +71,11 @@ export const KEYBOARD_SHORTCUT_SECTIONS: ShortcutSection[] = [
       { action: KeyboardShortcutAction.OpenDiffSearch, label: 'Open diff search' },
       { action: KeyboardShortcutAction.SubmitDiffComment, label: 'Submit diff comment' },
       { action: KeyboardShortcutAction.RunSpecAgent, label: 'Run spec agent' },
-      { action: KeyboardShortcutAction.OpenMergeModal, label: 'Merge session' },
+      {
+        action: KeyboardShortcutAction.OpenMergeModal,
+        label: 'Quick merge session',
+        description: 'Runs a squash merge instantly and only opens the dialog when conflicts or input is required.',
+      },
       { action: KeyboardShortcutAction.CreatePullRequest, label: 'Create pull request' },
     ],
   },
