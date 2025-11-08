@@ -1,87 +1,86 @@
-import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { vi } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { TopBar } from './TopBar'
-
-vi.mock('./TabBar', () => ({
-  TabBar: () => <div data-testid="tab-bar" />,
-}))
-
-vi.mock('./OpenInSplitButton', () => ({
-  OpenInSplitButton: () => <div data-testid="open-in-split" />,
-}))
-
-vi.mock('./BranchIndicator', () => ({
-  BranchIndicator: () => <div data-testid="branch-indicator" />,
-}))
-
-vi.mock('./github/GithubMenuButton', () => ({
-  GithubMenuButton: (props: { className?: string }) => (
-    <div data-testid="github-menu-button" {...props} />
-  ),
-}))
-
-vi.mock('./WindowControls', () => ({
-  WindowControls: () => <div data-testid="window-controls" />,
-}))
-
-vi.mock('../utils/platform', () => ({
-  getPlatform: vi.fn().mockResolvedValue('mac'),
-}))
-
-vi.mock('../keyboardShortcuts/helpers', () => ({
-  detectPlatformSafe: () => 'mac',
-}))
 
 vi.mock('@tauri-apps/api/window', () => ({
   getCurrentWindow: () => ({
-    startDragging: vi.fn(),
-  }),
+    startDragging: vi.fn()
+  })
 }))
 
-vi.mock('../utils/logger', () => ({
-  logger: {
-    debug: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  },
+vi.mock('../utils/platform', () => ({
+  getPlatform: vi.fn(async () => 'mac')
 }))
 
-describe('TopBar feedback button', () => {
+vi.mock('../keyboardShortcuts/helpers', () => ({
+  detectPlatformSafe: () => 'mac'
+}))
+
+vi.mock('./TabBar', () => ({
+  TabBar: () => <div data-testid="tab-bar" />
+}))
+
+vi.mock('./OpenInSplitButton', () => ({
+  OpenInSplitButton: () => <div data-testid="open-in-split" />
+}))
+
+vi.mock('./BranchIndicator', () => ({
+  BranchIndicator: () => <div data-testid="branch-indicator" />
+}))
+
+vi.mock('./github/GithubMenuButton', () => ({
+  GithubMenuButton: () => <div data-testid="github-menu" />
+}))
+
+vi.mock('./WindowControls', () => ({
+  WindowControls: () => <div data-testid="window-controls" />
+}))
+
+vi.mock('../domains/feedback', () => ({
+  FeedbackButton: ({ onClick }: { onClick: () => void }) => (
+    <button data-testid="feedback" onClick={onClick}>
+      Feedback
+    </button>
+  )
+}))
+
+describe('TopBar', () => {
   const baseProps = {
-    tabs: [],
-    activeTabPath: null,
+    tabs: [{ projectPath: '/tmp/project', projectName: 'Project' }],
+    activeTabPath: '/tmp/project',
     onGoHome: vi.fn(),
     onSelectTab: vi.fn(),
     onCloseTab: vi.fn(),
     onOpenSettings: vi.fn(),
+    onOpenFeedback: vi.fn(),
   }
 
-  it('renders a feedback button that calls onOpenFeedback when clicked', async () => {
-    const user = userEvent.setup()
-    const onOpenFeedback = vi.fn()
+  it('renders a left panel toggle when handler is provided', () => {
+    const onToggleLeftPanel = vi.fn()
 
     render(
       <TopBar
         {...baseProps}
-        onOpenFeedback={onOpenFeedback}
+        onToggleLeftPanel={onToggleLeftPanel}
+        onToggleRightPanel={vi.fn()}
       />
     )
 
-    const feedbackButton = await screen.findByRole('button', { name: 'Send feedback' })
-    await user.click(feedbackButton)
-
-    expect(onOpenFeedback).toHaveBeenCalledTimes(1)
+    const toggle = screen.getByLabelText('Hide left panel')
+    fireEvent.click(toggle)
+    expect(onToggleLeftPanel).toHaveBeenCalledTimes(1)
   })
 
-  it('renders global attention indicator when count is greater than zero', () => {
+  it('shows the correct aria label when the left panel is collapsed', () => {
     render(
       <TopBar
         {...baseProps}
-        onOpenFeedback={vi.fn()}
+        isLeftPanelCollapsed={true}
+        onToggleLeftPanel={vi.fn()}
+        onToggleRightPanel={vi.fn()}
       />
     )
 
-    expect(screen.queryByTestId('global-attention-indicator')).toBeNull()
+    expect(screen.getByLabelText('Show left panel')).toBeInTheDocument()
   })
 })
