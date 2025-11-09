@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import type { FormEvent, ChangeEvent } from 'react'
 import { useAtom, useSetAtom } from 'jotai'
-import { VscRefresh, VscGlobe, VscArrowRight, VscChevronLeft, VscChevronRight, VscTools } from 'react-icons/vsc'
+import { VscRefresh, VscGlobe, VscArrowRight, VscChevronLeft, VscChevronRight, VscTools, VscSearch } from 'react-icons/vsc'
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
 import {
@@ -10,7 +10,9 @@ import {
   adjustPreviewZoomActionAtom,
   resetPreviewZoomActionAtom,
   navigatePreviewHistoryActionAtom,
-  PREVIEW_ZOOM_STEP
+  PREVIEW_ZOOM_STEP,
+  PREVIEW_MIN_ZOOM,
+  PREVIEW_MAX_ZOOM
 } from '../../store/atoms/preview'
 import { mountIframe, unmountIframe, setIframeUrl, refreshIframe } from '../../features/preview/previewIframeRegistry'
 import { useKeyboardShortcutsConfig } from '../../contexts/KeyboardShortcutsContext'
@@ -59,15 +61,36 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
   const [inputValue, setInputValue] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [hostElement, setHostElement] = useState<HTMLDivElement | null>(null)
-  const [isFocused, setIsFocused] = useState(false)
-
-  const rootRef = useRef<HTMLDivElement | null>(null)
+  const [showZoomPopover, setShowZoomPopover] = useState(false)
+  const zoomControlRef = useRef<HTMLDivElement | null>(null)
   const { config: keyboardShortcutConfig } = useKeyboardShortcutsConfig()
   const platform = useMemo(() => detectPlatformSafe(), [])
 
   useEffect(() => {
     setInputValue(currentUrl ?? '')
   }, [currentUrl])
+
+  useEffect(() => {
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!zoomControlRef.current) return
+      if (!zoomControlRef.current.contains(event.target as Node)) {
+        setShowZoomPopover(false)
+      }
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowZoomPopover(false)
+      }
+    }
+
+    window.addEventListener('pointerdown', handlePointerDown, true)
+    window.addEventListener('keydown', handleEscape)
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown, true)
+      window.removeEventListener('keydown', handleEscape)
+    }
+  }, [])
 
   useEffect(() => {
     if (!hostElement || !currentUrl || isResizing) {
@@ -112,8 +135,6 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (!isFocused) return
-
       if (isShortcutForAction(event, KeyboardShortcutAction.IncreaseFontSize, keyboardShortcutConfig, { platform })) {
         event.preventDefault()
         event.stopPropagation()
@@ -137,29 +158,7 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
 
     window.addEventListener('keydown', handleKeyDown, true)
     return () => window.removeEventListener('keydown', handleKeyDown, true)
-  }, [isFocused, adjustZoom, resetZoom, previewKey, keyboardShortcutConfig, platform])
-
-  useEffect(() => {
-    const handlePointerDown = (event: PointerEvent) => {
-      if (!rootRef.current) return
-      setIsFocused(rootRef.current.contains(event.target as Node))
-    }
-
-    const handleWindowBlur = () => {
-      setIsFocused(false)
-    }
-
-    window.addEventListener('pointerdown', handlePointerDown, true)
-    window.addEventListener('blur', handleWindowBlur)
-    return () => {
-      window.removeEventListener('pointerdown', handlePointerDown, true)
-      window.removeEventListener('blur', handleWindowBlur)
-    }
-  }, [])
-
-  const handleFocus = useCallback(() => {
-    setIsFocused(true)
-  }, [])
+  }, [adjustZoom, resetZoom, previewKey, keyboardShortcutConfig, platform])
 
   const handleNavigate = useCallback(
     (direction: -1 | 1) => {
@@ -167,6 +166,21 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
     },
     [previewKey, navigateHistory]
   )
+
+  const handleZoomDelta = useCallback(
+    (delta: number) => {
+      adjustZoom({ key: previewKey, delta })
+    },
+    [adjustZoom, previewKey]
+  )
+
+  const handleZoomReset = useCallback(() => {
+    resetZoom(previewKey)
+  }, [resetZoom, previewKey])
+
+  const handleZoomButtonToggle = useCallback(() => {
+    setShowZoomPopover(value => !value)
+  }, [])
 
   const handleToggleDevTools = useCallback(async () => {
     try {
@@ -178,6 +192,8 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
 
   const canGoBack = historyIndex > 0
   const canGoForward = historyIndex >= 0 && historyIndex < history.length - 1
+  const canZoomOut = zoom > PREVIEW_MIN_ZOOM + 0.001
+  const canZoomIn = zoom < PREVIEW_MAX_ZOOM - 0.001
 
   const inverseZoom = 1 / zoom
   const hasUrl = Boolean(currentUrl)
@@ -189,7 +205,7 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
     ].join(' ')
 
   return (
-    <div className="h-full w-full flex flex-col" ref={rootRef} tabIndex={-1} onFocusCapture={handleFocus}>
+    <div className="h-full w-full flex flex-col">
       <div className="flex items-center gap-3 border-b border-slate-800 px-4 py-3">
         <div className="flex items-center gap-1">
           <button type="button" aria-label="Back" className={buttonClass(!canGoBack)} onClick={() => handleNavigate(-1)} disabled={!canGoBack}>
@@ -219,6 +235,51 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
             placeholder="Enter URL (e.g. http://localhost:3000)"
             autoComplete="off"
           />
+          <div className="relative" ref={zoomControlRef}>
+            <button
+              type="button"
+              aria-label="Adjust zoom"
+              className="h-8 w-8 rounded border border-slate-700 bg-slate-900 flex items-center justify-center text-slate-200 hover:bg-slate-800"
+              onClick={handleZoomButtonToggle}
+            >
+              <VscSearch />
+            </button>
+            {showZoomPopover && (
+              <div className="absolute right-0 mt-2 w-48 rounded-md border border-slate-700 bg-slate-900 shadow-2xl z-10">
+                <div className="flex items-center justify-between px-3 py-2 text-sm text-slate-100">
+                  <span className="font-semibold">{Math.round(zoom * 100)}%</span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      aria-label="Zoom out"
+                      className="h-7 w-7 rounded-full border border-slate-600 text-slate-100 disabled:opacity-40"
+                      onClick={() => handleZoomDelta(-PREVIEW_ZOOM_STEP)}
+                      disabled={!canZoomOut}
+                    >
+                      &minus;
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Zoom in"
+                      className="h-7 w-7 rounded-full border border-slate-600 text-slate-100 disabled:opacity-40"
+                      onClick={() => handleZoomDelta(PREVIEW_ZOOM_STEP)}
+                      disabled={!canZoomIn}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+                <div className="border-t border-slate-800" />
+                <button
+                  type="button"
+                  className="w-full px-3 py-2 text-sm font-medium text-cyan-300 hover:bg-slate-800"
+                  onClick={handleZoomReset}
+                >
+                  Reset
+                </button>
+              </div>
+            )}
+          </div>
           <button type="submit" className="h-8 w-8 rounded bg-cyan-600 flex items-center justify-center text-slate-900 hover:bg-cyan-500 disabled:opacity-40" disabled={!inputValue.trim()} aria-label="Navigate">
             <VscArrowRight className="text-lg" />
           </button>

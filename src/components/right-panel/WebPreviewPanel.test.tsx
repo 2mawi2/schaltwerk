@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { Provider, createStore } from 'jotai'
 import { WebPreviewPanel } from './WebPreviewPanel'
 import * as previewRegistry from '../../features/preview/previewIframeRegistry'
+import { PREVIEW_ZOOM_STEP } from '../../store/atoms/preview'
 
 const { __resetRegistryForTests } = previewRegistry
 
@@ -216,6 +217,37 @@ describe('WebPreviewPanel', () => {
 
     await waitFor(() => {
       expect(invokeSpy).toHaveBeenCalledWith('toggle_preview_devtools')
+    })
+  })
+
+  it('allows manual zooming through the toolbar popover', async () => {
+    const user = userEvent.setup()
+
+    renderPanel({ previewKey: 'test-key' })
+
+    const input = screen.getByLabelText('Preview URL')
+    await user.type(input, 'localhost:3000')
+    await user.click(screen.getByLabelText('Navigate'))
+
+    await waitFor(() => {
+      expect(document.querySelector('iframe[data-preview-key="test-key"]')).not.toBeNull()
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Adjust zoom' }))
+    expect(await screen.findByText('Reset')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Zoom in' }))
+
+    await waitFor(() => {
+      const zoomHost = document.querySelector('[data-preview-zoom]')
+      expect(zoomHost).toHaveAttribute('data-preview-zoom', (1 + PREVIEW_ZOOM_STEP).toFixed(2))
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Reset' }))
+
+    await waitFor(() => {
+      const zoomHost = document.querySelector('[data-preview-zoom]')
+      expect(zoomHost).toHaveAttribute('data-preview-zoom', '1.00')
     })
   })
 })

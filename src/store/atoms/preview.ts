@@ -14,6 +14,9 @@ const MAX_ZOOM = 2
 const ZOOM_STEP = 0.1
 const DEFAULT_ZOOM = 1
 
+export const PREVIEW_MIN_ZOOM = MIN_ZOOM
+export const PREVIEW_MAX_ZOOM = MAX_ZOOM
+
 export const buildPreviewKey = (projectPath: string, scope: 'session' | 'orchestrator', sessionId?: string): string => {
   if (scope === 'session' && sessionId) {
     return `${projectPath}::session::${sessionId}`
