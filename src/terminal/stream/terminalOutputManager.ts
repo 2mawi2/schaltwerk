@@ -29,15 +29,28 @@ interface TerminalStream {
   decoder?: TextDecoder
 }
 
-const RECORD_BUTTON_BASE = '\u23fa'
-const RECORD_BUTTON_TEXT_VARIANT = '\u23fa\uFE0E'
-const RECORD_BUTTON_PATTERN = /\u23fa(?:\ufe0f|\ufe0e)?/g
+const TEXT_PRESENTATION_RULES = [
+  {
+    base: '\u23fa',
+    textVariant: '\u23fa\uFE0E',
+    pattern: /\u23fa(?:\ufe0f|\ufe0e)?/g,
+  },
+  {
+    base: '\u23f8',
+    textVariant: '\u23f8\uFE0E',
+    pattern: /\u23f8(?:\ufe0f|\ufe0e)?/g,
+  },
+]
 
 function enforceTextPresentation(chunk: string): string {
-  if (!chunk.includes(RECORD_BUTTON_BASE)) {
-    return chunk
+  let normalized = chunk
+  for (const { base, textVariant, pattern } of TEXT_PRESENTATION_RULES) {
+    if (!normalized.includes(base)) {
+      continue
+    }
+    normalized = normalized.replace(pattern, textVariant)
   }
-  return chunk.replace(RECORD_BUTTON_PATTERN, RECORD_BUTTON_TEXT_VARIANT)
+  return normalized
 }
 
 function createStream(): TerminalStream {

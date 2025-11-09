@@ -366,6 +366,17 @@ async fn get_active_file_watchers() -> Result<Vec<String>, String> {
     Ok(watcher_manager.get_active_watchers().await)
 }
 
+#[tauri::command]
+async fn toggle_preview_devtools(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri::Manager;
+    if let Some(window) = app.get_webview_window("main") {
+        window.open_devtools();
+        Ok(())
+    } else {
+        Err("Main window not found".to_string())
+    }
+}
+
 use http_body_util::BodyExt;
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
@@ -902,6 +913,7 @@ fn main() {
             report_attention_snapshot,
             schaltwerk_core_log_frontend_message,
             open_external_url,
+            toggle_preview_devtools,
             // MCP commands
             start_mcp_server,
             // Para core commands
