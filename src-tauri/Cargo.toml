@@ -25,7 +25,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 mimalloc = { version = "0.1", default-features = false }
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["devtools"] }
 tauri-plugin-dialog = "2.4"
 tauri-plugin-notification = "2"
 serde = { version = "1", features = ["derive"] }
