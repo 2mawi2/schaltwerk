@@ -4,7 +4,7 @@ import { SessionCard } from './SessionCard'
 import { SessionVersionGroup as SessionVersionGroupType } from '../../utils/sessionVersions'
 import { isSpec } from '../../utils/sessionFilters'
 import { SessionSelection } from '../../hooks/useSessionManagement'
-import { theme, getAgentColorScheme } from '../../common/theme'
+import { theme } from '../../common/theme'
 import { withOpacity } from '../../common/colorUtils'
 import { ProgressIndicator } from '../common/ProgressIndicator'
 import type { MergeStatus } from '../../store/atoms/sessions'
@@ -220,55 +220,18 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
               {group.versions.length}x
             </span>
             
-            {/* Agent info */}
+            {/* Base branch indicator */}
             {(() => {
               const firstSession = group.versions[0]?.session?.info
               if (!firstSession) return null
-              
-              // Check if all versions have the same agent type
-              const agentTypes = group.versions.map(v => v.session.info.original_agent_type).filter(Boolean)
-              const uniqueAgents = [...new Set(agentTypes)]
-              const isMixedAgents = uniqueAgents.length > 1
-              const agentType = isMixedAgents ? 'mixed' : firstSession.original_agent_type
-              const baseBranch = firstSession.base_branch
-              const agentColor = agentType === 'claude' ? 'blue' :
-                               agentType === 'opencode' ? 'green' :
-                               agentType === 'gemini' ? 'orange' :
-                               agentType === 'codex' ? 'red' :
-                               agentType === 'amp' ? 'yellow' :
-                               agentType === 'mixed' ? 'violet' : 'gray'
 
-              const colorScheme = agentColor !== 'gray' ? getAgentColorScheme(agentColor) : null
+              const baseBranch = firstSession.base_branch
+              if (!baseBranch || baseBranch === 'main') return null
 
               return (
                 <>
-                  {agentType && colorScheme && (
-                    <>
-                      <span className="text-slate-400 text-xs">|</span>
-                      <span
-                        className="inline-flex items-center gap-1 px-1.5 py-[1px] rounded text-[10px] border"
-                        style={{
-                          lineHeight: theme.lineHeight.badge,
-                          backgroundColor: colorScheme.bg,
-                          color: colorScheme.light,
-                          borderColor: colorScheme.border
-                        }}
-                        title={isMixedAgents ? `Agents: ${uniqueAgents.join(', ')}` : `Agent: ${agentType}`}
-                      >
-                        <span className="w-1 h-1 rounded-full"
-                              style={{
-                                backgroundColor: colorScheme.DEFAULT
-                              }} />
-                        {isMixedAgents ? `${uniqueAgents.length} agents` : agentType}
-                      </span>
-                    </>
-                  )}
-                  {baseBranch && baseBranch !== 'main' && (
-                    <>
-                      <span className="text-slate-400 text-xs">|</span>
-                      <span className="text-xs text-slate-400">← {baseBranch}</span>
-                    </>
-                  )}
+                  <span className="text-slate-400 text-xs">|</span>
+                  <span className="text-xs text-slate-400">← {baseBranch}</span>
                 </>
               )
             })()}
