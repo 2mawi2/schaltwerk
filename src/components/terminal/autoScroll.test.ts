@@ -34,6 +34,16 @@ describe('shouldStickToBottom', () => {
     ).toBe(false)
   })
 
+  it('allows a tolerance threshold when provided', () => {
+    expect(
+      shouldStickToBottom({
+        ...baseInput,
+        viewportY: 199,
+        toleranceLines: 1,
+      }),
+    ).toBe(true)
+  })
+
   it('returns false when any selection modality is active', () => {
     expect(
       shouldStickToBottom({
