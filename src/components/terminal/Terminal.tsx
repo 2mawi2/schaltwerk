@@ -160,10 +160,14 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const [customFontFamily, setCustomFontFamily] = useState<string | null>(null);
     const [fontsFullyLoaded, setFontsFullyLoaded] = useState(false);
     const fontsLoadedRef = useRef(false);
+    const isTerminalOnlyAgent = agentType === 'terminal';
     // Agent conversation terminal detection reused across sizing logic and scrollback config
-    const isAgentTopTerminal = useMemo(() => (
-        terminalId.endsWith('-top') && (terminalId.startsWith('session-') || terminalId.startsWith('orchestrator-'))
-    ), [terminalId]);
+    const isAgentTopTerminal = useMemo(() => {
+        if (isTerminalOnlyAgent) {
+            return false;
+        }
+        return terminalId.endsWith('-top') && (terminalId.startsWith('session-') || terminalId.startsWith('orchestrator-'));
+    }, [terminalId, isTerminalOnlyAgent]);
     // Drag-selection suppression for run terminals
     const suppressNextClickRef = useRef<boolean>(false);
     const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null);
@@ -1406,7 +1410,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
      // Automatically start Claude for top terminals when hydrated and first ready
      useEffect(() => {
-         if (!hydrated) return;
+        if (!hydrated) return;
+        if (agentType === 'terminal') return;
          if (!terminalId.endsWith('-top')) return;
          if (startedGlobal.has(terminalId)) return;
          if (agentStopped) return;
