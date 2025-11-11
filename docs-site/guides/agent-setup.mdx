@@ -43,7 +43,7 @@ Configure each agent from **Settings → Agent Configuration** before you launch
 
 <Steps>
   <Step title="Select agent tab">
-  Choose from: Claude Code, OpenCode, Codex, Gemini, Qwen, Factory Droid, Amp, or Terminal
+  Choose from: GitHub Copilot, Claude Code, OpenCode, Codex, Gemini, Qwen, Factory Droid, Amp, or Terminal
   </Step>
 
   <Step title="Pick binary">
@@ -88,6 +88,24 @@ Configure each agent from **Settings → Agent Configuration** before you launch
 <Tip>
   Terminal mode is perfect for running agents not yet integrated into Schaltwerk, or for custom development workflows that don't require AI assistance.
 </Tip>
+
+### GitHub Copilot CLI
+
+<Info>
+  Copilot launches as soon as the top terminal is ready. Install the CLI first, then trust each worktree once so the agent can run unattended.
+</Info>
+
+**Installation:**
+
+```bash
+npm install -g @github/copilot
+```
+
+After installation run `/login` in any Copilot session to authenticate.
+
+**Trust the worktree:** Inside Copilot run `/cwd /trust` (or `/add-dir`) the first time you open a new project. Copilot stores this trust in `~/.config/github-copilot/cli` so future sessions start immediately.
+
+**Automatic prompts:** Schaltwerk queues your initial task prompt and submits it once Copilot finishes booting. If you disable auto-start or see Copilot waiting for input, just hit `Enter` to re-send the command.
 
 ### Common Binary Locations
 

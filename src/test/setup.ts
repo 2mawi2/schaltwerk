@@ -3,7 +3,7 @@ import { randomUUID as nodeRandomUUID } from 'node:crypto'
 import { afterEach, beforeEach, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
 
-function createMemoryStorage() {
+const createMemoryStorage = () => {
   const store = new Map<string, string>()
   return {
     get length() {
@@ -26,19 +26,30 @@ function createMemoryStorage() {
   }
 }
 
-if (typeof globalThis.localStorage === 'undefined' || typeof globalThis.localStorage.clear !== 'function') {
-  Object.defineProperty(globalThis, 'localStorage', {
-    configurable: true,
-    value: createMemoryStorage(),
-  })
+const ensureStorage = (prop: 'localStorage' | 'sessionStorage') => {
+  const globalTarget = globalThis as typeof globalThis & Record<string, Storage | undefined>
+  const needsPolyfill =
+    typeof globalTarget[prop] === 'undefined' ||
+    typeof globalTarget[prop]?.clear !== 'function'
+
+  if (needsPolyfill) {
+    const storage = createMemoryStorage()
+    Object.defineProperty(globalThis, prop, {
+      configurable: true,
+      value: storage,
+    })
+
+    if (typeof window !== 'undefined') {
+      Object.defineProperty(window, prop, {
+        configurable: true,
+        value: storage,
+      })
+    }
+  }
 }
 
-if (typeof globalThis.sessionStorage === 'undefined' || typeof globalThis.sessionStorage.clear !== 'function') {
-  Object.defineProperty(globalThis, 'sessionStorage', {
-    configurable: true,
-    value: createMemoryStorage(),
-  })
-}
+ensureStorage('localStorage')
+ensureStorage('sessionStorage')
 
 // Setup global test environment
 beforeEach(() => {

@@ -51,6 +51,7 @@ impl SettingsService {
     pub fn get_agent_env_vars(&self, agent_type: &str) -> HashMap<String, String> {
         match agent_type {
             "claude" => self.settings.agent_env_vars.claude.clone(),
+            "copilot" => self.settings.agent_env_vars.copilot.clone(),
             "opencode" => self.settings.agent_env_vars.opencode.clone(),
             "gemini" => self.settings.agent_env_vars.gemini.clone(),
             "codex" => self.settings.agent_env_vars.codex.clone(),
@@ -69,6 +70,7 @@ impl SettingsService {
     ) -> Result<(), SettingsServiceError> {
         match agent_type {
             "claude" => self.settings.agent_env_vars.claude = env_vars,
+            "copilot" => self.settings.agent_env_vars.copilot = env_vars,
             "opencode" => self.settings.agent_env_vars.opencode = env_vars,
             "gemini" => self.settings.agent_env_vars.gemini = env_vars,
             "codex" => self.settings.agent_env_vars.codex = env_vars,
@@ -124,6 +126,7 @@ impl SettingsService {
 
         match agent_type {
             "claude" => self.settings.agent_cli_args.claude.clone(),
+            "copilot" => self.settings.agent_cli_args.copilot.clone(),
             "opencode" => self.settings.agent_cli_args.opencode.clone(),
             "gemini" => self.settings.agent_cli_args.gemini.clone(),
             "codex" => self.settings.agent_cli_args.codex.clone(),
@@ -150,6 +153,7 @@ impl SettingsService {
 
         match agent_type {
             "claude" => self.settings.agent_cli_args.claude = cli_args.clone(),
+            "copilot" => self.settings.agent_cli_args.copilot = cli_args.clone(),
             "opencode" => self.settings.agent_cli_args.opencode = cli_args.clone(),
             "gemini" => self.settings.agent_cli_args.gemini = cli_args.clone(),
             "codex" => self.settings.agent_cli_args.codex = cli_args.clone(),
@@ -182,6 +186,7 @@ impl SettingsService {
     pub fn get_agent_initial_command(&self, agent_type: &str) -> String {
         match agent_type {
             "claude" => self.settings.agent_initial_commands.claude.clone(),
+            "copilot" => self.settings.agent_initial_commands.copilot.clone(),
             "opencode" => self.settings.agent_initial_commands.opencode.clone(),
             "gemini" => self.settings.agent_initial_commands.gemini.clone(),
             "codex" => self.settings.agent_initial_commands.codex.clone(),
@@ -196,6 +201,7 @@ impl SettingsService {
     fn get_agent_preferences_ref(&self, agent_type: &str) -> Option<&AgentPreference> {
         match agent_type {
             "claude" => Some(&self.settings.agent_preferences.claude),
+            "copilot" => Some(&self.settings.agent_preferences.copilot),
             "opencode" => Some(&self.settings.agent_preferences.opencode),
             "gemini" => Some(&self.settings.agent_preferences.gemini),
             "codex" => Some(&self.settings.agent_preferences.codex),
@@ -213,6 +219,7 @@ impl SettingsService {
     ) -> Result<&mut AgentPreference, SettingsServiceError> {
         match agent_type {
             "claude" => Ok(&mut self.settings.agent_preferences.claude),
+            "copilot" => Ok(&mut self.settings.agent_preferences.copilot),
             "opencode" => Ok(&mut self.settings.agent_preferences.opencode),
             "gemini" => Ok(&mut self.settings.agent_preferences.gemini),
             "codex" => Ok(&mut self.settings.agent_preferences.codex),
@@ -254,6 +261,7 @@ impl SettingsService {
 
         match agent_type {
             "claude" => self.settings.agent_initial_commands.claude = initial_command.clone(),
+            "copilot" => self.settings.agent_initial_commands.copilot = initial_command.clone(),
             "opencode" => self.settings.agent_initial_commands.opencode = initial_command.clone(),
             "gemini" => self.settings.agent_initial_commands.gemini = initial_command.clone(),
             "codex" => self.settings.agent_initial_commands.codex = initial_command.clone(),
@@ -391,6 +399,7 @@ impl SettingsService {
     pub fn get_agent_binary_config(&self, agent_name: &str) -> Option<AgentBinaryConfig> {
         match agent_name {
             "claude" => self.settings.agent_binaries.claude.clone(),
+            "copilot" => self.settings.agent_binaries.copilot.clone(),
             "opencode" => self.settings.agent_binaries.opencode.clone(),
             "gemini" => self.settings.agent_binaries.gemini.clone(),
             "codex" => self.settings.agent_binaries.codex.clone(),
@@ -413,6 +422,7 @@ impl SettingsService {
 
         match config.agent_name.as_str() {
             "claude" => self.settings.agent_binaries.claude = Some(config),
+            "copilot" => self.settings.agent_binaries.copilot = Some(config),
             "opencode" => self.settings.agent_binaries.opencode = Some(config),
             "gemini" => self.settings.agent_binaries.gemini = Some(config),
             "codex" => self.settings.agent_binaries.codex = Some(config),
@@ -429,6 +439,9 @@ impl SettingsService {
         if let Some(config) = &self.settings.agent_binaries.claude {
             configs.push(config.clone());
         }
+        if let Some(config) = &self.settings.agent_binaries.copilot {
+            configs.push(config.clone());
+        }
         if let Some(config) = &self.settings.agent_binaries.opencode {
             configs.push(config.clone());
         }
@@ -442,6 +455,9 @@ impl SettingsService {
             configs.push(config.clone());
         }
         if let Some(config) = &self.settings.agent_binaries.qwen {
+            configs.push(config.clone());
+        }
+        if let Some(config) = &self.settings.agent_binaries.amp {
             configs.push(config.clone());
         }
         configs
@@ -593,6 +609,19 @@ mod tests {
     }
 
     #[test]
+    fn set_agent_initial_command_supports_copilot() {
+        let repo = InMemoryRepository::default();
+        let repo_handle = repo.clone();
+        let mut service = SettingsService::new(Box::new(repo));
+
+        service
+            .set_agent_initial_command("copilot", "hi".to_string())
+            .expect("should accept copilot initial command");
+
+        assert_eq!(repo_handle.snapshot().agent_initial_commands.copilot, "hi");
+    }
+
+    #[test]
     fn font_sizes_default_values() {
         let repo = InMemoryRepository::default();
         let service = SettingsService::new(Box::new(repo));
@@ -664,6 +693,22 @@ mod tests {
     }
 
     #[test]
+    fn set_agent_env_vars_supports_copilot() {
+        let repo = InMemoryRepository::default();
+        let repo_handle = repo.clone();
+        let mut service = SettingsService::new(Box::new(repo));
+
+        let mut vars = HashMap::new();
+        vars.insert("GITHUB_TOKEN".to_string(), "secret".to_string());
+
+        service
+            .set_agent_env_vars("copilot", vars.clone())
+            .expect("should accept copilot env vars");
+
+        assert_eq!(repo_handle.snapshot().agent_env_vars.copilot, vars);
+    }
+
+    #[test]
     fn set_agent_env_vars_supports_terminal() {
         let repo = InMemoryRepository::default();
         let repo_handle = repo.clone();
@@ -719,5 +764,25 @@ mod tests {
             .expect("should accept qwen binary config");
 
         assert_eq!(repo_handle.snapshot().agent_binaries.qwen, Some(config));
+    }
+
+    #[test]
+    fn set_agent_binary_config_supports_copilot() {
+        let repo = InMemoryRepository::default();
+        let repo_handle = repo.clone();
+        let mut service = SettingsService::new(Box::new(repo));
+
+        let config = AgentBinaryConfig {
+            agent_name: "copilot".to_string(),
+            custom_path: Some("/custom/copilot".to_string()),
+            auto_detect: false,
+            detected_binaries: vec![],
+        };
+
+        service
+            .set_agent_binary_config(config.clone())
+            .expect("should accept copilot binary config");
+
+        assert_eq!(repo_handle.snapshot().agent_binaries.copilot, Some(config));
     }
 }

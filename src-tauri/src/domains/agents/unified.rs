@@ -1,5 +1,6 @@
 use super::adapter::{AgentAdapter, AgentLaunchContext, DefaultAdapter};
 use super::amp;
+use super::copilot;
 use super::droid;
 use super::format_binary_invocation;
 use super::launch_spec::AgentLaunchSpec;
@@ -267,6 +268,7 @@ impl AgentRegistry {
         adapters.insert("droid".to_string(), Box::new(DroidAdapter));
         adapters.insert("qwen".to_string(), Box::new(QwenAdapter));
         adapters.insert("amp".to_string(), Box::new(AmpAdapter));
+        adapters.insert("copilot".to_string(), Box::new(CopilotAdapter));
         adapters.insert("terminal".to_string(), Box::new(TerminalAdapter));
 
         for agent_id in AgentManifest::supported_agents() {
@@ -333,6 +335,7 @@ mod tests {
         assert!(registry.get("droid").is_some());
         assert!(registry.get("qwen").is_some());
         assert!(registry.get("amp").is_some());
+        assert!(registry.get("copilot").is_some());
         assert!(registry.get("terminal").is_some());
     }
 
@@ -343,6 +346,7 @@ mod tests {
         assert!(supported.len() >= 8);
         assert!(supported.contains(&"claude".to_string()));
         assert!(supported.contains(&"codex".to_string()));
+        assert!(supported.contains(&"copilot".to_string()));
         assert!(supported.contains(&"droid".to_string()));
         assert!(supported.contains(&"gemini".to_string()));
         assert!(supported.contains(&"opencode".to_string()));
@@ -696,5 +700,53 @@ mod tests {
             assert!(spec.shell_command.contains("--dangerously-allow-all"));
             assert!(spec.shell_command.contains("test prompt"));
         }
+    }
+
+    mod copilot_tests {
+        use super::*;
+        use std::path::Path;
+
+        #[test]
+        fn test_copilot_adapter_builds_command_with_permissions() {
+            let adapter = CopilotAdapter;
+            let manifest = AgentManifest::get("copilot").unwrap();
+
+            let ctx = AgentLaunchContext {
+                worktree_path: Path::new("/test/path"),
+                session_id: Some("session-123"),
+                initial_prompt: Some("review the diff"),
+                skip_permissions: true,
+                binary_override: Some("copilot"),
+                manifest,
+            };
+
+            let spec = adapter.build_launch_spec(ctx);
+            assert!(spec.shell_command.contains("--allow-all-tools"));
+            assert!(!spec.shell_command.contains("--continue"));
+            assert!(spec.shell_command.contains("copilot"));
+            assert_eq!(spec.initial_command.as_deref(), Some("review the diff"));
+        }
+    }
+}
+pub struct CopilotAdapter;
+
+impl AgentAdapter for CopilotAdapter {
+    fn build_launch_spec(&self, ctx: AgentLaunchContext) -> AgentLaunchSpec {
+        let initial_command = ctx.initial_prompt.map(|prompt| prompt.to_string());
+        let config = copilot::CopilotConfig {
+            binary_path: Some(
+                ctx.binary_override
+                    .unwrap_or(&ctx.manifest.default_binary_path)
+                    .to_string(),
+            ),
+        };
+        let command = copilot::build_copilot_command_with_config(
+            ctx.worktree_path,
+            ctx.session_id,
+            ctx.skip_permissions,
+            Some(&config),
+        );
+        AgentLaunchSpec::new(command, ctx.worktree_path.to_path_buf())
+            .with_initial_command(initial_command)
     }
 }

@@ -26,6 +26,9 @@ Schaltwerk’s workflow revolves around sessions (isolated git worktrees), reusa
   <Card title="Claude Code" icon="robot">
     CLI interface from Anthropic that runs in Schaltwerk’s orchestrator terminal. When you start a Claude Code session, the top terminal launches the `claude` CLI.
   </Card>
+  <Card title="GitHub Copilot" icon="robot">
+    GitHub’s Copilot CLI runs directly in the session terminal. Install it with `npm install -g @github/copilot`, trust the worktree once via `/cwd /trust`, and Schaltwerk auto-sends your first prompt when the CLI finishes booting.
+  </Card>
   <Card title="Codex" icon="robot">
     Git-based AI agent from Stately used for repository automation. Configurable via Settings → Agent Configuration.
   </Card>

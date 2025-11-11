@@ -22,6 +22,7 @@ describe('useSettings', () => {
       
       const envVars: Record<AgentType, Array<{key: string, value: string}>> = {
         claude: [{ key: 'API_KEY', value: 'test-key' }],
+        copilot: [{ key: 'GITHUB_TOKEN', value: 'ghu_test' }],
         opencode: [{ key: 'OPENAI_API_KEY', value: 'openai-key' }],
         gemini: [{ key: 'PROJECT_ID', value: 'test-id' }],
         codex: [],
@@ -33,6 +34,7 @@ describe('useSettings', () => {
 
       const cliArgs: Record<AgentType, string> = {
         claude: '--verbose',
+        copilot: '--allow-all-tools',
         opencode: '--temperature 0.8',
         gemini: '--project test',
         codex: '',
@@ -44,6 +46,7 @@ describe('useSettings', () => {
 
       const preferences: Record<AgentType, { model: string; reasoningEffort: string }> = {
         claude: { model: '', reasoningEffort: '' },
+        copilot: { model: '', reasoningEffort: '' },
         opencode: { model: '', reasoningEffort: '' },
         gemini: { model: '', reasoningEffort: '' },
         codex: { model: 'gpt-5-codex high ', reasoningEffort: ' high' },
@@ -64,6 +67,14 @@ describe('useSettings', () => {
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetAgentCliArgs, {
         agentType: 'claude',
         cliArgs: '--verbose'
+      })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetAgentEnvVars, {
+        agentType: 'copilot',
+        envVars: { GITHUB_TOKEN: 'ghu_test' }
+      })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetAgentCliArgs, {
+        agentType: 'copilot',
+        cliArgs: '--allow-all-tools'
       })
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetAgentEnvVars, {
         agentType: 'opencode',
@@ -111,7 +122,14 @@ describe('useSettings', () => {
           reasoning_effort: null,
         },
       })
-      expect(mockInvoke).toHaveBeenCalledTimes(24)
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetAgentPreferences, {
+        agentType: 'copilot',
+        preferences: {
+          model: null,
+          reasoning_effort: null,
+        },
+      })
+      expect(mockInvoke).toHaveBeenCalledTimes(27)
     })
 
     it('filters out empty environment variable keys', async () => {
@@ -123,6 +141,7 @@ describe('useSettings', () => {
           { key: '', value: 'orphan-value' },
           { key: '  ', value: 'whitespace-key' }
         ],
+        copilot: [],
         opencode: [],
         gemini: [],
         codex: [],
@@ -134,6 +153,7 @@ describe('useSettings', () => {
 
       const cliArgs: Record<AgentType, string> = {
         claude: '',
+        copilot: '',
         opencode: '',
         gemini: '',
         codex: '',
@@ -145,6 +165,7 @@ describe('useSettings', () => {
 
       const preferences: Record<AgentType, { model: string; reasoningEffort: string }> = {
         claude: { model: '', reasoningEffort: '' },
+        copilot: { model: '', reasoningEffort: '' },
         opencode: { model: '', reasoningEffort: '' },
         gemini: { model: '', reasoningEffort: '' },
         codex: { model: '', reasoningEffort: '' },
@@ -319,6 +340,7 @@ describe('useSettings', () => {
 
       const envVars: Record<AgentType, Array<{key: string, value: string}>> = {
         claude: [],
+        copilot: [],
         opencode: [],
         gemini: [],
         codex: [],
@@ -330,6 +352,7 @@ describe('useSettings', () => {
 
       const cliArgs: Record<AgentType, string> = {
         claude: '',
+        copilot: '',
         opencode: '',
         gemini: '',
         codex: '',
@@ -341,6 +364,7 @@ describe('useSettings', () => {
 
       const preferences: Record<AgentType, { model: string; reasoningEffort: string }> = {
         claude: { model: '', reasoningEffort: '' },
+        copilot: { model: '', reasoningEffort: '' },
         opencode: { model: '', reasoningEffort: '' },
         gemini: { model: '', reasoningEffort: '' },
         codex: { model: '', reasoningEffort: '' },
@@ -409,6 +433,7 @@ describe('useSettings', () => {
 
       const envVars: Record<AgentType, Array<{key: string, value: string}>> = {
         claude: [],
+        copilot: [],
         opencode: [],
         gemini: [],
         codex: [],
@@ -420,6 +445,7 @@ describe('useSettings', () => {
 
       const cliArgs: Record<AgentType, string> = {
         claude: '',
+        copilot: '',
         opencode: '',
         gemini: '',
         codex: '',
@@ -431,6 +457,7 @@ describe('useSettings', () => {
 
       const preferences: Record<AgentType, { model: string; reasoningEffort: string }> = {
         claude: { model: '', reasoningEffort: '' },
+        copilot: { model: '', reasoningEffort: '' },
         opencode: { model: '', reasoningEffort: '' },
         gemini: { model: '', reasoningEffort: '' },
         codex: { model: '', reasoningEffort: '' },
@@ -494,6 +521,7 @@ describe('useSettings', () => {
 
       const envVars: Record<AgentType, Array<{key: string, value: string}>> = {
         claude: [],
+        copilot: [],
         opencode: [],
         gemini: [],
         codex: [],
@@ -505,6 +533,7 @@ describe('useSettings', () => {
 
       const cliArgs: Record<AgentType, string> = {
         claude: '',
+        copilot: '',
         opencode: '',
         gemini: '',
         codex: '',
@@ -516,6 +545,7 @@ describe('useSettings', () => {
 
       const preferences: Record<AgentType, { model: string; reasoningEffort: string }> = {
         claude: { model: '', reasoningEffort: '' },
+        copilot: { model: '', reasoningEffort: '' },
         opencode: { model: '', reasoningEffort: '' },
         gemini: { model: '', reasoningEffort: '' },
         codex: { model: '', reasoningEffort: '' },
@@ -628,6 +658,7 @@ describe('useSettings', () => {
 
       expect(loadedVars).toEqual({
         claude: [{ key: 'API_KEY', value: 'claude-key' }],
+        copilot: [],
         opencode: [],
         gemini: [{ key: 'PROJECT', value: 'gemini-project' }],
         codex: [],
@@ -650,6 +681,7 @@ describe('useSettings', () => {
 
       expect(loadedVars).toEqual({
         claude: [],
+        copilot: [],
         opencode: [],
         gemini: [],
         codex: [],
@@ -685,6 +717,7 @@ describe('useSettings', () => {
 
       expect(loadedArgs).toEqual({
         claude: '--verbose --debug',
+        copilot: '',
         opencode: '--silent',
         gemini: '',
         codex: '',
@@ -706,6 +739,7 @@ describe('useSettings', () => {
 
       expect(loadedArgs).toEqual({
         claude: '',
+        copilot: '',
         opencode: '',
         gemini: '',
         codex: '',

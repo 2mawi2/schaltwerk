@@ -99,6 +99,7 @@ describe('ModelSelector', () => {
 
     // Ensure all options are present
     expect(screen.getAllByRole('button', { name: 'Claude' })).toHaveLength(2)
+    expect(screen.getByRole('button', { name: 'GitHub Copilot' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'OpenCode' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Gemini' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Codex' })).toBeInTheDocument()
@@ -125,11 +126,11 @@ describe('ModelSelector', () => {
     toggle.focus()
     await user.keyboard('{Enter}')
 
-    // Move to second option (OpenCode) using arrow down
+    // Move to second option (GitHub Copilot) using arrow down
     await user.keyboard('{ArrowDown}')
     await user.keyboard('{Enter}')
 
-    expect(onChange).toHaveBeenCalledWith('opencode')
+    expect(onChange).toHaveBeenCalledWith('copilot')
   })
 
   test('disabled state prevents opening and interaction', async () => {
@@ -204,7 +205,7 @@ describe('ModelSelector', () => {
     await user.keyboard('{ArrowDown}')
     await user.keyboard('{Enter}')
 
-    expect(onChange).toHaveBeenCalledWith('opencode')
+    expect(onChange).toHaveBeenCalledWith('copilot')
   })
 
   test('filters available options when allowedAgents is provided', async () => {
@@ -229,7 +230,7 @@ describe('ModelSelector', () => {
     await user.keyboard('{ArrowUp}')
     await user.keyboard('{Enter}')
 
-    expect(onChange).toHaveBeenCalledWith('claude')
+    expect(onChange).toHaveBeenCalledWith('copilot')
   })
 
   test('keyboard navigation: wraps around when reaching boundaries', async () => {

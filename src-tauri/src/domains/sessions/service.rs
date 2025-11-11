@@ -8,14 +8,7 @@ use std::path::{Path, PathBuf};
 use which::which;
 const GIT_STATS_STALE_THRESHOLD_SECS: i64 = 60;
 const AGENT_FALLBACK_ORDER: &[&str] = &[
-    "claude",
-    "codex",
-    "opencode",
-    "gemini",
-    "droid",
-    "qwen",
-    "amp",
-    "terminal",
+    "claude", "copilot", "codex", "opencode", "gemini", "droid", "qwen", "amp", "terminal",
 ];
 
 fn get_or_compute_git_stats(
@@ -66,7 +59,8 @@ fn normalize_binary_path(raw: &str) -> Option<String> {
         trimmed.to_string()
     };
 
-    if let (Some(path_after_tilde), Ok(home)) = (unquoted.strip_prefix("~/"), std::env::var("HOME")) {
+    if let (Some(path_after_tilde), Ok(home)) = (unquoted.strip_prefix("~/"), std::env::var("HOME"))
+    {
         return Some(format!("{home}/{path_after_tilde}"));
     }
 
@@ -96,10 +90,7 @@ fn agent_binary_available(agent: &str, binary_paths: &HashMap<String, String>) -
         .unwrap_or(false)
 }
 
-fn resolve_launch_agent(
-    preferred: &str,
-    binary_paths: &HashMap<String, String>,
-) -> (String, bool) {
+fn resolve_launch_agent(preferred: &str, binary_paths: &HashMap<String, String>) -> (String, bool) {
     let preferred_normalized = preferred.trim();
     let desired = if preferred_normalized.is_empty() {
         "claude".to_string()
@@ -2425,8 +2416,7 @@ impl SessionManager {
             .original_agent_type
             .clone()
             .unwrap_or(self.db_manager.get_agent_type()?);
-        let (agent_type, used_fallback) =
-            resolve_launch_agent(&requested_agent_type, binary_paths);
+        let (agent_type, used_fallback) = resolve_launch_agent(&requested_agent_type, binary_paths);
 
         if used_fallback {
             log::warn!(
@@ -2860,8 +2850,7 @@ impl SessionManager {
 
         let skip_permissions = self.db_manager.get_orchestrator_skip_permissions()?;
         let requested_agent_type = self.db_manager.get_orchestrator_agent_type()?;
-        let (agent_type, used_fallback) =
-            resolve_launch_agent(&requested_agent_type, binary_paths);
+        let (agent_type, used_fallback) = resolve_launch_agent(&requested_agent_type, binary_paths);
 
         if used_fallback {
             log::warn!(
@@ -2916,8 +2905,7 @@ impl SessionManager {
 
         let skip_permissions = self.db_manager.get_orchestrator_skip_permissions()?;
         let requested_agent_type = self.db_manager.get_orchestrator_agent_type()?;
-        let (agent_type, used_fallback) =
-            resolve_launch_agent(&requested_agent_type, binary_paths);
+        let (agent_type, used_fallback) = resolve_launch_agent(&requested_agent_type, binary_paths);
 
         if used_fallback {
             log::warn!(
