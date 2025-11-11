@@ -8,7 +8,15 @@ use std::path::{Path, PathBuf};
 use which::which;
 const GIT_STATS_STALE_THRESHOLD_SECS: i64 = 60;
 const AGENT_FALLBACK_ORDER: &[&str] = &[
-    "claude", "copilot", "codex", "opencode", "gemini", "droid", "qwen", "amp", "terminal",
+    "claude",
+    "copilot",
+    "codex",
+    "opencode",
+    "gemini",
+    "droid",
+    "qwen",
+    "amp",
+    "terminal",
 ];
 
 fn get_or_compute_git_stats(

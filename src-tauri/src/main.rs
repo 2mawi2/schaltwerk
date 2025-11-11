@@ -990,6 +990,7 @@ fn main() {
             get_git_graph_history,
             get_git_graph_commit_files,
             create_new_project,
+            schaltwerk_core_clone_project,
             initialize_project,
             get_project_default_branch,
             list_project_branches,

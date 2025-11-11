@@ -15,20 +15,13 @@ export function determineRunModeState(sessionKey: string): RunModeState {
     const savedActiveTab = savedActiveTabStr !== null ? parseInt(savedActiveTabStr, 10) : null
     
     if (isFirstVisit) {
-        // Mark as visited and activate run mode for first-time users
+        // Mark as visited so we do not auto-activate run mode on subsequent loads
         sessionStorage.setItem(firstVisitKey, 'true')
-        sessionStorage.setItem(runModeKey, 'true')
-        return {
-            isFirstVisit: true,
-            shouldActivateRunMode: true,
-            savedActiveTab
-        }
     }
     
     return {
-        isFirstVisit: false,
+        isFirstVisit,
         shouldActivateRunMode: savedRunMode,
         savedActiveTab
     }
 }
-
