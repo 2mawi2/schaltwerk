@@ -173,4 +173,5 @@ export const TauriCommands = {
    ClipboardWriteText: 'clipboard_write_text',
    ClipboardReadText: 'clipboard_read_text',
   CheckForUpdatesNow: 'check_for_updates_now',
+  TogglePreviewDevtools: 'toggle_preview_devtools',
 } as const

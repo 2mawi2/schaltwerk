@@ -3,10 +3,12 @@ import tseslint from '@typescript-eslint/eslint-plugin';
 import tsparser from '@typescript-eslint/parser';
 import reactHooks from 'eslint-plugin-react-hooks';
 import noEmptyCatchHandlers from './eslint-rules/no-empty-catch-handlers.js';
+import noTailwindFontSizes from './eslint-rules/no-tailwind-font-sizes.js';
 
 const localPlugin = {
   rules: {
     'no-empty-catch-handlers': noEmptyCatchHandlers,
+    'no-tailwind-font-sizes': noTailwindFontSizes,
   },
 };
 
@@ -89,6 +91,18 @@ export default [
       'no-undef': 'off', // Turn off since we define globals above
       'no-empty': ['error', { allowEmptyCatch: false }], // Disallow empty catch blocks
       'local/no-empty-catch-handlers': 'error', // Disallow empty .catch() handlers
+    },
+  },
+  {
+    files: [
+      'src/components/sidebar/SessionCard.tsx',
+      'src/components/specs/**/*.{ts,tsx}',
+      'src/components/plans/SpecEditor.tsx',
+      'src/components/terminal/UnifiedTab.tsx',
+      'src/components/terminal/TerminalTabs.tsx',
+    ],
+    rules: {
+      'local/no-tailwind-font-sizes': 'error',
     },
   },
   {

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { theme } from '../../common/theme'
+import { typography } from '../../common/typography'
 import { EnrichedSession } from '../../types/session'
 import { VscFiles, VscClose } from 'react-icons/vsc'
 import { SpecEditor } from '../plans/SpecEditor'
@@ -87,8 +88,10 @@ export function SpecWorkspacePanel({
                 <span className="max-w-[120px] truncate">{displayName}</span>
                 {hasUnsaved && (
                   <span
-                    className="px-1.5 py-0.5 rounded text-[10px]"
+                    className="px-1.5 py-0.5 rounded"
                     style={{
+                      ...typography.caption,
+                      lineHeight: theme.lineHeight.compact,
                       backgroundColor: theme.colors.accent.amber.bg,
                       color: theme.colors.accent.amber.DEFAULT
                     }}

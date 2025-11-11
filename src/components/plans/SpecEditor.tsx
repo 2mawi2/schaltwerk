@@ -15,6 +15,7 @@ import { useSelection } from '../../hooks/useSelection'
 import { useSessions } from '../../hooks/useSessions'
 import { emitSpecRefine, buildSpecRefineReference } from '../../utils/specRefine'
 import { theme } from '../../common/theme'
+import { typography } from '../../common/typography'
 import { useAtom, useSetAtom } from 'jotai'
 import {
   markSpecEditorSessionSavedAtom,
@@ -22,6 +23,36 @@ import {
   specEditorSavedContentAtomFamily,
   specEditorViewModeAtomFamily,
 } from '../../store/atoms/specEditor'
+
+const specText = {
+  title: {
+    ...typography.headingLarge,
+    color: theme.colors.text.primary,
+    fontWeight: 600,
+  },
+  badge: {
+    ...typography.caption,
+    lineHeight: theme.lineHeight.compact,
+    color: theme.colors.text.tertiary,
+  },
+  saving: {
+    ...typography.caption,
+    lineHeight: theme.lineHeight.compact,
+    color: theme.colors.accent.blue.light,
+  },
+  toolbarButton: {
+    ...typography.button,
+    lineHeight: theme.lineHeight.compact,
+  },
+  toolbarMeta: {
+    ...typography.caption,
+    color: theme.colors.text.tertiary,
+  },
+  toolbarMetaError: {
+    ...typography.caption,
+    color: theme.colors.accent.red.light,
+  },
+}
 
 interface Props {
   sessionName: string
@@ -235,19 +266,35 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
     <div className="h-full flex flex-col bg-panel">
       <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <h2 className="text-sm font-semibold text-slate-200 truncate">{displayName || sessionName}</h2>
+          <h2 className="truncate" style={specText.title}>{displayName || sessionName}</h2>
           {!disableFocusShortcut && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400" title={viewMode === 'edit' ? 'Focus spec content' : 'Edit spec content'}>⌘T</span>
+            <span
+              className="px-1.5 py-0.5 rounded bg-slate-700/50"
+              style={specText.badge}
+              title={viewMode === 'edit' ? 'Focus spec content' : 'Edit spec content'}
+            >
+              ⌘T
+            </span>
           )}
           {saving && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-700/50 text-blue-400" title="Saving...">💾</span>
+            <span
+              className="px-1.5 py-0.5 rounded"
+              style={{
+                ...specText.saving,
+                backgroundColor: theme.colors.accent.blue.bg,
+              }}
+              title="Saving..."
+            >
+              💾
+            </span>
           )}
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={handleRefine}
-            className="px-2 py-1 text-xs rounded flex items-center gap-1 hover:opacity-90"
+            className="px-2 py-1 rounded flex items-center gap-1 hover:opacity-90"
             style={{
+              ...specText.toolbarButton,
               backgroundColor: theme.colors.accent.blue.DEFAULT,
               color: theme.colors.text.inverse
             }}
@@ -258,7 +305,8 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
           </button>
           <button
             onClick={() => setViewMode(viewMode === 'edit' ? 'preview' : 'edit')}
-            className="px-2 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600 text-white flex items-center gap-1"
+            className="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-white flex items-center gap-1"
+            style={specText.toolbarButton}
             title={viewMode === 'edit' ? 'Preview markdown' : 'Edit markdown'}
           >
             {viewMode === 'edit' ? <VscEye /> : <VscEdit />}
@@ -267,7 +315,8 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
           <button
             onClick={handleRun}
             disabled={starting}
-            className="px-3 py-1 text-xs rounded bg-green-600 hover:bg-green-500 text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-1 rounded bg-green-600 hover:bg-green-500 text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+            style={specText.toolbarButton}
             title="Run agent"
           >
             <VscPlay />
@@ -280,7 +329,8 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
           <button
             onClick={handleCopy}
             disabled={copying || !currentContent}
-            className="px-2 py-1 text-xs rounded bg-blue-700 hover:bg-blue-600 text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-2 py-1 rounded bg-blue-700 hover:bg-blue-600 text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+            style={specText.toolbarButton}
             title="Copy content"
           >
             <VscCopy />
@@ -290,9 +340,9 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
       </div>
 
       <div className="px-4 py-1 border-b border-slate-800 flex items-center justify-between">
-        <div className="text-xs text-slate-400">
+        <div style={specText.toolbarMeta}>
           {error ? (
-            <span className="text-red-400">{error}</span>
+            <span style={specText.toolbarMetaError}>{error}</span>
           ) : viewMode === 'edit' ? (
             'Editing spec — Type @ to reference project files'
           ) : (

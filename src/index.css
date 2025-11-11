@@ -10,6 +10,7 @@ body,
   color-scheme: dark;
   font-size: var(--ui-font-size);
   line-height: var(--line-height-body);
+  font-family: var(--font-family-sans);
 }
 
 body,
@@ -18,6 +19,14 @@ input,
 textarea,
 select {
   line-height: inherit;
+  font-family: var(--font-family-sans);
+}
+
+code,
+pre,
+kbd,
+samp {
+  font-family: var(--font-family-mono);
 }
 
 button {
@@ -59,7 +68,7 @@ button:disabled {
 
 /* Improve rasterization of box-drawing characters in ASCII logo */
 .ascii-logo {
-  font-family: Menlo, Monaco, Consolas, "Liberation Mono", monospace !important;
+  font-family: var(--font-family-mono) !important;
   font-variant-ligatures: none;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
