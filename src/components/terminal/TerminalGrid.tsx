@@ -37,6 +37,8 @@ type TerminalTabsUiState = {
     canAddTab: boolean
 }
 
+const shouldUseBracketedPaste = (agent?: string | null) => agent !== 'claude' && agent !== 'droid'
+
 const createInitialTabsState = (baseTerminalId: string): TerminalTabsUiState => ({
     tabs: [{ index: 0, terminalId: baseTerminalId, label: 'Terminal 1' }],
     activeTab: 0,
@@ -1031,7 +1033,8 @@ const TerminalGridComponent = () => {
                                                     // Use the actual terminal ID from context
                                                     await invoke(TauriCommands.PasteAndSubmitTerminal, { 
                                                         id: terminals.top, 
-                                                        data: action.prompt 
+                                                        data: action.prompt,
+                                                        useBracketedPaste: shouldUseBracketedPaste(agentType)
                                                     })
                                                     
                                                     // Restore focus to the previously focused terminal
