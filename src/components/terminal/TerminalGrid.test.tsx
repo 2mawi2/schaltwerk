@@ -327,6 +327,33 @@ vi.mock('@tauri-apps/api/core', () => ({
 import { invoke } from '@tauri-apps/api/core'
 const mockInvoke = vi.mocked(invoke)
 
+const defaultInvokeImplementation = (command: string, args?: MockTauriInvokeArgs) => {
+  switch (command) {
+    case TauriCommands.GetCurrentDirectory:
+      return Promise.resolve('/test/cwd')
+    case TauriCommands.TerminalExists:
+      // Terminal doesn't exist initially, forcing creation
+      return Promise.resolve(false)
+    case TauriCommands.CreateTerminal: {
+      // Mark as created
+      const terminalId = (args as { id?: string })?.id
+      if (terminalId) {
+        mountCount.set(terminalId, 0) // Mark as created but not yet mounted
+      }
+      return Promise.resolve()
+    }
+    case TauriCommands.SchaltwerkCoreGetSession:
+      return Promise.resolve({
+        worktree_path: '/session/worktree',
+        session_id: (args as { name?: string })?.name || 'test-session',
+      })
+    case TauriCommands.GetProjectActionButtons:
+      return Promise.resolve([])
+    default:
+      return Promise.resolve(undefined)
+  }
+}
+
 // Now import component under test and helpers
 import { TerminalGrid } from './TerminalGrid'
 import { TestProviders } from '../../tests/test-utils'
@@ -379,32 +406,7 @@ beforeEach(() => {
     savedActiveTab: null,
   })
 
-  mockInvoke.mockImplementation((command: string, args?: MockTauriInvokeArgs) => {
-    switch (command) {
-      case TauriCommands.GetCurrentDirectory:
-        return Promise.resolve('/test/cwd')
-      case TauriCommands.TerminalExists:
-        // Terminal doesn't exist initially, forcing creation
-        return Promise.resolve(false)
-      case TauriCommands.CreateTerminal: {
-        // Mark as created
-        const terminalId = (args as { id?: string })?.id
-        if (terminalId) {
-          mountCount.set(terminalId, 0) // Mark as created but not yet mounted
-        }
-        return Promise.resolve()
-      }
-      case TauriCommands.SchaltwerkCoreGetSession:
-        return Promise.resolve({
-          worktree_path: '/session/worktree',
-          session_id: (args as { name?: string })?.name || 'test-session',
-        })
-      case TauriCommands.GetProjectActionButtons:
-        return Promise.resolve([])
-      default:
-        return Promise.resolve(undefined)
-    }
-  })
+  mockInvoke.mockImplementation(defaultInvokeImplementation)
 })
 
 afterEach(() => {
@@ -537,6 +539,64 @@ describe('TerminalGrid', () => {
     await waitFor(() => {
       expect(bottomFocusSpy.__getFocusSpy(bottomTerminalId)).toHaveBeenCalled()
     }, { timeout: 2000 })
+  })
+
+  describe('Action buttons', () => {
+    const actionButtonsPayload = [
+      { id: 'custom-1', label: 'Deploy Patch', prompt: 'Run deploy --env=staging', color: 'amber' as const },
+    ]
+
+    function configureActionButtonScenario(agent: string) {
+      mockInvoke.mockImplementation((command: string, args?: MockTauriInvokeArgs) => {
+        if (command === TauriCommands.GetProjectActionButtons) {
+          return Promise.resolve(actionButtonsPayload)
+        }
+        if (command === TauriCommands.SchaltwerkCoreGetOrchestratorAgentType) {
+          return Promise.resolve(agent)
+        }
+        return defaultInvokeImplementation(command, args)
+      })
+    }
+
+    it('uses bracketed paste for non-Claude agents when clicking action buttons', async () => {
+      configureActionButtonScenario('opencode')
+      renderGrid()
+      await waitForGridReady()
+
+      const button = await screen.findByText('Deploy Patch')
+      fireEvent.click(button)
+
+      await waitFor(() => {
+        const pasteCalls = mockInvoke.mock.calls.filter(([cmd]) => cmd === TauriCommands.PasteAndSubmitTerminal)
+        expect(pasteCalls.length).toBeGreaterThan(0)
+        const [, args] = pasteCalls[pasteCalls.length - 1] as [string, Record<string, unknown>]
+        expect(args).toMatchObject({
+          id: bridge?.terminals.top,
+          data: 'Run deploy --env=staging',
+          useBracketedPaste: true,
+        })
+      }, { timeout: 2000 })
+    })
+
+    it('disables bracketed paste for Claude/Droid agents when clicking action buttons', async () => {
+      configureActionButtonScenario('claude')
+      renderGrid()
+      await waitForGridReady()
+
+      const button = await screen.findByText('Deploy Patch')
+      fireEvent.click(button)
+
+      await waitFor(() => {
+        const pasteCalls = mockInvoke.mock.calls.filter(([cmd]) => cmd === TauriCommands.PasteAndSubmitTerminal)
+        expect(pasteCalls.length).toBeGreaterThan(0)
+        const [, args] = pasteCalls[pasteCalls.length - 1] as [string, Record<string, unknown>]
+        expect(args).toMatchObject({
+          id: bridge?.terminals.top,
+          data: 'Run deploy --env=staging',
+          useBracketedPaste: false,
+        })
+      }, { timeout: 2000 })
+    })
   })
 
   it('switches terminals when session changes and focuses according to session focus state', async () => {
