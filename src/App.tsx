@@ -493,6 +493,17 @@ function AppContent() {
     onAttentionSummaryChange: handleAttentionSummaryChange,
   })
 
+  const shouldBlockSessionModal = useCallback(
+    (reason: string) => {
+      if (showHome || !projectPath) {
+        logger.info('[App] Ignoring modal request because Home is active or no project selected:', reason)
+        return true
+      }
+      return false
+    },
+    [projectPath, showHome]
+  )
+
   const handleLeftSplitDragEnd = useCallback((nextSizes: number[]) => {
     if (!Array.isArray(nextSizes) || nextSizes.length < 2 || isLeftPanelCollapsed) {
       return
@@ -757,6 +768,9 @@ function AppContent() {
 
       if (!newSessionOpen && !cancelModalOpen && !isInputFocused && isShortcutForAction(e, KeyboardShortcutAction.NewSession, keyboardShortcutConfig, { platform })) {
         e.preventDefault()
+        if (shouldBlockSessionModal('new session shortcut')) {
+          return
+        }
         logger.info('[App] New session shortcut triggered - opening new session modal (agent mode)')
         previousFocusRef.current = document.activeElement
         setOpenAsSpec(false)
@@ -766,6 +780,9 @@ function AppContent() {
 
       if (!newSessionOpen && !cancelModalOpen && !isInputFocused && isShortcutForAction(e, KeyboardShortcutAction.NewSpec, keyboardShortcutConfig, { platform })) {
         e.preventDefault()
+        if (shouldBlockSessionModal('new spec shortcut')) {
+          return
+        }
         logger.info('[App] New spec shortcut triggered - opening new session modal (spec creation)')
         previousFocusRef.current = document.activeElement
         setOpenAsSpec(true)
@@ -801,10 +818,13 @@ function AppContent() {
     const handleGlobalNewSession = () => {
       // Handle ⌘N from terminal (custom event)
       if (!newSessionOpen && !cancelModalOpen) {
+        if (shouldBlockSessionModal('global new session shortcut')) {
+          return
+        }
         logger.info('[App] Global new session shortcut triggered (agent mode)')
         // Store current focus before opening modal
         previousFocusRef.current = document.activeElement
-         setOpenAsSpec(false) // Explicitly set to false for global shortcut
+        setOpenAsSpec(false) // Explicitly set to false for global shortcut
         setNewSessionOpen(true)
       }
     }
@@ -833,31 +853,37 @@ function AppContent() {
       cleanupOpenDiffView()
       cleanupOpenDiffFile()
     }
-  }, [newSessionOpen, cancelModalOpen, increaseFontSizes, decreaseFontSizes, resetFontSizes, keyboardShortcutConfig, platform])
+  }, [newSessionOpen, cancelModalOpen, increaseFontSizes, decreaseFontSizes, resetFontSizes, keyboardShortcutConfig, platform, shouldBlockSessionModal])
 
   // Open NewSessionModal in spec creation mode when requested
   useEffect(() => {
     const cleanup = listenUiEvent(UiEvent.NewSpecRequest, () => {
+      if (shouldBlockSessionModal('new spec request event')) {
+        return
+      }
       logger.info('[App] schaltwerk:new-spec event received - opening modal for spec creation')
       previousFocusRef.current = document.activeElement
-                       setOpenAsSpec(true)
+      setOpenAsSpec(true)
       setNewSessionOpen(true)
     })
     return cleanup
-  }, [])
+  }, [shouldBlockSessionModal])
   
   
 
   // Open NewSessionModal for new agent when requested
   useEffect(() => {
     const cleanup = listenUiEvent(UiEvent.NewSessionRequest, () => {
+      if (shouldBlockSessionModal('new session request event')) {
+        return
+      }
       logger.info('[App] schaltwerk:new-session event received - opening modal in agent mode')
       previousFocusRef.current = document.activeElement
-       setOpenAsSpec(false)
+      setOpenAsSpec(false)
       setNewSessionOpen(true)
     })
     return cleanup
-  }, [])
+  }, [shouldBlockSessionModal])
 
   useEffect(() => {
     const cleanup = listenUiEvent(UiEvent.OpenSettings, detail => {
@@ -876,6 +902,11 @@ function AppContent() {
         logger.warn('[App] No name provided in start-agent-from-spec event')
         return
       }
+
+      if (shouldBlockSessionModal('start-agent-from-spec event')) {
+        return
+      }
+
       // Store focus and open modal
       previousFocusRef.current = document.activeElement
 
@@ -903,7 +934,7 @@ function AppContent() {
       }
     })
     return cleanup
-  }, [fetchSessionForPrefill])
+  }, [fetchSessionForPrefill, shouldBlockSessionModal])
 
 
   const handleDeleteSpec = async () => {
