@@ -126,6 +126,42 @@ describe('terminalOutputManager', () => {
     expect(listenerB).toHaveBeenCalledWith('hello world')
   })
 
+  it('forces text presentation for record button symbol', async () => {
+    const unlisten = vi.fn()
+    listenMock.mockResolvedValueOnce(unlisten)
+    invokeMock.mockResolvedValueOnce({ seq: 0, startSeq: 0, data: '' })
+
+    const listener = vi.fn()
+    terminalOutputManager.addListener(TERMINAL_ID, listener)
+    await terminalOutputManager.ensureStarted(TERMINAL_ID)
+
+    const callback = listenMock.mock.calls[0][1] as (chunk: string) => void
+    const emojiVariant = '\u23fa\uFE0F'
+    const plainVariant = '\u23fa'
+    callback(`recording ${emojiVariant} plain ${plainVariant}`)
+
+    const expectedTextVariant = '\u23fa\uFE0E'
+    expect(listener).toHaveBeenCalledWith(`recording ${expectedTextVariant} plain ${expectedTextVariant}`)
+  })
+
+  it('forces text presentation for pause symbol', async () => {
+    const unlisten = vi.fn()
+    listenMock.mockResolvedValueOnce(unlisten)
+    invokeMock.mockResolvedValueOnce({ seq: 0, startSeq: 0, data: '' })
+
+    const listener = vi.fn()
+    terminalOutputManager.addListener(TERMINAL_ID, listener)
+    await terminalOutputManager.ensureStarted(TERMINAL_ID)
+
+    const callback = listenMock.mock.calls[0][1] as (chunk: string) => void
+    const emojiVariant = '\u23f8\uFE0F'
+    const plainVariant = '\u23f8'
+    callback(`status ${emojiVariant} plain ${plainVariant}`)
+
+    const expectedTextVariant = '\u23f8\uFE0E'
+    expect(listener).toHaveBeenCalledWith(`status ${expectedTextVariant} plain ${expectedTextVariant}`)
+  })
+
   it('ignores non-string chunks from standard stream', async () => {
     const unlisten = vi.fn()
     listenMock.mockResolvedValueOnce(unlisten)

@@ -9,6 +9,7 @@ export interface ToastOptions {
   title: string
   description?: string
   durationMs?: number
+  copyText?: string
   action?: {
     label: string
     onClick: () => void
@@ -41,7 +42,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const pushToast = useCallback((options: ToastOptions) => {
     const id = makeId()
-    const entry: ToastEntry = { ...options, id }
+    const defaultCopyText = options.description ? `${options.title}\n\n${options.description}` : options.title
+    const copyText = options.copyText ?? (options.tone === 'error' ? defaultCopyText : undefined)
+    const entry: ToastEntry = { ...options, id, copyText }
     const duration = options.durationMs ?? 4000
 
     logger.info(
@@ -85,7 +88,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       {typeof document !== 'undefined' && createPortal(
         <div
-          className="pointer-events-none fixed bottom-4 right-4 z-[2000] flex w-full max-w-sm flex-col gap-3 px-2"
+          className="pointer-events-auto fixed bottom-4 right-4 z-[2000] flex w-full max-w-sm flex-col gap-3 px-2"
           aria-live="polite"
           aria-atomic="false"
         >
@@ -95,6 +98,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               tone={toast.tone}
               title={toast.title}
               description={toast.description}
+              copyText={toast.copyText}
               action={toast.action ? {
                 label: toast.action.label,
                 onClick: () => {

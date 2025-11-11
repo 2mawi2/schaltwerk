@@ -1,10 +1,14 @@
+import { useState } from 'react'
 import { theme } from '../theme'
 import './toastAnimations.css'
+import { writeClipboard } from '../../utils/clipboard'
+import { logger } from '../../utils/logger'
 
 interface ToastCardProps {
   tone: 'success' | 'warning' | 'error' | 'info'
   title: string
   description?: string
+  copyText?: string
   action?: {
     label: string
     onClick: () => void
@@ -58,7 +62,7 @@ const ToastIcon = ({ tone }: { tone: ToastCardProps['tone'] }) => {
   )
 }
 
-export function ToastCard({ tone, title, description, action, onDismiss }: ToastCardProps) {
+export function ToastCard({ tone, title, description, action, copyText, onDismiss }: ToastCardProps) {
   const accentColor = (() => {
     switch (tone) {
       case 'success':
@@ -72,6 +76,20 @@ export function ToastCard({ tone, title, description, action, onDismiss }: Toast
         return theme.colors.accent.red.DEFAULT
     }
   })()
+
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
+
+  const handleCopy = async () => {
+    if (!copyText) return
+    setCopyState('idle')
+    const success = await writeClipboard(copyText)
+    if (!success) {
+      setCopyState('failed')
+      logger.error('[ToastCard] Failed to copy toast text')
+      return
+    }
+    setCopyState('copied')
+  }
 
   return (
     <div
@@ -108,19 +126,53 @@ export function ToastCard({ tone, title, description, action, onDismiss }: Toast
               {description}
             </div>
           )}
-          {action && (
-            <button
-              type="button"
-              onClick={action.onClick}
-              className="mt-2 inline-flex items-center gap-1 rounded px-3 py-1.5 font-medium transition-all duration-150 hover:brightness-110"
-              style={{
-                backgroundColor: accentColor,
-                color: theme.colors.background.primary,
-                fontSize: theme.fontSize.button,
-              }}
-            >
-              {action.label}
-            </button>
+          {(action || copyText) && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {action && (
+                <button
+                  type="button"
+                  onClick={action.onClick}
+                  className="inline-flex items-center gap-1 rounded px-3 py-1.5 font-medium transition-all duration-150 hover:brightness-110"
+                  style={{
+                    backgroundColor: accentColor,
+                    color: theme.colors.background.primary,
+                    fontSize: theme.fontSize.button,
+                  }}
+                >
+                  {action.label}
+                </button>
+              )}
+              {copyText && (
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  aria-label="Copy error details"
+                  title="Copy error details"
+                  className="inline-flex items-center gap-1 rounded border px-2 py-1 font-medium transition-colors duration-150 hover:brightness-125"
+                  style={{
+                    borderColor: theme.colors.border.subtle,
+                    backgroundColor: theme.colors.background.primary,
+                    color: copyState === 'failed' ? theme.colors.accent.red.DEFAULT : theme.colors.text.primary,
+                    fontSize: theme.fontSize.caption,
+                  }}
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                  </svg>
+                  <span>{copyState === 'copied' ? 'Copied' : 'Copy'}</span>
+                </button>
+              )}
+            </div>
           )}
         </div>
 

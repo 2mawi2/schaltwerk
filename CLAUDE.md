@@ -187,6 +187,10 @@ Common mappings:
 - UI-specific: button, input, label, code, terminal
 - Import: `theme.fontSize.body` or `var(--font-body)`
 
+**Typography helpers**
+- All non-code UI text must use the shared system sans stack (`var(--font-family-sans)`, i.e., `-apple-system`, `BlinkMacSystemFont`, `Segoe UI`, etc.) and code/terminal text must use the mono stack (`var(--font-family-mono)`, i.e., `SFMono-Regular`, Menlo, Consolas, etc.). These stacks are wired through `theme.fontFamily`.
+- Prefer the helpers in `src/common/typography.ts` to pair semantic sizes with the correct line heights. Session cards, spec headings, and terminal labels are guarded by `local/no-tailwind-font-sizes` so Tailwind `text-*` utilities are rejected—reuse those helpers when touching those files.
+
 ## Testing Requirements
 
 ### TDD (MANDATORY)
@@ -381,6 +385,8 @@ Automatically updates versions, commits, tags, and triggers GitHub Actions.
 
 - Store all plan MD files in the `plans/` directory, not at the repository root
 - This keeps the root clean and organizes planning documents
+- If you create plans research the codebase or requested details first before making a plan for the implementation
+- Don't make plans for making plans, rather do the planning ahead and then implement
 
 ## Documentation
 

@@ -2,7 +2,7 @@ import { useMemo, useCallback } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { AGENT_TYPES, type AgentType, type EnrichedSession } from '../types/session'
 import type { SortMode, FilterMode } from '../types/sessionFilters'
-import type { MergeDialogState, MergeStatus } from '../store/atoms/sessions'
+import type { MergeDialogState, MergeStatus, ShortcutMergeResult } from '../store/atoms/sessions'
 import {
   allSessionsAtom,
   sessionsAtom,
@@ -24,6 +24,7 @@ import {
   openMergeDialogActionAtom,
   closeMergeDialogActionAtom,
   confirmMergeActionAtom,
+  shortcutMergeActionAtom,
   mergeInFlightSelectorAtom,
   mergeStatusSelectorAtom,
   autoCancelAfterMergeAtom,
@@ -58,6 +59,7 @@ export interface UseSessionsResult {
   openMergeDialog: (sessionId: string) => Promise<void>
   closeMergeDialog: () => void
   confirmMerge: (sessionId: string, mode: 'squash' | 'reapply', commitMessage?: string) => Promise<void>
+  quickMergeSession: (sessionId: string, options?: { commitMessage?: string | null }) => Promise<ShortcutMergeResult>
   isMergeInFlight: (sessionId: string) => boolean
   getMergeStatus: (sessionId: string) => MergeStatus
   autoCancelAfterMerge: boolean
@@ -89,6 +91,7 @@ export function useSessions(): UseSessionsResult {
   const openMergeDialogAtom = useSetAtom(openMergeDialogActionAtom)
   const closeMergeDialogAtom = useSetAtom(closeMergeDialogActionAtom)
   const confirmMergeAtom = useSetAtom(confirmMergeActionAtom)
+  const shortcutMergeAtom = useSetAtom(shortcutMergeActionAtom)
   const mergeInFlightSelector = useAtomValue(mergeInFlightSelectorAtom)
   const mergeStatusSelector = useAtomValue(mergeStatusSelectorAtom)
   const autoCancelAfterMerge = useAtomValue(autoCancelAfterMergeAtom)
@@ -135,6 +138,13 @@ export function useSessions(): UseSessionsResult {
   const confirmMerge = useCallback(async (sessionId: string, mode: 'squash' | 'reapply', commitMessage?: string) => {
     await confirmMergeAtom({ sessionId, mode, commitMessage })
   }, [confirmMergeAtom])
+
+  const quickMergeSession = useCallback(
+    async (sessionId: string, options?: { commitMessage?: string | null }) => {
+      return shortcutMergeAtom({ sessionId, commitMessage: options?.commitMessage ?? null })
+    },
+    [shortcutMergeAtom],
+  )
 
   const getMergeStatus = useCallback(
     (sessionId: string) => mergeStatusSelector(sessionId) ?? 'idle',
@@ -183,6 +193,7 @@ export function useSessions(): UseSessionsResult {
     openMergeDialog,
     closeMergeDialog,
     confirmMerge,
+    quickMergeSession,
     isMergeInFlight,
     getMergeStatus,
     autoCancelAfterMerge,
@@ -215,6 +226,7 @@ export function useSessions(): UseSessionsResult {
     openMergeDialog,
     closeMergeDialog,
     confirmMerge,
+    quickMergeSession,
     isMergeInFlight,
     getMergeStatus,
     autoCancelAfterMerge,
