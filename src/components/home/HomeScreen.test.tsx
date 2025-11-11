@@ -9,6 +9,27 @@ import { vi } from 'vitest'
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn() }))
 vi.mock('@tauri-apps/api/path', () => ({ homeDir: vi.fn().mockResolvedValue('/home/user') }))
+type MockCloneDialogProps = {
+  isOpen: boolean
+  onProjectCloned: (path: string, shouldOpen: boolean) => void
+  onClose: () => void
+}
+
+vi.mock('./CloneProjectDialog', async () => {
+  return {
+    CloneProjectDialog: ({ isOpen, onProjectCloned, onClose }: MockCloneDialogProps) => {
+      if (!isOpen) {
+        return null
+      }
+      return (
+        <div data-testid="clone-dialog">
+          <button onClick={() => onProjectCloned('/mock/cloned', true)}>Confirm Clone</button>
+          <button onClick={onClose}>Close Clone</button>
+        </div>
+      )
+    }
+  }
+})
 
 const invoke = (await import('@tauri-apps/api/core')).invoke as unknown as ReturnType<typeof vi.fn>
 const dialog = await import('@tauri-apps/plugin-dialog')
@@ -199,4 +220,23 @@ describe('HomeScreen', () => {
       path: '/home/user'
     })
   })
+
+  it('renders clone from git button and opens dialog', async () => {
+    setup()
+
+    const cloneBtn = screen.getByRole('button', { name: /clone from git/i })
+    await user.click(cloneBtn)
+
+    expect(await screen.findByTestId('clone-dialog')).toBeInTheDocument()
+  })
+
+  it('opens cloned project automatically when dialog requests it', async () => {
+    const { onOpenProject } = setup()
+
+    await user.click(screen.getByRole('button', { name: /clone from git/i }))
+    await user.click(await screen.findByRole('button', { name: /confirm clone/i }))
+
+    expect(onOpenProject).toHaveBeenCalledWith('/mock/cloned')
+  })
+
 })

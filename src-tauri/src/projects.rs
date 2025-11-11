@@ -1,5 +1,6 @@
 use anyhow::Result;
 use chrono::Utc;
+use schaltwerk::domains::git::clone::{self, CloneOptions, RemoteMetadata};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -141,6 +142,37 @@ pub fn create_new_project(name: &str, parent_path: &str) -> Result<PathBuf> {
     );
 
     Ok(project_path)
+}
+
+pub struct ProjectCloneResult {
+    pub project_path: PathBuf,
+    pub default_branch: Option<String>,
+    pub remote_display: String,
+}
+
+pub fn sanitize_clone_remote(remote_url: &str) -> RemoteMetadata {
+    clone::sanitize_remote(remote_url)
+}
+
+pub fn clone_remote_project(
+    remote_url: &str,
+    parent_directory: &Path,
+    folder_name: &str,
+    mut on_progress: impl FnMut(&str),
+) -> Result<ProjectCloneResult> {
+    let options = CloneOptions {
+        remote_url,
+        parent_directory,
+        folder_name,
+    };
+
+    let result = clone::clone_repository(&options, |line| on_progress(line))?;
+
+    Ok(ProjectCloneResult {
+        project_path: result.project_path,
+        default_branch: result.default_branch,
+        remote_display: result.remote_display,
+    })
 }
 
 #[cfg(test)]

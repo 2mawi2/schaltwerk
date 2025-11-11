@@ -4,9 +4,12 @@ use super::{
 };
 use crate::infrastructure::events::{SchaltEvent, emit_event};
 use log::{debug, error, info, warn};
-use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
-use std::time::Duration;
+use std::{
+    collections::{HashMap, HashSet},
+    path::Path,
+    sync::Arc,
+    time::Duration,
+};
 use tauri::AppHandle;
 use tokio::sync::RwLock;
 
@@ -58,6 +61,22 @@ impl Default for TerminalManager {
 impl TerminalManager {
     fn build_session_key(project_id: &str, session_id: Option<&str>) -> SessionKey {
         SessionKey::new(project_id.to_string(), session_id.map(|s| s.to_string()))
+    }
+
+    fn resolve_cwd(cwd: &str) -> Result<String, String> {
+        let trimmed = cwd.trim();
+        if trimmed.is_empty() {
+            let current_dir =
+                std::env::current_dir().map_err(|err| format!("Failed to determine current directory for terminal: {err}"))?;
+            return Ok(current_dir.to_string_lossy().to_string());
+        }
+
+        let path = Path::new(trimmed);
+        if !path.exists() {
+            return Err(format!("Terminal working directory does not exist: {trimmed}"));
+        }
+
+        Ok(trimmed.to_string())
     }
 
     pub fn new() -> Self {
@@ -179,16 +198,17 @@ impl TerminalManager {
         cwd: String,
         env: Vec<(String, String)>,
     ) -> Result<(), String> {
+        let resolved_cwd = Self::resolve_cwd(&cwd)?;
         info!(
-            "Creating terminal through manager: id={id}, cwd={cwd}, env_count={}",
+            "Creating terminal through manager: id={id}, cwd={resolved_cwd}, env_count={}",
             env.len()
         );
 
-        let cwd_for_event = cwd.clone();
+        let cwd_for_event = resolved_cwd.clone();
         let params = if env.is_empty() {
             CreateParams {
                 id: id.clone(),
-                cwd,
+                cwd: resolved_cwd.clone(),
                 app: None,
             }
         } else {
@@ -199,7 +219,7 @@ impl TerminalManager {
             env.push(("SHELL".to_string(), shell.clone()));
             CreateParams {
                 id: id.clone(),
-                cwd,
+                cwd: resolved_cwd.clone(),
                 app: Some(ApplicationSpec {
                     command: shell,
                     args,
@@ -266,16 +286,17 @@ impl TerminalManager {
         rows: u16,
         env: Vec<(String, String)>,
     ) -> Result<(), String> {
+        let resolved_cwd = Self::resolve_cwd(&cwd)?;
         info!(
-            "Creating terminal through manager with size: id={id}, cwd={cwd}, size={cols}x{rows}, env_count={}",
+            "Creating terminal through manager with size: id={id}, cwd={resolved_cwd}, size={cols}x{rows}, env_count={}",
             env.len()
         );
 
-        let cwd_for_event = cwd.clone();
+        let cwd_for_event = resolved_cwd.clone();
         let params = if env.is_empty() {
             CreateParams {
                 id: id.clone(),
-                cwd,
+                cwd: resolved_cwd.clone(),
                 app: None,
             }
         } else {
@@ -286,7 +307,7 @@ impl TerminalManager {
             env.push(("SHELL".to_string(), shell.clone()));
             CreateParams {
                 id: id.clone(),
-                cwd,
+                cwd: resolved_cwd.clone(),
                 app: Some(ApplicationSpec {
                     command: shell,
                     args,
@@ -319,7 +340,10 @@ impl TerminalManager {
         args: Vec<String>,
         env: Vec<(String, String)>,
     ) -> Result<(), String> {
-        info!("Creating terminal with app through manager: id={id}, cwd={cwd}, command={command}");
+        let resolved_cwd = Self::resolve_cwd(&cwd)?;
+        info!(
+            "Creating terminal with app through manager: id={id}, cwd={resolved_cwd}, command={command}"
+        );
 
         let app_spec = ApplicationSpec {
             command,
@@ -328,10 +352,10 @@ impl TerminalManager {
             ready_timeout_ms: 5000,
         };
 
-        let cwd_for_event = cwd.clone();
+        let cwd_for_event = resolved_cwd.clone();
         let params = CreateParams {
             id: id.clone(),
-            cwd,
+            cwd: resolved_cwd.clone(),
             app: Some(app_spec),
         };
 
@@ -354,36 +378,44 @@ impl TerminalManager {
         &self,
         params: CreateTerminalWithAppAndSizeParams,
     ) -> Result<(), String> {
+        let CreateTerminalWithAppAndSizeParams {
+            id,
+            cwd,
+            command,
+            args,
+            env,
+            cols,
+            rows,
+        } = params;
+        let resolved_cwd = Self::resolve_cwd(&cwd)?;
         info!(
-            "Creating terminal with app and size through manager: id={}, cwd={}, command={}, size={}x{}",
-            params.id, params.cwd, params.command, params.cols, params.rows
+            "Creating terminal with app and size through manager: id={id}, cwd={resolved_cwd}, command={command}, size={cols}x{rows}"
         );
 
         let app_spec = ApplicationSpec {
-            command: params.command,
-            args: params.args,
-            env: params.env,
+            command,
+            args,
+            env,
             ready_timeout_ms: 30000,
         };
 
-        let cwd_for_event = params.cwd.clone();
+        let cwd_for_event = resolved_cwd.clone();
         let create_params = CreateParams {
-            id: params.id.clone(),
-            cwd: params.cwd,
+            id: id.clone(),
+            cwd: resolved_cwd.clone(),
             app: Some(app_spec),
         };
 
         self.backend
-            .create_with_size(create_params, params.cols, params.rows)
+            .create_with_size(create_params, cols, rows)
             .await?;
-        self.active_ids.write().await.insert(params.id.clone());
+        self.active_ids.write().await.insert(id.clone());
 
         // Start event bridge for this terminal
-        let id_for_event = params.id.clone();
-        self.start_event_bridge(id_for_event.clone()).await;
+        self.start_event_bridge(id.clone()).await;
         // Emit TerminalCreated event if app handle is available
         if let Some(app_handle) = self.app_handle.read().await.as_ref() {
-            let payload = serde_json::json!({ "terminal_id": id_for_event, "cwd": cwd_for_event });
+            let payload = serde_json::json!({ "terminal_id": id, "cwd": cwd_for_event });
             if let Err(e) = emit_event(app_handle, SchaltEvent::TerminalCreated, &payload) {
                 warn!("Failed to emit terminal created event: {e}");
             }
@@ -600,5 +632,37 @@ mod tests {
         assert!(!snapshot.data.is_empty());
 
         manager.close_terminal("buf-term".into()).await.unwrap();
+    }
+
+    #[test]
+    fn resolve_cwd_defaults_to_current_dir() {
+        let expected = std::env::current_dir()
+            .expect("current dir")
+            .to_string_lossy()
+            .to_string();
+        let resolved = TerminalManager::resolve_cwd("").expect("should fallback to current dir");
+        assert_eq!(resolved, expected);
+    }
+
+    #[test]
+    fn resolve_cwd_errors_for_missing_path() {
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let unique_suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("time went backwards")
+            .as_nanos();
+        let missing_path = std::env::temp_dir().join(format!("schaltwerk-missing-{unique_suffix}"));
+        assert!(
+            !missing_path.exists(),
+            "test path unexpectedly exists: {}",
+            missing_path.display()
+        );
+
+        let result = TerminalManager::resolve_cwd(&missing_path.to_string_lossy());
+        assert!(
+            result.is_err(),
+            "expected resolve_cwd to error for missing path"
+        );
     }
 }
