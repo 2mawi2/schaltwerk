@@ -453,13 +453,20 @@ test:
     {{pm}} run deps:check
     {{pm}} run test:frontend
     {{pm}} run test:mcp
-    {{pm}} run test:rust
+    just test-rust
     {{pm}} run build:rust
 
 
 # Run only frontend tests (TypeScript, linting, unit tests)
 test-frontend:
     {{pm}} run lint && {{pm}} run lint:ts && {{pm}} run test:frontend
+
+# Run Rust tests with nextest while silencing warnings for cleaner output
+test-rust *ARGS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd src-tauri
+    RUSTFLAGS="${RUSTFLAGS:-} -Awarnings" cargo nextest run --cargo-quiet --status-level leak {{ARGS}}
 
 # Run the application using the compiled release binary (no autoreload)
 run-release:
