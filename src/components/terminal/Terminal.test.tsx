@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, waitFor, cleanup, act } from '@testing-library/react'
 import { Terminal } from './Terminal'
 import * as autoScrollModule from './autoScroll'
+import { startSessionTop } from '../../common/agentSpawn'
 
 const ATLAS_CONTRAST_BASE = 1.1
 
@@ -309,6 +310,7 @@ beforeEach(() => {
     isCollapsed: true,
   }))
   registryMocks.hasTerminalInstance.mockReturnValue(false)
+  vi.mocked(startSessionTop).mockClear()
 })
 
 describe('Terminal', () => {
@@ -356,6 +358,22 @@ describe('Terminal', () => {
     expect(instance.config.scrollback).toBe(20000)
     expect(instance.config.fontFamily).toBe('Menlo, Monaco, ui-monospace, SFMono-Regular, monospace')
     expect(instance.config.minimumContrastRatio).toBeCloseTo(ATLAS_CONTRAST_BASE)
+  })
+
+  it('treats terminal-only top terminals as regular shells and skips agent startup', async () => {
+    render(<Terminal terminalId="session-terminal-top" sessionName="terminal" agentType="terminal" />)
+
+    await waitFor(() => {
+      expect(terminalHarness.acquireMock).toHaveBeenCalled()
+      expect(terminalHarness.instances.length).toBeGreaterThan(0)
+    })
+
+    const instance = terminalHarness.instances[0] as HarnessInstance
+    expect(instance.config.scrollback).toBe(10000)
+
+    await waitFor(() => {
+      expect(startSessionTop).not.toHaveBeenCalled()
+    })
   })
 
   it('reapplies configuration when reusing an existing terminal instance', async () => {
