@@ -490,4 +490,56 @@ describe('Terminal', () => {
       shouldStickSpy.mockRestore()
     }
   })
+
+  it('restores the bottom when the user scrolls downward but lands one line short', async () => {
+    const shouldStickSpy = vi.spyOn(autoScrollModule, 'shouldStickToBottom')
+    try {
+      render(<Terminal terminalId="session-scroll-tolerance" sessionName="scroll-tolerance" />)
+
+      await waitFor(() => {
+        expect(terminalHarness.acquireMock).toHaveBeenCalled()
+        expect(terminalHarness.instances.length).toBeGreaterThan(0)
+      })
+
+      const instance = terminalHarness.instances[terminalHarness.instances.length - 1] as HarnessInstance
+      await waitFor(() => {
+        expect(instance.raw.onScroll).toHaveBeenCalled()
+      })
+
+      const scrollCalls = instance.raw.onScroll.mock.calls
+      const scrollHandler = scrollCalls[scrollCalls.length - 1]?.[0] as ((position: number) => void) | undefined
+      expect(typeof scrollHandler).toBe('function')
+
+      instance.raw.buffer.active.baseY = 420
+      instance.raw.buffer.active.viewportY = 418
+
+      await act(async () => {
+        scrollHandler!(418)
+      })
+
+      shouldStickSpy.mockClear()
+      instance.raw.scrollToBottom.mockClear()
+
+      instance.raw.buffer.active.viewportY = 419
+      await act(async () => {
+        scrollHandler!(419)
+      })
+
+      await waitFor(() => {
+        expect(
+          shouldStickSpy.mock.calls.some(
+            call =>
+              (call[0] as autoScrollModule.StickToBottomInput)?.viewportY === 419 &&
+              (call[0] as autoScrollModule.StickToBottomInput)?.toleranceLines === 1,
+          ),
+        ).toBe(true)
+      })
+
+      await waitFor(() => {
+        expect(instance.raw.scrollToBottom).toHaveBeenCalled()
+      })
+    } finally {
+      shouldStickSpy.mockRestore()
+    }
+  })
 })
