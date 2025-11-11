@@ -18,6 +18,14 @@ default_binary_path = "codex"
 auto_send_initial_command = false
 supports_resume = true
 
+[agents.copilot]
+id = "copilot"
+display_name = "GitHub Copilot"
+binary_name = "copilot"
+default_binary_path = "copilot"
+auto_send_initial_command = true
+supports_resume = true
+
 [agents.gemini]
 id = "gemini"
 display_name = "Gemini"

@@ -1,8 +1,19 @@
-export const AGENT_TYPES = ['claude', 'opencode', 'gemini', 'codex', 'droid', 'qwen', 'amp', 'terminal'] as const
+export const AGENT_TYPES = [
+    'claude',
+    'copilot',
+    'opencode',
+    'gemini',
+    'codex',
+    'droid',
+    'qwen',
+    'amp',
+    'terminal'
+] as const
 export type AgentType = (typeof AGENT_TYPES)[number]
 
 export const AGENT_SUPPORTS_SKIP_PERMISSIONS: Record<AgentType, boolean> = {
     claude: true,
+    copilot: true,
     opencode: false,
     gemini: true,
     codex: true,

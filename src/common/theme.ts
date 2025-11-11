@@ -90,6 +90,13 @@ export const theme = {
         bg: withOpacity('#06b6d4', 0.1),
         border: withOpacity('#06b6d4', 0.5),
       },
+      copilot: {
+        DEFAULT: '#BD79CC',
+        light: '#D9A6E5',
+        dark: '#8F4A9E',
+        bg: withOpacity('#BD79CC', 0.1),
+        border: withOpacity('#BD79CC', 0.5),
+      },
     },
     
     status: {

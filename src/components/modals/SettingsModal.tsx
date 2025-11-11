@@ -234,6 +234,7 @@ const CODEX_REASONING_OPTIONS: AgentPreferenceMetadataOption[] = [
 
 const AGENT_PREFERENCE_METADATA: Record<AgentType, AgentPreferenceMetadata> = {
     claude: {},
+    copilot: {},
     opencode: {},
     gemini: {},
     codex: {

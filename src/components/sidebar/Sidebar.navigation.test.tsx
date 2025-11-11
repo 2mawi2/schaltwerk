@@ -85,7 +85,7 @@ function pressKey(key: string, { metaKey = false, ctrlKey = false, shiftKey = fa
 let sessionsFixture: EnrichedSession[]
 
 describe('Sidebar navigation with arrow keys including orchestrator', () => {
-  let eventListeners: Map<string, (event: Event<unknown>) => void>
+  let eventListeners: Map<string, (event: Event<unknown>) => void> = new Map()
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -95,7 +95,7 @@ describe('Sidebar navigation with arrow keys including orchestrator', () => {
     mockSwitchModel.mockResolvedValue(undefined)
     mockGetAgentType.mockReset()
     mockGetAgentType.mockResolvedValue('claude')
-    eventListeners = new Map()
+    eventListeners.clear()
 
     // Simulate mac for meta key
     Object.defineProperty(navigator, 'userAgent', { value: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', configurable: true })

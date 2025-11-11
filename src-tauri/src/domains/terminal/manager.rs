@@ -1,11 +1,12 @@
 use super::{
     ApplicationSpec, CreateParams, LocalPtyAdapter, TerminalBackend, TerminalSnapshot,
-    get_effective_shell,
+    get_effective_shell, submission::build_submission_payload,
 };
 use crate::infrastructure::events::{SchaltEvent, emit_event};
 use log::{debug, error, info, warn};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use std::time::Duration;
 use tauri::AppHandle;
 use tokio::sync::RwLock;
 
@@ -404,21 +405,9 @@ impl TerminalManager {
         data: Vec<u8>,
         use_bracketed_paste: bool,
     ) -> Result<(), String> {
-        let mut buf = Vec::with_capacity(data.len() + 20);
+        let payload = build_submission_payload(&data, use_bracketed_paste);
 
-        if use_bracketed_paste {
-            buf.extend_from_slice(b"\x1b[200~");
-        }
-
-        buf.extend_from_slice(&data);
-
-        if use_bracketed_paste {
-            buf.extend_from_slice(b"\x1b[201~");
-        }
-
-        buf.push(b'\r');
-
-        self.backend.write_immediate(&id, &buf).await?;
+        self.backend.write_immediate(&id, &payload).await?;
 
         if let Some(app_handle) = self.app_handle.read().await.as_ref() {
             let event_payload = serde_json::json!({ "terminal_id": id });
@@ -452,9 +441,21 @@ impl TerminalManager {
         id: String,
         command: String,
         ready_marker: Option<String>,
+        dispatch_delay: Option<Duration>,
     ) -> Result<(), String> {
+        let preview = command
+            .chars()
+            .filter(|c| *c != '\r' && *c != '\n')
+            .take(80)
+            .collect::<String>();
+        info!(
+            "TerminalManager queue_initial_command: id={id}, len={}, ready_marker={:?}, delay_ms={}, preview=\"{preview}\"",
+            command.len(),
+            ready_marker.as_deref(),
+            dispatch_delay.map(|d| d.as_millis()).unwrap_or(0)
+        );
         self.backend
-            .queue_initial_command(&id, command, ready_marker)
+            .queue_initial_command(&id, command, ready_marker, dispatch_delay)
             .await
     }
 

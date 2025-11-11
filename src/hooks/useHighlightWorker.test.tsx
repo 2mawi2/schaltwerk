@@ -63,8 +63,7 @@ class MockWorker {
 
 describe('useHighlightWorker', () => {
   const originalWorker = globalThis.Worker
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let loggerErrorSpy: any
+  let loggerErrorSpy: { mockRestore: () => void } | undefined
 
   beforeEach(() => {
     MockWorker.lastInstance = null
@@ -73,7 +72,7 @@ describe('useHighlightWorker', () => {
   })
 
   afterEach(() => {
-    loggerErrorSpy.mockRestore()
+    loggerErrorSpy?.mockRestore()
     if (originalWorker) {
       globalThis.Worker = originalWorker
     } else {

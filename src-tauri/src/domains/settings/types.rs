@@ -22,6 +22,8 @@ pub enum McpServerConfig {
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct AgentCliArgs {
     pub claude: String,
+    #[serde(default)]
+    pub copilot: String,
     pub opencode: String,
     pub gemini: String,
     pub codex: String,
@@ -34,6 +36,8 @@ pub struct AgentCliArgs {
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct AgentInitialCommands {
     pub claude: String,
+    #[serde(default)]
+    pub copilot: String,
     pub opencode: String,
     pub gemini: String,
     pub codex: String,
@@ -46,6 +50,8 @@ pub struct AgentInitialCommands {
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct AgentEnvVars {
     pub claude: HashMap<String, String>,
+    #[serde(default)]
+    pub copilot: HashMap<String, String>,
     pub opencode: HashMap<String, String>,
     pub gemini: HashMap<String, String>,
     pub codex: HashMap<String, String>,
@@ -68,6 +74,8 @@ pub struct AgentPreference {
 pub struct AgentPreferences {
     #[serde(default)]
     pub claude: AgentPreference,
+    #[serde(default)]
+    pub copilot: AgentPreference,
     #[serde(default)]
     pub opencode: AgentPreference,
     #[serde(default)]
@@ -230,6 +238,8 @@ pub struct AgentBinaryConfig {
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct AgentBinaryConfigs {
     pub claude: Option<AgentBinaryConfig>,
+    #[serde(default)]
+    pub copilot: Option<AgentBinaryConfig>,
     pub opencode: Option<AgentBinaryConfig>,
     pub gemini: Option<AgentBinaryConfig>,
     pub codex: Option<AgentBinaryConfig>,

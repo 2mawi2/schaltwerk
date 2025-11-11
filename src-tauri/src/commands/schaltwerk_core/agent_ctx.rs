@@ -9,6 +9,7 @@ use std::path::Path;
 
 pub enum AgentKind {
     Claude,
+    Copilot,
     Codex,
     OpenCode,
     Gemini,
@@ -20,6 +21,8 @@ pub enum AgentKind {
 pub fn infer_agent_kind(agent_name: &str) -> AgentKind {
     if agent_name.ends_with("/claude") || agent_name == "claude" {
         AgentKind::Claude
+    } else if agent_name.contains("copilot") {
+        AgentKind::Copilot
     } else if agent_name.ends_with("/codex") || agent_name == "codex" {
         AgentKind::Codex
     } else if agent_name.contains("opencode") {
@@ -39,6 +42,7 @@ impl AgentKind {
     pub fn manifest_key(&self) -> &str {
         match self {
             AgentKind::Claude => "claude",
+            AgentKind::Copilot => "copilot",
             AgentKind::Codex => "codex",
             AgentKind::OpenCode => "opencode",
             AgentKind::Gemini => "gemini",
@@ -56,6 +60,7 @@ pub async fn collect_agent_env_and_cli(
 ) -> (Vec<(String, String)>, String, AgentPreference) {
     let agent_str = match agent_kind {
         AgentKind::Claude => "claude",
+        AgentKind::Copilot => "copilot",
         AgentKind::Codex => "codex",
         AgentKind::OpenCode => "opencode",
         AgentKind::Gemini => "gemini",
@@ -298,6 +303,7 @@ mod tests {
             AgentKind::Claude
         ));
         assert!(matches!(infer_agent_kind("codex"), AgentKind::Codex));
+        assert!(matches!(infer_agent_kind("copilot"), AgentKind::Copilot));
         assert!(matches!(
             infer_agent_kind("something-opencode"),
             AgentKind::OpenCode
@@ -355,6 +361,7 @@ mod tests {
     #[test]
     fn test_manifest_key_mapping() {
         assert_eq!(AgentKind::Claude.manifest_key(), "claude");
+        assert_eq!(AgentKind::Copilot.manifest_key(), "copilot");
         assert_eq!(AgentKind::Codex.manifest_key(), "codex");
         assert_eq!(AgentKind::OpenCode.manifest_key(), "opencode");
         assert_eq!(AgentKind::Gemini.manifest_key(), "gemini");
