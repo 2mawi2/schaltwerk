@@ -206,6 +206,30 @@ describe('App.tsx', () => {
     clearBackgroundStartsByPrefix('')
   })
 
+  async function renderProjectAndReturnHome() {
+    mockState.isGitRepo = true
+
+    renderApp()
+
+    const openButton = await screen.findByTestId('open-project')
+    fireEvent.click(openButton)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('sidebar-mock')).toBeInTheDocument()
+    })
+
+    const homeButton = screen.getByLabelText('Home')
+    fireEvent.click(homeButton)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('home-screen')).toBeInTheDocument()
+    })
+
+    await waitFor(() => {
+      expect(newSessionModalMock).toHaveBeenCalled()
+    })
+  }
+
   it('renders without crashing (shows Home by default)', async () => {
     renderApp()
     expect(await screen.findByTestId('home-screen')).toBeInTheDocument()
@@ -312,6 +336,73 @@ describe('App.tsx', () => {
     await waitFor(() => {
       expect(screen.getByTestId('tab-bar')).toBeInTheDocument()
     }, { timeout: 3000 })
+  })
+
+  it('does not open the new session modal via keyboard shortcuts while Home view overlays an open project', async () => {
+    await renderProjectAndReturnHome()
+
+    const baselineCalls = newSessionModalMock.mock.calls.length
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', metaKey: true, bubbles: true }))
+      await Promise.resolve()
+    })
+
+    await waitFor(() => {
+      const latest = newSessionModalMock.mock.calls.at(-1)?.[0] as { open: boolean } | undefined
+      expect(latest?.open).toBe(false)
+    })
+
+    expect(newSessionModalMock.mock.calls.length).toBe(baselineCalls)
+  })
+
+  it('ignores new session/spec UiEvents while Home view overlays an open project', async () => {
+    await renderProjectAndReturnHome()
+
+    const baselineCalls = newSessionModalMock.mock.calls.length
+
+    await act(async () => {
+      emitUiEvent(UiEvent.NewSessionRequest)
+      await Promise.resolve()
+    })
+
+    await waitFor(() => {
+      const latest = newSessionModalMock.mock.calls.at(-1)?.[0] as { open: boolean } | undefined
+      expect(latest?.open).toBe(false)
+    })
+
+    await act(async () => {
+      emitUiEvent(UiEvent.NewSpecRequest)
+      await Promise.resolve()
+    })
+
+    await waitFor(() => {
+      const latest = newSessionModalMock.mock.calls.at(-1)?.[0] as { open: boolean; initialIsDraft?: boolean } | undefined
+      expect(latest?.open).toBe(false)
+      expect(latest?.initialIsDraft).toBe(false)
+    })
+
+    expect(newSessionModalMock.mock.calls.length).toBe(baselineCalls)
+  })
+
+  it('ignores StartAgentFromSpec events while Home view overlays an open project', async () => {
+    await renderProjectAndReturnHome()
+
+    const baselineCalls = newSessionModalMock.mock.calls.length
+    fetchSessionForPrefillMock.mockClear()
+
+    await act(async () => {
+      emitUiEvent(UiEvent.StartAgentFromSpec, { name: 'spec-home' })
+      await Promise.resolve()
+    })
+
+    await waitFor(() => {
+      expect(fetchSessionForPrefillMock).not.toHaveBeenCalled()
+    })
+
+    const latest = newSessionModalMock.mock.calls.at(-1)?.[0] as { open: boolean } | undefined
+    expect(latest?.open).toBe(false)
+    expect(newSessionModalMock.mock.calls.length).toBe(baselineCalls)
   })
 
   describe('Spec Starting', () => {
