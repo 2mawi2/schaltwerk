@@ -379,6 +379,28 @@ export const setSelectionActionAtom = atom(
             }
           }
         }
+      } else {
+        const cwd = terminals.workingDirectory
+        if (!cwd) {
+          logger.debug('[selection] Skipping orchestrator terminal creation without project path')
+          shouldCreateTerminals = false
+        } else {
+          try {
+            const projectExists = await invoke<boolean>(TauriCommands.DirectoryExists, { path: cwd })
+            if (!projectExists) {
+              logger.warn('[selection] Project directory does not exist; skipping orchestrator terminal creation', {
+                projectPath: cwd,
+              })
+              shouldCreateTerminals = false
+            }
+          } catch (error) {
+            logger.warn('[selection] Failed to validate project directory before creating orchestrator terminals', {
+              projectPath: cwd,
+              error,
+            })
+            shouldCreateTerminals = false
+          }
+        }
       }
 
       if (shouldCreateTerminals) {

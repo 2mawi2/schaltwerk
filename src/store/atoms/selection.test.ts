@@ -343,6 +343,33 @@ describe('selection atoms', () => {
     })
   })
 
+  it('skips orchestrator terminals when project path is cleared', async () => {
+    await withNodeEnv('development', async () => {
+      const backend = await import('../../terminal/transport/backend')
+
+      await store.set(setProjectPathActionAtom, '/projects/alpha')
+      vi.mocked(backend.createTerminalBackend).mockClear()
+
+      await store.set(setProjectPathActionAtom, null)
+
+      expect(vi.mocked(backend.createTerminalBackend)).not.toHaveBeenCalled()
+    })
+  })
+
+  it('skips orchestrator terminals when project directory is missing', async () => {
+    await withNodeEnv('development', async () => {
+      const backend = await import('../../terminal/transport/backend')
+
+      await store.set(setProjectPathActionAtom, '/projects/alpha')
+      vi.mocked(backend.createTerminalBackend).mockClear()
+
+      nextPathExistsResult = false
+      await store.set(setProjectPathActionAtom, '/projects/missing')
+
+      expect(vi.mocked(backend.createTerminalBackend)).not.toHaveBeenCalled()
+    })
+  })
+
   it('skips terminal creation for spec sessions', async () => {
     const backend = await import('../../terminal/transport/backend')
     vi.mocked(backend.createTerminalBackend).mockClear()
