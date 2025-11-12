@@ -13,6 +13,7 @@ import { OpenInSplitButton, type OpenApp } from '../OpenInSplitButton'
 import { ConfirmDiscardDialog } from '../common/ConfirmDiscardDialog'
 import { shouldCollapseDiff } from '../../domains/diff/diffFilters'
 import { CollapsedDiffBadge } from './CollapsedDiffBadge'
+import { getSelectableLineIdentity } from './lineSelection'
 
 type ContextMenuState =
   | {
@@ -622,8 +623,7 @@ export function DiffViewer({
                     {('diffResult' in fileDiff ? fileDiff.diffResult : []).flatMap((line, idx) => {
                       const globalIdx = `${file.path}-${idx}`
                       const isExpanded = expandedSet?.has(idx) ?? false
-                      const lineNum = line.oldLineNumber || line.newLineNumber
-                      const side: 'old' | 'new' = line.type === 'removed' ? 'old' : 'new'
+                      const { lineNum, side } = getSelectableLineIdentity(line)
 
                       if (line.isCollapsible) {
                         const rows = []
@@ -646,8 +646,7 @@ export function DiffViewer({
                         
                         if (isExpanded && line.collapsedLines) {
                           line.collapsedLines.forEach((collapsedLine, collapsedIdx) => {
-                            const collapsedLineNum = collapsedLine.oldLineNumber || collapsedLine.newLineNumber
-                            const collapsedSide: 'old' | 'new' = collapsedLine.type === 'removed' ? 'old' : 'new'
+                            const { lineNum: collapsedLineNum, side: collapsedSide } = getSelectableLineIdentity(collapsedLine)
                             rows.push(
                               <DiffLineRow
                                 key={`${globalIdx}-expanded-${collapsedIdx}`}
@@ -832,70 +831,69 @@ export function DiffViewer({
                         {('diffResult' in fileDiff ? fileDiff.diffResult : []).flatMap((line, idx) => {
                           const globalIdx = `${file.path}-${idx}`
                           const isExpanded = expandedSet?.has(idx) ?? false
-                          const lineNum = line.oldLineNumber || line.newLineNumber
-                          const side: 'old' | 'new' = line.type === 'removed' ? 'old' : 'new'
+                          const { lineNum, side } = getSelectableLineIdentity(line)
 
-                      if (line.isCollapsible) {
-                        const rows = []
-                        rows.push(
-                          <DiffLineRow
-                            key={globalIdx}
-                            line={line}
-                            index={globalIdx}
-                            isSelected={false}
-                            filePath={file.path}
-                            onLineMouseDown={handleLineMouseDown}
-                            onLineMouseEnter={handleLineMouseEnter}
-                            onLineMouseLeave={handleLineMouseLeave}
-                            onLineMouseUp={handleLineMouseUp}
-                            onToggleCollapse={() => toggleCollapsed(file.path, idx)}
-                            isCollapsed={!isExpanded}
-                            highlightedContent={undefined}
-                          />
-                        )
-
-                        if (isExpanded && line.collapsedLines) {
-                          line.collapsedLines.forEach((collapsedLine, collapsedIdx) => {
-                            const collapsedLineNum = collapsedLine.oldLineNumber || collapsedLine.newLineNumber
-                            const collapsedSide: 'old' | 'new' = collapsedLine.type === 'removed' ? 'old' : 'new'
+                          if (line.isCollapsible) {
+                            const rows = []
                             rows.push(
                               <DiffLineRow
-                                key={`${globalIdx}-expanded-${collapsedIdx}`}
-                                line={collapsedLine}
-                                index={`${globalIdx}-${collapsedIdx}`}
-                                isSelected={collapsedLineNum ? lineSelection.isLineSelected(file.path, collapsedLineNum, collapsedSide) : false}
+                                key={globalIdx}
+                                line={line}
+                                index={globalIdx}
+                                isSelected={false}
                                 filePath={file.path}
                                 onLineMouseDown={handleLineMouseDown}
                                 onLineMouseEnter={handleLineMouseEnter}
                                 onLineMouseLeave={handleLineMouseLeave}
                                 onLineMouseUp={handleLineMouseUp}
-                                highlightedContent={collapsedLine.content !== undefined ? highlightCode(file.path, `${globalIdx}-expanded-${collapsedIdx}`, collapsedLine.content) : undefined}
-                                onLineNumberContextMenu={(payload) => handleLineNumberContextMenu(file.path, payload)}
-                                onCodeContextMenu={(payload) => handleCodeContextMenu(file.path, payload)}
+                                onToggleCollapse={() => toggleCollapsed(file.path, idx)}
+                                isCollapsed={!isExpanded}
+                                highlightedContent={undefined}
                               />
                             )
-                          })
-                        }
 
-                        return rows
-                      }
-                      return (
-                        <DiffLineRow
-                          key={globalIdx}
-                          line={line}
-                          index={globalIdx}
-                          isSelected={lineNum ? lineSelection.isLineSelected(file.path, lineNum ?? 0, side) : false}
-                          filePath={file.path}
-                          onLineMouseDown={handleLineMouseDown}
-                          onLineMouseEnter={handleLineMouseEnter}
-                          onLineMouseLeave={handleLineMouseLeave}
-                          onLineMouseUp={handleLineMouseUp}
-                          highlightedContent={line.content !== undefined ? highlightCode(file.path, globalIdx, line.content) : undefined}
-                          onLineNumberContextMenu={(payload) => handleLineNumberContextMenu(file.path, payload)}
-                          onCodeContextMenu={(payload) => handleCodeContextMenu(file.path, payload)}
-                        />
-                      )
-                    })}
+                            if (isExpanded && line.collapsedLines) {
+                              line.collapsedLines.forEach((collapsedLine, collapsedIdx) => {
+                                const { lineNum: collapsedLineNum, side: collapsedSide } = getSelectableLineIdentity(collapsedLine)
+                                rows.push(
+                                  <DiffLineRow
+                                    key={`${globalIdx}-expanded-${collapsedIdx}`}
+                                    line={collapsedLine}
+                                    index={`${globalIdx}-${collapsedIdx}`}
+                                    isSelected={collapsedLineNum ? lineSelection.isLineSelected(file.path, collapsedLineNum, collapsedSide) : false}
+                                    filePath={file.path}
+                                    onLineMouseDown={handleLineMouseDown}
+                                    onLineMouseEnter={handleLineMouseEnter}
+                                    onLineMouseLeave={handleLineMouseLeave}
+                                    onLineMouseUp={handleLineMouseUp}
+                                    highlightedContent={collapsedLine.content !== undefined ? highlightCode(file.path, `${globalIdx}-expanded-${collapsedIdx}`, collapsedLine.content) : undefined}
+                                    onLineNumberContextMenu={(payload) => handleLineNumberContextMenu(file.path, payload)}
+                                    onCodeContextMenu={(payload) => handleCodeContextMenu(file.path, payload)}
+                                  />
+                                )
+                              })
+                            }
+
+                            return rows
+                          }
+
+                          return (
+                            <DiffLineRow
+                              key={globalIdx}
+                              line={line}
+                              index={globalIdx}
+                              isSelected={lineNum ? lineSelection.isLineSelected(file.path, lineNum ?? 0, side) : false}
+                              filePath={file.path}
+                              onLineMouseDown={handleLineMouseDown}
+                              onLineMouseEnter={handleLineMouseEnter}
+                              onLineMouseLeave={handleLineMouseLeave}
+                              onLineMouseUp={handleLineMouseUp}
+                              highlightedContent={line.content !== undefined ? highlightCode(file.path, globalIdx, line.content) : undefined}
+                              onLineNumberContextMenu={(payload) => handleLineNumberContextMenu(file.path, payload)}
+                              onCodeContextMenu={(payload) => handleCodeContextMenu(file.path, payload)}
+                            />
+                          )
+                        })}
                       </tbody>
                     </table>
                   </HorizontalScrollRegion>

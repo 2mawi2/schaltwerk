@@ -131,4 +131,32 @@ describe('DiffLineRow hover functionality', () => {
       event: expect.any(Object)
     })
   })
+
+  it('uses the new line number when selecting unchanged rows', () => {
+    const line: LineInfo = {
+      type: 'unchanged',
+      content: 'unchanged example',
+      oldLineNumber: 10,
+      newLineNumber: 15
+    }
+    const onLineMouseDown = vi.fn()
+
+    render(
+      <DiffLineRow
+        {...defaultProps}
+        line={line}
+        onLineMouseDown={onLineMouseDown}
+      />
+    )
+
+    const code = screen.getByText('unchanged example')
+    fireEvent.mouseDown(code, { button: 0 })
+
+    expect(onLineMouseDown).toHaveBeenCalledWith({
+      lineNum: 15,
+      side: 'new',
+      filePath: 'test-file.js',
+      event: expect.any(Object)
+    })
+  })
 })
