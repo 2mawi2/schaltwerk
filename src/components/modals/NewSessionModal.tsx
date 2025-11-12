@@ -566,7 +566,8 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                 promptWillBe: createData.prompt ? createData.prompt.substring(0, 100) + (createData.prompt.length > 100 ? '...' : '') : undefined
             })
             await Promise.resolve(onCreate(createData))
-        } catch (_e) {
+        } catch (e) {
+            logger.error(`Failed to create session: ${name}`, e)
             setCreating(false)
         }
     }, [creating, name, taskContent, baseBranch, customBranch, onCreate, validateSessionName, createAsDraft, versionCount, agentType, skipPermissions, promptSource, githubIssueSelection, githubPrSelection, multiAgentMode, normalizedAgentTypes])

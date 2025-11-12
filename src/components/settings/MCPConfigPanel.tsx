@@ -86,6 +86,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
       const mcpStatus = await invoke<MCPStatus>(TauriCommands.GetMcpStatus, { projectPath, client: agent })
       setStatus(mcpStatus)
     } catch (e) {
+      logger.error(`Failed to load MCP status for ${agent}`, e)
       setError(String(e))
     }
   }, [projectPath, agent])
@@ -123,6 +124,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
       // Reload status
       await loadStatus()
     } catch (e) {
+      logger.error(`Failed to configure MCP for ${agent}`, e)
       setError(String(e))
     } finally {
       setLoading(false)
@@ -144,6 +146,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
       setSuccess('MCP configuration removed')
       await loadStatus()
     } catch (e) {
+      logger.error(`Failed to remove MCP configuration for ${agent}`, e)
       setError(String(e))
     } finally {
       setLoading(false)

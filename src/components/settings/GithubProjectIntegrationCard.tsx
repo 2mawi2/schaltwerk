@@ -3,6 +3,7 @@ import { FaGithub } from 'react-icons/fa'
 import { VscRefresh, VscWarning, VscCheck, VscInfo } from 'react-icons/vsc'
 import { theme } from '../../common/theme'
 import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
+import { logger } from '../../utils/logger'
 
 interface GithubProjectIntegrationCardProps {
   projectPath: string
@@ -106,6 +107,7 @@ export function GithubProjectIntegrationCard({ projectPath, onNotify }: GithubPr
         description: 'GitHub CLI access is now ready. You can connect this project or refresh status anytime.',
       })
     } catch (error) {
+      logger.error('GitHub CLI authentication failed', error)
       const message = formatError(error)
       setFeedback({
         tone: 'error',
@@ -124,6 +126,7 @@ export function GithubProjectIntegrationCard({ projectPath, onNotify }: GithubPr
       const info = await github.connectProject()
       onNotify(`Connected ${info.nameWithOwner} • default ${info.defaultBranch}`, 'success')
     } catch (error) {
+      logger.error('Failed to connect GitHub project', error)
       onNotify(`Failed to connect project: ${formatError(error)}`, 'error')
     }
   }
@@ -133,6 +136,7 @@ export function GithubProjectIntegrationCard({ projectPath, onNotify }: GithubPr
       await github.refreshStatus()
       onNotify('GitHub status refreshed', 'info')
     } catch (error) {
+      logger.error('Failed to refresh GitHub status', error)
       onNotify(`Failed to refresh status: ${formatError(error)}`, 'error')
     }
   }

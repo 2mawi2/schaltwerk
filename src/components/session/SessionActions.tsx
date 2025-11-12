@@ -20,6 +20,7 @@ import type { MergeStatus } from '../../store/atoms/sessions';
 import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
 import { useToast } from '../../common/toast/ToastProvider'
 import { UiEvent, listenUiEvent } from '../../common/uiEvents'
+import { logger } from '../../utils/logger'
 
 const spinnerIcon = (
   <span className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
@@ -134,6 +135,7 @@ export function SessionActions({
         })
       }
     } catch (error) {
+      logger.error(`Failed to create GitHub PR for session ${sessionId}`, error)
       const message = error instanceof Error ? error.message : String(error)
       pushToast({ tone: 'error', title: 'GitHub pull request failed', description: message })
     }

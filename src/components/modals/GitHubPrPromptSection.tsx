@@ -9,6 +9,7 @@ import type { GithubPrSelectionResult, GithubPrSummary } from '../../types/githu
 import { TauriCommands } from '../../common/tauriCommands'
 import { withOpacity } from '../../common/colorUtils'
 import { buildPrPreview, buildPrPrompt, formatPrUpdatedTimestamp } from './githubPrFormatting'
+import { logger } from '../../utils/logger'
 
 interface Props {
   selection: GithubPrSelectionResult | null
@@ -102,6 +103,7 @@ export function GitHubPrPromptSection({
         const prompt = buildPrPrompt(details)
         onPrLoaded({ details, prompt })
       } catch (err) {
+        logger.error(`Failed to load GitHub PR details for #${summary.number}`, err)
         pushToast({
           tone: 'error',
           title: 'Failed to load PR details',

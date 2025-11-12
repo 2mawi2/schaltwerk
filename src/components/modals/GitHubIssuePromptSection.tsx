@@ -9,6 +9,7 @@ import type { GithubIssueSelectionResult, GithubIssueSummary } from '../../types
 import { TauriCommands } from '../../common/tauriCommands'
 import { withOpacity } from '../../common/colorUtils'
 import { buildIssuePreview, buildIssuePrompt, formatIssueUpdatedTimestamp } from './githubIssueFormatting'
+import { logger } from '../../utils/logger'
 
 interface Props {
   selection: GithubIssueSelectionResult | null
@@ -102,6 +103,7 @@ export function GitHubIssuePromptSection({
         const prompt = buildIssuePrompt(details)
         onIssueLoaded({ details, prompt })
       } catch (err) {
+        logger.error(`Failed to load GitHub issue details for #${summary.number}`, err)
         pushToast({
           tone: 'error',
           title: 'Failed to load issue details',

@@ -254,7 +254,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             if (termDebug()) {
                 logger.debug(`[Terminal ${terminalId}] BEFORE resize: buffer.length=${buf.length}, viewportY=${buf.viewportY}, baseY=${buf.baseY}, wasAtBottom=${wasAtBottom}`);
             }
-        } catch (_e) {
+        } catch (e) {
+            logger.debug(`[Terminal ${terminalId}] Failed to read buffer state, defaulting to bottom`, e);
             wasAtBottom = true;
         }
 
@@ -674,7 +675,13 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                   logger.warn(`[Terminal ${terminalId}] Failed to attach TerminalClosed listener`, e);
               }
           })();
-          return () => { try { unlisten?.(); } catch (e) { logger.debug(`[Terminal ${terminalId}] Failed to cleanup TerminalClosed listener:`, e); } };
+          return () => {
+            try {
+              unlisten?.();
+            } catch (e) {
+              logger.debug(`[Terminal ${terminalId}] Failed to cleanup TerminalClosed listener:`, e);
+            }
+          };
       }, [isAgentTopTerminal, terminalId]);
 
     // Listen for force scroll events (e.g., after review comment paste)
