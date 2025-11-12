@@ -23,6 +23,7 @@ use schaltwerk::services::{
 use schaltwerk::utils::env_adapter::EnvAdapter;
 use std::collections::HashSet;
 use std::path::PathBuf;
+use std::time::Duration;
 use tauri::State;
 mod agent_ctx;
 pub mod agent_launcher;
@@ -1177,11 +1178,11 @@ pub async fn schaltwerk_core_start_claude_with_restart(
 
         // Get resolved binary paths for all agents
         for agent in [
-            "claude", "codex", "opencode", "gemini", "droid", "qwen", "amp",
+            "claude", "copilot", "codex", "opencode", "gemini", "droid", "qwen", "amp",
         ] {
             match settings.get_effective_binary_path(agent) {
                 Ok(path) => {
-                    log::debug!("Cached binary path for {agent}: {path}");
+                    log::trace!("Cached binary path for {agent}: {path}");
                     paths.insert(agent.to_string(), path);
                 }
                 Err(e) => log::warn!("Failed to get cached binary path for {agent}: {e}"),
@@ -1249,8 +1250,29 @@ pub async fn schaltwerk_core_start_claude_with_restart(
     if auto_send_initial_command
         && let Some(initial) = initial_command.clone().filter(|v| !v.trim().is_empty())
     {
+        let dispatch_delay = if agent_type == "copilot" {
+            Some(Duration::from_millis(1500))
+        } else {
+            None
+        };
+        let preview = initial
+            .chars()
+            .filter(|c| *c != '\r' && *c != '\n')
+            .take(80)
+            .collect::<String>();
+        log::info!(
+            "Queueing initial command for session '{session_name}' (agent={agent_type}, len={}, ready_marker={:?}, delay_ms={}) preview=\"{preview}\"",
+            initial.len(),
+            ready_marker.as_deref(),
+            dispatch_delay.map(|d| d.as_millis()).unwrap_or(0),
+        );
         terminal_manager
-            .queue_initial_command(terminal_id.clone(), initial, ready_marker.clone())
+            .queue_initial_command(
+                terminal_id.clone(),
+                initial,
+                ready_marker.clone(),
+                dispatch_delay,
+            )
             .await?;
     }
 
@@ -1352,6 +1374,7 @@ pub async fn schaltwerk_core_start_claude_with_restart(
     // Log the exact command that will be executed
     let kind_str = match agent_kind {
         agent_ctx::AgentKind::Claude => "claude",
+        agent_ctx::AgentKind::Copilot => "copilot",
         agent_ctx::AgentKind::Codex => "codex",
         agent_ctx::AgentKind::OpenCode => "opencode",
         agent_ctx::AgentKind::Gemini => "gemini",
@@ -1488,11 +1511,11 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
 
         // Get resolved binary paths for all agents
         for agent in [
-            "claude", "codex", "opencode", "gemini", "droid", "qwen", "amp",
+            "claude", "copilot", "codex", "opencode", "gemini", "droid", "qwen", "amp",
         ] {
             match settings.get_effective_binary_path(agent) {
                 Ok(path) => {
-                    log::debug!("Cached binary path for {agent}: {path}");
+                    log::trace!("Cached binary path for {agent}: {path}");
                     paths.insert(agent.to_string(), path);
                 }
                 Err(e) => log::warn!("Failed to get cached binary path for {agent}: {e}"),
@@ -2474,11 +2497,11 @@ pub async fn schaltwerk_core_start_fresh_orchestrator(
 
         // Get resolved binary paths for all agents
         for agent in [
-            "claude", "codex", "opencode", "gemini", "droid", "qwen", "amp",
+            "claude", "copilot", "codex", "opencode", "gemini", "droid", "qwen", "amp",
         ] {
             match settings.get_effective_binary_path(agent) {
                 Ok(path) => {
-                    log::debug!("Cached binary path for {agent}: {path}");
+                    log::trace!("Cached binary path for {agent}: {path}");
                     paths.insert(agent.to_string(), path);
                 }
                 Err(e) => log::warn!("Failed to get cached binary path for {agent}: {e}"),

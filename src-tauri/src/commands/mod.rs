@@ -1,5 +1,6 @@
 pub mod agent_binaries;
 pub mod attention;
+pub mod clone;
 pub mod git;
 pub mod github;
 pub mod mcp;
@@ -20,6 +21,7 @@ mod tests;
 // Export schaltwerk_core commands individually to avoid unused import warnings
 pub use agent_binaries::*;
 pub use attention::*;
+pub use clone::*;
 pub use git::*;
 pub use github::*;
 pub use mcp::*;

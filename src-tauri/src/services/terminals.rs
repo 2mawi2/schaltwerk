@@ -1,5 +1,6 @@
 use crate::domains::terminal::{
-    TerminalManager, TerminalSnapshot, manager::CreateTerminalWithAppAndSizeParams,
+    TerminalManager, TerminalSnapshot, build_login_shell_args, get_effective_shell,
+    manager::CreateTerminalWithAppAndSizeParams,
 };
 use crate::project_manager::ProjectManager;
 use crate::schaltwerk_core::db_project_config::ProjectConfigMethods;
@@ -17,12 +18,19 @@ pub struct CreateTerminalRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RunShellConfig {
+    pub command: String,
+    pub args: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateRunTerminalRequest {
     pub id: String,
     pub cwd: String,
     pub env: Option<Vec<(String, String)>>,
     pub cols: Option<u16>,
     pub rows: Option<u16>,
+    pub shell: Option<RunShellConfig>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -150,8 +158,14 @@ impl<B: TerminalsBackend> TerminalsServiceImpl<B> {
 
     pub async fn create_run_terminal(
         &self,
-        request: CreateRunTerminalRequest,
+        mut request: CreateRunTerminalRequest,
     ) -> Result<String, String> {
+        if request.shell.is_none() {
+            let (command, base_args) = get_effective_shell();
+            let args = build_login_shell_args(&command, &base_args);
+            request.shell = Some(RunShellConfig { command, args });
+        }
+
         self.backend
             .create_run_terminal(request)
             .await
@@ -476,15 +490,18 @@ impl TerminalsBackend for TerminalManagerBackend {
             request.env.unwrap_or_default(),
         );
 
-        let bash = "/bin/bash".to_string();
-        let args = vec!["-l".to_string()];
+        let (command, args) = request
+            .shell
+            .clone()
+            .map(|config| (config.command, config.args))
+            .unwrap_or_else(|| ("/bin/bash".to_string(), vec!["-l".to_string()]));
 
         if let (Some(cols), Some(rows)) = (request.cols, request.rows) {
             manager
                 .create_terminal_with_app_and_size(CreateTerminalWithAppAndSizeParams {
                     id: request.id.clone(),
                     cwd: request.cwd,
-                    command: bash,
+                    command,
                     args,
                     env,
                     cols,
@@ -493,7 +510,7 @@ impl TerminalsBackend for TerminalManagerBackend {
                 .await?;
         } else {
             manager
-                .create_terminal_with_app(request.id.clone(), request.cwd, bash, args, env)
+                .create_terminal_with_app(request.id.clone(), request.cwd, command, args, env)
                 .await?;
         }
 
@@ -649,6 +666,7 @@ mod tests {
     use super::*;
     use async_trait::async_trait;
     use std::sync::{Arc, Mutex};
+    use crate::domains::terminal::{put_terminal_shell_override, testing};
 
     struct RecordingBackend {
         calls: Arc<Mutex<Vec<CreateTerminalRequest>>>,
@@ -1041,6 +1059,114 @@ mod tests {
         }
     }
 
+    #[derive(Clone)]
+    struct RunRecordingBackend {
+        run_calls: Arc<Mutex<Vec<CreateRunTerminalRequest>>>,
+    }
+
+    impl RunRecordingBackend {
+        fn new() -> Self {
+            Self {
+                run_calls: Arc::new(Mutex::new(Vec::new())),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl TerminalsBackend for RunRecordingBackend {
+        async fn create_terminal(&self, _request: CreateTerminalRequest) -> Result<String, String> {
+            panic!("unused in run recording backend");
+        }
+
+        async fn write_terminal(&self, _id: String, _data: Vec<u8>) -> Result<(), String> {
+            panic!("unused in run recording backend");
+        }
+
+        async fn create_run_terminal(
+            &self,
+            request: CreateRunTerminalRequest,
+        ) -> Result<String, String> {
+            self.run_calls.lock().unwrap().push(request);
+            Ok("run-id".to_string())
+        }
+
+        async fn create_terminal_with_size(
+            &self,
+            _request: CreateTerminalWithSizeRequest,
+        ) -> Result<String, String> {
+            panic!("unused in run recording backend");
+        }
+
+        async fn paste_and_submit_terminal(
+            &self,
+            _id: String,
+            _data: Vec<u8>,
+            _bracketed: bool,
+        ) -> Result<(), String> {
+            panic!("unused in run recording backend");
+        }
+
+        async fn resize_terminal(&self, _id: String, _cols: u16, _rows: u16) -> Result<(), String> {
+            panic!("unused in run recording backend");
+        }
+
+        async fn close_terminal(&self, _id: String) -> Result<(), String> {
+            panic!("unused in run recording backend");
+        }
+
+        async fn terminal_exists(&self, _id: String) -> Result<bool, String> {
+            panic!("unused in run recording backend");
+        }
+
+        async fn terminals_exist_bulk(
+            &self,
+            _ids: Vec<String>,
+        ) -> Result<Vec<(String, bool)>, String> {
+            panic!("unused in run recording backend");
+        }
+
+        async fn get_terminal_buffer(
+            &self,
+            _id: String,
+            _from_seq: Option<u64>,
+        ) -> Result<TerminalSnapshot, String> {
+            panic!("unused in run recording backend");
+        }
+
+        async fn get_terminal_activity_status(&self, _id: String) -> Result<(bool, u64), String> {
+            panic!("unused in run recording backend");
+        }
+
+        async fn get_all_terminal_activity(&self) -> Result<Vec<(String, u64)>, String> {
+            panic!("unused in run recording backend");
+        }
+
+        async fn register_session_terminals(
+            &self,
+            _project_id: String,
+            _session_id: Option<String>,
+            _terminal_ids: Vec<String>,
+        ) -> Result<(), String> {
+            panic!("unused in run recording backend");
+        }
+
+        async fn suspend_session_terminals(
+            &self,
+            _project_id: String,
+            _session_id: Option<String>,
+        ) -> Result<(), String> {
+            panic!("unused in run recording backend");
+        }
+
+        async fn resume_session_terminals(
+            &self,
+            _project_id: String,
+            _session_id: Option<String>,
+        ) -> Result<(), String> {
+            panic!("unused in run recording backend");
+        }
+    }
+
     #[tokio::test]
     async fn passes_request_to_backend() {
         let calls = Arc::new(Mutex::new(Vec::new()));
@@ -1126,4 +1252,69 @@ mod tests {
             "error should include context: {message}"
         );
     }
+
+    #[tokio::test]
+    async fn create_run_terminal_injects_effective_shell_override() {
+        let _guard = testing::override_lock();
+        testing::reset_shell_override();
+
+        let shell = testing::resolve_available_shell();
+        let args = vec!["-l".to_string(), "--login".to_string()];
+        put_terminal_shell_override(shell.clone(), args.clone());
+
+        let backend = RunRecordingBackend::new();
+        let service = TerminalsServiceImpl::new(backend.clone());
+
+        let request = CreateRunTerminalRequest {
+            id: "run-1".to_string(),
+            cwd: "/tmp".to_string(),
+            env: None,
+            cols: None,
+            rows: None,
+            shell: None,
+        };
+
+        let result = service.create_run_terminal(request).await;
+        testing::reset_shell_override();
+        assert!(result.is_ok(), "expected successful response");
+
+        let recorded = backend.run_calls.lock().unwrap();
+        assert_eq!(recorded.len(), 1);
+        let recorded_shell = recorded[0]
+            .shell
+            .as_ref()
+            .expect("expected shell configuration in request");
+        assert_eq!(recorded_shell.command, shell);
+        assert_eq!(recorded_shell.args, args);
+    }
+
+    #[tokio::test]
+    async fn create_run_terminal_respects_existing_shell_config() {
+        let backend = RunRecordingBackend::new();
+        let service = TerminalsServiceImpl::new(backend.clone());
+
+        let shell_config = RunShellConfig {
+            command: "/bin/fish".to_string(),
+            args: vec!["-l".to_string()],
+        };
+
+        let request = CreateRunTerminalRequest {
+            id: "run-2".to_string(),
+            cwd: "/tmp".to_string(),
+            env: None,
+            cols: Some(120),
+            rows: Some(40),
+            shell: Some(shell_config.clone()),
+        };
+
+        let result = service.create_run_terminal(request).await;
+        assert!(result.is_ok(), "expected successful response");
+
+        let recorded = backend.run_calls.lock().unwrap();
+        assert_eq!(recorded.len(), 1);
+        assert_eq!(recorded[0].shell.as_ref(), Some(&shell_config));
+        assert_eq!(recorded[0].cols, Some(120));
+        assert_eq!(recorded[0].rows, Some(40));
+    }
+
 }

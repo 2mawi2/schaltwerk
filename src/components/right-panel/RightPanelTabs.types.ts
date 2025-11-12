@@ -1,1 +1,1 @@
-export type TabKey = 'changes' | 'agent' | 'info' | 'history' | 'specs'
+export type TabKey = 'changes' | 'agent' | 'info' | 'history' | 'specs' | 'preview'

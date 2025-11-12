@@ -13,6 +13,8 @@ export const createEmptyCliArgsState = (): AgentCliArgsState => createAgentRecor
 
 export const displayNameForAgent = (agent: AgentType) => {
     switch (agent) {
+        case 'copilot':
+            return 'GitHub Copilot'
         case 'opencode':
             return 'OpenCode'
         case 'gemini':

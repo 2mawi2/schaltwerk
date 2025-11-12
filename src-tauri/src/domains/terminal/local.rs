@@ -3,6 +3,7 @@ use super::command_builder::build_command_spec;
 use super::control_sequences::{SanitizedOutput, SequenceResponse, sanitize_control_sequences};
 use super::idle_detection::{IdleDetector, IdleTransition};
 use super::lifecycle::{self, LifecycleDeps};
+use super::submission::build_submission_payload;
 use super::visible::VisibleScreen;
 use super::{CreateParams, TerminalBackend, TerminalSnapshot};
 use crate::infrastructure::events::{SchaltEvent, emit_event};
@@ -15,6 +16,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 use tauri::AppHandle;
 use tokio::sync::{Mutex, RwLock, broadcast};
+use tokio::time::{Instant as TokioInstant, sleep};
 
 const DEFAULT_MAX_BUFFER_SIZE: usize = 2 * 1024 * 1024;
 const AGENT_MAX_BUFFER_SIZE: usize = 64 * 1024 * 1024;
@@ -45,7 +47,7 @@ impl TerminalState {
             response.extend_from_slice(sequence.as_bytes());
         }
 
-        debug!("Responding to {count} cursor position query(ies) for {id} at row {row}, col {col}");
+        trace!("Responding to {count} cursor position query(ies) for {id} at row {row}, col {col}");
 
         Some(response)
     }
@@ -56,6 +58,7 @@ struct InitialCommandState {
     command: String,
     ready_marker: Option<Vec<u8>>,
     buffer: Vec<u8>,
+    dispatch_after: Option<Instant>,
 }
 
 fn contains_subsequence(haystack: &[u8], needle: &[u8]) -> bool {
@@ -97,6 +100,12 @@ async fn maybe_dispatch_initial_command(
                     }
                 }
                 _ => {
+                    if state
+                        .dispatch_after
+                        .is_some_and(|deadline| Instant::now() < deadline)
+                    {
+                        return;
+                    }
                     command_to_send = Some(state.command.clone());
                     commands_guard.remove(terminal_id);
                 }
@@ -109,11 +118,7 @@ async fn maybe_dispatch_initial_command(
 
         let mut writers_guard = pty_writers.lock().await;
         if let Some(writer) = writers_guard.get_mut(terminal_id) {
-            let mut payload = Vec::with_capacity(command.len() + 6);
-            payload.extend_from_slice(b"\x1b[200~");
-            payload.extend_from_slice(command.as_bytes());
-            payload.extend_from_slice(b"\x1b[201~");
-            payload.push(b'\r');
+            let payload = build_submission_payload(command.as_bytes(), true);
 
             if let Err(e) = writer.write_all(&payload) {
                 warn!("Failed to write initial command for terminal {terminal_id}: {e}");
@@ -124,6 +129,8 @@ async fn maybe_dispatch_initial_command(
             warn!("No writer found to dispatch initial command for terminal {terminal_id}");
         }
         drop(writers_guard);
+
+        schedule_enter_replay(pty_writers, terminal_id);
 
         let handle_guard = coalescing_state.app_handle.lock().await;
         if let Some(handle) = handle_guard.as_ref() {
@@ -642,6 +649,52 @@ impl LocalPtyAdapter {
             .insert(id.to_string(), reader_handle);
         Ok(())
     }
+
+fn schedule_initial_command_dispatch(&self, terminal_id: String, deadline: Instant) {
+        let initial_commands = Arc::clone(&self.initial_commands);
+        let pty_writers = Arc::clone(&self.pty_writers);
+        let coalescing_state = self.coalescing_state.clone();
+
+        tokio::spawn(async move {
+            if deadline > Instant::now() {
+                let tokio_deadline = TokioInstant::from_std(deadline);
+                tokio::time::sleep_until(tokio_deadline).await;
+            }
+
+            maybe_dispatch_initial_command(
+                &initial_commands,
+                &pty_writers,
+                &coalescing_state,
+                &terminal_id,
+                &[],
+            )
+            .await;
+        });
+    }
+}
+
+fn schedule_enter_replay(
+    pty_writers: &Arc<Mutex<HashMap<String, Box<dyn Write + Send>>>>,
+    terminal_id: &str,
+) {
+    const ENTER_REPLAY_DELAY_MS: u64 = 900;
+    let id = terminal_id.to_string();
+    let writers = Arc::clone(pty_writers);
+
+    tokio::spawn(async move {
+        sleep(Duration::from_millis(ENTER_REPLAY_DELAY_MS)).await;
+
+        let mut guard = writers.lock().await;
+        if let Some(writer) = guard.get_mut(&id) {
+            if let Err(e) = writer.write_all(b"\r") {
+                warn!("Failed to replay enter key for terminal {id}: {e}");
+                return;
+            }
+            if let Err(e) = writer.flush() {
+                warn!("Failed to flush replayed enter key for terminal {id}: {e}");
+            }
+        }
+    });
 }
 
 #[async_trait::async_trait]
@@ -870,7 +923,22 @@ impl TerminalBackend for LocalPtyAdapter {
         id: &str,
         command: String,
         ready_marker: Option<String>,
+        dispatch_delay: Option<Duration>,
     ) -> Result<(), String> {
+        let preview = command
+            .chars()
+            .filter(|c| *c != '\r' && *c != '\n')
+            .take(80)
+            .collect::<String>();
+        info!(
+            "LocalPtyAdapter storing initial command for {id}: len={}, ready_marker_bytes={}, delay_ms={}, preview=\"{preview}\"",
+            command.len(),
+            ready_marker
+                .as_ref()
+                .map(|m| m.trim().len())
+                .unwrap_or(0),
+            dispatch_delay.map(|d| d.as_millis()).unwrap_or(0)
+        );
         let marker_bytes = ready_marker.and_then(|marker| {
             if marker.trim().is_empty() {
                 None
@@ -878,17 +946,23 @@ impl TerminalBackend for LocalPtyAdapter {
                 Some(marker.into_bytes())
             }
         });
+        let dispatch_after = dispatch_delay.map(|delay| Instant::now() + delay);
 
         let state = InitialCommandState {
             command,
             ready_marker: marker_bytes,
             buffer: Vec::new(),
+            dispatch_after,
         };
 
         self.initial_commands
             .lock()
             .await
             .insert(id.to_string(), state);
+
+        if let Some(deadline) = dispatch_after {
+            self.schedule_initial_command_dispatch(id.to_string(), deadline);
+        }
 
         Ok(())
     }

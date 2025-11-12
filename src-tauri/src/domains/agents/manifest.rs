@@ -60,6 +60,7 @@ mod tests {
         assert!(AgentManifest::get("gemini").is_some());
         assert!(AgentManifest::get("opencode").is_some());
         assert!(AgentManifest::get("droid").is_some());
+        assert!(AgentManifest::get("copilot").is_some());
         assert!(AgentManifest::get("terminal").is_some());
     }
 
@@ -79,7 +80,9 @@ mod tests {
         let agents = AgentManifest::supported_agents();
         assert!(agents.len() >= 6);
 
-        let expected = vec!["claude", "codex", "droid", "gemini", "opencode", "terminal"];
+        let expected = vec![
+            "claude", "codex", "copilot", "droid", "gemini", "opencode", "terminal",
+        ];
         for agent in expected {
             assert!(agents.contains(&agent.to_string()));
         }
@@ -112,6 +115,18 @@ mod tests {
         assert_eq!(terminal.default_binary_path, "/bin/sh");
         assert!(!terminal.auto_send_initial_command);
         assert!(!terminal.supports_resume);
+    }
+
+    #[test]
+    fn test_copilot_definition() {
+        let copilot = AgentManifest::get("copilot").expect("Copilot manifest entry missing");
+        assert_eq!(copilot.id, "copilot");
+        assert_eq!(copilot.display_name, "GitHub Copilot");
+        assert_eq!(copilot.binary_name, "copilot");
+        assert_eq!(copilot.default_binary_path, "copilot");
+        assert!(copilot.auto_send_initial_command);
+        assert!(copilot.supports_resume);
+        assert!(copilot.ready_marker.is_none());
     }
 
     #[test]

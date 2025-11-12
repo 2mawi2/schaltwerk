@@ -26,7 +26,8 @@ export enum SchaltEvent {
   ProjectFilesUpdated = 'schaltwerk:project-files-updated',
   GitHubStatusChanged = 'schaltwerk:github-status-changed',
   AppUpdateResult = 'schaltwerk:app-update-result',
-  DevBackendError = 'schaltwerk:dev-backend-error'
+  DevBackendError = 'schaltwerk:dev-backend-error',
+  CloneProgress = 'schaltwerk:clone-progress'
 }
 
 
@@ -134,6 +135,15 @@ export interface DevBackendErrorPayload {
   source?: string
 }
 
+export type CloneProgressKind = 'info' | 'success' | 'error'
+
+export interface CloneProgressPayload {
+  requestId: string
+  message: string
+  remote: string
+  kind: CloneProgressKind
+}
+
 import { EnrichedSession } from '../types/session'
 
 export interface SelectionPayload {
@@ -183,4 +193,5 @@ export type EventPayloadMap = {
   [SchaltEvent.GitHubStatusChanged]: GitHubStatusPayload
   [SchaltEvent.AppUpdateResult]: AppUpdateResultPayload
   [SchaltEvent.DevBackendError]: DevBackendErrorPayload
+  [SchaltEvent.CloneProgress]: CloneProgressPayload
 }

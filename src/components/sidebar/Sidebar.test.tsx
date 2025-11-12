@@ -127,11 +127,11 @@ export const sessionReducers = {
 
 
 describe('Sidebar', () => {
-  let eventListeners: Map<string, (event: Event<unknown>) => void>
+  let eventListeners: Map<string, (event: Event<unknown>) => void> = new Map()
 
   beforeEach(() => {
     vi.clearAllMocks()
-    eventListeners = new Map()
+    eventListeners.clear()
     
     // Setup default mocks
     mockInvoke.mockImplementation((command: string) => {

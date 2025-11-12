@@ -221,6 +221,7 @@ mod tests {
                 id.clone(),
                 "echo AUTO_COMMAND".to_string(),
                 Some("READY_MARKER".to_string()),
+                None,
             )
             .await
             .unwrap();
@@ -240,6 +241,39 @@ mod tests {
         assert!(
             buffer.contains("AUTO_COMMAND"),
             "Terminal buffer should include command output"
+        );
+
+        safe_close(&manager, &id).await;
+    }
+
+    #[tokio::test]
+    async fn test_queue_initial_command_dispatches_after_delay_without_output() {
+        let manager = TerminalManager::new();
+        let id = unique_id("initial-cmd-delay");
+
+        manager
+            .create_terminal(id.clone(), "/tmp".to_string())
+            .await
+            .unwrap();
+
+        manager
+            .queue_initial_command(
+                id.clone(),
+                "echo DELAY_DISPATCHED".to_string(),
+                None,
+                Some(Duration::from_millis(200)),
+            )
+            .await
+            .unwrap();
+
+        // No terminal output is emitted before the delay elapses, so this would have
+        // previously hung forever. Wait long enough for the timer-based dispatch path.
+        sleep(Duration::from_millis(500)).await;
+
+        let buffer = read_buffer(&manager, id.clone()).await;
+        assert!(
+            buffer.contains("DELAY_DISPATCHED"),
+            "Expected delayed initial command to execute even without terminal output"
         );
 
         safe_close(&manager, &id).await;

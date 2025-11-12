@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateParams {
@@ -42,6 +43,7 @@ pub trait TerminalBackend: Send + Sync {
         _id: &str,
         _command: String,
         _ready_marker: Option<String>,
+        _dispatch_delay: Option<Duration>,
     ) -> Result<(), String> {
         Ok(())
     }
@@ -67,6 +69,7 @@ pub mod idle_detection;
 pub mod lifecycle;
 pub mod local;
 pub mod manager;
+pub mod submission;
 pub mod shell_invocation;
 pub mod utf8_stream;
 pub mod visible;
@@ -77,8 +80,8 @@ pub mod manager_test;
 pub use local::LocalPtyAdapter;
 pub use manager::TerminalManager;
 pub use shell_invocation::{
-    ShellInvocation, build_login_shell_invocation, build_login_shell_invocation_with_shell,
-    sh_quote_string, shell_invocation_to_posix,
+    ShellInvocation, build_login_shell_args, build_login_shell_invocation,
+    build_login_shell_invocation_with_shell, sh_quote_string, shell_invocation_to_posix,
 };
 
 use std::sync::RwLock;

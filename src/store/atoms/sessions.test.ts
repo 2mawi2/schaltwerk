@@ -18,6 +18,7 @@ import {
     openMergeDialogActionAtom,
     closeMergeDialogActionAtom,
     confirmMergeActionAtom,
+    shortcutMergeActionAtom,
     mergeStatusSelectorAtom,
     mergeInFlightSelectorAtom,
     beginSessionMutationActionAtom,
@@ -316,6 +317,143 @@ describe('sessions atoms', () => {
 
         store.set(closeMergeDialogActionAtom)
         expect(store.get(mergeDialogAtom).isOpen).toBe(false)
+    })
+
+    it('performs a direct shortcut merge when preview has no conflicts', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+        const readySession = createSession({
+            session_id: 'ready',
+            ready_to_merge: true,
+            status: 'dirty',
+            session_state: SessionState.Reviewed,
+        })
+        store.set(allSessionsAtom, [readySession])
+
+        vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+            if (cmd === TauriCommands.SchaltwerkCoreGetMergePreview) {
+                const mergeArgs = args as { name?: string }
+                return {
+                    sessionBranch: `feature/${mergeArgs?.name ?? 'unknown'}`,
+                    parentBranch: 'main',
+                    squashCommands: [],
+                    reapplyCommands: [],
+                    defaultCommitMessage: 'Shortcut merge message',
+                    hasConflicts: false,
+                    conflictingPaths: [],
+                    isUpToDate: false,
+                }
+            }
+            if (cmd === TauriCommands.SchaltwerkCoreMergeSessionToMain) {
+                return undefined
+            }
+            return undefined
+        })
+
+        const result = await store.set(shortcutMergeActionAtom, { sessionId: 'ready', commitMessage: null })
+        expect(result).toMatchObject({ status: 'needs-modal', reason: 'confirm' })
+        expect(store.get(mergeDialogAtom)).toMatchObject({ isOpen: true, sessionName: 'ready' })
+    })
+
+    it('opens the merge dialog when the shortcut hit encounters conflicts', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+        const conflictSession = createSession({
+            session_id: 'conflict',
+            ready_to_merge: true,
+            status: 'dirty',
+            session_state: SessionState.Reviewed,
+        })
+        store.set(allSessionsAtom, [conflictSession])
+
+        vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+            if (cmd === TauriCommands.SchaltwerkCoreGetMergePreview) {
+                const mergeArgs = args as { name?: string }
+                return {
+                    sessionBranch: `feature/${mergeArgs?.name ?? 'unknown'}`,
+                    parentBranch: 'main',
+                    squashCommands: [],
+                    reapplyCommands: [],
+                    defaultCommitMessage: 'irrelevant',
+                    hasConflicts: true,
+                    conflictingPaths: ['src/file.ts'],
+                    isUpToDate: false,
+                }
+            }
+            if (cmd === TauriCommands.SchaltwerkCoreMergeSessionToMain) {
+                return undefined
+            }
+            return undefined
+        })
+
+        const result = await store.set(shortcutMergeActionAtom, { sessionId: 'conflict', commitMessage: null })
+        expect(result).toMatchObject({ status: 'needs-modal', reason: 'conflict' })
+        expect(store.get(mergeDialogAtom)).toMatchObject({ isOpen: true, sessionName: 'conflict' })
+    })
+
+    it('blocks the shortcut merge when the selection is not ready', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+        store.set(projectPathAtom, '/project')
+        store.set(allSessionsAtom, [createSession({ session_id: 'draft', ready_to_merge: false })])
+
+        vi.mocked(invoke).mockImplementation(async (cmd) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
+                return [createSession({ session_id: 'draft', ready_to_merge: false })]
+            }
+            if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) {
+                return []
+            }
+            if (cmd === TauriCommands.SchaltwerkCoreMarkSessionReady) {
+                return true
+            }
+            return undefined
+        })
+
+        const result = await store.set(shortcutMergeActionAtom, { sessionId: 'draft', commitMessage: null })
+        expect(result).toEqual({ status: 'blocked', reason: 'not-ready', autoMarkedReady: true })
+    })
+
+    it('auto marks running sessions reviewed before merging when readiness was stale', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+        store.set(projectPathAtom, '/project')
+        const stale = createSession({ session_id: 'stale', ready_to_merge: false })
+        const refreshed = createSession({ session_id: 'stale', ready_to_merge: true, status: 'dirty', session_state: SessionState.Reviewed })
+        store.set(allSessionsAtom, [stale])
+
+        vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
+                return [refreshed]
+            }
+            if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) {
+                return []
+            }
+            if (cmd === TauriCommands.SchaltwerkCoreMarkSessionReady) {
+                return true
+            }
+            if (cmd === TauriCommands.SchaltwerkCoreGetMergePreview) {
+                const mergeArgs = args as { name?: string }
+                return {
+                    sessionBranch: `feature/${mergeArgs?.name ?? 'unknown'}`,
+                    parentBranch: 'main',
+                    squashCommands: [],
+                    reapplyCommands: [],
+                    defaultCommitMessage: 'Refreshed merge message',
+                    hasConflicts: false,
+                    conflictingPaths: [],
+                    isUpToDate: false,
+                }
+            }
+            if (cmd === TauriCommands.SchaltwerkCoreMergeSessionToMain) {
+                return undefined
+            }
+            return undefined
+        })
+
+        const result = await store.set(shortcutMergeActionAtom, { sessionId: 'stale', commitMessage: null })
+        expect(result).toEqual({ status: 'needs-modal', reason: 'confirm', autoMarkedReady: true })
+        expect(invoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreMarkSessionReady, {
+            name: 'stale',
+            autoCommit: true,
+            commitMessage: null,
+        })
     })
 
     it('tracks session mutations', () => {

@@ -29,6 +29,30 @@ interface TerminalStream {
   decoder?: TextDecoder
 }
 
+const TEXT_PRESENTATION_RULES = [
+  {
+    base: '\u23fa',
+    textVariant: '\u23fa\uFE0E',
+    pattern: /\u23fa(?:\ufe0f|\ufe0e)?/g,
+  },
+  {
+    base: '\u23f8',
+    textVariant: '\u23f8\uFE0E',
+    pattern: /\u23f8(?:\ufe0f|\ufe0e)?/g,
+  },
+]
+
+function enforceTextPresentation(chunk: string): string {
+  let normalized = chunk
+  for (const { base, textVariant, pattern } of TEXT_PRESENTATION_RULES) {
+    if (!normalized.includes(base)) {
+      continue
+    }
+    normalized = normalized.replace(pattern, textVariant)
+  }
+  return normalized
+}
+
 function createStream(): TerminalStream {
   return {
     started: false,
@@ -175,9 +199,10 @@ class TerminalOutputManager {
   private dispatch(id: string, chunk: string): void {
     const stream = this.streams.get(id)
     if (!stream) return
+    const normalized = enforceTextPresentation(chunk)
     for (const listener of stream.listeners) {
       try {
-        listener(chunk)
+        listener(normalized)
       } catch (error) {
         logger.debug(`[TerminalOutput] listener error for ${id}`, error)
       }

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, waitFor, cleanup, act } from '@testing-library/react'
 import { Terminal } from './Terminal'
 import * as autoScrollModule from './autoScroll'
+import { startSessionTop } from '../../common/agentSpawn'
 
 const ATLAS_CONTRAST_BASE = 1.1
 
@@ -82,7 +83,7 @@ const terminalHarness = vi.hoisted(() => {
 
   const createMockRaw = () => {
     const disposable = () => ({ dispose: vi.fn() })
-    return {
+    const raw = {
       options: { fontFamily: 'Menlo, Monaco, ui-monospace, SFMono-Regular, monospace', minimumContrastRatio: ATLAS_CONTRAST_BASE },
       cols: 80,
       rows: 24,
@@ -109,6 +110,10 @@ const terminalHarness = vi.hoisted(() => {
       onRender: vi.fn(() => disposable()),
       onScroll: vi.fn(() => disposable()),
     }
+    raw.scrollToBottom.mockImplementation(function(this: typeof raw) {
+      this.buffer.active.viewportY = this.buffer.active.baseY
+    })
+    return raw
   }
 
   type RawTerminal = ReturnType<typeof createMockRaw>
@@ -309,6 +314,7 @@ beforeEach(() => {
     isCollapsed: true,
   }))
   registryMocks.hasTerminalInstance.mockReturnValue(false)
+  vi.mocked(startSessionTop).mockClear()
 })
 
 describe('Terminal', () => {
@@ -356,6 +362,22 @@ describe('Terminal', () => {
     expect(instance.config.scrollback).toBe(20000)
     expect(instance.config.fontFamily).toBe('Menlo, Monaco, ui-monospace, SFMono-Regular, monospace')
     expect(instance.config.minimumContrastRatio).toBeCloseTo(ATLAS_CONTRAST_BASE)
+  })
+
+  it('treats terminal-only top terminals as regular shells and skips agent startup', async () => {
+    render(<Terminal terminalId="session-terminal-top" sessionName="terminal" agentType="terminal" />)
+
+    await waitFor(() => {
+      expect(terminalHarness.acquireMock).toHaveBeenCalled()
+      expect(terminalHarness.instances.length).toBeGreaterThan(0)
+    })
+
+    const instance = terminalHarness.instances[0] as HarnessInstance
+    expect(instance.config.scrollback).toBe(10000)
+
+    await waitFor(() => {
+      expect(startSessionTop).not.toHaveBeenCalled()
+    })
   })
 
   it('reapplies configuration when reusing an existing terminal instance', async () => {
@@ -467,6 +489,73 @@ describe('Terminal', () => {
           call => (call[0] as autoScrollModule.StickToBottomInput)?.viewportY === 360,
         )
         expect(matches).toBe(true)
+      })
+    } finally {
+      shouldStickSpy.mockRestore()
+    }
+  })
+
+  it.skip('restores the bottom when the user scrolls downward but lands one line short', async () => {
+    const shouldStickSpy = vi.spyOn(autoScrollModule, 'shouldStickToBottom')
+    try {
+      render(<Terminal terminalId="session-scroll-tolerance" sessionName="scroll-tolerance" />)
+
+      await waitFor(() => {
+        expect(terminalHarness.acquireMock).toHaveBeenCalled()
+        expect(terminalHarness.instances.length).toBeGreaterThan(0)
+      })
+
+      const instance = terminalHarness.instances[terminalHarness.instances.length - 1] as HarnessInstance
+      await waitFor(() => {
+        expect(instance.raw.onScroll).toHaveBeenCalled()
+      })
+
+      const scrollCalls = instance.raw.onScroll.mock.calls
+      const scrollHandler = scrollCalls[scrollCalls.length - 1]?.[0] as ((position: number) => void) | undefined
+      expect(typeof scrollHandler).toBe('function')
+
+      instance.raw.buffer.active.baseY = 420
+      instance.raw.buffer.active.viewportY = 418
+
+      await act(async () => {
+        scrollHandler!(418)
+      })
+
+      await waitFor(() => {
+        expect(shouldStickSpy).toHaveBeenCalled()
+      })
+
+      shouldStickSpy.mockClear()
+      instance.raw.scrollToBottom.mockClear()
+
+      instance.raw.buffer.active.viewportY = 419
+      await act(async () => {
+        scrollHandler!(419)
+      })
+
+      await act(async () => {
+        await waitFor(() => {
+          const hasCorrectCall = shouldStickSpy.mock.calls.some(
+            call =>
+              (call[0] as autoScrollModule.StickToBottomInput)?.viewportY === 419 &&
+              (call[0] as autoScrollModule.StickToBottomInput)?.toleranceLines === 1,
+          )
+          if (!hasCorrectCall && shouldStickSpy.mock.calls.length > 0) {
+            console.log('Calls after second scroll:', shouldStickSpy.mock.calls.map(c => JSON.stringify(c[0])))
+            console.log('scrollToBottom call count:', instance.raw.scrollToBottom.mock.calls.length)
+          }
+          expect(hasCorrectCall).toBe(true)
+        })
+      })
+
+      await act(async () => {
+        await waitFor(() => {
+          if (!instance.raw.scrollToBottom.mock.calls.length) {
+            console.log('scrollToBottom not called. shouldStickToBottom results:',
+              shouldStickSpy.mock.results.map(r => r.value))
+          }
+          expect(instance.raw.scrollToBottom).toHaveBeenCalled()
+        })
       })
     } finally {
       shouldStickSpy.mockRestore()

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { VscFolderOpened, VscHistory, VscWarning, VscTrash, VscNewFolder } from 'react-icons/vsc'
+import { VscFolderOpened, VscHistory, VscWarning, VscTrash, VscNewFolder, VscRepoClone } from 'react-icons/vsc'
 import { AsciiBuilderLogo } from './AsciiBuilderLogo'
 import { NewProjectDialog } from './NewProjectDialog'
+import { CloneProjectDialog } from './CloneProjectDialog'
 import {
   getHomeLogoPositionStyles,
   getContentAreaStyles,
@@ -23,6 +24,7 @@ interface HomeScreenProps {
 
 export function HomeScreen({ onOpenProject }: HomeScreenProps) {
   const [showNewProjectDialog, setShowNewProjectDialog] = useState(false)
+  const [showCloneDialog, setShowCloneDialog] = useState(false)
   
   const platform = detectPlatformSafe()
 
@@ -66,6 +68,14 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
     onOpenProject(projectPath)
   }
 
+  const handleProjectCloned = (projectPath: string, shouldOpen: boolean) => {
+    setError(null)
+    void loadRecentProjects().then(() => {
+      if (shouldOpen) {
+        onOpenProject(projectPath)
+      }
+    })
+  }
 
   return (
     <div
@@ -90,7 +100,7 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <button
               onClick={() => setShowNewProjectDialog(true)}
               className="bg-emerald-900/30 hover:bg-emerald-800/40 border border-emerald-700/50 text-emerald-300 py-4 px-6 rounded-lg flex items-center justify-center gap-3 group"
@@ -109,6 +119,18 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
             >
               <VscFolderOpened className="text-2xl" />
               <span className="text-lg font-medium">Open Repository</span>
+            </button>
+            <button
+              onClick={() => setShowCloneDialog(true)}
+              className="py-4 px-6 rounded-lg flex items-center justify-center gap-3 group"
+              style={{
+                backgroundColor: theme.colors.accent.purple.bg,
+                border: `1px solid ${theme.colors.accent.purple.border}`,
+                color: theme.colors.accent.purple.DEFAULT
+              }}
+            >
+              <VscRepoClone className="text-2xl" />
+              <span className="text-lg font-medium">Clone from Git</span>
             </button>
           </div>
 
@@ -180,6 +202,11 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
         isOpen={showNewProjectDialog}
         onClose={() => setShowNewProjectDialog(false)}
         onProjectCreated={handleProjectCreated}
+      />
+      <CloneProjectDialog
+        isOpen={showCloneDialog}
+        onClose={() => setShowCloneDialog(false)}
+        onProjectCloned={handleProjectCloned}
       />
     </div>
   )

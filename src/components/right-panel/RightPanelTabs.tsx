@@ -25,6 +25,8 @@ import { RightPanelTabsHeader } from './RightPanelTabsHeader'
 import type { TabKey } from './RightPanelTabs.types'
 import { useAtomValue } from 'jotai'
 import { projectPathAtom } from '../../store/atoms/project'
+import { WebPreviewPanel } from './WebPreviewPanel'
+import { buildPreviewKey } from '../../store/atoms/preview'
 
 interface RightPanelTabsProps {
   onFileSelect: (filePath: string) => void
@@ -80,6 +82,20 @@ const RightPanelTabsComponent = ({ onFileSelect, onOpenHistoryDiff, selectionOve
     }
     return null
   }, [effectiveSelection])
+
+  const previewKey = useMemo(() => {
+    if (!projectPath) return null
+    if (effectiveSelection.kind === 'orchestrator') {
+      return buildPreviewKey(projectPath, 'orchestrator')
+    }
+    if (effectiveSelection.kind === 'session') {
+      const sessionId = typeof effectiveSelection.payload === 'string' ? effectiveSelection.payload : null
+      if (sessionId) {
+        return buildPreviewKey(projectPath, 'session', sessionId)
+      }
+    }
+    return null
+  }, [projectPath, effectiveSelection])
 
   const tabSelectionCacheRef = useRef<Map<string, TabKey>>(new Map())
 
@@ -335,7 +351,8 @@ const RightPanelTabsComponent = ({ onFileSelect, onOpenHistoryDiff, selectionOve
   const showSpecTab = isRunningSession
   const showHistoryTab = isCommander || isRunningSession || (effectiveSelection.kind === 'session' && effectiveIsSpec)
   const showSpecsTab = isCommander
-  const tabsPresent = showChangesTab || showInfoTab || showSpecTab || showHistoryTab || showSpecsTab
+  const showPreviewTab = isCommander || isRunningSession
+  const tabsPresent = showChangesTab || showInfoTab || showSpecTab || showHistoryTab || showSpecsTab || showPreviewTab
   // Enable split mode when viewing Changes for normal running sessions
   const useSplitMode = isRunningSession && activeTab === 'changes'
 
@@ -354,6 +371,7 @@ const RightPanelTabsComponent = ({ onFileSelect, onOpenHistoryDiff, selectionOve
           showInfoTab={showInfoTab}
           showSpecTab={showSpecTab}
           showSpecsTab={showSpecsTab}
+          showPreviewTab={showPreviewTab}
           onSelectTab={tab => setUserSelectedTab(tab)}
         />
       )}
@@ -402,7 +420,11 @@ const RightPanelTabsComponent = ({ onFileSelect, onOpenHistoryDiff, selectionOve
           </Split>
         ) : (
           <div className="absolute inset-0" key={activeTab}>
-            {activeTab === 'changes' ? (
+            {activeTab === 'preview' ? (
+              previewKey ? (
+                <WebPreviewPanel previewKey={previewKey} isResizing={isDragging} />
+              ) : null
+            ) : activeTab === 'changes' ? (
               <SimpleDiffPanel
                 onFileSelect={onFileSelect}
                 sessionNameOverride={effectiveSelection.kind === 'session' ? (effectiveSelection.payload as string) : undefined}

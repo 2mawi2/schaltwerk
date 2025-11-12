@@ -2,7 +2,6 @@ use super::connection::Database;
 use anyhow::Result;
 use rusqlite::params;
 
-
 pub trait AppConfigMethods {
     fn get_skip_permissions(&self) -> Result<bool>;
     fn set_skip_permissions(&self, enabled: bool) -> Result<()>;

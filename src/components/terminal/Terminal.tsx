@@ -43,6 +43,7 @@ const DEFAULT_SCROLLBACK_LINES = 10000
 const BACKGROUND_SCROLLBACK_LINES = 5000
 const AGENT_SCROLLBACK_LINES = 20000
 const CLAUDE_SHIFT_ENTER_SEQUENCE = '\\'
+const SCROLL_RECATCH_TOLERANCE_LINES = 1
 // Track last effective size we told the PTY (after guard), for SIGWINCH nudging
 const lastEffectiveRefInit = { cols: 80, rows: 24 }
 
@@ -160,10 +161,14 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const [customFontFamily, setCustomFontFamily] = useState<string | null>(null);
     const [fontsFullyLoaded, setFontsFullyLoaded] = useState(false);
     const fontsLoadedRef = useRef(false);
+    const isTerminalOnlyAgent = agentType === 'terminal';
     // Agent conversation terminal detection reused across sizing logic and scrollback config
-    const isAgentTopTerminal = useMemo(() => (
-        terminalId.endsWith('-top') && (terminalId.startsWith('session-') || terminalId.startsWith('orchestrator-'))
-    ), [terminalId]);
+    const isAgentTopTerminal = useMemo(() => {
+        if (isTerminalOnlyAgent) {
+            return false;
+        }
+        return terminalId.endsWith('-top') && (terminalId.startsWith('session-') || terminalId.startsWith('orchestrator-'));
+    }, [terminalId, isTerminalOnlyAgent]);
     // Drag-selection suppression for run terminals
     const suppressNextClickRef = useRef<boolean>(false);
     const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null);
@@ -173,6 +178,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const shiftEnterPrefixRef = useRef<Promise<void> | null>(null);
     const scrollStickRafRef = useRef<number | null>(null);
     const pendingScrollViewportRef = useRef<number | undefined>(undefined);
+    const pendingScrollDirectionRef = useRef<'up' | 'down' | null>(null);
+    const lastScrollViewportRef = useRef<number | null>(null);
 
     const beginClaudeShiftEnter = useCallback(() => {
         const prefixWrite = writeTerminalBackend(terminalId, CLAUDE_SHIFT_ENTER_SEQUENCE)
@@ -432,7 +439,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         terminal.current?.scrollToBottom();
     }, []);
 
-    const stickToBottomIfNeeded = useCallback((reason?: string, viewportOverride?: number) => {
+    const stickToBottomIfNeeded = useCallback((reason?: string, viewportOverride?: number, scrollDirection?: 'up' | 'down') => {
         const term = terminal.current;
         if (!term) return;
         try {
@@ -445,6 +452,13 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 : typeof buf.viewportY === 'number'
                     ? buf.viewportY
                     : 0;
+            if (Number.isFinite(viewport)) {
+                lastScrollViewportRef.current = viewport;
+            }
+            const toleranceLines =
+                reason === 'scroll' && scrollDirection === 'down'
+                    ? SCROLL_RECATCH_TOLERANCE_LINES
+                    : 0;
             const shouldStick = shouldStickToBottom({
                 baseY: base,
                 viewportY: viewport,
@@ -452,12 +466,25 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 isDraggingSelection: dragSelectingRef.current,
                 selectionActive: selectionActiveRef.current,
                 hasUserSelection: isUserSelectingInTerminal(),
+                toleranceLines,
             });
             if (!shouldStick) {
                 return;
             }
             try {
                 term.scrollToBottom();
+                try {
+                    const syncedViewport = term.buffer?.active?.viewportY;
+                    if (typeof syncedViewport === 'number' && Number.isFinite(syncedViewport)) {
+                        lastScrollViewportRef.current = syncedViewport;
+                    } else if (Number.isFinite(base)) {
+                        lastScrollViewportRef.current = base;
+                    }
+                } catch {
+                    if (Number.isFinite(base)) {
+                        lastScrollViewportRef.current = base;
+                    }
+                }
             } catch (error) {
                 logger.debug(`[Terminal ${terminalId}] Failed to scroll to bottom${reason ? ` during ${reason}` : ''}:`, error);
             }
@@ -591,7 +618,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
          const setupListener = async () => {
              try {
                  unlistenAgentStarted = await listenEvent(SchaltEvent.TerminalAgentStarted, (payload) => {
-                     logger.info(`[Terminal] Received terminal-agent-started event for ${payload.terminal_id}`);
+                     logger.debug(`[Terminal] Received terminal-agent-started event for ${payload.terminal_id}`);
 
                      startedGlobal.add(payload.terminal_id);
 
@@ -1155,6 +1182,23 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                     const viewportHint = typeof position === 'number' && Number.isFinite(position)
                         ? position
                         : undefined;
+                    if (typeof viewportHint === 'number') {
+                        const previousViewport = typeof lastScrollViewportRef.current === 'number' && Number.isFinite(lastScrollViewportRef.current)
+                            ? lastScrollViewportRef.current
+                            : null;
+                        let direction: 'up' | 'down' | null = null;
+                        if (typeof previousViewport === 'number') {
+                            if (viewportHint > previousViewport) {
+                                direction = 'down';
+                            } else if (viewportHint < previousViewport) {
+                                direction = 'up';
+                            }
+                        }
+                        pendingScrollDirectionRef.current = direction;
+                        lastScrollViewportRef.current = viewportHint;
+                    } else {
+                        pendingScrollDirectionRef.current = null;
+                    }
                     pendingScrollViewportRef.current = viewportHint;
                     if (scrollStickRafRef.current !== null) {
                         return;
@@ -1163,8 +1207,10 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                     const runStick = () => {
                         const hint = pendingScrollViewportRef.current;
                         pendingScrollViewportRef.current = undefined;
+                        const direction = pendingScrollDirectionRef.current;
+                        pendingScrollDirectionRef.current = null;
                         scrollStickRafRef.current = null;
-                        stickToBottomIfNeeded('scroll', hint);
+                        stickToBottomIfNeeded('scroll', hint, direction ?? undefined);
                     };
 
                     try {
@@ -1341,6 +1387,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 scrollStickRafRef.current = null;
             }
             pendingScrollViewportRef.current = undefined;
+            pendingScrollDirectionRef.current = null;
+            lastScrollViewportRef.current = null;
 
             outputDisposables.forEach(disposable => {
                 try {
@@ -1406,7 +1454,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
      // Automatically start Claude for top terminals when hydrated and first ready
      useEffect(() => {
-         if (!hydrated) return;
+        if (!hydrated) return;
+        if (agentType === 'terminal') return;
          if (!terminalId.endsWith('-top')) return;
          if (startedGlobal.has(terminalId)) return;
          if (agentStopped) return;

@@ -1,6 +1,6 @@
 import React from 'react'
 import clsx from 'clsx'
-import { VscDiff, VscGitCommit, VscInfo, VscNotebook } from 'react-icons/vsc'
+import { VscDiff, VscGitCommit, VscInfo, VscNotebook, VscPreview } from 'react-icons/vsc'
 import type { TabKey } from './RightPanelTabs.types'
 
 interface RightPanelTabsHeaderProps {
@@ -11,6 +11,7 @@ interface RightPanelTabsHeaderProps {
   showHistoryTab: boolean
   showSpecTab: boolean
   showSpecsTab: boolean
+  showPreviewTab: boolean
   onSelectTab: (tab: TabKey) => void
 }
 
@@ -43,8 +44,9 @@ const buildDescriptors = ({
   showHistoryTab,
   showInfoTab,
   showSpecTab,
-  showSpecsTab
-}: Pick<RightPanelTabsHeaderProps, 'showChangesTab' | 'showHistoryTab' | 'showInfoTab' | 'showSpecTab' | 'showSpecsTab'>): TabDescriptor[] => {
+  showSpecsTab,
+  showPreviewTab
+}: Pick<RightPanelTabsHeaderProps, 'showChangesTab' | 'showHistoryTab' | 'showInfoTab' | 'showSpecTab' | 'showSpecsTab' | 'showPreviewTab'>): TabDescriptor[] => {
   const descriptors: TabDescriptor[] = []
 
   if (showChangesTab) {
@@ -94,6 +96,15 @@ const buildDescriptors = ({
     })
   }
 
+  if (showPreviewTab) {
+    descriptors.push({
+      key: 'preview',
+      label: 'Preview',
+      title: 'Web Preview',
+      icon: <VscPreview className={baseTabIconClass} />
+    })
+  }
+
   return descriptors
 }
 
@@ -105,9 +116,10 @@ export const RightPanelTabsHeader = ({
   showInfoTab,
   showSpecTab,
   showSpecsTab,
+  showPreviewTab,
   onSelectTab
 }: RightPanelTabsHeaderProps) => {
-  const descriptors = buildDescriptors({ showChangesTab, showHistoryTab, showInfoTab, showSpecTab, showSpecsTab })
+  const descriptors = buildDescriptors({ showChangesTab, showHistoryTab, showInfoTab, showSpecTab, showSpecsTab, showPreviewTab })
 
   if (descriptors.length === 0) return null
 

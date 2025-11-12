@@ -93,6 +93,7 @@ export const TauriCommands = {
   SchaltwerkCoreConvertSessionToDraft: 'schaltwerk_core_convert_session_to_draft',
   SchaltwerkCoreCreateAndStartSpecSession: 'schaltwerk_core_create_and_start_spec_session',
   SchaltwerkCoreCreateSession: 'schaltwerk_core_create_session',
+  SchaltwerkCoreCloneProject: 'schaltwerk_core_clone_project',
   SchaltwerkCoreCreateSpecSession: 'schaltwerk_core_create_spec_session',
   SchaltwerkCoreDeleteArchivedSpec: 'schaltwerk_core_delete_archived_spec',
   SchaltwerkCoreGetAgentType: 'schaltwerk_core_get_agent_type',
@@ -173,4 +174,5 @@ export const TauriCommands = {
    ClipboardWriteText: 'clipboard_write_text',
    ClipboardReadText: 'clipboard_read_text',
   CheckForUpdatesNow: 'check_for_updates_now',
+  TogglePreviewDevtools: 'toggle_preview_devtools',
 } as const

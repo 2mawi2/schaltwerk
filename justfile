@@ -284,10 +284,6 @@ run:
     # Set trap to cleanup on exit
     trap cleanup EXIT
     
-    # Set the application's starting directory to HOME
-    # This ensures Schaltwerk starts without opening a project
-    export SCHALTWERK_START_DIR="$HOME"
-    
     # Start with dev profile (Tauri doesn't support custom profiles in dev mode)
     # The dev profile already has reasonable optimization settings
     TAURI_SKIP_DEVSERVER_CHECK=true {{pm}} run tauri -- dev --config "$temp_config"
@@ -381,9 +377,6 @@ run-port port:
     export VITE_PORT={{port}}
     export PORT={{port}}
     
-    # Set the application's starting directory to HOME
-    export SCHALTWERK_START_DIR="$HOME"
-    
     # Run the release binary
     cd "$HOME" && VITE_PORT={{port}} PORT={{port}} PARA_REPO_PATH="$PROJECT_ROOT" "$BINARY_PATH"
 
@@ -416,9 +409,6 @@ run-port-dev port:
     # Export the port for Vite
     export VITE_PORT={{port}}
     export PORT={{port}}
-
-    # Set the application's starting directory to HOME
-    export SCHALTWERK_START_DIR="$HOME"
 
     # Cleanup function to remove temp config
     cleanup() {
@@ -463,13 +453,20 @@ test:
     {{pm}} run deps:check
     {{pm}} run test:frontend
     {{pm}} run test:mcp
-    {{pm}} run test:rust
+    just test-rust
     {{pm}} run build:rust
 
 
 # Run only frontend tests (TypeScript, linting, unit tests)
 test-frontend:
     {{pm}} run lint && {{pm}} run lint:ts && {{pm}} run test:frontend
+
+# Run Rust tests with nextest while silencing warnings for cleaner output
+test-rust *ARGS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd src-tauri
+    RUSTFLAGS="${RUSTFLAGS:-} -Awarnings" cargo nextest run --cargo-quiet --status-level leak {{ARGS}}
 
 # Run the application using the compiled release binary (no autoreload)
 run-release:

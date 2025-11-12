@@ -96,13 +96,9 @@ export function MergeSessionModal({
     if (!open) {
       return
     }
-    const nextMessage = cachedCommitMessage ?? ''
-    setCommitMessage(prev => {
-      if (prev === nextMessage) {
-        return prev
-      }
-      return nextMessage
-    })
+
+    const nextValue = typeof cachedCommitMessage === 'string' ? cachedCommitMessage : ''
+    setCommitMessage(prev => (prev === nextValue ? prev : nextValue))
   }, [open, cachedCommitMessage, sessionName])
 
   const handleModeChange = (nextMode: MergeModeOption) => {
@@ -311,7 +307,7 @@ export function MergeSessionModal({
                       border: `1px solid ${theme.colors.border.subtle}`,
                       color: theme.colors.text.primary,
                     }}
-                    placeholder="Describe the changes that landed in this session"
+                    placeholder={preview?.defaultCommitMessage || 'Describe the changes that landed in this session'}
                   />
                 </div>
               )}

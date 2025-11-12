@@ -1,6 +1,6 @@
 [package]
 name = "schaltwerk"
-version = "0.5.8"
+version = "0.5.9"
 description = "AI-powered git worktree session manager for isolated development environments"
 authors = ["Schaltwerk Contributors"]
 license = "MIT"
@@ -25,7 +25,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 mimalloc = { version = "0.1", default-features = false }
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["devtools"] }
 tauri-plugin-dialog = "2.4"
 tauri-plugin-notification = "2"
 serde = { version = "1", features = ["derive"] }
@@ -45,7 +45,7 @@ uuid = { version = "1.18", features = ["v4", "serde"] }
 walkdir = "2.5"
 git2 = { version = "0.20", features = ["vendored-libgit2", "vendored-openssl"] }
 sha2 = "0.10"
-hyper = { version = "1.7", default-features = false, features = ["server", "http1"] }
+hyper = { version = "1.8", default-features = false, features = ["server", "http1"] }
 hyper-util = { version = "0.1", default-features = false, features = ["tokio"] }
 http-body-util = "0.1"
 urlencoding = "2.1"

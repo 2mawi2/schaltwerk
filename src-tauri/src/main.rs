@@ -21,6 +21,7 @@ mod macos_prefs;
 mod mcp_api;
 mod permissions;
 mod projects;
+mod startup;
 mod updater;
 
 use crate::commands::sessions_refresh::{SessionsRefreshReason, request_sessions_refresh};
@@ -78,7 +79,7 @@ fn extend_process_path() {
     let shell = env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
     if let Ok(output) = Command::new(&shell)
         .arg("-ilc")
-        .arg("echo -n $PATH")
+        .arg("printf %s \"$PATH\"")
         .output()
         && output.status.success()
         && let Ok(login_path) = String::from_utf8(output.stdout)
@@ -137,7 +138,7 @@ fn extend_process_path() {
 
     if let Ok(output) = Command::new(&shell)
         .arg(shell_arg)
-        .arg("echo -n $PATH")
+        .arg("printf %s \"$PATH\"")
         .output()
         && output.status.success()
         && let Ok(login_path) = String::from_utf8(output.stdout)
@@ -364,6 +365,17 @@ async fn is_file_watcher_active(session_name: String) -> Result<bool, String> {
 async fn get_active_file_watchers() -> Result<Vec<String>, String> {
     let watcher_manager = get_file_watcher_manager().await?;
     Ok(watcher_manager.get_active_watchers().await)
+}
+
+#[tauri::command]
+async fn toggle_preview_devtools(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri::Manager;
+    if let Some(window) = app.get_webview_window("main") {
+        window.open_devtools();
+        Ok(())
+    } else {
+        Err("Main window not found".to_string())
+    }
 }
 
 use http_body_util::BodyExt;
@@ -797,7 +809,7 @@ fn main() {
     // Initialize logging
     schaltwerk::infrastructure::logging::init_logging();
     log::info!("Schaltwerk starting...");
-    log::info!(
+    log::debug!(
         "[startup] Effective PATH: {}",
         std::env::var("PATH").unwrap_or_default()
     );
@@ -806,39 +818,30 @@ fn main() {
     macos_prefs::disable_smart_substitutions();
     // macOS smart substitutions: handled in frontend for now
 
-    // Determine effective directory: positional arg, SCHALTWERK_START_DIR env var, or current dir
-    let dir_path = match cli.dir {
-        Some(p) => p,
-        None => {
-            // Check for SCHALTWERK_START_DIR environment variable first (used by 'just run')
-            if let Ok(start_dir) = std::env::var("SCHALTWERK_START_DIR") {
-                log::info!("Using SCHALTWERK_START_DIR: {start_dir}");
-                std::path::PathBuf::from(start_dir)
-            } else {
-                match std::env::current_dir() {
-                    Ok(cwd) => cwd,
-                    Err(e) => {
-                        log::warn!("Failed to get current working directory: {e}");
-                        std::path::PathBuf::from(".")
-                    }
-                }
-            }
+    let cwd = match std::env::current_dir() {
+        Ok(cwd) => cwd,
+        Err(e) => {
+            log::warn!("Failed to get current working directory: {e}");
+            std::path::PathBuf::from(".")
         }
     };
-    log::info!("Startup directory: {}", dir_path.display());
 
-    let dir_str = dir_path.to_string_lossy().to_string();
+    let start_dir = startup::resolve_initial_directory(cli.dir.as_deref());
+    let log_dir = start_dir.as_ref().unwrap_or(&cwd);
+    log::info!("Startup directory: {}", log_dir.display());
 
     // Always return the directory if it exists - git check will happen in background
-    let initial_directory: Option<(String, Option<bool>)> = if dir_path.is_dir() {
-        Some((dir_str.clone(), None)) // None means git status unknown, will be determined in background
-    } else {
-        log::warn!(
-            "❌ Invalid directory path: {}, opening at home",
-            dir_path.display()
-        );
-        None
-    };
+    let initial_directory: Option<(String, Option<bool>)> = start_dir.and_then(|path| {
+        if path.is_dir() {
+            Some((path.to_string_lossy().to_string(), None))
+        } else {
+            log::warn!(
+                "❌ Invalid directory path: {}, opening at home",
+                path.display()
+            );
+            None
+        }
+    });
 
     // Create cleanup guard that will run on exit
     let _cleanup_guard = cleanup::TerminalCleanupGuard;
@@ -911,6 +914,7 @@ fn main() {
             report_attention_snapshot,
             schaltwerk_core_log_frontend_message,
             open_external_url,
+            toggle_preview_devtools,
             // MCP commands
             start_mcp_server,
             // Para core commands
@@ -995,6 +999,7 @@ fn main() {
             get_git_graph_history,
             get_git_graph_commit_files,
             create_new_project,
+            schaltwerk_core_clone_project,
             initialize_project,
             get_project_default_branch,
             list_project_branches,
@@ -1163,6 +1168,14 @@ fn main() {
                         if let Err(e) = emit_event(&app_handle, SchaltEvent::OpenHome, &dir) {
                             log::error!("Failed to emit open-home event: {e}");
                         }
+                    }
+                });
+            } else {
+                let dir = cwd.to_string_lossy().to_string();
+                let app_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Err(e) = emit_event(&app_handle, SchaltEvent::OpenHome, &dir) {
+                        log::error!("Failed to emit open-home event: {e}");
                     }
                 });
             }

@@ -28,6 +28,7 @@ pub enum SchaltEvent {
     GitHubStatusChanged,
     AppUpdateResult,
     DevBackendError,
+    CloneProgress,
 }
 
 impl SchaltEvent {
@@ -58,8 +59,26 @@ impl SchaltEvent {
             SchaltEvent::GitHubStatusChanged => "schaltwerk:github-status-changed",
             SchaltEvent::AppUpdateResult => "schaltwerk:app-update-result",
             SchaltEvent::DevBackendError => "schaltwerk:dev-backend-error",
+            SchaltEvent::CloneProgress => "schaltwerk:clone-progress",
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CloneProgressKind {
+    Info,
+    Success,
+    Error,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CloneProgressPayload {
+    pub request_id: String,
+    pub message: String,
+    pub remote: String,
+    pub kind: CloneProgressKind,
 }
 
 pub fn emit_event<T: Serialize + Clone>(

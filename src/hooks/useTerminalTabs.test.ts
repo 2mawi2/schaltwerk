@@ -19,8 +19,8 @@ vi.mock('../common/terminalSizeCache', () => ({
 
 describe('useTerminalTabs', () => {
   const mockInvoke = invoke as MockedFunction<typeof invoke>
-  let addEventSpy: ReturnType<typeof vi.spyOn>
-  let removeEventSpy: ReturnType<typeof vi.spyOn>
+  let addEventSpy: ReturnType<typeof vi.spyOn> | undefined
+  let removeEventSpy: ReturnType<typeof vi.spyOn> | undefined
   const defaultInvokeImplementation = (command: string, _args?: MockTauriInvokeArgs) => {
     switch (command) {
       case TauriCommands.TerminalExists:
@@ -47,8 +47,8 @@ describe('useTerminalTabs', () => {
 
   afterEach(() => {
     vi.clearAllTimers()
-    addEventSpy.mockRestore()
-    removeEventSpy.mockRestore()
+    addEventSpy?.mockRestore()
+    removeEventSpy?.mockRestore()
   })
 
   const wrapper = ({ children }: { children: ReactNode }) => createElement(TestProviders, null, children)

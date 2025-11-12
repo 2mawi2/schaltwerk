@@ -4,8 +4,9 @@ import { SessionCard } from './SessionCard'
 import { SessionVersionGroup as SessionVersionGroupType } from '../../utils/sessionVersions'
 import { isSpec } from '../../utils/sessionFilters'
 import { SessionSelection } from '../../hooks/useSessionManagement'
-import { theme, getAgentColorScheme } from '../../common/theme'
+import { theme } from '../../common/theme'
 import { withOpacity } from '../../common/colorUtils'
+import { ProgressIndicator } from '../common/ProgressIndicator'
 import type { MergeStatus } from '../../store/atoms/sessions'
 
 interface SessionVersionGroupProps {
@@ -114,6 +115,45 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
     v => selection.kind === 'session' && selection.payload === v.session.info.session_id
   )
   const hasSelectedVersion = !!selectedVersionInGroup
+
+  const versionStatusSummary = group.versions.reduce<{ active: number; idle: number }>((acc, version) => {
+    const info = version.session.info
+    if (info.attention_required) {
+      acc.idle += 1
+    } else if (info.session_state === 'running' && !info.ready_to_merge) {
+      acc.active += 1
+    }
+    return acc
+  }, { active: 0, idle: 0 })
+
+  const statusPills = [
+    {
+      key: 'active',
+      label: 'Active',
+      count: versionStatusSummary.active,
+      color: theme.colors.accent.blue,
+      icon: (
+        <span className="flex items-center" aria-hidden="true">
+          <ProgressIndicator size="sm" />
+        </span>
+      )
+    },
+    {
+      key: 'idle',
+      label: 'Idle',
+      count: versionStatusSummary.idle,
+      color: theme.colors.accent.amber,
+      icon: (
+        <span
+          aria-hidden="true"
+          className="text-xs font-semibold"
+          style={{ color: theme.colors.accent.amber.light }}
+        >
+          ⏸
+        </span>
+      )
+    }
+  ].filter(pill => pill.count > 0)
   
 
   return (
@@ -180,62 +220,43 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
               {group.versions.length}x
             </span>
             
-            {/* Agent info */}
+            {/* Base branch indicator */}
             {(() => {
               const firstSession = group.versions[0]?.session?.info
               if (!firstSession) return null
-              
-              // Check if all versions have the same agent type
-              const agentTypes = group.versions.map(v => v.session.info.original_agent_type).filter(Boolean)
-              const uniqueAgents = [...new Set(agentTypes)]
-              const isMixedAgents = uniqueAgents.length > 1
-              const agentType = isMixedAgents ? 'mixed' : firstSession.original_agent_type
-              const baseBranch = firstSession.base_branch
-              const agentColor = agentType === 'claude' ? 'blue' :
-                               agentType === 'opencode' ? 'green' :
-                               agentType === 'gemini' ? 'orange' :
-                               agentType === 'codex' ? 'red' :
-                               agentType === 'amp' ? 'yellow' :
-                               agentType === 'mixed' ? 'violet' : 'gray'
 
-              const colorScheme = agentColor !== 'gray' ? getAgentColorScheme(agentColor) : null
+              const baseBranch = firstSession.base_branch
+              if (!baseBranch || baseBranch === 'main') return null
 
               return (
                 <>
-                  {agentType && colorScheme && (
-                    <>
-                      <span className="text-slate-400 text-xs">|</span>
-                      <span
-                        className="inline-flex items-center gap-1 px-1.5 py-[1px] rounded text-[10px] border"
-                        style={{
-                          lineHeight: theme.lineHeight.badge,
-                          backgroundColor: colorScheme.bg,
-                          color: colorScheme.light,
-                          borderColor: colorScheme.border
-                        }}
-                        title={isMixedAgents ? `Agents: ${uniqueAgents.join(', ')}` : `Agent: ${agentType}`}
-                      >
-                        <span className="w-1 h-1 rounded-full"
-                              style={{
-                                backgroundColor: colorScheme.DEFAULT
-                              }} />
-                        {isMixedAgents ? `${uniqueAgents.length} agents` : agentType}
-                      </span>
-                    </>
-                  )}
-                  {baseBranch && baseBranch !== 'main' && (
-                    <>
-                      <span className="text-slate-400 text-xs">|</span>
-                      <span className="text-xs text-slate-400">← {baseBranch}</span>
-                    </>
-                  )}
+                  <span className="text-slate-400 text-xs">|</span>
+                  <span className="text-xs text-slate-400">← {baseBranch}</span>
                 </>
               )
             })()}
           </div>
           
-          <div className="flex items-center gap-3">
-            
+          <div
+            className="flex items-center gap-1 justify-end overflow-hidden flex-nowrap"
+            data-testid="version-group-status"
+          >
+            {statusPills.map(pill => (
+              <span
+                key={pill.key}
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[10px] font-semibold tracking-tight whitespace-nowrap flex-shrink-0"
+                aria-label={`${pill.count} ${pill.label} ${pill.count === 1 ? 'session' : 'sessions'}`}
+                style={{
+                  backgroundColor: pill.color.bg,
+                  color: pill.color.light,
+                  borderColor: pill.color.border
+                }}
+              >
+                {pill.icon}
+                <span aria-hidden="true">({pill.count})</span>
+                <span className="sr-only">{pill.label}</span>
+              </span>
+            ))}
           </div>
         </div>
         </button>

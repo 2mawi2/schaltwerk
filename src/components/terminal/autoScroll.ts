@@ -5,6 +5,7 @@ export interface StickToBottomInput {
   isDraggingSelection: boolean
   selectionActive: boolean
   hasUserSelection: boolean
+  toleranceLines?: number
 }
 
 export function shouldStickToBottom({
@@ -14,12 +15,17 @@ export function shouldStickToBottom({
   isDraggingSelection,
   selectionActive,
   hasUserSelection,
+  toleranceLines,
 }: StickToBottomInput): boolean {
   const distance = baseY - viewportY
+  const tolerance =
+    typeof toleranceLines === 'number' && Number.isFinite(toleranceLines) && toleranceLines > 0
+      ? toleranceLines
+      : 0
   if (!Number.isFinite(distance)) {
     return false
   }
-  if (distance > 0) {
+  if (distance > tolerance) {
     return false
   }
   if (isSearchVisible) {

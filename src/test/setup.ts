@@ -3,6 +3,54 @@ import { randomUUID as nodeRandomUUID } from 'node:crypto'
 import { afterEach, beforeEach, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
 
+const createMemoryStorage = () => {
+  const store = new Map<string, string>()
+  return {
+    get length() {
+      return store.size
+    },
+    clear: () => {
+      store.clear()
+    },
+    getItem: (key: string) => {
+      const value = store.get(key)
+      return typeof value === 'undefined' ? null : value
+    },
+    key: (index: number) => Array.from(store.keys())[index] ?? null,
+    removeItem: (key: string) => {
+      store.delete(key)
+    },
+    setItem: (key: string, value: string) => {
+      store.set(key, String(value))
+    },
+  }
+}
+
+const ensureStorage = (prop: 'localStorage' | 'sessionStorage') => {
+  const globalTarget = globalThis as typeof globalThis & Record<string, Storage | undefined>
+  const needsPolyfill =
+    typeof globalTarget[prop] === 'undefined' ||
+    typeof globalTarget[prop]?.clear !== 'function'
+
+  if (needsPolyfill) {
+    const storage = createMemoryStorage()
+    Object.defineProperty(globalThis, prop, {
+      configurable: true,
+      value: storage,
+    })
+
+    if (typeof window !== 'undefined') {
+      Object.defineProperty(window, prop, {
+        configurable: true,
+        value: storage,
+      })
+    }
+  }
+}
+
+ensureStorage('localStorage')
+ensureStorage('sessionStorage')
+
 // Setup global test environment
 beforeEach(() => {
   localStorage.clear()

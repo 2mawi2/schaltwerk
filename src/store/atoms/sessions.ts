@@ -42,6 +42,16 @@ export interface MergeDialogState {
     error?: string | null
 }
 
+type ShortcutMergeResultBase = {
+    autoMarkedReady?: boolean
+}
+
+export type ShortcutMergeResult =
+    | (ShortcutMergeResultBase & { status: 'started' })
+    | (ShortcutMergeResultBase & { status: 'needs-modal'; reason: 'conflict' | 'missing-commit' | 'confirm' })
+    | (ShortcutMergeResultBase & { status: 'blocked'; reason: 'no-session' | 'not-ready' | 'in-flight' | 'already-merged' })
+    | (ShortcutMergeResultBase & { status: 'error'; message: string })
+
 export type SessionMutationKind = 'merge' | 'remove'
 
 const PENDING_STARTUP_TTL_MS = 10_000
@@ -591,10 +601,6 @@ const sessionsEventHandlersForTests = new Map<SchaltEvent, (payload: unknown) =>
 
 export function __getSessionsEventHandlerForTest(event: SchaltEvent): ((payload: unknown) => void) | undefined {
     return sessionsEventHandlersForTests.get(event)
-}
-
-export function __clearSessionsEventHandlersForTest(): void {
-    sessionsEventHandlersForTests.clear()
 }
 
 export const autoCancelAfterMergeAtom = atom((get) => get(autoCancelAfterMergeStateAtom))
@@ -1466,6 +1472,113 @@ export const confirmMergeActionAtom = atom(
                 return next
             })
         }
+    },
+)
+
+export const shortcutMergeActionAtom = atom(
+    null,
+    async (get, set, input: { sessionId: string; commitMessage?: string | null }): Promise<ShortcutMergeResult> => {
+        const sessionId = input.sessionId
+        if (!sessionId) {
+            return { status: 'blocked', reason: 'no-session' }
+        }
+
+        const findSession = () => get(allSessionsAtom).find(candidate => candidate.info.session_id === sessionId) ?? null
+
+        let session = findSession()
+        if (!session) {
+            return { status: 'blocked', reason: 'no-session' }
+        }
+
+        let autoMarkedReady = false
+
+        if (!session.info.ready_to_merge) {
+            if (session.info.session_state === 'spec') {
+                return { status: 'blocked', reason: 'not-ready' }
+            }
+
+            try {
+                await invoke<boolean>(TauriCommands.SchaltwerkCoreMarkSessionReady, {
+                    name: sessionId,
+                    autoCommit: true,
+                    commitMessage: null,
+                })
+            } catch (error) {
+                return { status: 'error', message: getErrorMessage(error) }
+            }
+
+            autoMarkedReady = true
+            await set(reloadSessionsActionAtom)
+            session = findSession()
+            if (!session || !session.info.ready_to_merge) {
+                return { status: 'blocked', reason: 'not-ready', autoMarkedReady }
+            }
+        }
+
+        if (session.info.merge_is_up_to_date) {
+            return { status: 'blocked', reason: 'already-merged' }
+        }
+
+        if (get(mergeInFlightStateAtom).get(sessionId)) {
+            return { status: 'blocked', reason: 'in-flight' }
+        }
+
+        let preview: MergePreviewResponse
+        try {
+            preview = await invoke<MergePreviewResponse>(TauriCommands.SchaltwerkCoreGetMergePreview, { name: sessionId })
+            mergePreviewCache.set(sessionId, preview)
+        } catch (error) {
+            return { status: 'error', message: getErrorMessage(error), autoMarkedReady }
+        }
+
+        const hasKnownConflicts =
+            session.info.merge_has_conflicts === true ||
+            session.info.has_conflicts === true ||
+            (Array.isArray(session.info.merge_conflicting_paths) && session.info.merge_conflicting_paths.length > 0)
+
+        const previewHasConflicts = preview.hasConflicts || hasKnownConflicts
+
+        const openMergeDialogWithPreview = () => {
+            set(mergeDialogStateAtom, {
+                isOpen: true,
+                status: 'ready',
+                sessionName: sessionId,
+                preview,
+                error: null,
+            })
+        }
+
+        if (previewHasConflicts) {
+            set(mergeStatusesStateAtom, (prev) => {
+                const next = new Map(prev)
+                next.set(sessionId, 'conflict')
+                return next
+            })
+
+            openMergeDialogWithPreview()
+
+            return { status: 'needs-modal', reason: 'conflict', autoMarkedReady }
+        }
+
+        if (preview.isUpToDate) {
+            set(mergeStatusesStateAtom, (prev) => {
+                const next = new Map(prev)
+                next.set(sessionId, 'merged')
+                return next
+            })
+            return { status: 'blocked', reason: 'already-merged', autoMarkedReady }
+        }
+
+        const commitFromInput = typeof input.commitMessage === 'string' ? input.commitMessage.trim() : ''
+        const commitMessage = (commitFromInput || preview.defaultCommitMessage || '').trim()
+
+        if (!commitMessage) {
+            openMergeDialogWithPreview()
+            return { status: 'needs-modal', reason: 'missing-commit', autoMarkedReady }
+        }
+
+        openMergeDialogWithPreview()
+        return { status: 'needs-modal', reason: 'confirm', autoMarkedReady }
     },
 )
 
