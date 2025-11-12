@@ -3,6 +3,7 @@ import { VscAdd, VscChevronDown, VscChevronRight } from 'react-icons/vsc'
 import clsx from 'clsx'
 import { LineInfo } from '../../types/diff'
 import { theme } from '../../common/theme'
+import { getSelectableLineIdentity } from './lineSelection'
 
 interface DiffLineRowProps {
   line: LineInfo
@@ -61,8 +62,7 @@ function DiffLineRowComponent({
     )
   }
   
-  const lineNum = line.oldLineNumber || line.newLineNumber
-  const side: 'old' | 'new' = line.type === 'removed' ? 'old' : 'new'
+  const { lineNum, side } = getSelectableLineIdentity(line)
   
   const handleMouseEnter = () => {
     setIsHovered(true)
