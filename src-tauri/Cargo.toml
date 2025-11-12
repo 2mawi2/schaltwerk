@@ -45,7 +45,7 @@ uuid = { version = "1.18", features = ["v4", "serde"] }
 walkdir = "2.5"
 git2 = { version = "0.20", features = ["vendored-libgit2", "vendored-openssl"] }
 sha2 = "0.10"
-hyper = { version = "1.7", default-features = false, features = ["server", "http1"] }
+hyper = { version = "1.8", default-features = false, features = ["server", "http1"] }
 hyper-util = { version = "0.1", default-features = false, features = ["tokio"] }
 http-body-util = "0.1"
 urlencoding = "2.1"
