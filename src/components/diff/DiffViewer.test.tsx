@@ -189,6 +189,30 @@ describe('DiffViewer', () => {
     expect(handleLineMouseDown).not.toHaveBeenCalled() // Not called until user interacts
   })
 
+  it('uses new line numbers to check selection state for unchanged lines', () => {
+    const isLineSelected = vi.fn(() => false)
+    const diffWithOffset = {
+      ...mockFileDiff,
+      diffResult: [
+        { type: 'added' as const, content: 'new content', newLineNumber: 30 },
+        { type: 'unchanged' as const, content: 'context content', oldLineNumber: 18, newLineNumber: 42 }
+      ]
+    }
+    const props = {
+      ...mockProps,
+      allFileDiffs: new Map([['src/file1.ts', diffWithOffset]]),
+      lineSelection: {
+        isLineSelected,
+        selection: null
+      }
+    }
+
+    render(<DiffViewer {...props as DiffViewerProps} />)
+
+    expect(isLineSelected).toHaveBeenCalledWith('src/file1.ts', 42, 'new')
+    expect(isLineSelected).not.toHaveBeenCalledWith('src/file1.ts', 18, 'new')
+  })
+
   it('collapses deleted file diffs by default but allows expanding', () => {
     const deletedFile = createChangedFile({ path: 'src/deleted.ts', change_type: 'deleted', deletions: 3 })
     const deletedDiff = {
