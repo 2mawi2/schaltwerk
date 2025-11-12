@@ -3,6 +3,7 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { DiffResponse, SplitDiffResponse, LineInfo, SplitDiffResult, FileInfo } from '../../types/diff'
 import type { CommitFileChange } from '../git-graph/types'
 import type { ChangedFile } from '../../common/events'
+import { logger } from '../../utils/logger'
 
 export type ChangeType = 'modified' | 'added' | 'deleted' | 'renamed' | 'copied' | 'unknown'
 
@@ -136,9 +137,8 @@ export async function loadAllFileDiffs(
     try {
       const diff = await loadFileDiff(sessionName, file, viewMode)
       results.set(file.path, diff)
-    } catch (_e) {
-      // Swallow per-file errors; caller can decide how to surface
-      // Keep place so UI can skip missing entries
+    } catch (e) {
+      logger.debug(`Failed to load diff for ${file.path} in session ${sessionName}`, e)
     }
     await runNext()
   }

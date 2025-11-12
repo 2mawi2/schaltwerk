@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../common/tauriCommands'
 import type { GithubIssueDetails, GithubIssueSummary } from '../types/githubIssues'
+import { logger } from '../utils/logger'
 
 export interface UseGithubIssueSearchResult {
   results: GithubIssueSummary[]
@@ -55,6 +56,7 @@ export function useGithubIssueSearch(options: UseGithubIssueSearchOptions = {}):
       }
     } catch (err) {
       if (searchVersionRef.current === version) {
+        logger.error(`Failed to search GitHub issues for query: ${query}`, err)
         setResults([])
         setError(resolveErrorMessage(err))
       }

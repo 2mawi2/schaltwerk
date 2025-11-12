@@ -502,6 +502,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
             historyLoadedRef.current.add(initialPath)
             setAllFileDiffs(new Map([[initialPath, diff]]))
           } catch (error) {
+            logger.error(`Failed to load commit file diff for ${initialPath}`, error)
             const message = error instanceof Error ? error.message : String(error)
             setFileError(message)
           }
@@ -560,6 +561,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
               return merged
             })
           } catch (e) {
+            logger.error(`Failed to load file diff for ${nextSelectedPath}`, e)
             const msg = e instanceof Error ? e.message : String(e)
             setFileError(msg)
           }
@@ -718,6 +720,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
             })
           }
         } catch (e) {
+          logger.error(`Failed to load file diff for ${path}`, e)
           const msg = e instanceof Error ? e.message : String(e)
           setFileError(msg)
         }
