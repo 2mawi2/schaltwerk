@@ -74,6 +74,7 @@ self.onmessage = (event: MessageEvent<SyntaxHighlightRequest>) => {
       const result = highlightChunk(code)
       self.postMessage({ id, type: 'single', result } satisfies SyntaxHighlightSingleResponse)
     } catch (error) {
+      console.error('[SyntaxHighlighter] Failed to highlight single chunk', error)
       const message = error instanceof Error ? error.message : 'Unknown highlight error'
       self.postMessage({ id, type: 'single', result: code, error: message } satisfies SyntaxHighlightSingleResponse)
     }
@@ -103,6 +104,7 @@ self.onmessage = (event: MessageEvent<SyntaxHighlightRequest>) => {
 
     self.postMessage({ id, type: 'block', result: split } satisfies SyntaxHighlightBlockResponse)
   } catch (error) {
+    console.error('[SyntaxHighlighter] Failed to highlight block', error)
     const message = error instanceof Error ? error.message : 'Unknown highlight error'
     self.postMessage({ id, type: 'block', result: original, error: message } satisfies SyntaxHighlightBlockResponse)
   }

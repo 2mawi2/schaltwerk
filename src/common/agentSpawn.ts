@@ -179,8 +179,8 @@ export async function startSessionTop(params: {
   } catch (e) {
     try {
       clearBackgroundStarts([topId])
-    } catch (_cleanupErr) {
-      // Ignore cleanup failures during error handling
+    } catch (cleanupErr) {
+      logger.debug(`[agentSpawn] Failed to clear background starts during error cleanup for ${topId}`, cleanupErr)
     }
     throw e
   }
@@ -229,8 +229,8 @@ export async function startOrchestratorTop(params: {
   } catch (e) {
     try {
       clearBackgroundStarts([terminalId])
-    } catch (_cleanupErr) {
-      // Ignore cleanup failures during error handling
+    } catch (cleanupErr) {
+      logger.debug(`[agentSpawn] Failed to clear background starts during error cleanup for ${terminalId}`, cleanupErr)
     }
     throw e
   }

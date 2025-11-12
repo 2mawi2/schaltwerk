@@ -29,6 +29,8 @@ export const STATE_MANAGEMENT_EXCEPTIONS: ArchitectureException[] = [
   { file: 'src/contexts/KeyboardShortcutsContext.tsx', reason: 'Needs evaluation - might not need reactive state' },
 ];
 
+export const ERROR_HANDLING_EXCEPTIONS: ArchitectureException[] = [];
+
 export function isException(
   file: string,
   exceptionList: ArchitectureException[],

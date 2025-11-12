@@ -9,6 +9,7 @@ import {
   TAURI_COMMAND_EXCEPTIONS,
   THEME_EXCEPTIONS,
   STATE_MANAGEMENT_EXCEPTIONS,
+  ERROR_HANDLING_EXCEPTIONS,
   isException,
 } from './architecture-exceptions';
 
@@ -329,6 +330,113 @@ describe('Module Boundaries Architecture', () => {
       violations,
       failureDetails,
       `Found ${violations.length} common/ imports from components/contexts:`,
+    );
+  });
+});
+
+describe('Error Handling Architecture', () => {
+  it('should not have empty catch blocks without logging', async () => {
+    const failureDetails = new Map<string, FailureDetail[]>();
+    const rule = projectFiles()
+      .inFolder('src/**')
+      .should()
+      .adhereTo((file) => {
+        if (!isSourceFile(file)) return true;
+        const relativePath = toRelativePath(file.path);
+        if (isTestFile(relativePath) || isException(relativePath, ERROR_HANDLING_EXCEPTIONS)) {
+          return true;
+        }
+
+        const content = file.content;
+        const lines = content.split('\n');
+        const matches: FailureDetail[] = [];
+
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+
+          const catchMatch = /(?:^|[^.])\s*catch\s*\(/.exec(line);
+          if (!catchMatch) continue;
+
+          const paramEndIndex = line.indexOf(')', catchMatch.index);
+          if (paramEndIndex === -1) continue;
+
+          const openBraceIndex = line.indexOf('{', paramEndIndex);
+          if (openBraceIndex === -1) continue;
+
+          let braceDepth = 0;
+          let catchBlockStart = i;
+          let catchBlockEnd = -1;
+          let startedCounting = false;
+
+          for (let j = i; j < lines.length; j++) {
+            const currentLine = lines[j];
+            const startPos = (j === i) ? openBraceIndex : 0;
+
+            for (let k = startPos; k < currentLine.length; k++) {
+              const char = currentLine[k];
+
+              if (currentLine.substring(k).match(/^\/\//)) {
+                break;
+              }
+
+              if (char === '{') {
+                braceDepth++;
+                startedCounting = true;
+              } else if (char === '}') {
+                braceDepth--;
+                if (braceDepth === 0 && startedCounting) {
+                  catchBlockEnd = j;
+                  break;
+                }
+              }
+            }
+            if (catchBlockEnd !== -1) break;
+          }
+
+          if (catchBlockEnd === -1) continue;
+
+          const catchBlock = lines
+            .slice(catchBlockStart, catchBlockEnd + 1)
+            .join('\n');
+
+          const hasLogging =
+            /logger\.(error|warn|debug|info)/.test(catchBlock) ||
+            /console\.(error|warn|log)/.test(catchBlock);
+
+          const hasThrow = /\bthrow\b/.test(catchBlock);
+          const hasReturn = /\breturn\b/.test(catchBlock);
+
+          const nonCommentLines = lines
+            .slice(catchBlockStart + 1, catchBlockEnd)
+            .filter((l) => {
+              const t = l.trim();
+              return t.length > 0 && !t.startsWith('//') && !t.startsWith('*') && !t.startsWith('}');
+            });
+
+          const isEmpty = nonCommentLines.length === 0;
+
+          if (isEmpty || (!hasLogging && !hasThrow && !hasReturn)) {
+            matches.push({
+              line: i + 1,
+              snippet: `catch block without logging (lines ${catchBlockStart + 1}-${catchBlockEnd + 1})`,
+            });
+          }
+        }
+
+        if (matches.length > 0) {
+          failureDetails.set(relativePath, matches);
+          return false;
+        }
+
+        return true;
+      }, 'Catch blocks must log errors or rethrow');
+
+    const violations = await rule.check();
+    raiseIfViolations(
+      violations,
+      failureDetails,
+      `Found ${violations.length} empty catch blocks or catch blocks without logging:`,
+      'Add logger.error() or console.error() calls, or rethrow the error',
     );
   });
 });

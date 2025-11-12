@@ -6,6 +6,7 @@ import { theme } from '../../common/theme'
 import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
 import { useToast } from '../../common/toast/ToastProvider'
 import { withOpacity } from '../../common/colorUtils'
+import { logger } from '../../utils/logger'
 
 interface GithubMenuButtonProps {
   className?: string
@@ -105,6 +106,7 @@ export function GithubMenuButton({ className, hasActiveProject = false }: Github
         description: `${info.nameWithOwner} • default branch ${info.defaultBranch}`,
       })
     } catch (error) {
+      logger.error('Failed to connect GitHub project', error)
       const message = error instanceof Error ? error.message : String(error)
       pushToast({ tone: 'error', title: 'Failed to connect project', description: message })
     }
@@ -116,6 +118,7 @@ export function GithubMenuButton({ className, hasActiveProject = false }: Github
       await github.refreshStatus()
       pushToast({ tone: 'success', title: 'GitHub status refreshed' })
     } catch (error) {
+      logger.error('Failed to refresh GitHub status', error)
       const message = error instanceof Error ? error.message : String(error)
       pushToast({ tone: 'error', title: 'Failed to refresh status', description: message })
     }

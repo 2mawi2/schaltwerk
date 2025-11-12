@@ -1047,6 +1047,7 @@ export const initializeSessionsEventsActionAtom = atom(
                     try {
                         await invoke(TauriCommands.SchaltwerkCoreCancelSession, { name: sessionName })
                     } catch (error) {
+                        logger.error(`Failed to auto-cancel session after merge: ${sessionName}`, error)
                         if (pushToastHandler) {
                             pushToastHandler({
                                 tone: 'error',
@@ -1425,6 +1426,7 @@ export const openMergeDialogActionAtom = atom(
                 })
             }
         } catch (error) {
+            logger.error(`Failed to prepare merge for session ${sessionId}`, error)
             set(mergeDialogStateAtom, {
                 isOpen: true,
                 status: 'idle',

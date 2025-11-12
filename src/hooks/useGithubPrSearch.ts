@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../common/tauriCommands'
 import type { GithubPrDetails, GithubPrSummary } from '../types/githubIssues'
+import { logger } from '../utils/logger'
 
 export interface UseGithubPrSearchResult {
   results: GithubPrSummary[]
@@ -55,6 +56,7 @@ export function useGithubPrSearch(options: UseGithubPrSearchOptions = {}): UseGi
       }
     } catch (err) {
       if (searchVersionRef.current === version) {
+        logger.error(`Failed to search GitHub PRs for query: ${trimmed}`, err)
         setResults([])
         setError(resolveErrorMessage(err))
       }
