@@ -79,7 +79,7 @@ fn extend_process_path() {
     let shell = env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
     if let Ok(output) = Command::new(&shell)
         .arg("-ilc")
-        .arg("echo -n $PATH")
+        .arg("printf %s \"$PATH\"")
         .output()
         && output.status.success()
         && let Ok(login_path) = String::from_utf8(output.stdout)
@@ -138,7 +138,7 @@ fn extend_process_path() {
 
     if let Ok(output) = Command::new(&shell)
         .arg(shell_arg)
-        .arg("echo -n $PATH")
+        .arg("printf %s \"$PATH\"")
         .output()
         && output.status.success()
         && let Ok(login_path) = String::from_utf8(output.stdout)
