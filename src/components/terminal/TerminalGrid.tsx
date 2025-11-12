@@ -105,26 +105,30 @@ const TerminalGridComponent = () => {
     const initialExpanded = (() => {
         const rawExpanded = sessionStorage.getItem(`schaltwerk:terminal-grid:lastExpandedBottom:${initialPersistKey}`)
         const v = rawExpanded ? Number(rawExpanded) : NaN
-        return !Number.isNaN(v) && v > 0 && v < 100 ? v : 30
+        return !Number.isNaN(v) && v > 0 && v < 100 ? v : 28
     })()
     const [isBottomCollapsed, setIsBottomCollapsed] = useState<boolean>(initialIsCollapsed)
     const [lastExpandedBottomPercent, setLastExpandedBottomPercent] = useState<number>(initialExpanded)
+    const isBottomCollapsedRef = useRef(initialIsCollapsed)
     const isDraggingRef = useRef(false)
     const pendingInsertTextRef = useRef<string | null>(null)
     const [sizes, setSizes] = useState<number[]>(() => {
         const raw = sessionStorage.getItem(`schaltwerk:terminal-grid:sizes:${initialPersistKey}`)
-        let base: number[] = [70, 30]
+        let base: number[] = [72, 28]
         if (raw) {
             try { const parsed = JSON.parse(raw) as number[]; if (Array.isArray(parsed) && parsed.length === 2) base = parsed } catch {
                 // JSON parsing failed, use default
             }
         }
         if (initialIsCollapsed) {
-            const pct = 8
+            const pct = 10
             return [100 - pct, pct]
         }
         return base
     })
+    useEffect(() => {
+        isBottomCollapsedRef.current = isBottomCollapsed
+    }, [isBottomCollapsed])
     
     const claudeTerminalRef = useRef<TerminalHandle>(null)
     const terminalTabsRef = useRef<TerminalTabsHandle>(null)
@@ -665,6 +669,8 @@ const TerminalGridComponent = () => {
     // Compute collapsed percent based on actual header height and container size
     useEffect(() => {
         if (!isBottomCollapsed) return
+        let measureRafId: number | null = null
+        let applyRafId: number | null = null
         const compute = () => {
             const container = containerRef.current
             if (!container) return
@@ -677,15 +683,25 @@ const TerminalGridComponent = () => {
             const pct = Math.max(minPct, Math.min(15, (headerHeight / total) * 100))
             if (Math.abs(pct - collapsedPercent) > 1.0) {
                 setCollapsedPercent(pct)
-                requestAnimationFrame(() => setSizes([100 - pct, pct]))
+                if (applyRafId !== null) {
+                    cancelAnimationFrame(applyRafId)
+                }
+                applyRafId = requestAnimationFrame(() => {
+                    if (!isBottomCollapsedRef.current) {
+                        return
+                    }
+                    setSizes([100 - pct, pct])
+                    applyRafId = null
+                })
             }
         }
         let rafPending = false
         const schedule = () => {
             if (rafPending) return
             rafPending = true
-            requestAnimationFrame(() => {
+            measureRafId = requestAnimationFrame(() => {
                 rafPending = false
+                measureRafId = null
                 compute()
             })
         }
@@ -693,7 +709,15 @@ const TerminalGridComponent = () => {
         schedule()
         const ro = new ResizeObserver(schedule)
         if (containerRef.current) ro.observe(containerRef.current)
-        return () => { ro.disconnect() }
+        return () => {
+            if (measureRafId !== null) {
+                cancelAnimationFrame(measureRafId)
+            }
+            if (applyRafId !== null) {
+                cancelAnimationFrame(applyRafId)
+            }
+            ro.disconnect()
+        }
     }, [isBottomCollapsed, collapsedPercent])
 
     // Load sizes/collapse state when selection changes (avoid unnecessary updates)
