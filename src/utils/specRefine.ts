@@ -1,4 +1,5 @@
 import { UiEvent, emitUiEvent } from '../common/uiEvents'
+import { logger } from './logger'
 
 const REFINE_PREFIX = 'Refine spec: '
 
@@ -12,4 +13,26 @@ export function emitSpecRefine(sessionId: string, displayName?: string | null): 
   emitUiEvent(UiEvent.OpenSpecInOrchestrator, { sessionName: sessionId })
   emitUiEvent(UiEvent.InsertTerminalText, { text })
   return text
+}
+
+interface RefineWithOrchestratorOptions {
+  sessionId: string
+  displayName?: string | null
+  selectOrchestrator: () => Promise<void>
+  logContext?: string
+}
+
+export async function runSpecRefineWithOrchestrator({
+  sessionId,
+  displayName,
+  selectOrchestrator,
+  logContext = '[specRefine]',
+}: RefineWithOrchestratorOptions): Promise<void> {
+  try {
+    await selectOrchestrator()
+  } catch (error) {
+    logger.warn(`${logContext} Failed to switch to orchestrator for refine`, error)
+  } finally {
+    emitSpecRefine(sessionId, displayName)
+  }
 }

@@ -3,6 +3,7 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { Sidebar } from './Sidebar'
 import { TestProviders } from '../../tests/test-utils'
+import * as uiEvents from '../../common/uiEvents'
 
 // Mock tauri
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
@@ -80,6 +81,102 @@ describe('Sidebar status indicators and actions', () => {
 
     await waitFor(() => {
       expect(invoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreUnmarkSessionReady, { name: 's2' })
+    })
+  })
+
+  it('clicking Refine on a spec switches to orchestrator and emits terminal insert events', async () => {
+    const specSessions: EnrichedSession[] = [
+      {
+        info: {
+          session_id: 'spec-alpha',
+          display_name: 'Spec Alpha',
+          branch: 'spec/alpha',
+          worktree_path: '/spec-alpha',
+          base_branch: 'main',
+          status: 'spec',
+          session_state: 'spec',
+          is_current: false,
+          session_type: 'worktree',
+          ready_to_merge: false,
+        },
+        terminals: [],
+      },
+      {
+        info: {
+          session_id: 'running-beta',
+          display_name: 'running-beta',
+          branch: 'work/running-beta',
+          worktree_path: '/work/running-beta',
+          base_branch: 'main',
+          status: 'active',
+          session_state: 'running',
+          is_current: false,
+          session_type: 'worktree',
+          ready_to_merge: false,
+        },
+        terminals: [],
+      },
+    ]
+
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return specSessions
+      if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
+      if (cmd === TauriCommands.GetCurrentDirectory) return '/cwd'
+      if (cmd === TauriCommands.TerminalExists) return false
+      if (cmd === TauriCommands.CreateTerminal) return true
+      if (cmd === TauriCommands.PathExists) return true
+      if (cmd === TauriCommands.DirectoryExists) return true
+      if (cmd === TauriCommands.GetProjectSessionsSettings) {
+        return { filter_mode: 'all', sort_mode: 'name' }
+      }
+      if (cmd === TauriCommands.SetProjectSessionsSettings) {
+        return undefined
+      }
+      return undefined
+    })
+
+    const emitSpy = vi.spyOn(uiEvents, 'emitUiEvent')
+
+    render(<TestProviders><Sidebar /></TestProviders>)
+
+    await waitFor(() => {
+      expect(screen.getByText('spec-alpha')).toBeInTheDocument()
+    })
+
+    const specButton = screen.getByText('spec-alpha').closest('[role="button"]') as HTMLElement | null
+    expect(specButton).toBeTruthy()
+    fireEvent.click(specButton!)
+
+    await waitFor(() => {
+      const selected = screen.getByText('spec-alpha').closest('[role="button"]')
+      expect(selected?.getAttribute('data-session-selected')).toBe('true')
+    })
+
+    emitSpy.mockClear()
+
+    const refineButton = within(screen.getByText('spec-alpha').closest('[role="button"]') as HTMLElement)
+      .getByLabelText(/Refine spec/i)
+    fireEvent.click(refineButton)
+
+    await waitFor(() => {
+      const selectionChange = emitSpy.mock.calls.find(
+        ([event, detail]) =>
+          event === uiEvents.UiEvent.SelectionChanged &&
+          typeof detail === 'object' &&
+          detail !== null &&
+          (detail as { kind?: string }).kind === 'orchestrator',
+      )
+      expect(selectionChange).toBeDefined()
+    })
+
+    await waitFor(() => {
+      const orchestratorBtn = screen.getByLabelText(/Select orchestrator/i)
+      expect(orchestratorBtn.className).toContain('session-ring-blue')
+    })
+
+    expect(emitSpy).toHaveBeenCalledWith(uiEvents.UiEvent.OpenSpecInOrchestrator, { sessionName: 'spec-alpha' })
+    expect(emitSpy).toHaveBeenCalledWith(uiEvents.UiEvent.InsertTerminalText, {
+      text: 'Refine spec: Spec Alpha (spec-alpha)',
     })
   })
 

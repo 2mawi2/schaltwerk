@@ -3,6 +3,7 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { render, screen, waitFor, act } from '@testing-library/react'
 import { Sidebar } from './Sidebar'
 import { TestProviders } from '../../tests/test-utils'
+import * as uiEvents from '../../common/uiEvents'
 
 // Use real keyboard hook behavior
 
@@ -90,6 +91,86 @@ describe('Sidebar keyboard navigation basic', () => {
     await waitFor(() => {
       const orch = screen.getByLabelText(/Select orchestrator/i)
       expect(orch.className).toContain('session-ring-blue')
+    })
+  })
+
+  it('Cmd+Shift+R switches spec selection to orchestrator and emits refine events', async () => {
+    const specSessions = [
+      {
+        info: {
+          session_id: 'spec-session',
+          display_name: 'Spec Draft',
+          branch: 'spec/branch',
+          worktree_path: '/spec',
+          base_branch: 'main',
+          status: 'spec',
+          session_state: 'spec',
+          is_current: false,
+          session_type: 'worktree',
+          ready_to_merge: false,
+        },
+        terminals: [],
+      },
+    ]
+
+    vi.mocked(invoke).mockImplementation(async (cmd) => {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return specSessions
+      if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
+      if (cmd === TauriCommands.GetCurrentDirectory) return '/cwd'
+      if (cmd === TauriCommands.TerminalExists) return false
+      if (cmd === TauriCommands.CreateTerminal) return true
+      if (cmd === TauriCommands.PathExists) return true
+      if (cmd === TauriCommands.DirectoryExists) return true
+      if (cmd === TauriCommands.GetProjectSessionsSettings) {
+        return { filter_mode: 'all', sort_mode: 'name' }
+      }
+      if (cmd === TauriCommands.SetProjectSessionsSettings) {
+        return undefined
+      }
+      if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
+      return undefined
+    })
+
+    const emitSpy = vi.spyOn(uiEvents, 'emitUiEvent')
+
+    render(<TestProviders><Sidebar /></TestProviders>)
+
+    await waitFor(() => {
+      expect(screen.getByText('spec-session')).toBeInTheDocument()
+    })
+
+    const specButton = screen.getByText('spec-session').closest('[role="button"]') as HTMLElement | null
+    expect(specButton).toBeTruthy()
+    specButton?.click()
+
+    await waitFor(() => {
+      const selected = screen.getByText('spec-session').closest('[role="button"]')
+      expect(selected?.getAttribute('data-session-selected')).toBe('true')
+    })
+
+    emitSpy.mockClear()
+
+    await press('R', { metaKey: true, shiftKey: true })
+
+    await waitFor(() => {
+      const selectionChange = emitSpy.mock.calls.find(
+        ([event, detail]) =>
+          event === uiEvents.UiEvent.SelectionChanged &&
+          typeof detail === 'object' &&
+          detail !== null &&
+          (detail as { kind?: string }).kind === 'orchestrator',
+      )
+      expect(selectionChange).toBeDefined()
+    })
+
+    await waitFor(() => {
+      const orchestratorBtn = screen.getByLabelText(/Select orchestrator/i)
+      expect(orchestratorBtn.className).toContain('session-ring-blue')
+    })
+
+    expect(emitSpy).toHaveBeenCalledWith(uiEvents.UiEvent.OpenSpecInOrchestrator, { sessionName: 'spec-session' })
+    expect(emitSpy).toHaveBeenCalledWith(uiEvents.UiEvent.InsertTerminalText, {
+      text: 'Refine spec: Spec Draft (spec-session)',
     })
   })
 
