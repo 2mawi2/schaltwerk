@@ -4,19 +4,16 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { Sidebar } from './Sidebar'
 import { TestProviders } from '../../tests/test-utils'
 import { invoke } from '@tauri-apps/api/core'
-import { FilterMode, SortMode } from '../../types/sessionFilters'
-import { EnrichedSession } from '../../types/session'
-import { MockTauriInvokeArgs } from '../../types/testing'
-import { logger } from '../../utils/logger'
+import { FilterMode } from '../../types/sessionFilters'
+import type { EnrichedSession } from '../../types/session'
+import type { MockTauriInvokeArgs } from '../../types/testing'
 
 vi.mock('@tauri-apps/api/core')
 vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn(() => Promise.resolve(() => {}))
 }))
 
-
-
-const createSession = (id: string, lastModified?: string, createdAt?: string, readyToMerge = false): EnrichedSession => ({
+const createSession = (id: string, createdAt: string, readyToMerge = false): EnrichedSession => ({
   info: {
     session_id: id,
     branch: `para/${id}`,
@@ -24,70 +21,57 @@ const createSession = (id: string, lastModified?: string, createdAt?: string, re
     base_branch: 'main',
     status: 'active' as const,
     created_at: createdAt,
-    last_modified: lastModified,
+    last_modified: createdAt,
     has_uncommitted_changes: false,
     is_current: false,
-    session_type: 'worktree' as const,
-    session_state: readyToMerge ? 'reviewed' as const : 'running' as const,
-    ready_to_merge: readyToMerge
+    session_type: 'worktree',
+    session_state: readyToMerge ? 'reviewed' : 'running',
+    ready_to_merge: readyToMerge,
   },
-  terminals: []
+  terminals: [],
 })
 
-describe('Sidebar sort mode persistence', () => {
+describe('Sidebar session ordering and persistence', () => {
   let savedFilterMode: string = FilterMode.All
-  let savedSortMode: string = SortMode.Name
-
+  let lastPersistedSettings: Record<string, unknown> | null = null
 
   beforeEach(() => {
     vi.clearAllMocks()
-    
-    // Reset backend settings
     savedFilterMode = FilterMode.All
-    savedSortMode = SortMode.Name
+    lastPersistedSettings = null
 
     const sessions = [
-      createSession('test_session_a', '2024-01-15T10:00:00Z', '2024-01-01T10:00:00Z'),
-      createSession('test_session_b', '2024-01-10T10:00:00Z', '2024-01-02T10:00:00Z'),
-      createSession('test_session_c', '2024-01-20T10:00:00Z', '2023-12-31T10:00:00Z')
+      createSession('test_session_a', '2024-01-01T10:00:00Z'),
+      createSession('test_session_b', '2024-01-02T10:00:00Z'),
+      createSession('test_session_c', '2023-12-31T10:00:00Z'),
+      createSession('reviewed_session', '2024-01-03T10:00:00Z', true),
     ]
 
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
-        const mode = (args as { sortMode?: string })?.sortMode || SortMode.Name
-        if (mode === SortMode.Created) {
-          return [...sessions].sort((a, b) => {
-            const aT = a.info.created_at ? Date.parse(a.info.created_at) : 0
-            const bT = b.info.created_at ? Date.parse(b.info.created_at) : 0
-            return bT - aT
-          })
+      switch (cmd) {
+        case TauriCommands.SchaltwerkCoreListEnrichedSessions:
+          return sessions
+        case TauriCommands.SchaltwerkCoreListSessionsByState:
+          return []
+        case TauriCommands.GetCurrentDirectory:
+          return '/test/dir'
+        case TauriCommands.TerminalExists:
+          return false
+        case TauriCommands.CreateTerminal:
+          return true
+        case 'get_buffer':
+          return ''
+        case TauriCommands.GetProjectSessionsSettings:
+          return { filter_mode: savedFilterMode, sort_mode: 'legacy-name' }
+        case TauriCommands.SetProjectSessionsSettings: {
+          const incoming = (args as { settings?: { filter_mode?: string } })?.settings ?? {}
+          savedFilterMode = incoming.filter_mode || savedFilterMode
+          lastPersistedSettings = incoming
+          return undefined
         }
-        if (mode === SortMode.LastEdited) {
-          return [...sessions].sort((a, b) => {
-            const aT = a.info.last_modified ? Date.parse(a.info.last_modified) : 0
-            const bT = b.info.last_modified ? Date.parse(b.info.last_modified) : 0
-            return bT - aT
-          })
-        }
-        // Name
-        return [...sessions].sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+        default:
+          return undefined
       }
-      if (cmd === TauriCommands.GetCurrentDirectory) return '/test/dir'
-      if (cmd === TauriCommands.TerminalExists) return false
-      if (cmd === TauriCommands.CreateTerminal) return true
-      if (cmd === 'get_buffer') return ''
-      if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
-      if (cmd === TauriCommands.GetProjectSessionsSettings) {
-        return { filter_mode: savedFilterMode, sort_mode: savedSortMode }
-      }
-      if (cmd === TauriCommands.SetProjectSessionsSettings) {
-        const settings = (args as { settings?: { filter_mode?: string; sort_mode?: string } })?.settings || {}
-        savedFilterMode = settings.filter_mode || FilterMode.All
-        savedSortMode = settings.sort_mode || SortMode.Name
-        return undefined
-      }
-      return undefined
     })
   })
 
@@ -95,344 +79,49 @@ describe('Sidebar sort mode persistence', () => {
     vi.restoreAllMocks()
   })
 
-  it('should default to name sorting when no backend value exists', async () => {
-    render(<TestProviders><Sidebar /></TestProviders>)
+  it('sorts sessions by creation date while keeping reviewed sessions last', async () => {
+    render(
+      <TestProviders>
+        <Sidebar />
+      </TestProviders>,
+    )
 
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
         const text = btn.textContent || ''
         return text.includes('para/') && !text.includes('main (orchestrator)')
       })
-      expect(sessionButtons).toHaveLength(3)
+      expect(sessionButtons).toHaveLength(4)
     })
 
-    // Should be in name (alphabetical) order by default
-    const sessionButtons = screen.getAllByRole('button').filter(btn => {
+    const orderedButtons = screen.getAllByRole('button').filter(btn => {
       const text = btn.textContent || ''
       return text.includes('para/') && !text.includes('main (orchestrator)')
     })
 
-    expect(sessionButtons[0]).toHaveTextContent('test_session_a')
-    expect(sessionButtons[1]).toHaveTextContent('test_session_b')
-    expect(sessionButtons[2]).toHaveTextContent('test_session_c')
-
-    // Check that initial state is saved to backend
-    await waitFor(() => {
-      expect(savedSortMode).toBe('name')
-    })
+    expect(orderedButtons[0]).toHaveTextContent('test_session_b') // newest unreviewed
+    expect(orderedButtons[1]).toHaveTextContent('test_session_a')
+    expect(orderedButtons[2]).toHaveTextContent('test_session_c') // oldest unreviewed
+    expect(orderedButtons[3]).toHaveTextContent('reviewed_session') // reviewed pinned last
   })
 
-  it('should restore sort mode from backend on component mount', async () => {
-    // Pre-populate backend with 'created' mode
-    savedSortMode = SortMode.Created
-
-    render(<TestProviders><Sidebar /></TestProviders>)
-
-    // Wait until sort mode indicates Creation Time AND sessions are in correct order
-    await waitFor(() => {
-      const sortButton = screen.getByTitle(/^Sort:/i)
-      expect(sortButton).toHaveAttribute('title', expect.stringContaining('Creation Time'))
-      
-      // Also wait for sessions to be sorted correctly
-      const sessionButtons = screen.getAllByRole('button').filter(btn => {
-        const text = btn.textContent || ''
-        return text.includes('para/') && !text.includes('main (orchestrator)')
-      })
-      
-      // Check first session is test_session_b (newest)
-      expect(sessionButtons[0]).toHaveTextContent('test_session_b')
-    }, { timeout: 3000 })
-
-    // Now verify full order
-    const sessionButtons = screen.getAllByRole('button').filter(btn => {
-      const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (orchestrator)')
-    })
-
-    expect(sessionButtons[0]).toHaveTextContent('test_session_b') // Jan 2 (newest)
-    expect(sessionButtons[1]).toHaveTextContent('test_session_a') // Jan 1  
-    expect(sessionButtons[2]).toHaveTextContent('test_session_c') // Dec 31 (oldest)
-
-    // Verify the sort button shows the correct mode
-    const sortButton = screen.getByTitle(/^Sort:/i)
-    expect(sortButton).toHaveAttribute('title', expect.stringContaining('Creation Time'))
-  })
-
-  it('should persist sort mode changes to backend', async () => {
-    render(<TestProviders><Sidebar /></TestProviders>)
+  it('persists filter mode changes without emitting legacy sort state', async () => {
+    render(
+      <TestProviders>
+        <Sidebar />
+      </TestProviders>,
+    )
 
     await waitFor(() => {
-      const sessionButtons = screen.getAllByRole('button').filter(btn => {
-        const text = btn.textContent || ''
-        return text.includes('para/') && !text.includes('main (orchestrator)')
-      })
-      expect(sessionButtons).toHaveLength(3)
+      expect(screen.getByTitle('Show spec agents')).toBeInTheDocument()
     })
 
-    const sortButton = screen.getByTitle(/^Sort:/i)
-
-    // Change to created mode
-    fireEvent.click(sortButton)
-    await waitFor(() => {
-      expect(sortButton).toHaveAttribute('title', expect.stringContaining('Creation Time'))
-    })
-    await waitFor(() => {
-      expect(savedSortMode).toBe('created')
-    })
-
-    // Change to last-edited mode
-    fireEvent.click(sortButton)
-    await waitFor(() => {
-      expect(sortButton).toHaveAttribute('title', expect.stringContaining('Last Edited'))
-    })
-    await waitFor(() => {
-      expect(savedSortMode).toBe('last-edited')
-    })
-
-    // Change back to name mode
-    fireEvent.click(sortButton)
-    await waitFor(() => {
-      expect(sortButton).toHaveAttribute('title', expect.stringContaining('Name (A-Z)'))
-    })
-    await waitFor(() => {
-      expect(savedSortMode).toBe('name')
-    })
-  })
-
-  it('should handle backend initialization errors gracefully', async () => {
-    // Test that invalid backend values are handled gracefully
-    savedSortMode = 'invalid-sort-mode' as string
-
-    render(<TestProviders><Sidebar /></TestProviders>)
+    const specsButton = screen.getByTitle('Show spec agents')
+    fireEvent.click(specsButton)
 
     await waitFor(() => {
-      const sessionButtons = screen.getAllByRole('button').filter(btn => {
-        const text = btn.textContent || ''
-        return text.includes('para/') && !text.includes('main (orchestrator)')
-      })
-      expect(sessionButtons).toHaveLength(3)
+      expect(savedFilterMode).toBe(FilterMode.Spec)
+      expect(lastPersistedSettings).toEqual({ filter_mode: FilterMode.Spec })
     })
-
-    // Should fallback to default 'name' mode when value is invalid
-    const sessionButtons = screen.getAllByRole('button').filter(btn => {
-      const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (orchestrator)')
-    })
-
-    expect(sessionButtons[0]).toHaveTextContent('test_session_a')
-    expect(sessionButtons[1]).toHaveTextContent('test_session_b') 
-    expect(sessionButtons[2]).toHaveTextContent('test_session_c')
-
-    // Sort button should show default name mode
-    const sortButton = screen.getByTitle(/^Sort:/i)
-    expect(sortButton).toHaveAttribute('title', expect.stringContaining('Name (A-Z)'))
-  })
-
-  it('should handle backend errors gracefully during saving', async () => {
-    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {})
-    
-    render(<TestProviders><Sidebar /></TestProviders>)
-
-    await waitFor(() => {
-      const sessionButtons = screen.getAllByRole('button').filter(btn => {
-        const text = btn.textContent || ''
-        return text.includes('para/') && !text.includes('main (orchestrator)')
-      })
-      expect(sessionButtons).toHaveLength(3)
-    })
-
-    // Make backend save throw an error
-    const sessions = [
-      createSession('test_session_a', '2024-01-15T10:00:00Z', '2024-01-01T10:00:00Z'),
-      createSession('test_session_b', '2024-01-10T10:00:00Z', '2024-01-02T10:00:00Z'),
-      createSession('test_session_c', '2024-01-20T10:00:00Z', '2023-12-31T10:00:00Z')
-    ]
-    
-    vi.mocked(invoke).mockImplementation(async (cmd) => {
-      if (cmd === TauriCommands.SetProjectSessionsSettings) {
-        throw new Error('Backend save failed')
-      }
-      // Default handling for other commands
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
-            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
-      if (cmd === TauriCommands.GetProjectSessionsSettings) {
-        return { filter_mode: savedFilterMode, sort_mode: savedSortMode }
-      }
-      return undefined
-    })
-
-    const sortButton = screen.getByTitle(/^Sort:/i)
-
-    // Try to change sort mode
-    fireEvent.click(sortButton)
-
-    await waitFor(() => {
-      expect(warnSpy).toHaveBeenCalledWith(
-        '[SessionsAtoms] Failed to save sessions settings:',
-        expect.any(Error)
-      )
-    })
-
-    // Component should still work despite localStorage error
-    expect(sortButton).toHaveAttribute('title', expect.stringContaining('Creation Time'))
-    
-    warnSpy.mockRestore()
-  })
-
-  it('should ignore invalid backend values and use default', async () => {
-    // Pre-populate backend with invalid value
-    savedSortMode = 'invalid-mode' as string
-
-    render(<TestProviders><Sidebar /></TestProviders>)
-
-    await waitFor(() => {
-      const sessionButtons = screen.getAllByRole('button').filter(btn => {
-        const text = btn.textContent || ''
-        return text.includes('para/') && !text.includes('main (orchestrator)')
-      })
-      expect(sessionButtons).toHaveLength(3)
-    })
-
-    // Should fallback to default name sorting
-    const sessionButtons = screen.getAllByRole('button').filter(btn => {
-      const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (orchestrator)')
-    })
-
-    expect(sessionButtons[0]).toHaveTextContent('test_session_a')
-    expect(sessionButtons[1]).toHaveTextContent('test_session_b')
-    expect(sessionButtons[2]).toHaveTextContent('test_session_c')
-
-    const sortButton = screen.getByTitle(/^Sort:/i)
-    expect(sortButton).toHaveAttribute('title', expect.stringContaining('Name (A-Z)'))
-  })
-
-  it('should persist sort mode across component remounts', async () => {
-    // First render - change to 'last-edited' mode
-    const { unmount } = render(<TestProviders><Sidebar /></TestProviders>)
-
-    await waitFor(() => {
-      const sessionButtons = screen.getAllByRole('button').filter(btn => {
-        const text = btn.textContent || ''
-        return text.includes('para/') && !text.includes('main (orchestrator)')
-      })
-      expect(sessionButtons).toHaveLength(3)
-    })
-
-    let sortButton = screen.getByTitle(/^Sort:/i)
-    
-    // Change to 'created' then 'last-edited' mode
-    fireEvent.click(sortButton) // name -> created
-    fireEvent.click(sortButton) // created -> last-edited
-    
-    await waitFor(() => {
-      expect(sortButton).toHaveAttribute('title', expect.stringContaining('Last Edited'))
-    })
-
-    // Verify backend was updated
-    expect(savedSortMode).toBe('last-edited')
-
-    // Unmount component
-    unmount()
-
-    // Remount component - should restore last-edited mode
-    render(<TestProviders><Sidebar /></TestProviders>)
-
-    await waitFor(() => {
-      const sessionButtons = screen.getAllByRole('button').filter(btn => {
-        const text = btn.textContent || ''
-        return text.includes('para/') && !text.includes('main (orchestrator)')
-      })
-      expect(sessionButtons).toHaveLength(3)
-    })
-
-    // Wait until sort mode is restored to last-edited
-    await waitFor(() => {
-      const sb = screen.getByTitle(/^Sort:/i)
-      expect(sb).toHaveAttribute('title', expect.stringContaining('Last Edited'))
-    })
-
-    // Should be in last-edited order (most recent first)
-    const sessionButtons = screen.getAllByRole('button').filter(btn => {
-      const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (orchestrator)')
-    })
-
-    expect(sessionButtons[0]).toHaveTextContent('test_session_c') // Jan 20 (most recent)
-    expect(sessionButtons[1]).toHaveTextContent('test_session_a') // Jan 15
-    expect(sessionButtons[2]).toHaveTextContent('test_session_b') // Jan 10 (oldest edit)
-
-    // Verify sort button shows correct mode
-    sortButton = screen.getByTitle(/^Sort:/i)
-    expect(sortButton).toHaveAttribute('title', expect.stringContaining('Last Edited'))
-  })
-
-  it('should handle default fallback correctly', async () => {
-    // Start with default backend values
-    savedFilterMode = FilterMode.All
-    savedSortMode = SortMode.Name
-
-    render(<TestProviders><Sidebar /></TestProviders>)
-
-    await waitFor(() => {
-      const sessionButtons = screen.getAllByRole('button').filter(btn => {
-        const text = btn.textContent || ''
-        return text.includes('para/') && !text.includes('main (orchestrator)')
-      })
-      expect(sessionButtons).toHaveLength(3)
-    })
-
-    // Should default to name sorting when no value exists
-    const sessionButtons = screen.getAllByRole('button').filter(btn => {
-      const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (orchestrator)')
-    })
-
-    expect(sessionButtons[0]).toHaveTextContent('test_session_a')
-    expect(sessionButtons[1]).toHaveTextContent('test_session_b')
-    expect(sessionButtons[2]).toHaveTextContent('test_session_c')
-
-    // Sort button should show name mode
-    const sortButton = screen.getByTitle(/^Sort:/i)
-    expect(sortButton).toHaveAttribute('title', expect.stringContaining('Name (A-Z)'))
-  })
-
-  it('should validate sort mode persistence for each mode', async () => {
-    const modes = ['name', 'created', 'last-edited'] as const
-    
-    for (let i = 0; i < modes.length; i++) {
-      const mode = modes[i]
-      // Set up backend with the mode
-      savedSortMode = mode
-
-      const { unmount } = render(<TestProviders><Sidebar /></TestProviders>)
-
-      await waitFor(() => {
-        const sessionButtons = screen.getAllByRole('button').filter(btn => {
-          const text = btn.textContent || ''
-          return text.includes('para/') && !text.includes('main (orchestrator)')
-        })
-        expect(sessionButtons).toHaveLength(3)
-      })
-
-      const sortButton = screen.getByTitle(/^Sort:/i)
-      
-      // Verify the correct sort mode is restored
-      if (mode === 'name') {
-        expect(sortButton).toHaveAttribute('title', expect.stringContaining('Name (A-Z)'))
-      } else if (mode === 'created') {
-        expect(sortButton).toHaveAttribute('title', expect.stringContaining('Creation Time'))
-      } else if (mode === 'last-edited') {
-        expect(sortButton).toHaveAttribute('title', expect.stringContaining('Last Edited'))
-      }
-
-      unmount()
-      
-      // Reset backend for next iteration
-      if (i < modes.length - 1) {
-        savedFilterMode = 'all'
-        savedSortMode = 'name'
-      }
-    }
   })
 })

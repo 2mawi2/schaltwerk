@@ -4,7 +4,7 @@ import { UnifiedDiffModal } from './UnifiedDiffModal'
 import { TestProviders } from '../../tests/test-utils'
 import { TauriCommands } from '../../common/tauriCommands'
 import type { EnrichedSession } from '../../types/session'
-import { FilterMode, SortMode } from '../../types/sessionFilters'
+import { FilterMode } from '../../types/sessionFilters'
 import { sessionTerminalGroup, stableSessionTerminalId } from '../../common/terminalIdentity'
 
 let selectionState: { kind: 'session' | 'orchestrator'; payload?: string; sessionState?: 'spec' | 'running' | 'reviewed' }
@@ -41,11 +41,9 @@ vi.mock('../../hooks/useSessions', async () => {
       filteredSessions: sessionsState,
       sortedSessions: sessionsState,
       loading: false,
-      sortMode: SortMode.Name,
       filterMode: FilterMode.All,
       searchQuery: '',
       isSearchVisible: false,
-      setSortMode: vi.fn(),
       setFilterMode: vi.fn(),
       setSearchQuery: vi.fn(),
       setIsSearchVisible: vi.fn(),
@@ -75,7 +73,7 @@ const baseInvoke = async (cmd: string, _args?: Record<string, unknown>): Promise
     case TauriCommands.SchaltwerkCoreListSessionsByState:
       return []
     case TauriCommands.GetProjectSessionsSettings:
-      return { filter_mode: 'all', sort_mode: 'name' }
+      return { filter_mode: 'all' }
     case TauriCommands.SetDiffViewPreferences:
     case TauriCommands.SetProjectSessionsSettings:
       return undefined

@@ -1,7 +1,7 @@
 import { useMemo, useCallback } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { AGENT_TYPES, type AgentType, type EnrichedSession } from '../types/session'
-import type { SortMode, FilterMode } from '../types/sessionFilters'
+import type { FilterMode } from '../types/sessionFilters'
 import type { MergeDialogState, MergeStatus, ShortcutMergeResult } from '../store/atoms/sessions'
 import {
   allSessionsAtom,
@@ -9,7 +9,6 @@ import {
   filteredSessionsAtom,
   sortedSessionsAtom,
   sessionsLoadingAtom,
-  sortModeAtom,
   filterModeAtom,
   searchQueryAtom,
   isSearchVisibleAtom,
@@ -40,8 +39,6 @@ export interface UseSessionsResult {
   filteredSessions: EnrichedSession[]
   sortedSessions: EnrichedSession[]
   loading: boolean
-  sortMode: SortMode
-  setSortMode: (mode: SortMode) => void
   filterMode: FilterMode
   setFilterMode: (mode: FilterMode) => void
   searchQuery: string
@@ -75,7 +72,6 @@ export function useSessions(): UseSessionsResult {
   const filteredSessions = useAtomValue(filteredSessionsAtom)
   const sortedSessions = useAtomValue(sortedSessionsAtom)
   const loading = useAtomValue(sessionsLoadingAtom)
-  const [sortMode, setSortMode] = useAtom(sortModeAtom)
   const [filterMode, setFilterMode] = useAtom(filterModeAtom)
   const [searchQuery, setSearchQuery] = useAtom(searchQueryAtom)
   const [isSearchVisible, setIsSearchVisible] = useAtom(isSearchVisibleAtom)
@@ -174,8 +170,6 @@ export function useSessions(): UseSessionsResult {
     filteredSessions,
     sortedSessions,
     loading,
-    sortMode,
-    setSortMode,
     filterMode,
     setFilterMode,
     searchQuery,
@@ -207,8 +201,6 @@ export function useSessions(): UseSessionsResult {
     filteredSessions,
     sortedSessions,
     loading,
-    sortMode,
-    setSortMode,
     filterMode,
     setFilterMode,
     searchQuery,

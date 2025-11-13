@@ -151,7 +151,6 @@ git commit -m "Recover lost session: <description>"
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectSessionsSettings {
     pub filter_mode: String,
-    pub sort_mode: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -291,22 +290,20 @@ impl ProjectConfigMethods for Database {
         let canonical_path =
             std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
 
-        let query_res: rusqlite::Result<(Option<String>, Option<String>)> = conn.query_row(
-            "SELECT sessions_filter_mode, sessions_sort_mode
+        let query_res: rusqlite::Result<Option<String>> = conn.query_row(
+            "SELECT sessions_filter_mode
                 FROM project_config
                 WHERE repository_path = ?1",
             params![canonical_path.to_string_lossy()],
-            |row| Ok((row.get(0)?, row.get(1)?)),
+            |row| row.get(0),
         );
 
         match query_res {
-            Ok((filter_opt, sort_opt)) => Ok(ProjectSessionsSettings {
+            Ok(filter_opt) => Ok(ProjectSessionsSettings {
                 filter_mode: filter_opt.unwrap_or_else(|| "all".to_string()),
-                sort_mode: sort_opt.unwrap_or_else(|| "name".to_string()),
             }),
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(ProjectSessionsSettings {
                 filter_mode: "all".to_string(),
-                sort_mode: "name".to_string(),
             }),
             Err(e) => Err(e.into()),
         }
@@ -328,7 +325,6 @@ impl ProjectConfigMethods for Database {
                     repository_path,
                     auto_cancel_after_merge,
                     sessions_filter_mode,
-                    sessions_sort_mode,
                     created_at,
                     updated_at
                 )
@@ -340,17 +336,14 @@ impl ProjectConfigMethods for Database {
                     ),
                     ?2,
                     ?3,
-                    ?4,
-                    ?5
+                    ?4
                 )
                 ON CONFLICT(repository_path) DO UPDATE SET
                     sessions_filter_mode = excluded.sessions_filter_mode,
-                    sessions_sort_mode   = excluded.sessions_sort_mode,
                     updated_at           = excluded.updated_at",
             params![
                 canonical_path.to_string_lossy(),
                 settings.filter_mode,
-                settings.sort_mode,
                 now,
                 now,
             ],

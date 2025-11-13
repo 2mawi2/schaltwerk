@@ -2,7 +2,7 @@ import { atom } from 'jotai'
 import type { Getter, Setter } from 'jotai'
 import { invoke } from '@tauri-apps/api/core'
 import type { EnrichedSession, AgentType } from '../../types/session'
-import { FilterMode, SortMode, getDefaultFilterMode, getDefaultSortMode, isValidFilterMode, isValidSortMode } from '../../types/sessionFilters'
+import { FilterMode, getDefaultFilterMode, isValidFilterMode } from '../../types/sessionFilters'
 import { TauriCommands } from '../../common/tauriCommands'
 import { mapSessionUiState, searchSessions as searchSessionsUtil } from '../../utils/sessionFilters'
 import { SessionState, type RawSession, type SessionInfo } from '../../types/session'
@@ -86,7 +86,7 @@ function applySessionMutationState(
     return next
 }
 
-function sortSessionsStable(sessions: EnrichedSession[], sortMode: SortMode): EnrichedSession[] {
+function sortSessionsByCreationDate(sessions: EnrichedSession[]): EnrichedSession[] {
     if (sessions.length === 0) return sessions
 
     const sessionMap = new Map(sessions.map(session => [session.info.session_id, session]))
@@ -94,32 +94,17 @@ function sortSessionsStable(sessions: EnrichedSession[], sortMode: SortMode): En
     const reviewed = sessions.filter(session => session.info.ready_to_merge)
     const unreviewed = sessions.filter(session => !session.info.ready_to_merge)
 
-    const sortedUnreviewed = [...unreviewed].sort((a, b) => {
-        switch (sortMode) {
-            case SortMode.Name:
-                return a.info.session_id.localeCompare(b.info.session_id)
-            case SortMode.Created: {
-                const aTime = new Date(a.info.created_at || 0).getTime()
-                const bTime = new Date(b.info.created_at || 0).getTime()
-                const diff = bTime - aTime
-                if (diff !== 0) {
-                    return diff
-                }
-                return a.info.session_id.localeCompare(b.info.session_id)
-            }
-            case SortMode.LastEdited: {
-                const aTime = new Date(a.info.last_modified || 0).getTime()
-                const bTime = new Date(b.info.last_modified || 0).getTime()
-                const diff = bTime - aTime
-                if (diff !== 0) {
-                    return diff
-                }
-                return a.info.session_id.localeCompare(b.info.session_id)
-            }
-            default:
-                return 0
+    const compareByCreated = (a: EnrichedSession, b: EnrichedSession) => {
+        const aTime = new Date(a.info.created_at || 0).getTime()
+        const bTime = new Date(b.info.created_at || 0).getTime()
+        const diff = bTime - aTime
+        if (diff !== 0) {
+            return diff
         }
-    })
+        return a.info.session_id.localeCompare(b.info.session_id)
+    }
+
+    const sortedUnreviewed = [...unreviewed].sort(compareByCreated)
 
     const sortedReviewed = [...reviewed].sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
 
@@ -570,7 +555,6 @@ function getErrorMessage(value: unknown): string {
 }
 
 export const allSessionsAtom = atom<EnrichedSession[]>([])
-const sortModeStateAtom = atom<SortMode>(getDefaultSortMode())
 const filterModeStateAtom = atom<FilterMode>(getDefaultFilterMode())
 const searchQueryStateAtom = atom<string>('')
 const isSearchVisibleStateAtom = atom<boolean>(false)
@@ -586,7 +570,6 @@ const autoCancelAfterMergeStateAtom = atom<boolean>(true)
 const currentSelectionStateAtom = atom<string | null>(null)
 
 let lastPersistedFilterMode: FilterMode | null = null
-let lastPersistedSortMode: SortMode | null = null
 
 type PushToast = (toast: { tone: 'success' | 'error'; title: string; description?: string }) => void
 
@@ -609,17 +592,6 @@ export const sessionsLoadingAtom = atom((get) => get(loadingStateAtom))
 export function setSessionsToastHandlers(handlers: { pushToast?: PushToast | null }) {
     pushToastHandler = handlers.pushToast ?? null
 }
-
-export const sortModeAtom = atom(
-    (get) => get(sortModeStateAtom),
-    (_get, set, mode: SortMode) => {
-        if (!isValidSortMode(mode)) {
-            return
-        }
-        set(sortModeStateAtom, mode)
-        void set(persistSessionsSettingsAtom)
-    },
-)
 
 export const filterModeAtom = atom(
     (get) => get(filterModeStateAtom),
@@ -661,8 +633,7 @@ export const filteredSessionsAtom = atom((get) => {
 
 export const sortedSessionsAtom = atom((get) => {
     const sessions = get(filteredSessionsAtom)
-    const sortMode = get(sortModeStateAtom)
-    return sortSessionsStable(sessions, sortMode)
+    return sortSessionsByCreationDate(sessions)
 })
 
 export const sessionsAtom = atom((get) => get(sortedSessionsAtom))
@@ -807,10 +778,9 @@ const persistSessionsSettingsAtom = atom(
             return
         }
 
-        const sortMode = get(sortModeStateAtom)
         const filterMode = get(filterModeStateAtom)
 
-        if (lastPersistedSortMode === sortMode && lastPersistedFilterMode === filterMode) {
+        if (lastPersistedFilterMode === filterMode) {
             return
         }
 
@@ -818,14 +788,11 @@ const persistSessionsSettingsAtom = atom(
             await invoke(TauriCommands.SetProjectSessionsSettings, {
                 settings: {
                     filter_mode: filterMode,
-                    sort_mode: sortMode,
                 },
             })
-            lastPersistedSortMode = sortMode
             lastPersistedFilterMode = filterMode
         } catch (error) {
             logger.warn('[SessionsAtoms] Failed to save sessions settings:', error)
-            lastPersistedSortMode = null
             lastPersistedFilterMode = null
         }
     },
@@ -872,17 +839,13 @@ export const initializeSessionsSettingsActionAtom = atom(
         }
 
         try {
-            const settings = await invoke<{ filter_mode?: string; sort_mode?: string } | null>(TauriCommands.GetProjectSessionsSettings)
+            const settings = await invoke<{ filter_mode?: string } | null>(TauriCommands.GetProjectSessionsSettings)
             const filter = settings && isValidFilterMode(settings.filter_mode) ? (settings.filter_mode as FilterMode) : getDefaultFilterMode()
-            const sort = settings && isValidSortMode(settings.sort_mode) ? (settings.sort_mode as SortMode) : getDefaultSortMode()
             set(filterModeStateAtom, filter)
             set(setSelectionFilterModeActionAtom, filter)
-            set(sortModeStateAtom, sort)
             lastPersistedFilterMode = filter
-            lastPersistedSortMode = sort
         } catch {
             lastPersistedFilterMode = null
-            lastPersistedSortMode = null
         } finally {
             set(settingsLoadedAtom, true)
         }
