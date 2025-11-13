@@ -302,7 +302,7 @@ export const useSettings = () => {
     const loadProjectSettings = useCallback(async (): Promise<ProjectSettings> => {
         try {
             const settings = await invoke<ProjectSettings>(TauriCommands.GetProjectSettings)
-            const envVars = await invoke<Record<string, string>>('get_project_environment_variables')
+            const envVars = await invoke<Record<string, string>>(TauriCommands.GetProjectEnvironmentVariables)
             const envVarArray = Object.entries(envVars || {}).map(([key, value]) => ({ key, value }))
             
             return {
@@ -367,7 +367,7 @@ export const useSettings = () => {
 
     const loadInstalledFonts = useCallback(async (): Promise<Array<{ family: string, monospace: boolean }>> => {
         try {
-            const items = await invoke<Array<{ family: string, monospace: boolean }>>('list_installed_fonts')
+            const items = await invoke<Array<{ family: string, monospace: boolean }>>(TauriCommands.ListInstalledFonts)
             return Array.isArray(items) ? items : []
         } catch (error) {
             logger.error('Failed to list installed fonts:', error)
