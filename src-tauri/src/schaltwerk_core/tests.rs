@@ -23,6 +23,8 @@ use std::path::PathBuf;
 use std::process::Command;
 #[cfg(test)]
 use tempfile::TempDir;
+#[cfg(test)]
+use rusqlite::params;
 
 // Import database traits for method access in tests
 #[cfg(test)]
@@ -909,6 +911,31 @@ fn test_project_setup_script_update() {
         .unwrap();
     let retrieved2 = db.get_project_setup_script(&env.repo_path).unwrap();
     assert_eq!(retrieved2, Some(script2.to_string()));
+}
+
+#[test]
+fn test_project_setup_script_handles_null_values() {
+    let env = TestEnvironment::new().unwrap();
+    let db = env.get_database().unwrap();
+
+    // Ensure a row exists for this repository.
+    db.set_project_setup_script(&env.repo_path, "#!/bin/bash\necho 'placeholder'")
+        .unwrap();
+
+    // Simulate older records that stored NULL in the setup_script column.
+    {
+        let conn = db.get_conn().unwrap();
+        let canonical_repo = std::fs::canonicalize(&env.repo_path).unwrap();
+        conn.execute(
+            "UPDATE project_config SET setup_script = NULL WHERE repository_path = ?1",
+            params![canonical_repo.to_string_lossy()],
+        )
+        .unwrap();
+    }
+
+    // Fetch should gracefully treat NULL as the script being unset.
+    let retrieved = db.get_project_setup_script(&env.repo_path).unwrap();
+    assert!(retrieved.is_none());
 }
 
 #[test]
