@@ -2,7 +2,7 @@ import { countTokens } from 'gpt-tokenizer'
 import type { ChangedFile } from '../../common/events'
 import type { DiffResponse, LineInfo } from '../../types/diff'
 import { logger } from '../../utils/logger'
-import { isSessionMissingError } from '../../utils/sessionErrorGuards'
+import { isSessionMissingError } from '../../types/errors'
 
 export function wrapBlock(header: string, body: string, fence: string | null): string {
   return `${header}\n\n${fence ? `\`\`\`${fence}\n${body}\n\`\`\`` : body}`

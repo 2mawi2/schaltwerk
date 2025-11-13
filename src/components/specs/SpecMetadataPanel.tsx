@@ -8,7 +8,7 @@ import { SessionActions } from '../session/SessionActions'
 import { logger } from '../../utils/logger'
 import { formatDateTime } from '../../utils/dateTime'
 import { useSessions } from '../../hooks/useSessions'
-import { isSessionMissingError } from '../../utils/sessionErrorGuards'
+import { isSessionMissingError } from '../../types/errors'
 
 const METADATA_DATE_OPTIONS: Intl.DateTimeFormatOptions = {
   month: 'short',

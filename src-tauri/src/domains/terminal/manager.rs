@@ -66,14 +66,17 @@ impl TerminalManager {
     fn resolve_cwd(cwd: &str) -> Result<String, String> {
         let trimmed = cwd.trim();
         if trimmed.is_empty() {
-            let current_dir =
-                std::env::current_dir().map_err(|err| format!("Failed to determine current directory for terminal: {err}"))?;
+            let current_dir = std::env::current_dir().map_err(|err| {
+                format!("Failed to determine current directory for terminal: {err}")
+            })?;
             return Ok(current_dir.to_string_lossy().to_string());
         }
 
         let path = Path::new(trimmed);
         if !path.exists() {
-            return Err(format!("Terminal working directory does not exist: {trimmed}"));
+            return Err(format!(
+                "Terminal working directory does not exist: {trimmed}"
+            ));
         }
 
         Ok(trimmed.to_string())

@@ -413,7 +413,10 @@ describe('DiffFileList', () => {
 
     mockInvoke.mockImplementation(async (cmd: string, _args?: Record<string, unknown>) => {
       if (cmd === TauriCommands.GetChangedFilesFromMain) {
-        throw new Error("Failed to get session 'demo': Query returned no rows")
+        throw {
+          type: 'SessionNotFound',
+          data: { session_id: 'demo' }
+        }
       }
       if (cmd === TauriCommands.StartFileWatcher) {
         startWatcherArgs.push(_args)
