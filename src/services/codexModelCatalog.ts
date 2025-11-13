@@ -1,6 +1,10 @@
 import { invoke } from '@tauri-apps/api/core'
-import { FALLBACK_CODEX_MODELS } from '../common/codexModels'
-import type { CodexModelMetadata, CodexReasoningOption } from '../common/codexModels'
+import {
+    LATEST_CODEX_CATALOG,
+    cloneCodexCatalog,
+    type CodexModelMetadata,
+    type CodexReasoningOption
+} from '../common/codexModels'
 import { TauriCommands } from '../common/tauriCommands'
 import { logger } from '../utils/logger'
 
@@ -14,10 +18,13 @@ interface CodexModelCatalogResponse {
     defaultModelId?: string
 }
 
-const FALLBACK_CATALOG: CodexModelCatalog = {
-    models: [...FALLBACK_CODEX_MODELS],
-    defaultModelId: FALLBACK_CODEX_MODELS[0]?.id ?? ''
-}
+const FALLBACK_CATALOG: CodexModelCatalog = (() => {
+    const snapshot = cloneCodexCatalog(LATEST_CODEX_CATALOG)
+    return {
+        models: snapshot.models,
+        defaultModelId: snapshot.defaultModelId
+    }
+})()
 
 function toTitleCase(value: string): string {
     if (!value) return ''

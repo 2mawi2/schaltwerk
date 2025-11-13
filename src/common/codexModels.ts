@@ -1,3 +1,5 @@
+import codexModelConfig from './config/codexModels.json'
+
 export interface CodexReasoningOption {
     id: string
     label: string
@@ -13,65 +15,53 @@ export interface CodexModelMetadata {
     isDefault?: boolean
 }
 
-export const FALLBACK_CODEX_MODELS: CodexModelMetadata[] = [
-    {
-        id: 'gpt-5-codex',
-        label: 'GPT-5 Codex',
-        description: 'Optimized for coding tasks with many tools.',
-        defaultReasoning: 'medium',
-        isDefault: true,
-        reasoningOptions: [
-            {
-                id: 'low',
-                label: 'Low',
-                description: 'Fastest responses with limited reasoning'
-            },
-            {
-                id: 'medium',
-                label: 'Medium',
-                description: 'Dynamically adjusts reasoning based on the task'
-            },
-            {
-                id: 'high',
-                label: 'High',
-                description: 'Maximizes reasoning depth for complex or ambiguous problems'
-            }
-        ]
-    },
-    {
-        id: 'gpt-5',
-        label: 'GPT-5',
-        description: 'Broad world knowledge with strong general reasoning.',
-        defaultReasoning: 'medium',
-        isDefault: false,
-        reasoningOptions: [
-            {
-                id: 'minimal',
-                label: 'Minimal',
-                description: 'Fastest responses with little reasoning'
-            },
-            {
-                id: 'low',
-                label: 'Low',
-                description: 'Balances speed with some reasoning; great for straightforward queries'
-            },
-            {
-                id: 'medium',
-                label: 'Medium',
-                description: 'Solid balance of reasoning depth and latency for general-purpose tasks'
-            },
-            {
-                id: 'high',
-                label: 'High',
-                description: 'Maximizes reasoning depth for complex or ambiguous problems'
-            }
-        ]
+export interface CodexModelCatalogDefinition {
+    defaultModelId: string
+    models: CodexModelMetadata[]
+}
+
+interface CodexModelConfiguration {
+    latest: CodexModelCatalogDefinition
+    legacy: CodexModelCatalogDefinition
+}
+
+const RAW_CODEX_MODEL_CONFIGURATION = codexModelConfig as CodexModelConfiguration
+
+function cloneModel(model: CodexModelMetadata): CodexModelMetadata {
+    return {
+        ...model,
+        reasoningOptions: model.reasoningOptions.map(option => ({ ...option }))
     }
-]
+}
+
+export function cloneCodexCatalog(config: CodexModelCatalogDefinition): CodexModelCatalogDefinition {
+    return {
+        defaultModelId: config.defaultModelId,
+        models: config.models.map(cloneModel)
+    }
+}
+
+export const LATEST_CODEX_CATALOG: CodexModelCatalogDefinition = cloneCodexCatalog(
+    RAW_CODEX_MODEL_CONFIGURATION.latest
+)
+export const LEGACY_CODEX_CATALOG: CodexModelCatalogDefinition = cloneCodexCatalog(
+    RAW_CODEX_MODEL_CONFIGURATION.legacy
+)
+
+export const FALLBACK_CODEX_MODELS: CodexModelMetadata[] = cloneCodexCatalog(
+    LATEST_CODEX_CATALOG
+).models
 
 export function getCodexModelMetadata(
     modelId: string,
     models: CodexModelMetadata[] = FALLBACK_CODEX_MODELS
 ): CodexModelMetadata | undefined {
-    return models.find(model => model.id === modelId)
+    return (
+        models.find(model => model.id === modelId) ||
+        LEGACY_CODEX_CATALOG.models.find(model => model.id === modelId)
+    )
+}
+
+export function getAllCodexModels(): CodexModelMetadata[] {
+    return [...LATEST_CODEX_CATALOG.models, ...LEGACY_CODEX_CATALOG.models].map(cloneModel)
 }

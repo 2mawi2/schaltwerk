@@ -1,0 +1,137 @@
+{
+  "latest": {
+    "defaultModelId": "gpt-5.1-codex",
+    "models": [
+      {
+        "id": "gpt-5.1-codex",
+        "label": "GPT-5.1 Codex",
+        "description": "Optimized for Codex agents with richer tool usage.",
+        "defaultReasoning": "medium",
+        "isDefault": true,
+        "reasoningOptions": [
+          {
+            "id": "low",
+            "label": "Low",
+            "description": "Fastest responses with limited reasoning"
+          },
+          {
+            "id": "medium",
+            "label": "Medium",
+            "description": "Balances speed with adaptive reasoning"
+          },
+          {
+            "id": "high",
+            "label": "High",
+            "description": "Maximizes reasoning depth for complex or ambiguous problems"
+          }
+        ]
+      },
+      {
+        "id": "gpt-5.1-codex-mini",
+        "label": "GPT-5.1 Codex Mini",
+        "description": "Cheaper, faster Codex variant for lighter tasks.",
+        "defaultReasoning": "medium",
+        "isDefault": false,
+        "reasoningOptions": [
+          {
+            "id": "medium",
+            "label": "Medium",
+            "description": "Balanced latency and reasoning depth"
+          },
+          {
+            "id": "high",
+            "label": "High",
+            "description": "Extra depth for tougher tasks with minimal latency impact"
+          }
+        ]
+      },
+      {
+        "id": "gpt-5.1",
+        "label": "GPT-5.1",
+        "description": "Broad world knowledge with strong general reasoning.",
+        "defaultReasoning": "medium",
+        "isDefault": false,
+        "reasoningOptions": [
+          {
+            "id": "minimal",
+            "label": "Minimal",
+            "description": "Fastest responses with little reasoning"
+          },
+          {
+            "id": "low",
+            "label": "Low",
+            "description": "Balances speed with some reasoning; great for straightforward queries"
+          },
+          {
+            "id": "medium",
+            "label": "Medium",
+            "description": "Solid balance of reasoning depth and latency for general-purpose tasks"
+          },
+          {
+            "id": "high",
+            "label": "High",
+            "description": "Maximizes reasoning depth for complex or ambiguous problems"
+          }
+        ]
+      }
+    ]
+  },
+  "legacy": {
+    "defaultModelId": "gpt-5-codex",
+    "models": [
+      {
+        "id": "gpt-5-codex",
+        "label": "GPT-5 Codex",
+        "description": "Optimized for coding tasks with many tools.",
+        "defaultReasoning": "medium",
+        "isDefault": true,
+        "reasoningOptions": [
+          {
+            "id": "low",
+            "label": "Low",
+            "description": "Fastest responses with limited reasoning"
+          },
+          {
+            "id": "medium",
+            "label": "Medium",
+            "description": "Dynamically adjusts reasoning based on the task"
+          },
+          {
+            "id": "high",
+            "label": "High",
+            "description": "Maximizes reasoning depth for complex or ambiguous problems"
+          }
+        ]
+      },
+      {
+        "id": "gpt-5",
+        "label": "GPT-5",
+        "description": "Broad world knowledge with strong general reasoning.",
+        "defaultReasoning": "medium",
+        "isDefault": false,
+        "reasoningOptions": [
+          {
+            "id": "minimal",
+            "label": "Minimal",
+            "description": "Fastest responses with little reasoning"
+          },
+          {
+            "id": "low",
+            "label": "Low",
+            "description": "Balances speed with some reasoning; useful for straightforward queries"
+          },
+          {
+            "id": "medium",
+            "label": "Medium",
+            "description": "Provides a solid balance of reasoning depth and latency for general-purpose tasks"
+          },
+          {
+            "id": "high",
+            "label": "High",
+            "description": "Maximizes reasoning depth for complex or ambiguous problems"
+          }
+        ]
+      }
+    ]
+  }
+}
