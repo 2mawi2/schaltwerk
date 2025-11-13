@@ -4,7 +4,7 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { theme } from '../../common/theme'
 import { useToast } from '../../common/toast/ToastProvider'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
-import type { ChangedFile } from '../../common/events'
+import type { ChangedFile, SessionsRefreshedEventPayload } from '../../common/events'
 import { logger } from '../../utils/logger'
 import type { DiffResponse } from '../../types/diff'
 import { writeClipboard } from '../../utils/clipboard'
@@ -262,9 +262,21 @@ export function CopyBundleBar({ sessionName }: CopyBundleBarProps) {
 
     const registerSessionsRefreshed = async () => {
       try {
-        const unlisten = await listenEvent(SchaltEvent.SessionsRefreshed, async (sessions) => {
+        const unlisten = await listenEvent(SchaltEvent.SessionsRefreshed, async (payload) => {
           if (disposed) return
-          const match = sessions?.find?.((session) => session.info.session_id === sessionName)
+          const scoped = payload as SessionsRefreshedEventPayload | { sessions?: unknown }
+          const targetSessions: Array<{ info?: { session_id?: string } }> = Array.isArray((scoped as SessionsRefreshedEventPayload).sessions)
+            ? (scoped as SessionsRefreshedEventPayload).sessions
+            : Array.isArray(payload)
+              ? (payload as Array<{ info?: { session_id?: string } }>)
+              : []
+          const payloadProjectPath = typeof (scoped as SessionsRefreshedEventPayload).projectPath === 'string'
+            ? (scoped as SessionsRefreshedEventPayload).projectPath
+            : null
+          if (payloadProjectPath && projectPath && payloadProjectPath !== projectPath) {
+            return
+          }
+          const match = targetSessions.find((session) => session.info?.session_id === sessionName)
           if (!match) return
           try {
             const specPair = await invoke<[string | null, string | null]>(TauriCommands.SchaltwerkCoreGetSessionAgentContent, { name: sessionName })
@@ -322,7 +334,7 @@ export function CopyBundleBar({ sessionName }: CopyBundleBarProps) {
         })()
       }
     }
-  }, [loadInitialData, sessionName])
+  }, [loadInitialData, projectPath, sessionName])
 
   useEffect(() => {
     if (!hasLoadedInitial) return

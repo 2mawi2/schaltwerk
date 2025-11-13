@@ -146,6 +146,11 @@ export interface CloneProgressPayload {
 
 import { EnrichedSession } from '../types/session'
 
+export interface SessionsRefreshedEventPayload {
+  projectPath: string
+  sessions: EnrichedSession[]
+}
+
 export interface SelectionPayload {
   kind: 'session' | 'orchestrator'
   payload?: string
@@ -154,7 +159,7 @@ export interface SelectionPayload {
 }
 
 export type EventPayloadMap = {
-  [SchaltEvent.SessionsRefreshed]: EnrichedSession[]
+  [SchaltEvent.SessionsRefreshed]: SessionsRefreshedEventPayload
   [SchaltEvent.SessionAdded]: {
     session_name: string
     branch: string

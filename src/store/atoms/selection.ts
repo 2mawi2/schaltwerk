@@ -700,9 +700,21 @@ export const initializeSelectionEventsActionAtom = atom(
     unlistenFns.push(selectionUnlisten)
 
     const sessionsRefreshedUnlisten = await listenEvent(SchaltEvent.SessionsRefreshed, async payload => {
-      const sessions = (payload as { info?: unknown }[] | undefined) ?? []
-      if (Array.isArray(sessions)) {
-        for (const item of sessions) {
+      const scoped = payload as { projectPath?: string | null; sessions?: unknown }
+      const payloadProjectPath = typeof scoped?.projectPath === 'string' ? scoped.projectPath : null
+      const sessionsPayload = Array.isArray(scoped?.sessions)
+        ? scoped.sessions
+        : Array.isArray(payload)
+          ? (payload as unknown[])
+          : []
+
+      const activeProjectPath = get(projectPathAtom)
+      if (payloadProjectPath && activeProjectPath && payloadProjectPath !== activeProjectPath) {
+        return
+      }
+
+      if (Array.isArray(sessionsPayload)) {
+        for (const item of sessionsPayload) {
           const info = (item as { info?: { session_id?: string; session_state?: string | null; status?: string; ready_to_merge?: boolean } })?.info
           if (!info?.session_id) {
             continue
@@ -719,8 +731,8 @@ export const initializeSelectionEventsActionAtom = atom(
       const sessionId = currentSelection.payload
       let snapshot: SessionSnapshot | null = null
 
-      if (Array.isArray(sessions)) {
-        const matched = sessions
+      if (Array.isArray(sessionsPayload)) {
+        const matched = sessionsPayload
           .map(item => (item as { info?: { session_id?: string } })?.info)
           .find(info => info?.session_id === sessionId)
 
