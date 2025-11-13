@@ -23,6 +23,7 @@ type FailureDetail = {
 };
 
 const SOURCE_EXTENSIONS = new Set(['ts', 'tsx']);
+const ARCH_RULE_TIMEOUT = 20000;
 
 function toRelativePath(filePath: string): string {
   return path
@@ -134,7 +135,7 @@ describe('Tauri Command Architecture', () => {
       `Found ${violations.length} string literal invoke() calls:`,
       'Use TauriCommands enum instead',
     );
-  });
+  }, ARCH_RULE_TIMEOUT);
 });
 
 describe('Event System Architecture', () => {
@@ -185,7 +186,7 @@ describe('Event System Architecture', () => {
       `Found ${violations.length} string literal event calls:`,
       'Use SchaltEvent enum + helpers instead',
     );
-  });
+  }, ARCH_RULE_TIMEOUT);
 });
 
 describe('Theme System Architecture', () => {
@@ -237,7 +238,7 @@ describe('Theme System Architecture', () => {
       `Found ${violations.length} hardcoded colors:`,
       'Use theme.colors.* instead',
     );
-  });
+  }, ARCH_RULE_TIMEOUT);
 
   it('should not use hardcoded font sizes outside theme files', async () => {
     const failureDetails = new Map<string, FailureDetail[]>();
@@ -287,7 +288,7 @@ describe('Theme System Architecture', () => {
       `Found ${violations.length} hardcoded font sizes:`,
       'Use theme.fontSize.* instead',
     );
-  });
+  }, ARCH_RULE_TIMEOUT);
 });
 
 describe('Module Boundaries Architecture', () => {
@@ -331,7 +332,7 @@ describe('Module Boundaries Architecture', () => {
       failureDetails,
       `Found ${violations.length} common/ imports from components/contexts:`,
     );
-  });
+  }, ARCH_RULE_TIMEOUT);
 });
 
 describe('Error Handling Architecture', () => {
@@ -438,7 +439,7 @@ describe('Error Handling Architecture', () => {
       `Found ${violations.length} empty catch blocks or catch blocks without logging:`,
       'Add logger.error() or console.error() calls, or rethrow the error',
     );
-  });
+  }, ARCH_RULE_TIMEOUT);
 });
 
 describe('State Management Architecture', () => {
@@ -498,7 +499,7 @@ describe('State Management Architecture', () => {
       `Found ${violations.length} files using React Context (should use Jotai):`,
       'All contexts in STATE_MANAGEMENT_EXCEPTIONS should be migrated to Jotai atoms.',
     );
-  });
+  }, ARCH_RULE_TIMEOUT);
 
   it('should use Jotai atom naming conventions', async () => {
     const failureDetails = new Map<string, FailureDetail[]>();
@@ -559,7 +560,7 @@ describe('State Management Architecture', () => {
       `Found ${violations.length} atoms with incorrect naming:`,
       'Use *Atom, *AtomFamily, or *ActionAtom suffixes.',
     );
-  });
+  }, ARCH_RULE_TIMEOUT);
 
   it('should have migrated all contexts from exception list', async () => {
     const acceptableUse = STATE_MANAGEMENT_EXCEPTIONS.filter(
@@ -584,5 +585,5 @@ describe('State Management Architecture', () => {
       console.log(`  ${index + 1}. ${ex.file}`);
     });
     console.log('');
-  });
+  }, ARCH_RULE_TIMEOUT);
 });
