@@ -455,11 +455,14 @@ function applySessionsSnapshot(
     sessions: EnrichedSession[],
     options: { reason?: string; previousStates?: Map<string, string> } = {},
 ) {
+    const projectPath = get(projectPathAtom)
     const previousMap = new Map(previousSessionsSnapshot.map(session => [session.info.session_id, session]))
     const withSnapshots = sessions.map(session => attachMergeSnapshot(session, previousMap))
     const deduped = dedupeSessions(withSnapshots)
 
-    releaseRemovedSessions(get, set, previousSessionsSnapshot, deduped)
+    if (projectPath) {
+        releaseRemovedSessions(get, set, previousSessionsSnapshot, deduped)
+    }
     set(allSessionsAtom, deduped)
     previousSessionsSnapshot = deduped
 
@@ -469,7 +472,13 @@ function applySessionsSnapshot(
         previousStates: options.previousStates ?? previousSessionStates,
     })
 
-    previousSessionStates = buildStateMap(deduped)
+    const stateMap = buildStateMap(deduped)
+    previousSessionStates = stateMap
+
+    if (projectPath) {
+        projectSessionsSnapshotCache.set(projectPath, deduped)
+        projectSessionStatesCache.set(projectPath, new Map(stateMap))
+    }
 }
 
 function syncSnapshotsFromAtom(get: Getter) {
@@ -576,6 +585,8 @@ type PushToast = (toast: { tone: 'success' | 'error'; title: string; description
 let pushToastHandler: PushToast | null = null
 let previousSessionsSnapshot: EnrichedSession[] = []
 let previousSessionStates = new Map<string, string>()
+const projectSessionsSnapshotCache = new Map<string, EnrichedSession[]>()
+const projectSessionStatesCache = new Map<string, Map<string, string>>()
 const suppressedAutoStart = new Set<string>()
 const mergeErrorCache = new Map<string, string>()
 const mergePreviewCache = new Map<string, MergePreviewResponse>()
@@ -741,6 +752,13 @@ export const refreshSessionsActionAtom = atom(
     async (get, set) => {
         const projectPath = get(projectPathAtom)
 
+        if (projectPath) {
+            const cachedSnapshot = projectSessionsSnapshotCache.get(projectPath)
+            previousSessionsSnapshot = cachedSnapshot ? [...cachedSnapshot] : []
+            const cachedStates = projectSessionStatesCache.get(projectPath)
+            previousSessionStates = cachedStates ? new Map(cachedStates) : new Map()
+        }
+
         if (!projectPath) {
             releaseRemovedSessions(get, set, previousSessionsSnapshot, [])
             set(allSessionsAtom, [])
@@ -766,6 +784,25 @@ export const refreshSessionsActionAtom = atom(
         } finally {
             set(lastRefreshStateAtom, Date.now())
         }
+    },
+)
+
+export const cleanupProjectSessionsCacheActionAtom = atom(
+    null,
+    (get, set, projectPath: string | null) => {
+        if (!projectPath) {
+            return
+        }
+        const snapshot = projectSessionsSnapshotCache.get(projectPath)
+        projectSessionsSnapshotCache.delete(projectPath)
+        projectSessionStatesCache.delete(projectPath)
+        if (!snapshot || snapshot.length === 0) {
+            return
+        }
+        if (get(projectPathAtom) === projectPath) {
+            return
+        }
+        releaseRemovedSessions(get, set, snapshot, [])
     },
 )
 
@@ -857,7 +894,8 @@ export const initializeSessionsSettingsActionAtom = atom(
             } else {
                 set(autoCancelAfterMergeStateAtom, true)
             }
-        } catch {
+        } catch (error) {
+            logger.warn('[SessionsAtoms] Failed to load project merge preferences', error)
             set(autoCancelAfterMergeStateAtom, true)
         }
     },
@@ -879,7 +917,8 @@ export const updateAutoCancelAfterMergeActionAtom = atom(
                     auto_cancel_after_merge: input.value,
                 },
             })
-        } catch {
+        } catch (error) {
+            logger.warn('[SessionsAtoms] Failed to persist project merge preferences', error)
             set(autoCancelAfterMergeStateAtom, previous)
         }
     },
@@ -1009,6 +1048,7 @@ export const initializeSessionsEventsActionAtom = atom(
                 void (async () => {
                     try {
                         await invoke(TauriCommands.SchaltwerkCoreCancelSession, { name: sessionName })
+                        await set(reloadSessionsActionAtom)
                     } catch (error) {
                         logger.error(`Failed to auto-cancel session after merge: ${sessionName}`, error)
                         if (pushToastHandler) {
@@ -1326,8 +1366,8 @@ export const initializeSessionsEventsActionAtom = atom(
             for (const unlisten of unlisteners.splice(0)) {
                 try {
                     unlisten()
-                } catch {
-                    // ignore cleanup errors
+                } catch (error) {
+                    logger.debug('[SessionsAtoms] Failed to remove session event listener during cleanup', { error })
                 }
             }
             sessionsEventsCleanup = null
@@ -1341,8 +1381,8 @@ export function __resetSessionsTestingState() {
     if (sessionsEventsCleanup) {
         try {
             sessionsEventsCleanup()
-        } catch {
-            // ignore cleanup errors
+        } catch (error) {
+            logger.debug('[SessionsAtoms] Failed to run sessionsEventsCleanup during reset', { error })
         }
     }
     sessionsEventsCleanup = null
@@ -1352,6 +1392,8 @@ export function __resetSessionsTestingState() {
     sessionsRefreshedReloadPending = false
     previousSessionsSnapshot = []
     previousSessionStates = new Map()
+    projectSessionsSnapshotCache.clear()
+    projectSessionStatesCache.clear()
     suppressedAutoStart.clear()
     mergeErrorCache.clear()
     mergePreviewCache.clear()

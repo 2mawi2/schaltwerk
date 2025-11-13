@@ -10,6 +10,7 @@ import type { DiffResponse } from '../../types/diff'
 import { writeClipboard } from '../../utils/clipboard'
 import { useAtomValue } from 'jotai'
 import { projectPathAtom } from '../../store/atoms/project'
+import { isSessionMissingError } from '../../utils/sessionErrorGuards'
 
 import {
   wrapBlock,
@@ -215,7 +216,11 @@ export function CopyBundleBar({ sessionName }: CopyBundleBarProps) {
       setFileCount(files.length)
       setHasLoadedInitial(true)
     } catch (err) {
-      logger.error('[CopyBundleBar] Failed to load initial data', err)
+      if (isSessionMissingError(err)) {
+        logger.debug('[CopyBundleBar] Session missing during initial data load', err)
+      } else {
+        logger.error('[CopyBundleBar] Failed to load initial data', err)
+      }
       setAvailability({ spec: false, diff: false, files: false })
       setChangedFiles([])
       setFileCount(0)
@@ -267,7 +272,12 @@ export function CopyBundleBar({ sessionName }: CopyBundleBarProps) {
             specCacheRef.current = specText
             setAvailability(prev => ({ ...prev, spec: specText.length > 0 }))
           } catch (err) {
-            logger.error('[CopyBundleBar] Failed to refresh spec availability', err)
+            if (isSessionMissingError(err)) {
+              logger.debug('[CopyBundleBar] Session missing while refreshing spec availability', err)
+              setAvailability(prev => ({ ...prev, spec: false }))
+            } else {
+              logger.error('[CopyBundleBar] Failed to refresh spec availability', err)
+            }
           }
         })
         if (disposed) {
@@ -366,8 +376,13 @@ export function CopyBundleBar({ sessionName }: CopyBundleBarProps) {
         setTokenCount(tokens)
       } catch (err) {
         if (!cancelled) {
-          logger.error('[CopyBundleBar] Failed to assemble bundle for token count', err)
-          setTokenCount(null)
+          if (isSessionMissingError(err)) {
+            logger.debug('[CopyBundleBar] Session missing while assembling bundle for token count', err)
+            setTokenCount(null)
+          } else {
+            logger.error('[CopyBundleBar] Failed to assemble bundle for token count', err)
+            setTokenCount(null)
+          }
         }
       }
     })()

@@ -1,7 +1,10 @@
+export type ProjectLifecycleStatus = 'initializing' | 'ready' | 'switching' | 'closing' | 'error'
+
 export interface ProjectTab {
   projectPath: string
   projectName: string
   attentionCount?: number
+  status?: ProjectLifecycleStatus
 }
 
 export function determineNextActiveTab(tabs: ProjectTab[], closingPath: string): ProjectTab | null {

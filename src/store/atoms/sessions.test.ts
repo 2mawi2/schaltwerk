@@ -40,6 +40,7 @@ import {
     optimisticallyConvertSessionToSpecActionAtom,
     setSessionsToastHandlers,
     __resetSessionsTestingState,
+    cleanupProjectSessionsCacheActionAtom,
 } from './sessions'
 import { projectPathAtom } from './project'
 import { listenEvent as listenEventMock } from '../../common/eventSystem'
@@ -240,6 +241,68 @@ describe('sessions atoms', () => {
 
         expect(releaseSessionTerminals).toHaveBeenCalledWith('old-session')
         expect(store.get(allSessionsAtom)).toEqual([])
+    })
+
+    it('keeps background project terminals alive across switches and releases when sessions truly disappear', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+        let alphaSessionsPresent = true
+
+        vi.mocked(invoke).mockImplementation(async (cmd) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
+                const activeProject = store.get(projectPathAtom)
+                if (activeProject === '/projects/alpha') {
+                    return alphaSessionsPresent ? [createSession({ session_id: 'alpha-session' })] : []
+                }
+                if (activeProject === '/projects/beta') {
+                    return [createSession({ session_id: 'beta-session' })]
+                }
+                return []
+            }
+            if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) {
+                return []
+            }
+            return undefined
+        })
+
+        store.set(projectPathAtom, '/projects/alpha')
+        await store.set(refreshSessionsActionAtom)
+        expect(releaseSessionTerminals).not.toHaveBeenCalled()
+
+        store.set(projectPathAtom, '/projects/beta')
+        await store.set(refreshSessionsActionAtom)
+        expect(releaseSessionTerminals).not.toHaveBeenCalled()
+
+        alphaSessionsPresent = false
+        store.set(projectPathAtom, '/projects/alpha')
+        await store.set(refreshSessionsActionAtom)
+        expect(releaseSessionTerminals).toHaveBeenCalledWith('alpha-session')
+    })
+
+    it('cleans up cached sessions when closing a background project', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+        vi.mocked(invoke).mockImplementation(async (cmd) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
+                const activeProject = store.get(projectPathAtom)
+                if (activeProject === '/projects/orphan') {
+                    return [createSession({ session_id: 'orphan-session' })]
+                }
+                return [createSession({ session_id: 'active-session' })]
+            }
+            if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) {
+                return []
+            }
+            return undefined
+        })
+
+        store.set(projectPathAtom, '/projects/orphan')
+        await store.set(refreshSessionsActionAtom)
+
+        store.set(projectPathAtom, '/projects/active')
+        await store.set(refreshSessionsActionAtom)
+        vi.mocked(releaseSessionTerminals).mockClear()
+
+        await store.set(cleanupProjectSessionsCacheActionAtom, '/projects/orphan')
+        expect(releaseSessionTerminals).toHaveBeenCalledWith('orphan-session')
     })
 
     it('auto-starts running sessions on refresh when newly running', async () => {

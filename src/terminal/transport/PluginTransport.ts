@@ -119,7 +119,11 @@ export class PluginTransport implements TerminalTransport {
         return undefined
       })
       if (unlisten) {
-        unlisten()
+        try {
+          unlisten()
+        } catch (error) {
+          logger.warn('[PluginTransport] failed to unlisten during cleanup', error)
+        }
       }
       this.listeners.delete(termId)
     }

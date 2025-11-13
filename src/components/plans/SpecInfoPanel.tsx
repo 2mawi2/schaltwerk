@@ -4,6 +4,7 @@ import { VscPlay, VscRocket, VscTrash } from 'react-icons/vsc'
 import { invoke } from '@tauri-apps/api/core'
 import { IconButton } from '../common/IconButton'
 import { logger } from '../../utils/logger'
+import { useSessions } from '../../hooks/useSessions'
 
 interface Props {
   sessionName: string
@@ -13,6 +14,7 @@ export function SpecInfoPanel({ sessionName }: Props) {
   const [starting, setStarting] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { reloadSessions } = useSessions()
 
   const handleRun = useCallback(async () => {
     try {
@@ -34,14 +36,14 @@ export function SpecInfoPanel({ sessionName }: Props) {
       setDeleting(true)
       setError(null)
       await invoke(TauriCommands.SchaltwerkCoreCancelSession, { name: sessionName })
-      // The parent component should handle the refresh
+      await reloadSessions()
     } catch (e: unknown) {
       logger.error('[SpecInfoPanel] Failed to delete spec:', e)
       setError(String(e))
     } finally {
       setDeleting(false)
     }
-  }, [sessionName])
+  }, [sessionName, reloadSessions])
 
   return (
     <div className="h-full flex items-center justify-center p-6">

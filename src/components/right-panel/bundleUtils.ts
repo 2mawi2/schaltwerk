@@ -2,6 +2,7 @@ import { countTokens } from 'gpt-tokenizer'
 import type { ChangedFile } from '../../common/events'
 import type { DiffResponse, LineInfo } from '../../types/diff'
 import { logger } from '../../utils/logger'
+import { isSessionMissingError } from '../../utils/sessionErrorGuards'
 
 export function wrapBlock(header: string, body: string, fence: string | null): string {
   return `${header}\n\n${fence ? `\`\`\`${fence}\n${body}\n\`\`\`` : body}`
@@ -106,6 +107,14 @@ export function buildDiffSections(changedFiles: ChangedFile[], fetchDiff: (fileP
           fence: 'diff'
         }
       } catch (err) {
+        if (isSessionMissingError(err)) {
+          logger.debug('[bundleUtils] Session missing while building diff section', { file: file.path, error: err })
+          return {
+            header: `### ${describeChange(file)}`,
+            body: 'Session is no longer available.',
+            fence: 'diff'
+          }
+        }
         logger.error('[bundleUtils] Failed to load diff for', file.path, err)
         return {
           header: `### ${describeChange(file)}`,
@@ -131,6 +140,14 @@ export function buildFileSections(changedFiles: ChangedFile[], fetchFileContents
           fence: ''
         }
       } catch (err) {
+        if (isSessionMissingError(err)) {
+          logger.debug('[bundleUtils] Session missing while loading file contents', { file: file.path, error: err })
+          return {
+            header: `### ${describeChange(file)}`,
+            body: '[Session no longer available]',
+            fence: ''
+          }
+        }
         logger.error('[bundleUtils] Failed to load file contents for', file.path, err)
         return {
           header: `### ${describeChange(file)}`,

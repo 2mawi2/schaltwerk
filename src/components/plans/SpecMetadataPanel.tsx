@@ -7,6 +7,7 @@ import { AnimatedText } from '../common/AnimatedText'
 import { SessionActions } from '../session/SessionActions'
 import { logger } from '../../utils/logger'
 import { formatDateTime } from '../../utils/dateTime'
+import { useSessions } from '../../hooks/useSessions'
 
 const METADATA_DATE_OPTIONS: Intl.DateTimeFormatOptions = {
   month: 'short',
@@ -29,6 +30,7 @@ interface Props {
 export function SpecMetadataPanel({ sessionName }: Props) {
   const [metadata, setMetadata] = useState<SpecMetadata>({})
   const [loading, setLoading] = useState(true)
+  const { reloadSessions } = useSessions()
 
   useEffect(() => {
     const loadMetadata = async () => {
@@ -66,6 +68,7 @@ export function SpecMetadataPanel({ sessionName }: Props) {
   const handleDeleteSpec = async () => {
     try {
       await invoke(TauriCommands.SchaltwerkCoreCancelSession, { name: sessionName })
+      await reloadSessions()
     } catch (error) {
       logger.error('[SpecMetadataPanel] Failed to delete spec:', error)
     }
