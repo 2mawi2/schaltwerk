@@ -6,6 +6,14 @@ export interface StickToBottomInput {
   selectionActive: boolean
   hasUserSelection: boolean
   toleranceLines?: number
+  terminalId?: string
+}
+
+export function shouldApplyScrollTolerance(
+  reason?: string,
+  direction?: 'up' | 'down'
+): boolean {
+  return reason === 'scroll' && direction !== 'up'
 }
 
 export function shouldStickToBottom({
@@ -22,6 +30,7 @@ export function shouldStickToBottom({
     typeof toleranceLines === 'number' && Number.isFinite(toleranceLines) && toleranceLines > 0
       ? toleranceLines
       : 0
+
   if (!Number.isFinite(distance)) {
     return false
   }
