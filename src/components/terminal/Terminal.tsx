@@ -44,6 +44,8 @@ const BACKGROUND_SCROLLBACK_LINES = 5000
 const AGENT_SCROLLBACK_LINES = 20000
 const CLAUDE_SHIFT_ENTER_SEQUENCE = '\\'
 const SCROLL_RECATCH_TOLERANCE_LINES = 1
+const PASTE_DETECTION_THRESHOLD = 100
+const PASTE_COOLDOWN_MS = 1000
 // Track last effective size we told the PTY (after guard), for SIGWINCH nudging
 const lastEffectiveRefInit = { cols: 80, rows: 24 }
 
@@ -118,6 +120,9 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const xtermWrapperRef = useRef<XtermTerminal | null>(null);
     const terminal = useRef<XTerm | null>(null);
     const onDataDisposableRef = useRef<IDisposable | null>(null);
+    const pasteActiveRef = useRef(false);
+    const pasteTimeoutRef = useRef<number | null>(null);
+    const renderStickRafRef = useRef<number | null>(null);
     const fitAddon = useRef<FitAddon | null>(null);
     const searchAddon = useRef<SearchAddon | null>(null);
     const lastSize = useRef<{ cols: number; rows: number }>({ cols: 80, rows: 24 });
@@ -440,9 +445,25 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         terminal.current?.scrollToBottom();
     }, []);
 
+    const markPasteActive = useCallback(() => {
+        pasteActiveRef.current = true;
+        if (pasteTimeoutRef.current !== null) {
+            window.clearTimeout(pasteTimeoutRef.current);
+        }
+        pasteTimeoutRef.current = window.setTimeout(() => {
+            pasteActiveRef.current = false;
+            pasteTimeoutRef.current = null;
+        }, PASTE_COOLDOWN_MS);
+    }, []);
+
     const stickToBottomIfNeeded = useCallback((reason?: string, viewportOverride?: number, scrollDirection?: 'up' | 'down') => {
         const term = terminal.current;
         if (!term) return;
+
+        if (pasteActiveRef.current && reason === 'render') {
+            return;
+        }
+
         try {
             const buf = term.buffer?.active;
             if (!buf) return;
@@ -1202,7 +1223,13 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                         }
                     }
 
-                    stickToBottomIfNeeded('render');
+                    if (renderStickRafRef.current !== null) {
+                        return;
+                    }
+                    renderStickRafRef.current = requestAnimationFrame(() => {
+                        renderStickRafRef.current = null;
+                        stickToBottomIfNeeded('render');
+                    });
 
                 });
                 if (disposable && typeof disposable === 'object' && typeof (disposable as { dispose?: () => void }).dispose === 'function') {
@@ -1321,15 +1348,18 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                  }
                  return;
              }
-             
-             // Track interrupt signal for agent stop detection
+
+             if (data.length >= PASTE_DETECTION_THRESHOLD) {
+                 markPasteActive();
+             }
+
              if (isAgentTopTerminal && data === '\u0003') {
                  lastSigintAtRef.current = Date.now();
                  const platform = detectPlatformSafe()
                  const keyCombo = platform === 'mac' ? 'Cmd+C' : 'Ctrl+C'
                  logger.debug(`[Terminal ${terminalId}] Interrupt signal detected (${keyCombo})`);
              }
-             
+
             writeTerminalBackend(terminalId, data).catch(err => logger.debug('[Terminal] write ignored (backend not ready yet)', err));
             });
         }
@@ -1422,6 +1452,19 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             pendingScrollViewportRef.current = undefined;
             pendingScrollDirectionRef.current = null;
             lastScrollViewportRef.current = null;
+            if (pasteTimeoutRef.current !== null) {
+                window.clearTimeout(pasteTimeoutRef.current);
+                pasteTimeoutRef.current = null;
+            }
+            if (renderStickRafRef.current !== null) {
+                try {
+                    cancelAnimationFrame(renderStickRafRef.current);
+                } catch (error) {
+                    logger.debug(`[Terminal ${terminalId}] Failed to cancel render RAF:`, error);
+                }
+                renderStickRafRef.current = null;
+            }
+            pasteActiveRef.current = false;
 
             outputDisposables.forEach(disposable => {
                 try {
@@ -1482,6 +1525,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         handleFontPreferenceChange,
         webglRendererActive,
         stickToBottomIfNeeded,
+        markPasteActive,
     ]);
 
 
