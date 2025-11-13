@@ -8,7 +8,10 @@ use schaltwerk::services::AgentManifest;
 #[tauri::command]
 pub async fn schaltwerk_core_list_codex_models() -> Result<codex_models::CodexModelCatalog, String>
 {
-    use codex_models::{builtin_codex_model_catalog, fetch_codex_model_catalog};
+    use codex_models::{
+        builtin_codex_model_catalog_for_version, detect_codex_cli_version,
+        fetch_codex_model_catalog,
+    };
 
     let (repo_path, db) = {
         let core = get_core_read().await?;
@@ -47,7 +50,11 @@ pub async fn schaltwerk_core_list_codex_models() -> Result<codex_models::CodexMo
         Ok(catalog) => Ok(catalog),
         Err(err) => {
             log::warn!("Falling back to built-in Codex models after discovery error: {err}");
-            Ok(builtin_codex_model_catalog())
+            let detected_version = detect_codex_cli_version(&binary_path).await;
+            if let Some(version) = &detected_version {
+                log::warn!("Detected Codex CLI version during fallback: {version}");
+            }
+            Ok(builtin_codex_model_catalog_for_version(detected_version.as_deref()))
         }
     }
 }

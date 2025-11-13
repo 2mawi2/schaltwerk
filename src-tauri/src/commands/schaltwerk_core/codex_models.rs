@@ -1,11 +1,13 @@
 use anyhow::{Context, Result, bail};
-use serde::Serialize;
+use once_cell::sync::Lazy;
+use semver::Version;
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct CodexReasoningOption {
     pub id: String,
@@ -13,7 +15,7 @@ pub struct CodexReasoningOption {
     pub description: String,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct CodexModelMetadata {
     pub id: String,
@@ -24,12 +26,35 @@ pub struct CodexModelMetadata {
     pub is_default: bool,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct CodexModelCatalog {
     pub models: Vec<CodexModelMetadata>,
     pub default_model_id: String,
 }
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CodexModelConfigCatalog {
+    default_model_id: String,
+    models: Vec<CodexModelMetadata>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CodexModelConfigFile {
+    latest: CodexModelConfigCatalog,
+    legacy: CodexModelConfigCatalog,
+}
+
+const CODEX_MODEL_CONFIG_JSON: &str =
+    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../src/common/config/codexModels.json"));
+
+#[allow(clippy::expect_used)]
+static CODEX_MODEL_CONFIG: Lazy<CodexModelConfigFile> = Lazy::new(|| {
+    serde_json::from_str(CODEX_MODEL_CONFIG_JSON)
+        .expect("Failed to parse shared Codex model configuration")
+});
 
 fn matches_long_flag(arg: &str, flag: &str) -> (bool, bool) {
     if arg == flag {
@@ -102,79 +127,66 @@ fn to_title_case(input: &str) -> String {
     format!("{first}{rest}")
 }
 
-pub fn builtin_codex_model_catalog() -> CodexModelCatalog {
-    let models = vec![
-        CodexModelMetadata {
-            id: "gpt-5-codex".to_string(),
-            label: "GPT-5 Codex".to_string(),
-            description: "Optimized for coding tasks with many tools.".to_string(),
-            default_reasoning: "medium".to_string(),
-            reasoning_options: vec![
-                CodexReasoningOption {
-                    id: "low".to_string(),
-                    label: "Low".to_string(),
-                    description: "Fastest responses with limited reasoning".to_string(),
-                },
-                CodexReasoningOption {
-                    id: "medium".to_string(),
-                    label: "Medium".to_string(),
-                    description: "Dynamically adjusts reasoning based on the task".to_string(),
-                },
-                CodexReasoningOption {
-                    id: "high".to_string(),
-                    label: "High".to_string(),
-                    description: "Maximizes reasoning depth for complex or ambiguous problems"
-                        .to_string(),
-                },
-            ],
-            is_default: true,
-        },
-        CodexModelMetadata {
-            id: "gpt-5".to_string(),
-            label: "GPT-5".to_string(),
-            description: "Broad world knowledge with strong general reasoning.".to_string(),
-            default_reasoning: "medium".to_string(),
-            reasoning_options: vec![
-                CodexReasoningOption {
-                    id: "minimal".to_string(),
-                    label: "Minimal".to_string(),
-                    description: "Fastest responses with little reasoning".to_string(),
-                },
-                CodexReasoningOption {
-                    id: "low".to_string(),
-                    label: "Low".to_string(),
-                    description:
-                        "Balances speed with some reasoning; useful for straightforward queries"
-                            .to_string(),
-                },
-                CodexReasoningOption {
-                    id: "medium".to_string(),
-                    label: "Medium".to_string(),
-                    description:
-                        "Provides a solid balance of reasoning depth and latency for general-purpose tasks"
-                            .to_string(),
-                },
-                CodexReasoningOption {
-                    id: "high".to_string(),
-                    label: "High".to_string(),
-                    description: "Maximizes reasoning depth for complex or ambiguous problems"
-                        .to_string(),
-                },
-            ],
-            is_default: false,
-        },
-    ];
-
-    let default_model_id = models
-        .iter()
-        .find(|model| model.is_default)
-        .map(|model| model.id.clone())
-        .unwrap_or_else(|| models[0].id.clone());
+fn catalog_from_config(config: &CodexModelConfigCatalog) -> CodexModelCatalog {
+    let mut models = config.models.clone();
+    if !models.iter().any(|model| model.is_default)
+        && let Some(default_model) = models
+            .iter_mut()
+            .find(|model| model.id == config.default_model_id)
+    {
+        default_model.is_default = true;
+    }
 
     CodexModelCatalog {
         models,
-        default_model_id,
+        default_model_id: config.default_model_id.clone(),
     }
+}
+
+fn latest_codex_model_catalog() -> CodexModelCatalog {
+    catalog_from_config(&CODEX_MODEL_CONFIG.latest)
+}
+
+fn legacy_codex_model_catalog() -> CodexModelCatalog {
+    catalog_from_config(&CODEX_MODEL_CONFIG.legacy)
+}
+
+pub fn builtin_codex_model_catalog() -> CodexModelCatalog {
+    latest_codex_model_catalog()
+}
+
+pub fn builtin_codex_model_catalog_for_version(
+    cli_version: Option<&str>,
+) -> CodexModelCatalog {
+    if codex_cli_supports_latest(cli_version) {
+        builtin_codex_model_catalog()
+    } else {
+        legacy_codex_model_catalog()
+    }
+}
+
+fn codex_cli_supports_latest(cli_version: Option<&str>) -> bool {
+    let Some(raw) = cli_version else {
+        return false;
+    };
+
+    let parsed = parse_semver_from_string(raw);
+    match parsed {
+        Some(version) => version >= Version::new(0, 58, 0),
+        None => false,
+    }
+}
+
+fn parse_semver_from_string(input: &str) -> Option<Version> {
+    for token in input.split(|c: char| !(c.is_ascii_digit() || c == '.')) {
+        if token.is_empty() {
+            continue;
+        }
+        if let Ok(version) = Version::parse(token) {
+            return Some(version);
+        }
+    }
+    None
 }
 
 pub async fn fetch_codex_model_catalog<P: AsRef<Path>>(
@@ -277,6 +289,21 @@ pub async fn fetch_codex_model_catalog<P: AsRef<Path>>(
         Err(anyhow::anyhow!(
             "Codex CLI did not return a model list before exiting"
         ))
+    }
+}
+
+pub async fn detect_codex_cli_version<P: AsRef<Path>>(binary_path: P) -> Option<String> {
+    let output = Command::new(binary_path.as_ref()).arg("--version").output().await.ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let stdout = String::from_utf8(output.stdout).ok()?;
+    let version_line = stdout.lines().find(|line| !line.trim().is_empty())?;
+    let trimmed = version_line.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
     }
 }
 
@@ -408,10 +435,10 @@ mod tests {
             "result": {
                 "items": [
                     {
-                        "id": "gpt-5-codex",
-                        "model": "gpt-5-codex",
-                        "displayName": "GPT-5 Codex",
-                        "description": "Optimized for coding tasks with many tools.",
+                        "id": "gpt-5.1-codex",
+                        "model": "gpt-5.1-codex",
+                        "displayName": "GPT-5.1 Codex",
+                        "description": "Optimized for Codex agents with richer tool usage.",
                         "supportedReasoningEfforts": [
                             { "reasoningEffort": "low", "description": "Fastest responses with limited reasoning" },
                             { "reasoningEffort": "medium", "description": "Dynamically adjusts reasoning based on the task" },
@@ -421,9 +448,9 @@ mod tests {
                         "isDefault": true
                     },
                     {
-                        "id": "gpt-5",
-                        "model": "gpt-5",
-                        "displayName": "GPT-5",
+                        "id": "gpt-5.1",
+                        "model": "gpt-5.1",
+                        "displayName": "GPT-5.1",
                         "description": "Broad world knowledge with strong general reasoning.",
                         "supportedReasoningEfforts": [
                             { "reasoningEffort": "minimal", "description": "Fastest responses with little reasoning" },
@@ -445,9 +472,9 @@ mod tests {
         let value = sample_response();
         let catalog = map_models_from_json(&value).expect("expected mapping to succeed");
         assert_eq!(catalog.models.len(), 2);
-        assert_eq!(catalog.default_model_id, "gpt-5-codex");
+        assert_eq!(catalog.default_model_id, "gpt-5.1-codex");
         let first = &catalog.models[0];
-        assert_eq!(first.id, "gpt-5-codex");
+        assert_eq!(first.id, "gpt-5.1-codex");
         assert_eq!(first.reasoning_options.len(), 3);
         assert_eq!(first.reasoning_options[0].id, "low");
         assert_eq!(first.reasoning_options[0].label, "Low");
@@ -486,5 +513,22 @@ mod tests {
         });
         let catalog = map_models_from_json(&value).expect("expected mapping to succeed");
         assert_eq!(catalog.default_model_id, "gpt-5");
+    }
+
+    #[test]
+    fn builtin_catalog_prefers_latest_models() {
+        let catalog = builtin_codex_model_catalog();
+        assert_eq!(catalog.models[0].id, "gpt-5.1-codex");
+        assert!(catalog
+            .models
+            .iter()
+            .any(|model| model.id == "gpt-5.1-codex-mini"));
+    }
+
+    #[test]
+    fn builtin_catalog_for_version_uses_legacy_when_version_is_old() {
+        let catalog = builtin_codex_model_catalog_for_version(Some("Codex CLI 0.57.2"));
+        assert_eq!(catalog.models[0].id, "gpt-5-codex");
+        assert!(catalog.models.iter().all(|model| !model.id.contains("5.1")));
     }
 }

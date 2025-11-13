@@ -28,6 +28,7 @@ import { shortcutFromEvent, normalizeShortcut } from '../../keyboardShortcuts/ma
 import { detectPlatformSafe, getDisplayLabelForSegment, splitShortcutBinding } from '../../keyboardShortcuts/helpers'
 import { useKeyboardShortcutsConfig } from '../../contexts/KeyboardShortcutsContext'
 import { theme } from '../../common/theme'
+import { getAllCodexModels } from '../../common/codexModels'
 import { emitUiEvent, UiEvent } from '../../common/uiEvents'
 import { useOptionalToast } from '../../common/toast/ToastProvider'
 import { AppUpdateResultPayload } from '../../common/events'
@@ -215,15 +216,25 @@ interface AgentPreferenceMetadata {
     reasoningPlaceholder?: string
 }
 
-const CODEX_MODEL_SUGGESTIONS: AgentPreferenceMetadataOption[] = [
-    { value: 'gpt-5-codex high', label: 'gpt-5-codex high' },
-    { value: 'gpt-5-codex medium', label: 'gpt-5-codex medium' },
-    { value: 'gpt-5-codex low', label: 'gpt-5-codex low' },
-    { value: 'gpt-5 high', label: 'gpt-5 high' },
-    { value: 'gpt-5 medium', label: 'gpt-5 medium' },
-    { value: 'gpt-5 low', label: 'gpt-5 low' },
-    { value: 'gpt-5 minimal', label: 'gpt-5 minimal' },
-]
+function buildCodexModelSuggestions(): AgentPreferenceMetadataOption[] {
+    const seen = new Set<string>()
+    const suggestions: AgentPreferenceMetadataOption[] = []
+    getAllCodexModels().forEach(model => {
+        model.reasoningOptions.forEach(option => {
+            const key = `${model.id} ${option.id}`
+            if (seen.has(key)) return
+            seen.add(key)
+            suggestions.push({
+                value: key,
+                label: key
+            })
+        })
+    })
+    return suggestions
+}
+
+const CODEX_MODEL_SUGGESTIONS = buildCodexModelSuggestions()
+const CODEX_MODEL_PLACEHOLDER = CODEX_MODEL_SUGGESTIONS[0]?.value ?? 'gpt-5.1-codex medium'
 
 const CODEX_REASONING_OPTIONS: AgentPreferenceMetadataOption[] = [
     { value: 'minimal', label: 'Minimal' },
@@ -240,7 +251,7 @@ const AGENT_PREFERENCE_METADATA: Record<AgentType, AgentPreferenceMetadata> = {
     codex: {
         modelOptions: CODEX_MODEL_SUGGESTIONS,
         reasoningOptions: CODEX_REASONING_OPTIONS,
-        modelPlaceholder: 'e.g. gpt-5-codex high',
+        modelPlaceholder: `e.g. ${CODEX_MODEL_PLACEHOLDER}`,
         reasoningPlaceholder: 'Select reasoning effort',
     },
     droid: {},

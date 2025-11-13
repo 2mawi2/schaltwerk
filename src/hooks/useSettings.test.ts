@@ -49,7 +49,7 @@ describe('useSettings', () => {
         copilot: { model: '', reasoningEffort: '' },
         opencode: { model: '', reasoningEffort: '' },
         gemini: { model: '', reasoningEffort: '' },
-        codex: { model: 'gpt-5-codex high ', reasoningEffort: ' high' },
+        codex: { model: 'gpt-5.1-codex high ', reasoningEffort: ' high' },
         droid: { model: '', reasoningEffort: '' },
         qwen: { model: '', reasoningEffort: '' },
         amp: { model: '', reasoningEffort: '' },
@@ -111,7 +111,7 @@ describe('useSettings', () => {
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetAgentPreferences, {
         agentType: 'codex',
         preferences: {
-          model: 'gpt-5-codex high',
+          model: 'gpt-5.1-codex high',
           reasoning_effort: 'high',
         },
       })
