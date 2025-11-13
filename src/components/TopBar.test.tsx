@@ -36,14 +36,6 @@ vi.mock('./WindowControls', () => ({
   WindowControls: () => <div data-testid="window-controls" />
 }))
 
-vi.mock('../domains/feedback', () => ({
-  FeedbackButton: ({ onClick }: { onClick: () => void }) => (
-    <button data-testid="feedback" onClick={onClick}>
-      Feedback
-    </button>
-  )
-}))
-
 describe('TopBar', () => {
   const baseProps = {
     tabs: [{ projectPath: '/tmp/project', projectName: 'Project' }],
@@ -52,7 +44,6 @@ describe('TopBar', () => {
     onSelectTab: vi.fn(),
     onCloseTab: vi.fn(),
     onOpenSettings: vi.fn(),
-    onOpenFeedback: vi.fn(),
   }
 
   it('renders a left panel toggle when handler is provided', () => {
