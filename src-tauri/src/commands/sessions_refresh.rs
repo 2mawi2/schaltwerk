@@ -11,6 +11,7 @@ use crate::{
 };
 use schaltwerk::infrastructure::events::{SchaltEvent, emit_event};
 use schaltwerk::services::EnrichedSession;
+use serde::Serialize;
 
 const DEFAULT_COOLDOWN: Duration = Duration::from_millis(125);
 const MIN_INTERVAL_BETWEEN_SNAPSHOTS: Duration = Duration::from_millis(250);
@@ -149,7 +150,11 @@ impl RefreshHub {
         global_session_lookup_cache()
             .hydrate_repo(&repo_key, &sessions)
             .await;
-        emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions)?;
+        let payload = SessionsSnapshotPayload {
+            project_path: repo_key.clone(),
+            sessions,
+        };
+        emit_event(&app, SchaltEvent::SessionsRefreshed, &payload)?;
         Ok(())
     }
 
@@ -162,6 +167,13 @@ impl RefreshHub {
         let repo_key = current_repo_cache_key().await.map_err(|e| anyhow!(e))?;
         Ok((repo_key, sessions))
     }
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SessionsSnapshotPayload {
+    project_path: String,
+    sessions: Vec<EnrichedSession>,
 }
 
 pub fn request_sessions_refresh(app: &AppHandle, reason: SessionsRefreshReason) {

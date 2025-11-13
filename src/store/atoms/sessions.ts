@@ -9,7 +9,7 @@ import { SessionState, type RawSession, type SessionInfo } from '../../types/ses
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import { projectPathAtom } from './project'
 import { setSelectionFilterModeActionAtom } from './selection'
-import type { GitOperationFailedPayload, GitOperationPayload } from '../../common/events'
+import type { GitOperationFailedPayload, GitOperationPayload, SessionsRefreshedEventPayload } from '../../common/events'
 import { hasInflight, singleflight } from '../../utils/singleflight'
 import { stableSessionTerminalId, isTopTerminalId } from '../../common/terminalIdentity'
 import { hasBackgroundStart, emitUiEvent, UiEvent } from '../../common/uiEvents'
@@ -481,6 +481,28 @@ function applySessionsSnapshot(
     }
 }
 
+function cacheProjectSnapshot(projectPath: string, sessions: EnrichedSession[]) {
+    const previous = projectSessionsSnapshotCache.get(projectPath) ?? []
+    const previousMap = new Map(previous.map(session => [session.info.session_id, session]))
+    const withSnapshots = sessions.map(session => attachMergeSnapshot(session, previousMap))
+    const deduped = dedupeSessions(withSnapshots)
+    projectSessionsSnapshotCache.set(projectPath, deduped)
+    projectSessionStatesCache.set(projectPath, buildStateMap(deduped))
+}
+
+function parseSessionsRefreshedPayload(payload: unknown): { projectPath: string | null; sessions: EnrichedSession[] } {
+    if (payload && typeof payload === 'object' && payload !== null && 'sessions' in payload) {
+        const scoped = payload as Partial<SessionsRefreshedEventPayload>
+        const projectPath = typeof scoped.projectPath === 'string' ? scoped.projectPath : null
+        const sessions = Array.isArray(scoped.sessions) ? scoped.sessions : []
+        return { projectPath, sessions }
+    }
+    if (Array.isArray(payload)) {
+        return { projectPath: null, sessions: payload as EnrichedSession[] }
+    }
+    return { projectPath: null, sessions: [] }
+}
+
 function syncSnapshotsFromAtom(get: Getter) {
     const current = get(allSessionsAtom)
     previousSessionsSnapshot = current
@@ -946,7 +968,15 @@ export const initializeSessionsEventsActionAtom = atom(
         }
 
         await register(SchaltEvent.SessionsRefreshed, (payload) => {
-            if (!Array.isArray(payload) || payload.length === 0) {
+            const normalized = parseSessionsRefreshedPayload(payload)
+            const activeProject = get(projectPathAtom)
+
+            if (normalized.projectPath && normalized.projectPath !== activeProject) {
+                cacheProjectSnapshot(normalized.projectPath, normalized.sessions)
+                return
+            }
+
+            if (normalized.sessions.length === 0) {
                 if (sessionsRefreshedReloadPending) {
                     logger.debug('[SessionsAtoms] Skipping duplicate reload for empty SessionsRefreshed payload')
                     return
@@ -963,8 +993,9 @@ export const initializeSessionsEventsActionAtom = atom(
                 })()
                 return
             }
+
             const previousStatesSnapshot = new Map(previousSessionStates)
-            applySessionsSnapshot(get, set, payload as EnrichedSession[], {
+            applySessionsSnapshot(get, set, normalized.sessions, {
                 reason: 'sessions-refreshed',
                 previousStates: previousStatesSnapshot,
             })
