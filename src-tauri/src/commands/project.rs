@@ -1,6 +1,7 @@
-use crate::{get_project_manager, projects};
+use crate::{events::{emit_event, SchaltEvent}, get_project_manager, projects};
 use schaltwerk::services::ServiceHandles;
-use tauri::State;
+use tauri::{AppHandle, State};
+use log::warn;
 
 #[tauri::command]
 pub fn get_recent_projects() -> Result<Vec<projects::RecentProject>, String> {
@@ -62,10 +63,19 @@ pub fn create_new_project(name: String, parent_path: String) -> Result<String, S
 
 #[tauri::command]
 pub async fn initialize_project(
+    app: AppHandle,
     services: State<'_, ServiceHandles>,
     path: String,
 ) -> Result<(), String> {
-    services.projects.initialize_project(path).await
+    services.projects.initialize_project(path.clone()).await?;
+
+    if let Err(error) = emit_event(&app, SchaltEvent::ProjectReady, &path) {
+        warn!(
+            "Failed to emit ProjectReady event for {path}: {error}"
+        );
+    }
+
+    Ok(())
 }
 
 #[tauri::command]

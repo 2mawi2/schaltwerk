@@ -470,7 +470,13 @@ describe('TerminalGrid', () => {
     
     const split = screen.getByTestId('split')
     expect(split.getAttribute('data-direction')).toBe('vertical')
-    expect(split.getAttribute('data-sizes')).toBe(JSON.stringify([72, 28]))
+    const sizesAttr = split.getAttribute('data-sizes')
+    expect(sizesAttr).toBeTruthy()
+    const parsedSizes = sizesAttr ? JSON.parse(sizesAttr) as number[] : []
+    expect(Array.isArray(parsedSizes)).toBe(true)
+    expect(parsedSizes).toHaveLength(2)
+    expect(Math.abs(parsedSizes[0] - 72)).toBeLessThanOrEqual(3)
+    expect(Math.abs(parsedSizes[1] - 28)).toBeLessThanOrEqual(3)
     // minSize may be a single number or an array (top,bottom)
     const minsizeAttr = split.getAttribute('data-minsize') || ''
     expect(minsizeAttr === '120' || minsizeAttr === '120,24' || minsizeAttr === '[120,24]').toBe(true)

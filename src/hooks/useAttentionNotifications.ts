@@ -176,7 +176,11 @@ export function useAttentionNotifications({
 
     return () => {
       cancelled = true
-      unlisten()
+      try {
+        unlisten()
+      } catch (error) {
+        logger.warn('[useAttentionNotifications] Failed to remove terminal attention listener', error)
+      }
     }
   }, [])
 

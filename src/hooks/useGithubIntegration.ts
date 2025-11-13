@@ -89,7 +89,11 @@ export function useGithubIntegration(): GithubIntegrationValue {
     })
       .then((unlisten) => {
         if (!mounted) {
-          unlisten()
+          try {
+            unlisten()
+          } catch (error) {
+            logger.warn('[useGithubIntegration] Failed to cleanup GitHub listener after unmount', error)
+          }
         } else {
           unlistenRef.current = unlisten
         }

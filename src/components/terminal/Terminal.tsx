@@ -609,8 +609,14 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             setCustomFontFamily(custom)
             setResolvedFontFamily(chain)
         })
-        return cleanup
-    }, [])
+        return () => {
+            try {
+                cleanup()
+            } catch (error) {
+                logger.warn(`[Terminal ${terminalId}] Failed to remove terminal font listener`, error)
+            }
+        }
+    }, [terminalId])
 
      // Listen for unified agent-start events to prevent double-starting
      useEffect(() => {
@@ -639,7 +645,11 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
          return () => {
              if (unlistenAgentStarted) {
-                 unlistenAgentStarted();
+                 try {
+                     unlistenAgentStarted();
+                 } catch (error) {
+                     logger.warn(`[Terminal ${terminalId}] Failed to remove terminal-agent-started listener`, error);
+                 }
              }
          };
       }, [terminalId]);
@@ -705,7 +715,11 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         
         return () => {
             if (unlistenForceScroll) {
-                unlistenForceScroll();
+                try {
+                    unlistenForceScroll();
+                } catch (error) {
+                    logger.warn(`[Terminal ${terminalId}] Failed to remove force scroll listener`, error);
+                }
             }
         };
     }, [terminalId, scrollToBottomInstant]);
@@ -745,7 +759,13 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             });
         };
         const cleanup = listenUiEvent(UiEvent.OpencodeSearchResize, handleSearchResize)
-        return cleanup
+        return () => {
+            try {
+                cleanup()
+            } catch (error) {
+                logger.warn(`[Terminal ${terminalId}] Failed to remove OpenCode search resize listener`, error)
+            }
+        }
         // Deliberately depend on agentType/isBackground to keep logic accurate per mount
     }, [agentType, isBackground, terminalId, sessionName, isCommander, requestResize]);
 
@@ -815,7 +835,13 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             });
         };
         const cleanup = listenUiEvent(UiEvent.OpencodeSelectionResize, handleSelectionResize)
-        return cleanup
+        return () => {
+            try {
+                cleanup()
+            } catch (error) {
+                logger.warn(`[Terminal ${terminalId}] Failed to remove OpenCode selection resize listener`, error)
+            }
+        }
     }, [agentType, isBackground, terminalId, sessionName, isCommander, requestResize]);
 
     // Generic, agent-agnostic terminal resize request listener (delegates to requestResize with two-pass fit)

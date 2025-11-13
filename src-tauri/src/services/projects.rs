@@ -2,6 +2,7 @@ use crate::project_manager::ProjectManager;
 use async_trait::async_trait;
 use std::path::PathBuf;
 use std::sync::Arc;
+use tokio::sync::Mutex;
 
 #[async_trait]
 pub trait ProjectsBackend: Send + Sync {
@@ -15,14 +16,19 @@ pub trait ProjectsService: Send + Sync {
 
 pub struct ProjectsServiceImpl<B: ProjectsBackend> {
     backend: B,
+    switch_lock: Mutex<()>,
 }
 
 impl<B: ProjectsBackend> ProjectsServiceImpl<B> {
     pub fn new(backend: B) -> Self {
-        Self { backend }
+        Self {
+            backend,
+            switch_lock: Mutex::new(()),
+        }
     }
 
     pub async fn initialize_project(&self, path: String) -> Result<(), String> {
+        let _guard = self.switch_lock.lock().await;
         log::info!("🔧 Initialize project command called with path: {path}");
         let path_buf = PathBuf::from(&path);
 

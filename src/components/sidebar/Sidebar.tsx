@@ -1125,7 +1125,11 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         return () => {
             disposed = true
             unlisteners.forEach(unlisten => {
-                unlisten()
+                try {
+                    unlisten()
+                } catch (error) {
+                    logger.warn('[Sidebar] Failed to remove event listener during cleanup', error)
+                }
             })
         }
     }, [setCurrentFocus, setFocusForSession, setSelection, createSafeUnlistener])
@@ -1433,7 +1437,6 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                         beginSessionMutation(sessionId, 'remove')
                                         try {
                                             await invoke(TauriCommands.SchaltwerkCoreCancelSession, { name: sessionId })
-                                            await reloadSessionsAndRefreshIdle()
                                         } catch (err) {
                                             logger.error('Failed to delete spec:', err)
                                         } finally {

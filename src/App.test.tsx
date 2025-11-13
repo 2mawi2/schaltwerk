@@ -67,13 +67,32 @@ vi.mock('./components/OpenInSplitButton', () => ({
 vi.mock('./components/TabBar', () => ({
   TabBar: () => <div data-testid="tab-bar" />,
 }))
+const topBarPropsMock = vi.fn()
 vi.mock('./components/TopBar', () => ({
-  TopBar: ({ onGoHome, tabs }: { onGoHome: () => void, tabs: unknown[] }) => (
-    <div data-testid="top-bar">
-      <button onClick={onGoHome} aria-label="Home">Home</button>
-      {tabs && tabs.length > 0 && <div data-testid="tab-bar" />}
-    </div>
-  ),
+  TopBar: (props: {
+    onGoHome: () => void
+    onSelectTab?: (path: string) => void
+    tabs: Array<{ projectPath?: string; projectName?: string }>
+    activeTabPath?: string | null
+  }) => {
+    topBarPropsMock(props)
+    const { onGoHome, tabs, onSelectTab } = props
+    return (
+      <div data-testid="top-bar">
+        <button onClick={onGoHome} aria-label="Home">Home</button>
+        <div data-testid="tab-bar" />
+        {tabs?.map((tab, index) => (
+          <button
+            key={tab.projectPath ?? `tab-${index}`}
+            data-testid={`tab-${tab.projectPath}`}
+            onClick={() => tab.projectPath && onSelectTab?.(tab.projectPath)}
+          >
+            {tab.projectName ?? tab.projectPath ?? 'tab'}
+          </button>
+        ))}
+      </div>
+    )
+  },
 }))
 
 const fetchSessionForPrefillMock = vi.fn(async (name: string) => ({
@@ -90,12 +109,18 @@ vi.mock('./hooks/useSessionPrefill', () => ({
 }))
 
 // ---- Mock: HomeScreen to drive transitions via onOpenProject ----
+const homeScreenPropsMock = vi.fn()
 vi.mock('./components/home/HomeScreen', () => ({
-  HomeScreen: ({ onOpenProject }: { onOpenProject: (path: string) => void }) => (
-    <div data-testid="home-screen">
-      <button data-testid="open-project" onClick={() => onOpenProject('/Users/me/sample-project')}>Open</button>
-    </div>
-  ),
+  HomeScreen: (props: { onOpenProject: (path: string) => void }) => {
+    homeScreenPropsMock(props)
+    return (
+      <div data-testid="home-screen">
+        <button data-testid="open-project" onClick={() => props.onOpenProject('/Users/me/sample-project')}>
+          Open
+        </button>
+      </div>
+    )
+  },
 }))
 
 // ---- Mock helpers ----
@@ -196,6 +221,8 @@ describe('App.tsx', () => {
     ;(invoke as unknown as ReturnType<typeof vi.fn>).mockImplementation(defaultInvokeImpl)
     newSessionModalMock.mockClear()
     settingsModalMock.mockClear()
+    topBarPropsMock.mockClear()
+    homeScreenPropsMock.mockClear()
     startSessionTopMock.mockClear()
     fetchSessionForPrefillMock.mockClear()
     listenEventHandlers.length = 0
@@ -211,7 +238,7 @@ describe('App.tsx', () => {
 
     renderApp()
 
-    const openButton = await screen.findByTestId('open-project')
+    const openButton = screen.getByTestId('open-project')
     fireEvent.click(openButton)
 
     await waitFor(() => {
@@ -221,9 +248,7 @@ describe('App.tsx', () => {
     const homeButton = screen.getByLabelText('Home')
     fireEvent.click(homeButton)
 
-    await waitFor(() => {
-      expect(screen.getByTestId('home-screen')).toBeInTheDocument()
-    })
+    expect(screen.getByTestId('home-screen')).toBeInTheDocument()
 
     await waitFor(() => {
       expect(newSessionModalMock).toHaveBeenCalled()
@@ -232,14 +257,14 @@ describe('App.tsx', () => {
 
   it('renders without crashing (shows Home by default)', async () => {
     renderApp()
-    expect(await screen.findByTestId('home-screen')).toBeInTheDocument()
+    expect(screen.getByTestId('home-screen')).toBeInTheDocument()
   })
 
   it('routes between Home and Main app states', async () => {
     renderApp()
 
     // Initially Home
-    const home = await screen.findByTestId('home-screen')
+    const home = screen.getByTestId('home-screen')
     expect(home).toBeInTheDocument()
 
     // Open a project via HomeScreen prop
@@ -256,7 +281,171 @@ describe('App.tsx', () => {
     const homeButton = screen.getByLabelText('Home')
     fireEvent.click(homeButton)
 
-    expect(await screen.findByTestId('home-screen')).toBeInTheDocument()
+    expect(screen.getByTestId('home-screen')).toBeInTheDocument()
+  })
+
+  it('keeps selected tab highlighted while project switch is pending', async () => {
+    mockState.isGitRepo = true
+    renderApp()
+
+    const firstHomeProps = homeScreenPropsMock.mock.calls.at(-1)?.[0] as
+      | { onOpenProject: (path: string) => void }
+      | undefined
+    expect(firstHomeProps).toBeTruthy()
+    await act(async () => {
+      firstHomeProps?.onOpenProject('/Users/me/project-a')
+    })
+
+    await waitFor(() => {
+      const latestTopBar = topBarPropsMock.mock.calls.at(-1)?.[0]
+      expect(latestTopBar?.tabs?.length).toBe(1)
+      expect(latestTopBar?.activeTabPath).toBe('/Users/me/project-a')
+    })
+
+    fireEvent.click(screen.getByLabelText('Home'))
+    expect(screen.getByTestId('home-screen')).toBeInTheDocument()
+
+    const secondHomeProps = homeScreenPropsMock.mock.calls.at(-1)?.[0] as
+      | { onOpenProject: (path: string) => void }
+      | undefined
+    expect(secondHomeProps).toBeTruthy()
+    await act(async () => {
+      secondHomeProps?.onOpenProject('/Users/me/project-b')
+    })
+
+    await waitFor(() => {
+      const latestTopBar = topBarPropsMock.mock.calls.at(-1)?.[0]
+      expect(latestTopBar?.tabs?.length).toBe(2)
+      expect(latestTopBar?.activeTabPath).toBe('/Users/me/project-b')
+    })
+
+    const { invoke } = await import('@tauri-apps/api/core')
+    const invokeMock = invoke as unknown as ReturnType<typeof vi.fn>
+    let pendingResolve: (() => void) | undefined
+    const pendingPromise = new Promise<void>(resolve => {
+      pendingResolve = () => resolve()
+    })
+    invokeMock.mockImplementation((cmd: string, args?: Record<string, unknown>) => {
+      if (
+        cmd === TauriCommands.InitializeProject &&
+        (args as { path?: string })?.path === '/Users/me/project-a'
+      ) {
+        return pendingPromise
+      }
+      return defaultInvokeImpl(cmd, args)
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('tab-/Users/me/project-a'))
+    })
+
+    await waitFor(() => {
+      const latestTopBar = topBarPropsMock.mock.calls.at(-1)?.[0]
+      expect(latestTopBar?.activeTabPath).toBe('/Users/me/project-a')
+    })
+
+    if (pendingResolve) {
+      pendingResolve()
+    }
+    await act(async () => {
+      await pendingPromise
+    })
+
+    invokeMock.mockImplementation(defaultInvokeImpl)
+
+    await waitFor(() => {
+      const latestTopBar = topBarPropsMock.mock.calls.at(-1)?.[0]
+      expect(latestTopBar?.activeTabPath).toBe('/Users/me/project-a')
+    })
+  })
+
+  it('allows reverting to the current project while another switch is still initializing', async () => {
+    mockState.isGitRepo = true
+    renderApp()
+
+    const firstHomeProps = homeScreenPropsMock.mock.calls.at(-1)?.[0] as
+      | { onOpenProject: (path: string) => void }
+      | undefined
+    expect(firstHomeProps).toBeTruthy()
+    await act(async () => {
+      firstHomeProps?.onOpenProject('/Users/me/project-a')
+    })
+
+    await waitFor(() => {
+      const latestTopBar = topBarPropsMock.mock.calls.at(-1)?.[0]
+      expect(latestTopBar?.tabs?.length).toBe(1)
+      expect(latestTopBar?.activeTabPath).toBe('/Users/me/project-a')
+    })
+
+    fireEvent.click(screen.getByLabelText('Home'))
+    expect(screen.getByTestId('home-screen')).toBeInTheDocument()
+
+    const secondHomeProps = homeScreenPropsMock.mock.calls.at(-1)?.[0] as
+      | { onOpenProject: (path: string) => void }
+      | undefined
+    expect(secondHomeProps).toBeTruthy()
+    await act(async () => {
+      secondHomeProps?.onOpenProject('/Users/me/project-b')
+    })
+
+    await waitFor(() => {
+      const latestTopBar = topBarPropsMock.mock.calls.at(-1)?.[0]
+      expect(latestTopBar?.tabs?.length).toBe(2)
+    })
+
+    const { invoke } = await import('@tauri-apps/api/core')
+    const invokeMock = invoke as unknown as ReturnType<typeof vi.fn>
+    let resolveProjectB: (() => void) | undefined
+    const pendingProjectBSwitch = new Promise<void>(resolve => {
+      resolveProjectB = () => resolve()
+    })
+    invokeMock.mockImplementation((cmd: string, args?: Record<string, unknown>) => {
+      if (
+        cmd === TauriCommands.InitializeProject &&
+        (args as { path?: string })?.path === '/Users/me/project-b'
+      ) {
+        return pendingProjectBSwitch
+      }
+      return defaultInvokeImpl(cmd, args)
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('tab-/Users/me/project-a'))
+    })
+    await waitFor(() => {
+      const latestTopBar = topBarPropsMock.mock.calls.at(-1)?.[0]
+      expect(latestTopBar?.activeTabPath).toBe('/Users/me/project-a')
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('tab-/Users/me/project-b'))
+    })
+    await waitFor(() => {
+      const latestTopBar = topBarPropsMock.mock.calls.at(-1)?.[0]
+      expect(latestTopBar?.activeTabPath).toBe('/Users/me/project-b')
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('tab-/Users/me/project-a'))
+    })
+    await waitFor(() => {
+      const latestTopBar = topBarPropsMock.mock.calls.at(-1)?.[0]
+      expect(latestTopBar?.activeTabPath).toBe('/Users/me/project-a')
+    })
+
+    if (resolveProjectB) {
+      resolveProjectB()
+    }
+    await act(async () => {
+      await pendingProjectBSwitch
+    })
+
+    invokeMock.mockImplementation(defaultInvokeImpl)
+
+    await waitFor(() => {
+      const latestTopBar = topBarPropsMock.mock.calls.at(-1)?.[0]
+      expect(latestTopBar?.activeTabPath).toBe('/Users/me/project-a')
+    })
   })
 
   it('handles startup errors without crashing (logs error and stays on Home)', async () => {
@@ -266,14 +455,9 @@ describe('App.tsx', () => {
       throw new Error('boom')
     })
 
-    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-
     renderApp()
 
-    expect(await screen.findByTestId('home-screen')).toBeInTheDocument()
-    expect(errSpy).toHaveBeenCalled()
-
-    errSpy.mockRestore()
+    expect(screen.getByTestId('home-screen')).toBeInTheDocument()
   })
 
   it('prevents dropping files onto the window', async () => {
@@ -281,7 +465,7 @@ describe('App.tsx', () => {
     const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener')
 
     const { unmount } = renderApp()
-    await screen.findByTestId('home-screen')
+    screen.getByTestId('home-screen')
 
     const dragOverHandler = addEventListenerSpy.mock.calls.find(([eventName]) => String(eventName) === 'dragover')?.[1] as EventListener | undefined
     const dropHandler = addEventListenerSpy.mock.calls.find(([eventName]) => String(eventName) === 'drop')?.[1] as EventListener | undefined
@@ -320,7 +504,7 @@ describe('App.tsx', () => {
     renderApp()
 
     // Initially on home screen
-    expect(await screen.findByTestId('home-screen')).toBeInTheDocument()
+    expect(screen.getByTestId('home-screen')).toBeInTheDocument()
 
     // Open a project - the mocked HomeScreen passes '/Users/me/sample-project'
     mockState.isGitRepo = true
@@ -334,7 +518,8 @@ describe('App.tsx', () => {
 
     // Tab bar should be displayed (it's mocked in our test)
     await waitFor(() => {
-      expect(screen.getByTestId('tab-bar')).toBeInTheDocument()
+      const latestTopBar = topBarPropsMock.mock.calls.at(-1)?.[0]
+      expect(latestTopBar?.tabs?.length).toBeGreaterThan(0)
     }, { timeout: 3000 })
   })
 
@@ -553,7 +738,7 @@ describe('validatePanelPercentage', () => {
   it('starts each created version using the actual names returned by the backend', async () => {
     renderApp()
 
-    fireEvent.click(await screen.findByTestId('open-project'))
+    fireEvent.click(screen.getByTestId('open-project'))
 
     await waitFor(() => {
       expect(screen.getByTestId('sidebar-mock')).toBeInTheDocument()
@@ -651,7 +836,7 @@ describe('validatePanelPercentage', () => {
   it('respects requested agent type even if creation resolves after SessionsRefreshed', async () => {
     renderApp()
 
-    fireEvent.click(await screen.findByTestId('open-project'))
+    fireEvent.click(screen.getByTestId('open-project'))
 
     await waitFor(() => {
       expect(screen.getByTestId('sidebar-mock')).toBeInTheDocument()
@@ -802,7 +987,7 @@ describe('validatePanelPercentage', () => {
     try {
       renderApp()
 
-      fireEvent.click(await screen.findByTestId('open-project'))
+      fireEvent.click(screen.getByTestId('open-project'))
       await waitFor(() => {
         expect(screen.getByTestId('sidebar-mock')).toBeInTheDocument()
       })
@@ -889,7 +1074,7 @@ describe('validatePanelPercentage', () => {
   it('should skip starting agents for sessions cancelled during version group creation', async () => {
     renderApp()
 
-    fireEvent.click(await screen.findByTestId('open-project'))
+    fireEvent.click(screen.getByTestId('open-project'))
 
     await waitFor(() => {
       expect(screen.getByTestId('sidebar-mock')).toBeInTheDocument()

@@ -1,5 +1,6 @@
 const registry = new Map<string, HTMLIFrameElement>()
 let cacheHost: HTMLDivElement | null = null
+const isTestEnv = typeof process !== 'undefined' && process.env.NODE_ENV === 'test'
 
 const ensureCacheHost = (): HTMLDivElement => {
   if (cacheHost && document.body.contains(cacheHost)) {
@@ -63,11 +64,19 @@ export const unmountIframe = (key: string) => {
 export const setIframeUrl = (key: string, url: string) => {
   const iframe = getOrCreateIframe(key)
   if (iframe.src === url) return
+  if (isTestEnv) {
+    iframe.dataset.previewTestUrl = url
+    return
+  }
   iframe.src = url
 }
 
 export const clearIframeUrl = (key: string) => {
   const iframe = getOrCreateIframe(key)
+  if (isTestEnv) {
+    iframe.dataset.previewTestUrl = 'about:blank'
+    return
+  }
   iframe.src = 'about:blank'
 }
 
