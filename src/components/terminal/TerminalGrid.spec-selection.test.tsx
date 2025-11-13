@@ -33,7 +33,7 @@ vi.mock('./RunTerminal', () => ({
   )
 }))
 
-vi.mock('../plans/SpecPlaceholder', async () => {
+vi.mock('../specs/SpecPlaceholder', async () => {
   const React = await import('react')
   const { useSelection } = await import('../../hooks/useSelection')
   return {

@@ -3,7 +3,7 @@ import { theme } from '../../common/theme'
 import { typography } from '../../common/typography'
 import { EnrichedSession } from '../../types/session'
 import { VscFiles, VscClose } from 'react-icons/vsc'
-import { SpecEditor } from '../plans/SpecEditor'
+import { SpecEditor } from './SpecEditor'
 import { SpecPickerOverlay } from './SpecPickerOverlay'
 
 interface Props {
