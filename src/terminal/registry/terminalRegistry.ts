@@ -13,6 +13,10 @@ export interface TerminalInstanceRecord {
   attached: boolean;
   streamRegistered: boolean;
   streamListener?: (chunk: string) => void;
+  pendingChunks?: string[];
+  rafScheduled?: boolean;
+  rafHandle?: number;
+  lastChunkTime?: number;
 }
 
 export interface AcquireTerminalResult {
@@ -159,13 +163,51 @@ class TerminalInstanceRegistry {
     if (record.streamRegistered) {
       return;
     }
-    const listener = (chunk: string) => {
+
+    record.pendingChunks = [];
+    record.rafScheduled = false;
+    record.lastChunkTime = 0;
+
+    const flushChunks = () => {
+      const now = performance.now();
+      const timeSinceLastChunk = now - (record.lastChunkTime || 0);
+
+      if (timeSinceLastChunk < 16 && record.pendingChunks && record.pendingChunks.length > 0) {
+        record.rafHandle = requestAnimationFrame(flushChunks);
+        return;
+      }
+
+      record.rafScheduled = false;
+      record.rafHandle = undefined;
+
+      if (!record.pendingChunks || record.pendingChunks.length === 0) {
+        return;
+      }
+
+      const combined = record.pendingChunks.join('');
+      record.pendingChunks = [];
+
       try {
-        record.xterm.raw.write(chunk);
+        record.xterm.raw.write(combined);
       } catch (error) {
-        logger.debug(`[Registry] Failed to write chunk for ${record.id}`, error);
+        logger.debug(`[Registry] Failed to write batch for ${record.id}`, error);
       }
     };
+
+    const listener = (chunk: string) => {
+      if (!record.pendingChunks) {
+        record.pendingChunks = [];
+      }
+
+      record.pendingChunks.push(chunk);
+      record.lastChunkTime = performance.now();
+
+      if (!record.rafScheduled) {
+        record.rafScheduled = true;
+        record.rafHandle = requestAnimationFrame(flushChunks);
+      }
+    };
+
     record.streamListener = listener;
     terminalOutputManager.addListener(record.id, listener);
     record.streamRegistered = true;
@@ -178,11 +220,36 @@ class TerminalInstanceRegistry {
     if (!record.streamRegistered) {
       return;
     }
+
+    if (record.rafHandle !== undefined) {
+      try {
+        cancelAnimationFrame(record.rafHandle);
+      } catch (error) {
+        logger.debug(`[Registry] Failed to cancel RAF for ${record.id}`, error);
+      }
+      record.rafHandle = undefined;
+    }
+
+    if (record.pendingChunks && record.pendingChunks.length > 0) {
+      const combined = record.pendingChunks.join('');
+      record.pendingChunks = [];
+      try {
+        record.xterm.raw.write(combined);
+      } catch (error) {
+        logger.debug(`[Registry] Failed to flush pending chunks for ${record.id}`, error);
+      }
+    }
+
     if (record.streamListener) {
       terminalOutputManager.removeListener(record.id, record.streamListener);
       record.streamListener = undefined;
     }
+
     record.streamRegistered = false;
+    record.rafScheduled = false;
+    record.pendingChunks = undefined;
+    record.lastChunkTime = undefined;
+
     void terminalOutputManager.dispose(record.id).catch(error => {
       logger.debug(`[Registry] dispose stream failed for ${record.id}`, error);
     });
