@@ -29,7 +29,7 @@ import { ProgressIndicator } from '../common/ProgressIndicator'
 import { clearTerminalStartedTracking } from '../terminal/Terminal'
 import { logger } from '../../utils/logger'
 import { UiEvent, emitUiEvent, listenUiEvent } from '../../common/uiEvents'
-import { emitSpecRefine } from '../../utils/specRefine'
+import { runSpecRefineWithOrchestrator } from '../../utils/specRefine'
 import { AGENT_TYPES, AgentType, EnrichedSession, SessionInfo } from '../../types/session'
 import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
 import { useRun } from '../../contexts/RunContext'
@@ -957,13 +957,22 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         emitUiEvent(UiEvent.CreatePullRequest, { sessionId: selection.payload })
     }, [isAnyModalOpen, selection, sessions, github.canCreatePr])
 
+    const runRefineSpecFlow = useCallback((sessionId: string, displayName?: string) => {
+        void runSpecRefineWithOrchestrator({
+            sessionId,
+            displayName,
+            selectOrchestrator: () => setSelection({ kind: 'orchestrator' }, false, true),
+            logContext: '[Sidebar]',
+        })
+    }, [setSelection])
+
     const handleRefineSpecShortcut = useCallback(() => {
         if (isAnyModalOpen()) return
         if (selection.kind !== 'session' || !selection.payload) return
         const session = sessions.find(s => s.info.session_id === selection.payload)
         if (!session || !isSpec(session.info)) return
-        emitSpecRefine(selection.payload, getSessionDisplayName(session.info))
-    }, [isAnyModalOpen, selection, sessions])
+        runRefineSpecFlow(selection.payload, getSessionDisplayName(session.info))
+    }, [isAnyModalOpen, selection, sessions, runRefineSpecFlow])
 
     useKeyboardShortcuts({
         onSelectOrchestrator: handleSelectOrchestrator,
@@ -1431,7 +1440,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                     onRefineSpec={(sessionId) => {
                                         const target = sessions.find(s => s.info.session_id === sessionId)
                                         const displayName = target ? getSessionDisplayName(target.info) : undefined
-                                        emitSpecRefine(sessionId, displayName)
+                                        runRefineSpecFlow(sessionId, displayName)
                                     }}
                                     onDeleteSpec={async (sessionId) => {
                                         beginSessionMutation(sessionId, 'remove')
