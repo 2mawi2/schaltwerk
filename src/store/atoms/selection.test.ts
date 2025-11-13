@@ -14,7 +14,9 @@ import {
   setSelectionFilterModeActionAtom,
   resetSelectionAtomsForTest,
   waitForSelectionAsyncEffectsForTest,
+  getFilterModeForProjectForTest,
 } from './selection'
+import { projectPathAtom } from './project'
 import { TauriCommands } from '../../common/tauriCommands'
 import { FilterMode } from '../../types/sessionFilters'
 import { stableSessionTerminalId } from '../../common/terminalIdentity'
@@ -150,7 +152,7 @@ describe('selection atoms', () => {
     vi.mocked(core.invoke).mock.calls.filter(([cmd]) => cmd === command).length
 
   it('exposes orchestrator as default selection and is ready', () => {
-    expect(store.get(selectionValueAtom)).toEqual({ kind: 'orchestrator' })
+    expect(store.get(selectionValueAtom)).toEqual({ kind: 'orchestrator', projectPath: null })
     expect(store.get(isReadyAtom)).toBe(true)
     expect(store.get(isSpecAtom)).toBe(false)
   })
@@ -166,6 +168,8 @@ describe('selection atoms', () => {
   it('sets session selection with snapshot enrichment and terminal creation', async () => {
     await withNodeEnv('development', async () => {
       const backend = await import('../../terminal/transport/backend')
+      await store.set(setProjectPathActionAtom, '/projects/alpha')
+      vi.mocked(backend.createTerminalBackend).mockClear()
       await store.set(setSelectionActionAtom, { selection: { kind: 'session', payload: 'session-1' } })
       const selection = store.get(selectionValueAtom)
       expect(selection.kind).toBe('session')
@@ -182,6 +186,30 @@ describe('selection atoms', () => {
     await store.set(getSessionSnapshotActionAtom, { sessionId: 'session-1' })
     await store.set(getSessionSnapshotActionAtom, { sessionId: 'session-1' })
     expect(getInvokeCallCount(TauriCommands.SchaltwerkCoreGetSession)).toBe(1)
+  })
+
+  it('exposes orchestrator selection when project path changes before selection updates', async () => {
+    await store.set(setProjectPathActionAtom, '/projects/alpha')
+    await store.set(setSelectionActionAtom, { selection: { kind: 'session', payload: 'session-1' } })
+
+    // Simulate project switch propagation before selection atoms finish updating
+    store.set(projectPathAtom, '/projects/beta')
+
+    const selection = store.get(selectionValueAtom)
+    expect(selection).toEqual({ kind: 'orchestrator', projectPath: '/projects/beta' })
+  })
+
+  it('namespaces session snapshots per project path', async () => {
+    await store.set(setProjectPathActionAtom, '/projects/alpha')
+    await store.set(getSessionSnapshotActionAtom, { sessionId: 'session-1' })
+
+    await store.set(setProjectPathActionAtom, '/projects/beta')
+    await store.set(getSessionSnapshotActionAtom, { sessionId: 'session-1' })
+
+    await store.set(setProjectPathActionAtom, '/projects/alpha')
+    await store.set(getSessionSnapshotActionAtom, { sessionId: 'session-1' })
+
+    expect(getInvokeCallCount(TauriCommands.SchaltwerkCoreGetSession)).toBe(2)
   })
 
   it('refresh option bypasses snapshot cache', async () => {
@@ -273,6 +301,7 @@ describe('selection atoms', () => {
   })
 
   it('refreshes snapshot when session state change event matches current selection', async () => {
+    await store.set(setProjectPathActionAtom, '/projects/alpha')
     await store.set(setSelectionActionAtom, { selection: { kind: 'session', payload: 'session-1' } })
     vi.mocked(core.invoke).mockResolvedValueOnce(createRawSession({ session_state: 'reviewed' }))
 
@@ -285,6 +314,7 @@ describe('selection atoms', () => {
   })
 
   it('updates selection when sessions refreshed with matching session', async () => {
+    await store.set(setProjectPathActionAtom, '/projects/alpha')
     nextSessionResponse = createRawSession({ session_state: 'running', worktree_path: '/tmp/worktrees/session-1' })
     await store.set(setSelectionActionAtom, {
       selection: { kind: 'session', payload: 'session-1', sessionState: 'spec' },
@@ -304,6 +334,7 @@ describe('selection atoms', () => {
   })
 
   it('ignores backend spec selection when running filter active', async () => {
+    await store.set(setProjectPathActionAtom, '/projects/alpha')
     await store.set(setSelectionFilterModeActionAtom, FilterMode.Running)
     await store.set(setSelectionActionAtom, {
       selection: { kind: 'session', payload: 'running-session', sessionState: 'running', worktreePath: '/tmp/run' },
@@ -319,7 +350,7 @@ describe('selection atoms', () => {
     expect(selection.sessionState).toBe('running')
   })
 
-  it('recreates orchestrator terminals when project path changes', async () => {
+  it('reuses orchestrator terminals when revisiting a project', async () => {
     await withNodeEnv('development', async () => {
       const backend = await import('../../terminal/transport/backend')
       const uiEvents = await import('../../common/uiEvents')
@@ -329,17 +360,27 @@ describe('selection atoms', () => {
       vi.mocked(uiEvents.emitUiEvent).mockClear()
 
       await store.set(setProjectPathActionAtom, '/projects/beta')
-
       expect(vi.mocked(backend.createTerminalBackend)).toHaveBeenCalledTimes(2)
-      const callArgs = vi.mocked(backend.createTerminalBackend).mock.calls
-      expect(callArgs[0]?.[0]?.id ?? '').toContain('orchestrator')
-      expect(callArgs[0]?.[0]?.cwd).toBe('/projects/beta')
+      const betaCalls = vi.mocked(backend.createTerminalBackend).mock.calls
+      expect(betaCalls[0]?.[0]?.id ?? '').toContain('orchestrator')
+      expect(betaCalls[0]?.[0]?.cwd).toBe('/projects/beta')
 
-      const projectSwitchCalls = vi.mocked(uiEvents.emitUiEvent).mock.calls.filter(
+      const betaSwitchCalls = vi.mocked(uiEvents.emitUiEvent).mock.calls.filter(
         ([event]) => event === uiEvents.UiEvent.ProjectSwitchComplete,
       )
-      expect(projectSwitchCalls).toHaveLength(1)
-      expect(projectSwitchCalls[0]?.[1]).toEqual({ projectPath: '/projects/beta' })
+      expect(betaSwitchCalls).toHaveLength(1)
+      expect(betaSwitchCalls[0]?.[1]).toEqual({ projectPath: '/projects/beta' })
+
+      vi.mocked(backend.createTerminalBackend).mockClear()
+      vi.mocked(uiEvents.emitUiEvent).mockClear()
+
+      await store.set(setProjectPathActionAtom, '/projects/alpha')
+      expect(vi.mocked(backend.createTerminalBackend)).not.toHaveBeenCalled()
+      const alphaSwitchCalls = vi.mocked(uiEvents.emitUiEvent).mock.calls.filter(
+        ([event]) => event === uiEvents.UiEvent.ProjectSwitchComplete,
+      )
+      expect(alphaSwitchCalls).toHaveLength(1)
+      expect(alphaSwitchCalls[0]?.[1]).toEqual({ projectPath: '/projects/alpha' })
     })
   })
 
@@ -405,7 +446,7 @@ describe('selection atoms', () => {
     })
 
     await store.set(setProjectPathActionAtom, '/projects/beta')
-    expect(store.get(selectionValueAtom)).toEqual({ kind: 'orchestrator' })
+    expect(store.get(selectionValueAtom)).toEqual({ kind: 'orchestrator', projectPath: '/projects/beta' })
 
     await store.set(setSelectionActionAtom, {
       selection: {
@@ -421,6 +462,46 @@ describe('selection atoms', () => {
     const restoredSelection = store.get(selectionValueAtom)
     expect(restoredSelection.kind).toBe('session')
     expect(restoredSelection.payload).toBe('alpha-session')
+  })
+
+  it('restores selection and filter per project without recreating terminals', async () => {
+    await withNodeEnv('development', async () => {
+      const backend = await import('../../terminal/transport/backend')
+
+      await store.set(setProjectPathActionAtom, '/projects/alpha')
+      await store.set(setSelectionFilterModeActionAtom, FilterMode.Running)
+      await store.set(setSelectionActionAtom, {
+        selection: {
+          kind: 'session',
+          payload: 'alpha-session',
+          sessionState: 'running',
+          worktreePath: '/tmp/worktrees/alpha-session',
+        },
+        isIntentional: true,
+      })
+
+      await store.set(setProjectPathActionAtom, '/projects/beta')
+      await store.set(setSelectionFilterModeActionAtom, FilterMode.Spec)
+      await store.set(setSelectionActionAtom, {
+        selection: {
+          kind: 'session',
+          payload: 'beta-session',
+          sessionState: 'running',
+          worktreePath: '/tmp/worktrees/beta-session',
+        },
+        isIntentional: true,
+      })
+
+      vi.mocked(backend.createTerminalBackend).mockClear()
+
+      await store.set(setProjectPathActionAtom, '/projects/alpha')
+
+      const restoredSelection = store.get(selectionValueAtom)
+      expect(restoredSelection.payload).toBe('alpha-session')
+      expect(getFilterModeForProjectForTest('/projects/alpha')).toBe(FilterMode.Running)
+      expect(getFilterModeForProjectForTest('/projects/beta')).toBe(FilterMode.Spec)
+      expect(vi.mocked(backend.createTerminalBackend)).not.toHaveBeenCalled()
+    })
   })
 
   it('skips remembering selection when remember flag is false', async () => {

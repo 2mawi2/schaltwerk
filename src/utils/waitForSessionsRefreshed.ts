@@ -1,4 +1,5 @@
 import { listenEvent, SchaltEvent } from '../common/eventSystem'
+import { logger } from './logger'
 
 export async function waitForSessionsRefreshed<T>(
   action: () => Promise<T> | T
@@ -18,6 +19,10 @@ export async function waitForSessionsRefreshed<T>(
     await waitForEvent
     return result
   } finally {
-    unlisten()
+    try {
+      unlisten()
+    } catch (error) {
+      logger.warn('[waitForSessionsRefreshed] Failed to remove SessionsRefreshed listener', error)
+    }
   }
 }

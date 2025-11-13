@@ -17,8 +17,7 @@ import { SettingsModal } from './components/modals/SettingsModal'
 import { ProjectSelectorModal } from './components/modals/ProjectSelectorModal'
 import { invoke } from '@tauri-apps/api/core'
 import { useSelection } from './hooks/useSelection'
-import { clearTerminalStartedTracking } from './components/terminal/Terminal'
-import { useAtom, useSetAtom } from 'jotai'
+import { useAtomValue, useSetAtom } from 'jotai'
 import {
   increaseFontSizesActionAtom,
   decreaseFontSizesActionAtom,
@@ -29,7 +28,15 @@ import {
   initializeSelectionEventsActionAtom,
   setProjectPathActionAtom,
 } from './store/atoms/selection'
-import { projectPathAtom } from './store/atoms/project'
+import {
+  projectPathAtom,
+  projectTabsAtom,
+  projectSwitchStatusAtom,
+  openProjectActionAtom,
+  selectProjectActionAtom,
+  closeProjectActionAtom,
+  deactivateProjectActionAtom,
+} from './store/atoms/project'
 import {
   initializeSessionsEventsActionAtom,
   initializeSessionsSettingsActionAtom,
@@ -37,7 +44,6 @@ import {
 } from './store/atoms/sessions'
 import { useSessions } from './hooks/useSessions'
 import { HomeScreen } from './components/home/HomeScreen'
-import { ProjectTab, determineNextActiveTab } from './common/projectTabs'
 import { TopBar } from './components/TopBar'
 import { PermissionPrompt } from './components/PermissionPrompt'
 import { OnboardingModal } from './components/onboarding/OnboardingModal'
@@ -55,8 +61,6 @@ import {
   UiEvent,
   listenUiEvent,
   emitUiEvent,
-  clearBackgroundStarts,
-  clearBackgroundStartsByPrefix,
   SessionActionDetail,
   StartAgentFromSpecDetail,
   AgentLifecycleDetail,
@@ -78,14 +82,15 @@ import type { SettingsCategory } from './types/settings'
 
 
 
-// Helper function to get the basename of a path (last segment)
-function getBasename(path: string): string {
-  return path.split(/[/\\]/).pop() || path
-}
-
 function AppContent() {
-  const { selection, clearTerminalTracking } = useSelection()
-  const [projectPath, setProjectPath] = useAtom(projectPathAtom)
+  const { selection } = useSelection()
+  const projectPath = useAtomValue(projectPathAtom)
+  const projectTabs = useAtomValue(projectTabsAtom)
+  const projectSwitchStatus = useAtomValue(projectSwitchStatusAtom)
+  const openProject = useSetAtom(openProjectActionAtom)
+  const selectProject = useSetAtom(selectProjectActionAtom)
+  const closeProject = useSetAtom(closeProjectActionAtom)
+  const deactivateProject = useSetAtom(deactivateProjectActionAtom)
   const increaseFontSizes = useSetAtom(increaseFontSizesActionAtom)
   const decreaseFontSizes = useSetAtom(decreaseFontSizesActionAtom)
   const resetFontSizes = useSetAtom(resetFontSizesActionAtom)
@@ -396,7 +401,11 @@ function AppContent() {
     return () => {
       disposed = true
       if (unlisten) {
-        unlisten()
+        try {
+          unlisten()
+        } catch (error) {
+          logger.warn('[App] Failed to remove backend error listener', error)
+        }
       }
     }
   }, [toast])
@@ -418,8 +427,7 @@ function AppContent() {
   const [diffViewerState, setDiffViewerState] = useState<{ mode: 'session' | 'history'; filePath: string | null; historyContext?: HistoryDiffContext } | null>(null)
   const [isDiffViewerOpen, setIsDiffViewerOpen] = useState(false)
   const [showHome, setShowHome] = useState(true)
-  const [openTabs, setOpenTabs] = useState<ProjectTab[]>([])
-  const [activeTabPath, setActiveTabPath] = useState<string | null>(null)
+  const [pendingActivePath, setPendingActivePath] = useState<string | null>(null)
   const [startFromDraftName, setStartFromSpecName] = useState<string | null>(null)
   const [showPermissionPrompt, setShowPermissionPrompt] = useState(false)
   const [permissionDeniedPath, setPermissionDeniedPath] = useState<string | null>(null)
@@ -429,9 +437,6 @@ function AppContent() {
   const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState(false)
   const [leftPanelSizes, setLeftPanelSizes] = useState<[number, number]>([20, 80])
   const leftPanelLastExpandedSizesRef = useRef<[number, number]>([20, 80])
-  const projectSwitchPromiseRef = useRef<Promise<boolean> | null>(null)
-  const projectSwitchAbortControllerRef = useRef<AbortController | null>(null)
-  const projectSwitchTargetRef = useRef<string | null>(null)
   const previousFocusRef = useRef<Element | null>(null)
   const lastAutoUpdateVersionRef = useRef<string | null>(null)
   const { config: keyboardShortcutConfig } = useKeyboardShortcutsConfig()
@@ -440,12 +445,51 @@ function AppContent() {
   const startShortcut = shortcuts[KeyboardShortcutAction.NewSession] || (isMac ? '⌘N' : 'Ctrl + N')
   const specShortcut = shortcuts[KeyboardShortcutAction.NewSpec] || (isMac ? '⇧⌘N' : 'Ctrl + Shift + N')
   const preserveSelection = useSelectionPreserver()
-  const openProjectPaths = useMemo(() => openTabs.map(tab => tab.projectPath), [openTabs])
+  const pendingActivePathRef = useRef<string | null>(null)
+  const openProjectPaths = useMemo(() => projectTabs.map(tab => tab.projectPath), [projectTabs])
+  const clearPendingPath = useCallback((path?: string | null) => {
+    if (path && pendingActivePathRef.current && pendingActivePathRef.current !== path) {
+      return
+    }
+    pendingActivePathRef.current = null
+    setPendingActivePath(null)
+  }, [])
+
+  useEffect(() => {
+    if (projectPath && pendingActivePathRef.current === projectPath) {
+      clearPendingPath(projectPath)
+    }
+  }, [projectPath, clearPendingPath])
+
+  useEffect(() => {
+    const unlistenPromise = listenEvent(SchaltEvent.ProjectReady, readyPath => {
+      if (typeof readyPath !== 'string') {
+        return
+      }
+      if (!pendingActivePathRef.current) {
+        return
+      }
+      if (pendingActivePathRef.current === readyPath) {
+        clearPendingPath(readyPath)
+      }
+    })
+
+    return () => {
+      void unlistenPromise
+        .then(unlisten => {
+          unlisten()
+        })
+        .catch(error => {
+          logger.warn('[App] Failed to detach project ready listener', error)
+        })
+    }
+  }, [clearPendingPath])
+
   const handleAttentionSummaryChange = useCallback(
     ({ perProjectCounts }: { perProjectCounts: Record<string, number>; totalCount: number }) => {
       setAttentionCounts(prev => {
         const next: Record<string, number> = {}
-        for (const tab of openTabs) {
+        for (const tab of projectTabs) {
           next[tab.projectPath] = perProjectCounts[tab.projectPath] ?? 0
         }
         for (const [key, value] of Object.entries(perProjectCounts)) {
@@ -472,7 +516,7 @@ function AppContent() {
         return next
       })
     },
-    [openTabs]
+    [projectTabs]
   )
 
   useAttentionNotifications({
@@ -521,6 +565,27 @@ function AppContent() {
     leftPanelLastExpandedSizesRef.current = leftPanelSizes
     setIsLeftPanelCollapsed(true)
   }, [isLeftPanelCollapsed, leftPanelSizes])
+
+  const handleOpenProject = useCallback(async (path: string) => {
+    try {
+      const opened = await openProject({ path })
+      if (opened) {
+        setShowHome(false)
+        try {
+          const isEmpty = await invoke<boolean>(TauriCommands.RepositoryIsEmpty)
+          if (isEmpty) {
+            setShowHome(true)
+            emitUiEvent(UiEvent.OpenNewProjectDialog)
+          }
+        } catch (repoError) {
+          logger.warn('Failed to check if repository is empty:', repoError)
+        }
+      }
+    } catch (error) {
+      logger.error('Failed to open project:', error)
+      alert(`Failed to open project: ${error}`)
+    }
+  }, [openProject])
 
   const rightPanelStorageKey = selection
     ? selection.kind === 'orchestrator'
@@ -624,7 +689,6 @@ function AppContent() {
         name: sessionName
       })
       setCancelModalOpen(false)
-
     } catch (error) {
       logger.error('Failed to cancel session:', error)
       alert(`Failed to cancel session: ${error}`)
@@ -634,52 +698,12 @@ function AppContent() {
     }
   }, [beginSessionMutation, currentSession, endSessionMutation])
 
-  // Local helper to apply project activation consistently
-  const applyActiveProject = useCallback(async (path: string, options: { initializeBackend?: boolean } = {}) => {
-    const { initializeBackend = true } = options
-
-    try {
-      if (initializeBackend) {
-        await invoke(TauriCommands.InitializeProject, { path })
-        await invoke(TauriCommands.AddRecentProject, { path })
-      }
-
-      setProjectPath(path)
-      setShowHome(false)
-
-      const basename = getBasename(path)
-      setOpenTabs(prev => {
-        const exists = prev.some(tab => tab.projectPath === path)
-        if (!exists) {
-          return [...prev, { projectPath: path, projectName: basename }]
-        }
-        return prev
-      })
-      setActiveTabPath(path)
-
-      logger.info('Activated project:', path)
-
-      // If repository has no commits, trigger New Project flow
-      try {
-        const isEmpty = await invoke<boolean>(TauriCommands.RepositoryIsEmpty)
-        if (isEmpty) {
-          setShowHome(true)
-          emitUiEvent(UiEvent.OpenNewProjectDialog)
-        }
-      } catch (_e) {
-        logger.warn('Failed to check if repository is empty:', _e)
-      }
-    } catch (error) {
-      logger.error('Failed to activate project:', error)
-    }
-  }, [setProjectPath, setShowHome, setOpenTabs, setActiveTabPath])
-
   // Handle CLI directory argument
   useEffect(() => {
     // Handle opening a Git repository
     const unlistenDirectoryPromise = listenEvent(SchaltEvent.OpenDirectory, async (directoryPath) => {
       logger.info('Received open-directory event:', directoryPath)
-      await applyActiveProject(directoryPath, { initializeBackend: true })
+      await handleOpenProject(directoryPath)
     })
 
     // Handle opening home screen for non-Git directories
@@ -695,8 +719,7 @@ function AppContent() {
         const active = await invoke<string | null>(TauriCommands.GetActiveProjectPath)
         if (active) {
           logger.info('Detected active project on startup:', active)
-          // Backend already set the project; only sync UI state
-          await applyActiveProject(active, { initializeBackend: false })
+          await handleOpenProject(active)
         }
       } catch (_e) {
         logger.warn('Failed to fetch active project on startup:', _e)
@@ -704,10 +727,22 @@ function AppContent() {
     })()
 
      return () => {
-      unlistenDirectoryPromise.then(unlisten => unlisten())
-      unlistenHomePromise.then(unlisten => unlisten())
+      unlistenDirectoryPromise.then(unlisten => {
+        try {
+          unlisten()
+        } catch (error) {
+          logger.warn('[App] Failed to remove directory event listener', error)
+        }
+      })
+      unlistenHomePromise.then(unlisten => {
+        try {
+          unlisten()
+        } catch (error) {
+          logger.warn('[App] Failed to remove home event listener', error)
+        }
+      })
     }
-  }, [applyActiveProject, setProjectPath])
+  }, [handleOpenProject])
 
   // Install smart dash/quote normalization for all text inputs (except terminals)
   useEffect(() => {
@@ -1258,213 +1293,95 @@ function AppContent() {
     }
   }
 
-  const handleOpenProject = async (path: string) => {
+
+  const handleGoHome = useCallback(() => {
+    setShowHome(true)
+    clearPendingPath()
+    deactivateProject()
+  }, [deactivateProject, clearPendingPath])
+
+  const handleSelectTab = useCallback(async (path: string): Promise<boolean> => {
+    if (!path) {
+      return false
+    }
+
+    const hasCompetingSwitch = Boolean(
+      projectSwitchStatus?.inFlight &&
+      projectSwitchStatus.target &&
+      projectSwitchStatus.target !== path
+    )
+
+    if (path === projectPath && !hasCompetingSwitch) {
+      clearPendingPath(path)
+      setShowHome(false)
+      return true
+    }
+
+    if (pendingActivePathRef.current === path) {
+      setShowHome(false)
+      return true
+    }
+
+    pendingActivePathRef.current = path
+    setPendingActivePath(path)
+    setShowHome(false)
+
     try {
-      // Check if tab already exists
-      const existingTab = openTabs.find(tab => tab.projectPath === path)
-      if (existingTab) {
-        // Switch to existing tab - ensure backend knows about the project switch
-        await invoke(TauriCommands.InitializeProject, { path })
-        setActiveTabPath(path)
-        setProjectPath(path)
-        setShowHome(false)
+      const switched = await selectProject({ path })
+      if (!switched && projectPath !== path) {
+        clearPendingPath(path)
+      }
+      return switched
+    } catch (error) {
+      logger.error('Failed to switch project:', error)
+      clearPendingPath(path)
+      return false
+    }
+  }, [selectProject, projectPath, clearPendingPath, projectSwitchStatus])
+
+  const handleCloseTab = useCallback(async (path: string) => {
+    try {
+      const result = await closeProject({ path })
+      if (!result.closed) {
+        logger.warn('Aborting tab close because backend rejected the request')
         return
       }
 
-      // Initialize and add new tab
-      await invoke(TauriCommands.InitializeProject, { path })
-      await invoke(TauriCommands.AddRecentProject, { path })
-
-      const projectName = getBasename(path)
-      const newTab: ProjectTab = {
-        projectPath: path,
-        projectName
-      }
-
-      setOpenTabs(prev => [...prev, newTab])
-      setActiveTabPath(path)
-      setProjectPath(path)
-      setShowHome(false)
-      // Selection atoms will automatically update orchestrator when projectPath changes
-    } catch (error) {
-      logger.error('Failed to open project:', error)
-      alert(`Failed to open project: ${error}`)
-    }
-  }
-
-  const handleGoHome = () => {
-    setShowHome(true)
-    setActiveTabPath(null)
-    setProjectPath(null)
-  }
-
-  const handleSelectTab = useCallback(async (path: string): Promise<boolean> => {
-    // Prevent redundant calls when already focused on the requested project
-    if (path === activeTabPath && path === projectPath) {
-      return true
-    }
-
-    const ongoingSwitch = projectSwitchPromiseRef.current
-
-    if (ongoingSwitch) {
-      // If we're already switching to this path, reuse the inflight promise
-      if (projectSwitchTargetRef.current === path) {
-        return ongoingSwitch
-      }
-
-      // Otherwise abort the previous target and wait for it to settle
-      if (projectSwitchAbortControllerRef.current) {
-        projectSwitchAbortControllerRef.current.abort()
-      }
-
-      try {
-        await ongoingSwitch
-      } catch (error) {
-        logger.warn('Previous project switch failed while awaiting completion:', error)
-      }
-    }
-
-    // State might already be updated after awaiting the previous switch
-    if (path === activeTabPath && path === projectPath) {
-      return true
-    }
-
-    const runSwitch = async (): Promise<boolean> => {
-      const abortController = new AbortController()
-      projectSwitchAbortControllerRef.current = abortController
-      projectSwitchTargetRef.current = path
-
-      try {
-        await invoke(TauriCommands.InitializeProject, { path })
-
-        if (abortController.signal.aborted) {
-          return false
+      setAttentionCounts(prev => {
+        if (!(path in prev)) {
+          return prev
         }
+        const { [path]: _removed, ...rest } = prev
+        return rest
+      })
 
-        setActiveTabPath(path)
-        setProjectPath(path)
-        setShowHome(false)
-        return true
-      } catch (error) {
-        if (!abortController.signal.aborted) {
-          logger.error('Failed to switch project in backend:', error)
-        }
-        return false
-      } finally {
-        if (projectSwitchAbortControllerRef.current === abortController) {
-          projectSwitchAbortControllerRef.current = null
-        }
-        if (projectSwitchTargetRef.current === path) {
-          projectSwitchTargetRef.current = null
-        }
-      }
-    }
-
-    const switchPromise = runSwitch().finally(() => {
-      if (projectSwitchPromiseRef.current === switchPromise) {
-        projectSwitchPromiseRef.current = null
-      }
-    })
-
-    projectSwitchPromiseRef.current = switchPromise
-
-    return switchPromise
-  }, [activeTabPath, projectPath, setProjectPath])
-
-  const handleCloseTab = async (path: string) => {
-    const tabIndex = openTabs.findIndex(tab => tab.projectPath === path)
-    if (tabIndex === -1) return
-
-    const closingActiveTab = path === activeTabPath
-
-    if (closingActiveTab) {
-      const nextActiveTab = determineNextActiveTab(openTabs, path)
-      if (nextActiveTab) {
-        const switched = await handleSelectTab(nextActiveTab.projectPath)
-        if (!switched) {
-          logger.warn('Aborting tab close because adjacent project failed to activate')
-          return
-        }
-      } else {
-        handleGoHome()
-      }
-    }
-
-    // Remove the tab from UI
-    const newTabs = openTabs.filter(tab => tab.projectPath !== path)
-    setOpenTabs(newTabs)
-    setAttentionCounts(prev => {
-      if (!(path in prev)) {
-        return prev
-      }
-      const { [path]: _removed, ...rest } = prev
-      return rest
-    })
-
-    // Clean up the closed project in backend
-    try {
-      await invoke(TauriCommands.CloseProject, { path })
-      // Also clear frontend terminal tracking to avoid stale state on reopen
-      // Compute orchestrator terminal IDs for this project (must match selection atom logic)
-      try {
-        const dirName = path.split(/[/\\]/).pop() || 'unknown'
-        const sanitizedDirName = dirName.replace(/[^a-zA-Z0-9_-]/g, '_')
-        // Simple deterministic hash of full path
-        let hash = 0
-        for (let i = 0; i < path.length; i++) {
-          hash = ((hash << 5) - hash) + path.charCodeAt(i)
-          hash = hash & hash // 32-bit
-        }
-        const projectId = `${sanitizedDirName}-${Math.abs(hash).toString(16).slice(0, 6)}`
-        const base = `orchestrator-${projectId}`
-        const topId = `${base}-top`
-        const bottomBaseId = `${base}-bottom`
-
-        // Clear started guard so orchestrator can auto-start on reopen
-        clearTerminalStartedTracking([topId])
-        // Also clear background-start marks for this project's orchestrator terminals
-        try {
-          clearBackgroundStarts([topId])
-          // And for any bottom terminals (if ever marked in the future)
-          clearBackgroundStartsByPrefix(`${base}-`)
-        } catch (cleanupErr) {
-          logger.warn('Failed to clear background-start marks for closed project:', cleanupErr)
-        }
-        // Clear creation tracking so ensureTerminals will recreate if needed
-        await clearTerminalTracking([topId, bottomBaseId])
-      } catch (_e) {
-        logger.warn('Failed to clear terminal tracking for closed project:', _e)
-      }
+      setShowHome(result.nextActivePath === null)
     } catch (error) {
       logger.warn('Failed to cleanup closed project:', error)
-      // Don't fail the UI operation if cleanup fails
     }
-  }
+  }, [closeProject])
 
   const switchProject = useCallback(async (direction: 'prev' | 'next') => {
-    if (openTabs.length <= 1) return
-    
-    const currentIndex = openTabs.findIndex(tab => tab.projectPath === activeTabPath)
+    if (projectTabs.length <= 1) return
+    if (!projectPath) return
+
+    const currentIndex = projectTabs.findIndex(tab => tab.projectPath === projectPath)
     if (currentIndex === -1) return
-    
-    // Calculate new index with proper boundary constraints
-    let newIndex: number
+
+    let newIndex = currentIndex
     if (direction === 'next') {
-      // Don't go past the last tab
-      newIndex = Math.min(currentIndex + 1, openTabs.length - 1)
+      newIndex = Math.min(currentIndex + 1, projectTabs.length - 1)
     } else {
-      // Don't go before the first tab
       newIndex = Math.max(currentIndex - 1, 0)
     }
-    
-    // Only switch if we actually moved to a different index
+
     if (newIndex !== currentIndex) {
-      const targetTab = openTabs[newIndex]
+      const targetTab = projectTabs[newIndex]
       if (targetTab?.projectPath) {
         await handleSelectTab(targetTab.projectPath)
       }
     }
-  }, [openTabs, activeTabPath, handleSelectTab])
+  }, [projectTabs, projectPath, handleSelectTab])
 
   const handleSelectPrevProject = useCallback(() => {
     switchProject('prev')
@@ -1474,10 +1391,12 @@ function AppContent() {
     switchProject('next')
   }, [switchProject])
 
-  const tabsWithAttention = useMemo(() => openTabs.map(tab => ({
+  const tabsWithAttention = useMemo(() => projectTabs.map(tab => ({
     ...tab,
     attentionCount: attentionCounts[tab.projectPath] ?? 0
-  })), [openTabs, attentionCounts])
+  })), [projectTabs, attentionCounts])
+
+  const activeTabPath = showHome ? null : (pendingActivePath ?? projectPath)
 
   // Update unified work area ring color when selection changes
   useEffect(() => {
@@ -1487,7 +1406,7 @@ function AppContent() {
     el.style.boxShadow = 'none'
   }, [selection])
 
-  if (showHome && openTabs.length === 0) {
+  if (showHome && projectTabs.length === 0) {
     return (
       <>
         <TopBar
@@ -1570,7 +1489,7 @@ function AppContent() {
                       <SessionErrorBoundary>
                         <Sidebar 
                         isDiffViewerOpen={isDiffViewerOpen} 
-                        openTabs={openTabs}
+                        openTabs={projectTabs}
                         onSelectPrevProject={handleSelectPrevProject}
                         onSelectNextProject={handleSelectNextProject}
                       />
@@ -1761,7 +1680,7 @@ function AppContent() {
             open={projectSelectorOpen}
             onClose={() => setProjectSelectorOpen(false)}
             onOpenProject={handleOpenProject}
-            openProjectPaths={openTabs.map(tab => tab.projectPath)}
+            openProjectPaths={projectTabs.map(tab => tab.projectPath)}
           />
 
           <OnboardingModal

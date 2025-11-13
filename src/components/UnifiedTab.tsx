@@ -17,6 +17,7 @@ export interface UnifiedTabProps {
   style?: React.CSSProperties
   isRunTab?: boolean
   isRunning?: boolean
+  statusIndicator?: React.ReactNode
 }
 
 export function UnifiedTab({
@@ -32,7 +33,8 @@ export function UnifiedTab({
   title,
   style,
   isRunTab = false,
-  isRunning = false
+  isRunning = false,
+  statusIndicator,
 }: UnifiedTabProps) {
   const handleClick = (e: React.MouseEvent) => {
     if (disabled) return
@@ -117,6 +119,11 @@ export function UnifiedTab({
 
       {/* Tab content */}
       <div className="relative z-10 flex items-center w-full gap-2">
+        {statusIndicator && (
+          <span className="flex items-center justify-center" aria-hidden="true">
+            {statusIndicator}
+          </span>
+        )}
         <span className="truncate flex-1 font-medium" style={typography.body}>
           {label}
         </span>

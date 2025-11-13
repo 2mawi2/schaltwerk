@@ -10,15 +10,18 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { emitUiEvent, listenUiEvent, UiEvent } from '../../common/uiEvents'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import { createTerminalBackend, closeTerminalBackend } from '../../terminal/transport/backend'
+import { clearTerminalStartedTracking } from '../../components/terminal/Terminal'
 import { logger } from '../../utils/logger'
 import type { RawSession } from '../../types/session'
 import { FilterMode } from '../../types/sessionFilters'
+import { projectPathAtom } from './project'
 
 export interface Selection {
   kind: 'session' | 'orchestrator'
   payload?: string
   worktreePath?: string
   sessionState?: 'spec' | 'running' | 'reviewed'
+  projectPath?: string | null
 }
 
 interface TerminalSet {
@@ -48,21 +51,40 @@ interface SetSelectionPayload {
 interface SnapshotRequest {
   sessionId: string
   refresh?: boolean
+  projectPath?: string | null
 }
 
-const selectionAtom = atom<Selection>({ kind: 'orchestrator' })
-const projectPathAtom = atom<string | null>(null)
+const selectionAtom = atom<Selection>({ kind: 'orchestrator', projectPath: null })
 let currentFilterMode: FilterMode = FilterMode.All
+const projectFilterModes = new Map<string, FilterMode>()
+let defaultFilterModeForProjects: FilterMode = FilterMode.All
+let lastProcessedProjectPath: string | null = null
 
-export const selectionValueAtom = atom(get => get(selectionAtom))
+export const selectionValueAtom = atom(get => {
+  const selection = get(selectionAtom)
+  const projectPath = get(projectPathAtom)
+
+  if (selection.kind === 'session') {
+    if (!projectPath || selection.projectPath !== projectPath) {
+      return buildOrchestratorSelection(projectPath ?? null)
+    }
+    return selection
+  }
+
+  if ((selection.projectPath ?? null) !== (projectPath ?? null)) {
+    return buildOrchestratorSelection(projectPath ?? null)
+  }
+
+  return selection
+})
 
 export const isSpecAtom = atom(get => {
-  const selection = get(selectionAtom)
+  const selection = get(selectionValueAtom)
   return selection.kind === 'session' && selection.sessionState === 'spec'
 })
 
 export const isReadyAtom = atom(get => {
-  const selection = get(selectionAtom)
+  const selection = get(selectionValueAtom)
   if (selection.kind === 'orchestrator') return true
   if (selection.sessionState === 'spec') return true
   return Boolean(selection.worktreePath)
@@ -121,7 +143,7 @@ function selectionEquals(a: Selection, b: Selection): boolean {
     return false
   }
   if (a.kind === 'orchestrator') {
-    return true
+    return (a.projectPath ?? null) === (b.projectPath ?? null)
   }
   if (b.kind !== 'session') {
     return false
@@ -129,12 +151,24 @@ function selectionEquals(a: Selection, b: Selection): boolean {
   return (
     (a.payload ?? null) === (b.payload ?? null) &&
     (a.sessionState ?? null) === (b.sessionState ?? null) &&
-    (a.worktreePath ?? null) === (b.worktreePath ?? null)
+    (a.worktreePath ?? null) === (b.worktreePath ?? null) &&
+    (a.projectPath ?? null) === (b.projectPath ?? null)
   )
 }
 
 function rememberSelectionForProject(projectPath: string, selection: Selection): void {
-  lastSelectionByProject.set(projectPath, { ...selection })
+  lastSelectionByProject.set(projectPath, { ...selection, projectPath })
+}
+
+function withProjectPath(selection: Selection, projectPath: string | null): Selection {
+  if ((selection.projectPath ?? null) === (projectPath ?? null)) {
+    return selection
+  }
+  return { ...selection, projectPath }
+}
+
+function buildOrchestratorSelection(projectPath: string | null): Selection {
+  return { kind: 'orchestrator', projectPath }
 }
 
 function selectionMatchesCurrentFilter(selection: Selection): boolean {
@@ -156,12 +190,18 @@ function selectionMatchesCurrentFilter(selection: Selection): boolean {
   }
 }
 
-export const terminalsAtom = atom<TerminalSet>(get => computeTerminals(get(selectionAtom), get(projectPathAtom)))
+export const terminalsAtom = atom<TerminalSet>(get => computeTerminals(get(selectionValueAtom), get(projectPathAtom)))
 
 export const setSelectionFilterModeActionAtom = atom(
   null,
-  (_get, _set, mode: FilterMode) => {
+  (get, _set, mode: FilterMode) => {
     currentFilterMode = mode
+    const projectPath = get(projectPathAtom)
+    if (projectPath) {
+      projectFilterModes.set(projectPath, mode)
+    } else {
+      defaultFilterModeForProjects = mode
+    }
   },
 )
 
@@ -197,23 +237,46 @@ const lastKnownSessionState = new Map<string, NormalizedSessionState>()
 const lastSelectionByProject = new Map<string, Selection>()
 let pendingAsyncEffect: Promise<void> | null = null
 
+function getOrchestratorTerminalIds(projectPath: string | null): string[] {
+  const tracked = terminalsCache.get(selectionCacheKey({ kind: 'orchestrator' }, projectPath))
+  return tracked ? Array.from(tracked) : []
+}
+
+export const cleanupOrchestratorTerminalsActionAtom = atom(
+  null,
+  async (_get, set, projectPath: string | null) => {
+    if (!projectPath) {
+      return
+    }
+    const ids = getOrchestratorTerminalIds(projectPath)
+    if (ids.length === 0) {
+      return
+    }
+    await set(clearTerminalTrackingActionAtom, ids)
+    clearTerminalStartedTracking(ids)
+  },
+)
+
 let eventCleanup: (() => void) | null = null
 
 export const getSessionSnapshotActionAtom = atom(
   null,
-  async (_get, _set, request: SnapshotRequest): Promise<SessionSnapshot | null> => {
-    const { sessionId, refresh } = request
+  async (get, _set, request: SnapshotRequest): Promise<SessionSnapshot | null> => {
+    const { sessionId, refresh, projectPath: overrideProjectPath } = request
     if (!sessionId) return null
 
+    const projectPath = overrideProjectPath ?? get(projectPathAtom)
+    const cacheKey = sessionSnapshotCacheKey(sessionId, projectPath)
+
     if (!refresh) {
-      const cached = sessionSnapshotsCache.get(sessionId)
+      const cached = sessionSnapshotsCache.get(cacheKey)
       if (cached) return cached
     } else {
-      sessionSnapshotsCache.delete(sessionId)
-      sessionFetchPromises.delete(sessionId)
+      sessionSnapshotsCache.delete(cacheKey)
+      sessionFetchPromises.delete(cacheKey)
     }
 
-    const existing = sessionFetchPromises.get(sessionId)
+    const existing = sessionFetchPromises.get(cacheKey)
     if (existing && !refresh) {
       return existing
     }
@@ -225,26 +288,27 @@ export const getSessionSnapshotActionAtom = atom(
           return null
         }
         const snapshot = snapshotFromRawSession(raw)
-        sessionSnapshotsCache.set(sessionId, snapshot)
+        sessionSnapshotsCache.set(cacheKey, snapshot)
         return snapshot
       } catch (error) {
         logger.warn('[selection] Failed to fetch session snapshot', error)
         return null
       } finally {
-        sessionFetchPromises.delete(sessionId)
+        sessionFetchPromises.delete(cacheKey)
       }
     })()
 
-    sessionFetchPromises.set(sessionId, fetchPromise)
+    sessionFetchPromises.set(cacheKey, fetchPromise)
     return fetchPromise
   },
 )
 
-function selectionCacheKey(selection: Selection): string {
+function selectionCacheKey(selection: Selection, projectPath?: string | null): string {
   if (selection.kind === 'orchestrator') {
-    return 'orchestrator'
+    return `orchestrator:${projectPath ?? 'none'}`
   }
-  return `session:${selection.payload ?? 'unknown'}`
+  const scopedProject = selection.projectPath ?? projectPath ?? 'none'
+  return `session:${scopedProject}:${selection.payload ?? 'unknown'}`
 }
 
 
@@ -298,14 +362,6 @@ export const setSelectionActionAtom = atom(
     const rememberTargetProject = (rememberProjectPath ?? projectPath) ?? undefined
     const shouldRemember = (remember ?? true) && Boolean(rememberTargetProject)
     let rememberApplied = false
-    const rememberSelectionIfNeeded = () => {
-      if (!shouldRemember || rememberApplied || !rememberTargetProject) {
-        return
-      }
-      rememberApplied = true
-      rememberSelectionForProject(rememberTargetProject, resolvedSelection)
-    }
-
     if (selection.kind === 'session' && selection.payload) {
       const needsSnapshot = !selection.worktreePath || !selection.sessionState
       if (needsSnapshot) {
@@ -320,8 +376,19 @@ export const setSelectionActionAtom = atom(
       }
     }
 
-    const terminals = computeTerminals(resolvedSelection, projectPath)
-    const cacheKey = selectionCacheKey(resolvedSelection)
+    const assignedProjectPath = rememberTargetProject ?? projectPath ?? null
+    const enrichedSelection = withProjectPath(resolvedSelection, assignedProjectPath)
+
+    const rememberSelectionIfNeeded = () => {
+      if (!shouldRemember || rememberApplied || !rememberTargetProject) {
+        return
+      }
+      rememberApplied = true
+      rememberSelectionForProject(rememberTargetProject, enrichedSelection)
+    }
+
+    const terminals = computeTerminals(enrichedSelection, projectPath)
+    const cacheKey = selectionCacheKey(enrichedSelection, projectPath)
     const pendingRecreate = selectionsNeedingRecreate.has(cacheKey)
     const effectiveForceRecreate = forceRecreate || pendingRecreate
     let tracked = terminalsCache.get(cacheKey)
@@ -332,23 +399,23 @@ export const setSelectionActionAtom = atom(
     const missingTop = !tracked.has(terminals.top)
     const missingBottom = !tracked.has(terminals.bottomBase)
 
-    const unchanged = !forceRecreate && selectionEquals(current, resolvedSelection)
+    const unchanged = !forceRecreate && selectionEquals(current, enrichedSelection)
 
     if (!unchanged) {
-      set(selectionAtom, resolvedSelection)
+      set(selectionAtom, enrichedSelection)
     }
 
     if (effectiveForceRecreate || missingTop || missingBottom) {
       let shouldCreateTerminals = true
 
-      if (resolvedSelection.kind === 'session') {
-        if (resolvedSelection.sessionState === 'spec') {
+      if (enrichedSelection.kind === 'session') {
+        if (enrichedSelection.sessionState === 'spec') {
           shouldCreateTerminals = false
         } else {
           const cwd = terminals.workingDirectory
           if (!cwd) {
             logger.warn('[selection] Skipping terminal creation for session without worktree', {
-              sessionId: resolvedSelection.payload,
+              sessionId: enrichedSelection.payload,
             })
             shouldCreateTerminals = false
           } else {
@@ -356,7 +423,7 @@ export const setSelectionActionAtom = atom(
               const worktreeExists = await invoke<boolean>(TauriCommands.PathExists, { path: cwd })
               if (!worktreeExists) {
                 logger.warn('[selection] Worktree path does not exist; skipping terminal creation', {
-                  sessionId: resolvedSelection.payload,
+                  sessionId: enrichedSelection.payload,
                   worktreePath: cwd,
                 })
                 shouldCreateTerminals = false
@@ -364,7 +431,7 @@ export const setSelectionActionAtom = atom(
                 const gitDirExists = await invoke<boolean>(TauriCommands.PathExists, { path: `${cwd}/.git` })
                 if (!gitDirExists) {
                   logger.warn('[selection] Worktree missing git metadata; skipping terminal creation', {
-                    sessionId: resolvedSelection.payload,
+                    sessionId: enrichedSelection.payload,
                     worktreePath: cwd,
                   })
                   shouldCreateTerminals = false
@@ -372,7 +439,7 @@ export const setSelectionActionAtom = atom(
               }
             } catch (error) {
               logger.warn('[selection] Failed to validate session worktree before creating terminals', {
-                sessionId: resolvedSelection.payload,
+                sessionId: enrichedSelection.payload,
                 error,
               })
               shouldCreateTerminals = false
@@ -418,14 +485,14 @@ export const setSelectionActionAtom = atom(
     if (unchanged && !effectiveForceRecreate && !missingTop && !missingBottom) {
       rememberSelectionIfNeeded()
       if (isIntentional) {
-        emitUiEvent(UiEvent.SelectionChanged, resolvedSelection)
+        emitUiEvent(UiEvent.SelectionChanged, enrichedSelection)
       }
       return
     }
 
     rememberSelectionIfNeeded()
     if (isIntentional) {
-      emitUiEvent(UiEvent.SelectionChanged, resolvedSelection)
+      emitUiEvent(UiEvent.SelectionChanged, enrichedSelection)
     }
   },
 )
@@ -461,6 +528,7 @@ async function handleSessionStateUpdate(
   set: SetAtomFunction,
   sessionId: string,
   nextState: NormalizedSessionState,
+  projectPath: string | null,
 ): Promise<void> {
   const previous = lastKnownSessionState.get(sessionId)
   lastKnownSessionState.set(sessionId, nextState)
@@ -468,7 +536,7 @@ async function handleSessionStateUpdate(
   if (nextState === 'spec' && previous !== 'spec') {
     const group = sessionTerminalGroup(sessionId)
     await set(clearTerminalTrackingActionAtom, [group.top, group.bottomBase])
-    const cacheKey = selectionCacheKey({ kind: 'session', payload: sessionId })
+    const cacheKey = selectionCacheKey({ kind: 'session', payload: sessionId, projectPath }, projectPath)
     selectionsNeedingRecreate.add(cacheKey)
   }
 }
@@ -476,17 +544,17 @@ async function handleSessionStateUpdate(
 export const setProjectPathActionAtom = atom(
   null,
   async (get, set, path: string | null) => {
-    const previous = get(projectPathAtom)
-    if (previous === path) {
-      return
-    }
-    const orchestratorKey = selectionCacheKey({ kind: 'orchestrator' })
-    const tracked = terminalsCache.get(orchestratorKey)
-    if (tracked && tracked.size > 0) {
-      await set(clearTerminalTrackingActionAtom, Array.from(tracked))
+    const previouslyHandledPath = lastProcessedProjectPath
+    const currentGlobal = get(projectPathAtom)
+    if (currentGlobal !== path) {
+      set(projectPathAtom, path)
     }
 
-    set(projectPathAtom, path)
+    if (previouslyHandledPath === path) {
+      return
+    }
+
+    currentFilterMode = path ? (projectFilterModes.get(path) ?? defaultFilterModeForProjects) : defaultFilterModeForProjects
 
     const resolveRememberedSelectionForProject = async (project: string): Promise<{ selection: Selection; hadRemembered: boolean }> => {
       const remembered = lastSelectionByProject.get(project)
@@ -532,12 +600,14 @@ export const setProjectPathActionAtom = atom(
           sessionState,
           worktreePath,
         }
-        rememberSelectionForProject(project, sanitized)
-        return { selection: sanitized, hadRemembered: true }
+        const enriched = withProjectPath(sanitized, project)
+        rememberSelectionForProject(project, enriched)
+        return { selection: enriched, hadRemembered: true }
       }
 
-      rememberSelectionForProject(project, { kind: 'orchestrator' })
-      return { selection: { kind: 'orchestrator' }, hadRemembered: true }
+      const orchestratorSelection = buildOrchestratorSelection(project)
+      rememberSelectionForProject(project, orchestratorSelection)
+      return { selection: orchestratorSelection, hadRemembered: true }
     }
 
     let nextSelection: Selection = { kind: 'orchestrator' }
@@ -561,13 +631,15 @@ export const setProjectPathActionAtom = atom(
 
     await set(setSelectionActionAtom, {
       selection: nextSelection,
-      forceRecreate: true,
+      forceRecreate: false,
       isIntentional: false,
       remember: false,
+      rememberProjectPath: path ?? undefined,
     })
 
-    const hadPreviousProject = previous !== null && previous !== undefined
-    if (previous !== path && hadPreviousProject) {
+    lastProcessedProjectPath = path
+
+    if (previouslyHandledPath !== path) {
       emitUiEvent(UiEvent.ProjectSwitchComplete, { projectPath: path ?? '' })
     }
   },
@@ -636,7 +708,7 @@ export const initializeSelectionEventsActionAtom = atom(
             continue
           }
           const nextState = normalizeSessionState(info.session_state, info.status, info.ready_to_merge)
-          await handleSessionStateUpdate(set as SetAtomFunction, info.session_id, nextState)
+          await handleSessionStateUpdate(set as SetAtomFunction, info.session_id, nextState, get(projectPathAtom))
         }
       }
       const currentSelection = get(selectionAtom)
@@ -657,7 +729,8 @@ export const initializeSelectionEventsActionAtom = atom(
             const raw = await invoke<RawSession>(TauriCommands.SchaltwerkCoreGetSession, { name: sessionId })
             if (raw) {
               snapshot = snapshotFromRawSession(raw)
-              sessionSnapshotsCache.set(sessionId, snapshot)
+              const cacheKey = sessionSnapshotCacheKey(sessionId, get(projectPathAtom))
+              sessionSnapshotsCache.set(cacheKey, snapshot)
             }
           } catch (error) {
             logger.warn('[selection] Failed to refresh snapshot for session after SessionsRefreshed', { sessionId, error })
@@ -693,7 +766,8 @@ export const initializeSelectionEventsActionAtom = atom(
       const sessionId = (payload as { sessionId?: string } | undefined)?.sessionId
       if (!sessionId) return
 
-      sessionSnapshotsCache.delete(sessionId)
+      const cacheKey = sessionSnapshotCacheKey(sessionId, get(projectPathAtom))
+      sessionSnapshotsCache.delete(cacheKey)
 
       const currentSelection = get(selectionAtom)
       if (currentSelection.kind !== 'session' || currentSelection.payload !== sessionId) {
@@ -704,7 +778,7 @@ export const initializeSelectionEventsActionAtom = atom(
         const snapshot = await set(getSessionSnapshotActionAtom, { sessionId, refresh: true })
         if (!snapshot) return
         if (snapshot.sessionState) {
-          await handleSessionStateUpdate(set as SetAtomFunction, sessionId, snapshot.sessionState)
+          await handleSessionStateUpdate(set as SetAtomFunction, sessionId, snapshot.sessionState, get(projectPathAtom))
         }
         const latest = get(selectionAtom)
         if (latest.kind !== 'session' || latest.payload !== sessionId) {
@@ -752,6 +826,9 @@ export function resetSelectionAtomsForTest(): void {
   cachedProjectPath = null
   cachedProjectId = 'default'
   currentFilterMode = FilterMode.All
+  projectFilterModes.clear()
+  defaultFilterModeForProjects = FilterMode.All
+  lastProcessedProjectPath = null
   if (eventCleanup) {
     eventCleanup()
   }
@@ -763,4 +840,14 @@ export async function waitForSelectionAsyncEffectsForTest(): Promise<void> {
   if (pendingAsyncEffect) {
     await pendingAsyncEffect
   }
+}
+
+export function getFilterModeForProjectForTest(projectPath: string | null): FilterMode {
+  if (!projectPath) {
+    return defaultFilterModeForProjects
+  }
+  return projectFilterModes.get(projectPath) ?? defaultFilterModeForProjects
+}
+function sessionSnapshotCacheKey(sessionId: string, projectPath: string | null): string {
+  return `${projectPath ?? 'none'}::${sessionId}`
 }
