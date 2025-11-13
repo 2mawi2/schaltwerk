@@ -56,7 +56,7 @@ export function useGithubIssueSearch(options: UseGithubIssueSearchOptions = {}):
       }
     } catch (err) {
       if (searchVersionRef.current === version) {
-        logger.error(`Failed to search GitHub issues for query: ${query}`, err)
+        logger.error(`Failed to search GitHub issues for query: ${trimmed}`, err)
         setResults([])
         setError(resolveErrorMessage(err))
       }
