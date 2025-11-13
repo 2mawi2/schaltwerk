@@ -4,6 +4,7 @@ import { bestBootstrapSize } from './terminalSizeCache'
 import { markBackgroundStart, clearBackgroundStarts, emitUiEvent, UiEvent } from './uiEvents'
 import { singleflight, hasInflight } from '../utils/singleflight'
 import { logger } from '../utils/logger'
+import { getErrorMessage } from '../types/errors'
 import {
   recordAgentLifecycle,
   shouldUseExtendedAgentTimeout,
@@ -28,11 +29,6 @@ export function resetAgentStartTimeoutMetricForTests(): void {
 
 function determineStartTimeoutMs(agentType?: string | null): number {
   return shouldUseExtendedAgentTimeout(agentType) ? EXTENDED_AGENT_START_TIMEOUT_MS : DEFAULT_AGENT_START_TIMEOUT_MS
-}
-
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message
-  return String(error)
 }
 
 function withAgentStartTimeout<T>(

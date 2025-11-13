@@ -664,9 +664,9 @@ impl TerminalsBackend for TerminalManagerBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domains::terminal::{put_terminal_shell_override, testing};
     use async_trait::async_trait;
     use std::sync::{Arc, Mutex};
-    use crate::domains::terminal::{put_terminal_shell_override, testing};
 
     struct RecordingBackend {
         calls: Arc<Mutex<Vec<CreateTerminalRequest>>>,
@@ -1316,5 +1316,4 @@ mod tests {
         assert_eq!(recorded[0].cols, Some(120));
         assert_eq!(recorded[0].rows, Some(40));
     }
-
 }

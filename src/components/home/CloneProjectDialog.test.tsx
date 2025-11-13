@@ -69,7 +69,9 @@ describe('CloneProjectDialog', () => {
 
     expect(await screen.findByRole('heading', { name: /clone git repository/i })).toBeInTheDocument()
     expect(screen.getByLabelText(/remote url/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/parent directory/i)).toHaveDisplayValue('/home/user')
+    await waitFor(() => {
+      expect(screen.getByLabelText(/parent directory/i)).toHaveDisplayValue('/home/user')
+    })
   })
 
   it('derives folder name from remote and enables clone button when form is valid', async () => {

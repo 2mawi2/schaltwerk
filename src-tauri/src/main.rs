@@ -16,6 +16,7 @@ mod cleanup;
 mod cli;
 mod commands;
 mod diff_commands;
+pub mod errors;
 mod events;
 mod macos_prefs;
 mod mcp_api;
@@ -25,6 +26,7 @@ mod startup;
 mod updater;
 
 use crate::commands::sessions_refresh::{SessionsRefreshReason, request_sessions_refresh};
+use crate::errors::SchaltError;
 use clap::Parser;
 use schaltwerk::domains::{attention::AttentionStateRegistry, git::repository};
 use schaltwerk::infrastructure::config::SettingsManager;
@@ -296,15 +298,21 @@ pub async fn get_file_watcher_manager()
 }
 
 #[tauri::command]
-async fn start_file_watcher(session_name: String) -> Result<(), String> {
+async fn start_file_watcher(session_name: String) -> Result<(), SchaltError> {
     if session_name == "orchestrator" {
         let (repo_path, configured_branch) = {
-            let core = get_core_read().await?;
+            let core = get_core_read()
+                .await
+                .map_err(|e| SchaltError::DatabaseError {
+                    message: e.to_string(),
+                })?;
             let repo_path = core.repo_path.clone();
             let configured_branch = core
                 .db
                 .get_default_base_branch()
-                .map_err(|e| format!("Failed to get default base branch: {e}"))?
+                .map_err(|e| SchaltError::DatabaseError {
+                    message: e.to_string(),
+                })?
                 .filter(|value| !value.trim().is_empty());
             (repo_path, configured_branch)
         };
@@ -314,50 +322,98 @@ async fn start_file_watcher(session_name: String) -> Result<(), String> {
                 .unwrap_or_else(|_| "main".to_string())
         });
 
-        let watcher_manager = get_file_watcher_manager().await?;
+        let watcher_manager =
+            get_file_watcher_manager()
+                .await
+                .map_err(|e| SchaltError::ConfigError {
+                    key: "file_watcher_manager".to_string(),
+                    message: e,
+                })?;
+
         return watcher_manager
-            .start_watching_orchestrator(repo_path, base_branch)
-            .await;
+            .start_watching_orchestrator(repo_path.clone(), base_branch)
+            .await
+            .map_err(|e| {
+                SchaltError::io(
+                    "start_watching_orchestrator",
+                    repo_path.to_string_lossy(),
+                    e,
+                )
+            });
     }
 
     let session_manager = {
-        let core = get_core_read().await?;
+        let core = get_core_read()
+            .await
+            .map_err(|e| SchaltError::DatabaseError {
+                message: e.to_string(),
+            })?;
         core.session_manager()
     };
 
-    let sessions = session_manager
-        .list_enriched_sessions()
-        .map_err(|e| format!("Failed to get sessions: {e}"))?;
+    let sessions =
+        session_manager
+            .list_enriched_sessions()
+            .map_err(|e| SchaltError::DatabaseError {
+                message: e.to_string(),
+            })?;
 
     let session = sessions
         .into_iter()
         .find(|s| s.info.session_id == session_name)
-        .ok_or_else(|| format!("Session '{session_name}' not found"))?;
+        .ok_or_else(|| SchaltError::SessionNotFound {
+            session_id: session_name.clone(),
+        })?;
 
-    let watcher_manager = get_file_watcher_manager().await?;
+    let worktree_path = std::path::PathBuf::from(session.info.worktree_path.clone());
+    let watcher_manager =
+        get_file_watcher_manager()
+            .await
+            .map_err(|e| SchaltError::ConfigError {
+                key: "file_watcher_manager".to_string(),
+                message: e,
+            })?;
 
     watcher_manager
         .start_watching_session(
             session_name,
-            std::path::PathBuf::from(session.info.worktree_path),
+            worktree_path.clone(),
             session.info.base_branch,
         )
         .await
+        .map_err(|e| SchaltError::io("start_watching_session", worktree_path.to_string_lossy(), e))
 }
 
 #[tauri::command]
-async fn stop_file_watcher(session_name: String) -> Result<(), String> {
+async fn stop_file_watcher(session_name: String) -> Result<(), SchaltError> {
+    let watcher_manager =
+        get_file_watcher_manager()
+            .await
+            .map_err(|e| SchaltError::ConfigError {
+                key: "file_watcher_manager".to_string(),
+                message: e,
+            })?;
     if session_name == "orchestrator" {
-        let watcher_manager = get_file_watcher_manager().await?;
-        return watcher_manager.stop_watching_orchestrator().await;
+        return watcher_manager
+            .stop_watching_orchestrator()
+            .await
+            .map_err(|e| SchaltError::io("stop_watching_orchestrator", "orchestrator", e));
     }
-    let watcher_manager = get_file_watcher_manager().await?;
-    watcher_manager.stop_watching_session(&session_name).await
+    watcher_manager
+        .stop_watching_session(&session_name)
+        .await
+        .map_err(|e| SchaltError::io("stop_watching_session", &session_name, e))
 }
 
 #[tauri::command]
-async fn is_file_watcher_active(session_name: String) -> Result<bool, String> {
-    let watcher_manager = get_file_watcher_manager().await?;
+async fn is_file_watcher_active(session_name: String) -> Result<bool, SchaltError> {
+    let watcher_manager =
+        get_file_watcher_manager()
+            .await
+            .map_err(|e| SchaltError::ConfigError {
+                key: "file_watcher_manager".to_string(),
+                message: e,
+            })?;
     Ok(watcher_manager.is_watching(&session_name).await)
 }
 

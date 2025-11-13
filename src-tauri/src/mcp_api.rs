@@ -1181,7 +1181,7 @@ async fn merge_session(
                 cancel_queued = true;
             }
             Err(e) => {
-                cancel_error = Some(e);
+                cancel_error = Some(e.to_string());
             }
         }
     }
@@ -1304,7 +1304,7 @@ async fn create_pull_request(
                 cancel_queued = true;
             }
             Err(e) => {
-                cancel_error = Some(e);
+                cancel_error = Some(e.to_string());
             }
         }
     }
