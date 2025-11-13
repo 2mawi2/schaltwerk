@@ -1,5 +1,7 @@
 use crate::commands::session_lookup_cache::{current_repo_cache_key, global_session_lookup_cache};
+use crate::errors::SchaltError;
 use crate::get_core_read;
+use crate::get_project_manager;
 use git2::{
     Delta, DiffFindOptions, DiffOptions, ErrorCode, ObjectType, Oid, Repository, Sort, Tree,
 };
@@ -18,11 +20,12 @@ use std::path::Path;
 #[tauri::command]
 pub async fn get_changed_files_from_main(
     session_name: Option<String>,
-) -> Result<Vec<ChangedFile>, String> {
-    let repo_path = get_repo_path(session_name.clone()).await?;
-    let base_branch = get_base_branch(session_name).await?;
+) -> Result<Vec<ChangedFile>, SchaltError> {
+    let session_ref = session_name.as_deref();
+    let repo_path = resolve_repo_path_structured(session_ref).await?;
+    let base_branch = resolve_base_branch_structured(session_ref).await?;
     git::get_changed_files(std::path::Path::new(&repo_path), &base_branch)
-        .map_err(|e| format!("Failed to compute changed files: {e}"))
+        .map_err(|e| SchaltError::git("get_changed_files_from_main", e))
 }
 
 fn collect_working_directory_changes(repo: &Repository) -> anyhow::Result<Vec<ChangedFile>> {
@@ -527,38 +530,41 @@ mod tests {
 pub async fn get_file_diff_from_main(
     session_name: Option<String>,
     file_path: String,
-) -> Result<(String, String), String> {
-    let repo_path = get_repo_path(session_name.clone()).await?;
+) -> Result<(String, String), SchaltError> {
+    let session_ref = session_name.as_deref();
+    let repo_path = resolve_repo_path_structured(session_ref).await?;
 
     // Check if the worktree file is diffable
     let worktree_path = Path::new(&repo_path).join(&file_path);
     if worktree_path.exists() {
         let diff_info = file_utils::check_file_diffability(&worktree_path);
         if !diff_info.is_diffable {
-            return Err(format!(
-                "Cannot diff file: {}",
-                diff_info
-                    .reason
-                    .unwrap_or_else(|| "Unknown reason".to_string())
-            ));
+            let reason = diff_info
+                .reason
+                .unwrap_or_else(|| "Unknown reason".to_string());
+            return Err(SchaltError::invalid_input("file_path", reason));
         }
     }
 
     // For orchestrator (no session), get diff against HEAD (working changes) using git2
-    if session_name.is_none() {
+    if session_ref.is_none() {
         let repo =
-            Repository::open(&repo_path).map_err(|e| format!("Failed to open repository: {e}"))?;
-        let base_text = read_blob_from_commit_path(&repo, None, &file_path)?;
-        let worktree_text = read_workdir_text(&worktree_path)?;
+            Repository::open(&repo_path).map_err(|e| SchaltError::git("open_repository", e))?;
+        let base_text = read_blob_from_commit_path(&repo, None, &file_path)
+            .map_err(|e| SchaltError::git("read_blob_from_commit_path", e))?;
+        let worktree_text = read_workdir_text(&worktree_path).map_err(|e| {
+            SchaltError::io("read_worktree_text", worktree_path.to_string_lossy(), e)
+        })?;
         return Ok((base_text, worktree_text));
     }
 
     // For sessions, compare merge-base(HEAD, parent_branch) to working directory using git2
-    let repo =
-        Repository::open(&repo_path).map_err(|e| format!("Failed to open repository: {e}"))?;
-    let parent_branch = get_base_branch(session_name).await?;
-    let base_text = read_blob_from_merge_base(&repo, &parent_branch, &file_path)?;
-    let worktree_text = read_workdir_text(&worktree_path)?;
+    let repo = Repository::open(&repo_path).map_err(|e| SchaltError::git("open_repository", e))?;
+    let parent_branch = resolve_base_branch_structured(session_ref).await?;
+    let base_text = read_blob_from_merge_base(&repo, &parent_branch, &file_path)
+        .map_err(|e| SchaltError::git("read_blob_from_merge_base", e))?;
+    let worktree_text = read_workdir_text(&worktree_path)
+        .map_err(|e| SchaltError::io("read_worktree_text", worktree_path.to_string_lossy(), e))?;
     Ok((base_text, worktree_text))
 }
 
@@ -573,33 +579,31 @@ fn is_likely_binary(bytes: &[u8]) -> bool {
 }
 
 #[tauri::command]
-pub async fn get_base_branch_name(session_name: Option<String>) -> Result<String, String> {
-    get_base_branch(session_name).await
+pub async fn get_base_branch_name(session_name: Option<String>) -> Result<String, SchaltError> {
+    resolve_base_branch_structured(session_name.as_deref()).await
 }
 
 #[tauri::command]
-pub async fn get_current_branch_name(session_name: Option<String>) -> Result<String, String> {
-    let repo_path = get_repo_path(session_name).await?;
-    let repo =
-        Repository::open(&repo_path).map_err(|e| format!("Failed to open repository: {e}"))?;
+pub async fn get_current_branch_name(session_name: Option<String>) -> Result<String, SchaltError> {
+    let repo_path = resolve_repo_path_structured(session_name.as_deref()).await?;
+    let repo = Repository::open(&repo_path).map_err(|e| SchaltError::git("open_repository", e))?;
     match repo.head() {
         Ok(head) => Ok(head.shorthand().unwrap_or("").to_string()),
         Err(err) if err.code() == ErrorCode::UnbornBranch => {
             schaltwerk::domains::git::repository::get_unborn_head_branch(Path::new(&repo_path))
-                .map_err(|e| format!("Failed to resolve unborn HEAD branch: {e}"))
+                .map_err(|e| SchaltError::git("get_unborn_head_branch", e))
         }
-        Err(err) => Err(format!("Failed to get HEAD: {err}")),
+        Err(err) => Err(SchaltError::git("get_head", err)),
     }
 }
 
 #[tauri::command]
 pub async fn get_commit_comparison_info(
     session_name: Option<String>,
-) -> Result<(String, String), String> {
+) -> Result<(String, String), SchaltError> {
     const EMPTY_COMMIT_SHORT_ID: &str = "0000000";
-    let repo_path = get_repo_path(session_name.clone()).await?;
-    let repo =
-        Repository::open(&repo_path).map_err(|e| format!("Failed to open repository: {e}"))?;
+    let repo_path = resolve_repo_path_structured(session_name.as_deref()).await?;
+    let repo = Repository::open(&repo_path).map_err(|e| SchaltError::git("open_repository", e))?;
 
     // Check for unborn HEAD first, before trying to get base branch
     // Extract the OID before awaiting to avoid holding the git2::Reference across await
@@ -622,16 +626,16 @@ pub async fn get_commit_comparison_info(
                 EMPTY_COMMIT_SHORT_ID.to_string(),
             ));
         }
-        Err(err) => return Err(format!("Failed to get HEAD: {err}")),
+        Err(err) => return Err(SchaltError::git("get_head", err)),
     };
 
     // Only get base branch if HEAD is not unborn
-    let base_branch = get_base_branch(session_name).await?;
+    let base_branch = resolve_base_branch_structured(session_name.as_deref()).await?;
     let base_commit = repo
         .revparse_single(&base_branch)
-        .map_err(|e| format!("Failed to resolve base branch: {e}"))?
+        .map_err(|e| SchaltError::git("resolve_base_branch", e))?
         .peel_to_commit()
-        .map_err(|e| format!("Failed to peel base commit: {e}"))?;
+        .map_err(|e| SchaltError::git("peel_base_commit", e))?;
     let head_short = short_id_str(&repo, head_oid);
     let base_short = short_id_str(&repo, base_commit.id());
     Ok((base_short, head_short))
@@ -932,26 +936,6 @@ async fn get_repo_path(session_name: Option<String>) -> Result<String, String> {
     }
 }
 
-async fn get_base_branch(session_name: Option<String>) -> Result<String, String> {
-    if let Some(name) = session_name {
-        let (_, base_branch) = resolve_session_info(&name).await?;
-        Ok(base_branch)
-    } else {
-        // No session specified, get default branch from current project
-        let manager = crate::get_project_manager().await;
-        if let Ok(project) = manager.current_project().await {
-            schaltwerk::domains::git::get_default_branch(&project.path)
-                .map_err(|e| format!("Failed to get default branch: {e}"))
-        } else {
-            // Fallback for when no project is active (needed for Claude sessions)
-            let current_dir = std::env::current_dir()
-                .map_err(|e| format!("Failed to get current directory: {e}"))?;
-            schaltwerk::domains::git::get_default_branch(&current_dir)
-                .map_err(|e| format!("Failed to get default branch: {e}"))
-        }
-    }
-}
-
 async fn resolve_session_info(session_name: &str) -> Result<(String, String), String> {
     let repo_key = current_repo_cache_key().await?;
     let cache = global_session_lookup_cache();
@@ -995,6 +979,71 @@ async fn resolve_session_info(session_name: &str) -> Result<(String, String), St
         .await;
 
     Ok((worktree_path, base_branch))
+}
+
+fn map_session_lookup_error(session_name: &str, message: String) -> SchaltError {
+    let normalized = message.to_lowercase();
+    if normalized.contains("query returned no rows")
+        || normalized.contains("session not found")
+        || normalized.contains("failed to get session")
+    {
+        SchaltError::SessionNotFound {
+            session_id: session_name.to_string(),
+        }
+    } else {
+        SchaltError::DatabaseError { message }
+    }
+}
+
+async fn resolve_session_info_structured(
+    session_name: &str,
+) -> Result<(String, String), SchaltError> {
+    resolve_session_info(session_name)
+        .await
+        .map_err(|message| map_session_lookup_error(session_name, message))
+}
+
+async fn resolve_repo_path_structured(session_name: Option<&str>) -> Result<String, SchaltError> {
+    if let Some(name) = session_name {
+        let (worktree, _) = resolve_session_info_structured(name).await?;
+        Ok(worktree)
+    } else {
+        let manager = get_project_manager().await;
+        if let Ok(project) = manager.current_project().await {
+            Ok(project.path.to_string_lossy().to_string())
+        } else {
+            let current_dir =
+                std::env::current_dir().map_err(|e| SchaltError::io("current_dir", ".", e))?;
+            if current_dir.file_name().and_then(|n| n.to_str()) == Some("src-tauri") {
+                current_dir
+                    .parent()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .ok_or_else(|| SchaltError::ProjectNotFound {
+                        project_path: current_dir.to_string_lossy().to_string(),
+                    })
+            } else {
+                Ok(current_dir.to_string_lossy().to_string())
+            }
+        }
+    }
+}
+
+async fn resolve_base_branch_structured(session_name: Option<&str>) -> Result<String, SchaltError> {
+    if let Some(name) = session_name {
+        let (_, base_branch) = resolve_session_info_structured(name).await?;
+        Ok(base_branch)
+    } else {
+        let manager = get_project_manager().await;
+        if let Ok(project) = manager.current_project().await {
+            schaltwerk::domains::git::get_default_branch(&project.path)
+                .map_err(|e| SchaltError::git("get_default_branch", e))
+        } else {
+            let current_dir =
+                std::env::current_dir().map_err(|e| SchaltError::io("current_dir", ".", e))?;
+            schaltwerk::domains::git::get_default_branch(&current_dir)
+                .map_err(|e| SchaltError::git("get_default_branch", e))
+        }
+    }
 }
 
 #[tauri::command]
@@ -1138,7 +1187,7 @@ pub async fn compute_commit_unified_diff(
 pub async fn compute_unified_diff_backend(
     session_name: Option<String>,
     file_path: String,
-) -> Result<DiffResponse, String> {
+) -> Result<DiffResponse, SchaltError> {
     use std::time::Instant;
     let start_total = Instant::now();
 
@@ -1232,7 +1281,7 @@ pub async fn compute_unified_diff_backend(
 pub async fn compute_split_diff_backend(
     session_name: Option<String>,
     file_path: String,
-) -> Result<SplitDiffResponse, String> {
+) -> Result<SplitDiffResponse, SchaltError> {
     use std::time::Instant;
     let start_total = Instant::now();
 

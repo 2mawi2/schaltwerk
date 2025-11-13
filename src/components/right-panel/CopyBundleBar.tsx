@@ -10,7 +10,7 @@ import type { DiffResponse } from '../../types/diff'
 import { writeClipboard } from '../../utils/clipboard'
 import { useAtomValue } from 'jotai'
 import { projectPathAtom } from '../../store/atoms/project'
-import { isSessionMissingError } from '../../utils/sessionErrorGuards'
+import { isSessionMissingError } from '../../types/errors'
 
 import {
   wrapBlock,

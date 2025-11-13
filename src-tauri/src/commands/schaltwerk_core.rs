@@ -1,6 +1,7 @@
 use crate::{
     PROJECT_MANAGER, SETTINGS_MANAGER, commands::session_lookup_cache::global_session_lookup_cache,
-    get_core_read, get_core_write, get_file_watcher_manager, get_terminal_manager,
+    errors::SchaltError, get_core_read, get_core_write, get_file_watcher_manager,
+    get_terminal_manager,
 };
 use schaltwerk::infrastructure::events::{SchaltEvent, emit_event};
 use schaltwerk::schaltwerk_core::SessionManager;
@@ -473,8 +474,7 @@ pub async fn schaltwerk_core_create_session(
     version_number: Option<i32>,
     agent_type: Option<String>,
     skip_permissions: Option<bool>,
-) -> Result<Session, String> {
-    // Wrap in params struct to avoid clippy warning about too many arguments
+) -> Result<Session, SchaltError> {
     let params = CreateSessionParams {
         name,
         prompt,
@@ -487,9 +487,6 @@ pub async fn schaltwerk_core_create_session(
         skip_permissions,
     };
     let was_user_edited = params.user_edited_name.unwrap_or(false);
-    // Consider it auto-generated if:
-    // 1. It looks like a Docker-style name (adjective_noun format) AND wasn't user edited
-    // 2. OR it wasn't user edited at all (even custom names should be renamed if not edited)
     let was_auto_generated = !was_user_edited;
 
     let creation_params = schaltwerk::domains::sessions::service::SessionCreationParams {
@@ -504,11 +501,24 @@ pub async fn schaltwerk_core_create_session(
         skip_permissions: params.skip_permissions,
     };
     let session = {
-        let core = get_core_write().await?;
+        let core = get_core_write()
+            .await
+            .map_err(|e| SchaltError::DatabaseError {
+                message: e.to_string(),
+            })?;
         let manager = core.session_manager();
         manager
             .create_session_with_agent(creation_params)
-            .map_err(|e| format!("Failed to create session: {e}"))?
+            .map_err(|e| {
+                let msg = e.to_string();
+                if msg.to_lowercase().contains("already exists") {
+                    SchaltError::SessionAlreadyExists {
+                        session_id: params.name.clone(),
+                    }
+                } else {
+                    SchaltError::DatabaseError { message: msg }
+                }
+            })?
     };
 
     let session_name_clone = session.name.clone();
@@ -892,45 +902,60 @@ pub async fn schaltwerk_core_list_sessions() -> Result<Vec<Session>, String> {
 }
 
 #[tauri::command]
-pub async fn schaltwerk_core_get_session(name: String) -> Result<Session, String> {
-    session_manager_read()
-        .await?
+pub async fn schaltwerk_core_get_session(name: String) -> Result<Session, SchaltError> {
+    let manager = session_manager_read()
+        .await
+        .map_err(|e| SchaltError::DatabaseError {
+            message: e.to_string(),
+        })?;
+    manager
         .get_session(&name)
-        .map_err(|e| format!("Failed to get session: {e}"))
+        .map_err(|_| SchaltError::SessionNotFound {
+            session_id: name.clone(),
+        })
 }
 
 #[tauri::command]
 pub async fn schaltwerk_core_get_session_agent_content(
     name: String,
-) -> Result<(Option<String>, Option<String>), String> {
+) -> Result<(Option<String>, Option<String>), SchaltError> {
     session_manager_read()
-        .await?
+        .await
+        .map_err(|e| SchaltError::DatabaseError {
+            message: e.to_string(),
+        })?
         .get_session_task_content(&name)
-        .map_err(|e| format!("Failed to get session agent content: {e}"))
+        .map_err(|e| SchaltError::from_session_lookup(&name, e))
 }
 
 #[tauri::command]
 pub async fn schaltwerk_core_cancel_session(
     app: tauri::AppHandle,
     name: String,
-) -> Result<(), String> {
+) -> Result<(), SchaltError> {
     log::info!("Starting cancel session: {name}");
 
-    // Determine session state first to handle Spec vs non-Spec behavior
     let (is_spec, repo_path_str, archive_count_after_opt) = {
-        let core = get_core_write().await?;
+        let core = get_core_write()
+            .await
+            .map_err(|e| SchaltError::DatabaseError {
+                message: e.to_string(),
+            })?;
         let manager = core.session_manager();
 
         let session = manager.get_session(&name).map_err(|e| {
             log::error!("Cancel {name}: Session not found: {e}");
-            format!("Session not found: {e}")
+            SchaltError::SessionNotFound {
+                session_id: name.clone(),
+            }
         })?;
 
         if session.session_state == schaltwerk::domains::sessions::entity::SessionState::Spec {
-            // Archive spec sessions instead of deleting
             manager
                 .archive_spec_session(&name)
-                .map_err(|e| format!("Failed to archive spec: {e}"))?;
+                .map_err(|e| SchaltError::DatabaseError {
+                    message: format!("Failed to archive spec: {e}"),
+                })?;
             let repo = core.repo_path.to_string_lossy().to_string();
             let count = manager.list_archived_specs().map(|v| v.len()).unwrap_or(0);
             (true, repo, Some(count))
@@ -2612,15 +2637,27 @@ mod tests {
 pub async fn reset_session_worktree_impl(
     app: Option<tauri::AppHandle>,
     session_name: String,
-) -> Result<(), String> {
+) -> Result<(), SchaltError> {
     log::info!("Resetting session worktree to base for: {session_name}");
-    let core = get_core_write().await?;
+    let core = get_core_write()
+        .await
+        .map_err(|e| SchaltError::DatabaseError {
+            message: e.to_string(),
+        })?;
     let manager = core.session_manager();
 
     // Delegate to SessionManager (defensive checks live there)
-    manager
-        .reset_session_worktree(&session_name)
-        .map_err(|e| format!("Failed to reset worktree: {e}"))?;
+    manager.reset_session_worktree(&session_name).map_err(|e| {
+        let message = e.to_string();
+        let normalized = message.to_lowercase();
+        if normalized.contains("failed to get session")
+            || normalized.contains("query returned no rows")
+        {
+            SchaltError::from_session_lookup(&session_name, message)
+        } else {
+            SchaltError::git("reset_session_worktree", message)
+        }
+    })?;
 
     // Emit sessions refreshed so UI updates its diffs/state when AppHandle is available
     if let Some(app_handle) = app {
@@ -2633,7 +2670,7 @@ pub async fn reset_session_worktree_impl(
 pub async fn schaltwerk_core_reset_session_worktree(
     app: tauri::AppHandle,
     session_name: String,
-) -> Result<(), String> {
+) -> Result<(), SchaltError> {
     reset_session_worktree_impl(Some(app), session_name).await
 }
 
@@ -2641,25 +2678,48 @@ pub async fn schaltwerk_core_reset_session_worktree(
 pub async fn schaltwerk_core_discard_file_in_session(
     session_name: String,
     file_path: String,
-) -> Result<(), String> {
+) -> Result<(), SchaltError> {
     log::info!("Discarding file changes in session '{session_name}' for path: {file_path}");
-    let core = get_core_write().await?;
+    let core = get_core_write()
+        .await
+        .map_err(|e| SchaltError::DatabaseError {
+            message: e.to_string(),
+        })?;
     let manager = core.session_manager();
     manager
         .discard_file_in_session(&session_name, &file_path)
-        .map_err(|e| format!("Failed to discard file changes: {e}"))
+        .map_err(|e| {
+            let message = e.to_string();
+            let normalized = message.to_lowercase();
+            if normalized.contains("failed to get session")
+                || normalized.contains("query returned no rows")
+            {
+                SchaltError::from_session_lookup(&session_name, message)
+            } else {
+                SchaltError::git("discard_file_in_session", message)
+            }
+        })
 }
 
 #[tauri::command]
-pub async fn schaltwerk_core_discard_file_in_orchestrator(file_path: String) -> Result<(), String> {
+pub async fn schaltwerk_core_discard_file_in_orchestrator(
+    file_path: String,
+) -> Result<(), SchaltError> {
     log::info!("Discarding file changes in orchestrator for path: {file_path}");
-    let core = get_core_write().await?;
+    let core = get_core_write()
+        .await
+        .map_err(|e| SchaltError::DatabaseError {
+            message: e.to_string(),
+        })?;
     // Operate directly on the main repo workdir
     let repo_path = std::path::Path::new(&core.repo_path).to_path_buf();
 
     // Safety: disallow .schaltwerk paths
     if file_path.starts_with(".schaltwerk/") {
-        return Err("Refusing to discard changes under .schaltwerk".to_string());
+        return Err(SchaltError::invalid_input(
+            "file_path",
+            "Refusing to discard changes under .schaltwerk",
+        ));
     }
 
     schaltwerk::domains::git::worktrees::discard_path_in_worktree(
@@ -2667,7 +2727,7 @@ pub async fn schaltwerk_core_discard_file_in_orchestrator(file_path: String) -> 
         std::path::Path::new(&file_path),
         None,
     )
-    .map_err(|e| format!("Failed to discard file changes: {e}"))
+    .map_err(|e| SchaltError::git("discard_file_in_orchestrator", e))
 }
 
 #[cfg(test)]
@@ -2679,7 +2739,7 @@ mod reset_tests {
         // Without a project initialized, expect a readable error
         let result = reset_session_worktree_impl(None, "nope".to_string()).await;
         assert!(result.is_err());
-        let msg = result.err().unwrap();
+        let msg = result.err().unwrap().to_string();
         assert!(
             msg.contains("No active project")
                 || msg.contains("Failed to get schaltwerk core")

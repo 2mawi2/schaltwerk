@@ -650,7 +650,7 @@ impl LocalPtyAdapter {
         Ok(())
     }
 
-fn schedule_initial_command_dispatch(&self, terminal_id: String, deadline: Instant) {
+    fn schedule_initial_command_dispatch(&self, terminal_id: String, deadline: Instant) {
         let initial_commands = Arc::clone(&self.initial_commands);
         let pty_writers = Arc::clone(&self.pty_writers);
         let coalescing_state = self.coalescing_state.clone();
@@ -933,10 +933,7 @@ impl TerminalBackend for LocalPtyAdapter {
         info!(
             "LocalPtyAdapter storing initial command for {id}: len={}, ready_marker_bytes={}, delay_ms={}, preview=\"{preview}\"",
             command.len(),
-            ready_marker
-                .as_ref()
-                .map(|m| m.trim().len())
-                .unwrap_or(0),
+            ready_marker.as_ref().map(|m| m.trim().len()).unwrap_or(0),
             dispatch_delay.map(|d| d.as_millis()).unwrap_or(0)
         );
         let marker_bytes = ready_marker.and_then(|marker| {

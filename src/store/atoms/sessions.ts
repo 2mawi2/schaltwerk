@@ -16,6 +16,7 @@ import { hasBackgroundStart, emitUiEvent, UiEvent } from '../../common/uiEvents'
 import { startSessionTop, computeProjectOrchestratorId } from '../../common/agentSpawn'
 import { releaseSessionTerminals } from '../../terminal/registry/terminalRegistry'
 import { logger } from '../../utils/logger'
+import { getErrorMessage } from '../../types/errors'
 
 type MergeModeOption = 'squash' | 'reapply'
 
@@ -570,19 +571,6 @@ function deriveMergeStatusFromSession(session: EnrichedSession): MergeStatus | u
     }
 
     return undefined
-}
-
-function getErrorMessage(value: unknown): string {
-    if (typeof value === 'string') {
-        return value
-    }
-    if (value && typeof value === 'object' && 'message' in value) {
-        const message = (value as { message?: unknown }).message
-        if (typeof message === 'string' && message.trim().length > 0) {
-            return message
-        }
-    }
-    return 'Unknown error'
 }
 
 export const allSessionsAtom = atom<EnrichedSession[]>([])
