@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createStore } from 'jotai'
-import { SortMode, FilterMode } from '../../types/sessionFilters'
+import { FilterMode } from '../../types/sessionFilters'
 import { SessionState, type EnrichedSession } from '../../types/session'
 import { TauriCommands } from '../../common/tauriCommands'
 import {
@@ -8,7 +8,6 @@ import {
     sessionsAtom,
     filteredSessionsAtom,
     sortedSessionsAtom,
-    sortModeAtom,
     filterModeAtom,
     searchQueryAtom,
     isSearchVisibleAtom,
@@ -145,7 +144,6 @@ describe('sessions atoms', () => {
 
     it('provides default core state', () => {
         expect(store.get(allSessionsAtom)).toEqual([])
-        expect(store.get(sortModeAtom)).toBe(SortMode.Name)
         expect(store.get(filterModeAtom)).toBe(FilterMode.All)
         expect(store.get(searchQueryAtom)).toBe('')
         expect(store.get(isSearchVisibleAtom)).toBe(false)
@@ -176,15 +174,6 @@ describe('sessions atoms', () => {
 
         store.set(allSessionsAtom, sessions)
 
-        // Default sort is name, unreviewed first
-        expect(store.get(sessionsAtom).map(s => s.info.session_id)).toEqual([
-            'running-a',
-            'running-b',
-            'spec-session',
-            'reviewed-one',
-        ])
-
-        store.set(sortModeAtom, SortMode.LastEdited)
         expect(store.get(sortedSessionsAtom).map(s => s.info.session_id)).toEqual([
             'running-b',
             'running-a',
@@ -566,7 +555,7 @@ describe('sessions atoms', () => {
 
         vi.mocked(invoke).mockImplementation(async (cmd, _args) => {
             if (cmd === TauriCommands.GetProjectSessionsSettings) {
-                return { filter_mode: 'spec', sort_mode: 'created' }
+                return { filter_mode: 'spec' }
             }
             if (cmd === TauriCommands.SetProjectSessionsSettings) {
                 return undefined
@@ -586,16 +575,14 @@ describe('sessions atoms', () => {
         await store.set(initializeSessionsSettingsActionAtom)
 
         expect(store.get(filterModeAtom)).toBe(FilterMode.Spec)
-        expect(store.get(sortModeAtom)).toBe(SortMode.Created)
         expect(store.get(autoCancelAfterMergeAtom)).toBe(false)
 
-        store.set(sortModeAtom, SortMode.Name)
+        store.set(filterModeAtom, FilterMode.Reviewed)
         await Promise.resolve()
 
         expect(invoke).toHaveBeenCalledWith(TauriCommands.SetProjectSessionsSettings, {
             settings: {
-                filter_mode: FilterMode.Spec,
-                sort_mode: SortMode.Name,
+                filter_mode: FilterMode.Reviewed,
             },
         })
     })
@@ -607,7 +594,7 @@ describe('sessions atoms', () => {
                 throw new Error('failed')
             }
             if (cmd === TauriCommands.GetProjectSessionsSettings) {
-                return { filter_mode: 'all', sort_mode: 'name' }
+                return { filter_mode: 'all' }
             }
             if (cmd === TauriCommands.GetProjectMergePreferences) {
                 return { auto_cancel_after_merge: true }
@@ -647,7 +634,7 @@ describe('sessions atoms', () => {
                 })
             }
             if (cmd === TauriCommands.GetProjectSessionsSettings) {
-                return { filter_mode: 'all', sort_mode: 'name' }
+                return { filter_mode: 'all' }
             }
             if (cmd === TauriCommands.GetProjectMergePreferences) {
                 return { auto_cancel_after_merge: true }
@@ -713,7 +700,7 @@ describe('sessions atoms', () => {
                 return []
             }
             if (cmd === TauriCommands.GetProjectSessionsSettings) {
-                return { filter_mode: 'all', sort_mode: 'name' }
+                return { filter_mode: 'all' }
             }
             if (cmd === TauriCommands.GetProjectMergePreferences) {
                 return { auto_cancel_after_merge: true }

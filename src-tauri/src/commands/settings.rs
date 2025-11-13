@@ -1197,7 +1197,6 @@ mod tests {
     async fn test_set_project_sessions_settings_uninitialized_manager() {
         let settings = schaltwerk::schaltwerk_core::db_project_config::ProjectSessionsSettings {
             filter_mode: "all".to_string(),
-            sort_mode: "name".to_string(),
         };
         let result = set_project_sessions_settings(settings).await;
         assert!(result.is_err());
