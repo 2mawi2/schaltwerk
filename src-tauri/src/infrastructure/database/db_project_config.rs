@@ -236,14 +236,15 @@ impl ProjectConfigMethods for Database {
         let canonical_path =
             std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
 
-        let result: rusqlite::Result<String> = conn.query_row(
+        let result: rusqlite::Result<Option<String>> = conn.query_row(
             "SELECT setup_script FROM project_config WHERE repository_path = ?1",
             params![canonical_path.to_string_lossy()],
             |row| row.get(0),
         );
 
         match result {
-            Ok(script) => Ok(Some(script)),
+            Ok(Some(script)) => Ok(Some(script)),
+            Ok(None) => Ok(None),
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
             Err(e) => Err(e.into()),
         }
