@@ -13,7 +13,7 @@ import { useSpecContent } from '../../hooks/useSpecContent'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { useSelection } from '../../hooks/useSelection'
 import { useSessions } from '../../hooks/useSessions'
-import { emitSpecRefine, buildSpecRefineReference } from '../../utils/specRefine'
+import { buildSpecRefineReference, runSpecRefineWithOrchestrator } from '../../utils/specRefine'
 import { theme } from '../../common/theme'
 import { typography } from '../../common/typography'
 import { useAtom, useSetAtom } from 'jotai'
@@ -222,13 +222,12 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
   }, [onStart])
 
   const handleRefine = useCallback(async () => {
-    try {
-      await setSelection({ kind: 'orchestrator' }, false, true)
-    } catch (err) {
-      logger.warn('[SpecEditor] Failed to switch to orchestrator for refine', err)
-    } finally {
-      emitSpecRefine(sessionName, displayName)
-    }
+    await runSpecRefineWithOrchestrator({
+      sessionId: sessionName,
+      displayName,
+      selectOrchestrator: () => setSelection({ kind: 'orchestrator' }, false, true),
+      logContext: '[SpecEditor]',
+    })
   }, [displayName, sessionName, setSelection])
 
   useEffect(() => {
