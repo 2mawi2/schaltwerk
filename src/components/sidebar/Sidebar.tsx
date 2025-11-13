@@ -40,6 +40,7 @@ import { ORCHESTRATOR_SESSION_NAME } from '../../constants/sessions'
 import { useAtomValue } from 'jotai'
 import { projectPathAtom } from '../../store/atoms/project'
 import { useToast } from '../../common/toast/ToastProvider'
+import { useSessionMergeShortcut } from '../../hooks/useSessionMergeShortcut'
 
 // Normalize backend states to UI categories
 function mapSessionUiState(info: SessionInfo): 'spec' | 'running' | 'reviewed' {
@@ -83,7 +84,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         openMergeDialog,
         closeMergeDialog,
         confirmMerge,
-        quickMergeSession,
+        quickMergeSession: _quickMergeSession,
         isMergeInFlight,
         getMergeStatus,
         autoCancelAfterMerge,
@@ -94,7 +95,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     } = useSessions()
     const { isResetting, resettingSelection, resetSession, switchModel } = useSessionManagement()
     const { getOrchestratorAgentType, getOrchestratorSkipPermissions } = useClaudeSession()
-    const { pushToast } = useToast()
+    const { pushToast: _pushToast } = useToast()
 
     // Get dynamic shortcut for Orchestrator
     const orchestratorShortcut = useShortcutDisplay(KeyboardShortcutAction.SwitchToOrchestrator)
@@ -848,105 +849,9 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         normalizeAgentType
     ])
 
-    const handleOpenMergeShortcut = useCallback(() => {
-        if (isAnyModalOpen()) return
-        if (selection.kind !== 'session' || !selection.payload) {
-            return
-        }
-
-        const sessionId = selection.payload
-        const session = sessions.find(s => s.info.session_id === sessionId)
-        if (!session) {
-            return
-        }
-
-        if (isSessionMergeInFlight(sessionId)) {
-            pushToast({ tone: 'info', title: 'Merge already running', description: `${getSessionDisplayName(session.info)} is already merging.` })
-            return
-        }
-
-        const commitDraft = mergeCommitDrafts[sessionId]
-        const selectedSession = session
-        const shouldPivotFilter = filterMode === FilterMode.Running && !selectedSession.info.ready_to_merge
-        const previousFilterMode = shouldPivotFilter ? filterMode : null
-
-        if (shouldPivotFilter) {
-            setFilterMode(FilterMode.All)
-        }
-
-        void quickMergeSession(sessionId, { commitMessage: commitDraft ?? null }).then((result) => {
-            if (result.status === 'started') {
-                pushToast({
-                    tone: 'info',
-                    title: `Merging ${getSessionDisplayName(selectedSession.info)}`,
-                    description: `Fast-forwarding ${selectedSession.info.base_branch ?? 'main'}...`,
-                })
-                if (result.autoMarkedReady && shouldPivotFilter) {
-                    pushToast({
-                        tone: 'info',
-                        title: 'Session moved to review',
-                        description: 'Switched to the “All” filter so the reviewed session stays visible. Switch back anytime.',
-                    })
-                }
-                return
-            }
-
-            if (result.status === 'needs-modal') {
-                if (result.reason === 'conflict') {
-                    pushToast({ tone: 'warning', title: 'Conflicts detected', description: 'Review conflicts in the merge dialog.' })
-                } else if (result.reason === 'missing-commit') {
-                    pushToast({ tone: 'info', title: 'Commit message required', description: 'Review and confirm the merge details.' })
-                } else if (result.reason === 'confirm' && result.autoMarkedReady) {
-                    pushToast({ tone: 'info', title: 'Session ready to merge', description: 'Review the commit message before confirming the merge.' })
-                }
-                return
-            }
-
-            if (result.status === 'blocked') {
-                if (shouldPivotFilter && !result.autoMarkedReady && previousFilterMode !== null) {
-                    setFilterMode(previousFilterMode)
-                }
-                switch (result.reason) {
-                    case 'already-merged':
-                        pushToast({ tone: 'info', title: 'Nothing to merge', description: `${getSessionDisplayName(selectedSession.info)} is already up to date.` })
-                        return
-                    case 'in-flight':
-                        pushToast({ tone: 'info', title: 'Merge already running', description: `${getSessionDisplayName(selectedSession.info)} is merging elsewhere.` })
-                        return
-                    case 'no-session':
-                    case 'not-ready':
-                        pushToast({ tone: 'info', title: 'Select a reviewed session', description: 'Choose a reviewed session before merging.' })
-                        return
-                    default:
-                        return
-                }
-            }
-
-            if (result.status === 'error') {
-                if (shouldPivotFilter && previousFilterMode !== null) {
-                    setFilterMode(previousFilterMode)
-                }
-                pushToast({ tone: 'error', title: 'Merge failed', description: result.message })
-            }
-        }).catch((error) => {
-            logger.error('Quick merge shortcut failed', error)
-            if (shouldPivotFilter && previousFilterMode !== null) {
-                setFilterMode(previousFilterMode)
-            }
-            const message = error instanceof Error ? error.message : String(error)
-            pushToast({ tone: 'error', title: 'Merge failed', description: message })
-        })
-    }, [
-        isAnyModalOpen,
-        selection,
-        sessions,
-        pushToast,
-        isSessionMergeInFlight,
-        mergeCommitDrafts,
-        quickMergeSession,
-        filterMode,
-        setFilterMode,
-    ])
+    const { handleMergeShortcut } = useSessionMergeShortcut({
+        commitMessageDrafts: mergeCommitDrafts,
+    })
 
     const handleCreatePullRequestShortcut = useCallback(() => {
         if (isAnyModalOpen()) return
@@ -1016,7 +921,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         onNavigateToNextFilter: handleNavigateToNextFilter,
         onResetSelection: handleResetSelectionShortcut,
         onOpenSwitchModel: handleOpenSwitchModelShortcut,
-        onOpenMergeModal: handleOpenMergeShortcut,
+        onOpenMergeModal: handleMergeShortcut,
         onCreatePullRequest: handleCreatePullRequestShortcut,
         isDiffViewerOpen,
         isModalOpen: isAnyModalOpen()
