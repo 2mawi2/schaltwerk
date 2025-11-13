@@ -665,13 +665,12 @@ pub fn compute_merge_state(
             format!("Failed to simulate merge between '{session_branch}' and '{parent_branch}'")
         })?;
 
-    let conflicting_paths = if index.has_conflicts() {
+    let has_conflicts = index.has_conflicts();
+    let conflicting_paths = if has_conflicts {
         collect_conflicting_paths(&index)?
     } else {
         Vec::new()
     };
-
-    let has_conflicts = !conflicting_paths.is_empty();
 
     Ok(MergeState {
         has_conflicts,
@@ -741,7 +740,7 @@ fn collect_conflicting_paths(index: &git2::Index) -> Result<Vec<String>> {
         .conflicts()
         .with_context(|| "Failed to read merge conflicts")?;
 
-    for conflict in conflicts_iter.by_ref() {
+    for conflict in conflicts_iter.by_ref().take(CONFLICT_SAMPLE_LIMIT) {
         let conflict = conflict?;
         let path = conflict
             .our
@@ -751,17 +750,7 @@ fn collect_conflicting_paths(index: &git2::Index) -> Result<Vec<String>> {
             .or_else(|| conflict.ancestor.as_ref().and_then(index_entry_path));
 
         if let Some(path) = path {
-            if path == ".schaltwerk" || path.starts_with(".schaltwerk/") {
-                continue;
-            }
-
-            if seen.len() < CONFLICT_SAMPLE_LIMIT {
-                seen.insert(path);
-            }
-
-            if seen.len() == CONFLICT_SAMPLE_LIMIT {
-                break;
-            }
+            seen.insert(path);
         }
     }
 
@@ -2026,197 +2015,6 @@ mod tests {
         assert_eq!(
             std::fs::read_to_string(&dirty_path).unwrap(),
             "uncommitted change"
-        );
-    }
-
-    #[tokio::test]
-    async fn preview_ignores_schaltwerk_internal_conflicts() {
-        let temp = TempDir::new().unwrap();
-        let (manager, db, repo_path) = create_session_manager(&temp);
-
-        std::fs::create_dir_all(repo_path.join(".schaltwerk")).unwrap();
-        std::fs::write(repo_path.join(".schaltwerk/config.json"), "{}").unwrap();
-        run_git(
-            &repo_path,
-            vec![OsString::from("add"), OsString::from(".schaltwerk")],
-        )
-        .unwrap();
-        run_git(
-            &repo_path,
-            vec![
-                OsString::from("commit"),
-                OsString::from("-m"),
-                OsString::from("add schaltwerk config"),
-            ],
-        )
-        .unwrap();
-
-        let params = SessionCreationParams {
-            name: "internal-conflict",
-            prompt: Some("internal conflict test"),
-            base_branch: Some("main"),
-            custom_branch: None,
-            was_auto_generated: false,
-            version_group_id: None,
-            version_number: None,
-            agent_type: None,
-            skip_permissions: None,
-        };
-
-        let session = manager.create_session_with_agent(params).unwrap();
-
-        std::fs::write(
-            session.worktree_path.join(".schaltwerk/config.json"),
-            r#"{"session": "change"}"#,
-        )
-        .unwrap();
-        run_git(
-            &session.worktree_path,
-            vec![OsString::from("add"), OsString::from(".schaltwerk")],
-        )
-        .unwrap();
-        run_git(
-            &session.worktree_path,
-            vec![
-                OsString::from("commit"),
-                OsString::from("-m"),
-                OsString::from("session schaltwerk change"),
-            ],
-        )
-        .unwrap();
-
-        std::fs::write(
-            repo_path.join(".schaltwerk/config.json"),
-            r#"{"parent": "change"}"#,
-        )
-        .unwrap();
-        run_git(
-            &repo_path,
-            vec![OsString::from("add"), OsString::from(".schaltwerk")],
-        )
-        .unwrap();
-        run_git(
-            &repo_path,
-            vec![
-                OsString::from("commit"),
-                OsString::from("-m"),
-                OsString::from("parent schaltwerk change"),
-            ],
-        )
-        .unwrap();
-
-        manager.mark_session_ready(&session.name, false).unwrap();
-
-        let service = MergeService::new(db.clone(), repo_path.clone());
-        let preview = service.preview(&session.name).unwrap();
-
-        assert!(
-            !preview.has_conflicts,
-            ".schaltwerk conflicts should be ignored"
-        );
-        assert!(
-            preview.conflicting_paths.is_empty(),
-            "conflicting_paths should not include .schaltwerk files"
-        );
-    }
-
-    #[tokio::test]
-    async fn preview_reports_real_conflicts_even_with_many_internal_entries() {
-        let temp = TempDir::new().unwrap();
-        let (manager, db, repo_path) = create_session_manager(&temp);
-
-        let internal_files: Vec<String> = (0..7)
-            .map(|idx| format!(".schaltwerk/internal-{idx}.json"))
-            .collect();
-
-        std::fs::create_dir_all(repo_path.join(".schaltwerk")).unwrap();
-        for file in &internal_files {
-            std::fs::write(repo_path.join(file), "base").unwrap();
-        }
-        std::fs::write(repo_path.join("conflict.txt"), "base-conflict").unwrap();
-        run_git(
-            &repo_path,
-            vec![OsString::from("add"), OsString::from(".")],
-        )
-        .unwrap();
-        run_git(
-            &repo_path,
-            vec![
-                OsString::from("commit"),
-                OsString::from("-m"),
-                OsString::from("seed internal files"),
-            ],
-        )
-        .unwrap();
-
-        let params = SessionCreationParams {
-            name: "noise-conflict",
-            prompt: Some("noise"),
-            base_branch: Some("main"),
-            custom_branch: None,
-            was_auto_generated: false,
-            version_group_id: None,
-            version_number: None,
-            agent_type: None,
-            skip_permissions: None,
-        };
-
-        let session = manager.create_session_with_agent(params).unwrap();
-
-        for file in &internal_files {
-            std::fs::write(session.worktree_path.join(file), "session").unwrap();
-        }
-        std::fs::write(
-            session.worktree_path.join("conflict.txt"),
-            "session-change",
-        )
-        .unwrap();
-        run_git(
-            &session.worktree_path,
-            vec![OsString::from("add"), OsString::from(".")],
-        )
-        .unwrap();
-        run_git(
-            &session.worktree_path,
-            vec![
-                OsString::from("commit"),
-                OsString::from("-m"),
-                OsString::from("session edits"),
-            ],
-        )
-        .unwrap();
-
-        for file in &internal_files {
-            std::fs::write(repo_path.join(file), "parent").unwrap();
-        }
-        std::fs::write(repo_path.join("conflict.txt"), "parent-change").unwrap();
-        run_git(
-            &repo_path,
-            vec![OsString::from("add"), OsString::from(".")],
-        )
-        .unwrap();
-        run_git(
-            &repo_path,
-            vec![
-                OsString::from("commit"),
-                OsString::from("-m"),
-                OsString::from("parent edits"),
-            ],
-        )
-        .unwrap();
-
-        manager.mark_session_ready(&session.name, false).unwrap();
-
-        let service = MergeService::new(db.clone(), repo_path.clone());
-        let preview = service.preview(&session.name).unwrap();
-
-        assert!(preview.has_conflicts);
-        assert!(
-            preview
-                .conflicting_paths
-                .iter()
-                .any(|path| path == "conflict.txt"),
-            "conflict.txt should surface despite internal noise"
         );
     }
 }
