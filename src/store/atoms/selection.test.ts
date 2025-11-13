@@ -28,6 +28,9 @@ vi.mock('@tauri-apps/api/core', () => ({
 let eventListenCallCount = 0
 const selectionEventHandlers: Array<(payload: { selection: { kind: 'session' | 'orchestrator'; payload?: string } }) => void> = []
 const sessionsRefreshedHandlers: Array<(payload: unknown) => void> = []
+const emitSessionsRefreshed = async (sessions: unknown[], projectPath = '/projects/alpha') => {
+  await Promise.all(sessionsRefreshedHandlers.map(handler => handler({ projectPath, sessions })))
+}
 const sessionStateHandlers: Array<(payload: { sessionId: string }) => void> = []
 
 vi.mock('../../common/eventSystem', () => ({
@@ -321,7 +324,7 @@ describe('selection atoms', () => {
     })
     await store.set(initializeSelectionEventsActionAtom)
 
-    sessionsRefreshedHandlers[0]?.([
+    await emitSessionsRefreshed([
       { info: { session_id: 'session-1' } },
       { info: { session_id: 'other-session' } },
     ])
@@ -567,7 +570,7 @@ describe('selection atoms', () => {
     ]
 
     expect(sessionsRefreshedHandlers.length).toBeGreaterThan(0)
-    await sessionsRefreshedHandlers[0](payload)
+    await emitSessionsRefreshed(payload)
     await waitForSelectionAsyncEffectsForTest()
 
     const topId = stableSessionTerminalId('session-1', 'top')

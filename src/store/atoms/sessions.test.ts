@@ -130,6 +130,15 @@ const createSession = (overrides: Partial<EnrichedSession['info']>): EnrichedSes
 describe('sessions atoms', () => {
     let store: ReturnType<typeof createStore>
 
+    const emitSessionsRefreshed = (sessions: EnrichedSession[] | null, projectPath?: string | null) => {
+        const resolvedPath = projectPath ?? store.get(projectPathAtom) ?? null
+        const payloadProjectPath = resolvedPath ?? ''
+        listeners['schaltwerk:sessions-refreshed']?.({
+            projectPath: payloadProjectPath,
+            sessions: sessions ?? [],
+        })
+    }
+
     beforeEach(() => {
         store = createStore()
         vi.clearAllMocks()
@@ -544,7 +553,7 @@ describe('sessions atoms', () => {
             createSession({ session_id: 'delta' }),
         ]
 
-        listeners['schaltwerk:sessions-refreshed']?.(payload)
+        emitSessionsRefreshed(payload)
         expect(store.get(allSessionsAtom)).toEqual(payload)
     })
 
@@ -814,5 +823,143 @@ describe('sessions atoms', () => {
         expect(store.get(mergeStatusSelectorAtom)('merge')).toBe('merged')
         expect(invoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreCancelSession, { name: 'merge' })
         expect(toastSpy).toHaveBeenCalled()
+    })
+
+    it('does not release terminals when SessionsRefreshed fires with same sessions in different order', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+
+        vi.mocked(invoke).mockImplementation(async (cmd) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
+                return [
+                    createSession({ session_id: 'session-1', created_at: '2024-01-01T00:00:00.000Z' }),
+                    createSession({ session_id: 'session-2', created_at: '2024-01-02T00:00:00.000Z' }),
+                    createSession({ session_id: 'session-3', created_at: '2024-01-03T00:00:00.000Z' }),
+                ]
+            }
+            if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) {
+                return []
+            }
+            return undefined
+        })
+
+        store.set(projectPathAtom, '/project')
+        await store.set(initializeSessionsEventsActionAtom)
+        await store.set(refreshSessionsActionAtom)
+
+        const initialSessionIds = store.get(allSessionsAtom).map(s => s.info.session_id).sort()
+        expect(initialSessionIds).toEqual(['session-1', 'session-2', 'session-3'])
+
+        vi.mocked(releaseSessionTerminals).mockClear()
+
+        const reorderedSessions = [
+            createSession({ session_id: 'session-2', created_at: '2024-01-02T00:00:00.000Z' }),
+            createSession({ session_id: 'session-1', created_at: '2024-01-01T00:00:00.000Z' }),
+            createSession({ session_id: 'session-3', created_at: '2024-01-03T00:00:00.000Z' }),
+        ]
+
+        emitSessionsRefreshed(reorderedSessions)
+
+        expect(releaseSessionTerminals).not.toHaveBeenCalled()
+
+        const finalSessionIds = store.get(allSessionsAtom).map(s => s.info.session_id).sort()
+        expect(finalSessionIds).toEqual(['session-1', 'session-2', 'session-3'])
+    })
+
+    it('does not release terminals when dedupeSessions prefers spec over running state', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+
+        vi.mocked(invoke).mockImplementation(async (cmd) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
+                return [createSession({ session_id: 'test-session', status: 'active', session_state: 'running' })]
+            }
+            if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) {
+                return [{ name: 'test-session', id: 1, branch: 'specs/test-session', parent_branch: 'main', worktree_path: '', created_at: '2024-01-01T00:00:00.000Z', updated_at: '2024-01-01T00:00:00.000Z' }]
+            }
+            return undefined
+        })
+
+        store.set(projectPathAtom, '/project')
+        await store.set(initializeSessionsEventsActionAtom)
+        await store.set(refreshSessionsActionAtom)
+
+        expect(store.get(allSessionsAtom)).toHaveLength(1)
+        expect(store.get(allSessionsAtom)[0]?.info.session_id).toBe('test-session')
+
+        vi.mocked(releaseSessionTerminals).mockClear()
+
+        emitSessionsRefreshed([
+            createSession({ session_id: 'test-session', status: 'active', session_state: 'running' }),
+        ])
+
+        expect(releaseSessionTerminals).not.toHaveBeenCalledWith('test-session')
+    })
+
+    it('does not release terminals when SessionsRefreshed payload targets another project', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+
+        vi.mocked(invoke).mockImplementation(async (cmd) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
+                const activeProject = store.get(projectPathAtom)
+                if (activeProject === '/projects/alpha') {
+                    return [createSession({ session_id: 'alpha-session' })]
+                }
+                if (activeProject === '/projects/beta') {
+                    return [createSession({ session_id: 'beta-session' })]
+                }
+            }
+            if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) {
+                return []
+            }
+            return undefined
+        })
+
+        store.set(projectPathAtom, '/projects/alpha')
+        await store.set(refreshSessionsActionAtom)
+        expect(store.get(allSessionsAtom).map(session => session.info.session_id)).toEqual(['alpha-session'])
+
+        vi.mocked(releaseSessionTerminals).mockClear()
+
+        emitSessionsRefreshed([
+            createSession({ session_id: 'beta-session', created_at: '2024-01-05T00:00:00.000Z' }),
+        ], '/projects/beta')
+
+        expect(releaseSessionTerminals).not.toHaveBeenCalled()
+        expect(store.get(allSessionsAtom).map(session => session.info.session_id)).toEqual(['alpha-session'])
+    })
+
+    it('REPRO: does not release first session terminals when projectPath cache is stale', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+
+        vi.mocked(invoke).mockImplementation(async (cmd) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
+                return [
+                    createSession({ session_id: 'first-session', created_at: '2024-01-03T00:00:00.000Z' }),
+                    createSession({ session_id: 'second-session', created_at: '2024-01-02T00:00:00.000Z' }),
+                ]
+            }
+            if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) {
+                return []
+            }
+            return undefined
+        })
+
+        store.set(projectPathAtom, '/project-alpha')
+        await store.set(initializeSessionsEventsActionAtom)
+        await store.set(refreshSessionsActionAtom)
+
+        expect(store.get(allSessionsAtom).map(s => s.info.session_id)).toContain('first-session')
+
+        vi.mocked(releaseSessionTerminals).mockClear()
+
+        store.set(projectPathAtom, null)
+        store.set(projectPathAtom, '/project-alpha')
+
+        emitSessionsRefreshed([
+            createSession({ session_id: 'first-session', created_at: '2024-01-03T00:00:00.000Z' }),
+            createSession({ session_id: 'second-session', created_at: '2024-01-02T00:00:00.000Z' }),
+        ])
+
+        expect(releaseSessionTerminals).not.toHaveBeenCalledWith('first-session')
+        expect(releaseSessionTerminals).not.toHaveBeenCalledWith('second-session')
     })
 })
