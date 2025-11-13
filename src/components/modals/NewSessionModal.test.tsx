@@ -40,7 +40,7 @@ vi.mock('../../contexts/GithubIntegrationContext', () => {
   }
 })
 
-vi.mock('../plans/MarkdownEditor', async () => {
+vi.mock('../specs/MarkdownEditor', async () => {
   const React = await import('react')
   const { forwardRef, useImperativeHandle, useRef } = React
 

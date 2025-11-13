@@ -5,6 +5,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { IconButton } from '../common/IconButton'
 import { logger } from '../../utils/logger'
 import { useSessions } from '../../hooks/useSessions'
+import { theme } from '../../common/theme'
 
 interface Props {
   sessionName: string
@@ -49,14 +50,13 @@ export function SpecInfoPanel({ sessionName }: Props) {
     <div className="h-full flex items-center justify-center p-6">
       <div className="text-center max-w-[280px]">
         <div className="mx-auto mb-4 h-10 w-10 rounded-lg bg-slate-800/50 border border-slate-700 flex items-center justify-center">
-          <VscRocket className="text-slate-300 text-lg" />
+          <VscRocket style={{ fontSize: theme.fontSize.heading, color: theme.colors.text.secondary }} />
         </div>
-        <h3 className="text-slate-100 text-sm font-semibold mb-2">Spec Agent</h3>
-        <p className="text-slate-400 text-xs mb-4">
+        <h3 style={{ fontSize: theme.fontSize.body, fontWeight: 600, marginBottom: '0.5rem', color: theme.colors.text.primary }}>Spec Agent</h3>
+        <p style={{ fontSize: theme.fontSize.caption, marginBottom: '1rem', color: theme.colors.text.muted }}>
           Start the agent to create a worktree and launch the agent. You can edit the content in the main editor.
         </p>
-        
-        {/* Icon buttons instead of text button */}
+
         <div className="flex items-center justify-center gap-2">
           <IconButton
             icon={<VscPlay />}
@@ -75,9 +75,9 @@ export function SpecInfoPanel({ sessionName }: Props) {
             disabled={starting || deleting}
           />
         </div>
-        
+
         {error && (
-          <div className="mt-3 text-xs text-red-400">{error}</div>
+          <div style={{ marginTop: '0.75rem', fontSize: theme.fontSize.caption, color: theme.colors.accent.red.DEFAULT }}>{error}</div>
         )}
       </div>
     </div>

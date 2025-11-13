@@ -7,6 +7,7 @@ import { logger } from '../../utils/logger'
 import { MarkdownEditor, type MarkdownEditorRef } from './MarkdownEditor'
 import { useSpecContentCache } from '../../hooks/useSpecContentCache'
 import { MarkdownRenderer } from './MarkdownRenderer'
+import { theme } from '../../common/theme'
 
 interface Props {
   sessionName: string
@@ -76,16 +77,17 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
       <div className="h-full flex flex-col">
         <div className="px-3 py-2 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="text-xs text-slate-400">
-              {saving ? 'Saving…' : error ? <span className="text-red-400">{error}</span> : viewMode === 'edit' ? 'Editing spec' : 'Preview mode'}
+            <div style={{ fontSize: theme.fontSize.caption, color: theme.colors.text.muted }}>
+              {saving ? 'Saving…' : error ? <span style={{ color: theme.colors.accent.red.DEFAULT }}>{error}</span> : viewMode === 'edit' ? 'Editing spec' : 'Preview mode'}
             </div>
             {viewMode === 'edit' && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400" title="Focus spec content (⌘T)">⌘T</span>
+              <span style={{ fontSize: theme.fontSize.caption, color: theme.colors.text.muted, backgroundColor: theme.colors.background.elevated, padding: '0.125rem 0.375rem', borderRadius: '0.25rem' }} title="Focus spec content (⌘T)">⌘T</span>
             )}
           </div>
           <button
             onClick={() => setViewMode(viewMode === 'edit' ? 'preview' : 'edit')}
-            className="px-2 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600 text-white flex items-center gap-1"
+            style={{ fontSize: theme.fontSize.caption, padding: '0.25rem 0.5rem', borderRadius: '0.25rem', backgroundColor: theme.colors.background.elevated, color: theme.colors.text.primary }}
+            className="hover:bg-slate-600 flex items-center gap-1"
             title={viewMode === 'edit' ? 'Preview markdown' : 'Edit markdown'}
           >
             {viewMode === 'edit' ? <VscEye /> : <VscEdit />}
@@ -113,7 +115,7 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
     <div className="h-full flex flex-col">
       <div className="px-3 py-2 border-b border-slate-800 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="text-xs text-slate-400">Spec</div>
+          <div style={{ fontSize: theme.fontSize.caption, color: theme.colors.text.muted }}>Spec</div>
         </div>
       </div>
       <div className="flex-1 overflow-auto">
