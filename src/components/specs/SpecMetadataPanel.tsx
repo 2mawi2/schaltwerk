@@ -8,6 +8,7 @@ import { SessionActions } from '../session/SessionActions'
 import { logger } from '../../utils/logger'
 import { formatDateTime } from '../../utils/dateTime'
 import { useSessions } from '../../hooks/useSessions'
+import { isSessionMissingError } from '../../utils/sessionErrorGuards'
 
 const METADATA_DATE_OPTIONS: Intl.DateTimeFormatOptions = {
   month: 'short',
@@ -36,15 +37,19 @@ export function SpecMetadataPanel({ sessionName }: Props) {
     const loadMetadata = async () => {
       setLoading(true)
       try {
-        const session = await invoke<Record<string, unknown>>('schaltwerk_core_get_session', { name: sessionName })
+        const session = await invoke<Record<string, unknown>>(TauriCommands.SchaltwerkCoreGetSession, { name: sessionName })
         setMetadata({
           created_at: session.created_at as string | undefined,
           updated_at: (session.updated_at as string | undefined) || (session.last_modified as string | undefined),
           agent_content: session.current_task as string | undefined
         })
       } catch (error) {
-        logger.error('[SpecMetadataPanel] Failed to load spec metadata:', error)
-        setMetadata({})
+        if (isSessionMissingError(error)) {
+          setMetadata({})
+        } else {
+          logger.error('[SpecMetadataPanel] Failed to load spec metadata:', error)
+          setMetadata({})
+        }
       } finally {
         setLoading(false)
       }

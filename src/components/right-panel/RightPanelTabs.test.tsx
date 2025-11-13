@@ -77,17 +77,17 @@ vi.mock('../git-graph/GitGraphPanel', () => ({
   )
 }))
 
-vi.mock('../plans/SpecContentView', () => ({
+vi.mock('../specs/SpecContentView', () => ({
   SpecContentView: ({ sessionName, editable }: { sessionName: string; editable: boolean }) => (
     <div data-testid="spec-content" data-session={sessionName} data-editable={String(editable)} />
   )
 }))
 
-vi.mock('../plans/SpecInfoPanel', () => ({
+vi.mock('../specs/SpecInfoPanel', () => ({
   SpecInfoPanel: () => <div data-testid="spec-info" />
 }))
 
-vi.mock('../plans/SpecMetadataPanel', () => ({
+vi.mock('../specs/SpecMetadataPanel', () => ({
   SpecMetadataPanel: () => <div data-testid="spec-metadata" />
 }))
 

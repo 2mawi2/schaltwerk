@@ -21,7 +21,7 @@ import {
 } from '../shared/agentDefaults'
 import { AgentDefaultsSection } from '../shared/AgentDefaultsSection'
 import { useProjectFileIndex } from '../../hooks/useProjectFileIndex'
-import { MarkdownEditor, type MarkdownEditorRef } from '../plans/MarkdownEditor'
+import { MarkdownEditor, type MarkdownEditorRef } from '../specs/MarkdownEditor'
 import { ResizableModal } from '../shared/ResizableModal'
 import { GitHubIssuePromptSection } from './GitHubIssuePromptSection'
 import { GitHubPrPromptSection } from './GitHubPrPromptSection'
