@@ -71,15 +71,6 @@ export const setIframeUrl = (key: string, url: string) => {
   iframe.src = url
 }
 
-export const clearIframeUrl = (key: string) => {
-  const iframe = getOrCreateIframe(key)
-  if (isTestEnv) {
-    iframe.dataset.previewTestUrl = 'about:blank'
-    return
-  }
-  iframe.src = 'about:blank'
-}
-
 export const refreshIframe = (key: string, hard = false) => {
   const iframe = registry.get(key)
   if (!iframe || iframe.src === 'about:blank') return

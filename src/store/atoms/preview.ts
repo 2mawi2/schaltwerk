@@ -74,18 +74,6 @@ export const navigatePreviewHistoryActionAtom = atom(
   }
 )
 
-export const setPreviewZoomActionAtom = atom(
-  null,
-  (get, set, payload: { key: string; zoom: number }) => {
-    const states = get(previewStatesAtom)
-    const current = states.get(payload.key) ?? { url: null, zoom: DEFAULT_ZOOM, history: [], historyIndex: -1 }
-    const clampedZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, payload.zoom))
-    const updated = new Map(states)
-    updated.set(payload.key, { ...current, zoom: clampedZoom })
-    set(previewStatesAtom, updated)
-  }
-)
-
 export const adjustPreviewZoomActionAtom = atom(
   null,
   (get, set, payload: { key: string; delta: number }) => {
