@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { shouldStickToBottom } from './autoScroll'
+import { shouldApplyScrollTolerance, shouldStickToBottom } from './autoScroll'
 
 const baseInput = {
   baseY: 200,
@@ -69,5 +69,21 @@ describe('shouldStickToBottom', () => {
         hasUserSelection: true,
       }),
     ).toBe(false)
+  })
+})
+
+describe('shouldApplyScrollTolerance', () => {
+  it('returns true for scroll events without an upward direction', () => {
+    expect(shouldApplyScrollTolerance('scroll')).toBe(true)
+    expect(shouldApplyScrollTolerance('scroll', 'down')).toBe(true)
+  })
+
+  it('returns false for upward scrolls', () => {
+    expect(shouldApplyScrollTolerance('scroll', 'up')).toBe(false)
+  })
+
+  it('returns false for non-scroll reasons', () => {
+    expect(shouldApplyScrollTolerance('render')).toBe(false)
+    expect(shouldApplyScrollTolerance(undefined)).toBe(false)
   })
 })

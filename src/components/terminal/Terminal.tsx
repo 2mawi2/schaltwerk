@@ -37,7 +37,7 @@ import { TerminalResizeCoordinator } from './resize/TerminalResizeCoordinator'
 import { calculateEffectiveColumns, MIN_TERMINAL_COLUMNS } from './terminalSizing'
 import { shouldEmitControlPaste, shouldEmitControlNewline } from './terminalKeybindings'
 import { hydrateReusedTerminal } from './hydration'
-import { shouldStickToBottom } from './autoScroll'
+import { shouldApplyScrollTolerance, shouldStickToBottom } from './autoScroll'
 
 const DEFAULT_SCROLLBACK_LINES = 10000
 const BACKGROUND_SCROLLBACK_LINES = 5000
@@ -474,11 +474,12 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 : typeof buf.viewportY === 'number'
                     ? buf.viewportY
                     : 0;
+
             if (Number.isFinite(viewport)) {
                 lastScrollViewportRef.current = viewport;
             }
             const toleranceLines =
-                reason === 'scroll' && scrollDirection === 'down'
+                shouldApplyScrollTolerance(reason, scrollDirection)
                     ? SCROLL_RECATCH_TOLERANCE_LINES
                     : 0;
             const shouldStick = shouldStickToBottom({
@@ -489,6 +490,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 selectionActive: selectionActiveRef.current,
                 hasUserSelection: isUserSelectingInTerminal(),
                 toleranceLines,
+                terminalId,
             });
             if (!shouldStick) {
                 return;
