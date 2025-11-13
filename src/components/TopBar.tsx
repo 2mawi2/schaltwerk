@@ -19,7 +19,6 @@ import { GithubMenuButton } from './github/GithubMenuButton'
 import { WindowControls } from './WindowControls'
 import { getPlatform } from '../utils/platform'
 import { detectPlatformSafe } from '../keyboardShortcuts/helpers'
-import { FeedbackButton } from '../domains/feedback'
 
 type UiPlatform = 'mac' | 'linux' | 'windows'
 
@@ -39,7 +38,6 @@ interface TopBarProps {
   onSelectTab: (path: string) => void | Promise<void | boolean>
   onCloseTab: (path: string) => void | Promise<void>
   onOpenSettings: () => void
-  onOpenFeedback: () => void
   onOpenProjectSelector?: () => void
   isRightPanelCollapsed?: boolean
   onToggleRightPanel?: () => void
@@ -58,7 +56,6 @@ export function TopBar({
   onSelectTab,
   onCloseTab,
   onOpenSettings,
-  onOpenFeedback,
   onOpenProjectSelector,
   isLeftPanelCollapsed = false,
   onToggleLeftPanel,
@@ -238,9 +235,6 @@ export function TopBar({
             )}
           </button>
         )}
-        
-        {/* Feedback button */}
-        <FeedbackButton onClick={onOpenFeedback} />
 
         {/* Settings button */}
         <button
