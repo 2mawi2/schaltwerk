@@ -4,7 +4,7 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { Sidebar } from './Sidebar'
 import { TestProviders } from '../../tests/test-utils'
 import { invoke } from '@tauri-apps/api/core'
-import { FilterMode, SortMode } from '../../types/sessionFilters'
+import { FilterMode } from '../../types/sessionFilters'
 import { EnrichedSession, SessionInfo } from '../../types/session'
 
 vi.mock('@tauri-apps/api/core')
@@ -80,7 +80,7 @@ describe('Sidebar filter functionality and persistence', () => {
       if (cmd === 'get_buffer') return ''
       if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
       if (cmd === TauriCommands.GetProjectSessionsSettings) {
-        return { filter_mode: FilterMode.All, sort_mode: SortMode.Name }
+        return { filter_mode: FilterMode.All }
       }
       if (cmd === TauriCommands.SetProjectSessionsSettings) {
         return undefined
@@ -183,20 +183,18 @@ describe('Sidebar filter functionality and persistence', () => {
   it('persists filterMode to backend and restores it', async () => {
     // Mock backend settings storage
     let savedFilterMode = 'all'
-    let savedSortMode = 'name'
     let settingsLoadCalled = false
     
     vi.mocked(invoke).mockImplementation(async (command: string, args?: unknown) => {
       if (command === TauriCommands.GetProjectSessionsSettings) {
         settingsLoadCalled = true
-        return { filter_mode: savedFilterMode, sort_mode: savedSortMode }
+        return { filter_mode: savedFilterMode }
       }
         if (command === TauriCommands.SetProjectSessionsSettings) {
           // Only save if settings have been loaded (mimics the component behavior)
           if (settingsLoadCalled) {
             const s = (args as Record<string, unknown>)?.settings as Record<string, unknown> || {}
             savedFilterMode = (s.filter_mode as string) || 'all'
-            savedSortMode = (s.sort_mode as string) || 'name'
           }
           return undefined
         }
@@ -264,8 +262,6 @@ describe('Sidebar filter functionality and persistence', () => {
       // Only reviewed sessions should be visible on load
       const reviewed = screen.getAllByRole('button').filter(b => (b.textContent || '').includes('para/'))
       expect(reviewed).toHaveLength(2)
-      const sortBtn = screen.getByTitle(/^Sort:/i)
-      expect(sortBtn).toBeInTheDocument() // sanity
     })
   })
 
@@ -285,7 +281,7 @@ describe('Sidebar filter functionality and persistence', () => {
           return sessionsList
         }
         if (cmd === TauriCommands.GetProjectSessionsSettings) {
-          return { filter_mode: currentFilterMode, sort_mode: SortMode.Name }
+          return { filter_mode: currentFilterMode }
         }
         if (cmd === TauriCommands.SetProjectSessionsSettings) {
           const settings = (args as Record<string, unknown>)?.settings as Record<string, unknown>
@@ -355,7 +351,7 @@ describe('Sidebar filter functionality and persistence', () => {
           return sessionsList
         }
         if (cmd === TauriCommands.GetProjectSessionsSettings) {
-          return { filter_mode: FilterMode.Running, sort_mode: SortMode.Name }
+          return { filter_mode: FilterMode.Running }
         }
         if (cmd === TauriCommands.SetProjectSessionsSettings) {
           return undefined
@@ -408,7 +404,7 @@ describe('Sidebar filter functionality and persistence', () => {
           return sessionsList
         }
         if (cmd === TauriCommands.GetProjectSessionsSettings) {
-          return { filter_mode: FilterMode.Running, sort_mode: SortMode.Name }
+          return { filter_mode: FilterMode.Running }
         }
         if (cmd === TauriCommands.SetProjectSessionsSettings) {
           return undefined
@@ -465,7 +461,7 @@ describe('Sidebar filter functionality and persistence', () => {
           return sessionsList
         }
         if (cmd === TauriCommands.GetProjectSessionsSettings) {
-          return { filter_mode: FilterMode.Running, sort_mode: SortMode.Name }
+          return { filter_mode: FilterMode.Running }
         }
         if (cmd === TauriCommands.SetProjectSessionsSettings) {
           return undefined

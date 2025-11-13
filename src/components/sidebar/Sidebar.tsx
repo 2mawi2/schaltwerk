@@ -13,7 +13,7 @@ import { captureSelectionSnapshot, SelectionMemoryEntry } from '../../utils/sele
 import { computeSelectionCandidate } from '../../utils/selectionPostMerge'
 import { MarkReadyConfirmation } from '../modals/MarkReadyConfirmation'
 import { ConvertToSpecConfirmation } from '../modals/ConvertToSpecConfirmation'
-import { FilterMode, SortMode, FILTER_MODES } from '../../types/sessionFilters'
+import { FilterMode, FILTER_MODES } from '../../types/sessionFilters'
 import { calculateFilterCounts } from '../../utils/sessionFilters'
 import { groupSessionsByVersion, selectBestVersionAndCleanup, SessionVersionGroup as SessionVersionGroupType } from '../../utils/sessionVersions'
 import { SessionVersionGroup } from './SessionVersionGroup'
@@ -35,7 +35,6 @@ import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationCon
 import { useRun } from '../../contexts/RunContext'
 import { useModal } from '../../contexts/ModalContext'
 import { getSessionDisplayName } from '../../utils/sessionDisplayName'
-import { theme } from '../../common/theme'
 import { useClaudeSession } from '../../hooks/useClaudeSession'
 import { ORCHESTRATOR_SESSION_NAME } from '../../constants/sessions'
 import { useAtomValue } from 'jotai'
@@ -72,11 +71,9 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         sessions,
         allSessions,
         loading,
-        sortMode,
         filterMode,
         searchQuery,
         isSearchVisible,
-        setSortMode,
         setFilterMode,
         setSearchQuery,
         setIsSearchVisible,
@@ -1273,28 +1270,6 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                             title="Show reviewed agents"
                         >
                             Reviewed <span className="text-slate-400">({reviewedCount})</span>
-                        </button>
-                        <button
-                            className="px-1.5 py-0.5 rounded hover:bg-slate-700/50 text-slate-400 hover:text-white flex items-center gap-0.5 flex-shrink-0"
-                            onClick={() => {
-                                // Cycle through: name -> created -> last-edited -> name
-                                const nextMode = sortMode === SortMode.Name ? SortMode.Created : 
-                                               sortMode === SortMode.Created ? SortMode.LastEdited : SortMode.Name
-                                setSortMode(nextMode)
-                            }}
-                            title={`Sort: ${sortMode === SortMode.Name ? 'Name (A-Z)' : sortMode === SortMode.Created ? 'Creation Time' : 'Last Edited'}`}
-                        >
-                            {/* Sort icon - compact */}
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                            </svg>
-                            {/* Compact text indicator */}
-                            <span
-                                className="text-[9px] font-medium w-6 text-left"
-                                style={{ lineHeight: theme.lineHeight.compact }}
-                            >
-                                {sortMode === SortMode.Name ? 'A-Z' : sortMode === SortMode.Created ? 'New' : 'Edit'}
-                            </span>
                         </button>
                     </div>
                 </div>
