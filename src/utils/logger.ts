@@ -32,6 +32,9 @@ async function logToBackend(level: LogLevel, message: string): Promise<void> {
   }
 }
 
+const isTestEnv = import.meta.env.MODE === 'test'
+const shouldLogToConsole = import.meta.env.DEV && !isTestEnv
+
 function createLogger(): Logger {
   return {
     error: (message: string, ...args: unknown[]) => {
@@ -64,7 +67,7 @@ function createLogger(): Logger {
 
     info: (message: string, ...args: unknown[]) => {
       const formattedArgs = formatArgs(message, ...args)
-      if (import.meta.env.DEV) {
+      if (shouldLogToConsole) {
         console.log(...formattedArgs)
       }
       // For backend, join args into single message
@@ -78,7 +81,7 @@ function createLogger(): Logger {
 
     debug: (message: string, ...args: unknown[]) => {
       const formattedArgs = formatArgs(message, ...args)
-      if (import.meta.env.DEV) {
+      if (shouldLogToConsole) {
         console.log(...formattedArgs)
       }
       // For backend, join args into single message
