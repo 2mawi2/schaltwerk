@@ -80,8 +80,8 @@ pub mod manager_test;
 pub use local::LocalPtyAdapter;
 pub use manager::TerminalManager;
 pub use shell_invocation::{
-    ShellInvocation, build_login_shell_args, build_login_shell_invocation,
-    build_login_shell_invocation_with_shell, sh_quote_string, shell_invocation_to_posix,
+    ShellInvocation, build_login_shell_invocation, build_login_shell_invocation_with_shell,
+    sh_quote_string, shell_invocation_to_posix,
 };
 
 use std::sync::RwLock;

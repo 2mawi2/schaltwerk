@@ -36,19 +36,6 @@ pub fn build_login_shell_invocation_with_shell(
     }
 }
 
-/// Build the argument vector required to start the given shell as a login shell
-/// without appending a `-c` command payload.
-pub fn build_login_shell_args(shell: &str, base_args: &[String]) -> Vec<String> {
-    let shell_kind = classify_shell(shell);
-    let mut args = sanitize_base_args(base_args, None);
-
-    for flag in login_flags(shell_kind) {
-        ensure_flag(&mut args, flag);
-    }
-
-    args
-}
-
 pub fn shell_invocation_to_posix(invocation: &ShellInvocation) -> String {
     let mut parts = Vec::with_capacity(invocation.args.len() + 1);
     parts.push(sh_quote_string(&invocation.program));
@@ -319,17 +306,5 @@ mod tests {
         ]
         .join(" ");
         assert_eq!(shell_invocation_to_posix(&invocation), expected);
-    }
-
-    #[test]
-    fn login_args_helper_appends_login_flag() {
-        let args = build_login_shell_args("/bin/bash", &[]);
-        assert_eq!(args, to_vec(&["-l"]));
-    }
-
-    #[test]
-    fn login_args_helper_deduplicates_existing_flag() {
-        let args = build_login_shell_args("/bin/bash", &to_vec(&["-l", "-i"]));
-        assert_eq!(args, to_vec(&["-l", "-i"]));
     }
 }
