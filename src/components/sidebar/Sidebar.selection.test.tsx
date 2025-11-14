@@ -58,17 +58,8 @@ describe('Reviewed session cancellation focus preservation', () => {
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       // Always use the current value of currentSessions
       const sessions = (globalThis as { __testCurrentSessions?: TestSession[] }).__testCurrentSessions || currentSessions
-      console.log('Mock invoke called:', cmd, 'with sessions:', sessions.length, 'session names:', sessions.map(s => s.info.session_id))
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
-        console.log('Returning sessions:', sessions)
-        return sessions
-      }
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
         const mode = (args as { filterMode?: string })?.filterMode || 'all'
-        const filtered = mode === 'spec' ? sessions.filter(s => s.info.session_state === 'spec') :
-          mode === 'running' ? sessions.filter(s => s.info.session_state !== 'spec' && !s.info.ready_to_merge) :
-            mode === 'reviewed' ? sessions.filter(s => s.info.ready_to_merge) : sessions
-        console.log('Returning filtered sessions for mode', mode, ':', filtered.length)
         if (mode === 'spec') return sessions.filter(s => s.info.session_state === 'spec')
         if (mode === 'running') return sessions.filter(s => s.info.session_state !== 'spec' && !s.info.ready_to_merge)
         if (mode === 'reviewed') return sessions.filter(s => s.info.ready_to_merge)
@@ -93,7 +84,6 @@ describe('Reviewed session cancellation focus preservation', () => {
       currentSessions = currentSessions.filter(s => s.info.session_id !== sessionName)
         // Update global reference so mock can access updated sessions
         ; (globalThis as { __testCurrentSessions?: TestSession[] }).__testCurrentSessions = currentSessions
-      console.log('Session removed:', sessionName, 'Remaining sessions:', currentSessions.length)
     }
 
     await act(async () => {
@@ -243,17 +233,10 @@ describe('Reviewed session cancellation focus preservation', () => {
     // Wait for sessions to load
     await waitFor(() => {
       const allButtons = screen.getAllByRole('button')
-      console.log('All buttons found:', allButtons.length)
-      allButtons.forEach((btn, index) => {
-        console.log(`Button ${index}:`, btn.textContent, 'Classes:', btn.className)
-      })
-
       const sessionButtons = allButtons.filter(btn => {
         const text = btn.textContent || ''
         return text.includes('current-session') || text.includes('running-session') || text.includes('spec-session')
       })
-      console.log('Session buttons found:', sessionButtons.length)
-      console.log('Current sessions in mock:', currentSessions.length, 'session names:', currentSessions.map(s => s.info.session_id))
       expect(sessionButtons).toHaveLength(3)
     })
 
@@ -273,8 +256,6 @@ describe('Reviewed session cancellation focus preservation', () => {
         const text = btn.textContent || ''
         return text.includes('current-session') || text.includes('spec-session')
       })
-      console.log('Visible sessions after removal:', sessionButtons.length)
-      sessionButtons.forEach(btn => console.log('Session:', btn.textContent, 'Classes:', btn.className))
       expect(sessionButtons).toHaveLength(2)
     })
 

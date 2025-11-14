@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { useState } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
-import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, cleanup, within, act } from '@testing-library/react'
 import { NewSessionModal } from './NewSessionModal'
 import { ModalProvider } from '../../contexts/ModalContext'
 import { UiEvent, emitUiEvent } from '../../common/uiEvents'
+import { logger } from '../../utils/logger'
 
 const markdownFocus = {
   focus: vi.fn(),
@@ -186,6 +187,12 @@ function getTaskEditorContent(): string {
   return content?.innerText ?? ''
 }
 
+async function emitSessionEvent(...args: Parameters<typeof emitUiEvent>): Promise<void> {
+  await act(async () => {
+    emitUiEvent(...args)
+  })
+}
+
 describe('NewSessionModal', () => {
   beforeEach(() => {
     vi.useRealTimers()
@@ -318,13 +325,12 @@ describe('NewSessionModal', () => {
     expect(checkbox.checked).toBe(false)
     
     // First, dispatch prefill-pending event to prevent the useLayoutEffect from resetting state
-    emitUiEvent(UiEvent.NewSessionPrefillPending)
-    
-    // Small delay to ensure the prefill-pending state is set
-    await new Promise(resolve => setTimeout(resolve, 10))
+    await emitSessionEvent(UiEvent.NewSessionPrefillPending)
     
     // Now dispatch the set-spec event
-    window.dispatchEvent(new Event('schaltwerk:new-session:set-spec'))
+    await act(async () => {
+      window.dispatchEvent(new Event('schaltwerk:new-session:set-spec'))
+    })
     
     // Verify checkbox is checked
     await waitFor(() => {
@@ -334,7 +340,6 @@ describe('NewSessionModal', () => {
   })
 
   it('prefills spec content when schaltwerk:new-session:prefill event is dispatched', async () => {
-    const { act } = await import('@testing-library/react')
     render(<ModalProvider><NewSessionModal open={true} onClose={() => {}} onCreate={vi.fn()} /></ModalProvider>)
     
     // Initially the agent content editor should be empty (ignoring placeholder text)
@@ -345,14 +350,12 @@ describe('NewSessionModal', () => {
     const draftContent = '# My Spec\n\nThis is the spec content that should be prefilled.'
     const specName = 'test-spec'
     
-    await act(async () => {
-      emitUiEvent(UiEvent.NewSessionPrefill, {
-        name: specName,
-        taskContent: draftContent,
-        baseBranch: 'main',
-        lockName: true,
-        fromDraft: true,
-      })
+    await emitSessionEvent(UiEvent.NewSessionPrefill, {
+      name: specName,
+      taskContent: draftContent,
+      baseBranch: 'main',
+      lockName: true,
+      fromDraft: true,
     })
     
     // Wait for the content to be prefilled
@@ -368,33 +371,30 @@ describe('NewSessionModal', () => {
   })
 
   it('handles race condition when prefill event is dispatched right after modal opens', async () => {
-    const { act } = await import('@testing-library/react')
-    
-    // Initially render with modal closed
-    const { rerender: rerenderFn } = render(<ModalProvider><NewSessionModal open={false} onClose={() => {}} onCreate={vi.fn()} /></ModalProvider>)
-    
-    // Dispatch the prefill event BEFORE opening modal (simulating the race condition)
     const draftContent = '# My Spec\n\nThis is the spec content that should be prefilled.'
     const specName = 'test-spec'
-    
-    // Schedule the event to be dispatched slightly after the modal opens
-    setTimeout(() => {
-      emitUiEvent(UiEvent.NewSessionPrefill, {
-        name: specName,
-        taskContent: draftContent,
-        baseBranch: 'main',
-        lockName: true,
-        fromDraft: true,
+    vi.useFakeTimers()
+    try {
+      // Initially render with modal closed
+      const { rerender: rerenderFn } = render(<ModalProvider><NewSessionModal open={false} onClose={() => {}} onCreate={vi.fn()} /></ModalProvider>)
+      
+      await act(async () => {
+        setTimeout(() => {
+          emitUiEvent(UiEvent.NewSessionPrefill, {
+            name: specName,
+            taskContent: draftContent,
+            baseBranch: 'main',
+            lockName: true,
+            fromDraft: true,
+          })
+        }, 50)
+
+        rerenderFn(<ModalProvider><NewSessionModal open={true} onClose={() => {}} onCreate={vi.fn()} /></ModalProvider>)
+        await vi.advanceTimersByTimeAsync(75)
       })
-    }, 50)
-    
-    // Now open the modal
-    await act(async () => {
-      rerenderFn(<ModalProvider><NewSessionModal open={true} onClose={() => {}} onCreate={vi.fn()} /></ModalProvider>)
-    })
-    
-    // Wait a bit for the event to be dispatched
-    await new Promise(resolve => setTimeout(resolve, 100))
+    } finally {
+      vi.useRealTimers()
+    }
     
     // Check if the content was prefilled
     const content = getTaskEditorContent()
@@ -500,9 +500,13 @@ describe('NewSessionModal', () => {
     })
 
     fireEvent.click(screen.getByTestId('force-close'))
+    await waitFor(() => {
+      expect(screen.queryByText('Start new agent')).not.toBeInTheDocument()
+    })
     fireEvent.click(screen.getByTestId('force-open'))
 
-    expect(screen.getByRole('button', { name: 'Codex' })).toBeInTheDocument()
+    const reopenedAgentButton = await screen.findByRole('button', { name: 'Codex' })
+    expect(reopenedAgentButton).toBeInTheDocument()
   })
 
   it('keeps the user-selected agent even if the persisted default disagrees', async () => {
@@ -547,9 +551,13 @@ describe('NewSessionModal', () => {
     })
 
     fireEvent.click(screen.getByTestId('force-close'))
+    await waitFor(() => {
+      expect(screen.queryByText('Start new agent')).not.toBeInTheDocument()
+    })
     fireEvent.click(screen.getByTestId('force-open'))
 
-    expect(screen.getByRole('button', { name: 'Codex' })).toBeInTheDocument()
+    const reopenedAgent = await screen.findByRole('button', { name: 'Codex' })
+    expect(reopenedAgent).toBeInTheDocument()
   })
 
   it('keeps Claude selected when persisted default stays Codex', async () => {
@@ -594,9 +602,13 @@ describe('NewSessionModal', () => {
     })
 
     fireEvent.click(screen.getByTestId('force-close'))
+    await waitFor(() => {
+      expect(screen.queryByText('Start new agent')).not.toBeInTheDocument()
+    })
     fireEvent.click(screen.getByTestId('force-open'))
 
-    expect(screen.getByRole('button', { name: 'Claude' })).toBeInTheDocument()
+    const reopened = await screen.findByRole('button', { name: 'Claude' })
+    expect(reopened).toBeInTheDocument()
   })
 
   it('handles keyboard shortcuts: Esc closes, Cmd+Enter creates', async () => {
@@ -604,7 +616,9 @@ describe('NewSessionModal', () => {
 
     // Test Escape key closes modal
     const esc = new KeyboardEvent('keydown', { key: 'Escape' })
-    window.dispatchEvent(esc)
+    await act(async () => {
+      window.dispatchEvent(esc)
+    })
     await waitFor(() => expect(onClose).toHaveBeenCalled())
   })
 
@@ -861,17 +875,14 @@ describe('NewSessionModal', () => {
   })
 
   it('shows correct labels and placeholders when starting agent from spec', async () => {
-    const { act } = await import('@testing-library/react')
     render(<ModalProvider><NewSessionModal open={true} onClose={() => {}} onCreate={vi.fn()} /></ModalProvider>)
     
     // Dispatch the prefill event to simulate starting from a spec
     const draftContent = '# My Spec\n\nThis is the spec content.'
-    await act(async () => {
-      emitUiEvent(UiEvent.NewSessionPrefill, {
-        name: 'test-spec',
-        taskContent: draftContent,
-        fromDraft: true, // This should make createAsDraft false (starting agent from spec)
-      })
+    await emitSessionEvent(UiEvent.NewSessionPrefill, {
+      name: 'test-spec',
+      taskContent: draftContent,
+      fromDraft: true, // This should make createAsDraft false (starting agent from spec)
     })
     
     // Check that the label is "Initial prompt (optional)" when starting agent from spec
@@ -908,7 +919,9 @@ describe('NewSessionModal', () => {
     expect(button.disabled).toBe(true)
     // Keyboard shortcut bypasses disabled button logic
     const evt = new KeyboardEvent('keydown', { key: 'Enter', metaKey: true })
-    window.dispatchEvent(evt)
+    await act(async () => {
+      window.dispatchEvent(evt)
+    })
     await waitFor(() => expect(onCreate).toHaveBeenCalled())
     const payload = onCreate.mock.calls[0][0]
     // A generated docker-style name is used
@@ -1010,7 +1023,7 @@ describe('NewSessionModal', () => {
       }
       return Promise.reject(new Error('no tauri'))
     })
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {})
     openModal()
     await waitFor(() => {
       // When branches fail to load, the input shows a disabled message

@@ -3,9 +3,18 @@ import { TauriCommands } from '../common/tauriCommands'
 import { useFolderPermission } from './usePermissions'
 import { renderHook, act } from '@testing-library/react'
 import { flushPromises } from '../test/flushPromises'
+import { logger } from '../utils/logger'
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn()
+}))
+vi.mock('../utils/logger', () => ({
+  logger: {
+    warn: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn()
+  }
 }))
 
 import { invoke } from '@tauri-apps/api/core'
@@ -136,7 +145,7 @@ describe('useFolderPermission', () => {
       const testError = 'Permission check failed'
       mockInvoke.mockRejectedValueOnce(new Error(testError))
 
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const loggerSpy = vi.spyOn(logger, 'error').mockImplementation(() => {})
 
       const { result } = renderHook(() => useFolderPermission())
 
@@ -149,9 +158,9 @@ describe('useFolderPermission', () => {
       expect(result.current.hasPermission).toBe(false)
       expect(result.current.permissionError).toBe(`Error: ${testError}`)
       expect(result.current.deniedPath).toBe(testPath)
-      expect(consoleSpy).toHaveBeenCalledWith(`Error checking folder permission for ${testPath}:`, expect.any(Error))
+      expect(loggerSpy).toHaveBeenCalledWith(`Error checking folder permission for ${testPath}:`, expect.any(Error))
 
-      consoleSpy.mockRestore()
+      loggerSpy.mockRestore()
     })
   })
 
