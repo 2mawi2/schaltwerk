@@ -131,7 +131,7 @@ const RightPanelTabsComponent = ({ onFileSelect, onOpenHistoryDiff, selectionOve
     }, [selection])
 
     const handleInternalSplitDragStart = useCallback(() => {
-      beginSplitDrag('right-panel-internal')
+      beginSplitDrag('right-panel-internal', { orientation: 'row' })
       internalSplitActiveRef.current = true
     }, [])
 
@@ -390,7 +390,7 @@ const RightPanelTabsComponent = ({ onFileSelect, onOpenHistoryDiff, selectionOve
             className="h-full flex flex-col"
             sizes={[58, 42]}
             minSize={[140, 120]}
-            gutterSize={8}
+            gutterSize={12}
             direction="vertical"
             onDragStart={handleInternalSplitDragStart}
             onDragEnd={handleInternalSplitDragEnd}

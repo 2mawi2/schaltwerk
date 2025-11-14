@@ -1008,9 +1008,9 @@ const TerminalGridComponent = () => {
                 direction="vertical" 
                 sizes={effectiveSizes || [72, 28]} 
                 minSize={[120, isBottomCollapsed ? 44 : 24]} 
-                gutterSize={8}
+                gutterSize={12}
                 onDragStart={() => {
-                    beginSplitDrag('terminal-grid')
+                    beginSplitDrag('terminal-grid', { orientation: 'row' })
                     setIsDraggingSplit(true)
                     isDraggingRef.current = true
                 }}
