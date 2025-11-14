@@ -2,6 +2,7 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import { MergeSessionModal, MergeModeOption } from './MergeSessionModal'
 import { ModalProvider } from '../../contexts/ModalContext'
+import type { ReactNode } from 'react'
 
 const preview = {
   sessionBranch: 'feature/test-session',
@@ -121,5 +122,43 @@ describe('MergeSessionModal', () => {
     expect(cancel!.textContent).toMatch(/Esc/)
     const confirm = findConfirmButton()
     expect(confirm.textContent).toMatch(/⌘↵/)
+  })
+
+  it('focuses commit input after preview finishes loading', async () => {
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <ModalProvider>{children}</ModalProvider>
+    )
+
+    const modalProps = {
+      sessionName: 'test-session',
+      onClose: vi.fn(),
+      onConfirm: vi.fn(),
+      autoCancelEnabled: false,
+      onToggleAutoCancel: vi.fn(),
+    }
+
+    const { rerender } = render(
+      <MergeSessionModal
+        open
+        status="loading"
+        preview={null}
+        {...modalProps}
+      />,
+      { wrapper },
+    )
+
+    expect(screen.queryByLabelText('Commit message')).toBeNull()
+
+    rerender(
+      <MergeSessionModal
+        open
+        status="ready"
+        preview={preview}
+        {...modalProps}
+      />,
+    )
+
+    const input = await screen.findByLabelText('Commit message')
+    expect(document.activeElement).toBe(input)
   })
 })
