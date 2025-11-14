@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { TauriCommands } from '../../common/tauriCommands'
-import { render, waitFor, screen, fireEvent, act } from '@testing-library/react'
+import { render, waitFor, screen, fireEvent, act, within } from '@testing-library/react'
 import type { Event } from '@tauri-apps/api/event'
 import { Sidebar } from './Sidebar'
 import { TestProviders } from '../../tests/test-utils'
@@ -254,6 +254,17 @@ describe('Sidebar navigation with arrow keys including orchestrator', () => {
     fireEvent.click(switchButton)
 
     await waitFor(() => screen.getByRole('heading', { name: 'Switch Orchestrator Agent' }))
+  })
+
+  it('renders orchestrator row as a single button role with nested icon controls', async () => {
+    render(<TestProviders><Sidebar /></TestProviders>)
+
+    const orchestratorRow = await screen.findByRole('button', { name: /select orchestrator/i })
+    expect(orchestratorRow.tagName).toBe('DIV')
+    expect(screen.getAllByRole('button', { name: /select orchestrator/i })).toHaveLength(1)
+
+    const iconControl = within(orchestratorRow).getByRole('button', { name: 'Switch orchestrator model' })
+    expect(iconControl).toBeInTheDocument()
   })
 
   it('Cmd+P opens switch model modal for a session and confirms switch', async () => {
