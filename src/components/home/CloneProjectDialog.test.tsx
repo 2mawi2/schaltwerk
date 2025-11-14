@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { vi } from 'vitest'
 import { CloneProjectDialog } from './CloneProjectDialog'
@@ -153,14 +153,18 @@ describe('CloneProjectDialog', () => {
     const requestId = cloneCall?.[1]?.requestId as string
 
     // Simulate backend progress event
-    progressHandler({
-      requestId,
-      message: 'receiving objects: 42%',
-      remote: 'github.com/example/alpha',
-      kind: 'info'
+    await act(async () => {
+      progressHandler({
+        requestId,
+        message: 'receiving objects: 42%',
+        remote: 'github.com/example/alpha',
+        kind: 'info'
+      })
     })
 
     expect(await screen.findByText(/receiving objects/i)).toBeInTheDocument()
-    resolveClone()
+    await act(async () => {
+      resolveClone()
+    })
   })
 })

@@ -4,11 +4,20 @@ import { render, screen, waitFor, act } from '@testing-library/react'
 import { Sidebar } from './Sidebar'
 import { TestProviders } from '../../tests/test-utils'
 import * as uiEvents from '../../common/uiEvents'
+import { logger } from '../../utils/logger'
 
 // Use real keyboard hook behavior
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(), UnlistenFn: vi.fn() }))
+vi.mock('../../utils/logger', () => ({
+  logger: {
+    warn: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn()
+  }
+}))
 
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
@@ -21,7 +30,24 @@ async function press(key: string, opts: KeyboardEventInit = {}) {
   })
 }
 
+async function click(element: HTMLElement | null) {
+  if (!element) {
+    throw new Error('Expected element to click')
+  }
+  await act(async () => {
+    element.click()
+  })
+}
+
 describe('Sidebar keyboard navigation basic', () => {
+  async function renderSidebar() {
+    let utils: ReturnType<typeof render> | undefined
+    await act(async () => {
+      utils = render(<TestProviders><Sidebar /></TestProviders>)
+    })
+    return utils!
+  }
+
   beforeEach(() => {
     vi.clearAllMocks()
     Object.defineProperty(navigator, 'userAgent', { value: 'Mozilla/5.0 (Macintosh)', configurable: true })
@@ -63,7 +89,7 @@ describe('Sidebar keyboard navigation basic', () => {
   })
 
   it('Cmd+ArrowDown selects first session from orchestrator; Cmd+ArrowUp returns to orchestrator', async () => {
-    render(<TestProviders><Sidebar /></TestProviders>)
+    await renderSidebar()
 
     await waitFor(() => {
       const items = screen.getAllByRole('button')
@@ -133,7 +159,7 @@ describe('Sidebar keyboard navigation basic', () => {
 
     const emitSpy = vi.spyOn(uiEvents, 'emitUiEvent')
 
-    render(<TestProviders><Sidebar /></TestProviders>)
+    await renderSidebar()
 
     await waitFor(() => {
       expect(screen.getByText('Spec Draft')).toBeInTheDocument()
@@ -141,7 +167,7 @@ describe('Sidebar keyboard navigation basic', () => {
 
     const specButton = screen.getByText('Spec Draft').closest('[role="button"]') as HTMLElement | null
     expect(specButton).toBeTruthy()
-    specButton?.click()
+    await click(specButton)
 
     await waitFor(() => {
       const selected = screen.getByText('Spec Draft').closest('[role="button"]')
@@ -176,7 +202,7 @@ describe('Sidebar keyboard navigation basic', () => {
 
   it('prevents marking spec sessions as reviewed', async () => {
     // Mock console.warn to verify it's called for spec sessions
-    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const consoleWarnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {})
 
     // Mock sessions with a spec session
     const sessions = [
@@ -205,7 +231,7 @@ describe('Sidebar keyboard navigation basic', () => {
       return undefined
     })
 
-    render(<TestProviders><Sidebar /></TestProviders>)
+    await renderSidebar()
 
     await waitFor(() => {
       expect(screen.getByText('spec-session')).toBeInTheDocument()
@@ -215,7 +241,7 @@ describe('Sidebar keyboard navigation basic', () => {
     // Select the spec session
     const specButton = screen.getByText('spec-session').closest('[role="button"]') as HTMLElement | null
     if (specButton) {
-      specButton.click()
+      await click(specButton)
     }
 
     // Wait for selection to be updated
@@ -240,7 +266,7 @@ describe('Sidebar keyboard navigation basic', () => {
     // Now select the running session
     const runningButton = screen.getByText('running-session').closest('[role="button"]') as HTMLElement | null
     if (runningButton) {
-      runningButton.click()
+      await click(runningButton)
     }
 
     // Wait for selection to be updated
@@ -294,7 +320,7 @@ describe('Sidebar keyboard navigation basic', () => {
       return undefined
     })
 
-    render(<TestProviders><Sidebar /></TestProviders>)
+    await renderSidebar()
 
     await waitFor(() => {
       expect(screen.getByText('spec-session')).toBeInTheDocument()
@@ -304,7 +330,7 @@ describe('Sidebar keyboard navigation basic', () => {
     // Select the spec session
     const specButton = screen.getByText('spec-session').closest('[role="button"]') as HTMLElement | null
     if (specButton) {
-      specButton.click()
+      await click(specButton)
     }
 
     // Wait for selection to be updated
@@ -324,7 +350,7 @@ describe('Sidebar keyboard navigation basic', () => {
     // Now select the running session
     const runningButton = screen.getByText('running-session').closest('[role="button"]') as HTMLElement | null
     if (runningButton) {
-      runningButton.click()
+      await click(runningButton)
     }
 
     // Wait for selection to be updated

@@ -6,10 +6,19 @@ import { describe, test, expect, vi, beforeEach } from 'vitest'
 import type { MockedFunction } from 'vitest'
 import { useState } from 'react'
 import { FALLBACK_CODEX_MODELS } from '../../common/codexModels'
+import { logger } from '../../utils/logger'
 
 // Mock Tauri
 vi.mock('@tauri-apps/api/core', () => ({
     invoke: vi.fn()
+}))
+vi.mock('../../utils/logger', () => ({
+    logger: {
+        error: vi.fn(),
+        warn: vi.fn(),
+        info: vi.fn(),
+        debug: vi.fn()
+    }
 }))
 
 // Mock useClaudeSession hook
@@ -427,7 +436,7 @@ describe('SessionConfigurationPanel', () => {
             return Promise.resolve()
         })
 
-        const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+        const consoleSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {})
         
         render(
             <SessionConfigurationPanel 

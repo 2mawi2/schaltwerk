@@ -2,10 +2,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { TauriCommands } from '../common/tauriCommands'
 import { renderHook, act } from '@testing-library/react'
 import { useSessionPrefill, extractSessionContent, SessionPrefillData } from './useSessionPrefill'
+import { logger } from '../utils/logger'
 
-// Mock the Tauri API
+// Mock the Tauri API and logger
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
+}))
+vi.mock('../utils/logger', () => ({
+  logger: {
+    warn: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn(),
+  },
 }))
 
 import { invoke } from '@tauri-apps/api/core'
@@ -141,8 +150,7 @@ describe('useSessionPrefill', () => {
     it('handles fetch errors gracefully', async () => {
       const error = new Error('Failed to fetch session')
       vi.mocked(invoke).mockRejectedValue(error)
-
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const errorSpy = vi.spyOn(logger, 'error').mockImplementation(() => {})
 
       const { result } = renderHook(() => useSessionPrefill())
 
@@ -154,9 +162,9 @@ describe('useSessionPrefill', () => {
       expect(prefillData).toBeNull()
       expect(result.current.error).toBe('Failed to fetch session')
       expect(result.current.isLoading).toBe(false)
-      expect(consoleSpy).toHaveBeenCalledWith('[useSessionPrefill] Failed to fetch session for prefill:', 'Failed to fetch session')
+      expect(errorSpy).toHaveBeenCalledWith('[useSessionPrefill] Failed to fetch session for prefill:', 'Failed to fetch session')
 
-      consoleSpy.mockRestore()
+      errorSpy.mockRestore()
     })
 
     it('sets loading state during fetch', async () => {
