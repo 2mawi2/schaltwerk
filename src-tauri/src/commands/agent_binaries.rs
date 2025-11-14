@@ -7,24 +7,30 @@ use schaltwerk::services::AgentBinaryConfig;
 pub async fn detect_agent_binaries(agent_name: String) -> Result<Vec<DetectedBinary>, String> {
     info!("Detecting binaries for agent: {agent_name}");
 
-    let detected_binaries = BinaryDetector::detect_agent_binaries(&agent_name);
-
-    // Save the detected binaries to settings
     let settings_manager = SETTINGS_MANAGER
         .get()
         .ok_or_else(|| "Settings manager not initialized".to_string())?;
-    let mut settings = settings_manager.lock().await;
+    let existing_custom_path = {
+        let settings = settings_manager.lock().await;
+        settings
+            .get_agent_binary_config(&agent_name)
+            .and_then(|c| c.custom_path)
+    };
+
+    // Run detection outside the mutex so startup-critical paths are not blocked.
+    let detected_binaries = BinaryDetector::detect_agent_binaries(&agent_name);
 
     let config = AgentBinaryConfig {
         agent_name: agent_name.clone(),
-        custom_path: settings
-            .get_agent_binary_config(&agent_name)
-            .and_then(|c| c.custom_path),
+        custom_path: existing_custom_path,
         auto_detect: true,
         detected_binaries: detected_binaries.clone(),
     };
 
-    settings.set_agent_binary_config(config)?;
+    {
+        let mut settings = settings_manager.lock().await;
+        settings.set_agent_binary_config(config)?;
+    }
 
     Ok(detected_binaries)
 }
@@ -36,12 +42,15 @@ pub async fn get_agent_binary_config(agent_name: String) -> Result<AgentBinaryCo
     let settings_manager = SETTINGS_MANAGER
         .get()
         .ok_or_else(|| "Settings manager not initialized".to_string())?;
-    let settings = settings_manager.lock().await;
+    let existing_config = {
+        let settings = settings_manager.lock().await;
+        settings.get_agent_binary_config(&agent_name)
+    };
 
-    if let Some(config) = settings.get_agent_binary_config(&agent_name) {
+    if let Some(config) = existing_config {
         Ok(config)
     } else {
-        // Create default config with detection
+        // Create default config with detection (without mutating settings).
         let detected_binaries = BinaryDetector::detect_agent_binaries(&agent_name);
         Ok(AgentBinaryConfig {
             agent_name,
@@ -105,12 +114,15 @@ pub async fn set_agent_binary_path(agent_name: String, path: Option<String>) -> 
     let settings_manager = SETTINGS_MANAGER
         .get()
         .ok_or_else(|| "Settings manager not initialized".to_string())?;
-    let mut settings = settings_manager.lock().await;
 
-    let existing_config = settings.get_agent_binary_config(&agent_name);
-    let detected_binaries = existing_config
-        .as_ref()
-        .map(|c| c.detected_binaries.clone())
+    let existing_detected = {
+        let settings = settings_manager.lock().await;
+        settings
+            .get_agent_binary_config(&agent_name)
+            .map(|c| c.detected_binaries.clone())
+    };
+
+    let detected_binaries = existing_detected
         .unwrap_or_else(|| BinaryDetector::detect_agent_binaries(&agent_name));
 
     let config = AgentBinaryConfig {
@@ -120,6 +132,7 @@ pub async fn set_agent_binary_path(agent_name: String, path: Option<String>) -> 
         detected_binaries,
     };
 
+    let mut settings = settings_manager.lock().await;
     settings.set_agent_binary_config(config)
 }
 
@@ -166,14 +179,18 @@ pub async fn get_all_agent_binary_configs() -> Result<Vec<AgentBinaryConfig>, St
     let settings_manager = SETTINGS_MANAGER
         .get()
         .ok_or_else(|| "Settings manager not initialized".to_string())?;
-    let mut settings = settings_manager.lock().await;
 
     let known_agents: Vec<String> =
         schaltwerk::domains::agents::manifest::AgentManifest::supported_agents();
     let mut configs = Vec::new();
 
     for agent in known_agents {
-        if let Some(config) = settings.get_agent_binary_config(&agent) {
+        let existing_config = {
+            let settings = settings_manager.lock().await;
+            settings.get_agent_binary_config(&agent)
+        };
+
+        if let Some(config) = existing_config {
             configs.push(config);
         } else {
             let detected_binaries = BinaryDetector::detect_agent_binaries(&agent);
@@ -184,9 +201,13 @@ pub async fn get_all_agent_binary_configs() -> Result<Vec<AgentBinaryConfig>, St
                 detected_binaries,
             };
 
-            if let Err(e) = settings.set_agent_binary_config(config.clone()) {
-                log::warn!("Failed to save binary config for {agent}: {e}");
+            {
+                let mut settings = settings_manager.lock().await;
+                if let Err(e) = settings.set_agent_binary_config(config.clone()) {
+                    log::warn!("Failed to save binary config for {agent}: {e}");
+                }
             }
+
             configs.push(config);
         }
     }
@@ -201,17 +222,20 @@ pub async fn detect_all_agent_binaries() -> Result<Vec<AgentBinaryConfig>, Strin
     let settings_manager = SETTINGS_MANAGER
         .get()
         .ok_or_else(|| "Settings manager not initialized".to_string())?;
-    let mut settings = settings_manager.lock().await;
 
     let known_agents: Vec<String> =
         schaltwerk::domains::agents::manifest::AgentManifest::supported_agents();
     let mut configs = Vec::new();
 
     for agent in known_agents {
-        let detected_binaries = BinaryDetector::detect_agent_binaries(&agent);
+        let custom_path = {
+            let settings = settings_manager.lock().await;
+            settings
+                .get_agent_binary_config(&agent)
+                .and_then(|c| c.custom_path)
+        };
 
-        let existing_config = settings.get_agent_binary_config(&agent);
-        let custom_path = existing_config.and_then(|c| c.custom_path);
+        let detected_binaries = BinaryDetector::detect_agent_binaries(&agent);
 
         let config = AgentBinaryConfig {
             agent_name: agent.to_string(),
@@ -220,9 +244,13 @@ pub async fn detect_all_agent_binaries() -> Result<Vec<AgentBinaryConfig>, Strin
             detected_binaries,
         };
 
-        if let Err(e) = settings.set_agent_binary_config(config.clone()) {
-            log::warn!("Failed to save binary config for {agent}: {e}");
+        {
+            let mut settings = settings_manager.lock().await;
+            if let Err(e) = settings.set_agent_binary_config(config.clone()) {
+                log::warn!("Failed to save binary config for {agent}: {e}");
+            }
         }
+
         configs.push(config);
     }
 
@@ -238,12 +266,15 @@ pub async fn refresh_agent_binary_detection(
     let settings_manager = SETTINGS_MANAGER
         .get()
         .ok_or_else(|| "Settings manager not initialized".to_string())?;
-    let mut settings = settings_manager.lock().await;
+
+    let custom_path = {
+        let settings = settings_manager.lock().await;
+        settings
+            .get_agent_binary_config(&agent_name)
+            .and_then(|c| c.custom_path)
+    };
 
     let detected_binaries = BinaryDetector::detect_agent_binaries(&agent_name);
-
-    let existing_config = settings.get_agent_binary_config(&agent_name);
-    let custom_path = existing_config.and_then(|c| c.custom_path);
 
     let config = AgentBinaryConfig {
         agent_name,
@@ -252,7 +283,10 @@ pub async fn refresh_agent_binary_detection(
         detected_binaries,
     };
 
-    settings.set_agent_binary_config(config.clone())?;
+    {
+        let mut settings = settings_manager.lock().await;
+        settings.set_agent_binary_config(config.clone())?;
+    }
 
     Ok(config)
 }
