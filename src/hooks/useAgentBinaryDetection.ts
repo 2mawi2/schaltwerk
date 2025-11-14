@@ -66,6 +66,9 @@ const DEFAULT_CONFIGS: Record<string, AgentBinaryConfig> = {
 const configCache = new Map<AgentType, { config: AgentBinaryConfig; timestamp: number }>()
 const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
 
+let sharedBinaryLoadPromise: Promise<void> | null = null
+let latestBinaryConfigs: Record<string, AgentBinaryConfig> | null = null
+
 export function useAgentBinaryDetection(options: UseAgentBinaryDetectionOptions = {}) {
     const { autoLoad = true, cacheResults = true } = options
     const [binaryConfigs, setBinaryConfigs] = useState<Record<string, AgentBinaryConfig>>(DEFAULT_CONFIGS)
@@ -91,29 +94,57 @@ export function useAgentBinaryDetection(options: UseAgentBinaryDetectionOptions 
 
     // Load all binary configurations
     const loadAllBinaryConfigs = useCallback(async () => {
-        try {
-            setLoading(true)
+        if (!sharedBinaryLoadPromise && latestBinaryConfigs) {
+            setBinaryConfigs(latestBinaryConfigs)
             setError(null)
-
-            const configs = await invoke<AgentBinaryConfig[]>(TauriCommands.GetAllAgentBinaryConfigs)
-
-            const configMap: Record<string, AgentBinaryConfig> = { ...DEFAULT_CONFIGS }
-
-            configs.forEach(config => {
-                const agentType = config.agent_name as AgentType
-                configMap[agentType] = config
-                if (agentType !== 'terminal') {
-                    setCachedConfig(agentType, config)
-                }
-            })
-
-            setBinaryConfigs(configMap)
-        } catch (err) {
-            logger.error('Failed to load binary configurations:', err)
-            setError(String(err))
-        } finally {
-            setLoading(false)
+            return
         }
+
+        if (sharedBinaryLoadPromise) {
+            setLoading(true)
+            try {
+                await sharedBinaryLoadPromise
+                if (latestBinaryConfigs) {
+                    setBinaryConfigs(latestBinaryConfigs)
+                    setError(null)
+                }
+            } finally {
+                setLoading(false)
+            }
+            return
+        }
+
+        const runLoad = async () => {
+            try {
+                setLoading(true)
+                setError(null)
+
+                const configs = await invoke<AgentBinaryConfig[]>(TauriCommands.GetAllAgentBinaryConfigs)
+
+                const configMap: Record<string, AgentBinaryConfig> = { ...DEFAULT_CONFIGS }
+
+                configs.forEach(config => {
+                    const agentType = config.agent_name as AgentType
+                    configMap[agentType] = config
+                    if (agentType !== 'terminal') {
+                        setCachedConfig(agentType, config)
+                    }
+                })
+
+                latestBinaryConfigs = configMap
+                setBinaryConfigs(configMap)
+            } catch (err) {
+                logger.error('Failed to load binary configurations:', err)
+                setError(String(err))
+                latestBinaryConfigs = null
+            } finally {
+                setLoading(false)
+                sharedBinaryLoadPromise = null
+            }
+        }
+
+        sharedBinaryLoadPromise = runLoad()
+        await sharedBinaryLoadPromise
     }, [setCachedConfig])
 
     // Get config for a specific agent
@@ -247,6 +278,7 @@ export function useAgentBinaryDetection(options: UseAgentBinaryDetectionOptions 
     // Clear cache
     const clearCache = useCallback(() => {
         configCache.clear()
+        latestBinaryConfigs = null
         if (autoLoad) {
             loadAllBinaryConfigs()
         }
