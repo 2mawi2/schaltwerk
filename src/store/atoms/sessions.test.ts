@@ -63,6 +63,7 @@ vi.mock('../../common/eventSystem', () => ({
     }),
     SchaltEvent: {
         SessionsRefreshed: 'schaltwerk:sessions-refreshed',
+        SessionAdded: 'schaltwerk:session-added',
         GitOperationStarted: 'schaltwerk:git-operation-started',
         GitOperationCompleted: 'schaltwerk:git-operation-completed',
         GitOperationFailed: 'schaltwerk:git-operation-failed',
@@ -961,5 +962,75 @@ describe('sessions atoms', () => {
 
         expect(releaseSessionTerminals).not.toHaveBeenCalledWith('first-session')
         expect(releaseSessionTerminals).not.toHaveBeenCalledWith('second-session')
+    })
+
+    it('does not restart existing running sessions when SessionsRefreshed fires after SessionAdded', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+
+        vi.mocked(invoke).mockImplementation(async (cmd) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
+                return [
+                    createSession({ session_id: 'session-a', status: 'active', session_state: 'running' }),
+                ]
+            }
+            if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) {
+                return []
+            }
+            if (cmd === TauriCommands.SchaltwerkCoreGetSession) {
+                return {
+                    name: 'session-b',
+                    branch: 'schaltwerk/session-b',
+                    worktree_path: '/tmp/session-b',
+                }
+            }
+            return undefined
+        })
+
+        store.set(projectPathAtom, '/project')
+        await store.set(initializeSessionsEventsActionAtom)
+        await store.set(refreshSessionsActionAtom)
+
+        expect(store.get(allSessionsAtom)).toHaveLength(1)
+        expect(store.get(allSessionsAtom)[0]?.info.session_id).toBe('session-a')
+
+        vi.mocked(startSessionTop).mockClear()
+
+        listeners['schaltwerk:session-added']?.({
+            session_name: 'session-b',
+            created_at: '2024-01-01T00:05:00.000Z',
+            last_modified: '2024-01-01T00:05:00.000Z',
+        })
+
+        await vi.waitFor(() => {
+            expect(store.get(allSessionsAtom)).toHaveLength(2)
+        })
+
+        const sessionBStartCalls = vi.mocked(startSessionTop).mock.calls.filter(
+            call => call[0]?.sessionName === 'session-b'
+        )
+        expect(sessionBStartCalls).toHaveLength(1)
+
+        vi.mocked(startSessionTop).mockClear()
+
+        emitSessionsRefreshed([
+            createSession({ session_id: 'session-a', status: 'active', session_state: 'running' }),
+            createSession({ session_id: 'session-b', status: 'active', session_state: 'running' }),
+        ])
+
+        await vi.waitFor(() => {
+            const allSessions = store.get(allSessionsAtom)
+            expect(allSessions.some(s => s.info.session_id === 'session-a')).toBe(true)
+            expect(allSessions.some(s => s.info.session_id === 'session-b')).toBe(true)
+        })
+
+        const sessionARestartCalls = vi.mocked(startSessionTop).mock.calls.filter(
+            call => call[0]?.sessionName === 'session-a'
+        )
+        expect(sessionARestartCalls).toHaveLength(0)
+
+        const sessionBRestartCalls = vi.mocked(startSessionTop).mock.calls.filter(
+            call => call[0]?.sessionName === 'session-b'
+        )
+        expect(sessionBRestartCalls).toHaveLength(0)
     })
 })

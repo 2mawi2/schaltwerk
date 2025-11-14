@@ -379,10 +379,19 @@ function autoStartRunningSessions(
             continue
         }
 
-        const wasRunning = previousStates.get(sessionId) === SessionState.Running
+        const previousState = previousStates.get(sessionId)
+        const wasRunning = previousState === SessionState.Running
         if (wasRunning) {
             logger.debug(`[AGENT_LAUNCH_TRACE] autoStartRunningSessions - skipping ${sessionId}: was already running`)
             continue
+        }
+
+        if (previousState === undefined && nextState === SessionState.Running) {
+            logger.warn(`[AGENT_LAUNCH_TRACE] autoStartRunningSessions - session ${sessionId} not in previousStates but is Running; checking inflights`)
+            if (hasBackgroundStart(topId) || hasInflight(topId)) {
+                logger.info(`[AGENT_LAUNCH_TRACE] autoStartRunningSessions - skipping ${sessionId}; has background/inflight mark (avoiding duplicate start)`)
+                continue
+            }
         }
 
         if (hasBackgroundStart(topId) || hasInflight(topId)) {
@@ -475,6 +484,7 @@ function applySessionsSnapshot(
 
     const stateMap = buildStateMap(deduped)
     previousSessionStates = stateMap
+    previousSessionsSnapshot = deduped
 
     if (projectPath) {
         projectSessionsSnapshotCache.set(projectPath, deduped)
@@ -1320,6 +1330,7 @@ export const initializeSessionsEventsActionAtom = atom(
                     reason: 'session-added',
                     previousStates: previousStatesSnapshot,
                 })
+                syncSnapshotsFromAtom(get)
             }
         })
 
