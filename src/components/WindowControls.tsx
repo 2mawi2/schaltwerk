@@ -1,6 +1,7 @@
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { VscChromeMinimize, VscChromeMaximize, VscChromeClose } from 'react-icons/vsc'
 import { useState, useEffect } from 'react'
+import { logger } from '../utils/logger'
 
 export function WindowControls() {
   const [isMaximized, setIsMaximized] = useState(false)
@@ -12,15 +13,33 @@ export function WindowControls() {
       setIsMaximized(maximized)
     }
 
-    checkMaximized()
+    void checkMaximized()
 
-    // Listen for window resize events
-    const unlisten = getCurrentWindow().onResized(() => {
-      checkMaximized()
-    })
+    let unlistenPromise: Promise<() => void> | null = null
+    try {
+      unlistenPromise = getCurrentWindow().onResized(() => {
+        void checkMaximized()
+      })
+    } catch (error) {
+      logger.debug('[WindowControls] Failed to listen for resize events', error)
+    }
 
     return () => {
-      unlisten.then(fn => fn())
+      if (!unlistenPromise) return
+      unlistenPromise
+        .then(fn => {
+          try {
+            const result = fn()
+            void Promise.resolve(result).catch(error => {
+              logger.debug('[WindowControls] Failed to remove resize listener (async):', error)
+            })
+          } catch (error) {
+            logger.debug('[WindowControls] Failed to remove resize listener:', error)
+          }
+        })
+        .catch(error => {
+          logger.debug('[WindowControls] Failed to resolve resize listener unsubscriber:', error)
+        })
     }
   }, [])
 
