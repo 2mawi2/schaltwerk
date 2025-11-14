@@ -188,6 +188,7 @@ pub struct ProjectGithubConfig {
 pub trait ProjectConfigMethods {
     fn get_project_setup_script(&self, repo_path: &Path) -> Result<Option<String>>;
     fn set_project_setup_script(&self, repo_path: &Path, setup_script: &str) -> Result<()>;
+    fn clear_project_setup_script(&self, repo_path: &Path) -> Result<()>;
     fn get_project_sessions_settings(&self, repo_path: &Path) -> Result<ProjectSessionsSettings>;
     fn set_project_sessions_settings(
         &self,
@@ -280,6 +281,19 @@ impl ProjectConfigMethods for Database {
                     setup_script = excluded.setup_script,
                     updated_at = excluded.updated_at",
             params![canonical_path.to_string_lossy(), setup_script, now, now],
+        )?;
+
+        Ok(())
+    }
+
+    fn clear_project_setup_script(&self, repo_path: &Path) -> Result<()> {
+        let conn = self.get_conn()?;
+        let canonical_path =
+            std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
+
+        conn.execute(
+            "UPDATE project_config SET setup_script = NULL WHERE repository_path = ?1",
+            params![canonical_path.to_string_lossy()],
         )?;
 
         Ok(())

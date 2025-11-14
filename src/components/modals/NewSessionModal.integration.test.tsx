@@ -197,8 +197,8 @@ function defaultInvokeHandler(command: string, args?: unknown) {
                         description: 'Cheaper, faster variant',
                         defaultReasoning: 'medium',
                         reasoningOptions: [
-                            { id: 'low', label: 'Low', description: 'Low effort' },
-                            { id: 'medium', label: 'Medium', description: 'Balanced' }
+                            { id: 'medium', label: 'Medium', description: 'Balanced' },
+                            { id: 'high', label: 'High', description: 'Deep reasoning' }
                         ],
                         isDefault: false
                     },
