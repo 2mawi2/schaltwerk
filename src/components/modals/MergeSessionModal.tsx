@@ -92,6 +92,15 @@ export function MergeSessionModal({
     focusCommitMessage()
   }, [open, mode, focusCommitMessage])
 
+  useLayoutEffect(() => {
+    if (!open) {
+      return
+    }
+    if (status === 'ready') {
+      focusCommitMessage()
+    }
+  }, [open, status, focusCommitMessage])
+
   useEffect(() => {
     if (!open) {
       return
