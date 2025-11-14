@@ -63,7 +63,7 @@ fn resolve_node_command_path() -> Option<PathBuf> {
 // Client-specific configuration logic (Claude, Codex)
 mod client {
     use super::*;
-    use schaltwerk::binary_detector::BinaryDetector;
+    use crate::commands::agent_binaries::detect_agent_binaries_nonblocking;
     use schaltwerk::services::AgentBinaryConfig;
     use schaltwerk::utils::binary_utils::DetectedBinary;
     use std::collections::HashSet;
@@ -173,11 +173,20 @@ mod client {
         }
     }
 
-    fn resolve_cli_path_from_sources(
+    async fn resolve_cli_path_from_sources(
         client: McpClient,
         config: Option<AgentBinaryConfig>,
     ) -> Option<PathBuf> {
-        let detected = BinaryDetector::detect_agent_binaries(client.as_str());
+        let detected = match detect_agent_binaries_nonblocking(client.as_str()).await {
+            Ok(result) => result,
+            Err(err) => {
+                log::warn!(
+                    "Binary detection failed for {} during MCP setup: {err}",
+                    client.as_str()
+                );
+                Vec::new()
+            }
+        };
 
         if let Some(path) = select_cli_path(config, &detected) {
             return Some(path);
@@ -188,7 +197,7 @@ mod client {
 
     pub async fn resolve_cli_path(client: McpClient) -> Option<PathBuf> {
         let config = load_agent_binary_config(client).await;
-        resolve_cli_path_from_sources(client, config)
+        resolve_cli_path_from_sources(client, config).await
     }
 
     #[cfg(test)]

@@ -2,6 +2,18 @@ use crate::SETTINGS_MANAGER;
 use log::{debug, info};
 use schaltwerk::binary_detector::{BinaryDetector, DetectedBinary};
 use schaltwerk::services::AgentBinaryConfig;
+use tauri::async_runtime::spawn_blocking;
+
+pub async fn detect_agent_binaries_nonblocking(
+    agent_name: &str,
+) -> Result<Vec<DetectedBinary>, String> {
+    let name = agent_name.to_string();
+    spawn_blocking(move || BinaryDetector::detect_agent_binaries(&name))
+        .await
+        .map_err(|err| {
+            format!("Binary detection task failed for {agent_name}: {err}")
+        })
+}
 
 #[tauri::command]
 pub async fn detect_agent_binaries(agent_name: String) -> Result<Vec<DetectedBinary>, String> {
@@ -18,7 +30,7 @@ pub async fn detect_agent_binaries(agent_name: String) -> Result<Vec<DetectedBin
     };
 
     // Run detection outside the mutex so startup-critical paths are not blocked.
-    let detected_binaries = BinaryDetector::detect_agent_binaries(&agent_name);
+    let detected_binaries = detect_agent_binaries_nonblocking(&agent_name).await?;
 
     let config = AgentBinaryConfig {
         agent_name: agent_name.clone(),
@@ -51,7 +63,7 @@ pub async fn get_agent_binary_config(agent_name: String) -> Result<AgentBinaryCo
         Ok(config)
     } else {
         // Create default config with detection (without mutating settings).
-        let detected_binaries = BinaryDetector::detect_agent_binaries(&agent_name);
+        let detected_binaries = detect_agent_binaries_nonblocking(&agent_name).await?;
         Ok(AgentBinaryConfig {
             agent_name,
             custom_path: None,
@@ -122,8 +134,11 @@ pub async fn set_agent_binary_path(agent_name: String, path: Option<String>) -> 
             .map(|c| c.detected_binaries.clone())
     };
 
-    let detected_binaries = existing_detected
-        .unwrap_or_else(|| BinaryDetector::detect_agent_binaries(&agent_name));
+    let detected_binaries = if let Some(list) = existing_detected {
+        list
+    } else {
+        detect_agent_binaries_nonblocking(&agent_name).await?
+    };
 
     let config = AgentBinaryConfig {
         agent_name,
@@ -193,7 +208,7 @@ pub async fn get_all_agent_binary_configs() -> Result<Vec<AgentBinaryConfig>, St
         if let Some(config) = existing_config {
             configs.push(config);
         } else {
-            let detected_binaries = BinaryDetector::detect_agent_binaries(&agent);
+            let detected_binaries = detect_agent_binaries_nonblocking(&agent).await?;
             let config = AgentBinaryConfig {
                 agent_name: agent.to_string(),
                 custom_path: None,
@@ -235,7 +250,7 @@ pub async fn detect_all_agent_binaries() -> Result<Vec<AgentBinaryConfig>, Strin
                 .and_then(|c| c.custom_path)
         };
 
-        let detected_binaries = BinaryDetector::detect_agent_binaries(&agent);
+        let detected_binaries = detect_agent_binaries_nonblocking(&agent).await?;
 
         let config = AgentBinaryConfig {
             agent_name: agent.to_string(),
@@ -274,7 +289,7 @@ pub async fn refresh_agent_binary_detection(
             .and_then(|c| c.custom_path)
     };
 
-    let detected_binaries = BinaryDetector::detect_agent_binaries(&agent_name);
+    let detected_binaries = detect_agent_binaries_nonblocking(&agent_name).await?;
 
     let config = AgentBinaryConfig {
         agent_name,

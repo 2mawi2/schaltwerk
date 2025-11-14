@@ -59,7 +59,7 @@ describe('WindowControls', () => {
       expect(mockWindow.isMaximized).toHaveBeenCalled()
     })
 
-    const maximizeBtn = screen.getByTestId('window-maximize')
+    const maximizeBtn = await screen.findByLabelText('Restore window')
     fireEvent.click(maximizeBtn)
 
     await waitFor(() => {
