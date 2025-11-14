@@ -1153,10 +1153,18 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             <div className="h-8 px-3 border-b border-slate-800 text-xs flex items-center text-slate-300">Repository (Orchestrator)</div>
 
             <div className="px-2 pt-2">
-                <button
-                    onClick={handleSelectOrchestrator}
+                <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => { void handleSelectOrchestrator() }}
+                    onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            void handleSelectOrchestrator()
+                        }
+                    }}
                     className={clsx(
-                        'w-full text-left px-3 py-2 rounded-md mb-1 group border transition-all duration-300',
+                        'w-full text-left px-3 py-2 rounded-md mb-1 group border transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500/70 focus-visible:ring-offset-slate-900',
                         selection.kind === 'orchestrator'
                             ? 'bg-slate-800/60 session-ring session-ring-blue border-transparent'
                             : 'hover:bg-slate-800/30 border-slate-800',
@@ -1164,6 +1172,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                             'ring-2 ring-pink-500/50 shadow-lg shadow-pink-500/20 bg-pink-950/20'
                     )}
                     aria-label="Select orchestrator (⌘1)"
+                    aria-pressed={selection.kind === 'orchestrator'}
                     data-onboarding="orchestrator-entry"
                 >
                     <div className="flex items-center justify-between">
@@ -1210,7 +1219,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                         </div>
                     </div>
                     <div className="text-xs text-slate-500">Original repository from which agents are created</div>
-                </button>
+                </div>
             </div>
 
             <div
