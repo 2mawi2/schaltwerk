@@ -176,7 +176,7 @@ describe('Reviewed session cancellation focus preservation', () => {
 
     // Should fall back to orchestrator since current selection is no longer valid
     await waitFor(() => {
-      const orchestratorButton = screen.getByText('orchestrator').closest('button')
+      const orchestratorButton = screen.getByText('orchestrator').closest('[role="button"]')
       expect(orchestratorButton).toHaveClass('session-ring-blue')
     })
   })
@@ -432,7 +432,7 @@ describe('Reviewed session cancellation focus preservation', () => {
 
     // Should fall back to orchestrator
     await waitFor(() => {
-      const orchestratorButton = screen.getByText('orchestrator').closest('button')
+      const orchestratorButton = screen.getByText('orchestrator').closest('[role="button"]')
       expect(orchestratorButton).toHaveClass('session-ring-blue')
     })
   })
