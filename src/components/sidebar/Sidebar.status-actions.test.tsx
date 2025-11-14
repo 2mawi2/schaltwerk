@@ -140,21 +140,21 @@ describe('Sidebar status indicators and actions', () => {
     render(<TestProviders><Sidebar /></TestProviders>)
 
     await waitFor(() => {
-      expect(screen.getByText('spec-alpha')).toBeInTheDocument()
+      expect(screen.getByText('Spec Alpha')).toBeInTheDocument()
     })
 
-    const specButton = screen.getByText('spec-alpha').closest('[role="button"]') as HTMLElement | null
+    const specButton = screen.getByText('Spec Alpha').closest('[role="button"]') as HTMLElement | null
     expect(specButton).toBeTruthy()
     fireEvent.click(specButton!)
 
     await waitFor(() => {
-      const selected = screen.getByText('spec-alpha').closest('[role="button"]')
+      const selected = screen.getByText('Spec Alpha').closest('[role="button"]')
       expect(selected?.getAttribute('data-session-selected')).toBe('true')
     })
 
     emitSpy.mockClear()
 
-    const refineButton = within(screen.getByText('spec-alpha').closest('[role="button"]') as HTMLElement)
+    const refineButton = within(screen.getByText('Spec Alpha').closest('[role="button"]') as HTMLElement)
       .getByLabelText(/Refine spec/i)
     fireEvent.click(refineButton)
 

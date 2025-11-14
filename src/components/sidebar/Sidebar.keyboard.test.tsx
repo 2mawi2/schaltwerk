@@ -136,15 +136,15 @@ describe('Sidebar keyboard navigation basic', () => {
     render(<TestProviders><Sidebar /></TestProviders>)
 
     await waitFor(() => {
-      expect(screen.getByText('spec-session')).toBeInTheDocument()
+      expect(screen.getByText('Spec Draft')).toBeInTheDocument()
     })
 
-    const specButton = screen.getByText('spec-session').closest('[role="button"]') as HTMLElement | null
+    const specButton = screen.getByText('Spec Draft').closest('[role="button"]') as HTMLElement | null
     expect(specButton).toBeTruthy()
     specButton?.click()
 
     await waitFor(() => {
-      const selected = screen.getByText('spec-session').closest('[role="button"]')
+      const selected = screen.getByText('Spec Draft').closest('[role="button"]')
       expect(selected?.getAttribute('data-session-selected')).toBe('true')
     })
 
