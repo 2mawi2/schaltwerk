@@ -1,6 +1,6 @@
 use crate::domains::agents::AgentLaunchSpec;
 use crate::shared::terminal_id::{terminal_id_for_session_bottom, terminal_id_for_session_top};
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use chrono::{TimeZone, Utc};
 use log::{info, warn};
 use std::collections::HashMap;
@@ -1373,6 +1373,64 @@ mod service_unified_tests {
     }
 
     #[test]
+    fn session_creation_allows_commit_base_reference() {
+        let (manager, temp_dir) = create_test_session_manager();
+        let repo_root = temp_dir.path().join("repo");
+
+        std::process::Command::new("git")
+            .args(["init"])
+            .current_dir(&repo_root)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.email", "test@example.com"])
+            .current_dir(&repo_root)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.name", "Test User"])
+            .current_dir(&repo_root)
+            .output()
+            .unwrap();
+        std::fs::write(repo_root.join("README.md"), "Initial commit body").unwrap();
+        std::process::Command::new("git")
+            .args(["add", "."])
+            .current_dir(&repo_root)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "-m", "init"])
+            .current_dir(&repo_root)
+            .output()
+            .unwrap();
+
+        let rev = std::process::Command::new("git")
+            .args(["rev-parse", "HEAD"])
+            .current_dir(&repo_root)
+            .output()
+            .unwrap();
+        let commit = String::from_utf8(rev.stdout).unwrap().trim().to_string();
+
+        let params = SessionCreationParams {
+            name: "commit-base",
+            prompt: None,
+            base_branch: Some(&commit),
+            custom_branch: None,
+            was_auto_generated: false,
+            version_group_id: None,
+            version_number: None,
+            agent_type: None,
+            skip_permissions: None,
+        };
+
+        let session = manager
+            .create_session_with_agent(params)
+            .expect("session creation should support commit refs");
+
+        assert_eq!(session.parent_branch, commit);
+    }
+
+    #[test]
     fn session_creation_persists_selected_agent_settings() {
         let (manager, temp_dir) = create_test_session_manager();
         let repo_root = temp_dir.path().join("repo");
@@ -1624,33 +1682,46 @@ pub struct SessionManager {
 
 impl SessionManager {
     fn resolve_parent_branch(&self, requested: Option<&str>) -> Result<String> {
-        if let Some(branch) = requested {
+        let candidate = if let Some(branch) = requested {
             let trimmed = branch.trim();
             if trimmed.is_empty() {
                 log::warn!("Explicit base branch was empty, falling back to branch detection");
+                None
             } else {
                 log::info!("Using explicit base branch '{trimmed}' for session setup");
-                return Ok(trimmed.to_string());
+                Some(trimmed.to_string())
             }
+        } else {
+            None
+        };
+
+        if let Some(candidate) = candidate {
+            return self.normalize_branch_candidate(&candidate);
         }
 
-        match crate::domains::git::repository::get_current_branch(&self.repo_path) {
+        let detected = match crate::domains::git::repository::get_current_branch(&self.repo_path) {
             Ok(current) => {
                 let trimmed = current.trim();
                 if !trimmed.is_empty() {
                     log::info!("Detected current HEAD branch '{trimmed}' for session setup");
-                    return Ok(trimmed.to_string());
+                    Some(trimmed.to_string())
+                } else {
+                    log::warn!("Current HEAD branch is empty, falling back to default branch");
+                    None
                 }
-                log::warn!("Current HEAD branch is empty, falling back to default branch");
             }
             Err(head_err) => {
                 log::warn!(
                     "Failed to detect current HEAD branch for session setup: {head_err}. Falling back to default branch detection."
                 );
+                None
             }
+        };
+
+        if let Some(candidate) = detected {
+            return self.normalize_branch_candidate(&candidate);
         }
 
-        // Fallback to default branch
         let default_branch = crate::domains::git::get_default_branch(&self.repo_path)?;
         let trimmed = default_branch.trim();
         if trimmed.is_empty() {
@@ -1659,7 +1730,39 @@ impl SessionManager {
             ));
         }
         log::info!("Using default branch '{trimmed}' as base branch");
-        Ok(trimmed.to_string())
+        self.normalize_branch_candidate(trimmed)
+    }
+
+    fn normalize_branch_candidate(&self, branch: &str) -> Result<String> {
+        let repo_display = self.repo_path.display();
+        let repo = git2::Repository::open(&self.repo_path).with_context(|| {
+            format!(
+                "Failed to open repository '{repo_display}' while resolving parent branch"
+            )
+        })?;
+        match git::normalize_branch_to_local(&repo, branch) {
+            Ok(local) => Ok(local),
+            Err(err) => {
+                let repo_empty = repo.is_empty().unwrap_or(false);
+                if repo_empty {
+                    log::info!(
+                        "Repository '{repo_display}' has no commits; deferring normalization for base branch '{branch}' until bootstrap completes"
+                    );
+                    return Ok(branch.to_string());
+                }
+
+                if repo.revparse_single(branch).is_ok() {
+                    log::info!(
+                        "Base reference '{branch}' resolves via revspec; continuing without local branch normalization"
+                    );
+                    return Ok(branch.to_string());
+                }
+
+                Err(err.context(format!(
+                    "Unable to map '{branch}' to a local branch in {repo_display}"
+                )))
+            }
+        }
     }
 
     fn ensure_repository_initialized(&self, parent_branch: &str) -> Result<()> {
@@ -1667,19 +1770,17 @@ impl SessionManager {
             git::list_branches(&self.repo_path).unwrap_or_else(|_| Vec::new());
         let repo_was_empty = !git::repository_has_commits(&self.repo_path).unwrap_or(false)
             || existing_branches_list.is_empty();
+        let repo_display = self.repo_path.display();
 
+        let branches_joined = existing_branches_list.join(", ");
         log::info!(
-            "Session bootstrap state before worktree creation: repo_was_empty={}, base_branch='{}', repo='{}', branches=[{}]",
-            repo_was_empty,
-            parent_branch,
-            self.repo_path.display(),
-            existing_branches_list.join(", ")
+            "Session bootstrap state before worktree creation: repo_was_empty={repo_was_empty}, base_branch='{parent_branch}', repo='{repo_display}', branches=[{branches_joined}]"
         );
 
         if repo_was_empty {
+            let initial_commit_message = git::INITIAL_COMMIT_MESSAGE;
             log::info!(
-                "Repository has no commits, creating initial commit: '{}'",
-                git::INITIAL_COMMIT_MESSAGE
+                "Repository has no commits, creating initial commit: '{initial_commit_message}'"
             );
             git::create_initial_commit(&self.repo_path)?;
 

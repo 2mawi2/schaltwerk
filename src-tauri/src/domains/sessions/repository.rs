@@ -7,7 +7,8 @@ use crate::{
 };
 use anyhow::{Result, anyhow};
 use chrono::Utc;
-use log::warn;
+use git2::Repository;
+use log::{debug, warn};
 use std::path::PathBuf;
 
 #[derive(Clone)]
@@ -35,6 +36,73 @@ impl SessionDbManager {
         Ok(())
     }
 
+    fn try_open_repo(&self) -> Option<Repository> {
+        match Repository::open(&self.repo_path) {
+            Ok(repo) => Some(repo),
+            Err(err) => {
+                debug!(
+                    "Skipping parent branch normalization: failed to open repo '{}': {err}",
+                    self.repo_path.display()
+                );
+                None
+            }
+        }
+    }
+
+    fn normalize_parent_branch_with_repo(
+        &self,
+        repo: Option<&Repository>,
+        session: &mut Session,
+    ) {
+        let trimmed = session.parent_branch.trim();
+        if trimmed.is_empty() {
+            return;
+        }
+
+        let Some(repo) = repo else {
+            return;
+        };
+
+        match git::normalize_branch_to_local(repo, trimmed) {
+            Ok(local_branch) => {
+                if local_branch == session.parent_branch {
+                    return;
+                }
+
+                debug!(
+                    "Normalized parent branch for session '{}' from '{}' to '{}'",
+                    session.name, session.parent_branch, local_branch
+                );
+
+                if let Err(err) = self
+                    .db
+                    .update_session_parent_branch(&session.id, &local_branch)
+                {
+                    warn!(
+                        "Failed to persist normalized parent branch '{}' for session '{}': {}",
+                        local_branch, session.name, err
+                    );
+                }
+
+                session.parent_branch = local_branch;
+            }
+            Err(err) => {
+                if repo.revparse_single(trimmed).is_ok() {
+                    debug!(
+                        "Parent branch '{}' for session '{}' resolves via revspec; leaving as-is",
+                        trimmed, session.name
+                    );
+                    return;
+                }
+
+                warn!(
+                    "Unable to normalize parent branch '{}' for session '{}': {}",
+                    trimmed, session.name, err
+                );
+            }
+        }
+    }
+
     pub fn create_session(&self, session: &Session) -> Result<()> {
         self.db
             .create_session(session)
@@ -48,6 +116,8 @@ impl SessionDbManager {
             .map_err(|e| anyhow!("Failed to get session '{name}': {e}"))?;
 
         self.normalize_spec_state(&mut session)?;
+        let repo = self.try_open_repo();
+        self.normalize_parent_branch_with_repo(repo.as_ref(), &mut session);
         Ok(session)
     }
 
@@ -58,13 +128,18 @@ impl SessionDbManager {
             .map_err(|e| anyhow!("Failed to get session with id '{id}': {e}"))?;
 
         self.normalize_spec_state(&mut session)?;
+        let repo = self.try_open_repo();
+        self.normalize_parent_branch_with_repo(repo.as_ref(), &mut session);
         Ok(session)
     }
 
     pub fn list_sessions(&self) -> Result<Vec<Session>> {
         let mut sessions = self.db.list_sessions(&self.repo_path)?;
+        let repo = self.try_open_repo();
+        let repo_ref = repo.as_ref();
         for session in sessions.iter_mut() {
             self.normalize_spec_state(session)?;
+            self.normalize_parent_branch_with_repo(repo_ref, session);
         }
 
         Ok(sessions
@@ -77,8 +152,11 @@ impl SessionDbManager {
         let mut sessions = self
             .db
             .list_sessions_by_state(&self.repo_path, state.clone())?;
+        let repo = self.try_open_repo();
+        let repo_ref = repo.as_ref();
         for session in sessions.iter_mut() {
             self.normalize_spec_state(session)?;
+            self.normalize_parent_branch_with_repo(repo_ref, session);
         }
 
         Ok(sessions

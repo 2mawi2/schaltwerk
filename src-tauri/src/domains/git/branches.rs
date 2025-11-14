@@ -1,7 +1,8 @@
 use super::repository::{get_current_branch, get_unborn_head_branch, repository_has_commits};
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use git2::build::CheckoutBuilder;
 use git2::{BranchType, Repository};
+use std::collections::HashSet;
 use std::path::Path;
 
 pub fn list_branches(repo_path: &Path) -> Result<Vec<String>> {
@@ -153,6 +154,134 @@ fn checkout_branch(repo: &Repository, branch_name: &str) -> Result<()> {
     repo.checkout_head(Some(&mut checkout))
         .map_err(|e| anyhow!("Failed to checkout branch '{branch_name}': {e}"))?;
 
+    Ok(())
+}
+
+pub fn normalize_branch_to_local(repo: &Repository, raw: &str) -> Result<String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err(anyhow!("Branch name cannot be empty"));
+    }
+
+    let remote_names: HashSet<String> = repo
+        .remotes()
+        .map(|remotes| {
+            remotes
+                .iter()
+                .filter_map(|name| name.map(|s| s.to_string()))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let spec = BranchSpec::from_input(trimmed, &remote_names);
+    let local = spec.local.trim();
+    if local.is_empty() {
+        return Err(anyhow!("Branch '{raw}' does not identify a valid local name"));
+    }
+
+    if repo.find_branch(local, BranchType::Local).is_ok() {
+        return Ok(local.to_string());
+    }
+
+    if spec
+        .remote
+        .is_some_and(|remote| materialize_from_remote(repo, local, remote).is_ok())
+    {
+        return Ok(local.to_string());
+    }
+
+    for remote in &remote_names {
+        if materialize_from_remote(repo, local, remote).is_ok() {
+            return Ok(local.to_string());
+        }
+    }
+
+    Err(anyhow!(
+        "Local branch '{local}' missing and no remote reference found while normalizing '{raw}'"
+    ))
+}
+
+struct BranchSpec<'a> {
+    local: &'a str,
+    remote: Option<&'a str>,
+}
+
+impl<'a> BranchSpec<'a> {
+    fn from_input(input: &'a str, remotes: &HashSet<String>) -> Self {
+        if let Some(stripped) = input.strip_prefix("refs/heads/") {
+            return BranchSpec {
+                local: stripped,
+                remote: None,
+            };
+        }
+
+        if let Some(rest) = input.strip_prefix("refs/remotes/") {
+            if let Some((remote, local)) = split_remote_spec(rest) {
+                return BranchSpec {
+                    local,
+                    remote: Some(remote),
+                };
+            }
+            return BranchSpec {
+                local: rest,
+                remote: None,
+            };
+        }
+
+        if let Some(rest) = input.strip_prefix("remotes/") {
+            if let Some((remote, local)) = split_remote_spec(rest) {
+                return BranchSpec {
+                    local,
+                    remote: Some(remote),
+                };
+            }
+            return BranchSpec {
+                local: rest,
+                remote: None,
+            };
+        }
+
+        if let Some((candidate_remote, local)) = split_remote_spec(input)
+            && remotes.contains(candidate_remote)
+        {
+            return BranchSpec {
+                local,
+                remote: Some(candidate_remote),
+            };
+        }
+
+        BranchSpec {
+            local: input,
+            remote: None,
+        }
+    }
+}
+
+fn split_remote_spec(input: &str) -> Option<(&str, &str)> {
+    let (head, tail) = input.split_once('/')?;
+    if head.is_empty() || tail.is_empty() {
+        None
+    } else {
+        Some((head, tail))
+    }
+}
+
+fn materialize_from_remote(repo: &Repository, local: &str, remote: &str) -> Result<()> {
+    let reference_name = format!("refs/remotes/{remote}/{local}");
+    let reference = repo
+        .find_reference(&reference_name)
+        .with_context(|| format!("Remote reference '{reference_name}' missing"))?;
+    let target = reference
+        .target()
+        .ok_or_else(|| anyhow!("Remote reference '{reference_name}' has no target"))?;
+    let commit = repo.find_commit(target).with_context(|| {
+        format!(
+            "Remote reference '{reference_name}' target {target} is not a commit"
+        )
+    })?;
+
+    repo.branch(local, &commit, false)
+        .with_context(|| format!("Failed to create local branch '{local}' from '{reference_name}'"))?;
     Ok(())
 }
 
