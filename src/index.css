@@ -104,14 +104,40 @@ button:disabled {
 .gutter {
   position: relative;
   background: transparent !important;
+  flex: 0 0 auto;
+  z-index: 5;
+  touch-action: none;
 }
 
-.gutter.gutter-horizontal { @apply cursor-col-resize; }
-.gutter.gutter-vertical { @apply cursor-row-resize; }
+.gutter.gutter-horizontal {
+  cursor: col-resize;
+}
 
-/* Centered rounded handle with subtle glow */
-.gutter.gutter-horizontal::before,
-.gutter.gutter-vertical::before {
+.gutter.gutter-vertical {
+  cursor: row-resize;
+}
+
+/* Animated highlight spans the full drag hitbox */
+.gutter::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: linear-gradient(
+    180deg,
+    rgba(var(--color-gray-400-rgb), 0.15),
+    rgba(var(--color-bg-tertiary-rgb), 0.45)
+  );
+  opacity: 0.35;
+  box-shadow:
+    0 0 0 1px rgba(var(--color-gray-500-alt-rgb), 0.25),
+    inset 0 0 0 1px rgba(var(--color-bg-primary-rgb), 0.5);
+  transition: opacity 150ms ease, box-shadow 150ms ease;
+  pointer-events: none;
+}
+
+/* Central pill / hairline indicator */
+.gutter::after {
   content: '';
   position: absolute;
   left: 50%;
@@ -120,49 +146,25 @@ button:disabled {
   border-radius: 9999px;
   background: linear-gradient(180deg, rgba(var(--color-gray-400-rgb), 0.45), rgba(var(--color-gray-400-rgb), 0.25));
   box-shadow:
-    0 0 0 1px rgba(var(--color-gray-400-rgb), 0.15),
-    inset 0 0 0 1px rgba(var(--color-bg-tertiary-rgb), 0.5),
+    0 0 0 1px rgba(var(--color-gray-400-rgb), 0.2),
+    inset 0 0 0 1px rgba(var(--color-bg-tertiary-rgb), 0.55),
     0 6px 12px rgba(var(--color-bg-primary-rgb), 0.45);
-  opacity: 0.7;
+  opacity: 0.75;
   transition: opacity 150ms ease, box-shadow 150ms ease, transform 120ms ease;
-  pointer-events: none; /* ensure dragging works anywhere on the gutter */
-}
-
-.gutter.gutter-horizontal::after,
-.gutter.gutter-vertical::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  background: rgba(var(--color-gray-400-rgb), 0.25);
-  opacity: 0.6;
-  transition: opacity 150ms ease;
   pointer-events: none;
 }
 
-.gutter.gutter-horizontal::after { /* center hairline for vertical gutter */
-  width: 1px;
-  height: 100%;
+.gutter.gutter-horizontal::after {
+  width: 6px;
+  height: 48px;
 }
 
-.gutter.gutter-vertical::after { /* center hairline for horizontal gutter */
-  width: 100%;
-  height: 1px;
+.gutter.gutter-vertical::after {
+  width: 48px;
+  height: 6px;
 }
 
-.gutter:hover::after { opacity: 0.9; }
-
-.gutter.gutter-horizontal::before { /* vertical pill for left/right split */
-  width: 4px;
-  height: 44px;
-}
-
-.gutter.gutter-vertical::before { /* horizontal pill for top/bottom split */
-  width: 44px;
-  height: 4px;
-}
-
+.gutter:hover::after { opacity: 1; }
 /* Ensure Split.js vertical gutter is visually centered between panels */
 .gutter.gutter-vertical {
   display: flex;
@@ -179,7 +181,7 @@ button:disabled {
 }
 
 .gutter:active::before {
-  transform: translate(-50%, -50%) scale(0.96);
+  transform: scale(0.96);
 }
 
 /* Suppress panel transitions during active split drag to avoid trailing artifacts */
@@ -316,8 +318,17 @@ body {
 
 /* Reduce expensive pointer-driven repainting during split drag */
 body.is-split-dragging {
-  cursor: row-resize;
   user-select: none;
+  /* Fallback cursor so resize intent stays visible even if orientation attr is missing */
+  cursor: row-resize;
+}
+
+body.is-split-dragging[data-split-orientation="col"] {
+  cursor: col-resize;
+}
+
+body.is-split-dragging[data-split-orientation="mixed"] {
+  cursor: move;
 }
 
 /* Session frame highlighting (use actual box-shadow on the element for better overflow handling) */

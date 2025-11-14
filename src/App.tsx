@@ -546,14 +546,48 @@ function AppContent() {
     [projectPath, showHome]
   )
 
-  const handleLeftSplitDragEnd = useCallback((nextSizes: number[]) => {
+  const leftSplitDraggingRef = useRef(false)
+
+  const finalizeLeftSplitDrag = useCallback((nextSizes?: number[]) => {
+    if (!leftSplitDraggingRef.current) {
+      return
+    }
+
+    leftSplitDraggingRef.current = false
+    endSplitDrag('app-left-panel')
+
     if (!Array.isArray(nextSizes) || nextSizes.length < 2 || isLeftPanelCollapsed) {
       return
     }
+
     const normalized: [number, number] = [nextSizes[0], nextSizes[1]]
     leftPanelLastExpandedSizesRef.current = normalized
     setLeftPanelSizes(normalized)
   }, [isLeftPanelCollapsed])
+
+  const handleLeftSplitDragStart = useCallback(() => {
+    if (isLeftPanelCollapsed) {
+      return
+    }
+    beginSplitDrag('app-left-panel', { orientation: 'col' })
+    leftSplitDraggingRef.current = true
+  }, [isLeftPanelCollapsed])
+
+  const handleLeftSplitDragEnd = useCallback((nextSizes: number[]) => {
+    finalizeLeftSplitDrag(nextSizes)
+  }, [finalizeLeftSplitDrag])
+
+  useEffect(() => {
+    const handlePointerEnd = () => finalizeLeftSplitDrag()
+    window.addEventListener('pointerup', handlePointerEnd)
+    window.addEventListener('pointercancel', handlePointerEnd)
+    window.addEventListener('blur', handlePointerEnd)
+    return () => {
+      window.removeEventListener('pointerup', handlePointerEnd)
+      window.removeEventListener('pointercancel', handlePointerEnd)
+      window.removeEventListener('blur', handlePointerEnd)
+    }
+  }, [finalizeLeftSplitDrag])
 
   const toggleLeftPanelCollapsed = useCallback(() => {
     if (isLeftPanelCollapsed) {
@@ -607,7 +641,7 @@ function AppContent() {
 
   // Memoized drag handlers for performance (following TerminalGrid pattern)
   const handleRightSplitDragStart = useCallback(() => {
-    beginSplitDrag('app-right-panel')
+    beginSplitDrag('app-right-panel', { orientation: 'col' })
     rightSplitDraggingRef.current = true
     setIsDraggingRightSplit(true)
   }, [])
@@ -1480,7 +1514,8 @@ function AppContent() {
                 className="h-full w-full flex"
                 sizes={isLeftPanelCollapsed ? [0, 100] : leftPanelSizes}
                 minSize={[isLeftPanelCollapsed ? 0 : 240, 400]}
-                gutterSize={isLeftPanelCollapsed ? 0 : 6}
+                gutterSize={isLeftPanelCollapsed ? 0 : 10}
+                onDragStart={handleLeftSplitDragStart}
                 onDragEnd={handleLeftSplitDragEnd}
               >
                 <div className="h-full border-r overflow-y-auto" style={{ backgroundColor: theme.colors.background.secondary, borderRightColor: theme.colors.border.default }} data-testid="sidebar">
@@ -1582,7 +1617,7 @@ function AppContent() {
                       className="h-full w-full flex" 
                       sizes={rightSizes} 
                       minSize={[400, 280]} 
-                      gutterSize={8}
+                      gutterSize={12}
                       onDragStart={handleRightSplitDragStart}
                       onDragEnd={handleRightSplitDragEnd}
                     >

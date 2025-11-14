@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { beginSplitDrag, endSplitDrag, isSplitDragActive, resetSplitDragForTests } from '../splitDragCoordinator'
 
 const CLASS_NAME = 'is-split-dragging'
+const ORIENTATION_ATTR = 'data-split-orientation'
 
 describe('splitDragCoordinator', () => {
   beforeEach(() => {
@@ -59,5 +60,19 @@ describe('splitDragCoordinator', () => {
     endSplitDrag('one-off')
 
     expect(document.body.classList.contains(CLASS_NAME)).toBe(false)
+  })
+
+  it('tracks cursor orientation for row and column drags', () => {
+    beginSplitDrag('row-source', { orientation: 'row' })
+    expect(document.body.getAttribute(ORIENTATION_ATTR)).toBe('row')
+
+    beginSplitDrag('col-source', { orientation: 'col' })
+    expect(document.body.getAttribute(ORIENTATION_ATTR)).toBe('mixed')
+
+    endSplitDrag('row-source')
+    expect(document.body.getAttribute(ORIENTATION_ATTR)).toBe('col')
+
+    endSplitDrag('col-source')
+    expect(document.body.getAttribute(ORIENTATION_ATTR)).toBeNull()
   })
 })
