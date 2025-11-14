@@ -1,10 +1,24 @@
 import { listen as tauriListen, UnlistenFn } from '@tauri-apps/api/event'
 import { SchaltEvent, EventPayloadMap } from './events'
+import { logger } from '../utils/logger'
 
 const EVENT_NAME_SAFE_PATTERN = /[^a-zA-Z0-9/:_-]/g
 
 function toEventSafeTerminalId(terminalId: string): string {
   return terminalId.replace(EVENT_NAME_SAFE_PATTERN, '_')
+}
+
+function wrapUnlisten(unlisten: UnlistenFn, label: string): UnlistenFn {
+  return () => {
+    try {
+      const result = unlisten()
+      void Promise.resolve(result).catch(error => {
+        logger.warn(`[eventSystem] Failed to unlisten ${label}`, error)
+      })
+    } catch (error) {
+      logger.warn(`[eventSystem] Failed to unlisten ${label}`, error)
+    }
+  }
 }
 
 // Expose helpers so tests and other modules can reuse the exact event channel naming
@@ -20,7 +34,8 @@ export async function listenEvent<T extends SchaltEvent>(
   event: T,
   handler: (payload: EventPayloadMap[T]) => void | Promise<void>
 ): Promise<UnlistenFn> {
-  return await tauriListen(event, (event) => handler(event.payload as EventPayloadMap[T]))
+  const unlisten = await tauriListen(event, (event) => handler(event.payload as EventPayloadMap[T]))
+  return wrapUnlisten(unlisten, String(event))
 }
 
 
@@ -29,6 +44,6 @@ export async function listenTerminalOutput(
   handler: (payload: string) => void | Promise<void>
 ): Promise<UnlistenFn> {
   const eventName = terminalOutputEventName(terminalId)
-  return await tauriListen(eventName, (event) => handler(event.payload as string))
+  const unlisten = await tauriListen(eventName, (event) => handler(event.payload as string))
+  return wrapUnlisten(unlisten, eventName)
 }
-

@@ -114,7 +114,10 @@ export function useWindowVisibility(): WindowVisibilityState {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       unlistenFns.forEach(unlisten => {
         try {
-          unlisten()
+          const result = unlisten()
+          void Promise.resolve(result).catch(error => {
+            logger.debug('[useWindowVisibility] Failed to remove listener (async):', error)
+          })
         } catch (error) {
           logger.debug('[useWindowVisibility] Failed to remove listener:', error)
         }
