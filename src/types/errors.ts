@@ -83,22 +83,3 @@ export function getErrorMessage(error: unknown): string {
 export function isSessionMissingError(error: unknown): boolean {
   return isSchaltError(error) && error.type === 'SessionNotFound'
 }
-
-export function isSessionAlreadyExistsError(error: unknown): boolean {
-  return isSchaltError(error) && error.type === 'SessionAlreadyExists'
-}
-
-export function isGitOperationError(error: unknown): boolean {
-  return isSchaltError(error) && error.type === 'GitOperationFailed'
-}
-
-export function isMergeConflictError(error: unknown): boolean {
-  return isSchaltError(error) && error.type === 'MergeConflict'
-}
-
-export function isTerminalError(error: unknown): boolean {
-  return (
-    isSchaltError(error) &&
-    (error.type === 'TerminalNotFound' || error.type === 'TerminalOperationFailed')
-  )
-}
