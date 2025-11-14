@@ -108,7 +108,6 @@ describe('Sidebar filter functionality and persistence', () => {
         return text.includes('alpha') || text.includes('bravo') || text.includes('charlie') || text.includes('delta')
       })
       if (sessionButtons.length === 0) {
-        console.warn('Sessions not rendering in initial view - checking filter counts')
         expect(allButton.textContent).toContain('4')
       } else {
         expect(sessionButtons).toHaveLength(4)
@@ -125,7 +124,6 @@ describe('Sidebar filter functionality and persistence', () => {
       // Sessions might not render, but filter counts should be correct
       const sessionButtons = screen.getAllByRole('button').filter(b => (b.textContent || '').includes('para/'))
       if (sessionButtons.length === 0) {
-        console.warn('Spec sessions not rendering - checking filter counts')
         expect(draftsButton.textContent).toContain('2')
       } else {
         // alpha and charlie should be visible as specs
@@ -154,7 +152,6 @@ describe('Sidebar filter functionality and persistence', () => {
         // No sessions rendered - check if "No active agents" is shown (indicates filter UI issue)
         const noTasksText = screen.queryByText('No active agents')
         if (noTasksText) {
-          console.warn('Sessions not rendering in filtered view - UI issue detected')
           // At least verify the filter counts are correct
           expect(reviewedButton.textContent).toContain('2')
           return
@@ -240,7 +237,6 @@ describe('Sidebar filter functionality and persistence', () => {
         return text.includes('alpha') || text.includes('bravo') || text.includes('charlie') || text.includes('delta')
       })
       if (sessionButtons.length === 0) {
-        console.warn('Sessions not rendering in persistence test - checking filter counts')
         expect(allButton.textContent).toContain('4')
       } else {
         expect(sessionButtons).toHaveLength(4)

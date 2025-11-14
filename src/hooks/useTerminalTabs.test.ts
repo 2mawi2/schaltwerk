@@ -4,13 +4,21 @@ import { renderHook, act } from '@testing-library/react'
 import { useTerminalTabs } from './useTerminalTabs'
 import { invoke } from '@tauri-apps/api/core'
 import { MockTauriInvokeArgs } from '../types/testing'
-import { TestProviders } from '../tests/test-utils'
-import { ReactNode, createElement } from 'react'
+import { ReactNode, createElement, Fragment } from 'react'
 import { UiEvent, emitUiEvent } from '../common/uiEvents'
+import { logger } from '../utils/logger'
 
 // Mock the invoke function
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn()
+}))
+vi.mock('../utils/logger', () => ({
+  logger: {
+    error: vi.fn(),
+    warn: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn()
+  }
 }))
 
 vi.mock('../common/terminalSizeCache', () => ({
@@ -51,8 +59,9 @@ describe('useTerminalTabs', () => {
     removeEventSpy?.mockRestore()
   })
 
-  const wrapper = ({ children }: { children: ReactNode }) => createElement(TestProviders, null, children)
-  const renderTabsHook = (props: Parameters<typeof useTerminalTabs>[0]) => renderHook(() => useTerminalTabs(props), { wrapper })
+  const wrapper = ({ children }: { children: ReactNode }) => createElement(Fragment, null, children)
+  const renderTabsHook = (props: Parameters<typeof useTerminalTabs>[0]) =>
+    renderHook<ReturnType<typeof useTerminalTabs>, void>(() => useTerminalTabs(props), { wrapper })
 
   describe('initialization', () => {
     it('creates initial tab with correct structure', () => {
@@ -331,7 +340,7 @@ describe('useTerminalTabs', () => {
         return defaultInvokeImplementation(command, args)
       })
 
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const consoleSpy = vi.spyOn(logger, 'error').mockImplementation(() => {})
 
       const { result } = renderTabsHook({
         baseTerminalId: 'test-exists-fail',
@@ -501,7 +510,7 @@ describe('useTerminalTabs', () => {
         return defaultInvokeImplementation(command, args)
       })
 
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const consoleSpy = vi.spyOn(logger, 'error').mockImplementation(() => {})
 
       const { result } = renderTabsHook({
         baseTerminalId: 'test-add-fail',
@@ -648,7 +657,7 @@ describe('useTerminalTabs', () => {
         return defaultInvokeImplementation(command, args)
       })
 
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const consoleSpy = vi.spyOn(logger, 'error').mockImplementation(() => {})
 
       const { result } = renderTabsHook({
         baseTerminalId: 'test-close-fail',
@@ -802,7 +811,7 @@ describe('useTerminalTabs', () => {
         return defaultInvokeImplementation(command, args)
       })
 
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const consoleSpy = vi.spyOn(logger, 'error').mockImplementation(() => {})
 
       renderTabsHook({
         baseTerminalId: 'test-initial-fail',

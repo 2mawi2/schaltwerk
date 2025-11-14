@@ -206,12 +206,22 @@ vi.mock('./utils/platform', () => ({
   getPlatform: vi.fn().mockResolvedValue('macos'),
 }))
 
-function renderApp() {
-  return render(
-    <TestProviders>
-      <App />
-    </TestProviders>
-  )
+async function renderApp() {
+  let utils: ReturnType<typeof render> | undefined
+  await act(async () => {
+    utils = render(
+      <TestProviders>
+        <App />
+      </TestProviders>
+    )
+  })
+  return utils!
+}
+
+async function clickElement(element: HTMLElement | Element) {
+  await act(async () => {
+    fireEvent.click(element as Element)
+  })
 }
 
 describe('App.tsx', () => {
@@ -236,17 +246,17 @@ describe('App.tsx', () => {
   async function renderProjectAndReturnHome() {
     mockState.isGitRepo = true
 
-    renderApp()
+    await renderApp()
 
     const openButton = screen.getByTestId('open-project')
-    fireEvent.click(openButton)
+    await clickElement(openButton)
 
     await waitFor(() => {
       expect(screen.getByTestId('sidebar-mock')).toBeInTheDocument()
     })
 
     const homeButton = screen.getByLabelText('Home')
-    fireEvent.click(homeButton)
+    await clickElement(homeButton)
 
     expect(screen.getByTestId('home-screen')).toBeInTheDocument()
 
@@ -256,19 +266,19 @@ describe('App.tsx', () => {
   }
 
   it('renders without crashing (shows Home by default)', async () => {
-    renderApp()
+    await renderApp()
     expect(screen.getByTestId('home-screen')).toBeInTheDocument()
   })
 
   it('routes between Home and Main app states', async () => {
-    renderApp()
+    await renderApp()
 
     // Initially Home
     const home = screen.getByTestId('home-screen')
     expect(home).toBeInTheDocument()
 
     // Open a project via HomeScreen prop
-    fireEvent.click(screen.getByTestId('open-project'))
+    await clickElement(screen.getByTestId('open-project'))
 
     // Main layout should appear
     await waitFor(() => {
@@ -279,14 +289,14 @@ describe('App.tsx', () => {
 
     // Click the global Home button to return
     const homeButton = screen.getByLabelText('Home')
-    fireEvent.click(homeButton)
+    await clickElement(homeButton)
 
     expect(screen.getByTestId('home-screen')).toBeInTheDocument()
   })
 
   it('keeps selected tab highlighted while project switch is pending', async () => {
     mockState.isGitRepo = true
-    renderApp()
+    await renderApp()
 
     const firstHomeProps = homeScreenPropsMock.mock.calls.at(-1)?.[0] as
       | { onOpenProject: (path: string) => void }
@@ -302,7 +312,7 @@ describe('App.tsx', () => {
       expect(latestTopBar?.activeTabPath).toBe('/Users/me/project-a')
     })
 
-    fireEvent.click(screen.getByLabelText('Home'))
+    await clickElement(screen.getByLabelText('Home'))
     expect(screen.getByTestId('home-screen')).toBeInTheDocument()
 
     const secondHomeProps = homeScreenPropsMock.mock.calls.at(-1)?.[0] as
@@ -336,7 +346,7 @@ describe('App.tsx', () => {
     })
 
     await act(async () => {
-      fireEvent.click(screen.getByTestId('tab-/Users/me/project-a'))
+      await clickElement(screen.getByTestId('tab-/Users/me/project-a'))
     })
 
     await waitFor(() => {
@@ -361,7 +371,7 @@ describe('App.tsx', () => {
 
   it('allows reverting to the current project while another switch is still initializing', async () => {
     mockState.isGitRepo = true
-    renderApp()
+    await renderApp()
 
     const firstHomeProps = homeScreenPropsMock.mock.calls.at(-1)?.[0] as
       | { onOpenProject: (path: string) => void }
@@ -377,7 +387,7 @@ describe('App.tsx', () => {
       expect(latestTopBar?.activeTabPath).toBe('/Users/me/project-a')
     })
 
-    fireEvent.click(screen.getByLabelText('Home'))
+    await clickElement(screen.getByLabelText('Home'))
     expect(screen.getByTestId('home-screen')).toBeInTheDocument()
 
     const secondHomeProps = homeScreenPropsMock.mock.calls.at(-1)?.[0] as
@@ -410,7 +420,7 @@ describe('App.tsx', () => {
     })
 
     await act(async () => {
-      fireEvent.click(screen.getByTestId('tab-/Users/me/project-a'))
+      await clickElement(screen.getByTestId('tab-/Users/me/project-a'))
     })
     await waitFor(() => {
       const latestTopBar = topBarPropsMock.mock.calls.at(-1)?.[0]
@@ -418,7 +428,7 @@ describe('App.tsx', () => {
     })
 
     await act(async () => {
-      fireEvent.click(screen.getByTestId('tab-/Users/me/project-b'))
+      await clickElement(screen.getByTestId('tab-/Users/me/project-b'))
     })
     await waitFor(() => {
       const latestTopBar = topBarPropsMock.mock.calls.at(-1)?.[0]
@@ -426,7 +436,7 @@ describe('App.tsx', () => {
     })
 
     await act(async () => {
-      fireEvent.click(screen.getByTestId('tab-/Users/me/project-a'))
+      await clickElement(screen.getByTestId('tab-/Users/me/project-a'))
     })
     await waitFor(() => {
       const latestTopBar = topBarPropsMock.mock.calls.at(-1)?.[0]
@@ -455,7 +465,7 @@ describe('App.tsx', () => {
       throw new Error('boom')
     })
 
-    renderApp()
+    await renderApp()
 
     expect(screen.getByTestId('home-screen')).toBeInTheDocument()
   })
@@ -464,7 +474,7 @@ describe('App.tsx', () => {
     const addEventListenerSpy = vi.spyOn(window, 'addEventListener')
     const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener')
 
-    const { unmount } = renderApp()
+    const { unmount } = await renderApp()
     screen.getByTestId('home-screen')
 
     const dragOverHandler = addEventListenerSpy.mock.calls.find(([eventName]) => String(eventName) === 'dragover')?.[1] as EventListener | undefined
@@ -501,7 +511,7 @@ describe('App.tsx', () => {
   })
 
   it('displays tab bar when a project is opened', async () => {
-    renderApp()
+    await renderApp()
 
     // Initially on home screen
     expect(screen.getByTestId('home-screen')).toBeInTheDocument()
@@ -509,7 +519,7 @@ describe('App.tsx', () => {
     // Open a project - the mocked HomeScreen passes '/Users/me/sample-project'
     mockState.isGitRepo = true
     
-    fireEvent.click(screen.getByTestId('open-project'))
+    await clickElement(screen.getByTestId('open-project'))
 
     // Wait for app to switch to main view with increased timeout
     await waitFor(() => {
@@ -597,7 +607,7 @@ describe('App.tsx', () => {
     })
 
     it('handles schaltwerk:start-agent-from-spec event by prefilling new session modal', async () => {
-      renderApp()
+      await renderApp()
 
       // Trigger the spec start event
       emitUiEvent(UiEvent.StartAgentFromSpec, { name: 'test-spec' })
@@ -610,8 +620,8 @@ describe('App.tsx', () => {
       })
     })
 
-    it('sets up event listeners for spec starting functionality', () => {
-      renderApp()
+    it('sets up event listeners for spec starting functionality', async () => {
+      await renderApp()
 
       // Verify the app renders and would have set up the event listeners
       // The actual functionality is tested through integration with the real modal
@@ -620,7 +630,7 @@ describe('App.tsx', () => {
   })
 
   it('opens the Settings modal when the OpenSettings event is emitted', async () => {
-    renderApp()
+    await renderApp()
     settingsModalMock.mockClear()
 
     await act(async () => {
@@ -635,7 +645,7 @@ describe('App.tsx', () => {
   })
 
   it('passes the requested settings tab when handling OpenSettings', async () => {
-    renderApp()
+    await renderApp()
     settingsModalMock.mockClear()
 
     await act(async () => {
@@ -651,7 +661,7 @@ describe('App.tsx', () => {
   })
 
   it('clears the initial settings tab once the modal closes', async () => {
-    renderApp()
+    await renderApp()
     settingsModalMock.mockClear()
 
     await act(async () => {
@@ -736,9 +746,9 @@ describe('validatePanelPercentage', () => {
   })
 
   it('starts each created version using the actual names returned by the backend', async () => {
-    renderApp()
+    await renderApp()
 
-    fireEvent.click(screen.getByTestId('open-project'))
+    await clickElement(screen.getByTestId('open-project'))
 
     await waitFor(() => {
       expect(screen.getByTestId('sidebar-mock')).toBeInTheDocument()
@@ -794,19 +804,23 @@ describe('validatePanelPercentage', () => {
 
     const sessionsHandler = __getSessionsEventHandlerForTest(SchaltEvent.SessionsRefreshed)
     expect(sessionsHandler).toBeDefined()
-    sessionsHandler?.([
-      { info: { session_id: 'feature-unique', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } },
-      { info: { session_id: 'feature-unique_v2', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } },
-      { info: { session_id: 'feature-unique_v3', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } }
-    ])
-
-    const sessionsRefreshedHandlers = listenEventHandlers.filter(entry => String(entry.event) === String(SchaltEvent.SessionsRefreshed))
-    sessionsRefreshedHandlers.forEach(({ handler }) => {
-      handler([
+    await act(async () => {
+      sessionsHandler?.([
         { info: { session_id: 'feature-unique', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } },
         { info: { session_id: 'feature-unique_v2', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } },
         { info: { session_id: 'feature-unique_v3', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } }
       ])
+    })
+
+    const sessionsRefreshedHandlers = listenEventHandlers.filter(entry => String(entry.event) === String(SchaltEvent.SessionsRefreshed))
+    await act(async () => {
+      sessionsRefreshedHandlers.forEach(({ handler }) => {
+        handler([
+          { info: { session_id: 'feature-unique', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } },
+          { info: { session_id: 'feature-unique_v2', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } },
+          { info: { session_id: 'feature-unique_v3', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } }
+        ])
+      })
     })
 
     await createPromise
@@ -834,9 +848,9 @@ describe('validatePanelPercentage', () => {
   })
 
   it('respects requested agent type even if creation resolves after SessionsRefreshed', async () => {
-    renderApp()
+    await renderApp()
 
-    fireEvent.click(screen.getByTestId('open-project'))
+    await clickElement(screen.getByTestId('open-project'))
 
     await waitFor(() => {
       expect(screen.getByTestId('sidebar-mock')).toBeInTheDocument()
@@ -888,22 +902,8 @@ describe('validatePanelPercentage', () => {
 
     startSessionTopMock.mockClear()
 
-    sessionsHandler?.([
-      {
-        info: {
-          session_id: 'feature',
-          status: 'Active',
-          session_state: 'Running',
-          original_agent_type: 'codex',
-        }
-      }
-    ])
-
-    const sessionsRefreshedHandlers = listenEventHandlers
-      .filter(entry => String(entry.event) === String(SchaltEvent.SessionsRefreshed))
-
-    sessionsRefreshedHandlers.forEach(({ handler }) => {
-      handler([
+    await act(async () => {
+      sessionsHandler?.([
         {
           info: {
             session_id: 'feature',
@@ -915,6 +915,24 @@ describe('validatePanelPercentage', () => {
       ])
     })
 
+    const sessionsRefreshedHandlers = listenEventHandlers
+      .filter(entry => String(entry.event) === String(SchaltEvent.SessionsRefreshed))
+
+    await act(async () => {
+      sessionsRefreshedHandlers.forEach(({ handler }) => {
+        handler([
+          {
+            info: {
+              session_id: 'feature',
+              status: 'Active',
+              session_state: 'Running',
+              original_agent_type: 'codex',
+            }
+          }
+        ])
+      })
+    })
+
     await waitFor(() => {
       expect(startSessionTopMock).toHaveBeenCalledTimes(1)
     })
@@ -922,7 +940,9 @@ describe('validatePanelPercentage', () => {
     const [{ agentType }] = startSessionTopMock.mock.calls[0] as [StartSessionTopParams]
     expect(agentType).toBe('codex')
 
-    pendingResolvers.forEach(resolve => resolve())
+    await act(async () => {
+      pendingResolvers.forEach(resolve => resolve())
+    })
     await createPromise
 
     invokeMock.mockImplementation(defaultInvokeImpl)
@@ -985,9 +1005,9 @@ describe('validatePanelPercentage', () => {
     })
 
     try {
-      renderApp()
+      await renderApp()
 
-      fireEvent.click(screen.getByTestId('open-project'))
+      await clickElement(screen.getByTestId('open-project'))
       await waitFor(() => {
         expect(screen.getByTestId('sidebar-mock')).toBeInTheDocument()
       })
@@ -1072,9 +1092,9 @@ describe('validatePanelPercentage', () => {
   })
 
   it('should skip starting agents for sessions cancelled during version group creation', async () => {
-    renderApp()
+    await renderApp()
 
-    fireEvent.click(screen.getByTestId('open-project'))
+    await clickElement(screen.getByTestId('open-project'))
 
     await waitFor(() => {
       expect(screen.getByTestId('sidebar-mock')).toBeInTheDocument()
@@ -1129,16 +1149,20 @@ describe('validatePanelPercentage', () => {
     const sessionsHandler = __getSessionsEventHandlerForTest(SchaltEvent.SessionsRefreshed)
     expect(sessionsHandler).toBeDefined()
 
-    sessionsHandler?.([
-      { info: { session_id: 'session-b', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } }
-    ])
+    await act(async () => {
+      sessionsHandler?.([
+        { info: { session_id: 'session-b', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } }
+      ])
+    })
 
     const sessionsRefreshedHandlers = listenEventHandlers.filter(entry => String(entry.event) === String(SchaltEvent.SessionsRefreshed))
 
-    sessionsRefreshedHandlers.forEach(({ handler }) => {
-      handler([
-        { info: { session_id: 'session-b', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } }
-      ])
+    await act(async () => {
+      sessionsRefreshedHandlers.forEach(({ handler }) => {
+        handler([
+          { info: { session_id: 'session-b', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } }
+        ])
+      })
     })
 
 

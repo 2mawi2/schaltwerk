@@ -34,7 +34,7 @@ describe('NewProjectDialog', () => {
     })
   })
 
-  function setup(props: Partial<Parameters<typeof NewProjectDialog>[0]> = {}) {
+  async function setup(props: Partial<Parameters<typeof NewProjectDialog>[0]> = {}) {
     const onClose = vi.fn()
     const onProjectCreated = vi.fn()
     
@@ -47,6 +47,10 @@ describe('NewProjectDialog', () => {
       />
     )
     
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith(TauriCommands.GetLastProjectParentDirectory)
+    })
+
     return { onClose, onProjectCreated, ...result }
   }
 
@@ -63,7 +67,7 @@ describe('NewProjectDialog', () => {
   })
 
   it('renders dialog when open', async () => {
-    setup()
+    await setup()
     
     expect(screen.getByRole('heading', { name: 'New Project' })).toBeInTheDocument()
     expect(screen.getByPlaceholderText(/my-awesome-project/i)).toBeInTheDocument()
@@ -77,7 +81,7 @@ describe('NewProjectDialog', () => {
   })
 
   it('disables create button when project name is empty', async () => {
-    const { onProjectCreated } = setup()
+    const { onProjectCreated } = await setup()
     
     const createBtn = screen.getByRole('button', { name: /create project/i })
     
@@ -87,7 +91,7 @@ describe('NewProjectDialog', () => {
   })
 
   it('validates project name with invalid characters', async () => {
-    const { onProjectCreated } = setup()
+    const { onProjectCreated } = await setup()
     
     const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
     await user.click(nameInput)
@@ -118,7 +122,7 @@ describe('NewProjectDialog', () => {
           return null
       }
     })
-    const { onClose } = setup()
+    const { onClose } = await setup()
 
     const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
     await user.click(nameInput)
@@ -150,7 +154,7 @@ describe('NewProjectDialog', () => {
   })
 
   it('validates invalid filename characters', async () => {
-    const { onProjectCreated } = setup()
+    const { onProjectCreated } = await setup()
 
     // Wait for parent path to be initialized
     await waitFor(() => {
@@ -187,7 +191,7 @@ describe('NewProjectDialog', () => {
           return null
       }
     })
-    const { onClose } = setup()
+    const { onClose } = await setup()
 
     // Wait for parent path to be initialized
     await waitFor(() => {
@@ -212,7 +216,7 @@ describe('NewProjectDialog', () => {
   })
 
   it('handles directory selection', async () => {
-    setup()
+    await setup()
     ;(dialog.open as ReturnType<typeof vi.fn>).mockResolvedValue('/custom/path')
 
     const browseBtn = screen.getByRole('button', { name: /browse/i })
@@ -241,7 +245,7 @@ describe('NewProjectDialog', () => {
           return null
       }
     })
-    const { onProjectCreated, onClose } = setup()
+    const { onProjectCreated, onClose } = await setup()
 
     const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
     await user.click(nameInput)
@@ -279,7 +283,7 @@ describe('NewProjectDialog', () => {
           return null
       }
     })
-    const { onProjectCreated } = setup()
+    const { onProjectCreated } = await setup()
 
     const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
     await user.click(nameInput)
@@ -301,7 +305,7 @@ describe('NewProjectDialog', () => {
   })
 
   it('closes dialog on Cancel button', async () => {
-    const { onClose } = setup()
+    const { onClose } = await setup()
 
     const cancelBtn = screen.getByRole('button', { name: /cancel/i })
     await user.click(cancelBtn)
@@ -310,7 +314,7 @@ describe('NewProjectDialog', () => {
   })
 
   it('closes dialog on Escape key', async () => {
-    const { onClose } = setup()
+    const { onClose } = await setup()
 
     await user.keyboard('{Escape}')
 
@@ -335,7 +339,7 @@ describe('NewProjectDialog', () => {
           return null
       }
     })
-    const { onProjectCreated } = setup()
+    const { onProjectCreated } = await setup()
 
     const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
     await user.click(nameInput)
@@ -371,7 +375,7 @@ describe('NewProjectDialog', () => {
           return null
       }
     })
-    setup()
+    await setup()
 
     const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
     await user.click(nameInput)
@@ -389,7 +393,7 @@ describe('NewProjectDialog', () => {
   })
 
   it('shows project path preview', async () => {
-    setup()
+    await setup()
 
     const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
     await user.click(nameInput)
@@ -411,7 +415,7 @@ describe('NewProjectDialog', () => {
       }
     })
 
-    setup()
+    await setup()
 
     await waitFor(() => {
       expect(screen.getByDisplayValue('/persisted/path')).toBeInTheDocument()
@@ -437,7 +441,7 @@ describe('NewProjectDialog', () => {
       }
     })
 
-    const { onProjectCreated } = setup()
+    const { onProjectCreated } = await setup()
 
     await waitFor(() => {
       expect(screen.getByDisplayValue('/stored/path')).toBeInTheDocument()

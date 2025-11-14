@@ -133,6 +133,12 @@ vi.mock('../shared/SessionConfigurationPanel', () => ({
 const mockInvoke = invoke as MockedFunction<typeof invoke>
 let windowOpenSpy: MockInstance<Window['open']> | null = null
 
+async function fireAsync(action: () => void) {
+    await act(async () => {
+        action()
+    })
+}
+
 function defaultInvokeHandler(command: string, args?: unknown) {
     switch (command) {
         case TauriCommands.RepositoryIsEmpty:
@@ -328,7 +334,8 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
             </TestProviders>
         )
 
-        fireEvent.click(await screen.findByTestId('change-agent-codex'))
+        const changeAgentCodexButton = await screen.findByTestId('change-agent-codex')
+        await fireAsync(() => fireEvent.click(changeAgentCodexButton))
 
         await waitFor(() => {
             expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreListCodexModels)
@@ -363,14 +370,14 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
             expect(screen.getByTestId('initial-branch')).toHaveTextContent('main')
         })
 
-        fireEvent.click(screen.getByTestId('change-agent-codex'))
+        await fireAsync(() => fireEvent.click(screen.getByTestId('change-agent-codex')))
 
         await waitFor(() => {
             expect(screen.getByTestId('codex-model-value').textContent).toBe('gpt-5.1-codex')
             expect(screen.getByTestId('codex-reasoning-value').textContent).toBe('medium')
         })
 
-        fireEvent.click(screen.getByTestId('change-codex-model'))
+        await fireAsync(() => fireEvent.click(screen.getByTestId('change-codex-model')))
 
         await waitFor(() => {
             const preferenceCalls = mockInvoke.mock.calls.filter(([command]) => command === TauriCommands.SetAgentPreferences)
@@ -390,7 +397,7 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
             expect(screen.getByTestId('codex-reasoning-value').textContent).toBe('medium')
         })
 
-        fireEvent.click(screen.getByTestId('change-codex-reasoning'))
+        await fireAsync(() => fireEvent.click(screen.getByTestId('change-codex-reasoning')))
 
         await waitFor(() => {
             const preferenceCalls = mockInvoke.mock.calls.filter(([command]) => command === TauriCommands.SetAgentPreferences)
@@ -420,24 +427,20 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
             expect(screen.getByTestId('initial-branch')).toHaveTextContent('main')
         })
 
-        fireEvent.click(screen.getByTestId('change-agent-codex'))
+        await fireAsync(() => fireEvent.click(screen.getByTestId('change-agent-codex')))
 
         await waitFor(() => {
             expect(screen.getByTestId('codex-model-value').textContent).toBe('gpt-5.1-codex')
         })
 
-        act(() => {
-            fireEvent.keyDown(window, { key: 'ArrowRight', metaKey: true })
-        })
+        await fireAsync(() => fireEvent.keyDown(window, { key: 'ArrowRight', metaKey: true }))
 
         await waitFor(() => {
             expect(screen.getByTestId('codex-model-value').textContent).toBe('gpt-5.1-codex')
             expect(screen.getByTestId('codex-reasoning-value').textContent).toBe('high')
         })
 
-        act(() => {
-            fireEvent.keyDown(window, { key: 'ArrowLeft', metaKey: true })
-        })
+        await fireAsync(() => fireEvent.keyDown(window, { key: 'ArrowLeft', metaKey: true }))
 
         await waitFor(() => {
             expect(screen.getByTestId('codex-model-value').textContent).toBe('gpt-5.1-codex')
@@ -464,7 +467,7 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
         )
 
         const advancedToggle = await screen.findByTestId('advanced-agent-settings-toggle')
-        fireEvent.click(advancedToggle)
+        await fireAsync(() => fireEvent.click(advancedToggle))
 
         const cliInput = await screen.findByTestId('agent-cli-args-input') as HTMLTextAreaElement
         await waitFor(() => {
@@ -475,7 +478,7 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
         expect(summary.textContent).toContain('API_KEY')
 
         const toggle = await screen.findByTestId('toggle-env-vars')
-        fireEvent.click(toggle)
+        await fireAsync(() => fireEvent.click(toggle))
 
         const keyInput = await screen.findByTestId('env-var-key-0') as HTMLInputElement
         const valueInput = await screen.findByTestId('env-var-value-0') as HTMLInputElement
@@ -618,17 +621,21 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
         })
 
         // Change configuration
-        fireEvent.click(screen.getByTestId('change-branch'))
-        fireEvent.click(screen.getByTestId('change-agent'))
-        fireEvent.click(screen.getByTestId('change-permissions'))
+        await act(async () => {
+            await fireAsync(() => fireEvent.click(screen.getByTestId('change-branch')))
+        })
+        await fireAsync(() => fireEvent.click(screen.getByTestId('change-agent')))
+        await fireAsync(() => fireEvent.click(screen.getByTestId('change-permissions')))
 
         // Fill in required fields
         const nameInput = screen.getByDisplayValue('test_session')
-        fireEvent.change(nameInput, { target: { value: 'my_test_session' } })
+        await act(async () => {
+            await fireAsync(() => fireEvent.change(nameInput, { target: { value: 'my_test_session' } }))
+        })
 
         // Submit the form
         const submitButton = screen.getByText('Start Agent')
-        fireEvent.click(submitButton)
+        await fireAsync(() => fireEvent.click(submitButton))
 
         await waitFor(() => {
             expect(onCreate).toHaveBeenCalledWith(
@@ -659,11 +666,11 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
         })
 
         // Set a branch using the mock button
-        fireEvent.click(screen.getByTestId('change-branch'))
+        await fireAsync(() => fireEvent.click(screen.getByTestId('change-branch')))
 
         // Fill in name
         const nameInput = screen.getByDisplayValue('test_session')
-        fireEvent.change(nameInput, { target: { value: 'my_test_session' } })
+        await fireAsync(() => fireEvent.change(nameInput, { target: { value: 'my_test_session' } }))
 
         await waitFor(() => {
             const submitButton = screen.getByText('Start Agent')
@@ -688,12 +695,14 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
         })
 
         // Simulate prefill event
-        emitUiEvent(UiEvent.NewSessionPrefill, {
-            name: 'prefilled_session',
-            taskContent: 'Test content',
-            baseBranch: 'feature/prefill',
-            lockName: false,
-            fromDraft: false
+        await act(async () => {
+            emitUiEvent(UiEvent.NewSessionPrefill, {
+                name: 'prefilled_session',
+                taskContent: 'Test content',
+                baseBranch: 'feature/prefill',
+                lockName: false,
+                fromDraft: false
+            })
         })
 
         await waitFor(() => {
@@ -723,12 +732,20 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
         })
 
         // Configure via the panel
-        fireEvent.click(screen.getByTestId('change-branch'))
-        fireEvent.click(screen.getByTestId('change-agent'))
-        fireEvent.click(screen.getByTestId('change-permissions'))
+        await act(async () => {
+            await fireAsync(() => fireEvent.click(screen.getByTestId('change-branch')))
+        })
+        await act(async () => {
+            await fireAsync(() => fireEvent.click(screen.getByTestId('change-agent')))
+        })
+        await act(async () => {
+            await fireAsync(() => fireEvent.click(screen.getByTestId('change-permissions')))
+        })
 
         const nameInput = screen.getByDisplayValue('test_session')
-        fireEvent.change(nameInput, { target: { value: 'configured_session' } })
+        await act(async () => {
+            await fireAsync(() => fireEvent.change(nameInput, { target: { value: 'configured_session' } }))
+        })
 
         const editor = await screen.findByTestId('session-task-editor')
         expect(editor).toBeInTheDocument()
@@ -741,7 +758,9 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
         expect(getTaskEditorContent()).toContain('Test prompt')
 
         const submitButton = screen.getByText('Start Agent')
-        fireEvent.click(submitButton)
+        await act(async () => {
+            await fireAsync(() => fireEvent.click(submitButton))
+        })
 
         await waitFor(() => {
             expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({
@@ -806,8 +825,8 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
         })
 
         // Change configuration
-        fireEvent.click(screen.getByTestId('change-branch'))
-        fireEvent.click(screen.getByTestId('change-agent'))
+        await fireAsync(() => fireEvent.click(screen.getByTestId('change-branch')))
+        await fireAsync(() => fireEvent.click(screen.getByTestId('change-agent')))
 
         // Close and reopen modal
         rerender(
@@ -910,13 +929,13 @@ describe('NewSessionModal GitHub issue prompt source', () => {
 
         expect(getTaskEditorContent()).toContain('Manual prompt content')
 
-        fireEvent.click(screen.getByRole('button', { name: 'GitHub issue' }))
+        await fireAsync(() => fireEvent.click(screen.getByRole('button', { name: 'GitHub issue' })))
 
         await waitFor(() => {
             expect(screen.queryByTestId('session-task-editor')).not.toBeInTheDocument()
         })
 
-        fireEvent.click(screen.getByRole('button', { name: 'Custom prompt' }))
+        await fireAsync(() => fireEvent.click(screen.getByRole('button', { name: 'Custom prompt' })))
 
         await waitFor(() => {
             expect(screen.getByTestId('session-task-editor')).toBeInTheDocument()
@@ -950,7 +969,7 @@ describe('NewSessionModal GitHub issue prompt source', () => {
         const githubButton = screen.getByRole('button', { name: 'GitHub issue' })
         expect(githubButton).toBeDisabled()
 
-        fireEvent.click(githubButton)
+        await fireAsync(() => fireEvent.click(githubButton))
 
         expect(screen.getByTestId('session-task-editor')).toBeInTheDocument()
         expect(screen.queryByPlaceholderText('Search GitHub issues')).not.toBeInTheDocument()
@@ -1083,18 +1102,18 @@ describe('NewSessionModal GitHub issue prompt source', () => {
             expect(screen.getByTestId('session-config-panel')).toBeInTheDocument()
         })
 
-        fireEvent.click(screen.getByRole('button', { name: 'GitHub issue' }))
+        await fireAsync(() => fireEvent.click(screen.getByRole('button', { name: 'GitHub issue' })))
 
         const issueButton = await screen.findByRole('button', { name: /Use GitHub issue 42/ })
-        fireEvent.click(issueButton)
+        await fireAsync(() => fireEvent.click(issueButton))
 
         await waitFor(() => {
             expect(screen.getByText('Start Agent')).not.toBeDisabled()
         })
 
-        fireEvent.click(screen.getByTestId('change-branch'))
+        await fireAsync(() => fireEvent.click(screen.getByTestId('change-branch')))
 
-        fireEvent.click(screen.getByText('Start Agent'))
+        await fireAsync(() => fireEvent.click(screen.getByText('Start Agent')))
 
         await waitFor(() => {
             expect(onCreate).toHaveBeenCalledWith(
@@ -1209,13 +1228,13 @@ describe('NewSessionModal GitHub issue prompt source', () => {
             expect(screen.getByTestId('session-config-panel')).toBeInTheDocument()
         })
 
-        fireEvent.click(screen.getByRole('button', { name: 'GitHub issue' }))
+        await fireAsync(() => fireEvent.click(screen.getByRole('button', { name: 'GitHub issue' })))
 
         const issueButton = await screen.findByRole('button', { name: /Use GitHub issue 99/ })
-        fireEvent.click(issueButton)
+        await fireAsync(() => fireEvent.click(issueButton))
 
         const viewButton = await screen.findByRole('button', { name: 'View on GitHub' })
-        fireEvent.click(viewButton)
+        await fireAsync(() => fireEvent.click(viewButton))
 
         await waitFor(() => {
             expect(mockInvoke).toHaveBeenCalledWith(

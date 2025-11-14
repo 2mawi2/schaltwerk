@@ -33,13 +33,38 @@ async function logToBackend(level: LogLevel, message: string): Promise<void> {
 }
 
 const isTestEnv = import.meta.env.MODE === 'test'
-const shouldLogToConsole = import.meta.env.DEV && !isTestEnv
+type TestLogMode = 'silent' | 'errors' | 'verbose'
+const rawTestLogMode = (import.meta.env.VITE_TEST_LOG_MODE ?? '').toLowerCase()
+const testLogMode: TestLogMode =
+  rawTestLogMode === 'errors' || rawTestLogMode === 'verbose'
+    ? rawTestLogMode
+    : 'silent'
+
+function shouldWriteToConsole(level: LogLevel): boolean {
+  if (!import.meta.env.DEV) {
+    return false
+  }
+
+  if (!isTestEnv) {
+    return true
+  }
+
+  if (testLogMode === 'verbose') {
+    return true
+  }
+
+  if (testLogMode === 'errors') {
+    return level === 'error'
+  }
+
+  return false
+}
 
 function createLogger(): Logger {
   return {
     error: (message: string, ...args: unknown[]) => {
       const formattedArgs = formatArgs(message, ...args)
-      if (import.meta.env.DEV) {
+      if (shouldWriteToConsole('error')) {
         console.error(...formattedArgs)
       }
       // For backend, join args into single message
@@ -53,7 +78,7 @@ function createLogger(): Logger {
 
     warn: (message: string, ...args: unknown[]) => {
       const formattedArgs = formatArgs(message, ...args)
-      if (import.meta.env.DEV) {
+      if (shouldWriteToConsole('warn')) {
         console.warn(...formattedArgs)
       }
       // For backend, join args into single message
@@ -67,7 +92,7 @@ function createLogger(): Logger {
 
     info: (message: string, ...args: unknown[]) => {
       const formattedArgs = formatArgs(message, ...args)
-      if (shouldLogToConsole) {
+      if (shouldWriteToConsole('info')) {
         console.log(...formattedArgs)
       }
       // For backend, join args into single message
@@ -81,7 +106,7 @@ function createLogger(): Logger {
 
     debug: (message: string, ...args: unknown[]) => {
       const formattedArgs = formatArgs(message, ...args)
-      if (shouldLogToConsole) {
+      if (shouldWriteToConsole('debug')) {
         console.log(...formattedArgs)
       }
       // For backend, join args into single message

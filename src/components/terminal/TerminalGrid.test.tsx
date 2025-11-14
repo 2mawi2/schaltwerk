@@ -415,13 +415,17 @@ afterEach(() => {
   focusSpies.clear()
 })
 
-function renderGrid() {
-  return render(
-    <TestProviders>
-      <ControlBridge />
-      <TerminalGrid />
-    </TestProviders>
-  )
+async function renderGrid() {
+  let utils: ReturnType<typeof render> | undefined
+  await act(async () => {
+    utils = render(
+      <TestProviders>
+        <ControlBridge />
+        <TerminalGrid />
+      </TestProviders>
+    )
+  })
+  return utils!
 }
 
 async function waitForGridReady() {
@@ -434,7 +438,7 @@ async function waitForGridReady() {
 
 describe('TerminalGrid', () => {
   it('renders dual-terminal layout with correct headers and ids (orchestrator)', async () => {
-    renderGrid()
+    await renderGrid()
     // Use real timers to allow async initialization to complete
     vi.useRealTimers()
 
@@ -458,7 +462,7 @@ describe('TerminalGrid', () => {
   })
 
   it('respects split view proportions and layout props', async () => {
-    renderGrid()
+    await renderGrid()
     // Use real timers to allow async initialization to complete
     vi.useRealTimers()
     
@@ -485,7 +489,7 @@ describe('TerminalGrid', () => {
 
   describe('Run tab visibility', () => {
     it('always shows the Run tab even without configured scripts', async () => {
-      renderGrid()
+      await renderGrid()
       await waitForGridReady()
 
       const runTab = await screen.findByTitle('Run')
@@ -493,7 +497,7 @@ describe('TerminalGrid', () => {
     })
 
     it('positions the Run tab before user terminals', async () => {
-      renderGrid()
+      await renderGrid()
       await waitForGridReady()
 
       const runTab = await screen.findByTitle('Run')
@@ -508,7 +512,7 @@ describe('TerminalGrid', () => {
     screen.getByText(/Orchestrator\s+[—-]{1,2}\s+main repo/)
 
   it('focuses top/bottom terminals on header and body clicks', async () => {
-    renderGrid()
+    await renderGrid()
     // Use real timers to allow async initialization to complete
     vi.useRealTimers()
 
@@ -566,7 +570,7 @@ describe('TerminalGrid', () => {
 
     it('uses bracketed paste for non-Claude agents when clicking action buttons', async () => {
       configureActionButtonScenario('opencode')
-      renderGrid()
+      await renderGrid()
       await waitForGridReady()
 
       const button = await screen.findByText('Deploy Patch')
@@ -586,7 +590,7 @@ describe('TerminalGrid', () => {
 
     it('disables bracketed paste for Claude/Droid agents when clicking action buttons', async () => {
       configureActionButtonScenario('claude')
-      renderGrid()
+      await renderGrid()
       await waitForGridReady()
 
       const button = await screen.findByText('Deploy Patch')
@@ -606,7 +610,7 @@ describe('TerminalGrid', () => {
   })
 
   it('switches terminals when session changes and focuses according to session focus state', async () => {
-    renderGrid()
+    await renderGrid()
     // Use real timers for findBy* polling to avoid hang with fake timers
     vi.useRealTimers()
 
@@ -651,7 +655,7 @@ describe('TerminalGrid', () => {
   })
 
    it('handles terminal reset events by remounting terminals and cleans up on unmount', async () => {
-     const utils = renderGrid()
+     const utils = await renderGrid()
      // Use real timers to allow async initialization to complete
      vi.useRealTimers()
 
@@ -719,7 +723,7 @@ describe('TerminalGrid', () => {
 
   describe('Terminal Tab Management', () => {
     it('shows + icon again after deleting terminal tabs when at max capacity', async () => {
-      renderGrid()
+      await renderGrid()
       vi.useRealTimers()
 
       await waitFor(() => {
@@ -806,7 +810,7 @@ describe('TerminalGrid', () => {
     })
 
     it('preserves session-specific terminal tabs when switching between sessions', async () => {
-      renderGrid()
+      await renderGrid()
       vi.useRealTimers()
 
       await waitFor(() => {
@@ -857,7 +861,7 @@ describe('TerminalGrid', () => {
     })
 
     it('does not leak additional terminal tabs into fresh sessions', async () => {
-      renderGrid()
+      await renderGrid()
       vi.useRealTimers()
 
       await waitFor(() => {
@@ -899,7 +903,7 @@ describe('TerminalGrid', () => {
     })
 
     it('invokes tab function callbacks when tabs are added, selected, and closed', async () => {
-      renderGrid()
+      await renderGrid()
       vi.useRealTimers()
 
       await waitFor(() => {
@@ -938,7 +942,7 @@ describe('TerminalGrid', () => {
       sessionStorage.setItem('schaltwerk:terminal-grid:collapsed:orchestrator', 'true')
       sessionStorage.setItem('schaltwerk:terminal-grid:lastExpandedBottom:orchestrator', '200')
 
-      renderGrid()
+      await renderGrid()
       vi.useRealTimers()
 
       await waitFor(() => {
@@ -961,7 +965,7 @@ describe('TerminalGrid', () => {
     })
 
     it('toggles terminal collapse state correctly', async () => {
-      renderGrid()
+      await renderGrid()
       vi.useRealTimers()
 
       // Wait for initialization
@@ -978,7 +982,9 @@ describe('TerminalGrid', () => {
 
       // Find and click the collapse button (chevron down icon)
       const collapseButton = screen.getByLabelText('Collapse terminal panel')
-      fireEvent.click(collapseButton)
+      await act(async () => {
+        fireEvent.click(collapseButton)
+      })
 
       // After collapse, split view should still be present but with adjusted sizes
       await waitFor(() => {
@@ -1007,7 +1013,7 @@ describe('TerminalGrid', () => {
       // Clear sessionStorage to start fresh
       sessionStorage.clear()
 
-      renderGrid()
+      await renderGrid()
       vi.useRealTimers()
 
       await waitFor(() => {
@@ -1086,7 +1092,7 @@ describe('TerminalGrid', () => {
       sessionStorage.setItem('schaltwerk:terminal-grid:collapsed:session-a', 'true')
       sessionStorage.setItem('schaltwerk:terminal-grid:collapsed:session-b', 'false')
 
-      renderGrid()
+      await renderGrid()
       vi.useRealTimers()
 
       await waitFor(() => {
@@ -1140,7 +1146,7 @@ describe('TerminalGrid', () => {
       // Pre-set collapsed state for the test session
       sessionStorage.setItem('schaltwerk:terminal-grid:collapsed:test', 'true')
       
-      renderGrid()
+      await renderGrid()
       vi.useRealTimers()
 
       await waitFor(() => {
@@ -1183,7 +1189,7 @@ describe('TerminalGrid', () => {
     })
 
     it('maintains correct UI state when rapidly toggling collapse', async () => {
-      renderGrid()
+      await renderGrid()
       vi.useRealTimers()
 
       await waitFor(() => {
@@ -1235,7 +1241,7 @@ describe('TerminalGrid', () => {
   })
 
   describe('Run Mode Bug Fix', () => {
-    it('does not stop run when switching to terminal tab', () => {
+    it('does not stop run when switching to terminal tab', async () => {
       // Setup: Create a spy on the RunTerminal mock's toggleRun method
       const toggleRunSpy = vi.fn()
       runTerminalRefs.set('orchestrator', { 
@@ -1245,14 +1251,10 @@ describe('TerminalGrid', () => {
       runTerminalStates.set('orchestrator', true)
       
       // Mock the component to simulate tab switching
-      render(
-        <TestProviders>
-          <TerminalGrid />
-        </TestProviders>
-      )
+      await renderGrid()
       
       // Wait for component to be ready
-      act(() => {
+      await act(async () => {
         // Simulate that we're on the Run tab with an active run
         sessionStorage.setItem('schaltwerk:active-tab:orchestrator', '-1')
         sessionStorage.setItem('schaltwerk:has-run-scripts:orchestrator', 'true')
@@ -1269,7 +1271,7 @@ describe('TerminalGrid', () => {
 
   describe('Run Script Configuration Updates', () => {
     it('refreshes run tab visibility immediately after run script is saved', async () => {
-      renderGrid()
+      await renderGrid()
       vi.useRealTimers()
 
       await waitFor(() => {
@@ -1305,7 +1307,7 @@ describe('TerminalGrid', () => {
 
   describe('Cmd+E with no run script', () => {
     it('activates the Run tab without executing a run command', async () => {
-      renderGrid()
+      await renderGrid()
       await waitForGridReady()
 
       await act(async () => {
@@ -1323,7 +1325,7 @@ describe('TerminalGrid', () => {
     })
 
     it('does not toggle the run terminal when no script is configured', async () => {
-      renderGrid()
+      await renderGrid()
       await waitForGridReady()
 
       await act(async () => {
@@ -1339,7 +1341,7 @@ describe('TerminalGrid', () => {
     })
 
     it('expands the collapsed terminal panel when Cmd+E is pressed', async () => {
-      renderGrid()
+      await renderGrid()
       await waitForGridReady()
 
       const collapseButton = await screen.findByLabelText('Collapse terminal panel')
@@ -1363,7 +1365,7 @@ describe('TerminalGrid', () => {
         savedActiveTab: null,
       })
 
-      renderGrid()
+      await renderGrid()
       vi.useRealTimers()
 
       await waitFor(() => {
@@ -1463,7 +1465,7 @@ describe('TerminalGrid', () => {
         savedActiveTab: -1,
       })
 
-      renderGrid()
+      await renderGrid()
       vi.useRealTimers()
 
       await waitFor(() => {
@@ -1486,7 +1488,9 @@ describe('TerminalGrid', () => {
         expect(screen.getByLabelText('Expand terminal panel')).toBeInTheDocument()
       })
 
-      fireEvent.click(runTerminal)
+      await act(async () => {
+        fireEvent.click(runTerminal)
+      })
 
       await waitFor(() => {
         expect(screen.getByLabelText('Collapse terminal panel')).toBeInTheDocument()
@@ -1503,7 +1507,9 @@ describe('TerminalGrid', () => {
       expect(topPanel).not.toBeNull()
       if (!topPanel) throw new Error('top panel not found')
 
-      fireEvent.transitionEnd(topPanel, { propertyName: 'height', bubbles: true })
+      await act(async () => {
+        fireEvent.transitionEnd(topPanel, { propertyName: 'height', bubbles: true })
+      })
 
       const splitMod = await import('react-split') as unknown as {
         __getLastProps?: () => {
@@ -1513,12 +1519,18 @@ describe('TerminalGrid', () => {
       }
       const splitProps = splitMod.__getLastProps?.()
       expect(splitProps).toBeTruthy()
-      if (!splitProps?.onDragEnd || !splitProps.onDragStart) throw new Error('split mock props missing')
+      const onDragStart = splitProps?.onDragStart
+      const onDragEnd = splitProps?.onDragEnd
+      if (!onDragStart || !onDragEnd) throw new Error('split mock props missing')
 
       const dragStartEvent = new MouseEvent('mousedown')
       const dragEndEvent = new MouseEvent('mouseup')
-      splitProps.onDragStart([60, 40], 1, dragStartEvent)
-      splitProps.onDragEnd([60, 40], 1, dragEndEvent)
+      await act(async () => {
+        onDragStart([60, 40], 1, dragStartEvent)
+      })
+      await act(async () => {
+        onDragEnd([60, 40], 1, dragEndEvent)
+      })
 
       await waitFor(() => {
         expect(screen.getByTestId('split').getAttribute('data-sizes')).toBe(JSON.stringify([60, 40]))
@@ -1528,7 +1540,7 @@ describe('TerminalGrid', () => {
   })
 
   it('focuses the specific terminal on focus request and on terminal-ready', async () => {
-    renderGrid()
+    await renderGrid()
     vi.useRealTimers()
 
     await waitFor(() => {
@@ -1575,7 +1587,7 @@ describe('TerminalGrid', () => {
   })
 
   it('clears split dragging state on global pointerup if onDragEnd is missed', async () => {
-    renderGrid()
+    await renderGrid()
     vi.useRealTimers()
 
     await waitFor(() => {
@@ -1593,11 +1605,15 @@ describe('TerminalGrid', () => {
     expect(props).toBeTruthy()
     // Start dragging (adds body class)
     if (!props) throw new Error('react-split mock props missing')
-    props.onDragStart([72, 28], 0, new MouseEvent('mousedown'))
+    await act(async () => {
+      props.onDragStart([72, 28], 0, new MouseEvent('mousedown'))
+    })
     expect(document.body.classList.contains('is-split-dragging')).toBe(true)
 
     // Simulate a global pointerup that would happen outside the gutter
-    window.dispatchEvent(new Event('pointerup'))
+    await act(async () => {
+      window.dispatchEvent(new Event('pointerup'))
+    })
 
     // Body class should be cleared by the safety net
     await waitFor(() => {
