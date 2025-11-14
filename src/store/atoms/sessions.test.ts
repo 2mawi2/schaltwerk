@@ -63,6 +63,7 @@ vi.mock('../../common/eventSystem', () => ({
     }),
     SchaltEvent: {
         SessionsRefreshed: 'schaltwerk:sessions-refreshed',
+        SessionGitStats: 'schaltwerk:session-git-stats',
         SessionAdded: 'schaltwerk:session-added',
         GitOperationStarted: 'schaltwerk:git-operation-started',
         GitOperationCompleted: 'schaltwerk:git-operation-completed',
@@ -824,6 +825,48 @@ describe('sessions atoms', () => {
         expect(store.get(mergeStatusSelectorAtom)('merge')).toBe('merged')
         expect(invoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreCancelSession, { name: 'merge' })
         expect(toastSpy).toHaveBeenCalled()
+    })
+
+    it('sets merge status to conflict when SessionGitStats reports local conflicts', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+
+        vi.mocked(invoke).mockImplementation(async (cmd) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
+                return []
+            }
+            if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) {
+                return []
+            }
+            return undefined
+        })
+
+        store.set(projectPathAtom, '/project')
+        await store.set(initializeSessionsEventsActionAtom)
+
+        const mergeSession = createSession({
+            session_id: 'merge-session',
+            ready_to_merge: true,
+            merge_has_conflicts: false,
+        })
+        store.set(allSessionsAtom, [mergeSession])
+
+        const statsListener = listeners['schaltwerk:session-git-stats']
+        expect(statsListener).toBeTruthy()
+
+        statsListener?.({
+            session_name: 'merge-session',
+            files_changed: 3,
+            lines_added: 12,
+            lines_removed: 1,
+            has_uncommitted: false,
+            merge_has_conflicts: true,
+            merge_conflicting_paths: ['src/foo.ts'],
+        })
+
+        const updated = store.get(allSessionsAtom)[0]
+        expect(updated.info.merge_has_conflicts).toBe(true)
+        expect(updated.info.merge_conflicting_paths).toEqual(['src/foo.ts'])
+        expect(store.get(mergeStatusSelectorAtom)('merge-session')).toBe('conflict')
     })
 
     it('does not release terminals when SessionsRefreshed fires with same sessions in different order', async () => {
