@@ -22,8 +22,10 @@ use tokio::time::timeout;
 use crate::domains::git::operations::{
     get_uncommitted_changes_status, has_uncommitted_changes, uncommitted_sample_paths,
 };
+use crate::domains::git::service as git;
 use crate::domains::merge::lock;
 use crate::domains::merge::types::{MergeMode, MergeOutcome, MergePreview, MergeState};
+use crate::domains::sessions::db_sessions::SessionMethods;
 use crate::domains::sessions::entity::SessionState;
 use crate::domains::sessions::service::SessionManager;
 use crate::infrastructure::database::Database;
@@ -304,14 +306,42 @@ impl MergeService {
             )
         })?;
 
-        let parent = parent_branch;
-        let parent_ref = find_branch(&repo, parent).with_context(|| {
-            format!("Parent branch '{parent}' not found for session '{session_name}'")
+        let resolved_parent = match git::normalize_branch_to_local(&repo, parent_branch) {
+            Ok(local) => {
+                if local != session.parent_branch {
+                    self
+                        .db
+                        .update_session_parent_branch(&session.id, &local)
+                        .inspect_err(|err| {
+                            warn!(
+                                "{OPERATION_LABEL}: failed to persist normalized parent branch '{local}' for session '{}': {err}",
+                                session.name
+                            );
+                        })
+                        .ok();
+                }
+                local
+            }
+            Err(err) => {
+                if repo.revparse_single(parent_branch).is_ok() {
+                    parent_branch.to_string()
+                } else {
+                    return Err(err.context(format!(
+                        "Parent branch '{parent_branch}' is unavailable as a local branch for session '{session_name}'"
+                    )));
+                }
+            }
+        };
+
+        let parent_ref = find_branch(&repo, &resolved_parent).with_context(|| {
+            format!(
+                "Parent branch '{resolved_parent}' not found for session '{session_name}'"
+            )
         })?;
         let parent_oid = parent_ref
             .get()
             .target()
-            .ok_or_else(|| anyhow!("Parent branch '{parent}' has no target"))?;
+            .ok_or_else(|| anyhow!("Parent branch '{resolved_parent}' has no target"))?;
 
         let branch = &session.branch;
         let session_ref = find_branch(&repo, branch).with_context(|| {
@@ -328,7 +358,7 @@ impl MergeService {
             repo_path: session.repository_path,
             worktree_path: session.worktree_path,
             session_branch: session.branch,
-            parent_branch: parent_branch.to_string(),
+            parent_branch: resolved_parent,
             session_oid,
             parent_oid,
         })
@@ -1148,6 +1178,128 @@ mod tests {
         assert!(preview.is_up_to_date);
         assert!(!preview.has_conflicts);
         assert!(preview.conflicting_paths.is_empty());
+    }
+
+    #[tokio::test]
+    async fn preview_handles_remote_parent_branch_records_with_local_conflicts() {
+        let temp = TempDir::new().unwrap();
+        let (manager, db, repo_path) = create_session_manager(&temp);
+
+        let remote_dir = temp.path().join("remote.git");
+        std::fs::create_dir_all(&remote_dir).unwrap();
+        run_git(
+            &remote_dir,
+            vec![OsString::from("init"), OsString::from("--bare")],
+        )
+        .unwrap();
+
+        run_git(
+            &repo_path,
+            vec![
+                OsString::from("remote"),
+                OsString::from("add"),
+                OsString::from("origin"),
+                remote_dir.as_os_str().into(),
+            ],
+        )
+        .unwrap();
+
+        run_git(
+            &repo_path,
+            vec![
+                OsString::from("push"),
+                OsString::from("--set-upstream"),
+                OsString::from("origin"),
+                OsString::from("main"),
+            ],
+        )
+        .unwrap();
+
+        run_git(
+            &repo_path,
+            vec![OsString::from("fetch"), OsString::from("origin")],
+        )
+        .unwrap();
+
+        std::fs::write(repo_path.join("conflict.txt"), "base\n").unwrap();
+        run_git(
+            &repo_path,
+            vec![OsString::from("add"), OsString::from("conflict.txt")],
+        )
+        .unwrap();
+        run_git(
+            &repo_path,
+            vec![
+                OsString::from("commit"),
+                OsString::from("-m"),
+                OsString::from("seed conflict file"),
+            ],
+        )
+        .unwrap();
+
+        let params = SessionCreationParams {
+            name: "remote-parent",
+            prompt: Some("conflict work"),
+            base_branch: Some("origin/main"),
+            custom_branch: None,
+            was_auto_generated: false,
+            version_group_id: None,
+            version_number: None,
+            agent_type: None,
+            skip_permissions: None,
+        };
+
+        let session = manager.create_session_with_agent(params).unwrap();
+
+        std::fs::write(
+            session.worktree_path.join("conflict.txt"),
+            "session change\n",
+        )
+        .unwrap();
+        run_git(
+            &session.worktree_path,
+            vec![OsString::from("add"), OsString::from("conflict.txt")],
+        )
+        .unwrap();
+        run_git(
+            &session.worktree_path,
+            vec![
+                OsString::from("commit"),
+                OsString::from("-m"),
+                OsString::from("session edit"),
+            ],
+        )
+        .unwrap();
+
+        std::fs::write(repo_path.join("conflict.txt"), "main change\n").unwrap();
+        run_git(
+            &repo_path,
+            vec![OsString::from("add"), OsString::from("conflict.txt")],
+        )
+        .unwrap();
+        run_git(
+            &repo_path,
+            vec![
+                OsString::from("commit"),
+                OsString::from("-m"),
+                OsString::from("main edit"),
+            ],
+        )
+        .unwrap();
+
+        manager.mark_session_ready(&session.name, false).unwrap();
+
+        db.update_session_parent_branch(&session.id, "origin/main")
+            .unwrap();
+
+        let service = MergeService::new(db.clone(), repo_path.clone());
+        let preview = service.preview(&session.name).unwrap();
+
+        assert!(preview.has_conflicts);
+        assert_eq!(preview.parent_branch, "main");
+
+        let refreshed = manager.get_session(&session.name).unwrap();
+        assert_eq!(refreshed.parent_branch, "main");
     }
 
     #[tokio::test]
