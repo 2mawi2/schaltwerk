@@ -47,8 +47,10 @@ struct CodexModelConfigFile {
     legacy: CodexModelConfigCatalog,
 }
 
-const CODEX_MODEL_CONFIG_JSON: &str =
-    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../src/common/config/codexModels.json"));
+const CODEX_MODEL_CONFIG_JSON: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../src/common/config/codexModels.json"
+));
 
 #[allow(clippy::expect_used)]
 static CODEX_MODEL_CONFIG: Lazy<CodexModelConfigFile> = Lazy::new(|| {
@@ -155,9 +157,7 @@ pub fn builtin_codex_model_catalog() -> CodexModelCatalog {
     latest_codex_model_catalog()
 }
 
-pub fn builtin_codex_model_catalog_for_version(
-    cli_version: Option<&str>,
-) -> CodexModelCatalog {
+pub fn builtin_codex_model_catalog_for_version(cli_version: Option<&str>) -> CodexModelCatalog {
     if codex_cli_supports_latest(cli_version) {
         builtin_codex_model_catalog()
     } else {
@@ -293,7 +293,11 @@ pub async fn fetch_codex_model_catalog<P: AsRef<Path>>(
 }
 
 pub async fn detect_codex_cli_version<P: AsRef<Path>>(binary_path: P) -> Option<String> {
-    let output = Command::new(binary_path.as_ref()).arg("--version").output().await.ok()?;
+    let output = Command::new(binary_path.as_ref())
+        .arg("--version")
+        .output()
+        .await
+        .ok()?;
     if !output.status.success() {
         return None;
     }
@@ -519,10 +523,12 @@ mod tests {
     fn builtin_catalog_prefers_latest_models() {
         let catalog = builtin_codex_model_catalog();
         assert_eq!(catalog.models[0].id, "gpt-5.1-codex");
-        assert!(catalog
-            .models
-            .iter()
-            .any(|model| model.id == "gpt-5.1-codex-mini"));
+        assert!(
+            catalog
+                .models
+                .iter()
+                .any(|model| model.id == "gpt-5.1-codex-mini")
+        );
     }
 
     #[test]

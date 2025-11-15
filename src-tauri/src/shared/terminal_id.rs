@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 const FNV_OFFSET_BASIS: u32 = 0x811c9dc5;
 const FNV_PRIME: u32 = 0x0100_0193;
 const HASH_SLICE_CURRENT: usize = 8;
@@ -63,6 +65,22 @@ pub fn session_terminal_base_legacy(name: &str) -> String {
     format!("session-{sanitized}")
 }
 
+pub fn session_terminal_base_variants(name: &str) -> Vec<String> {
+    let mut seen = HashSet::new();
+    let mut variants = Vec::new();
+    for candidate in [
+        session_terminal_base(name),
+        session_terminal_base_v1(name),
+        session_terminal_base_legacy_hashed(name),
+        session_terminal_base_legacy(name),
+    ] {
+        if seen.insert(candidate.clone()) {
+            variants.push(candidate);
+        }
+    }
+    variants
+}
+
 pub fn terminal_id_for_session_top(name: &str) -> String {
     format!("{}-top", session_terminal_base(name))
 }
@@ -116,6 +134,7 @@ pub fn previous_hashed_terminal_id_for_session_bottom(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashSet;
 
     #[test]
     fn sanitizes_session_name_and_handles_empty() {
@@ -168,6 +187,23 @@ mod tests {
         assert!(
             previous_tilde_hashed_terminal_id_for_session_top("alpha beta")
                 .starts_with("session-alpha_beta~")
+        );
+    }
+
+    #[test]
+    fn base_variants_cover_all_generations_and_are_unique() {
+        let variants = session_terminal_base_variants("alpha beta");
+        assert!(variants.iter().any(|v| v.contains('~')));
+        assert!(variants.iter().any(|v| !v.contains('~')));
+
+        let unique: HashSet<_> = variants.iter().collect();
+        assert_eq!(unique.len(), variants.len());
+
+        let unknown_variants = session_terminal_base_variants("");
+        assert!(
+            unknown_variants
+                .iter()
+                .all(|v| v.starts_with("session-unknown"))
         );
     }
 

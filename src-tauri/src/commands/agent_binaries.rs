@@ -11,9 +11,7 @@ pub async fn detect_agent_binaries_nonblocking(
     let name = agent_name.to_string();
     spawn_blocking(move || BinaryDetector::detect_agent_binaries(&name))
         .await
-        .map_err(|err| {
-            format!("Binary detection task failed for {agent_name}: {err}")
-        })
+        .map_err(|err| format!("Binary detection task failed for {agent_name}: {err}"))
 }
 
 #[tauri::command]
