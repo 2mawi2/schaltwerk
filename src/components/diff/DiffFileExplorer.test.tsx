@@ -65,10 +65,9 @@ describe('DiffFileExplorer', () => {
 
   it('shows file paths in subdirectory display', () => {
     render(<DiffFileExplorer {...mockProps} />)
-    
-    // Should show 'src' as the directory for all files
-    const srcElements = screen.getAllByText('src')
-    expect(srcElements.length).toBe(3)
+
+    expect(screen.getByText('src')).toBeInTheDocument()
+    expect(screen.getByText('(3)')).toBeInTheDocument()
   })
 
   it('highlights selected file', () => {

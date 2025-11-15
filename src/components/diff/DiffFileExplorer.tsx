@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import clsx from 'clsx'
 import { VscComment, VscCheck } from 'react-icons/vsc'
 import { getFileIcon } from '../../utils/fileIcons'
@@ -9,6 +9,8 @@ import { ConfirmModal } from '../modals/ConfirmModal'
 import type { ChangedFile as EventsChangedFile } from '../../common/events'
 import { DiffChangeBadges } from './DiffChangeBadges'
 import { isBinaryFileByExtension } from '../../utils/binaryDetection'
+import { FileTree } from './FileTree'
+import type { FileNode } from '../../utils/folderTree'
 
 export type ChangedFile = EventsChangedFile
 
@@ -43,6 +45,64 @@ export function DiffFileExplorer({
 }: DiffFileExplorerProps) {
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
 
+  const fileIndexMap = useMemo(() => {
+    const map = new Map<string, number>()
+    files.forEach((file, index) => {
+      map.set(file.path, index)
+    })
+    return map
+  }, [files])
+
+  const renderFileNode = (node: FileNode, depth: number) => {
+    const fileIndex = fileIndexMap.get(node.file.path) ?? -1
+    const commentCount = getCommentsForFile(node.file.path).length
+    const isLeftSelected = (visibleFilePath ?? selectedFile) === node.file.path
+    const additions = node.file.additions ?? 0
+    const deletions = node.file.deletions ?? 0
+    const changes = node.file.changes ?? additions + deletions
+    const isBinary = node.file.is_binary ?? (node.file.change_type !== 'deleted' && isBinaryFileByExtension(node.file.path))
+
+    return (
+      <div
+        key={node.path}
+        className={clsx(
+          'cursor-pointer hover:bg-slate-800/50 flex items-center gap-2',
+          isLeftSelected && "bg-slate-800"
+        )}
+        style={{ paddingLeft: `${depth * 12 + 12}px`, paddingTop: '4px', paddingBottom: '4px' }}
+        onClick={() => onFileSelect(node.file.path, fileIndex)}
+      >
+        {getFileIcon(node.file.change_type, node.file.path)}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 justify-between">
+            <div className="text-sm truncate" style={{ color: theme.colors.text.primary }}>
+              {node.name}
+            </div>
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <DiffChangeBadges
+                additions={additions}
+                deletions={deletions}
+                changes={changes}
+                isBinary={isBinary}
+                layout="row"
+                size="compact"
+              />
+              {commentCount > 0 && (
+                <div
+                  className="flex items-center gap-1 text-xs font-medium"
+                  style={{ color: theme.colors.accent.blue.light }}
+                >
+                  <VscComment size={12} />
+                  <span>{commentCount}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div
       className="border-r border-slate-800 bg-slate-900/30 flex flex-col h-full"
@@ -52,63 +112,9 @@ export function DiffFileExplorer({
         <div className="text-sm font-medium mb-1">Changed Files</div>
         <div className="text-xs text-slate-500">{files.length} files</div>
       </div>
-      
-      <div className="flex-1 overflow-y-auto">
-        {files.map((file, index) => {
-          const commentCount = getCommentsForFile(file.path).length
-          const isLeftSelected = (visibleFilePath ?? selectedFile) === file.path
-          const additions = file.additions ?? 0
-          const deletions = file.deletions ?? 0
-          const changes = file.changes ?? additions + deletions
-          const isBinary = file.is_binary ?? (file.change_type !== 'deleted' && isBinaryFileByExtension(file.path))
-          const fileName = file.path.split('/').pop() ?? file.path
-          const directory = file.path.includes('/')
-            ? file.path.substring(0, file.path.lastIndexOf('/'))
-            : ''
 
-          return (
-            <div
-              key={file.path}
-              className={clsx(
-                'px-3 py-2 cursor-pointer hover:bg-slate-800/50',
-                'flex items-start gap-3',
-                isLeftSelected && "bg-slate-800"
-              )}
-              onClick={() => onFileSelect(file.path, index)}
-            >
-              {getFileIcon(file.change_type, file.path)}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-start gap-2 justify-between">
-                  <div className="min-w-0">
-                    <div className="text-sm truncate text-slate-100">{fileName}</div>
-                    {directory && (
-                      <div className="text-xs text-slate-500 truncate">{directory}</div>
-                    )}
-                  </div>
-                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                    <DiffChangeBadges
-                      additions={additions}
-                      deletions={deletions}
-                      changes={changes}
-                      isBinary={isBinary}
-                      layout="column"
-                      size="compact"
-                    />
-                    {commentCount > 0 && (
-                      <div
-                        className="flex items-center gap-1 text-xs font-medium"
-                        style={{ color: theme.colors.accent.blue.light }}
-                      >
-                        <VscComment />
-                        <span>{commentCount}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )
-        })}
+      <div className="flex-1 overflow-y-auto px-2">
+        <FileTree files={files} renderFileNode={renderFileNode} />
       </div>
       
       {currentReview && currentReview.comments.length > 0 && (
