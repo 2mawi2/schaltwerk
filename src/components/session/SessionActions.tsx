@@ -145,7 +145,7 @@ export function SessionActions({
     if (!isReadyToMerge) return
     const cleanup = listenUiEvent(UiEvent.CreatePullRequest, (detail) => {
       if (detail.sessionId === sessionId) {
-        handleCreateGithubPr()
+        void handleCreateGithubPr()
       }
     })
     return cleanup
@@ -255,7 +255,7 @@ export function SessionActions({
         <>
           <IconButton
             icon={creatingPr ? spinnerIcon : <FaGithub />}
-            onClick={handleCreateGithubPr}
+            onClick={() => { void handleCreateGithubPr() }}
             ariaLabel="Create GitHub pull request"
             tooltip={canCreatePr ? 'Create GitHub pull request (⌘⇧P)' : prTooltip}
             disabled={!canCreatePr || creatingPr}
@@ -278,7 +278,7 @@ export function SessionActions({
             ) : mergeStatus === 'conflict' ? (
               <button
                 type="button"
-                onClick={() => onMerge(sessionId)}
+                onClick={() => { void onMerge(sessionId) }}
                 disabled={disableMerge}
                 className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded border"
                 style={{
@@ -297,7 +297,7 @@ export function SessionActions({
             ) : (
               <IconButton
                 icon={<VscGitMerge />}
-                onClick={() => onMerge(sessionId)}
+                onClick={() => { void onMerge(sessionId) }}
                 ariaLabel="Merge session"
                 tooltip="Merge session (⌘⇧M merges instantly)"
                 disabled={disableMerge}
@@ -307,7 +307,7 @@ export function SessionActions({
           {onUnmarkReviewed && (
             <IconButton
               icon={<VscDiscard />}
-              onClick={() => onUnmarkReviewed(sessionId)}
+              onClick={() => { void onUnmarkReviewed(sessionId) }}
               ariaLabel="Unmark as reviewed"
               tooltip="Unmark as reviewed (⌘R)"
               disabled={isMarkReadyDisabled}
@@ -316,7 +316,7 @@ export function SessionActions({
           {onCancel && (
             <IconButton
               icon={<VscClose />}
-              onClick={() => onCancel(sessionId, hasUncommittedChanges)}
+              onClick={() => { void onCancel(sessionId, hasUncommittedChanges) }}
               ariaLabel="Cancel session"
               tooltip="Cancel session"
               variant="danger"

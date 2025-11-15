@@ -71,7 +71,7 @@ export function TopBar({
   const isMac = platform === 'mac'
   useEffect(() => {
     let cancelled = false
-    getPlatform()
+    void getPlatform()
       .then(value => {
         if (!cancelled) {
           setPlatform(normalizePlatform(value))
@@ -98,18 +98,16 @@ export function TopBar({
   }, [triggerOpenCounter])
 
   useEffect(() => {
-    const handleMouseDown = async (e: MouseEvent) => {
+    const handleMouseDown = (e: MouseEvent) => {
       // Check if the click is on the drag area or the top bar itself (not buttons)
       const target = e.target as HTMLElement
       if (target.closest('button') || target.closest('[data-no-drag]')) {
         return
       }
       
-      try {
-        await getCurrentWindow().startDragging()
-      } catch (err) {
+      getCurrentWindow().startDragging().catch((err) => {
         logger.warn('Failed to start window dragging:', err)
-      }
+      })
     }
     
     // Add listeners to both the drag area and the top bar

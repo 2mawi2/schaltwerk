@@ -243,7 +243,7 @@ export function useTerminalTabs({
         logger.error('[useTerminalTabs] Failed to initialize initial terminal', err)
       }
     }
-    ensureInitial()
+    void ensureInitial()
   }, [createTerminal, sessionTabs.tabs])
 
   return {

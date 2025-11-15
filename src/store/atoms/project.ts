@@ -135,7 +135,7 @@ async function runProjectSwitch(set: SetAtomFunction, path: string): Promise<boo
     abort: abortController,
   }
 
-  switchPromise.finally(() => {
+  void switchPromise.finally(() => {
     if (inflightSwitch?.promise === switchPromise) {
       inflightSwitch = null
       set(projectSwitchStateAtom, { inFlight: false, target: null })

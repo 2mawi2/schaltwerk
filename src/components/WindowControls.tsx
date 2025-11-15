@@ -64,7 +64,7 @@ export function WindowControls() {
   return (
     <div className="flex items-center gap-0.5 mr-2" data-testid="window-controls">
       <button
-        onClick={handleMinimize}
+        onClick={() => { void handleMinimize() }}
         className="h-6 w-8 inline-flex items-center justify-center rounded text-text-tertiary hover:text-text-secondary hover:bg-bg-elevated/50 transition-colors"
         title="Minimize"
         aria-label="Minimize window"
@@ -73,7 +73,7 @@ export function WindowControls() {
         <VscChromeMinimize className="text-[14px]" />
       </button>
       <button
-        onClick={handleMaximize}
+        onClick={() => { void handleMaximize() }}
         className="h-6 w-8 inline-flex items-center justify-center rounded text-text-tertiary hover:text-text-secondary hover:bg-bg-elevated/50 transition-colors"
         title={isMaximized ? "Restore" : "Maximize"}
         aria-label={isMaximized ? "Restore window" : "Maximize window"}
@@ -82,7 +82,7 @@ export function WindowControls() {
         <VscChromeMaximize className="text-[14px]" />
       </button>
       <button
-        onClick={handleClose}
+        onClick={() => { void handleClose() }}
         className="h-6 w-8 inline-flex items-center justify-center rounded text-text-tertiary hover:text-text-secondary hover:bg-accent-red transition-colors"
         title="Close"
         aria-label="Close window"

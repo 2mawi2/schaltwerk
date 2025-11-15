@@ -288,9 +288,12 @@ describe('CopyBundleBar', () => {
 
     listenEventMock
       .mockImplementationOnce(async () => {
-        return async () => {
-          throw unlistenError
-        }
+        return (
+          // eslint-disable-next-line @typescript-eslint/no-misused-promises
+          async () => {
+            throw unlistenError
+          }
+        )
       })
       .mockImplementationOnce(async () => () => {})
 

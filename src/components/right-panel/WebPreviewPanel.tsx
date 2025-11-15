@@ -219,7 +219,7 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
           <button type="button" aria-label="Hard reload" className={buttonClass(!hasUrl)} onClick={() => handleRefresh(true)} disabled={!hasUrl} title="Hard reload (clears cache)">
             <VscRefresh className="text-lg" />
           </button>
-          <button type="button" aria-label="Toggle DevTools" className={buttonClass()} onClick={handleToggleDevTools} title="Toggle DevTools">
+          <button type="button" aria-label="Toggle DevTools" className={buttonClass()} onClick={() => { void handleToggleDevTools() }} title="Toggle DevTools">
             <VscTools className="text-lg" />
           </button>
         </div>

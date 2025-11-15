@@ -1,6 +1,6 @@
 import { render, screen, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { vi } from 'vitest'
+import { vi, type MockedFunction } from 'vitest'
 import { CloneProjectDialog } from './CloneProjectDialog'
 import { TauriCommands } from '../../common/tauriCommands'
 
@@ -14,9 +14,17 @@ vi.mock('../../common/eventSystem', async () => {
   }
 })
 
-const invoke = (await import('@tauri-apps/api/core')).invoke as unknown as ReturnType<typeof vi.fn>
+const invoke = (await import('@tauri-apps/api/core')).invoke as MockedFunction<
+  (cmd: string, args?: unknown) => Promise<unknown>
+>
 const dialog = await import('@tauri-apps/plugin-dialog')
-const { listenEvent } = await import('../../common/eventSystem')
+const dialogOpenMock = dialog.open as MockedFunction<
+  (options?: unknown) => Promise<string | null>
+>
+const eventSystem = await import('../../common/eventSystem')
+const listenEvent = eventSystem.listenEvent as MockedFunction<
+  (event: unknown, handler: (payload: MockProgressPayload) => void) => Promise<() => void>
+>
 type MockProgressPayload = { message: string, requestId: string, remote: string, kind: 'info' | 'success' | 'error' }
 let baseInvokeImpl: ((cmd: string, args?: unknown) => Promise<unknown>) | null = null
 
@@ -42,10 +50,10 @@ describe('CloneProjectDialog', () => {
           return null
       }
     }
-    invoke.mockImplementation(baseInvokeImpl)
+    invoke.mockImplementation((cmd: string, args?: unknown) => baseInvokeImpl!(cmd, args))
 
-    ;(dialog.open as ReturnType<typeof vi.fn>).mockResolvedValue('/home/user/projects')
-    ;(listenEvent as ReturnType<typeof vi.fn>).mockResolvedValue(() => {})
+    dialogOpenMock.mockResolvedValue('/home/user/projects')
+    listenEvent.mockResolvedValue(() => {})
   })
 
   function setup(props: Partial<Parameters<typeof CloneProjectDialog>[0]> = {}) {
@@ -120,7 +128,7 @@ describe('CloneProjectDialog', () => {
 
   it('updates progress message from clone progress events', async () => {
     let progressHandler: (payload: MockProgressPayload) => void = () => {}
-    ;(listenEvent as ReturnType<typeof vi.fn>).mockImplementation(async (_event, handler) => {
+    listenEvent.mockImplementation(async (_event, handler) => {
       progressHandler = handler
       return () => {}
     })
@@ -135,7 +143,7 @@ describe('CloneProjectDialog', () => {
       })
     })
 
-    invoke.mockImplementation(async (cmd: string, args?: unknown) => {
+    invoke.mockImplementation((cmd: string, args?: unknown) => {
       if (cmd === TauriCommands.SchaltwerkCoreCloneProject) {
         return clonePromise
       }
@@ -150,7 +158,11 @@ describe('CloneProjectDialog', () => {
     await user.click(cloneButton)
 
     const cloneCall = invoke.mock.calls.find(([cmd]) => cmd === TauriCommands.SchaltwerkCoreCloneProject)
-    const requestId = cloneCall?.[1]?.requestId as string
+    const requestPayload = cloneCall?.[1] as { requestId?: string } | undefined
+    if (!requestPayload?.requestId) {
+      throw new Error('Expected clone invocation to include a requestId')
+    }
+    const { requestId } = requestPayload
 
     // Simulate backend progress event
     await act(async () => {

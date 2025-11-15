@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach, type MockedFunction } from 'vitest'
 import { useState } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
 import { render, screen, fireEvent, waitFor, cleanup, within, act } from '@testing-library/react'
@@ -168,6 +168,7 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn().mockImplementation((cmd: string) => defaultInvokeImplementation(cmd))
 }))
 import { invoke } from '@tauri-apps/api/core'
+const invokeMock = invoke as MockedFunction<(cmd: string, args?: unknown) => Promise<unknown>>
 
 function openModal() {
   const onClose = vi.fn()
@@ -1025,7 +1026,7 @@ describe('NewSessionModal', () => {
 
   it('loads base branch via tauri invoke and falls back on error', async () => {
     // Success path
-    ;(invoke as unknown as ReturnType<typeof vi.fn>).mockImplementation((cmd: string) => {
+    invokeMock.mockImplementation((cmd: string) => {
       if (cmd === TauriCommands.ListProjectBranches) {
         return Promise.resolve(['main', 'develop', 'feature/test'])
       }
@@ -1047,7 +1048,7 @@ describe('NewSessionModal', () => {
 
     // Failure path
     cleanup()
-    ;(invoke as unknown as ReturnType<typeof vi.fn>).mockImplementation((cmd: string) => {
+    invokeMock.mockImplementation((cmd: string) => {
       if (cmd === TauriCommands.ListProjectBranches) {
         return Promise.reject(new Error('no tauri'))
       }
@@ -1069,7 +1070,7 @@ describe('NewSessionModal', () => {
 
   it('re-enables Create button if onCreate fails', async () => {
     // Setup proper mock for branches first
-    ;(invoke as unknown as ReturnType<typeof vi.fn>).mockImplementation((cmd: string) => {
+    invokeMock.mockImplementation((cmd: string) => {
       if (cmd === TauriCommands.ListProjectBranches) {
         return Promise.resolve(['main', 'develop'])
       }

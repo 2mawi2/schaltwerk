@@ -131,7 +131,7 @@ export function ToastCard({ tone, title, description, action, copyText, onDismis
               {action && (
                 <button
                   type="button"
-                  onClick={action.onClick}
+                  onClick={() => { void action.onClick() }}
                   className="inline-flex items-center gap-1 rounded px-3 py-1.5 font-medium transition-all duration-150 hover:brightness-110"
                   style={{
                     backgroundColor: accentColor,
@@ -145,7 +145,7 @@ export function ToastCard({ tone, title, description, action, copyText, onDismis
               {copyText && (
                 <button
                   type="button"
-                  onClick={handleCopy}
+                  onClick={() => { void handleCopy() }}
                   aria-label="Copy error details"
                   title="Copy error details"
                   className="inline-flex items-center gap-1 rounded border px-2 py-1 font-medium transition-colors duration-150 hover:brightness-125"

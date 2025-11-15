@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { VscCalendar, VscWatch, VscNotebook } from 'react-icons/vsc'
@@ -55,8 +55,21 @@ export function SpecMetadataPanel({ sessionName }: Props) {
       }
     }
 
-    loadMetadata()
+    void loadMetadata()
   }, [sessionName])
+
+  const handleRunSpec = useCallback((id: string) => {
+    window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-spec', { detail: { name: id } }))
+  }, [])
+
+  const handleDeleteSpec = useCallback(async (id: string) => {
+    try {
+      await invoke(TauriCommands.SchaltwerkCoreCancelSession, { name: id })
+      await reloadSessions()
+    } catch (error) {
+      logger.error('[SpecMetadataPanel] Failed to delete spec:', error)
+    }
+  }, [reloadSessions])
 
   if (loading) {
     return (
@@ -64,19 +77,6 @@ export function SpecMetadataPanel({ sessionName }: Props) {
         <AnimatedText text="loading" size="md" />
       </div>
     )
-  }
-
-  const handleRunSpec = () => {
-    window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-spec', { detail: { name: sessionName } }))
-  }
-
-  const handleDeleteSpec = async () => {
-    try {
-      await invoke(TauriCommands.SchaltwerkCoreCancelSession, { name: sessionName })
-      await reloadSessions()
-    } catch (error) {
-      logger.error('[SpecMetadataPanel] Failed to delete spec:', error)
-    }
   }
 
   return (
@@ -109,8 +109,8 @@ export function SpecMetadataPanel({ sessionName }: Props) {
         <SessionActions
           sessionState="spec"
           sessionId={sessionName}
-          onRunSpec={handleRunSpec}
-          onDeleteSpec={handleDeleteSpec}
+          onRunSpec={(id) => handleRunSpec(id)}
+          onDeleteSpec={(id) => { void handleDeleteSpec(id) }}
         />
       </div>
 

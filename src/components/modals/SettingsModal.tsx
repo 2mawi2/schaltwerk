@@ -582,7 +582,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
         }
 
         setLoadingAutoUpdate(true)
-        loadMetadata()
+        void loadMetadata()
 
         return () => {
             cancelled = true
@@ -700,7 +700,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
         setShortcutsDirty(false)
         applyShortcutOverrides(normalizedShortcuts)
         
-        loadBinaryConfigs()
+        void loadBinaryConfigs()
     }, [loadEnvVars, loadCliArgs, loadAgentPreferences, loadSessionPreferences, loadKeyboardShortcuts, loadProjectSettings, loadTerminalSettings, loadRunScript, loadMergePreferences, loadBinaryConfigs, applyShortcutOverrides])
 
     useEffect(() => {
@@ -708,9 +708,9 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
 
         let cancelled = false
 
-        loadAllSettings()
+        void loadAllSettings()
 
-        invoke<string | null>(TauriCommands.GetActiveProjectPath)
+        void invoke<string | null>(TauriCommands.GetActiveProjectPath)
             .then(path => {
                 if (cancelled) return
                 if (path) {
@@ -1365,12 +1365,14 @@ fi`}
 
             <div className="border-t border-slate-800 p-4 bg-slate-900/50 flex items-center justify-between">
                 <button
-                    onClick={async () => {
-                        const success = await resetToDefaults()
-                        if (success) {
-                            setHasUnsavedChanges(false)
-                            showNotification('Action buttons reset to defaults', 'success')
-                        }
+                    onClick={() => {
+                        void (async () => {
+                            const success = await resetToDefaults()
+                            if (success) {
+                                setHasUnsavedChanges(false)
+                                showNotification('Action buttons reset to defaults', 'success')
+                            }
+                        })()
                     }}
                     className="text-slate-400 hover:text-slate-300 text-body"
                 >
@@ -1491,7 +1493,7 @@ fi`}
                             <div className="flex items-center justify-between mb-2">
                                 <span className="text-caption text-slate-400">Current Binary</span>
                                 <button
-                                    onClick={() => handleRefreshBinaryDetection(activeAgentTab)}
+                                    onClick={() => { void handleRefreshBinaryDetection(activeAgentTab) }}
                                     className="px-3 py-1.5 bg-slate-700/50 hover:bg-slate-600 active:bg-slate-700 border border-slate-600 hover:border-cyan-400/50 rounded transition-all duration-150 text-caption text-slate-300 hover:text-cyan-400 flex items-center gap-1.5 active:scale-95"
                                     title="Refresh detection"
                                 >
@@ -1509,7 +1511,7 @@ fi`}
                                     </div>
                                     <div className="text-caption text-slate-500">Custom path (user configured)</div>
                                     <button
-                                        onClick={() => handleBinaryPathChange(activeAgentTab, null)}
+                                        onClick={() => { void handleBinaryPathChange(activeAgentTab, null) }}
                                         className="text-caption text-orange-400 hover:text-orange-300 transition-colors"
                                     >
                                         Reset to auto-detection
@@ -1556,12 +1558,12 @@ fi`}
                                 <input
                                     type="text"
                                     value={binaryConfigs[activeAgentTab].custom_path || ''}
-                                    onChange={(e) => handleBinaryPathChange(activeAgentTab, e.target.value || null)}
+                                    onChange={(e) => { void handleBinaryPathChange(activeAgentTab, e.target.value || null) }}
                                     placeholder={binaryConfigs[activeAgentTab].detected_binaries.find(b => b.is_recommended)?.path || `Path to ${displayNameForAgent(activeAgentTab)} binary`}
                                     className="flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-body"
                                 />
                                 <button
-                                    onClick={() => openFilePicker(activeAgentTab)}
+                                    onClick={() => { void openFilePicker(activeAgentTab) }}
                                     className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded border border-slate-600 text-body transition-colors"
                                     title="Browse for binary"
                                 >
@@ -1578,7 +1580,7 @@ fi`}
                                             <div
                                                 key={index}
                                                 className="flex items-center justify-between p-2 bg-slate-800 rounded border border-slate-700 hover:border-slate-600 transition-colors cursor-pointer"
-                                                onClick={() => handleBinaryPathChange(activeAgentTab, binary.path)}
+                                                onClick={() => { void handleBinaryPathChange(activeAgentTab, binary.path) }}
                                             >
                                                 <div className="flex-1 min-w-0">
                                                     <div className="font-mono text-caption text-slate-200 truncate">
@@ -2285,9 +2287,7 @@ fi`}
                                 {attentionNotificationsEnabled && (
                                     <button
                                         type="button"
-                                        onClick={async () => {
-                                            await requestDockBounce()
-                                        }}
+                                        onClick={() => { void requestDockBounce() }}
                                         className="mt-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-body text-slate-300 transition-colors"
                                     >
                                         Test notification
@@ -2355,7 +2355,7 @@ fi`}
                                         className={`w-4 h-4 ${theme.colors.accent.cyan.dark} bg-slate-800 border-slate-600 rounded focus:ring-${theme.colors.accent.cyan.DEFAULT} focus:ring-2`}
                                         checked={autoUpdateEnabled}
                                         disabled={loadingAutoUpdate}
-                                        onChange={handleAutoUpdateToggle}
+                                        onChange={() => { void handleAutoUpdateToggle() }}
                                     />
                                     <span className="text-caption text-slate-300">
                                         {loadingAutoUpdate ? 'Loading...' : autoUpdateEnabled ? 'Enabled' : 'Disabled'}
@@ -2371,7 +2371,7 @@ fi`}
                                 </div>
                                 <button
                                     type="button"
-                                    onClick={handleManualUpdateCheck}
+                                    onClick={() => { void handleManualUpdateCheck() }}
                                     disabled={checkingUpdate}
                                     className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-slate-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
@@ -2529,7 +2529,7 @@ fi`}
                                 Cancel
                             </button>
                             <button
-                                onClick={handleSave}
+                                onClick={() => { void handleSave() }}
                                 disabled={saving}
                                 className="px-4 py-2 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                 style={{

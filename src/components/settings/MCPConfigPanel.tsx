@@ -92,7 +92,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
   }, [projectPath, agent])
 
   useEffect(() => {
-    loadStatus()
+    void loadStatus()
   }, [projectPath, loadStatus])
 
   useEffect(() => {
@@ -158,16 +158,16 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
       <div>
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-medium text-slate-200">MCP Server Configuration</h3>
-         <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={mcpEnabled}
-              onChange={(e) => {
-                setMcpEnabled(e.target.checked)
-                if (!e.target.checked && status?.is_configured) {
-                  removeMCP()
-                }
-              }}
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={mcpEnabled}
+                  onChange={(e) => {
+                    setMcpEnabled(e.target.checked)
+                    if (!e.target.checked && status?.is_configured) {
+                      void removeMCP()
+                    }
+                  }}
               className="w-4 h-4 rounded border-slate-600 bg-slate-800 focus:ring-cyan-400 focus:ring-offset-0"
               style={{
                 color: theme.colors.accent.blue.dark,
@@ -286,16 +286,16 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
               <div className="flex flex-wrap gap-2">
                 {status.cli_available ? (
                   status.is_configured ? (
-                     <button
-                       onClick={configureMCP}
+                    <button
+                      onClick={() => { void configureMCP() }}
                        disabled={loading}
                        className="px-3 py-1 bg-green-800 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed border border-green-700 rounded text-sm transition-colors text-green-200"
                      >
                        {requiresGlobalConfig ? 'Reconfigure MCP (global)' : 'Reconfigure MCP'}
                      </button>
                   ) : (
-                     <button
-                       onClick={configureMCP}
+                    <button
+                      onClick={() => { void configureMCP() }}
                        disabled={loading}
                          className="px-3 py-1 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm transition-colors"
                          style={{
@@ -362,7 +362,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
 
                 {status.is_configured && (
                   <button
-                    onClick={removeMCP}
+                    onClick={() => { void removeMCP() }}
                     disabled={loading}
                     className="px-3 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed border border-slate-700 rounded text-sm transition-colors text-slate-400"
                   >
@@ -414,7 +414,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                     </div>
                     
                     <button
-                      onClick={copyCommand}
+                      onClick={() => { void copyCommand() }}
                       className="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition-colors text-slate-400 flex-shrink-0 self-start"
                       title="Copy command"
                     >

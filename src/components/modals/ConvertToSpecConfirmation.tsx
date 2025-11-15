@@ -93,7 +93,7 @@ export function ConvertToSpecConfirmation({
       confirmTitle="Convert to spec (Enter)"
       cancelText="Cancel"
       cancelTitle="Cancel (Esc)"
-      onConfirm={handleConfirm}
+      onConfirm={() => { void handleConfirm() }}
       onCancel={onClose}
       confirmDisabled={loading}
       variant="warning"

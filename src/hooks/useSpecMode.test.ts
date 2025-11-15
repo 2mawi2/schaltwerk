@@ -262,7 +262,7 @@ describe('useSpecMode', () => {
 
       // Toggle on - should select first available spec
       await act(async () => {
-        result.current.toggleSpecMode()
+        await result.current.toggleSpecMode()
       })
 
       expect(result.current.commanderSpecModeSession).toBe('test-spec')
@@ -286,7 +286,7 @@ describe('useSpecMode', () => {
       expect(result.current.commanderSpecModeSession).toBe('test-spec')
     })
 
-    it('should handle exit spec mode with sessionStorage cleanup', () => {
+    it('should handle exit spec mode with sessionStorage cleanup', async () => {
       const { result } = renderHook(() => useSpecMode({
         projectPath: '/test/project',
         selection: mockOrchestratorSelection,
@@ -301,8 +301,8 @@ describe('useSpecMode', () => {
 
       expect(sessionStorage.getItem('schaltwerk:spec-mode:project')).toBe('test-spec')
 
-      act(() => {
-        result.current.handleExitSpecMode()
+      await act(async () => {
+        await result.current.handleExitSpecMode()
       })
 
       expect(result.current.commanderSpecModeSession).toBeNull()
@@ -333,7 +333,7 @@ describe('useSpecMode', () => {
 
       // Toggle should select first spec, not the running session
       await act(async () => {
-        result.current.toggleSpecMode()
+        await result.current.toggleSpecMode()
       })
 
       // Should select one of the specs, not the running session
@@ -353,7 +353,7 @@ describe('useSpecMode', () => {
       }))
 
       await act(async () => {
-        result.current.toggleSpecMode()
+        await result.current.toggleSpecMode()
       })
 
       expect(dispatchEventSpy).toHaveBeenCalledWith(
@@ -367,7 +367,7 @@ describe('useSpecMode', () => {
   })
 
   describe('last selected spec persistence', () => {
-    it('should remember the last selected spec', () => {
+    it('should remember the last selected spec', async () => {
       const spec1 = createMockSpec('spec-1')
       const spec2 = createMockSpec('spec-2')
       
@@ -386,8 +386,8 @@ describe('useSpecMode', () => {
       })
 
       // Exit spec mode
-      act(() => {
-        result.current.handleExitSpecMode()
+      await act(async () => {
+        await result.current.handleExitSpecMode()
       })
 
       // Check that last selected spec is remembered
@@ -413,7 +413,7 @@ describe('useSpecMode', () => {
       expect(sessionStorage.getItem('schaltwerk:last-spec:project')).toBe('test-spec')
     })
 
-    it('should fall back to first spec if last selected no longer exists', () => {
+    it('should fall back to first spec if last selected no longer exists', async () => {
       const spec1 = createMockSpec('spec-1')
       const spec2 = createMockSpec('spec-2')
       
@@ -432,8 +432,8 @@ describe('useSpecMode', () => {
       })
 
       // Exit spec mode
-      act(() => {
-        result.current.handleExitSpecMode()
+      await act(async () => {
+        await result.current.handleExitSpecMode()
       })
 
       // Remove spec-2 from sessions
@@ -469,7 +469,7 @@ describe('useSpecMode', () => {
 
       // Toggle spec mode on
       await act(async () => {
-        result.current.toggleSpecMode()
+        await result.current.toggleSpecMode()
       })
 
       // Should switch to Spec filter
@@ -497,7 +497,7 @@ describe('useSpecMode', () => {
       }))
 
       await act(async () => {
-        result.current.toggleSpecMode()
+        await result.current.toggleSpecMode()
       })
 
       expect(sessionStorage.getItem('schaltwerk:prev-filter:project')).toBe(FilterMode.Reviewed)
@@ -517,7 +517,7 @@ describe('useSpecMode', () => {
 
       // Toggle spec mode on
       await act(async () => {
-        result.current.toggleSpecMode()
+        await result.current.toggleSpecMode()
       })
 
       // Clear previous calls
@@ -577,7 +577,7 @@ describe('useSpecMode', () => {
 
       // Toggle spec mode on
       await act(async () => {
-        result.current.toggleSpecMode()
+        await result.current.toggleSpecMode()
       })
 
       // Should switch to orchestrator
@@ -611,7 +611,7 @@ describe('useSpecMode', () => {
       }))
 
       await act(async () => {
-        result.current.toggleSpecMode()
+        await result.current.toggleSpecMode()
       })
 
       const saved = sessionStorage.getItem('schaltwerk:prev-selection:project')
@@ -632,7 +632,7 @@ describe('useSpecMode', () => {
       }))
 
       await act(async () => {
-        result.current.toggleSpecMode()
+        await result.current.toggleSpecMode()
       })
 
       // Should not save orchestrator selection

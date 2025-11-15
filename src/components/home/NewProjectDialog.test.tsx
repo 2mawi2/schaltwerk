@@ -2,34 +2,40 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { TauriCommands } from '../../common/tauriCommands'
 import userEvent from '@testing-library/user-event'
 import { NewProjectDialog } from './NewProjectDialog'
-import { vi } from 'vitest'
+import { vi, type MockedFunction } from 'vitest'
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn() }))
 vi.mock('@tauri-apps/api/path', () => ({ homeDir: vi.fn() }))
 
-const invoke = (await import('@tauri-apps/api/core')).invoke as unknown as ReturnType<typeof vi.fn>
+const invoke = (await import('@tauri-apps/api/core')).invoke as MockedFunction<
+  (cmd: string, args?: unknown) => Promise<unknown>
+>
 const dialog = await import('@tauri-apps/plugin-dialog')
+const dialogOpenMock = dialog.open as MockedFunction<
+  (options?: unknown) => Promise<string | null>
+>
 const path = await import('@tauri-apps/api/path')
+const homeDirMock = path.homeDir as MockedFunction<() => Promise<string>>
 
 describe('NewProjectDialog', () => {
   const user = userEvent.setup()
 
   beforeEach(() => {
     invoke.mockReset()
-    ;(dialog.open as ReturnType<typeof vi.fn>).mockReset()
-    ;(path.homeDir as ReturnType<typeof vi.fn>).mockResolvedValue('/home/user')
+    dialogOpenMock.mockReset()
+    homeDirMock.mockResolvedValue('/home/user')
 
-    invoke.mockImplementation(async (cmd: string) => {
+    invoke.mockImplementation((cmd: string) => {
       switch (cmd) {
         case TauriCommands.GetLastProjectParentDirectory:
-          return null
+          return Promise.resolve(null)
         case TauriCommands.SetLastProjectParentDirectory:
-          return null
+          return Promise.resolve(null)
         case TauriCommands.CreateNewProject:
-          return '/home/user/test-project'
+          return Promise.resolve('/home/user/test-project')
         default:
-          return null
+          return Promise.resolve(null)
       }
     })
   })
@@ -110,16 +116,16 @@ describe('NewProjectDialog', () => {
     const createPromise = new Promise<string>(resolve => {
       resolvePromise = () => resolve('/home/user/test-project')
     })
-    invoke.mockImplementation(async (cmd: string) => {
+    invoke.mockImplementation((cmd: string) => {
       switch (cmd) {
         case TauriCommands.GetLastProjectParentDirectory:
-          return null
+          return Promise.resolve(null)
         case TauriCommands.CreateNewProject:
           return createPromise
         case TauriCommands.SetLastProjectParentDirectory:
-          return null
+          return Promise.resolve(null)
         default:
-          return null
+          return Promise.resolve(null)
       }
     })
     const { onClose } = await setup()
@@ -177,7 +183,7 @@ describe('NewProjectDialog', () => {
     invoke.mockImplementation(async (cmd: string, args?: unknown) => {
       switch (cmd) {
         case TauriCommands.GetLastProjectParentDirectory:
-          return null
+          return Promise.resolve(null)
         case TauriCommands.CreateNewProject:
           expect(args).toEqual({
             name: 'my-project',
@@ -186,9 +192,9 @@ describe('NewProjectDialog', () => {
           return '/home/user/my-project'
         case TauriCommands.SetLastProjectParentDirectory:
           expect(args).toEqual({ path: '/home/user' })
-          return null
+          return Promise.resolve(null)
         default:
-          return null
+          return Promise.resolve(null)
       }
     })
     const { onClose } = await setup()
@@ -217,7 +223,7 @@ describe('NewProjectDialog', () => {
 
   it('handles directory selection', async () => {
     await setup()
-    ;(dialog.open as ReturnType<typeof vi.fn>).mockResolvedValue('/custom/path')
+    dialogOpenMock.mockResolvedValue('/custom/path')
 
     const browseBtn = screen.getByRole('button', { name: /browse/i })
     await user.click(browseBtn)
@@ -231,7 +237,7 @@ describe('NewProjectDialog', () => {
     invoke.mockImplementation(async (cmd: string, args?: unknown) => {
       switch (cmd) {
         case TauriCommands.GetLastProjectParentDirectory:
-          return null
+          return Promise.resolve(null)
         case TauriCommands.CreateNewProject:
           expect(args).toEqual({
             name: 'test-project',
@@ -240,9 +246,9 @@ describe('NewProjectDialog', () => {
           return '/home/user/test-project'
         case TauriCommands.SetLastProjectParentDirectory:
           expect(args).toEqual({ path: '/home/user' })
-          return null
+          return Promise.resolve(null)
         default:
-          return null
+          return Promise.resolve(null)
       }
     })
     const { onProjectCreated, onClose } = await setup()
@@ -269,7 +275,7 @@ describe('NewProjectDialog', () => {
     invoke.mockImplementation(async (cmd: string, args?: unknown) => {
       switch (cmd) {
         case TauriCommands.GetLastProjectParentDirectory:
-          return null
+          return Promise.resolve(null)
         case TauriCommands.CreateNewProject:
           expect(args).toEqual({
             name: 'test-project',
@@ -278,9 +284,9 @@ describe('NewProjectDialog', () => {
           throw new Error('Failed to create project')
         case TauriCommands.SetLastProjectParentDirectory:
           expect(args).toEqual({ path: '/home/user' })
-          return null
+          return Promise.resolve(null)
         default:
-          return null
+          return Promise.resolve(null)
       }
     })
     const { onProjectCreated } = await setup()
@@ -325,7 +331,7 @@ describe('NewProjectDialog', () => {
     invoke.mockImplementation(async (cmd: string, args?: unknown) => {
       switch (cmd) {
         case TauriCommands.GetLastProjectParentDirectory:
-          return null
+          return Promise.resolve(null)
         case TauriCommands.CreateNewProject:
           expect(args).toEqual({
             name: 'test-project',
@@ -334,9 +340,9 @@ describe('NewProjectDialog', () => {
           return '/home/user/test-project'
         case TauriCommands.SetLastProjectParentDirectory:
           expect(args).toEqual({ path: '/home/user' })
-          return null
+          return Promise.resolve(null)
         default:
-          return null
+          return Promise.resolve(null)
       }
     })
     const { onProjectCreated } = await setup()
@@ -361,7 +367,7 @@ describe('NewProjectDialog', () => {
     invoke.mockImplementation(async (cmd: string, args?: unknown) => {
       switch (cmd) {
         case TauriCommands.GetLastProjectParentDirectory:
-          return null
+          return Promise.resolve(null)
         case TauriCommands.CreateNewProject:
           expect(args).toEqual({
             name: 'test-project',
@@ -370,9 +376,9 @@ describe('NewProjectDialog', () => {
           return '/home/user/test-project'
         case TauriCommands.SetLastProjectParentDirectory:
           expect(args).toEqual({ path: '/home/user' })
-          return null
+          return Promise.resolve(null)
         default:
-          return null
+          return Promise.resolve(null)
       }
     })
     await setup()
@@ -409,9 +415,9 @@ describe('NewProjectDialog', () => {
         case TauriCommands.GetLastProjectParentDirectory:
           return '/persisted/path'
         case TauriCommands.SetLastProjectParentDirectory:
-          return null
+          return Promise.resolve(null)
         default:
-          return null
+          return Promise.resolve(null)
       }
     })
 
@@ -435,9 +441,9 @@ describe('NewProjectDialog', () => {
           return '/stored/path/stored-project'
         case TauriCommands.SetLastProjectParentDirectory:
           expect(args).toEqual({ path: '/stored/path' })
-          return null
+          return Promise.resolve(null)
         default:
-          return null
+          return Promise.resolve(null)
       }
     })
 

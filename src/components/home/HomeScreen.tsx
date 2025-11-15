@@ -39,7 +39,7 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
   } = useRecentProjects({ onOpenProject })
 
   useEffect(() => {
-    loadRecentProjects()
+    void loadRecentProjects()
   }, [loadRecentProjects])
 
   useEffect(() => {
@@ -52,7 +52,7 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
           const projectIndex = num - 1
           if (projectIndex < recentProjects.length) {
             event.preventDefault()
-            handleOpenRecent(recentProjects[projectIndex])
+            void handleOpenRecent(recentProjects[projectIndex])
           }
         }
       }
@@ -109,7 +109,7 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
               <span className="text-lg font-medium">New Project</span>
             </button>
             <button
-              onClick={handleSelectDirectory}
+              onClick={() => { void handleSelectDirectory() }}
               className="py-4 px-6 rounded-lg flex items-center justify-center gap-3 group"
               style={{
                 backgroundColor: theme.colors.accent.blue.bg,
@@ -158,7 +158,7 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
                       </div>
                     )}
                     <button
-                      onClick={() => handleOpenRecent(project)}
+                      onClick={() => { void handleOpenRecent(project) }}
                       className="w-full text-left"
                     >
                       <div className="flex items-start gap-3">
@@ -184,7 +184,7 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
                       </div>
                     </button>
                     <button
-                      onClick={(e) => handleRemoveProject(project, e)}
+                      onClick={(e) => { void handleRemoveProject(project, e) }}
                       className="absolute top-2 right-2 p-1 text-slate-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
                       title={`Remove ${project.name} from recent projects`}
                     >
@@ -201,12 +201,12 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
       <NewProjectDialog
         isOpen={showNewProjectDialog}
         onClose={() => setShowNewProjectDialog(false)}
-        onProjectCreated={handleProjectCreated}
+        onProjectCreated={(path) => { void handleProjectCreated(path) }}
       />
       <CloneProjectDialog
         isOpen={showCloneDialog}
         onClose={() => setShowCloneDialog(false)}
-        onProjectCloned={handleProjectCloned}
+        onProjectCloned={(path, shouldOpen) => { handleProjectCloned(path, shouldOpen) }}
       />
     </div>
   )

@@ -131,12 +131,14 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
     const granted = await requestPermission(pathToRequest)
     
     if (!granted) {
-      setTimeout(async () => {
-        const recheckGranted = await checkPermission(pathToRequest)
-        if (recheckGranted && onPermissionGranted) {
-          onPermissionGranted()
-        }
-        setIsRetrying(false)
+      setTimeout(() => {
+        void (async () => {
+          const recheckGranted = await checkPermission(pathToRequest)
+          if (recheckGranted && onPermissionGranted) {
+            onPermissionGranted()
+          }
+          setIsRetrying(false)
+        })()
       }, 1000)
     } else {
       setIsRetrying(false)
@@ -222,17 +224,17 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
           )}
           
           <div className="flex gap-3">
-            <button
-              onClick={handleRequestPermission}
+              <button
+                onClick={() => { void handleRequestPermission() }}
               disabled={isRetrying}
               className="flex-1 px-4 py-2 bg-cyan-600 text-white rounded hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {isRetrying ? 'Checking...' : attemptCount === 0 ? 'Grant Permission' : 'Try Again'}
             </button>
             
-            {attemptCount > 0 && (
-              <button
-                onClick={handleRetryCheck}
+              {attemptCount > 0 && (
+                <button
+                  onClick={() => { void handleRetryCheck() }}
                 disabled={isRetrying}
                 className="px-4 py-2 border border-gray-600 text-gray-300 rounded hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
@@ -295,7 +297,7 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
 
             <div className="flex flex-col sm:flex-row gap-3 pt-2">
               <button
-                onClick={handleOpenSystemSettings}
+                onClick={() => { void handleOpenSystemSettings() }}
                 disabled={supportBusy !== null}
                 className="flex-1 px-4 py-2 rounded transition-colors"
                 style={{
@@ -308,7 +310,7 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
                 {supportBusy === 'open-settings' ? 'Opening...' : 'Open System Settings'}
               </button>
               <button
-                onClick={handleResetPermissions}
+                onClick={() => { void handleResetPermissions() }}
                 disabled={supportBusy !== null}
                 className="flex-1 px-4 py-2 rounded transition-colors"
                 style={{

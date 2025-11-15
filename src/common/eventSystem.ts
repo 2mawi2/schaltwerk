@@ -34,7 +34,9 @@ export async function listenEvent<T extends SchaltEvent>(
   event: T,
   handler: (payload: EventPayloadMap[T]) => void | Promise<void>
 ): Promise<UnlistenFn> {
-  const unlisten = await tauriListen(event, (event) => handler(event.payload as EventPayloadMap[T]))
+  const unlisten = await tauriListen(event, (event) => {
+    void handler(event.payload as EventPayloadMap[T])
+  })
   return wrapUnlisten(unlisten, String(event))
 }
 
@@ -44,6 +46,8 @@ export async function listenTerminalOutput(
   handler: (payload: string) => void | Promise<void>
 ): Promise<UnlistenFn> {
   const eventName = terminalOutputEventName(terminalId)
-  const unlisten = await tauriListen(eventName, (event) => handler(event.payload as string))
+  const unlisten = await tauriListen(eventName, (event) => {
+    void handler(event.payload as string)
+  })
   return wrapUnlisten(unlisten, eventName)
 }
