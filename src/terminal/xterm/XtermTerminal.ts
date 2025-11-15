@@ -108,12 +108,16 @@ export class XtermTerminal {
     this.searchAddon = new SearchAddon()
     this.raw.loadAddon(this.searchAddon)
 
-    this.webLinksAddon = new WebLinksAddon(async (_event: MouseEvent, uri: string) => {
-      try {
-        await invoke<void>(TauriCommands.OpenExternalUrl, { url: uri })
-      } catch (error) {
-        logger.error(`[XtermTerminal ${this.terminalId}] Failed to open link: ${uri}`, error)
+    this.webLinksAddon = new WebLinksAddon((_event: MouseEvent, uri: string) => {
+      const openLink = async () => {
+        try {
+          await invoke<void>(TauriCommands.OpenExternalUrl, { url: uri })
+        } catch (error) {
+          logger.error(`[XtermTerminal ${this.terminalId}] Failed to open link: ${uri}`, error)
+        }
       }
+
+      void openLink()
     })
     this.raw.loadAddon(this.webLinksAddon)
 

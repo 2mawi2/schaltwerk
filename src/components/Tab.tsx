@@ -20,8 +20,8 @@ export function Tab({ projectPath, projectName, attentionCount, isActive, onSele
       id={projectPath}
       label={projectName}
       isActive={isActive}
-      onSelect={onSelect}
-      onClose={onClose}
+      onSelect={() => { void onSelect() }}
+      onClose={() => { void onClose() }}
       title={projectPath}
       className="h-full"
       style={{

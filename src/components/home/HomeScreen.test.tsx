@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { HomeScreen } from './HomeScreen'
 import { renderWithProviders } from '../../tests/test-utils'
 
-import { vi } from 'vitest'
+import { vi, type MockedFunction } from 'vitest'
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn() }))
@@ -31,38 +31,43 @@ vi.mock('./CloneProjectDialog', async () => {
   }
 })
 
-const invoke = (await import('@tauri-apps/api/core')).invoke as unknown as ReturnType<typeof vi.fn>
+const invoke = (await import('@tauri-apps/api/core')).invoke as MockedFunction<
+  (cmd: string, args?: unknown) => Promise<unknown>
+>
 const dialog = await import('@tauri-apps/plugin-dialog')
+const dialogOpenMock = dialog.open as MockedFunction<
+  (options?: unknown) => Promise<string | null>
+>
 
 describe('HomeScreen', () => {
   const user = userEvent.setup()
 
   beforeEach(() => {
     invoke.mockReset()
-    ;(dialog.open as ReturnType<typeof vi.fn>).mockReset()
+    dialogOpenMock.mockReset()
   })
 
   function setup(overrides: Partial<Record<string, unknown>> = {}) {
     const onOpenProject = vi.fn()
     // Defaults - set BEFORE render so initial effect uses mocks
-    invoke.mockImplementation(async (cmd: string, _args?: unknown) => {
+    invoke.mockImplementation((cmd: string, _args?: unknown) => {
       switch (cmd) {
         case TauriCommands.GetRecentProjects:
-          return overrides.get_recent_projects ?? []
+          return Promise.resolve(overrides.get_recent_projects ?? [])
         case TauriCommands.IsGitRepository:
-          return overrides.is_git_repository ?? true
+          return Promise.resolve(overrides.is_git_repository ?? true)
         case TauriCommands.GetLastProjectParentDirectory:
-          return '/home/user'
+          return Promise.resolve('/home/user')
         case TauriCommands.SetLastProjectParentDirectory:
-          return null
+          return Promise.resolve(null)
         case TauriCommands.AddRecentProject:
         case TauriCommands.RemoveRecentProject:
         case TauriCommands.UpdateRecentProjectTimestamp:
         case TauriCommands.InitializeProject:
         case TauriCommands.CreateNewProject:
-          return null
+          return Promise.resolve(null)
         case TauriCommands.DirectoryExists:
-          return overrides.directory_exists ?? true
+          return Promise.resolve(overrides.directory_exists ?? true)
         default:
           throw new Error(`Unexpected invoke: ${cmd}`)
       }
@@ -115,7 +120,7 @@ describe('HomeScreen', () => {
 
   it('open button triggers directory picker and navigates on valid git repo', async () => {
     const { onOpenProject } = setup()
-    ;(dialog.open as ReturnType<typeof vi.fn>).mockResolvedValue('/some/repo')
+    dialogOpenMock.mockResolvedValue('/some/repo')
 
     const openBtn = screen.getByRole('button', { name: /open repository/i })
     await user.click(openBtn)
@@ -129,7 +134,7 @@ describe('HomeScreen', () => {
 
   it('shows error when selected directory is not a git repo', async () => {
     setup({ is_git_repository: false })
-    ;(dialog.open as ReturnType<typeof vi.fn>).mockResolvedValue('/not/repo')
+    dialogOpenMock.mockResolvedValue('/not/repo')
 
     await user.click(screen.getByRole('button', { name: /open repository/i }))
 
@@ -141,7 +146,7 @@ describe('HomeScreen', () => {
 
   it('keyboard: pressing Enter on focused open button opens dialog', async () => {
     setup()
-    ;(dialog.open as ReturnType<typeof vi.fn>).mockResolvedValue('/enter/repo')
+    dialogOpenMock.mockResolvedValue('/enter/repo')
 
     const btn = screen.getByRole('button', { name: /open repository/i })
     btn.focus()

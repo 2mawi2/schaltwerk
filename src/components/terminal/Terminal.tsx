@@ -664,20 +664,34 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 }
             }
         };
-        load();
+        void load();
         return () => { mounted = false; };
     }, []);
 
     useEffect(() => {
-        const cleanup = listenUiEvent(UiEvent.TerminalFontUpdated, detail => {
-            const custom = detail.fontFamily ?? null
-            const chain = buildTerminalFontFamily(custom)
-            setCustomFontFamily(custom)
-            setResolvedFontFamily(chain)
-        })
-        return () => {
+        let unsub: (() => void) | null = null
+        let cancelled = false
+        void (async () => {
             try {
-                cleanup()
+                const cleanup = await listenUiEvent(UiEvent.TerminalFontUpdated, detail => {
+                    const custom = detail.fontFamily ?? null
+                    const chain = buildTerminalFontFamily(custom)
+                    setCustomFontFamily(custom)
+                    setResolvedFontFamily(chain)
+                })
+                if (cancelled) {
+                    cleanup()
+                    return
+                }
+                unsub = cleanup
+            } catch (error) {
+                logger.warn(`[Terminal ${terminalId}] Failed to register terminal font listener`, error)
+            }
+        })()
+        return () => {
+            cancelled = true
+            try {
+                unsub?.()
             } catch (error) {
                 logger.warn(`[Terminal ${terminalId}] Failed to remove terminal font listener`, error)
             }
@@ -707,7 +721,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
              }
          };
 
-         setupListener();
+         void setupListener();
 
          return () => {
              if (unlistenAgentStarted) {
@@ -724,9 +738,9 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
       useEffect(() => {
           if (!isAgentTopTerminal) return;
           let unlisten: UnlistenFn | null = null;
-          (async () => {
-              try {
-                  unlisten = await listenEvent(SchaltEvent.TerminalClosed, (payload) => {
+        void (async () => {
+            try {
+                unlisten = await listenEvent(SchaltEvent.TerminalClosed, (payload) => {
                       if (payload?.terminal_id !== terminalId) return;
                       
                       // Only show banner if there's a recent interrupt signal and terminal has actually started
@@ -777,7 +791,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             }
         };
         
-        setupForceScrollListener();
+        void setupForceScrollListener();
         
         return () => {
             if (unlistenForceScroll) {
@@ -824,10 +838,24 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 doFitAndNotify();
             });
         };
-        const cleanup = listenUiEvent(UiEvent.OpencodeSearchResize, handleSearchResize)
-        return () => {
+        let unsubscribe: (() => void) | null = null
+        let cancelled = false
+        void (async () => {
             try {
-                cleanup()
+                const cleanup = await listenUiEvent(UiEvent.OpencodeSearchResize, handleSearchResize)
+                if (cancelled) {
+                    cleanup()
+                    return
+                }
+                unsubscribe = cleanup
+            } catch (error) {
+                logger.warn(`[Terminal ${terminalId}] Failed to register OpenCode search resize listener`, error)
+            }
+        })()
+        return () => {
+            cancelled = true
+            try {
+                unsubscribe?.()
             } catch (error) {
                 logger.warn(`[Terminal ${terminalId}] Failed to remove OpenCode search resize listener`, error)
             }
@@ -900,10 +928,24 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 requestAnimationFrame(() => run());
             });
         };
-        const cleanup = listenUiEvent(UiEvent.OpencodeSelectionResize, handleSelectionResize)
-        return () => {
+        let unsubscribe: (() => void) | null = null
+        let cancelled = false
+        void (async () => {
             try {
-                cleanup()
+                const cleanup = await listenUiEvent(UiEvent.OpencodeSelectionResize, handleSelectionResize)
+                if (cancelled) {
+                    cleanup()
+                    return
+                }
+                unsubscribe = cleanup
+            } catch (error) {
+                logger.warn(`[Terminal ${terminalId}] Failed to register OpenCode selection resize listener`, error)
+            }
+        })()
+        return () => {
+            cancelled = true
+            try {
+                unsubscribe?.()
             } catch (error) {
                 logger.warn(`[Terminal ${terminalId}] Failed to remove OpenCode selection resize listener`, error)
             }
@@ -1109,7 +1151,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                         // Disconnect immediately after first successful observation to prevent interference
                         rendererObserver?.disconnect();
                         requestAnimationFrame(() => {
-                            initializeRenderer();
+                            void initializeRenderer();
                         });
                     }
                 } catch (e) {
@@ -1119,7 +1161,9 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                         try { rendererObserver?.disconnect(); } catch {
                             // Intentionally ignore observer disconnect errors
                         }
-                        requestAnimationFrame(() => initializeRenderer());
+                        requestAnimationFrame(() => {
+                            void initializeRenderer();
+                        });
                     }
                 }
             });
@@ -1129,7 +1173,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         } else {
             // For background terminals, initialize immediately with default size
             requestAnimationFrame(() => {
-                initializeRenderer();
+                void initializeRenderer();
             });
         }
 
@@ -1164,7 +1208,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             if (termRef.current && termRef.current.clientWidth > 0 && termRef.current.clientHeight > 0) {
                 // If we already have dimensions, disconnect the observer and initialize
                 rendererObserver?.disconnect();
-                initializeRenderer();
+                void initializeRenderer();
             }
         });
 
@@ -1384,7 +1428,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         });
         
         // Initial fit: fonts ready + RAF
-        (async () => {
+        void (async () => {
             try {
                 const fontsReady = (document as unknown as { fonts?: { ready?: Promise<unknown> } }).fonts?.ready;
                 if (fontsReady) {
@@ -1643,7 +1687,11 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
         // Delay a tick to ensure xterm is laid out
         let cancelled = false;
-        requestAnimationFrame(() => { if (!cancelled) start(); });
+        requestAnimationFrame(() => {
+            if (!cancelled) {
+                void start();
+            }
+        });
          return () => {
              cancelled = true;
          };
@@ -1831,7 +1879,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                      <div className="flex items-center gap-2 bg-slate-800/90 border border-slate-700 rounded px-3 py-2 shadow-lg">
                          <span className="text-sm text-slate-300">Agent stopped</span>
                           <button
-                              onClick={(e) => { e.stopPropagation(); restartAgent(); }}
+                              onClick={(e) => { e.stopPropagation(); void restartAgent(); }}
                               className="text-sm px-3 py-1 rounded text-white font-medium"
                               style={{
                                   backgroundColor: theme.colors.accent.blue.dark,

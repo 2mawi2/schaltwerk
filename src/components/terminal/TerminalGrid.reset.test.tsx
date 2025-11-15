@@ -27,8 +27,7 @@ vi.mock('./RunTerminal', () => ({
 
 function SelectionBridge() {
   const { setSelection } = useSelection()
-  // Set to a running session so the reset button should render
-  setSelection({ kind: 'session', payload: 'demo-session', sessionState: 'running' }, false, true)
+  void setSelection({ kind: 'session', payload: 'demo-session', sessionState: 'running' }, false, true)
   return null
 }
 

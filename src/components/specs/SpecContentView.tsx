@@ -20,23 +20,26 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
   const { content, loading, error, updateContent } = useSpecContentCache(sessionName, sessionState)
   const [saving, setSaving] = useState(false)
   const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit')
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  type TimeoutHandle = ReturnType<typeof setTimeout> | number
+  const saveTimerRef = useRef<TimeoutHandle | null>(null)
   const markdownEditorRef = useRef<MarkdownEditorRef>(null)
 
   // Auto-save
   useEffect(() => {
     if (!editable) return
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    saveTimerRef.current = setTimeout(async () => {
-      if (!editable) return
-      try {
-        setSaving(true)
-        await invoke(TauriCommands.SchaltwerkCoreUpdateSpecContent, { name: sessionName, content })
-      } catch (e) {
-        logger.error('[DraftContentView] Failed to save spec:', e)
-      } finally {
-        setSaving(false)
-      }
+    saveTimerRef.current = window.setTimeout(() => {
+      void (async () => {
+        if (!editable) return
+        try {
+          setSaving(true)
+          await invoke(TauriCommands.SchaltwerkCoreUpdateSpecContent, { name: sessionName, content })
+        } catch (e) {
+          logger.error('[DraftContentView] Failed to save spec:', e)
+        } finally {
+          setSaving(false)
+        }
+      })()
     }, debounceMs)
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }
   }, [content, editable, debounceMs, sessionName])

@@ -1,12 +1,14 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { TauriCommands } from '../../common/tauriCommands'
 import userEvent from '@testing-library/user-event'
-import { vi } from 'vitest'
+import { vi, type MockedFunction } from 'vitest'
 import { createChangedFile } from '../../tests/test-utils'
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 
-const invoke = (await import('@tauri-apps/api/core')).invoke as ReturnType<typeof vi.fn>
+const invoke = (await import('@tauri-apps/api/core')).invoke as MockedFunction<
+  (cmd: string, args?: Record<string, unknown>) => Promise<unknown>
+>
 
 // Mutable selection used by mocked hook
 let currentSelection: Record<string, unknown> = { kind: 'orchestrator' }

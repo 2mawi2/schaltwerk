@@ -280,14 +280,14 @@ export function useAgentBinaryDetection(options: UseAgentBinaryDetectionOptions 
         configCache.clear()
         latestBinaryConfigs = null
         if (autoLoad) {
-            loadAllBinaryConfigs()
+            void loadAllBinaryConfigs()
         }
     }, [autoLoad, loadAllBinaryConfigs])
 
     // Auto-load on mount if requested
     useEffect(() => {
         if (autoLoad) {
-            loadAllBinaryConfigs()
+            void loadAllBinaryConfigs()
         }
     }, [autoLoad, loadAllBinaryConfigs])
 

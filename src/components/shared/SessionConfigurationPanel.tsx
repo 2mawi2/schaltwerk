@@ -179,7 +179,7 @@ export function SessionConfigurationPanel({
     }, [ignorePersistedAgentType])
 
     useEffect(() => {
-        loadConfiguration()
+        void loadConfiguration()
     }, [loadConfiguration])
 
 
@@ -300,7 +300,7 @@ export function SessionConfigurationPanel({
                         <div className="min-w-[120px]">
                             <BranchAutocomplete
                                 value={baseBranch}
-                                onChange={handleBaseBranchChange}
+                                onChange={(branch) => { void handleBaseBranchChange(branch) }}
                                 branches={branches}
                                 disabled={disabled || branches.length === 0}
                                 placeholder={branches.length === 0 ? "No branches" : "Select branch"}
@@ -318,11 +318,11 @@ export function SessionConfigurationPanel({
                     <div className="min-w-[90px]">
                         <ModelSelector
                             value={agentType}
-                            onChange={handleAgentTypeChange}
+                            onChange={(type) => { void handleAgentTypeChange(type) }}
                             disabled={disabled}
                             agentSelectionDisabled={agentSelectionDisabled}
                             skipPermissions={skipPermissions}
-                            onSkipPermissionsChange={handleSkipPermissionsChange}
+                            onSkipPermissionsChange={(enabled) => { void handleSkipPermissionsChange(enabled) }}
                             showShortcutHint={shouldShowShortcutHint}
                         />
                     </div>
@@ -356,7 +356,7 @@ export function SessionConfigurationPanel({
                     ) : (
                         <BranchAutocomplete
                             value={baseBranch}
-                            onChange={handleBaseBranchChange}
+                            onChange={(branch) => { void handleBaseBranchChange(branch) }}
                             branches={branches}
                             disabled={disabled || branches.length === 0}
                             placeholder={branches.length === 0 ? "No branches available" : "Type to search branches... (Tab to autocomplete)"}
@@ -398,11 +398,11 @@ export function SessionConfigurationPanel({
                     <div className="space-y-3">
                         <ModelSelector
                             value={agentType}
-                            onChange={handleAgentTypeChange}
+                            onChange={(type) => { void handleAgentTypeChange(type) }}
                             disabled={disabled}
                             agentSelectionDisabled={agentSelectionDisabled}
                             skipPermissions={skipPermissions}
-                            onSkipPermissionsChange={handleSkipPermissionsChange}
+                            onSkipPermissionsChange={(enabled) => { void handleSkipPermissionsChange(enabled) }}
                             showShortcutHint={shouldShowShortcutHint}
                         />
                         {agentType === 'codex' && effectiveCodexModelOptions && onCodexModelChange && (

@@ -163,7 +163,7 @@ export interface DiffViewerProps {
   onCopyLine?: (payload: { filePath: string; lineNumber: number; side: 'old' | 'new' }) => void
   onCopyCode?: (payload: { filePath: string; text: string }) => void
   onCopyFilePath?: (filePath: string) => void
-  onDiscardFile?: (filePath: string) => void
+  onDiscardFile?: (filePath: string) => void | Promise<void>
   onStartCommentFromContext?: (payload: { filePath: string; lineNumber: number; side: 'old' | 'new' }) => void
   onOpenFile?: (filePath: string) => Promise<string | undefined>
 }
@@ -360,32 +360,38 @@ export function DiffViewer({
         items.push({
           key: 'copy-line-number',
           label: `Copy line ${contextMenu.lineNumber}`,
-          action: () => onCopyLine({
-            filePath: contextMenu.filePath,
-            lineNumber: contextMenu.lineNumber,
-            side: contextMenu.side
-          })
+          action: () => {
+            void onCopyLine({
+              filePath: contextMenu.filePath,
+              lineNumber: contextMenu.lineNumber,
+              side: contextMenu.side
+            })
+          }
         })
       }
       if (contextMenu.content && onCopyCode) {
         items.push({
           key: 'copy-line-content',
           label: 'Copy line contents',
-          action: () => onCopyCode({
-            filePath: contextMenu.filePath,
-            text: contextMenu.content!
-          })
+          action: () => {
+            void onCopyCode({
+              filePath: contextMenu.filePath,
+              text: contextMenu.content!
+            })
+          }
         })
       }
       if (onStartCommentFromContext) {
         items.push({
           key: 'start-thread',
           label: 'Start comment thread',
-          action: () => onStartCommentFromContext({
-            filePath: contextMenu.filePath,
-            lineNumber: contextMenu.lineNumber,
-            side: contextMenu.side
-          })
+          action: () => {
+            void onStartCommentFromContext({
+              filePath: contextMenu.filePath,
+              lineNumber: contextMenu.lineNumber,
+              side: contextMenu.side
+            })
+          }
         })
       }
     } else if (contextMenu.kind === 'file') {
@@ -393,14 +399,16 @@ export function DiffViewer({
         items.push({
           key: 'copy-path',
           label: 'Copy file path',
-          action: () => onCopyFilePath(contextMenu.filePath)
+          action: () => {
+            void onCopyFilePath(contextMenu.filePath)
+          }
         })
       }
       if (onDiscardFile) {
         items.push({
           key: 'discard-file',
           label: 'Discard file changes',
-          action: () => onDiscardFile(contextMenu.filePath)
+          action: () => { void onDiscardFile(contextMenu.filePath) }
         })
       }
     }
@@ -923,16 +931,18 @@ export function DiffViewer({
           setDiscardOpen(false)
           setPendingDiscardFile(null)
         }}
-        onConfirm={async () => {
-          if (!pendingDiscardFile || !onDiscardFile) return
-          try {
-            setDiscardBusy(true)
-            await onDiscardFile(pendingDiscardFile)
-          } finally {
-            setDiscardBusy(false)
-            setDiscardOpen(false)
-            setPendingDiscardFile(null)
-          }
+        onConfirm={() => {
+          void (async () => {
+            if (!pendingDiscardFile || !onDiscardFile) return
+            try {
+              setDiscardBusy(true)
+              await onDiscardFile(pendingDiscardFile)
+            } finally {
+              setDiscardBusy(false)
+              setDiscardOpen(false)
+              setPendingDiscardFile(null)
+            }
+          })()
         }}
       />
     </>

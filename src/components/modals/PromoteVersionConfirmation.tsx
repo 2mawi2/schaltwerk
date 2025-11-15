@@ -140,7 +140,7 @@ export function PromoteVersionConfirmation({
       }
       confirmText="Delete Others"
       cancelText="Cancel"
-      onConfirm={handleConfirm}
+      onConfirm={() => { void handleConfirm() }}
       onCancel={onClose}
       variant="warning"
     />

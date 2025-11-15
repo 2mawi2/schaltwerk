@@ -297,7 +297,7 @@ export function CloneProjectDialog({ isOpen, onClose, onProjectCloned }: ClonePr
                 }}
               />
               <button
-                onClick={handleSelectDirectory}
+                onClick={() => { void handleSelectDirectory() }}
                 className="px-3 py-2 rounded-lg flex items-center gap-2"
                 style={{
                   backgroundColor: theme.colors.background.hover,
@@ -357,7 +357,7 @@ export function CloneProjectDialog({ isOpen, onClose, onProjectCloned }: ClonePr
             Cancel
           </button>
           <button
-            onClick={handleClone}
+            onClick={() => { void handleClone() }}
             className="flex-1 px-4 py-2 rounded-lg flex justify-center"
             style={{
               backgroundColor: theme.colors.accent.blue.bg,

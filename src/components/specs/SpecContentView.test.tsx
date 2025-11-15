@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, type MockedFunction } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import React from 'react'
 import { SpecContentView } from './SpecContentView'
@@ -31,7 +31,7 @@ describe('SpecContentView', () => {
 
   it('clears previous session content before loading a new session', async () => {
     const { invoke } = await import('@tauri-apps/api/core')
-    const mockInvoke = invoke as ReturnType<typeof vi.fn>
+    const mockInvoke = invoke as MockedFunction<(cmd: string, args?: Record<string, unknown>) => Promise<[string | null, string | null]>>
 
     const deferred = () => {
       let resolve: (value: [string | null, string | null]) => void
@@ -70,7 +70,7 @@ describe('SpecContentView', () => {
 
   it('reuses cached spec content when returning to a session', async () => {
     const { invoke } = await import('@tauri-apps/api/core')
-    const mockInvoke = invoke as ReturnType<typeof vi.fn>
+    const mockInvoke = invoke as MockedFunction<(cmd: string, args?: Record<string, unknown>) => Promise<[string | null, string | null]>>
 
     const deferred = () => {
       let resolve: (value: [string | null, string | null]) => void
@@ -116,7 +116,7 @@ describe('SpecContentView', () => {
 
   it('ignores late responses from previous sessions', async () => {
     const { invoke } = await import('@tauri-apps/api/core')
-    const mockInvoke = invoke as ReturnType<typeof vi.fn>
+    const mockInvoke = invoke as MockedFunction<(cmd: string, args?: Record<string, unknown>) => Promise<[string | null, string | null]>>
 
     const deferred = () => {
       let resolve: (value: [string | null, string | null]) => void

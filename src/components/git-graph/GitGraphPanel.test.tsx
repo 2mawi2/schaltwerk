@@ -770,7 +770,7 @@ describe('GitGraphPanel', () => {
 
     listenEventMock.mockImplementationOnce(async (event, handler) => {
       fileChangeHandlers[event] = handler
-      return async () => {
+      return () => {
         throw unlistenError
       }
     })

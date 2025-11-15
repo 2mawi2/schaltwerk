@@ -127,7 +127,7 @@ export function DiffSessionActions({
         </button>
         {canMarkReviewed && (
           <button
-            onClick={handleMarkReviewedClick}
+            onClick={() => { void handleMarkReviewedClick() }}
             className="px-2 py-1 bg-green-600/80 hover:bg-green-600 rounded-md text-sm font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
             title="Mark this session as reviewed"
             disabled={isMarkingReviewed}
@@ -147,16 +147,18 @@ export function DiffSessionActions({
         sessionName={markReadyModal.sessionName}
         hasUncommittedChanges={markReadyModal.hasUncommitted}
         onClose={() => setMarkReadyModal(initialMarkReadyState)}
-        onSuccess={async () => {
-          await onReloadSessions()
-          onClose()
+        onSuccess={() => {
+          void (async () => {
+            await onReloadSessions()
+            onClose()
+          })()
         }}
       />
 
       <ConfirmResetDialog
         open={confirmResetOpen && isSessionSelection}
         onCancel={() => setConfirmResetOpen(false)}
-        onConfirm={handleConfirmReset}
+        onConfirm={() => { void handleConfirmReset() }}
         isBusy={isResetting}
       />
     </>

@@ -132,7 +132,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
         logger.error('[RunTerminal] Failed to check existing terminal:', err)
       }
     }
-    checkExistingTerminal()
+    void checkExistingTerminal()
   }, [runTerminalId, runStateKey, onRunningStateChange, isRunning])
 
   useEffect(() => {
@@ -144,17 +144,14 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
         return
       }
       try {
-        const result = fn()
-        if (result && result instanceof Promise) {
-          void result.catch(error => {
-            logger.debug(
-              context === 'cancellation'
-                ? '[RunTerminal] TerminalClosed listener cleanup failed after cancellation'
-                : '[RunTerminal] TerminalClosed listener cleanup failed during teardown',
-              error
-            )
-          })
-        }
+        void Promise.resolve(fn()).catch(error => {
+          logger.debug(
+            context === 'cancellation'
+              ? '[RunTerminal] TerminalClosed listener cleanup failed after cancellation'
+              : '[RunTerminal] TerminalClosed listener cleanup failed during teardown',
+            error
+          )
+        })
       } catch (error) {
         logger.debug(
           context === 'cancellation'
@@ -188,7 +185,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
       }
     }
 
-    setup()
+    void setup()
 
     return () => {
       cancelled = true

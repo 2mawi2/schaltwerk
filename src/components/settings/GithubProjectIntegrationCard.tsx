@@ -181,7 +181,7 @@ export function GithubProjectIntegrationCard({ projectPath, onNotify }: GithubPr
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={handleAuthenticate}
+            onClick={() => { void handleAuthenticate() }}
             disabled={!installed || github.isAuthenticating}
             className="px-3 py-2 text-xs font-medium rounded-md transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             style={{
@@ -193,7 +193,7 @@ export function GithubProjectIntegrationCard({ projectPath, onNotify }: GithubPr
             {authenticateLabel}
           </button>
           <button
-            onClick={handleConnect}
+            onClick={() => { void handleConnect() }}
             disabled={!canConnectProject || github.isConnecting}
             className="px-3 py-2 text-xs font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             style={{
@@ -205,7 +205,7 @@ export function GithubProjectIntegrationCard({ projectPath, onNotify }: GithubPr
             {connectLabel}
           </button>
           <button
-            onClick={handleRefresh}
+            onClick={() => { void handleRefresh() }}
             className="px-3 py-2 text-xs font-medium rounded-md flex items-center gap-1 transition-colors"
             style={{
               backgroundColor: theme.colors.background.hover,

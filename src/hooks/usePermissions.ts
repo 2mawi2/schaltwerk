@@ -58,7 +58,7 @@ export function useFolderPermission(folderPath?: string) {
 
   useEffect(() => {
     if (folderPath) {
-      checkPermission(folderPath)
+      void checkPermission(folderPath)
     }
   }, [folderPath, checkPermission])
 

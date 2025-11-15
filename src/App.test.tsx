@@ -1,7 +1,7 @@
 import React from 'react'
 import { TauriCommands } from './common/tauriCommands'
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
-import { vi, type MockInstance } from 'vitest'
+import { vi, type MockedFunction } from 'vitest'
 import { UiEvent, emitUiEvent } from './common/uiEvents'
 import { SchaltEvent } from './common/eventSystem'
 
@@ -148,7 +148,7 @@ type OnCreateFn = (data: OnCreatePayload) => Promise<void>
 
 const startSessionTopMock = vi.hoisted(() =>
   vi.fn(async (_params: StartSessionTopParams) => {})
-) as unknown as MockInstance<(params: StartSessionTopParams) => Promise<void>>
+) as MockedFunction<(params: StartSessionTopParams) => Promise<void>>
 
 vi.mock('./common/agentSpawn', async () => {
   const actual = await vi.importActual<typeof import('./common/agentSpawn')>('./common/agentSpawn')
@@ -195,6 +195,13 @@ async function defaultInvokeImpl(cmd: string, _args?: unknown) {
   }
 }
 
+type InvokeMock = MockedFunction<(cmd: string, args?: Record<string, unknown>) => Promise<unknown>>
+
+async function getInvokeMock(): Promise<InvokeMock> {
+  const { invoke } = await import('@tauri-apps/api/core')
+  return invoke as InvokeMock
+}
+
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(defaultInvokeImpl),
 }))
@@ -227,8 +234,8 @@ async function clickElement(element: HTMLElement | Element) {
 describe('App.tsx', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
-    const { invoke } = await import('@tauri-apps/api/core')
-    ;(invoke as unknown as ReturnType<typeof vi.fn>).mockImplementation(defaultInvokeImpl)
+    const invokeMock = await getInvokeMock()
+    invokeMock.mockImplementation(defaultInvokeImpl)
     newSessionModalMock.mockClear()
     settingsModalMock.mockClear()
     topBarPropsMock.mockClear()
@@ -329,8 +336,7 @@ describe('App.tsx', () => {
       expect(latestTopBar?.activeTabPath).toBe('/Users/me/project-b')
     })
 
-    const { invoke } = await import('@tauri-apps/api/core')
-    const invokeMock = invoke as unknown as ReturnType<typeof vi.fn>
+    const invokeMock = await getInvokeMock()
     let pendingResolve: (() => void) | undefined
     const pendingPromise = new Promise<void>(resolve => {
       pendingResolve = () => resolve()
@@ -403,8 +409,7 @@ describe('App.tsx', () => {
       expect(latestTopBar?.tabs?.length).toBe(2)
     })
 
-    const { invoke } = await import('@tauri-apps/api/core')
-    const invokeMock = invoke as unknown as ReturnType<typeof vi.fn>
+    const invokeMock = await getInvokeMock()
     let resolveProjectB: (() => void) | undefined
     const pendingProjectBSwitch = new Promise<void>(resolve => {
       resolveProjectB = () => resolve()
@@ -459,9 +464,9 @@ describe('App.tsx', () => {
   })
 
   it('handles startup errors without crashing (logs error and stays on Home)', async () => {
-    const { invoke } = await import('@tauri-apps/api/core')
+    const invokeMock = await getInvokeMock()
     // Make get_current_directory throw inside App startup effect
-    ;(invoke as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => {
+    invokeMock.mockImplementationOnce(async () => {
       throw new Error('boom')
     })
 
@@ -765,8 +770,7 @@ describe('validatePanelPercentage', () => {
       { name: 'feature-unique_v3', version_number: 3 },
     ]
 
-    const { invoke } = await import('@tauri-apps/api/core')
-    const invokeMock = invoke as unknown as ReturnType<typeof vi.fn>
+    const invokeMock = await getInvokeMock()
     invokeMock.mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
       if (cmd === TauriCommands.SchaltwerkCoreCreateSession) {
         const next = createdResponses.shift()
@@ -860,8 +864,7 @@ describe('validatePanelPercentage', () => {
     expect(modalCall).toBeTruthy()
     const modalProps = modalCall![0] as { onCreate: OnCreateFn }
 
-    const { invoke } = await import('@tauri-apps/api/core')
-    const invokeMock = invoke as unknown as ReturnType<typeof vi.fn>
+    const invokeMock = await getInvokeMock()
 
     const pendingResolvers: Array<() => void> = []
     invokeMock.mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
@@ -964,8 +967,7 @@ describe('validatePanelPercentage', () => {
       }
     })
 
-    const { invoke } = await import('@tauri-apps/api/core')
-    const invokeMock = invoke as unknown as ReturnType<typeof vi.fn>
+    const invokeMock = await getInvokeMock()
     const isoNow = new Date().toISOString()
     const specSession = {
       info: {
@@ -1110,8 +1112,7 @@ describe('validatePanelPercentage', () => {
       { name: 'session-b', version_number: 2 }
     ]
 
-    const { invoke } = await import('@tauri-apps/api/core')
-    const invokeMock = invoke as unknown as ReturnType<typeof vi.fn>
+    const invokeMock = await getInvokeMock()
     invokeMock.mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
       if (cmd === TauriCommands.SchaltwerkCoreCreateSession) {
         const next = createdResponses.shift()
