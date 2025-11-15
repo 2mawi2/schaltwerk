@@ -20,6 +20,8 @@ import { VscDiscard } from 'react-icons/vsc'
 import { useRef, useEffect, useState, useMemo, useCallback, memo } from 'react'
 import { useShortcutDisplay } from '../../keyboardShortcuts/useShortcutDisplay'
 import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
+import { useKeyboardShortcutsConfig } from '../../contexts/KeyboardShortcutsContext'
+import { detectPlatformSafe, isShortcutForAction } from '../../keyboardShortcuts/helpers'
 import { mapSessionUiState } from '../../utils/sessionFilters'
 import { theme } from '../../common/theme'
 import { logger } from '../../utils/logger'
@@ -64,6 +66,8 @@ const TerminalGridComponent = () => {
 
     // Get dynamic shortcut for Focus Claude
     const focusClaudeShortcut = useShortcutDisplay(KeyboardShortcutAction.FocusClaude)
+    const { config: keyboardShortcutConfig } = useKeyboardShortcutsConfig()
+    const platform = useMemo(() => detectPlatformSafe(), [])
 
     // Show action buttons for both orchestrator and sessions
     const shouldShowActionButtons = (selection.kind === 'orchestrator' || selection.kind === 'session') && actionButtons.length > 0
@@ -133,6 +137,16 @@ const TerminalGridComponent = () => {
     const claudeTerminalRef = useRef<TerminalHandle>(null)
     const terminalTabsRef = useRef<TerminalTabsHandle>(null)
     const runTerminalRefs = useRef<Map<string, RunTerminalHandle>>(new Map())
+    const getActiveTerminalHandle = useCallback((): TerminalHandle | null => {
+        const focusTarget = currentFocus ?? localFocus
+        if (focusTarget === 'claude') {
+            return claudeTerminalRef.current
+        }
+        if (focusTarget === 'terminal') {
+            return terminalTabsRef.current?.getActiveTerminalRef() ?? null
+        }
+        return null
+    }, [currentFocus, localFocus])
     const [isDraggingSplit, setIsDraggingSplit] = useState(false)
     const [confirmResetOpen, setConfirmResetOpen] = useState(false)
     const [isResetting, setIsResetting] = useState(false)
@@ -155,7 +169,54 @@ const TerminalGridComponent = () => {
     const [runModeActive, setRunModeActive] = useState(false)
     const [activeRunSessions, setActiveRunSessions] = useState<Set<string>>(new Set())
     const [pendingRunToggle, setPendingRunToggle] = useState(false)
-    
+
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (isAnyModalOpen()) {
+                return
+            }
+
+            const target = getActiveTerminalHandle()
+            if (!target) {
+                return
+            }
+
+            const context = { platform }
+            if (isShortcutForAction(event, KeyboardShortcutAction.ScrollTerminalLineUp, keyboardShortcutConfig, context)) {
+                event.preventDefault()
+                target.scrollLineUp()
+                return
+            }
+            if (isShortcutForAction(event, KeyboardShortcutAction.ScrollTerminalLineDown, keyboardShortcutConfig, context)) {
+                event.preventDefault()
+                target.scrollLineDown()
+                return
+            }
+            if (isShortcutForAction(event, KeyboardShortcutAction.ScrollTerminalPageUp, keyboardShortcutConfig, context)) {
+                event.preventDefault()
+                target.scrollPageUp()
+                return
+            }
+            if (isShortcutForAction(event, KeyboardShortcutAction.ScrollTerminalPageDown, keyboardShortcutConfig, context)) {
+                event.preventDefault()
+                target.scrollPageDown()
+                return
+            }
+            if (isShortcutForAction(event, KeyboardShortcutAction.ScrollTerminalToTop, keyboardShortcutConfig, context)) {
+                event.preventDefault()
+                target.scrollToTop()
+                return
+            }
+            if (isShortcutForAction(event, KeyboardShortcutAction.ScrollTerminalToBottom, keyboardShortcutConfig, context)) {
+                event.preventDefault()
+                target.scrollToBottom()
+            }
+        }
+
+        window.addEventListener('keydown', handleKeyDown)
+        return () => window.removeEventListener('keydown', handleKeyDown)
+    }, [getActiveTerminalHandle, isAnyModalOpen, keyboardShortcutConfig, platform])
+
 
     const getSessionKey = useCallback(() => {
         return sessionKey

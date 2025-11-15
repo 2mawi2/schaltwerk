@@ -17,6 +17,7 @@ import { terminalFontSizeAtom } from '../../store/atoms/fontSize'
 import { useCleanupRegistry } from '../../hooks/useCleanupRegistry';
 import { theme } from '../../common/theme';
 import '@xterm/xterm/css/xterm.css';
+import './xtermOverrides.css';
 import { logger } from '../../utils/logger'
 import { useModal } from '../../contexts/ModalContext'
 import { safeTerminalFocus, safeTerminalFocusImmediate } from '../../utils/safeFocus'
@@ -37,19 +38,38 @@ import { TerminalResizeCoordinator } from './resize/TerminalResizeCoordinator'
 import { calculateEffectiveColumns, MIN_TERMINAL_COLUMNS } from './terminalSizing'
 import { shouldEmitControlPaste, shouldEmitControlNewline } from './terminalKeybindings'
 import { hydrateReusedTerminal } from './hydration'
-import { shouldApplyScrollTolerance, shouldStickToBottom } from './autoScroll'
 
 const DEFAULT_SCROLLBACK_LINES = 10000
 const BACKGROUND_SCROLLBACK_LINES = 5000
 const AGENT_SCROLLBACK_LINES = 20000
 const CLAUDE_SHIFT_ENTER_SEQUENCE = '\\'
-const SCROLL_RECATCH_TOLERANCE_LINES = 1
-const PASTE_DETECTION_THRESHOLD = 100
-const PASTE_COOLDOWN_MS = 1000
 // Track last effective size we told the PTY (after guard), for SIGWINCH nudging
 const lastEffectiveRefInit = { cols: 80, rows: 24 }
 
 const RESIZE_PIXEL_EPSILON = 0.75
+const MIN_PIXEL_WHEEL_STEP = 40;
+
+const classifyWheelEvent = (event: WheelEvent, previous: boolean): boolean => {
+    if (typeof WheelEvent !== 'undefined') {
+        if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+            return true;
+        }
+        if (event.deltaMode === WheelEvent.DOM_DELTA_PIXEL) {
+            const magnitude = Math.abs(event.deltaY);
+            if (!Number.isFinite(magnitude) || magnitude === 0) {
+                return previous;
+            }
+            if (Number.isInteger(magnitude) && magnitude >= MIN_PIXEL_WHEEL_STEP) {
+                return true;
+            }
+            if (magnitude < 10) {
+                return false;
+            }
+            return previous;
+        }
+    }
+    return previous;
+}
 
 // Xterm/WebGL rounds minimumContrastRatio to one decimal place; use a single shared value
 const ATLAS_CONTRAST_BASE = 1.1;
@@ -81,6 +101,11 @@ export interface TerminalHandle {
     focus: () => void;
     showSearch: () => void;
     scrollToBottom: () => void;
+    scrollLineUp: () => void;
+    scrollLineDown: () => void;
+    scrollPageUp: () => void;
+    scrollPageDown: () => void;
+    scrollToTop: () => void;
 }
 
 const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalId, className = '', sessionName, isCommander = false, agentType, readOnly = false, onTerminalClick, isBackground = false, onReady, inputFilter }, ref) => {
@@ -120,9 +145,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const xtermWrapperRef = useRef<XtermTerminal | null>(null);
     const terminal = useRef<XTerm | null>(null);
     const onDataDisposableRef = useRef<IDisposable | null>(null);
-    const pasteActiveRef = useRef(false);
-    const pasteTimeoutRef = useRef<number | null>(null);
-    const renderStickRafRef = useRef<number | null>(null);
     const fitAddon = useRef<FitAddon | null>(null);
     const searchAddon = useRef<SearchAddon | null>(null);
     const lastSize = useRef<{ cols: number; rows: number }>({ cols: 80, rows: 24 });
@@ -165,7 +187,9 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const [resolvedFontFamily, setResolvedFontFamily] = useState<string | null>(null);
     const [customFontFamily, setCustomFontFamily] = useState<string | null>(null);
     const [fontsFullyLoaded, setFontsFullyLoaded] = useState(false);
+    const [smoothScrollingEnabled, setSmoothScrollingEnabled] = useState(true);
     const fontsLoadedRef = useRef(false);
+    const isPhysicalWheelRef = useRef(true);
     const isTerminalOnlyAgent = agentType === 'terminal';
     // Agent conversation terminal detection reused across sizing logic and scrollback config
     const isAgentTopTerminal = useMemo(() => {
@@ -177,14 +201,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     // Drag-selection suppression for run terminals
     const suppressNextClickRef = useRef<boolean>(false);
     const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null);
-    const dragSelectingRef = useRef<boolean>(false);
-    const selectionActiveRef = useRef<boolean>(false);
     const skipNextFocusCallbackRef = useRef<boolean>(false);
     const shiftEnterPrefixRef = useRef<Promise<void> | null>(null);
-    const scrollStickRafRef = useRef<number | null>(null);
-    const pendingScrollViewportRef = useRef<number | undefined>(undefined);
-    const pendingScrollDirectionRef = useRef<'up' | 'down' | null>(null);
-    const lastScrollViewportRef = useRef<number | null>(null);
 
     const beginClaudeShiftEnter = useCallback(() => {
         const prefixWrite = writeTerminalBackend(terminalId, CLAUDE_SHIFT_ENTER_SEQUENCE)
@@ -445,77 +463,17 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         terminal.current?.scrollToBottom();
     }, []);
 
-    const markPasteActive = useCallback(() => {
-        pasteActiveRef.current = true;
-        if (pasteTimeoutRef.current !== null) {
-            window.clearTimeout(pasteTimeoutRef.current);
-        }
-        pasteTimeoutRef.current = window.setTimeout(() => {
-            pasteActiveRef.current = false;
-            pasteTimeoutRef.current = null;
-        }, PASTE_COOLDOWN_MS);
+    const scrollLines = useCallback((amount: number) => {
+        terminal.current?.scrollLines(amount);
     }, []);
 
-    const stickToBottomIfNeeded = useCallback((reason?: string, viewportOverride?: number, scrollDirection?: 'up' | 'down') => {
-        const term = terminal.current;
-        if (!term) return;
+    const scrollPages = useCallback((amount: number) => {
+        terminal.current?.scrollPages(amount);
+    }, []);
 
-        if (pasteActiveRef.current && reason === 'render') {
-            return;
-        }
-
-        try {
-            const buf = term.buffer?.active;
-            if (!buf) return;
-            const base = typeof buf.baseY === 'number' ? buf.baseY : 0;
-            const hasOverride = typeof viewportOverride === 'number' && Number.isFinite(viewportOverride);
-            const viewport = hasOverride
-                ? viewportOverride
-                : typeof buf.viewportY === 'number'
-                    ? buf.viewportY
-                    : 0;
-
-            if (Number.isFinite(viewport)) {
-                lastScrollViewportRef.current = viewport;
-            }
-            const toleranceLines =
-                shouldApplyScrollTolerance(reason, scrollDirection)
-                    ? SCROLL_RECATCH_TOLERANCE_LINES
-                    : 0;
-            const shouldStick = shouldStickToBottom({
-                baseY: base,
-                viewportY: viewport,
-                isSearchVisible,
-                isDraggingSelection: dragSelectingRef.current,
-                selectionActive: selectionActiveRef.current,
-                hasUserSelection: isUserSelectingInTerminal(),
-                toleranceLines,
-                terminalId,
-            });
-            if (!shouldStick) {
-                return;
-            }
-            try {
-                term.scrollToBottom();
-                try {
-                    const syncedViewport = term.buffer?.active?.viewportY;
-                    if (typeof syncedViewport === 'number' && Number.isFinite(syncedViewport)) {
-                        lastScrollViewportRef.current = syncedViewport;
-                    } else if (Number.isFinite(base)) {
-                        lastScrollViewportRef.current = base;
-                    }
-                } catch {
-                    if (Number.isFinite(base)) {
-                        lastScrollViewportRef.current = base;
-                    }
-                }
-            } catch (error) {
-                logger.debug(`[Terminal ${terminalId}] Failed to scroll to bottom${reason ? ` during ${reason}` : ''}:`, error);
-            }
-        } catch (error) {
-            logger.debug(`[Terminal ${terminalId}] Failed to evaluate stick-to-bottom${reason ? ` during ${reason}` : ''}:`, error);
-        }
-    }, [isSearchVisible, isUserSelectingInTerminal, terminalId]);
+    const scrollToTopInstant = useCallback(() => {
+        terminal.current?.scrollToTop();
+    }, []);
 
     const restartAgent = useCallback(async () => {
         if (!isAgentTopTerminal) return;
@@ -565,12 +523,48 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         showSearch: () => {
             setIsSearchVisible(true);
         },
-        scrollToBottom: scrollToBottomInstant
-    }), [isAnyModalOpen, isSearchVisible, focusSearchInput, scrollToBottomInstant]);
+        scrollToBottom: scrollToBottomInstant,
+        scrollLineUp: () => scrollLines(-1),
+        scrollLineDown: () => scrollLines(1),
+        scrollPageUp: () => scrollPages(-1),
+        scrollPageDown: () => scrollPages(1),
+        scrollToTop: scrollToTopInstant,
+    }), [isAnyModalOpen, isSearchVisible, focusSearchInput, scrollToBottomInstant, scrollLines, scrollPages, scrollToTopInstant]);
 
     useEffect(() => {
         hydratedRef.current = hydrated;
     }, [hydrated]);
+
+
+    useEffect(() => {
+        const node = termRef.current;
+        if (!node) {
+            return undefined;
+        }
+
+        const handleWheel = (event: WheelEvent) => {
+            const next = classifyWheelEvent(event, isPhysicalWheelRef.current);
+            if (next === isPhysicalWheelRef.current) {
+                return;
+            }
+            isPhysicalWheelRef.current = next;
+            if (xtermWrapperRef.current) {
+                xtermWrapperRef.current.setSmoothScrolling(smoothScrollingEnabled && next);
+            }
+        };
+
+        node.addEventListener('wheel', handleWheel, { passive: true });
+        return () => {
+            node.removeEventListener('wheel', handleWheel);
+        };
+    }, [smoothScrollingEnabled]);
+
+    useEffect(() => {
+        if (!xtermWrapperRef.current) {
+            return;
+        }
+        xtermWrapperRef.current.setSmoothScrolling(smoothScrollingEnabled && isPhysicalWheelRef.current);
+    }, [smoothScrollingEnabled]);
 
 
     useEffect(() => {
@@ -602,28 +596,30 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     }, [onTerminalClick]);
 
     useEffect(() => {
-        let mounted = true
+        let mounted = true;
         const load = async () => {
             try {
-                const settings = await invoke<{ fontFamily?: string | null }>(TauriCommands.GetTerminalSettings)
-                const custom = settings?.fontFamily ?? null
-                const chain = buildTerminalFontFamily(custom)
+                const settings = await invoke<{ fontFamily?: string | null; smoothScrolling?: boolean }>(TauriCommands.GetTerminalSettings);
+                const custom = settings?.fontFamily ?? null;
+                const chain = buildTerminalFontFamily(custom);
                 if (mounted) {
-                    setCustomFontFamily(custom)
-                    setResolvedFontFamily(chain)
+                    setCustomFontFamily(custom);
+                    setResolvedFontFamily(chain);
+                    setSmoothScrollingEnabled(settings?.smoothScrolling ?? true);
                 }
             } catch (err) {
-                logger.warn('[Terminal] Failed to load terminal settings for font family', err)
-                const chain = buildTerminalFontFamily(null)
+                logger.warn('[Terminal] Failed to load terminal settings for font family', err);
+                const chain = buildTerminalFontFamily(null);
                 if (mounted) {
-                    setCustomFontFamily(null)
-                    setResolvedFontFamily(chain)
+                    setCustomFontFamily(null);
+                    setResolvedFontFamily(chain);
+                    setSmoothScrollingEnabled(true);
                 }
             }
-        }
-        load()
-        return () => { mounted = false }
-    }, [])
+        };
+        load();
+        return () => { mounted = false; };
+    }, []);
 
     useEffect(() => {
         const cleanup = listenUiEvent(UiEvent.TerminalFontUpdated, detail => {
@@ -939,6 +935,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 fontFamily: resolvedFontFamily || 'Menlo, Monaco, ui-monospace, SFMono-Regular, monospace',
                 readOnly,
                 minimumContrastRatio: atlasContrast,
+                smoothScrolling: smoothScrollingEnabled && isPhysicalWheelRef.current,
             },
         }));
 
@@ -963,8 +960,10 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 fontFamily: resolvedFontFamily || 'Menlo, Monaco, ui-monospace, SFMono-Regular, monospace',
                 readOnly,
                 minimumContrastRatio: atlasContrast,
+                smoothScrolling: smoothScrollingEnabled && isPhysicalWheelRef.current,
             });
         }
+        instance.setSmoothScrolling(smoothScrollingEnabled && isPhysicalWheelRef.current);
         xtermWrapperRef.current = instance;
         terminal.current = instance.raw;
         fitAddon.current = instance.fitAddon;
@@ -1003,10 +1002,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
         performInitialFit();
 
-        // Ensure scrollbar thumb reflects the current buffer position when the terminal is attached.
-        requestAnimationFrame(() => {
-            stickToBottomIfNeeded('attach');
-        });
         let rendererInitialized = false;
         const initializeRenderer = async () => {
             if (rendererInitialized || cancelled || !terminal.current || !termRef.current) {
@@ -1224,65 +1219,9 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                             }
                         }
                     }
-
-                    if (renderStickRafRef.current !== null) {
-                        return;
-                    }
-                    renderStickRafRef.current = requestAnimationFrame(() => {
-                        renderStickRafRef.current = null;
-                        stickToBottomIfNeeded('render');
-                    });
-
                 });
                 if (disposable && typeof disposable === 'object' && typeof (disposable as { dispose?: () => void }).dispose === 'function') {
                     outputDisposables.push(disposable as IDisposable);
-                }
-            }
-
-            if (typeof terminal.current.onScroll === 'function') {
-                const scrollDisposable = terminal.current.onScroll((position?: number) => {
-                    const viewportHint = typeof position === 'number' && Number.isFinite(position)
-                        ? position
-                        : undefined;
-                    if (typeof viewportHint === 'number') {
-                        const previousViewport = typeof lastScrollViewportRef.current === 'number' && Number.isFinite(lastScrollViewportRef.current)
-                            ? lastScrollViewportRef.current
-                            : null;
-                        let direction: 'up' | 'down' | null = null;
-                        if (typeof previousViewport === 'number') {
-                            if (viewportHint > previousViewport) {
-                                direction = 'down';
-                            } else if (viewportHint < previousViewport) {
-                                direction = 'up';
-                            }
-                        }
-                        pendingScrollDirectionRef.current = direction;
-                        lastScrollViewportRef.current = viewportHint;
-                    } else {
-                        pendingScrollDirectionRef.current = null;
-                    }
-                    pendingScrollViewportRef.current = viewportHint;
-                    if (scrollStickRafRef.current !== null) {
-                        return;
-                    }
-
-                    const runStick = () => {
-                        const hint = pendingScrollViewportRef.current;
-                        pendingScrollViewportRef.current = undefined;
-                        const direction = pendingScrollDirectionRef.current;
-                        pendingScrollDirectionRef.current = null;
-                        scrollStickRafRef.current = null;
-                        stickToBottomIfNeeded('scroll', hint, direction ?? undefined);
-                    };
-
-                    try {
-                        scrollStickRafRef.current = requestAnimationFrame(runStick);
-                    } catch {
-                        runStick();
-                    }
-                });
-                if (scrollDisposable && typeof scrollDisposable === 'object' && typeof (scrollDisposable as { dispose?: () => void }).dispose === 'function') {
-                    outputDisposables.push(scrollDisposable as IDisposable);
                 }
             }
         }
@@ -1349,10 +1288,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                      logger.debug(`[Terminal ${terminalId}] blocked input: ${JSON.stringify(data)}`);
                  }
                  return;
-             }
-
-             if (data.length >= PASTE_DETECTION_THRESHOLD) {
-                 markPasteActive();
              }
 
              if (isAgentTopTerminal && data === '\u0003') {
@@ -1443,31 +1378,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             cancelled = true;
             rendererReadyRef.current = false;
 
-            if (scrollStickRafRef.current !== null) {
-                try {
-                    cancelAnimationFrame(scrollStickRafRef.current);
-                } catch {
-                    // ignore cancellation errors during teardown
-                }
-                scrollStickRafRef.current = null;
-            }
-            pendingScrollViewportRef.current = undefined;
-            pendingScrollDirectionRef.current = null;
-            lastScrollViewportRef.current = null;
-            if (pasteTimeoutRef.current !== null) {
-                window.clearTimeout(pasteTimeoutRef.current);
-                pasteTimeoutRef.current = null;
-            }
-            if (renderStickRafRef.current !== null) {
-                try {
-                    cancelAnimationFrame(renderStickRafRef.current);
-                } catch (error) {
-                    logger.debug(`[Terminal ${terminalId}] Failed to cancel render RAF:`, error);
-                }
-                renderStickRafRef.current = null;
-            }
-            pasteActiveRef.current = false;
-
             outputDisposables.forEach(disposable => {
                 try {
                     disposable.dispose();
@@ -1526,8 +1436,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         gpuRenderer,
         handleFontPreferenceChange,
         webglRendererActive,
-        stickToBottomIfNeeded,
-        markPasteActive,
+        smoothScrollingEnabled,
     ]);
 
 
@@ -1835,7 +1744,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const onMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
         mouseDownPosRef.current = { x: e.clientX, y: e.clientY };
         suppressNextClickRef.current = false;
-        dragSelectingRef.current = false;
     };
     const onMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
         if (!mouseDownPosRef.current) return;
@@ -1843,29 +1751,11 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         const dy = Math.abs(e.clientY - mouseDownPosRef.current.y);
         if (dx + dy > 3) {
             suppressNextClickRef.current = true;
-            dragSelectingRef.current = true;
         }
     };
     const onMouseUp = () => {
-        // Keep suppressNextClickRef until click handler runs; then it resets there
         mouseDownPosRef.current = null;
-        requestAnimationFrame(() => {
-            selectionActiveRef.current = isUserSelectingInTerminal();
-            if (!selectionActiveRef.current) {
-                dragSelectingRef.current = false;
-            }
-        });
     };
-    useEffect(() => {
-        const handleSelectionChange = () => {
-            selectionActiveRef.current = isUserSelectingInTerminal();
-            if (!selectionActiveRef.current) {
-                dragSelectingRef.current = false;
-            }
-        };
-        document.addEventListener('selectionchange', handleSelectionChange);
-        return () => document.removeEventListener('selectionchange', handleSelectionChange);
-    }, [isUserSelectingInTerminal]);
 
     const showLoadingOverlay =
         !hydrated

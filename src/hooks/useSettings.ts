@@ -323,7 +323,7 @@ export const useSettings = () => {
                 shell: settings?.shell || null,
                 shellArgs: settings?.shellArgs || [],
                 fontFamily: settings?.fontFamily ?? null,
-                webglEnabled: settings?.webglEnabled ?? true
+                webglEnabled: settings?.webglEnabled ?? true,
             }
         } catch (error) {
             logger.error('Failed to load terminal settings:', error)
