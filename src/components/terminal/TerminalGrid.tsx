@@ -31,6 +31,7 @@ import { safeTerminalFocus } from '../../utils/safeFocus'
 import { UiEvent, emitUiEvent, listenUiEvent, TerminalResetDetail } from '../../common/uiEvents'
 import { beginSplitDrag, endSplitDrag } from '../../utils/splitDragCoordinator'
 import { useToast } from '../../common/toast/ToastProvider'
+import { resolveWorkingDirectory } from './resolveWorkingDirectory'
 
 type TerminalTabDescriptor = { index: number; terminalId: string; label: string }
 type TerminalTabsUiState = {
@@ -63,6 +64,11 @@ const TerminalGridComponent = () => {
     const { sessions } = useSessions()
     const { isAnyModalOpen } = useModal()
     const { pushToast } = useToast()
+
+    const effectiveWorkingDirectory = useMemo(
+        () => resolveWorkingDirectory(selection, terminals.workingDirectory, sessions),
+        [selection, terminals.workingDirectory, sessions],
+    )
 
     // Get dynamic shortcut for Focus Claude
     const focusClaudeShortcut = useShortcutDisplay(KeyboardShortcutAction.FocusClaude)
@@ -1192,6 +1198,7 @@ const TerminalGridComponent = () => {
                             isCommander={selection.kind === 'orchestrator'}
                             agentType={agentType}
                             onTerminalClick={handleClaudeSessionClick}
+                            workingDirectory={effectiveWorkingDirectory}
                         />
                         </TerminalErrorBoundary>
                         )}
@@ -1306,7 +1313,7 @@ const TerminalGridComponent = () => {
                                             className="h-full w-full overflow-hidden"
                                             sessionName={undefined}
                                             onTerminalClick={handleTerminalClick}
-                                            workingDirectory={terminals.workingDirectory}
+                                            workingDirectory={effectiveWorkingDirectory}
                                             onRunningStateChange={(isRunning) => {
                                                 if (isRunning) {
                                                     addRunningSession('orchestrator')
@@ -1370,7 +1377,7 @@ const TerminalGridComponent = () => {
                                     key={`terminal-tabs-${terminalKey}`}
                                     ref={terminalTabsRef}
                                     baseTerminalId={terminals.bottomBase}
-                                    workingDirectory={terminals.workingDirectory}
+                                    workingDirectory={effectiveWorkingDirectory}
                                     className="h-full"
                                     sessionName={selection.kind === 'session' ? selection.payload ?? undefined : undefined}
                                     isCommander={selection.kind === 'orchestrator'}

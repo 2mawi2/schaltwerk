@@ -45,6 +45,7 @@ type HarnessInstance = {
   applyConfig: ReturnType<typeof vi.fn>
   fitAddon: { fit: ReturnType<typeof vi.fn>; proposeDimensions?: () => { cols: number; rows: number } }
   searchAddon: { findNext: ReturnType<typeof vi.fn>; findPrevious: ReturnType<typeof vi.fn> }
+  setFileLinkHandler: ReturnType<typeof vi.fn>
   raw: {
     cols: number
     rows: number
@@ -139,6 +140,7 @@ const terminalHarness = vi.hoisted(() => {
         this.config.fontFamily = options.fontFamily as string
       }
     })
+    setFileLinkHandler = vi.fn()
     config: HarnessConfig
     constructor(public readonly options: { config?: Partial<HarnessConfig> } = {}) {
       this.raw = createMockRaw()

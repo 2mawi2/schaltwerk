@@ -1,4 +1,3 @@
-// @ts-expect-error - minimatch v10 uses named exports in ESM but TypeScript types are for CJS
 import { minimatch } from 'minimatch'
 
 const GENERATED_FILE_PATTERNS = [
