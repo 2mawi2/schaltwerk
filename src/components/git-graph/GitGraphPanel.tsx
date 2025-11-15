@@ -552,7 +552,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
       }
     }
 
-    attach()
+    void attach()
 
     return () => {
       isMounted = false
@@ -717,7 +717,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
         onContextMenu={handleContextMenu}
         commitDetails={commitDetails}
         onToggleCommitDetails={handleToggleCommitDetails}
-        onOpenCommitDiff={(viewModel, filePath) => handleOpenCommitDiffInternal(viewModel.historyItem, filePath)}
+        onOpenCommitDiff={(viewModel, filePath) => { void handleOpenCommitDiffInternal(viewModel.historyItem, filePath) }}
       />
       {hasMore && (
         <div className="border-t border-slate-800 px-3 py-2 text-xs text-slate-400 flex items-center justify-between">
@@ -788,7 +788,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
               type="button"
               className="w-full px-3 py-1 text-left text-xs hover:bg-[color:var(--hover-bg)] transition-colors"
               style={{ '--hover-bg': theme.colors.background.secondary } as React.CSSProperties}
-              onClick={handleCopyCommitId}
+              onClick={() => { void handleCopyCommitId() }}
             >
               Copy commit ID
             </button>
@@ -796,7 +796,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
               type="button"
               className="w-full px-3 py-1 text-left text-xs hover:bg-[color:var(--hover-bg)] transition-colors"
               style={{ '--hover-bg': theme.colors.background.secondary } as React.CSSProperties}
-              onClick={handleCopyCommitMessage}
+              onClick={() => { void handleCopyCommitMessage() }}
             >
               Copy commit message
             </button>

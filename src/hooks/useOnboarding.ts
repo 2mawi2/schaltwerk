@@ -32,7 +32,7 @@ export function useOnboarding() {
             }
         }
 
-        checkTutorialCompletion()
+        void checkTutorialCompletion()
 
         return () => {
             isMounted = false

@@ -68,7 +68,7 @@ export function MergeSessionModal({
     const input = commitMessageInputRef.current
     if (!input) return
     input.focus({ preventScroll: true })
-    Promise.resolve().then(() => {
+    void Promise.resolve().then(() => {
       if (document.activeElement !== input) {
         input.focus({ preventScroll: true })
       }

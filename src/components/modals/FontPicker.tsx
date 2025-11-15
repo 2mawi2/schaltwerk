@@ -15,7 +15,7 @@ export function FontPicker({ load, onSelect, onClose }: Props) {
 
   useEffect(() => {
     let cancelled = false
-    load().then(list => { if (!cancelled) setFonts(list) })
+    void load().then(list => { if (!cancelled) setFonts(list) })
     return () => { cancelled = true }
   }, [load])
 
@@ -61,4 +61,3 @@ export function FontPicker({ load, onSelect, onClose }: Props) {
     </div>
   )
 }
-

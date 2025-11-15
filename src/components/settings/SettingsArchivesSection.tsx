@@ -68,7 +68,7 @@ export function SettingsArchivesSection({ onClose: _onClose, onOpenSpec, onNotif
     }, [])
 
     useEffect(() => {
-        fetchArchives()
+        void fetchArchives()
     }, [fetchArchives])
 
     const handleSaveLimit = useCallback(async () => {
@@ -142,13 +142,13 @@ export function SettingsArchivesSection({ onClose: _onClose, onOpenSpec, onNotif
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
                             <button
-                                onClick={() => handleRestore(item)}
+                                onClick={() => { void handleRestore(item) }}
                                 className="px-2 py-1 border border-slate-700 rounded text-slate-200 text-caption bg-slate-800 hover:bg-slate-700"
                             >
                                 Restore
                             </button>
                             <button
-                                onClick={() => handleDelete(item)}
+                                onClick={() => { void handleDelete(item) }}
                                 className="px-2 py-1 border border-red-700 rounded text-red-200 text-caption bg-red-900/30 hover:bg-red-900/50"
                             >
                                 Delete
@@ -179,7 +179,7 @@ export function SettingsArchivesSection({ onClose: _onClose, onOpenSpec, onNotif
                                 className="w-24 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-200"
                             />
                             <button
-                                onClick={handleSaveLimit}
+                                onClick={() => { void handleSaveLimit() }}
                                 disabled={savingLimit}
                                 className="px-3 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-slate-200 text-body disabled:opacity-60 disabled:cursor-not-allowed"
                             >

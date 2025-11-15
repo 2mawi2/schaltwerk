@@ -143,7 +143,7 @@ export function OpenInSplitButton({ resolvePath, onOpenReady, filter }: OpenInSp
     <div className="relative" ref={menuRef}>
       <div className="flex rounded overflow-hidden border border-slate-700/60 bg-slate-800/50 h-[22px]">
         <button
-          onClick={handleMainClick}
+          onClick={() => { void handleMainClick() }}
           disabled={isOpening}
           className="flex items-center gap-1.5 px-2 text-xs text-slate-200 hover:bg-slate-700/50 disabled:opacity-50 disabled:cursor-not-allowed"
           title={`Open in ${defaultAppLabel}`}

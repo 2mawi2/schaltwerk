@@ -142,7 +142,7 @@ function SelectionTestInitializer({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     void initializeSelectionEvents()
-    setSelectionProjectPath('/test/project')
+    void setSelectionProjectPath('/test/project')
     void initializeSessionsEvents()
     void initializeSessionsSettings()
     void refreshSessions()

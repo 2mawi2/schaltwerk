@@ -60,7 +60,7 @@ export function SpecInfoPanel({ sessionName }: Props) {
         <div className="flex items-center justify-center gap-2">
           <IconButton
             icon={<VscPlay />}
-            onClick={handleRun}
+            onClick={() => { void handleRun() }}
             ariaLabel="Run spec"
             tooltip="Run spec"
             variant="success"
@@ -68,7 +68,7 @@ export function SpecInfoPanel({ sessionName }: Props) {
           />
           <IconButton
             icon={<VscTrash />}
-            onClick={handleDelete}
+            onClick={() => { void handleDelete() }}
             ariaLabel="Delete spec"
             tooltip="Delete spec"
             variant="danger"

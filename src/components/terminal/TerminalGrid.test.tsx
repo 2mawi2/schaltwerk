@@ -1287,7 +1287,7 @@ describe('TerminalGrid', () => {
         shouldActivateRunMode: true,
         savedActiveTab: null,
       })
-      loadRunScriptConfigurationMock.mockImplementation(() => Promise.resolve({
+      loadRunScriptConfigurationMock.mockImplementation(() => ({
         hasRunScripts: true,
         shouldActivateRunMode: true,
         savedActiveTab: null,
@@ -1459,7 +1459,7 @@ describe('TerminalGrid', () => {
 
   describe('Run mode across sessions', () => {
     it('restores bottom terminals when switching to a session without run scripts', async () => {
-      loadRunScriptConfigurationMock.mockImplementation(async (sessionKey: string) => {
+      loadRunScriptConfigurationMock.mockImplementation((sessionKey: string) => {
         if (sessionKey === 'alpha') {
           return {
             hasRunScripts: true,

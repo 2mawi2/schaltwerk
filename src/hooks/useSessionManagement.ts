@@ -60,7 +60,7 @@ export function useSessionManagement(): SessionManagementHookReturn {
                     resolve()
                 }
             }
-            listenEvent(SchaltEvent.TerminalClosed, handler).then((unlisten) => {
+            void listenEvent(SchaltEvent.TerminalClosed, handler).then((unlisten) => {
                 stop = unlisten
             })
             // Deterministic RAF fallback to avoid deadlocks in tests without backend events
@@ -94,7 +94,7 @@ export function useSessionManagement(): SessionManagementHookReturn {
                     resolve()
                 }
             }
-            listenEvent(SchaltEvent.TerminalAgentStarted, handler).then((unlisten) => {
+            void listenEvent(SchaltEvent.TerminalAgentStarted, handler).then((unlisten) => {
                 stop = unlisten
             })
             let frames = 3

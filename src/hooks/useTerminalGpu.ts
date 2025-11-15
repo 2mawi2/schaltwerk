@@ -262,42 +262,46 @@ export function useTerminalGpu({
         if (mounted) setWebglEnabled(true);
       }
     };
-    load();
+    void load();
     return () => {
       mounted = false;
     };
   }, []);
 
   useEffect(() => {
-    const cleanup = listenUiEvent(UiEvent.TerminalRendererUpdated, async detail => {
-      const newWebglEnabled = detail.webglEnabled;
-      setWebglEnabled(prev => {
-        if (prev !== newWebglEnabled) {
-          resetSuggestedRendererType();
-          logger.info(
-            `[Terminal ${terminalId}] GPU acceleration setting changed, clearing fallback state`,
-          );
-        }
-        return newWebglEnabled;
-      });
+    const cleanup = listenUiEvent(UiEvent.TerminalRendererUpdated, detail => {
+      const handleToggle = async () => {
+        const newWebglEnabled = detail.webglEnabled;
+        setWebglEnabled(prev => {
+          if (prev !== newWebglEnabled) {
+            resetSuggestedRendererType();
+            logger.info(
+              `[Terminal ${terminalId}] GPU acceleration setting changed, clearing fallback state`,
+            );
+          }
+          return newWebglEnabled;
+        });
 
-      if (!terminalRef.current) return;
+        if (!terminalRef.current) return;
 
-      const allowWebgl = !isBackground && newWebglEnabled;
-      if (allowWebgl) {
-        try {
-          await ensureRenderer();
-        } catch (error) {
-          logger.warn(`[Terminal ${terminalId}] Renderer initialization failed during toggle`, error);
+        const allowWebgl = !isBackground && newWebglEnabled;
+        if (allowWebgl) {
+          try {
+            await ensureRenderer();
+          } catch (error) {
+            logger.warn(`[Terminal ${terminalId}] Renderer initialization failed during toggle`, error);
+          }
+        } else {
+          disposeRegisteredGpuRenderer(terminalId, 'while toggling WebGL');
+          gpuRenderer.current = null;
+          if (mountedRef.current) {
+            setWebglRendererActive(false);
+          }
+          applyLetterSpacing(false);
         }
-      } else {
-        disposeRegisteredGpuRenderer(terminalId, 'while toggling WebGL');
-        gpuRenderer.current = null;
-        if (mountedRef.current) {
-          setWebglRendererActive(false);
-        }
-        applyLetterSpacing(false);
-      }
+      };
+
+      void handleToggle();
     });
 
     return cleanup;

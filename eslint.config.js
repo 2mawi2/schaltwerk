@@ -1,9 +1,14 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import js from '@eslint/js';
 import tseslint from '@typescript-eslint/eslint-plugin';
 import tsparser from '@typescript-eslint/parser';
 import reactHooks from 'eslint-plugin-react-hooks';
 import noEmptyCatchHandlers from './eslint-rules/no-empty-catch-handlers.js';
 import noTailwindFontSizes from './eslint-rules/no-tailwind-font-sizes.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const localPlugin = {
   rules: {
@@ -24,6 +29,8 @@ export default [
         ecmaFeatures: {
           jsx: true,
         },
+        project: [path.resolve(__dirname, 'tsconfig.json')],
+        tsconfigRootDir: __dirname,
       },
       globals: {
         // Browser globals
@@ -83,6 +90,8 @@ export default [
           allowTaggedTemplates: false,
         },
       ],
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-misused-promises': 'error',
       '@typescript-eslint/no-explicit-any': 'warn',
 
       // General rules
@@ -114,6 +123,8 @@ export default [
         ecmaFeatures: {
           jsx: true,
         },
+        project: [path.resolve(__dirname, 'tsconfig.json')],
+        tsconfigRootDir: __dirname,
       },
       globals: {
         // Browser globals

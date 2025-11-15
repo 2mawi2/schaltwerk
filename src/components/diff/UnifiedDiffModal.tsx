@@ -281,7 +281,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
         logger.debug('Failed to load session preferences for diff collapse:', error)
       }
     }
-    loadPreferences()
+    void loadPreferences()
   }, [])
 
   useEffect(() => {
@@ -291,12 +291,12 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
     if (!isOpen) return
     if (selection.kind === 'orchestrator') {
       if (!currentReview || currentReview.sessionName !== 'orchestrator') {
-        startReview('orchestrator')
+        void startReview('orchestrator')
       }
       return
     }
     if (sessionName && (!currentReview || currentReview.sessionName !== sessionName)) {
-      startReview(sessionName)
+      void startReview(sessionName)
     }
   }, [mode, isOpen, selection.kind, sessionName, currentReview, startReview])
 
@@ -1148,9 +1148,9 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
 
   useEffect(() => {
     if (isOpen) {
-      loadChangedFiles()
+      void loadChangedFiles()
       // Load user's diff view preference
-      invoke<DiffViewPreferences>(TauriCommands.GetDiffViewPreferences)
+      void invoke<DiffViewPreferences>(TauriCommands.GetDiffViewPreferences)
         .then(prefs => {
           setContinuousScroll(prefs.continuous_scroll)
           setCompactDiffs(prefs.compact_diffs ?? true)
@@ -1647,7 +1647,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
         if (!showCommentForm && tag !== 'textarea' && tag !== 'input' && !isEditable) {
           e.preventDefault()
           e.stopPropagation()
-          handleFinishReview()
+          void handleFinishReview()
           return
         }
       }
@@ -1676,14 +1676,14 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
           e.stopPropagation()
           if (selectedFileIndex > 0) {
             const newIndex = selectedFileIndex - 1
-            scrollToFile(files[newIndex].path, newIndex)
+            void scrollToFile(files[newIndex].path, newIndex)
           }
         } else if (e.key === 'ArrowDown') {
           e.preventDefault()
           e.stopPropagation()
           if (selectedFileIndex < files.length - 1) {
             const newIndex = selectedFileIndex + 1
-            scrollToFile(files[newIndex].path, newIndex)
+            void scrollToFile(files[newIndex].path, newIndex)
           }
         }
       }
@@ -1772,7 +1772,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
               files={files}
               selectedFile={selectedFile}
               visibleFilePath={visibleFilePath}
-              onFileSelect={scrollToFile}
+              onFileSelect={(path, index) => { void scrollToFile(path, index) }}
               getCommentsForFile={emptyReviewCommentsForFile}
               currentReview={null}
               onFinishReview={() => {}}
@@ -1832,9 +1832,9 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
               handleLineMouseLeave={() => {}}
               handleLineMouseUp={() => {}}
               lineSelection={historyLineSelection}
-              onCopyLine={handleCopyLineFromContext}
-              onCopyCode={handleCopyCodeFromContext}
-              onCopyFilePath={handleCopyFilePath}
+              onCopyLine={(payload) => { void handleCopyLineFromContext(payload) }}
+              onCopyCode={(payload) => { void handleCopyCodeFromContext(payload) }}
+              onCopyFilePath={(path) => { void handleCopyFilePath(path) }}
               onStartCommentFromContext={handleStartCommentFromContext}
               onOpenFile={openFileHandler}
             />
@@ -1860,12 +1860,12 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
 
   const sessionActions = ({ headerActions }: { headerActions: React.ReactNode }) => (
     <>
-      {headerActions}
-      <button
-        onClick={toggleCompactDiffs}
-        className="p-1.5 hover:bg-slate-800 rounded-lg"
-        title={compactDiffs ? "Show full context" : "Collapse unchanged lines"}
-        aria-label={compactDiffs ? "Show full context" : "Collapse unchanged lines"}
+        {headerActions}
+        <button
+          onClick={() => { toggleCompactDiffs() }}
+          className="p-1.5 hover:bg-slate-800 rounded-lg"
+          title={compactDiffs ? "Show full context" : "Collapse unchanged lines"}
+          aria-label={compactDiffs ? "Show full context" : "Collapse unchanged lines"}
       >
         {compactDiffs ? (
           <VscExpandAll className="text-xl" />
@@ -1873,8 +1873,8 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
           <VscCollapseAll className="text-xl" />
         )}
       </button>
-      <button
-        onClick={toggleContinuousScroll}
+        <button
+          onClick={() => { void toggleContinuousScroll() }}
         className="p-1.5 hover:bg-slate-800 rounded-lg"
         title={continuousScroll ? "Switch to single file view" : "Switch to continuous scroll"}
       >
@@ -1922,14 +1922,14 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
                 maxWidth: '600px'
               }}
             >
-              <DiffFileExplorer
-                files={files}
-                selectedFile={selectedFile}
-                visibleFilePath={visibleFilePath}
-                onFileSelect={scrollToFile}
+            <DiffFileExplorer
+              files={files}
+              selectedFile={selectedFile}
+              visibleFilePath={visibleFilePath}
+              onFileSelect={(path, index) => { void scrollToFile(path, index) }}
                 getCommentsForFile={getCommentsForFile}
                 currentReview={currentReview}
-                onFinishReview={handleFinishReview}
+                onFinishReview={() => { void handleFinishReview() }}
                 onCancelReview={clearReview}
                 removeComment={removeComment}
                 getConfirmationMessage={getConfirmationMessage}
@@ -1987,9 +1987,9 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
                 handleLineMouseLeave={handleLineMouseLeave}
                 handleLineMouseUp={handleLineMouseUp}
                 lineSelection={lineSelection}
-                onCopyLine={handleCopyLineFromContext}
-                onCopyCode={handleCopyCodeFromContext}
-                onCopyFilePath={handleCopyFilePath}
+                onCopyLine={(payload) => { void handleCopyLineFromContext(payload) }}
+                onCopyCode={(payload) => { void handleCopyCodeFromContext(payload) }}
+                onCopyFilePath={(path) => { void handleCopyFilePath(path) }}
                 onDiscardFile={handleDiscardFile}
                 onStartCommentFromContext={handleStartCommentFromContext}
                 onOpenFile={openFileHandler}
@@ -2032,7 +2032,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose, mode: incomingMode
                       </div>
                     </div>
                     <CommentForm
-                      onSubmit={handleSubmitComment}
+                      onSubmit={(value) => { void handleSubmitComment(value) }}
                       onCancel={() => {
                         setShowCommentForm(false)
                         setCommentFormPosition(null)

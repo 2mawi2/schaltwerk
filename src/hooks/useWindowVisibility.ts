@@ -80,7 +80,7 @@ export function useWindowVisibility(): WindowVisibilityState {
     window.addEventListener('blur', handleBlur)
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
-    ;(async () => {
+    void (async () => {
       try {
         const currentWindow = await getCurrentWindow()
         const focusEvents = ['tauri://focus', 'tauri://active', 'tauri://resumed']

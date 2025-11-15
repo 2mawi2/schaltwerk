@@ -217,7 +217,7 @@ export function useSpecMode({ projectPath, selection, sessions, setFilterMode, s
     const unlisten = listenEvent(SchaltEvent.SessionsRefreshed, handleSessionsRefreshed)
 
     return () => {
-      unlisten.then(unlistenFn => unlistenFn())
+      void unlisten.then(unlistenFn => unlistenFn())
     }
   }, [selection, commanderSpecModeSession, sessions, setCommanderSpecModeSession])
 
@@ -226,7 +226,7 @@ export function useSpecMode({ projectPath, selection, sessions, setFilterMode, s
     const cleanup = listenUiEvent(UiEvent.EnterSpecMode, detail => {
       const { sessionName } = detail
       if (sessionName) {
-        enterSpecMode(sessionName, currentFilterMode)
+        void enterSpecMode(sessionName, currentFilterMode)
       }
     })
 
@@ -269,8 +269,8 @@ export function useSpecMode({ projectPath, selection, sessions, setFilterMode, s
   
   // Listen for exit spec mode event
   useEffect(() => {
-    const handleExitEvent = async () => {
-      await handleExitSpecMode()
+    const handleExitEvent = () => {
+      void handleExitSpecMode()
     }
     window.addEventListener('schaltwerk:exit-spec-mode', handleExitEvent)
     return () => window.removeEventListener('schaltwerk:exit-spec-mode', handleExitEvent)

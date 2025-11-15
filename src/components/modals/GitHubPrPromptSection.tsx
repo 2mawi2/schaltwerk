@@ -254,7 +254,7 @@ export function GitHubPrPromptSection({
           <div className="flex flex-shrink-0 items-center gap-2">
             <button
               type="button"
-              onClick={() => handleOpenLink(details.url)}
+              onClick={() => { void handleOpenLink(details.url) }}
               className="px-2 py-1 text-xs rounded border transition-colors"
               style={{
                 backgroundColor: theme.colors.accent.blue.bg,
@@ -418,7 +418,7 @@ export function GitHubPrPromptSection({
                 <li key={pr.number}>
                   <button
                     type="button"
-                    onClick={() => handlePrClick(pr)}
+                    onClick={() => { void handlePrClick(pr) }}
                     onMouseEnter={() => setHoveredPr(pr.number)}
                     onMouseLeave={() => setHoveredPr(current => (current === pr.number ? null : current))}
                     disabled={isLoading}
