@@ -1,4 +1,4 @@
-import type { ITerminalOptions } from '@xterm/xterm'
+import type { IDisposable, ITerminalOptions } from '@xterm/xterm'
 import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
@@ -9,6 +9,8 @@ import { theme } from '../../common/theme'
 import { logger } from '../../utils/logger'
 import { XtermAddonImporter } from './xtermAddonImporter'
 import { TauriCommands } from '../../common/tauriCommands'
+import { RegexLinkProvider } from './fileLinkProvider'
+import { parseTerminalFileReference, TERMINAL_FILE_LINK_REGEX } from './fileLinks/terminalFileLinks'
 
 export interface XtermTerminalConfig {
   scrollback: number
@@ -25,6 +27,7 @@ export interface XtermTerminalOptions {
 }
 
 type TerminalTheme = NonNullable<ITerminalOptions['theme']>
+type FileLinkHandler = (text: string) => Promise<boolean> | boolean
 
 function buildTheme(): TerminalTheme {
   return {
@@ -85,11 +88,13 @@ export class XtermTerminal {
   readonly fitAddon: FitAddon
   readonly searchAddon: SearchAddon
   readonly webLinksAddon: WebLinksAddon
+  private readonly fileLinkProvider: IDisposable
   private readonly container: HTMLDivElement
   private opened = false
   private readonly coreAddonsReady: Promise<void>
   private config: XtermTerminalConfig
   private readonly terminalId: string
+  private fileLinkHandler: FileLinkHandler | null = null
 
   constructor(options: XtermTerminalOptions) {
     this.terminalId = options.terminalId
@@ -111,6 +116,17 @@ export class XtermTerminal {
       }
     })
     this.raw.loadAddon(this.webLinksAddon)
+
+    this.fileLinkProvider = this.raw.registerLinkProvider(
+      new RegexLinkProvider(
+        this.raw,
+        TERMINAL_FILE_LINK_REGEX,
+        (event, text) => {
+          void this.handleFileLink(event, text)
+        },
+        candidate => Boolean(parseTerminalFileReference(candidate)),
+      ),
+    )
 
     XtermAddonImporter.registerPreloadedAddon('fit', FitAddon)
     XtermAddonImporter.registerPreloadedAddon('search', SearchAddon)
@@ -223,7 +239,29 @@ export class XtermTerminal {
 
   dispose(): void {
     this.detach()
+    try {
+      this.fileLinkProvider.dispose()
+    } catch (error) {
+      logger.debug(`[XtermTerminal ${this.terminalId}] Failed to dispose file link provider`, error)
+    }
     this.raw.dispose()
+  }
+
+  setFileLinkHandler(handler: FileLinkHandler | null): void {
+    this.fileLinkHandler = handler
+  }
+
+  private async handleFileLink(event: MouseEvent, text: string): Promise<void> {
+    if (!this.fileLinkHandler) return
+    try {
+      const handled = await this.fileLinkHandler(text)
+      if (handled) {
+        event.preventDefault()
+        event.stopPropagation()
+      }
+    } catch (error) {
+      logger.error(`[XtermTerminal ${this.terminalId}] File link handler failed for ${text}`, error)
+    }
   }
 
   private registerOscHandlers(): void {

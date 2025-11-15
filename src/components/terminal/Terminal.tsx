@@ -38,6 +38,7 @@ import { TerminalResizeCoordinator } from './resize/TerminalResizeCoordinator'
 import { calculateEffectiveColumns, MIN_TERMINAL_COLUMNS } from './terminalSizing'
 import { shouldEmitControlPaste, shouldEmitControlNewline } from './terminalKeybindings'
 import { hydrateReusedTerminal } from './hydration'
+import { parseTerminalFileReference, resolveTerminalFileReference } from '../../terminal/xterm/fileLinks/terminalFileLinks'
 
 const DEFAULT_SCROLLBACK_LINES = 10000
 const BACKGROUND_SCROLLBACK_LINES = 5000
@@ -95,6 +96,7 @@ interface TerminalProps {
     isBackground?: boolean;
     onReady?: () => void;
     inputFilter?: (data: string) => boolean;
+    workingDirectory?: string;
 }
 
 export interface TerminalHandle {
@@ -108,7 +110,11 @@ export interface TerminalHandle {
     scrollToTop: () => void;
 }
 
-const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalId, className = '', sessionName, isCommander = false, agentType, readOnly = false, onTerminalClick, isBackground = false, onReady, inputFilter }, ref) => {
+type TerminalFileLinkHandler = (text: string) => Promise<boolean> | boolean;
+
+const normalizeForComparison = (value: string) => value.replace(/\\/g, '/');
+
+const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalId, className = '', sessionName, isCommander = false, agentType, readOnly = false, onTerminalClick, isBackground = false, onReady, inputFilter, workingDirectory }, ref) => {
     const terminalFontSize = useAtomValue(terminalFontSizeAtom);
     const { addEventListener, addResizeObserver } = useCleanupRegistry();
     const { isAnyModalOpen } = useModal();
@@ -143,6 +149,47 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         return dims;
     }, [readDimensions]);
     const xtermWrapperRef = useRef<XtermTerminal | null>(null);
+    const fileLinkHandlerRef = useRef<TerminalFileLinkHandler | null>(null);
+    const openFileFromTerminal = useCallback(async (text: string) => {
+        if (!workingDirectory) return false;
+        const parsed = parseTerminalFileReference(text);
+        if (!parsed) return false;
+        const resolvedPath = resolveTerminalFileReference(parsed, workingDirectory);
+        if (!resolvedPath) return false;
+
+        const baseNormalized = normalizeForComparison(workingDirectory);
+        const resolvedNormalized = normalizeForComparison(resolvedPath);
+        const baseWithSlash = baseNormalized.endsWith('/') ? baseNormalized : `${baseNormalized}/`;
+        const isWithinBase = resolvedNormalized === baseNormalized || resolvedNormalized.startsWith(baseWithSlash);
+        if (!isWithinBase) {
+            logger.warn(`[Terminal ${terminalId}] Ignoring file link outside session root: ${text}`);
+            return false;
+        }
+
+        try {
+            const appId = await invoke<string>(TauriCommands.GetDefaultOpenApp);
+            await invoke(TauriCommands.OpenInApp, { appId, worktreePath: resolvedPath });
+            return true;
+        } catch (error) {
+            logger.error(`[Terminal ${terminalId}] Failed to open file link ${text}`, error);
+            return false;
+        }
+    }, [workingDirectory, terminalId]);
+
+    useEffect(() => {
+        const handler = workingDirectory ? openFileFromTerminal : null;
+        fileLinkHandlerRef.current = handler;
+        const instance = xtermWrapperRef.current;
+        if (instance) {
+            instance.setFileLinkHandler(handler);
+        }
+        return () => {
+            if (fileLinkHandlerRef.current === handler) {
+                fileLinkHandlerRef.current = null;
+                instance?.setFileLinkHandler(null);
+            }
+        };
+    }, [workingDirectory, openFileFromTerminal]);
     const terminal = useRef<XTerm | null>(null);
     const onDataDisposableRef = useRef<IDisposable | null>(null);
     const fitAddon = useRef<FitAddon | null>(null);
@@ -965,6 +1012,9 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         }
         instance.setSmoothScrolling(smoothScrollingEnabled && isPhysicalWheelRef.current);
         xtermWrapperRef.current = instance;
+        if (fileLinkHandlerRef.current) {
+            instance.setFileLinkHandler(fileLinkHandlerRef.current);
+        }
         terminal.current = instance.raw;
         fitAddon.current = instance.fitAddon;
         searchAddon.current = instance.searchAddon;
