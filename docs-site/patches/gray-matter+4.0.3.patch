@@ -7,17 +7,17 @@ index 38f993d..7e1710c 100644
  const engines = exports = module.exports;
  
 +const getYamlParser = () => {
-+  if (typeof yaml.load === 'function') {
-+    return yaml.load.bind(yaml);
++  if (typeof yaml.safeLoad === 'function') {
++    return yaml.safeLoad.bind(yaml);
 +  }
-+  return yaml.safeLoad.bind(yaml);
++  return yaml.load.bind(yaml);
 +};
 +
 +const getYamlStringifier = () => {
-+  if (typeof yaml.dump === 'function') {
-+    return yaml.dump.bind(yaml);
++  if (typeof yaml.safeDump === 'function') {
++    return yaml.safeDump.bind(yaml);
 +  }
-+  return yaml.safeDump.bind(yaml);
++  return yaml.dump.bind(yaml);
 +};
 +
  /**
