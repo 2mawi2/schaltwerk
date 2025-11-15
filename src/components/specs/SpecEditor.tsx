@@ -69,7 +69,8 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
   const [displayName, setDisplayName] = useState<string | null>(null)
   const markdownEditorRef = useRef<MarkdownEditorRef>(null)
   const saveCountRef = useRef(0)
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  type TimeoutHandle = ReturnType<typeof setTimeout> | number
+  const saveTimeoutRef = useRef<TimeoutHandle | null>(null)
   const shouldFocusAfterModeSwitch = useRef(false)
   const { config: keyboardShortcutConfig } = useKeyboardShortcutsConfig()
   const platform = useMemo(() => detectPlatformSafe(), [])
@@ -99,7 +100,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
     let cancelled = false
     setLoading(true)
 
-    ;(async () => {
+    void (async () => {
       try {
         const [draftContent, initialPrompt] = await invoke<[string | null, string | null]>(
           TauriCommands.SchaltwerkCoreGetSessionAgentContent,
@@ -174,38 +175,40 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
     }
 
     setSaving(true)
-    saveTimeoutRef.current = setTimeout(async () => {
-      saveCountRef.current++
-      try {
-        await invoke(TauriCommands.SchaltwerkCoreUpdateSpecContent, {
-          name: sessionName,
-          content: newContent
-        })
-        logger.info('[SpecEditor] Spec saved automatically')
-        updateSessionSpecContent(sessionName, newContent)
-      } catch (e) {
-        logger.error('[SpecEditor] Failed to save spec:', e)
-        setError(String(e))
-      } finally {
-        saveCountRef.current--
-        if (saveCountRef.current === 0) {
-          setSaving(false)
-          markSessionSaved(sessionName)
+    saveTimeoutRef.current = window.setTimeout(() => {
+      void (async () => {
+        saveCountRef.current++
+        try {
+          await invoke(TauriCommands.SchaltwerkCoreUpdateSpecContent, {
+            name: sessionName,
+            content: newContent
+          })
+          logger.info('[SpecEditor] Spec saved automatically')
+          updateSessionSpecContent(sessionName, newContent)
+        } catch (e) {
+          logger.error('[SpecEditor] Failed to save spec:', e)
+          setError(String(e))
+        } finally {
+          saveCountRef.current--
+          if (saveCountRef.current === 0) {
+            setSaving(false)
+            markSessionSaved(sessionName)
+          }
         }
-      }
+      })()
     }, 400)
   }
 
-  const handleCopy = async () => {
+  const handleCopy = useCallback(async () => {
     try {
       setCopying(true)
       await navigator.clipboard.writeText(currentContent)
     } catch (err) {
       logger.error('[SpecEditor] Failed to copy content:', err)
     } finally {
-      setTimeout(() => setCopying(false), 1000)
+      window.setTimeout(() => setCopying(false), 1000)
     }
-  }
+  }, [currentContent])
 
   const handleRun = useCallback(async () => {
     if (!onStart) return
@@ -234,7 +237,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!starting && isShortcutForAction(e, KeyboardShortcutAction.RunSpecAgent, keyboardShortcutConfig, { platform })) {
         e.preventDefault()
-        handleRun()
+        void handleRun()
       } else if (!disableFocusShortcut && isShortcutForAction(e, KeyboardShortcutAction.FocusClaude, keyboardShortcutConfig, { platform })) {
         e.preventDefault()
 
@@ -290,7 +293,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={handleRefine}
+            onClick={() => { void handleRefine() }}
             className="px-2 py-1 rounded flex items-center gap-1 hover:opacity-90"
             style={{
               ...specText.toolbarButton,
@@ -312,7 +315,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
             {viewMode === 'edit' ? 'Preview' : 'Edit'}
           </button>
           <button
-            onClick={handleRun}
+            onClick={() => { void handleRun() }}
             disabled={starting}
             className="px-3 py-1 rounded bg-green-600 hover:bg-green-500 text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
             style={specText.toolbarButton}
@@ -326,7 +329,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
             )}
           </button>
           <button
-            onClick={handleCopy}
+            onClick={() => { void handleCopy() }}
             disabled={copying || !currentContent}
             className="px-2 py-1 rounded bg-blue-700 hover:bg-blue-600 text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
             style={specText.toolbarButton}

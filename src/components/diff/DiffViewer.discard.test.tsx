@@ -66,7 +66,7 @@ describe('DiffViewer - Discard File Button', () => {
   })
 
   it('shows discard button when onDiscardFile is provided', () => {
-    const onDiscardFile = vi.fn()
+    const onDiscardFile: DiffViewerProps['onDiscardFile'] = vi.fn()
     const props = createMockProps({ onDiscardFile })
 
     render(<DiffViewer {...props} />)
@@ -87,7 +87,7 @@ describe('DiffViewer - Discard File Button', () => {
 
   it('opens confirmation dialog when discard button is clicked', async () => {
     const user = userEvent.setup()
-    const onDiscardFile = vi.fn()
+    const onDiscardFile: DiffViewerProps['onDiscardFile'] = vi.fn()
     const props = createMockProps({ onDiscardFile })
 
     render(<DiffViewer {...props} />)
@@ -105,7 +105,7 @@ describe('DiffViewer - Discard File Button', () => {
 
   it('calls onDiscardFile when confirmation is confirmed', async () => {
     const user = userEvent.setup()
-    const onDiscardFile = vi.fn().mockResolvedValue(undefined)
+    const onDiscardFile: DiffViewerProps['onDiscardFile'] = vi.fn().mockResolvedValue(undefined)
     const props = createMockProps({ onDiscardFile })
 
     render(<DiffViewer {...props} />)
@@ -129,7 +129,7 @@ describe('DiffViewer - Discard File Button', () => {
 
   it('closes dialog without calling onDiscardFile when cancelled', async () => {
     const user = userEvent.setup()
-    const onDiscardFile = vi.fn()
+    const onDiscardFile: DiffViewerProps['onDiscardFile'] = vi.fn()
     const props = createMockProps({ onDiscardFile })
 
     render(<DiffViewer {...props} />)
@@ -152,7 +152,7 @@ describe('DiffViewer - Discard File Button', () => {
   })
 
   it('shows discard button in continuous scroll mode', () => {
-    const onDiscardFile = vi.fn()
+    const onDiscardFile: DiffViewerProps['onDiscardFile'] = vi.fn()
     const props = createMockProps({
       onDiscardFile,
       isLargeDiffMode: false,
@@ -170,7 +170,7 @@ describe('DiffViewer - Discard File Button', () => {
 
   it('handles multiple files with different discard actions', async () => {
     const user = userEvent.setup()
-    const onDiscardFile = vi.fn().mockResolvedValue(undefined)
+    const onDiscardFile: DiffViewerProps['onDiscardFile'] = vi.fn().mockResolvedValue(undefined)
     const file2Diff = {
       ...mockFileDiff,
       file: { path: 'src/file2.tsx', change_type: 'modified' as const, additions: 1, deletions: 0, changes: 1 }
@@ -213,7 +213,7 @@ describe('DiffViewer - Discard File Button', () => {
     const discardPromise = new Promise<void>((resolve) => {
       resolveDiscard = resolve
     })
-    const onDiscardFile = vi.fn(() => discardPromise)
+    const onDiscardFile: DiffViewerProps['onDiscardFile'] = vi.fn((_path: string) => discardPromise)
     const props = createMockProps({ onDiscardFile })
 
     render(<DiffViewer {...props} />)

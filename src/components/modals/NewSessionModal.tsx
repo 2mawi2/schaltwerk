@@ -573,7 +573,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
     }, [creating, name, taskContent, baseBranch, customBranch, onCreate, validateSessionName, createAsDraft, versionCount, agentType, skipPermissions, promptSource, githubIssueSelection, githubPrSelection, multiAgentMode, normalizedAgentTypes])
 
     // Keep ref in sync immediately on render to avoid stale closures in tests
-    createRef.current = handleCreate
+    createRef.current = () => { void handleCreate() }
 
     // Track if the modal was previously open and with what initialIsDraft value
     const wasOpenRef = useRef(false)
@@ -1194,7 +1194,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                 <span className="ml-1.5 text-xs opacity-60 group-hover:opacity-100">Esc</span>
             </button>
             <button
-                onClick={handleCreate}
+                onClick={() => { void handleCreate() }}
                 disabled={isStartDisabled}
                 className={`px-3 h-9 disabled:cursor-not-allowed rounded text-white group relative inline-flex items-center gap-2 ${isStartDisabled ? 'opacity-60' : 'hover:opacity-90'}`}
                 style={{

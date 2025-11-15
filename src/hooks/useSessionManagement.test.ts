@@ -164,7 +164,7 @@ describe('useSessionManagement', () => {
 
             // Start first reset (but don't await it yet)
             act(() => {
-                result.current.resetSession(selection, mockTerminals)
+                void result.current.resetSession(selection, mockTerminals)
             })
 
             // Try to reset again while first is in progress - this should be ignored

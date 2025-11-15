@@ -314,7 +314,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
     // Only load if we don't already have data for this session or if we just cleared stale data
     const hasDataForCurrentSession = lastResultRef.current !== '' && lastSessionKeyRef.current === newSessionKey
     if (!hasDataForCurrentSession || needsDataClear) {
-      loadChangedFiles()
+      void loadChangedFiles()
     }
 
     let pollInterval: NodeJS.Timeout | null = null
@@ -375,7 +375,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
       if (currentIsCommander && !currentSession) {
         pollInterval = setInterval(() => {
           if (!isCancelled) {
-            loadChangedFiles()
+            void loadChangedFiles()
           }
         }, 5000) // Poll every 5 seconds for orchestrator
       } else {
@@ -400,7 +400,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
           // Fallback to polling if file watcher fails
           pollInterval = setInterval(() => {
             if (!isCancelled) {
-              loadChangedFiles()
+              void loadChangedFiles()
             }
           }, 3000)
         }
@@ -477,7 +477,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
       }, 0)
     }
 
-    setup()
+    void setup()
 
     return () => {
       // Stop file watcher
@@ -720,9 +720,9 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
                     aria-label={`Open ${file.path}`}
                     className="ml-2 p-1 rounded hover:bg-slate-800"
                     style={{ color: theme.colors.text.secondary }}
-                    onClick={async (e) => {
+                    onClick={(e) => {
                       e.stopPropagation()
-                      await handleOpenFile(file.path)
+                      void handleOpenFile(file.path)
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.color = theme.colors.text.primary
@@ -737,7 +737,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
                     title="Discard changes for this file"
                     aria-label={`Discard ${file.path}`}
                     className="p-1 rounded hover:bg-slate-800 text-slate-300"
-                    onClick={async (e) => {
+                    onClick={(e) => {
                       e.stopPropagation()
                       setPendingDiscardFile(file.path)
                       setDiscardOpen(true)
@@ -773,7 +773,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
         </div>
       )}
     </div>
-    <ConfirmResetDialog open={confirmOpen} onCancel={() => setConfirmOpen(false)} onConfirm={handleResetSession} isBusy={isResetting} />
+    <ConfirmResetDialog open={confirmOpen} onCancel={() => setConfirmOpen(false)} onConfirm={() => { void handleResetSession() }} isBusy={isResetting} />
     <ConfirmDiscardDialog
       open={discardOpen}
       filePath={pendingDiscardFile}
@@ -782,23 +782,25 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
         setDiscardOpen(false)
         setPendingDiscardFile(null)
       }}
-      onConfirm={async () => {
-        if (!pendingDiscardFile) return
-        try {
-          setDiscardBusy(true)
-          if (isCommander && !sessionName) {
-            await invoke(TauriCommands.SchaltwerkCoreDiscardFileInOrchestrator, { filePath: pendingDiscardFile })
-          } else if (sessionName) {
-            await invoke(TauriCommands.SchaltwerkCoreDiscardFileInSession, { sessionName, filePath: pendingDiscardFile })
+      onConfirm={() => {
+        void (async () => {
+          if (!pendingDiscardFile) return
+          try {
+            setDiscardBusy(true)
+            if (isCommander && !sessionName) {
+              await invoke(TauriCommands.SchaltwerkCoreDiscardFileInOrchestrator, { filePath: pendingDiscardFile })
+            } else if (sessionName) {
+              await invoke(TauriCommands.SchaltwerkCoreDiscardFileInSession, { sessionName, filePath: pendingDiscardFile })
+            }
+            await loadChangedFilesRef.current()
+          } catch (err) {
+            logger.error('Discard file failed:', err)
+          } finally {
+            setDiscardBusy(false)
+            setDiscardOpen(false)
+            setPendingDiscardFile(null)
           }
-          await loadChangedFilesRef.current()
-        } catch (err) {
-          logger.error('Discard file failed:', err)
-        } finally {
-          setDiscardBusy(false)
-          setDiscardOpen(false)
-          setPendingDiscardFile(null)
-        }
+        })()
       }}
     />
     </>

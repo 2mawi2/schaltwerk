@@ -32,7 +32,7 @@ export function MarkReadyConfirmation({
     }
 
     let cancelled = false
-    ;(async () => {
+    void (async () => {
       try {
         const dirty = await invoke<boolean>(TauriCommands.SchaltwerkCoreHasUncommittedChanges, { name: sessionName })
 
@@ -115,7 +115,7 @@ export function MarkReadyConfirmation({
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault()
-                    handleConfirm()
+                    void handleConfirm()
                   }
                 }}
                 placeholder={`Complete development work for ${sessionName}`}
@@ -147,7 +147,7 @@ export function MarkReadyConfirmation({
       confirmTitle="Mark as reviewed (Enter)"
       cancelText="Cancel"
       cancelTitle="Cancel (Esc)"
-      onConfirm={handleConfirm}
+      onConfirm={() => { void handleConfirm() }}
       onCancel={onClose}
       confirmDisabled={loading || (effectiveHasUncommitted && !autoCommit)}
       loading={loading}

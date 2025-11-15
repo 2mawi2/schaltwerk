@@ -52,10 +52,10 @@ describe('Sidebar listener cleanup resilience', () => {
   it('swallows promise rejections from already disposed listeners during cleanup', async () => {
     const rejectingUnlistenFns: Array<ReturnType<typeof vi.fn>> = []
 
-    vi.mocked(listen).mockImplementation(async (_event: string, _cb: (evt: TauriEvent<unknown>) => void) => {
+    vi.mocked(listen).mockImplementation((_event: string, _cb: (evt: TauriEvent<unknown>) => void) => {
       const unlisten = vi.fn(() => Promise.reject(new Error('Listener already disposed')))
       rejectingUnlistenFns.push(unlisten)
-      return unlisten
+      return Promise.resolve(unlisten)
     })
 
     const { unmount } = render(<TestProviders><Sidebar /></TestProviders>)

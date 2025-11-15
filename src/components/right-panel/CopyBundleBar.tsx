@@ -529,7 +529,7 @@ export function CopyBundleBar({ sessionName }: CopyBundleBarProps) {
         </div>
         <button
           type="button"
-          onClick={handleCopy}
+          onClick={() => { void handleCopy() }}
           disabled={isCopying || nothingSelected}
           className="flex items-center px-3 h-[22px] text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed rounded-md border bg-[color:var(--copy-btn-bg)] text-[color:var(--copy-btn-text)] border-[color:var(--copy-btn-border)] hover:bg-[color:var(--copy-btn-bg-hover)] hover:text-[color:var(--copy-btn-text-hover)]"
           style={copyButtonStyleVars}

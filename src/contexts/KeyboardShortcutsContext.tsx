@@ -39,7 +39,7 @@ export const KeyboardShortcutsProvider: React.FC<{ children: React.ReactNode }> 
   }, [])
 
   useEffect(() => {
-    loadShortcuts()
+    void loadShortcuts()
   }, [loadShortcuts])
 
   const handleSetConfig = useCallback((next: KeyboardShortcutConfig) => {
@@ -87,4 +87,3 @@ export const useKeyboardShortcutsConfig = (): KeyboardShortcutContextValue => {
   }
   return ctx
 }
-

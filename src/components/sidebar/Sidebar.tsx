@@ -175,7 +175,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const handleMergeSession = useCallback(
         (sessionId: string) => {
             if (isSessionMerging(sessionId)) return
-            openMergeDialog(sessionId)
+            void openMergeDialog(sessionId)
         },
         [isSessionMerging, openMergeDialog]
     )
@@ -258,10 +258,16 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     }, [projectPath, filterMode]);
 
     useEffect(() => {
-        const cleanup = listenUiEvent(UiEvent.ProjectSwitchComplete, () => {
-            isProjectSwitching.current = false
-        })
-        return cleanup
+        let unsubscribe: (() => void) | null = null
+        const attach = async () => {
+            unsubscribe = await listenUiEvent(UiEvent.ProjectSwitchComplete, () => {
+                isProjectSwitching.current = false
+            })
+        }
+        void attach()
+        return () => {
+            unsubscribe?.()
+        }
     }, []);
 
     const reloadSessionsAndRefreshIdle = useCallback(async () => {
@@ -274,7 +280,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             if (called) return
             called = true
             try {
-                Promise.resolve(fn()).catch(error => {
+                void Promise.resolve(fn()).catch(error => {
                     logger.warn('Failed to unlisten sidebar event', error)
                 })
             } catch (error) {
@@ -448,9 +454,9 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         }
     }, [createSafeUnlistener])
 
-    const handleSelectOrchestrator = async () => {
+    const handleSelectOrchestrator = useCallback(async () => {
         await setSelection({ kind: 'orchestrator' }, false, true) // User clicked - intentional
-    }
+    }, [setSelection])
     
     // Helper to flatten grouped sessions into a linear array
     const flattenGroupedSessions = (sessionsToFlatten: EnrichedSession[]): EnrichedSession[] => {
@@ -697,7 +703,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         
         if (skipConfirmation) {
             // Execute directly without confirmation
-            executeVersionPromotion(targetGroup, selectedSessionId)
+            void executeVersionPromotion(targetGroup, selectedSessionId)
         } else {
             // Show confirmation modal
             setPromoteVersionModal({
@@ -873,16 +879,16 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     }, [isAnyModalOpen, selection, sessions, runRefineSpecFlow])
 
     useKeyboardShortcuts({
-        onSelectOrchestrator: handleSelectOrchestrator,
-        onSelectSession: handleSelectSession,
+        onSelectOrchestrator: () => { void handleSelectOrchestrator() },
+        onSelectSession: (index) => { void handleSelectSession(index) },
         onCancelSelectedSession: handleCancelSelectedSession,
-        onMarkSelectedSessionReady: handleMarkSelectedSessionReady,
+        onMarkSelectedSessionReady: () => { void handleMarkSelectedSessionReady() },
         onRefineSpec: handleRefineSpecShortcut,
         onSpecSession: handleSpecSelectedSession,
-        onPromoteSelectedVersion: handlePromoteSelectedVersion,
+        onPromoteSelectedVersion: () => { void handlePromoteSelectedVersion() },
         sessionCount: sessions.length,
-        onSelectPrevSession: selectPrev,
-        onSelectNextSession: selectNext,
+        onSelectPrevSession: () => { void selectPrev() },
+        onSelectNextSession: () => { void selectNext() },
         onFocusSidebar: () => {
             setCurrentFocus('sidebar')
             // Focus the first button in the sidebar
@@ -933,8 +939,14 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     
     // Global shortcut from terminal for Mark Reviewed (⌘R)
     useEffect(() => {
-        const cleanup = listenUiEvent(UiEvent.GlobalMarkReadyShortcut, () => handleMarkSelectedSessionReady())
-        return cleanup
+        let unsubscribe: (() => void) | null = null
+        const attach = async () => {
+            unsubscribe = await listenUiEvent(UiEvent.GlobalMarkReadyShortcut, () => { void handleMarkSelectedSessionReady() })
+        }
+        void attach()
+        return () => {
+            unsubscribe?.()
+        }
     }, [selection, sessions, handleMarkSelectedSessionReady])
 
     // Selection is now restored by the selection state atoms
@@ -1010,12 +1022,12 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
 
             const session = latestSessionsRef.current.find(s => s.info.session_id === session_name)
             if (session) {
-                setSelection({
-                    kind: 'session',
-                    payload: session_name,
-                    worktreePath: session.info.worktree_path,
-                    sessionState: mapSessionUiState(session.info)
-                }, false, true)
+            void setSelection({
+                kind: 'session',
+                payload: session_name,
+                worktreePath: session.info.worktree_path,
+                sessionState: mapSessionUiState(session.info)
+            }, false, true)
                 setFocusForSession(session_name, 'claude')
                 setCurrentFocus('claude')
             }
@@ -1100,10 +1112,12 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                 />
                                 <IconButton
                                     icon={<VscRefresh />}
-                                    onClick={async () => {
-                                        if (selection.kind === 'orchestrator') {
-                                            await resetSession(selection, terminals)
-                                        }
+                                    onClick={() => {
+                                        void (async () => {
+                                            if (selection.kind === 'orchestrator') {
+                                                await resetSession(selection, terminals)
+                                            }
+                                        })()
                                     }}
                                     ariaLabel="Reset orchestrator"
                                     tooltip="Reset orchestrator (⌘Y)"
@@ -1291,20 +1305,22 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                         }
                                         void triggerMarkReady(sessionId, hasUncommitted)
                                     }}
-                                    onUnmarkReady={async (sessionId) => {
+                                    onUnmarkReady={(sessionId) => {
                                         if (markReadyCooldownRef.current) {
                                             return
                                         }
 
                                         engageMarkReadyCooldown('unmark-ready-click')
-                                        try {
-                                            await invoke(TauriCommands.SchaltwerkCoreUnmarkSessionReady, { name: sessionId })
-                                            await reloadSessionsAndRefreshIdle()
-                                        } catch (err) {
-                                            logger.error('Failed to unmark reviewed session:', err)
-                                        } finally {
-                                            scheduleMarkReadyCooldownRelease('unmark-ready-click-complete')
-                                        }
+                                        void (async () => {
+                                            try {
+                                                await invoke(TauriCommands.SchaltwerkCoreUnmarkSessionReady, { name: sessionId })
+                                                await reloadSessionsAndRefreshIdle()
+                                            } catch (err) {
+                                                logger.error('Failed to unmark reviewed session:', err)
+                                            } finally {
+                                                scheduleMarkReadyCooldownRelease('unmark-ready-click-complete')
+                                            }
+                                        })()
                                     }}
                                     onCancel={(sessionId, hasUncommitted) => {
                                         const session = sessions.find(s => s.info.session_id === sessionId)
@@ -1337,7 +1353,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                             })
                                         }
                                     }}
-                                    onRunDraft={async (sessionId) => {
+                                    onRunDraft={(sessionId) => {
                                         try {
                                             emitUiEvent(UiEvent.StartAgentFromSpec, { name: sessionId })
                                         } catch (err) {
@@ -1349,22 +1365,26 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                         const displayName = target ? getSessionDisplayName(target.info) : undefined
                                         runRefineSpecFlow(sessionId, displayName)
                                     }}
-                                    onDeleteSpec={async (sessionId) => {
+                                    onDeleteSpec={(sessionId) => {
                                         beginSessionMutation(sessionId, 'remove')
-                                        try {
-                                            await invoke(TauriCommands.SchaltwerkCoreCancelSession, { name: sessionId })
-                                        } catch (err) {
-                                            logger.error('Failed to delete spec:', err)
-                                        } finally {
-                                            endSessionMutation(sessionId, 'remove')
-                                        }
+                                        void (async () => {
+                                            try {
+                                                await invoke(TauriCommands.SchaltwerkCoreCancelSession, { name: sessionId })
+                                            } catch (err) {
+                                                logger.error('Failed to delete spec:', err)
+                                            } finally {
+                                                endSessionMutation(sessionId, 'remove')
+                                            }
+                                        })()
                                     }}
                                     onSelectBestVersion={handleSelectBestVersion}
-                                    onReset={async (sessionId) => {
-                                        const currentSelection = selection.kind === 'session' && selection.payload === sessionId
-                                            ? selection
-                                            : { kind: 'session' as const, payload: sessionId }
-                                        await resetSession(currentSelection, terminals)
+                                    onReset={(sessionId) => {
+                                        void (async () => {
+                                            const currentSelection = selection.kind === 'session' && selection.payload === sessionId
+                                                ? selection
+                                                : { kind: 'session' as const, payload: sessionId }
+                                            await resetSession(currentSelection, terminals)
+                                        })()
                                     }}
                                     onSwitchModel={(sessionId) => {
                                         setSwitchModelSessionId(sessionId)
@@ -1393,9 +1413,8 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 sessionName={markReadyModal.sessionName}
                 hasUncommittedChanges={markReadyModal.hasUncommitted}
                 onClose={() => setMarkReadyModal({ open: false, sessionName: '', hasUncommitted: false })}
-                onSuccess={async () => {
-                    // Reload both regular and spec sessions
-                    await reloadSessionsAndRefreshIdle()
+                onSuccess={() => {
+                    void reloadSessionsAndRefreshIdle()
                 }}
             />
             <ConvertToSpecConfirmation
@@ -1404,22 +1423,24 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 sessionDisplayName={convertToSpecModal.sessionDisplayName}
                 hasUncommittedChanges={convertToSpecModal.hasUncommitted}
                 onClose={() => setConvertToDraftModal({ open: false, sessionName: '', hasUncommitted: false })}
-                onSuccess={async (newSpecName) => {
+                onSuccess={(newSpecName) => {
                     if (convertToSpecModal.sessionName) {
                         optimisticallyConvertSessionToSpec(convertToSpecModal.sessionName)
                     }
-                    await reloadSessionsAndRefreshIdle()
-                    if (newSpecName) {
-                        await setSelection(
-                            {
-                                kind: 'session',
-                                payload: newSpecName,
-                                sessionState: 'spec',
-                            },
-                            true,
-                            true,
-                        )
-                    }
+                    void (async () => {
+                        await reloadSessionsAndRefreshIdle()
+                        if (newSpecName) {
+                            await setSelection(
+                                {
+                                    kind: 'session',
+                                    payload: newSpecName,
+                                    sessionState: 'spec',
+                                },
+                                true,
+                                true,
+                            )
+                        }
+                    })()
                 }}
             />
             <PromoteVersionConfirmation
@@ -1431,7 +1452,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                     const { versionGroup, selectedSessionId } = promoteVersionModal
                     setPromoteVersionModal({ open: false, versionGroup: null, selectedSessionId: '' })
                     if (versionGroup) {
-                        executeVersionPromotion(versionGroup, selectedSessionId)
+                        void executeVersionPromotion(versionGroup, selectedSessionId)
                     }
                 }}
             />

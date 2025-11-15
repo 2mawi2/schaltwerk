@@ -7,7 +7,7 @@ export function SpecPlaceholder() {
 
   const sessionName = selection.kind === 'session' ? selection.payload : undefined
 
-  const handleRun = useCallback(async () => {
+  const handleRun = useCallback(() => {
     if (!sessionName) return
     // Open Start new agent modal prefilled from spec instead of starting directly
     window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-spec', { detail: { name: sessionName } }))

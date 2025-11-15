@@ -230,7 +230,7 @@ export function GitHubIssuePromptSection({
           <div className="flex flex-shrink-0 items-center gap-2">
             <button
               type="button"
-              onClick={() => handleOpenLink(details.url)}
+              onClick={() => { void handleOpenLink(details.url) }}
               className="px-2 py-1 text-xs rounded border transition-colors"
               style={{
                 backgroundColor: theme.colors.accent.blue.bg,
@@ -392,7 +392,7 @@ export function GitHubIssuePromptSection({
                 <li key={issue.number}>
                   <button
                     type="button"
-                    onClick={() => handleIssueClick(issue)}
+                    onClick={() => { void handleIssueClick(issue) }}
                     onMouseEnter={() => setHoveredIssue(issue.number)}
                     onMouseLeave={() => setHoveredIssue(current => (current === issue.number ? null : current))}
                     disabled={isLoading}

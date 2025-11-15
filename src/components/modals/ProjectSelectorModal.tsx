@@ -35,7 +35,7 @@ export function ProjectSelectorModal({ open: isOpen, onClose, onOpenProject, ope
 
   useEffect(() => {
     if (isOpen) {
-      loadRecentProjects()
+      void loadRecentProjects()
     }
   }, [isOpen, loadRecentProjects])
 
@@ -65,7 +65,7 @@ export function ProjectSelectorModal({ open: isOpen, onClose, onOpenProject, ope
             if (typeof event.stopImmediatePropagation === 'function') {
               event.stopImmediatePropagation()
             }
-            handleOpenRecent(availableProjects[projectIndex])
+            void handleOpenRecent(availableProjects[projectIndex])
           }
         }
       }
@@ -122,7 +122,7 @@ export function ProjectSelectorModal({ open: isOpen, onClose, onOpenProject, ope
 
           <div className="mb-6">
             <button
-              onClick={handleSelectDirectory}
+              onClick={() => { void handleSelectDirectory() }}
               className="w-full py-3 px-4 rounded-lg flex items-center justify-center gap-3 transition-colors"
               style={{
                 backgroundColor: theme.colors.accent.blue.bg,
@@ -179,7 +179,7 @@ export function ProjectSelectorModal({ open: isOpen, onClose, onOpenProject, ope
                       </div>
                     )}
                     <button
-                      onClick={() => handleOpenRecent(project)}
+                      onClick={() => { void handleOpenRecent(project) }}
                       className="w-full text-left"
                     >
                       <div className="flex items-start gap-3">
@@ -201,7 +201,7 @@ export function ProjectSelectorModal({ open: isOpen, onClose, onOpenProject, ope
                       </div>
                     </button>
                     <button
-                      onClick={(e) => handleRemoveProject(project, e)}
+                      onClick={(e) => { void handleRemoveProject(project, e) }}
                       className="absolute top-2 right-2 p-1 transition-all opacity-0 group-hover:opacity-100"
                       style={{ color: theme.colors.text.tertiary }}
                       onMouseEnter={(e) => {

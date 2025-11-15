@@ -32,6 +32,7 @@ import { UiEvent, emitUiEvent, listenUiEvent, TerminalResetDetail } from '../../
 import { beginSplitDrag, endSplitDrag } from '../../utils/splitDragCoordinator'
 import { useToast } from '../../common/toast/ToastProvider'
 import { resolveWorkingDirectory } from './resolveWorkingDirectory'
+import type { HeaderActionConfig } from '../../types/actionButton'
 
 type TerminalTabDescriptor = { index: number; terminalId: string; label: string }
 type TerminalTabsUiState = {
@@ -156,18 +157,22 @@ const TerminalGridComponent = () => {
     const [isDraggingSplit, setIsDraggingSplit] = useState(false)
     const [confirmResetOpen, setConfirmResetOpen] = useState(false)
     const [isResetting, setIsResetting] = useState(false)
-    const handleConfirmReset = useCallback(async () => {
+    const handleConfirmReset = useCallback(() => {
         if (selection.kind !== 'session' || !selection.payload) return
-        try {
-            setIsResetting(true)
-            await invoke(TauriCommands.SchaltwerkCoreResetSessionWorktree, { sessionName: selection.payload })
-            emitUiEvent(UiEvent.TerminalReset, { kind: 'session', sessionId: selection.payload })
-            setConfirmResetOpen(false)
-        } catch (err) {
-            logger.error('[TerminalGrid] Failed to reset session worktree:', err)
-        } finally {
-            setIsResetting(false)
+        const sessionName = selection.payload
+        const reset = async () => {
+            try {
+                setIsResetting(true)
+                await invoke(TauriCommands.SchaltwerkCoreResetSessionWorktree, { sessionName })
+                emitUiEvent(UiEvent.TerminalReset, { kind: 'session', sessionId: sessionName })
+                setConfirmResetOpen(false)
+            } catch (err) {
+                logger.error('[TerminalGrid] Failed to reset session worktree:', err)
+            } finally {
+                setIsResetting(false)
+            }
         }
+        void reset()
     }, [selection])
     
     // Run Mode state
@@ -911,7 +916,7 @@ const TerminalGridComponent = () => {
         previousTerminalKeyRef.current = terminalKey
     }, [terminals.bottomBase, terminalKey])
 
-    const handleClaudeSessionClick = useCallback(async (e?: React.MouseEvent) => {
+    const handleClaudeSessionClick = useCallback((e?: React.MouseEvent) => {
         // Prevent event from bubbling if called from child
         e?.stopPropagation()
 
@@ -926,6 +931,32 @@ const TerminalGridComponent = () => {
             claudeTerminalRef.current?.focus()
         }, isAnyModalOpen)
     }, [getSessionKey, isAnyModalOpen, setFocusForSession, setLocalFocus])
+
+    const handleActionButtonInvoke = useCallback((action: HeaderActionConfig) => {
+        const run = async () => {
+            try {
+                await invoke(TauriCommands.PasteAndSubmitTerminal, {
+                    id: terminals.top,
+                    data: action.prompt,
+                    useBracketedPaste: shouldUseBracketedPaste(agentType),
+                })
+
+                safeTerminalFocus(() => {
+                    if (localFocus === 'claude' && claudeTerminalRef.current) {
+                        claudeTerminalRef.current.focus()
+                    } else if (localFocus === 'terminal' && terminalTabsRef.current) {
+                        terminalTabsRef.current.focus()
+                    } else {
+                        claudeTerminalRef.current?.focus()
+                    }
+                }, isAnyModalOpen)
+            } catch (error) {
+                logger.error(`Failed to execute action "${action.label}":`, error)
+            }
+        }
+
+        void run()
+    }, [agentType, isAnyModalOpen, localFocus, terminals.top])
 
     const handleTerminalClick = useCallback((e?: React.MouseEvent) => {
         // Prevent event from bubbling if called from child
@@ -1118,30 +1149,9 @@ const TerminalGridComponent = () => {
                                     {actionButtons.map((action) => (
                                         <button
                                             key={action.id}
-                                            onClick={async (e) => {
+                                            onClick={(e) => {
                                                 e.stopPropagation()
-                                                try {
-                                                    // Use the actual terminal ID from context
-                                                    await invoke(TauriCommands.PasteAndSubmitTerminal, { 
-                                                        id: terminals.top, 
-                                                        data: action.prompt,
-                                                        useBracketedPaste: shouldUseBracketedPaste(agentType)
-                                                    })
-                                                    
-                                                    // Restore focus to the previously focused terminal
-                                                    safeTerminalFocus(() => {
-                                                        if (localFocus === 'claude' && claudeTerminalRef.current) {
-                                                            claudeTerminalRef.current.focus()
-                                                        } else if (localFocus === 'terminal' && terminalTabsRef.current) {
-                                                            terminalTabsRef.current.focus()
-                                                        } else {
-                                                            // Default to focusing claude terminal if no previous focus
-                                                            claudeTerminalRef.current?.focus()
-                                                        }
-                                                    }, isAnyModalOpen)
-                                                } catch (error) {
-                                                    logger.error(`Failed to execute action "${action.label}":`, error)
-                                                }
+                                                handleActionButtonInvoke(action)
                                             }}
                                             className={`px-2 py-1 text-[10px] rounded flex items-center gap-1 ${getActionButtonColorClasses(action.color)}`}
                                             title={action.label}

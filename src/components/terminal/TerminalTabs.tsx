@@ -157,8 +157,8 @@ const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(
                 }
               })
             }}
-            onClose={tabs.length > 1 ? () => closeTab(tab.index) : undefined}
-            onMiddleClick={tabs.length > 1 ? () => closeTab(tab.index) : undefined}
+            onClose={tabs.length > 1 ? () => { void closeTab(tab.index) } : undefined}
+            onMiddleClick={tabs.length > 1 ? () => { void closeTab(tab.index) } : undefined}
             showCloseButton={tabs.length > 1}
             className="h-full"
             style={{
@@ -170,7 +170,7 @@ const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(
         
         {canAddTab && (
           <AddTerminalButton
-            onClick={addTab}
+            onClick={() => { void addTab() }}
             title="Add new terminal"
             ariaLabel="Add new terminal"
             className="ml-2 h-7 w-7"

@@ -249,7 +249,7 @@ export function GithubMenuButton({ className, hasActiveProject = false }: Github
             <button
               type="button"
               role="menuitem"
-              onClick={handleConnectProject}
+              onClick={() => { void handleConnectProject() }}
               disabled={connectDisabled}
               className="text-left text-xs"
               style={buildMenuButtonStyle('connect', { disabled: connectDisabled })}
@@ -265,7 +265,7 @@ export function GithubMenuButton({ className, hasActiveProject = false }: Github
               <button
                 type="button"
                 role="menuitem"
-                onClick={handleConnectProject}
+                onClick={() => { void handleConnectProject() }}
                 disabled={github.isConnecting}
                 className="text-left text-xs"
                 style={buildMenuButtonStyle('reconnect', { disabled: github.isConnecting })}
@@ -281,7 +281,7 @@ export function GithubMenuButton({ className, hasActiveProject = false }: Github
             <button
               type="button"
               role="menuitem"
-              onClick={handleRefreshStatus}
+              onClick={() => { void handleRefreshStatus() }}
               className="text-left text-xs"
               style={buildMenuButtonStyle('refresh', { withIcon: true })}
               onMouseEnter={() => setHoveredButton('refresh')}

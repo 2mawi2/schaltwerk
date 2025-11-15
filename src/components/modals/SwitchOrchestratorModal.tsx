@@ -67,7 +67,7 @@ export function SwitchOrchestratorModal({
     }
   }
 
-  switchRef.current = handleSwitch
+  switchRef.current = () => { void handleSwitch() }
 
   useEffect(() => {
     if (!open) {
@@ -183,7 +183,7 @@ export function SwitchOrchestratorModal({
             <span className="ml-1.5 text-xs opacity-60 group-hover:opacity-100">Esc</span>
           </button>
           <button
-            onClick={handleSwitch}
+            onClick={() => { void handleSwitch() }}
             disabled={switching}
             className="px-3 py-1.5 disabled:bg-slate-600 disabled:cursor-not-allowed rounded text-white group relative inline-flex items-center gap-2"
             style={{

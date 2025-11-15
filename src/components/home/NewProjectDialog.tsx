@@ -123,7 +123,7 @@ export function NewProjectDialog({ isOpen, onClose, onProjectCreated }: NewProje
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !isCreating) {
-      handleCreate()
+      void handleCreate()
     } else if (e.key === 'Escape') {
       onClose()
     }
@@ -190,7 +190,7 @@ export function NewProjectDialog({ isOpen, onClose, onProjectCreated }: NewProje
                 disabled={isCreating}
               />
               <button
-                onClick={handleSelectDirectory}
+                onClick={() => { void handleSelectDirectory() }}
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-lg flex items-center gap-2 transition-colors"
                 disabled={isCreating}
               >
@@ -219,7 +219,7 @@ export function NewProjectDialog({ isOpen, onClose, onProjectCreated }: NewProje
             Cancel
           </button>
           <button
-            onClick={handleCreate}
+            onClick={() => { void handleCreate() }}
             disabled={isCreating || !projectName.trim() || !parentPath}
             className="flex-1 py-2 px-4 bg-cyan-900/50 hover:bg-cyan-800/50 border border-cyan-700/50 text-cyan-300 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
