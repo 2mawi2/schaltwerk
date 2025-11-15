@@ -394,24 +394,24 @@ const TerminalGridComponent = () => {
             const config = await loadRunScriptConfiguration(currentSessionKey)
 
             setHasRunScripts(config.hasRunScripts)
-            if (config.hasRunScripts) {
-                if (config.shouldActivateRunMode && !runModeActive) {
-                    persistRunModeState(currentSessionKey, true)
-                } else if (!config.shouldActivateRunMode && !runModeActive) {
-                    persistRunModeState(currentSessionKey, false)
-                }
+
+            if (!config.hasRunScripts) {
+                persistRunModeState(currentSessionKey, false)
+                syncActiveTab(0, state => state.activeTab === RUN_TAB_INDEX)
+                return
             }
 
+            persistRunModeState(currentSessionKey, config.shouldActivateRunMode)
+
             if (config.savedActiveTab !== null) {
-                const savedTab = config.savedActiveTab
-                syncActiveTab(savedTab)
-            } else if (config.hasRunScripts && !config.shouldActivateRunMode && !runModeActive) {
+                syncActiveTab(config.savedActiveTab)
+            } else if (!config.shouldActivateRunMode) {
                 syncActiveTab(0, state => state.activeTab === RUN_TAB_INDEX)
             }
         } catch (error) {
             logger.error('[TerminalGrid] Failed to load run script configuration:', error)
         }
-    }, [getSessionKey, persistRunModeState, syncActiveTab, RUN_TAB_INDEX, runModeActive])
+    }, [getSessionKey, persistRunModeState, syncActiveTab, RUN_TAB_INDEX])
 
     // Load run script availability and manage run mode state
     useEffect(() => {
