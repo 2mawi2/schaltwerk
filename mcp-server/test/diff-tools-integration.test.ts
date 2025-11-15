@@ -1,6 +1,30 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, mock } from 'bun:test'
 import fs from 'fs'
 
+const mockProjectPath = '/tmp/mock-project'
+const persistedSpecContent = '# Stored spec content\n\nLine two'
+
+const buildSpecSession = (overrides: Record<string, any> = {}) => {
+  const sessionName = overrides.name ?? 'alpha_spec'
+  return {
+    id: overrides.id ?? sessionName,
+    name: sessionName,
+    repository_path: overrides.repository_path ?? mockProjectPath,
+    repository_name: overrides.repository_name ?? 'mock-project',
+    branch: overrides.branch ?? `schaltwerk/${sessionName}`,
+    parent_branch: overrides.parent_branch ?? 'main',
+    worktree_path: overrides.worktree_path ?? `${mockProjectPath}/.schaltwerk/worktrees/${sessionName}`,
+    status: overrides.status ?? 'spec',
+    created_at: overrides.created_at ?? Date.now(),
+    updated_at: overrides.updated_at ?? Date.now(),
+    ready_to_merge: overrides.ready_to_merge ?? false,
+    pending_name_generation: overrides.pending_name_generation ?? false,
+    was_auto_generated: overrides.was_auto_generated ?? false,
+    spec_content: overrides.spec_content ?? persistedSpecContent,
+    draft_content: overrides.draft_content,
+  }
+}
+
 const diffSummaryMock = mock(() =>
   Promise.resolve({
     scope: 'session',
@@ -62,6 +86,17 @@ const specReadMock = mock(() =>
   })
 )
 
+const createSpecSessionMock = mock((name?: string, _content?: string, baseBranch?: string) => {
+  const sessionName = name ?? 'alpha_spec'
+  return Promise.resolve(
+    buildSpecSession({
+      id: sessionName,
+      name: sessionName,
+      parent_branch: baseBranch ?? 'main',
+    })
+  )
+})
+
 const serverState: { instance: FakeServer | null } = { instance: null }
 
 class FakeServer {
@@ -121,8 +156,8 @@ let originalGetDiffChunk: ((options: any) => Promise<any>) | undefined
 let originalGetSessionSpec: ((session: string) => Promise<any>) | undefined
 let originalListSpecSummaries: (() => Promise<any>) | undefined
 let originalGetSpecDocument: ((session: string) => Promise<any>) | undefined
+let originalCreateSpecSession: ((name: string, content?: string, baseBranch?: string) => Promise<any>) | undefined
 let createdProjectDir = false
-const mockProjectPath = '/tmp/mock-project'
 
 describe('MCP diff tools integration', () => {
   beforeAll(async () => {
@@ -138,6 +173,7 @@ describe('MCP diff tools integration', () => {
     originalGetSessionSpec = bridgeModule.SchaltwerkBridge.prototype.getSessionSpec
     originalListSpecSummaries = bridgeModule.SchaltwerkBridge.prototype.listSpecSummaries
     originalGetSpecDocument = bridgeModule.SchaltwerkBridge.prototype.getSpecDocument
+    originalCreateSpecSession = bridgeModule.SchaltwerkBridge.prototype.createSpecSession
 
     bridgeModule.SchaltwerkBridge.prototype.getDiffSummary = function (options) {
       return diffSummaryMock(options)
@@ -154,6 +190,9 @@ describe('MCP diff tools integration', () => {
     bridgeModule.SchaltwerkBridge.prototype.getSpecDocument = function (session) {
       return specReadMock(session)
     }
+    bridgeModule.SchaltwerkBridge.prototype.createSpecSession = function (name: string, content?: string, baseBranch?: string) {
+      return createSpecSessionMock(name, content, baseBranch)
+    }
 
     await import('../src/schaltwerk-mcp-server')
   })
@@ -164,6 +203,7 @@ describe('MCP diff tools integration', () => {
     getSessionSpecMock.mockClear()
     specListMock.mockClear()
     specReadMock.mockClear()
+    createSpecSessionMock.mockClear()
   })
 
   afterAll(() => {
@@ -184,6 +224,9 @@ describe('MCP diff tools integration', () => {
       }
       if (originalGetSpecDocument) {
         bridgeModule.SchaltwerkBridge.prototype.getSpecDocument = originalGetSpecDocument
+      }
+      if (originalCreateSpecSession) {
+        bridgeModule.SchaltwerkBridge.prototype.createSpecSession = originalCreateSpecSession
       }
     }
 
@@ -320,5 +363,28 @@ describe('MCP diff tools integration', () => {
     const parsed = JSON.parse(content?.text ?? '{}')
     expect(parsed.session_id).toBe('alpha_spec')
     expect(parsed.content).toBe('# Alpha')
+  })
+
+  it('reports persisted spec content length when creating spec sessions', async () => {
+    const { CallToolRequestSchema } = await import('@modelcontextprotocol/sdk/types.js')
+    const { __serverState } = await import('@modelcontextprotocol/sdk/server/index.js')
+    const server = __serverState.instance
+    if (!server) {
+      throw new Error('Server instance not initialized')
+    }
+
+    const callHandler = server.handlers.get(CallToolRequestSchema)
+    const response = await callHandler({
+      params: {
+        name: 'schaltwerk_spec_create',
+        arguments: { name: 'spec-alpha', content: '# Provided Content', base_branch: 'develop' },
+      },
+    })
+
+    expect(createSpecSessionMock).toHaveBeenCalledWith('spec-alpha', '# Provided Content', 'develop')
+    const content = response.content?.[0]
+    const text = content?.text ?? ''
+    expect(text).toContain(`- Content Length: ${persistedSpecContent.length} characters`)
+    expect(text).not.toContain('- Content Length: 0 characters')
   })
 })
