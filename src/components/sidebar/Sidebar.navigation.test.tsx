@@ -274,16 +274,22 @@ describe('Sidebar navigation with arrow keys including orchestrator', () => {
 
     // Select first session (running)
     pressKey('ArrowDown', { metaKey: true })
-    await new Promise(resolve => setTimeout(resolve, 25))
+    await waitFor(() => {
+      expect(screen.getAllByLabelText('Switch model').length).toBeGreaterThan(1)
+    })
 
     const switchButtons = screen.getAllByLabelText('Switch model')
     const switchButton = switchButtons[switchButtons.length - 1] // last one should be for the selected session
-    fireEvent.click(switchButton)
+    await act(async () => {
+      fireEvent.click(switchButton)
+    })
 
     await waitFor(() => screen.getByRole('heading', { name: 'Switch Session Agent' }))
 
     const switchBtn = await screen.findByRole('button', { name: /switch agent/i })
-    fireEvent.click(switchBtn)
+    await act(async () => {
+      fireEvent.click(switchBtn)
+    })
 
     expect(mockSwitchModel).toHaveBeenCalled()
 

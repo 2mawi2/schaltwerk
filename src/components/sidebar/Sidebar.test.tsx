@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { TauriCommands } from '../../common/tauriCommands'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, act } from '@testing-library/react'
 import { Sidebar } from './Sidebar'
 import { TestProviders } from '../../tests/test-utils'
 import { UiEvent, emitUiEvent } from '../../common/uiEvents'
@@ -457,7 +457,7 @@ describe('Sidebar', () => {
 
       render(<TestProviders><Sidebar /></TestProviders>)
       // The button uses a title attribute
-      const orchestratorButton = screen.getByLabelText(/Select orchestrator/i)
+      const orchestratorButton = await screen.findByLabelText(/Select orchestrator/i)
       expect(orchestratorButton).toBeInTheDocument()
     })
 
@@ -656,7 +656,9 @@ describe('Sidebar', () => {
       const session2Button = screen.getByText('Test Session 2').closest('[data-session-id]') as HTMLElement
       expect(session2Button).toBeInTheDocument()
       
-      session2Button.click()
+      await act(async () => {
+        session2Button.click()
+      })
 
       // Wait for the selection state to update and DOM to reflect it
       await waitFor(() => {

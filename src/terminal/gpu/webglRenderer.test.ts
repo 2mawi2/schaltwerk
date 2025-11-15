@@ -1,15 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Terminal as XTerm } from '@xterm/xterm'
 
-const mockIsWebGLSupported = vi.fn(() => true)
-const mockResetWebGLCapabilityCacheForTesting = vi.fn()
+const mockIsWebGLSupported = vi.fn(function mockIsWebGLSupportedImpl() {
+  return true
+})
+const mockResetWebGLCapabilityCacheForTesting = vi.fn(function mockResetCacheImpl() {})
 
 const mockWebglAddonInstance = {
     onContextLoss: vi.fn(),
     dispose: vi.fn(),
     clearTextureAtlas: vi.fn()
 };
-const mockWebglAddonCtor = vi.fn(() => mockWebglAddonInstance);
+const mockWebglAddonCtor = vi.fn(function webglAddonConstructor() {
+    return mockWebglAddonInstance
+});
 
 let importAddonMock: ReturnType<typeof vi.fn>;
 
@@ -26,7 +30,7 @@ vi.mock('../xterm/xtermAddonImporter', () => ({
     }
 }));
 
-importAddonMock = vi.fn(async (name: string) => {
+importAddonMock = vi.fn(async function importAddon(name: string) {
     if (name === 'webgl') {
         return mockWebglAddonCtor;
     }
