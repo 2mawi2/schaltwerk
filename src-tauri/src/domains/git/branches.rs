@@ -176,7 +176,9 @@ pub fn normalize_branch_to_local(repo: &Repository, raw: &str) -> Result<String>
     let spec = BranchSpec::from_input(trimmed, &remote_names);
     let local = spec.local.trim();
     if local.is_empty() {
-        return Err(anyhow!("Branch '{raw}' does not identify a valid local name"));
+        return Err(anyhow!(
+            "Branch '{raw}' does not identify a valid local name"
+        ));
     }
 
     if repo.find_branch(local, BranchType::Local).is_ok() {
@@ -275,13 +277,12 @@ fn materialize_from_remote(repo: &Repository, local: &str, remote: &str) -> Resu
         .target()
         .ok_or_else(|| anyhow!("Remote reference '{reference_name}' has no target"))?;
     let commit = repo.find_commit(target).with_context(|| {
-        format!(
-            "Remote reference '{reference_name}' target {target} is not a commit"
-        )
+        format!("Remote reference '{reference_name}' target {target} is not a commit")
     })?;
 
-    repo.branch(local, &commit, false)
-        .with_context(|| format!("Failed to create local branch '{local}' from '{reference_name}'"))?;
+    repo.branch(local, &commit, false).with_context(|| {
+        format!("Failed to create local branch '{local}' from '{reference_name}'")
+    })?;
     Ok(())
 }
 

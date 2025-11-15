@@ -1736,9 +1736,7 @@ impl SessionManager {
     fn normalize_branch_candidate(&self, branch: &str) -> Result<String> {
         let repo_display = self.repo_path.display();
         let repo = git2::Repository::open(&self.repo_path).with_context(|| {
-            format!(
-                "Failed to open repository '{repo_display}' while resolving parent branch"
-            )
+            format!("Failed to open repository '{repo_display}' while resolving parent branch")
         })?;
         match git::normalize_branch_to_local(&repo, branch) {
             Ok(local) => Ok(local),
