@@ -1457,6 +1457,70 @@ describe('TerminalGrid', () => {
     })
   })
 
+  describe('Run mode across sessions', () => {
+    it('restores bottom terminals when switching to a session without run scripts', async () => {
+      loadRunScriptConfigurationMock.mockImplementation(async (sessionKey: string) => {
+        if (sessionKey === 'alpha') {
+          return {
+            hasRunScripts: true,
+            shouldActivateRunMode: true,
+            savedActiveTab: -1,
+          }
+        }
+        if (sessionKey === 'beta') {
+          return {
+            hasRunScripts: false,
+            shouldActivateRunMode: false,
+            savedActiveTab: null,
+          }
+        }
+        return {
+          hasRunScripts: false,
+          shouldActivateRunMode: false,
+          savedActiveTab: null,
+        }
+      })
+
+      await renderGrid()
+      vi.useRealTimers()
+      await waitForGridReady()
+
+      if (!bridge) {
+        throw new Error('bridge not initialized')
+      }
+
+      await act(async () => {
+        await bridge!.setSelection({ kind: 'session', payload: 'alpha', worktreePath: '/alpha/path', sessionState: 'running' })
+      })
+
+      await waitFor(() => {
+        expect(sessionStorage.getItem('schaltwerk:run-mode:alpha')).toBe('true')
+      })
+
+      await waitFor(() => {
+        const container = document.querySelector('[data-onboarding="user-terminal"]') as HTMLElement | null
+        expect(container).not.toBeNull()
+        expect(container!.style.display).toBe('none')
+      })
+
+      await act(async () => {
+        await bridge!.setSelection({ kind: 'session', payload: 'beta', worktreePath: '/beta/path', sessionState: 'running' })
+      })
+
+      await waitFor(() => {
+        expect(sessionStorage.getItem('schaltwerk:run-mode:beta')).toBe('false')
+      })
+
+      await waitFor(() => {
+        const container = document.querySelector('[data-onboarding="user-terminal"]') as HTMLElement | null
+        expect(container).not.toBeNull()
+        expect(container!.style.display).not.toBe('none')
+      })
+
+      expect(screen.queryByTestId('run-terminal-beta')).not.toBeInTheDocument()
+    })
+  })
+
   describe('Panel interactions and resize events', () => {
     it('expands collapsed panel on terminal click and emits resize notifications', async () => {
       loadRunScriptConfigurationMock.mockResolvedValue({
