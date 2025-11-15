@@ -14,7 +14,12 @@ const SUPPORTED_AGENTS = AGENT_TYPES
 // Re-export types for backward compatibility
 export type { AgentBinaryConfig, DetectedBinary } from './useAgentBinaryDetection'
 
-export function useAgentAvailability() {
+interface UseAgentAvailabilityOptions {
+    autoLoad?: boolean
+}
+
+export function useAgentAvailability(options: UseAgentAvailabilityOptions = {}) {
+    const { autoLoad = true } = options
     const {
         binaryConfigs,
         loading: detectLoading,
@@ -22,7 +27,7 @@ export function useAgentAvailability() {
         getRecommendedPath: getAgentRecommendedPath,
         refreshAgentBinaryDetection,
         clearCache: clearDetectionCache
-    } = useAgentBinaryDetection({ autoLoad: true, cacheResults: true })
+    } = useAgentBinaryDetection({ autoLoad, cacheResults: true })
 
     const [availability, setAvailability] = useState<Record<string, AgentAvailability>>(() => {
         // Initialize with optimistic defaults

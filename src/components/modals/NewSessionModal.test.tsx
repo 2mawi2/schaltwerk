@@ -114,13 +114,20 @@ vi.mock('../../hooks/useClaudeSession', () => ({
   })
 }))
 
+const useAgentAvailabilityMock = vi.fn((_options?: unknown) => ({
+  availability: {},
+  isAvailable: () => true,
+  getRecommendedPath: () => '/mock/path',
+  getInstallationMethod: () => 'mock',
+  loading: false,
+  refreshAvailability: vi.fn(),
+  refreshSingleAgent: vi.fn(),
+  clearCache: vi.fn(),
+  forceRefresh: vi.fn(),
+}))
+
 vi.mock('../../hooks/useAgentAvailability', () => ({
-  useAgentAvailability: () => ({
-    isAvailable: () => true,
-    getRecommendedPath: () => '/mock/path',
-    getInstallationMethod: () => 'mock',
-    loading: false,
-  }),
+  useAgentAvailability: (options?: unknown) => useAgentAvailabilityMock(options),
 }))
 
 vi.mock('../../utils/dockerNames', () => ({
@@ -205,10 +212,36 @@ describe('NewSessionModal', () => {
     mockGetAgentType.mockClear()
     mockGetAgentType.mockResolvedValue('claude')
     mockSetAgentType.mockClear()
+    useAgentAvailabilityMock.mockClear()
   })
 
   afterEach(() => {
     cleanup()
+  })
+
+  it('passes the correct autoLoad flag to the availability hook', async () => {
+    const onClose = vi.fn()
+    const onCreate = vi.fn()
+
+    const { rerender } = render(
+      <ModalProvider>
+        <NewSessionModal open={false} onClose={onClose} onCreate={onCreate} />
+      </ModalProvider>
+    )
+
+    expect(useAgentAvailabilityMock).toHaveBeenCalledWith({ autoLoad: false })
+
+    useAgentAvailabilityMock.mockClear()
+
+    rerender(
+      <ModalProvider>
+        <NewSessionModal open={true} onClose={onClose} onCreate={onCreate} />
+      </ModalProvider>
+    )
+
+    await waitFor(() => {
+      expect(useAgentAvailabilityMock).toHaveBeenCalledWith({ autoLoad: true })
+    })
   })
 
   it('keeps caret position while typing in cached prompt', async () => {

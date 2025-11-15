@@ -1,4 +1,5 @@
 use crate::SETTINGS_MANAGER;
+use futures::future::join_all;
 use log::{debug, info};
 use schaltwerk::binary_detector::{BinaryDetector, DetectedBinary};
 use schaltwerk::services::AgentBinaryConfig;
@@ -193,40 +194,50 @@ pub async fn get_all_agent_binary_configs() -> Result<Vec<AgentBinaryConfig>, St
 
     let settings_manager = SETTINGS_MANAGER
         .get()
+        .cloned()
         .ok_or_else(|| "Settings manager not initialized".to_string())?;
 
     let known_agents: Vec<String> =
         schaltwerk::domains::agents::manifest::AgentManifest::supported_agents();
-    let mut configs = Vec::new();
 
-    for agent in known_agents {
-        let existing_config = {
-            let settings = settings_manager.lock().await;
-            settings.get_agent_binary_config(&agent)
-        };
-
-        if let Some(config) = existing_config {
-            configs.push(config);
-        } else {
-            let detected_binaries = detect_agent_binaries_nonblocking(&agent).await?;
-            let config = AgentBinaryConfig {
-                agent_name: agent.to_string(),
-                custom_path: None,
-                auto_detect: true,
-                detected_binaries,
+    let futures = known_agents.into_iter().map(|agent| {
+        let settings_manager = settings_manager.clone();
+        async move {
+            let agent_name = agent.clone();
+            let existing_config = {
+                let settings = settings_manager.lock().await;
+                settings.get_agent_binary_config(&agent_name)
             };
 
-            {
-                let mut settings = settings_manager.lock().await;
-                if let Err(e) = settings.set_agent_binary_config(config.clone()) {
-                    log::warn!("Failed to save binary config for {agent}: {e}");
-                }
-            }
+            if let Some(config) = existing_config {
+                Ok::<AgentBinaryConfig, String>(config)
+            } else {
+                let detected_binaries = detect_agent_binaries_nonblocking(&agent_name).await?;
+                let config = AgentBinaryConfig {
+                    agent_name: agent_name.clone(),
+                    custom_path: None,
+                    auto_detect: true,
+                    detected_binaries,
+                };
 
-            configs.push(config);
+                {
+                    let mut settings = settings_manager.lock().await;
+                    if let Err(e) = settings.set_agent_binary_config(config.clone()) {
+                        log::warn!("Failed to save binary config for {agent_name}: {e}");
+                    }
+                }
+
+                Ok(config)
+            }
         }
+    });
+
+    let mut configs = Vec::new();
+    for result in join_all(futures).await {
+        configs.push(result?);
     }
 
+    configs.sort_by(|a, b| a.agent_name.cmp(&b.agent_name));
     Ok(configs)
 }
 
@@ -236,39 +247,50 @@ pub async fn detect_all_agent_binaries() -> Result<Vec<AgentBinaryConfig>, Strin
 
     let settings_manager = SETTINGS_MANAGER
         .get()
+        .cloned()
         .ok_or_else(|| "Settings manager not initialized".to_string())?;
 
     let known_agents: Vec<String> =
         schaltwerk::domains::agents::manifest::AgentManifest::supported_agents();
-    let mut configs = Vec::new();
 
-    for agent in known_agents {
-        let custom_path = {
-            let settings = settings_manager.lock().await;
-            settings
-                .get_agent_binary_config(&agent)
-                .and_then(|c| c.custom_path)
-        };
+    let futures = known_agents.into_iter().map(|agent| {
+        let settings_manager = settings_manager.clone();
+        async move {
+            let agent_name = agent.clone();
+            let custom_path = {
+                let settings = settings_manager.lock().await;
+                settings
+                    .get_agent_binary_config(&agent_name)
+                    .and_then(|c| c.custom_path)
+            };
 
-        let detected_binaries = detect_agent_binaries_nonblocking(&agent).await?;
+            let detected_binaries = detect_agent_binaries_nonblocking(&agent_name).await?;
+            let auto_detect = custom_path.is_none();
 
-        let config = AgentBinaryConfig {
-            agent_name: agent.to_string(),
-            custom_path: custom_path.clone(),
-            auto_detect: custom_path.is_none(),
-            detected_binaries,
-        };
+            let config = AgentBinaryConfig {
+                agent_name: agent_name.clone(),
+                custom_path: custom_path.clone(),
+                auto_detect,
+                detected_binaries,
+            };
 
-        {
-            let mut settings = settings_manager.lock().await;
-            if let Err(e) = settings.set_agent_binary_config(config.clone()) {
-                log::warn!("Failed to save binary config for {agent}: {e}");
+            {
+                let mut settings = settings_manager.lock().await;
+                if let Err(e) = settings.set_agent_binary_config(config.clone()) {
+                    log::warn!("Failed to save binary config for {agent_name}: {e}");
+                }
             }
-        }
 
-        configs.push(config);
+            Ok::<AgentBinaryConfig, String>(config)
+        }
+    });
+
+    let mut configs = Vec::new();
+    for result in join_all(futures).await {
+        configs.push(result?);
     }
 
+    configs.sort_by(|a, b| a.agent_name.cmp(&b.agent_name));
     Ok(configs)
 }
 

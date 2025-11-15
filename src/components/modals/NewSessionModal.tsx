@@ -76,7 +76,7 @@ type CreateSessionPayload = Parameters<Props['onCreate']>[0]
 
 export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '', onPromptChange, onClose, onCreate }: Props) {
     const { registerModal, unregisterModal } = useModal()
-    const { isAvailable } = useAgentAvailability()
+    const { isAvailable } = useAgentAvailability({ autoLoad: open })
     const githubIntegration = useGithubIntegrationContext()
     const [name, setName] = useState(() => generateDockerStyleName())
     const [, setWasEdited] = useState(false)

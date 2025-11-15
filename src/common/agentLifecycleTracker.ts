@@ -12,7 +12,7 @@ export interface AgentLifecycleUpdate {
 const AGENT_TYPE_CODEX = 'codex'
 
 export const EXTENDED_AGENT_START_TIMEOUT_MS = 15_000
-export const DEFAULT_AGENT_START_TIMEOUT_MS = 5_000
+export const DEFAULT_AGENT_START_TIMEOUT_MS = 8_000
 
 let hasAnyAgentReportedReady = false
 let hasCodexReportedReady = false
