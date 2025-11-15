@@ -734,7 +734,7 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
 - Name: ${session.name}
 - Branch: ${session.branch} (will be created when started)
 - Base Branch: ${session.parent_branch}
-- Content Length: ${session.draft_content?.length || 0} characters
+- Content Length: ${session.spec_content?.length || 0} characters
 - Status: Spec (ready for refinement)`
         break
       }
