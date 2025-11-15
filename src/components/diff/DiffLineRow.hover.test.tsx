@@ -22,13 +22,23 @@ describe('DiffLineRow hover functionality', () => {
     onLineMouseUp: vi.fn()
   }
 
+  const renderRow = (props = defaultProps) => {
+    return render(
+      <table>
+        <tbody>
+          <DiffLineRow {...props} />
+        </tbody>
+      </table>
+    )
+  }
+
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
   it('should call onLineMouseEnter with correct parameters', () => {
     const onLineMouseEnter = vi.fn()
-    render(<DiffLineRow {...defaultProps} onLineMouseEnter={onLineMouseEnter} />)
+    renderRow({ ...defaultProps, onLineMouseEnter })
     
     const row = screen.getByRole('row')
     fireEvent.mouseEnter(row)
@@ -38,7 +48,7 @@ describe('DiffLineRow hover functionality', () => {
 
   it('should call onLineMouseLeave when mouse leaves', () => {
     const onLineMouseLeave = vi.fn()
-    render(<DiffLineRow {...defaultProps} onLineMouseLeave={onLineMouseLeave} />)
+    renderRow({ ...defaultProps, onLineMouseLeave })
     
     const row = screen.getByRole('row')
     fireEvent.mouseEnter(row)
@@ -48,7 +58,7 @@ describe('DiffLineRow hover functionality', () => {
   })
 
   it('should have correct data attributes for DOM detection', () => {
-    render(<DiffLineRow {...defaultProps} />)
+    renderRow()
     
     const row = screen.getByRole('row')
     
@@ -57,7 +67,7 @@ describe('DiffLineRow hover functionality', () => {
   })
 
   it('should show hover ring when hovered', () => {
-    render(<DiffLineRow {...defaultProps} />)
+    renderRow()
     
     const row = screen.getByRole('row')
     
@@ -80,7 +90,7 @@ describe('DiffLineRow hover functionality', () => {
       collapsedLines: []
     }
 
-    render(<DiffLineRow {...defaultProps} line={collapsibleLine} />)
+    renderRow({ ...defaultProps, line: collapsibleLine })
     
     const row = screen.getByRole('row')
     fireEvent.mouseEnter(row)
@@ -98,7 +108,7 @@ describe('DiffLineRow hover functionality', () => {
     }
 
     const onLineMouseEnter = vi.fn()
-    render(<DiffLineRow {...defaultProps} line={oldSideLine} onLineMouseEnter={onLineMouseEnter} />)
+    renderRow({ ...defaultProps, line: oldSideLine, onLineMouseEnter })
     
     const row = screen.getByRole('row')
     
@@ -114,12 +124,7 @@ describe('DiffLineRow hover functionality', () => {
   it('starts selection when row body is pressed', () => {
     const onLineMouseDown = vi.fn()
 
-    render(
-      <DiffLineRow
-        {...defaultProps}
-        onLineMouseDown={onLineMouseDown}
-      />
-    )
+    renderRow({ ...defaultProps, onLineMouseDown })
 
     const code = screen.getByText('console.log("Hello world")')
     fireEvent.mouseDown(code, { button: 0 })
@@ -141,13 +146,7 @@ describe('DiffLineRow hover functionality', () => {
     }
     const onLineMouseDown = vi.fn()
 
-    render(
-      <DiffLineRow
-        {...defaultProps}
-        line={line}
-        onLineMouseDown={onLineMouseDown}
-      />
-    )
+    renderRow({ ...defaultProps, line, onLineMouseDown })
 
     const code = screen.getByText('unchanged example')
     fireEvent.mouseDown(code, { button: 0 })

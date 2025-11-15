@@ -1,72 +1,87 @@
-import { render, fireEvent } from '@testing-library/react'
+import { render, fireEvent, act } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import { createRef } from 'react'
 import { TestProviders } from '../../tests/test-utils'
 import { TerminalSearchPanel } from './TerminalSearchPanel'
 
 describe('TerminalSearchPanel', () => {
-  const setup = () => {
+  const setup = async () => {
     const onChange = vi.fn()
     const onNext = vi.fn()
     const onPrev = vi.fn()
     const onClose = vi.fn()
 
-    const result = render(
-      <TestProviders>
-        <TerminalSearchPanel
-          searchTerm="abc"
-          onSearchTermChange={onChange}
-          onFindNext={onNext}
-          onFindPrevious={onPrev}
-          onClose={onClose}
-        />
-      </TestProviders>
-    )
+    let result: ReturnType<typeof render> | null = null
+    await act(async () => {
+      result = render(
+        <TestProviders>
+          <TerminalSearchPanel
+            searchTerm="abc"
+            onSearchTermChange={onChange}
+            onFindNext={onNext}
+            onFindPrevious={onPrev}
+            onClose={onClose}
+          />
+        </TestProviders>
+      )
+    })
 
-    const input = result.getByPlaceholderText('Search...') as HTMLInputElement
+    const input = result!.getByPlaceholderText('Search...') as HTMLInputElement
 
-    return { result, input, onChange, onNext, onPrev, onClose }
+    return { result: result!, input, onChange, onNext, onPrev, onClose }
   }
 
-  it('calls callbacks for input change and navigation actions', () => {
-    const { input, onChange, onNext, onPrev } = setup()
+  it('calls callbacks for input change and navigation actions', async () => {
+    const { input, onChange, onNext, onPrev } = await setup()
 
-    fireEvent.change(input, { target: { value: 'hello' } })
+    act(() => {
+      fireEvent.change(input, { target: { value: 'hello' } })
+    })
     expect(onChange).toHaveBeenCalledWith('hello')
 
-    fireEvent.keyDown(input, { key: 'Enter', shiftKey: false })
+    act(() => {
+      fireEvent.keyDown(input, { key: 'Enter', shiftKey: false })
+    })
     expect(onNext).toHaveBeenCalled()
 
-    fireEvent.keyDown(input, { key: 'Enter', shiftKey: true })
+    act(() => {
+      fireEvent.keyDown(input, { key: 'Enter', shiftKey: true })
+    })
     expect(onPrev).toHaveBeenCalled()
   })
 
-  it('closes on escape and via close button', () => {
-    const { input, onClose, result } = setup()
+  it('closes on escape and via close button', async () => {
+    const { input, onClose, result } = await setup()
 
-    fireEvent.keyDown(input, { key: 'Escape' })
+    act(() => {
+      fireEvent.keyDown(input, { key: 'Escape' })
+    })
     expect(onClose).toHaveBeenCalledTimes(1)
 
     const button = result.getByTitle('Close search (Escape)')
-    fireEvent.click(button)
+    act(() => {
+      fireEvent.click(button)
+    })
     expect(onClose).toHaveBeenCalledTimes(2)
   })
 
-  it('forwards refs to the search container', () => {
+  it('forwards refs to the search container', async () => {
     const ref = createRef<HTMLDivElement>()
 
-    render(
-      <TestProviders>
-        <TerminalSearchPanel
-          ref={ref}
-          searchTerm=""
-          onSearchTermChange={() => {}}
-          onFindNext={() => {}}
-          onFindPrevious={() => {}}
-          onClose={() => {}}
-        />
-      </TestProviders>
-    )
+    await act(async () => {
+      render(
+        <TestProviders>
+          <TerminalSearchPanel
+            ref={ref}
+            searchTerm=""
+            onSearchTermChange={() => {}}
+            onFindNext={() => {}}
+            onFindPrevious={() => {}}
+            onClose={() => {}}
+          />
+        </TestProviders>
+      )
+    })
 
     expect(ref.current).toBeInstanceOf(HTMLDivElement)
     expect(ref.current?.dataset.terminalSearch).toBe('true')

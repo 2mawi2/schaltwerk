@@ -250,7 +250,7 @@ describe('useSpecMode', () => {
       expect(result.current.commanderSpecModeSession).toBeNull()
     })
 
-    it('should toggle spec mode correctly - on then off', () => {
+    it('should toggle spec mode correctly - on then off', async () => {
       const spec = createMockSpec('test-spec')
       const { result } = renderHook(() => useSpecMode({
         projectPath: '/test/project',
@@ -261,7 +261,7 @@ describe('useSpecMode', () => {
       }))
 
       // Toggle on - should select first available spec
-      act(() => {
+      await act(async () => {
         result.current.toggleSpecMode()
       })
 
@@ -311,7 +311,7 @@ describe('useSpecMode', () => {
   })
 
   describe('spec filtering logic', () => {
-    it('should identify spec sessions correctly', () => {
+    it('should identify spec sessions correctly', async () => {
       const spec1 = createMockSpec('spec-1')
       const spec2 = createMockSpec('spec-2')
       const runningSession: EnrichedSession = {
@@ -332,7 +332,7 @@ describe('useSpecMode', () => {
       }))
 
       // Toggle should select first spec, not the running session
-      act(() => {
+      await act(async () => {
         result.current.toggleSpecMode()
       })
 
@@ -341,7 +341,7 @@ describe('useSpecMode', () => {
       expect(result.current.commanderSpecModeSession).not.toBe('running-session')
     })
 
-    it('should handle no specs available when toggling', () => {
+    it('should handle no specs available when toggling', async () => {
       const dispatchEventSpy = vi.spyOn(window, 'dispatchEvent')
 
       const { result } = renderHook(() => useSpecMode({
@@ -352,7 +352,7 @@ describe('useSpecMode', () => {
         setSelection: mockSetSelection
       }))
 
-      act(() => {
+      await act(async () => {
         result.current.toggleSpecMode()
       })
 
@@ -468,7 +468,7 @@ describe('useSpecMode', () => {
       }))
 
       // Toggle spec mode on
-      act(() => {
+      await act(async () => {
         result.current.toggleSpecMode()
       })
 
@@ -484,7 +484,7 @@ describe('useSpecMode', () => {
       expect(mockSetFilterMode).toHaveBeenCalledWith(FilterMode.Running)
     })
 
-    it('should persist previous filter mode to sessionStorage', () => {
+    it('should persist previous filter mode to sessionStorage', async () => {
       const spec = createMockSpec('test-spec')
       
       const { result } = renderHook(() => useSpecMode({
@@ -496,7 +496,7 @@ describe('useSpecMode', () => {
         currentFilterMode: FilterMode.Reviewed
       }))
 
-      act(() => {
+      await act(async () => {
         result.current.toggleSpecMode()
       })
 
@@ -516,7 +516,7 @@ describe('useSpecMode', () => {
       }))
 
       // Toggle spec mode on
-      act(() => {
+      await act(async () => {
         result.current.toggleSpecMode()
       })
 
@@ -576,7 +576,7 @@ describe('useSpecMode', () => {
       }))
 
       // Toggle spec mode on
-      act(() => {
+      await act(async () => {
         result.current.toggleSpecMode()
       })
 
@@ -594,7 +594,7 @@ describe('useSpecMode', () => {
       })
     })
 
-    it('should persist previous selection to sessionStorage', () => {
+    it('should persist previous selection to sessionStorage', async () => {
       const spec = createMockSpec('test-spec')
       const sessionSelection: Selection = { 
         kind: 'session', 
@@ -610,7 +610,7 @@ describe('useSpecMode', () => {
         currentFilterMode: FilterMode.All
       }))
 
-      act(() => {
+      await act(async () => {
         result.current.toggleSpecMode()
       })
 
@@ -619,7 +619,7 @@ describe('useSpecMode', () => {
       expect(JSON.parse(saved!)).toEqual(sessionSelection)
     })
 
-    it('should not save selection if already in orchestrator', () => {
+    it('should not save selection if already in orchestrator', async () => {
       const spec = createMockSpec('test-spec')
       
       const { result } = renderHook(() => useSpecMode({
@@ -631,7 +631,7 @@ describe('useSpecMode', () => {
         currentFilterMode: FilterMode.All
       }))
 
-      act(() => {
+      await act(async () => {
         result.current.toggleSpecMode()
       })
 

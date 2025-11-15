@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { TauriCommands } from '../../common/tauriCommands'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { MarkReadyConfirmation } from './MarkReadyConfirmation'
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
@@ -90,7 +90,9 @@ describe('MarkReadyConfirmation', () => {
       expect(screen.getByRole('button', { name: /Mark as Reviewed/ })).toBeInTheDocument()
     })
 
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    })
     expect(onClose).toHaveBeenCalled()
   })
 
@@ -107,7 +109,9 @@ describe('MarkReadyConfirmation', () => {
       expect(screen.getByRole('button', { name: /Mark as Reviewed/ })).toBeInTheDocument()
     })
     
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+    })
     await waitFor(() => {
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreMarkSessionReady, { name: 's1', autoCommit: true })
     })

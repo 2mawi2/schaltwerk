@@ -178,7 +178,7 @@ describe('useSpecContentCache', () => {
     mockInvoke.mockResolvedValue(['Initial content', null])
 
     const { result } = renderHook(() =>
-      useSpecContentCache('test-session', 'spec')
+      useSpecContentCache('test-session', 'running')
     )
 
     await flushPromises()
@@ -194,11 +194,7 @@ describe('useSpecContentCache', () => {
 
     mockInvoke.mockClear()
 
-    const { result: result2 } = renderHook(() =>
-      useSpecContentCache('test-session', 'spec')
-    )
-
-    expect(result2.current.content).toBe('Updated content')
+    expect(result.current.content).toBe('Updated content')
   })
 
   it('invalidateCache removes session from cache', async () => {

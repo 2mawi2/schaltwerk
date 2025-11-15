@@ -57,14 +57,16 @@ describe('ConfirmModal', () => {
   it('does not confirm when loading or disabled', async () => {
     const { onConfirm: onConfirmDisabled } = openModal({ confirmDisabled: true })
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
-    await new Promise((r) => setTimeout(r, 0))
-    expect(onConfirmDisabled).not.toHaveBeenCalled()
+    await waitFor(() => {
+      expect(onConfirmDisabled).not.toHaveBeenCalled()
+    })
 
     cleanup()
     const { onConfirm: onConfirmLoading } = openModal({ loading: true })
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
-    await new Promise((r) => setTimeout(r, 0))
-    expect(onConfirmLoading).not.toHaveBeenCalled()
+    await waitFor(() => {
+      expect(onConfirmLoading).not.toHaveBeenCalled()
+    })
   })
 
   it('focuses confirm button when opened', async () => {
