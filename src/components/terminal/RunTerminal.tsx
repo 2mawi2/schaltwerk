@@ -413,6 +413,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
             agentType="run"
             inputFilter={allowRunInput}
             ref={terminalRef}
+            workingDirectory={workingDirectory || runScript?.workingDirectory}
           />
         ) : (
           <div className="h-full flex items-center justify-center" style={{ backgroundColor: theme.colors.background.secondary }}>

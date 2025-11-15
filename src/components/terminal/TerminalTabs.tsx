@@ -122,6 +122,7 @@ const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(
                   isCommander={isCommander}
                   agentType={agentType}
                   onTerminalClick={onTerminalClick}
+                  workingDirectory={workingDirectory}
                 />
               </div>
             )
@@ -201,6 +202,7 @@ const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(
                 isCommander={isCommander}
                 agentType={agentType}
                 onTerminalClick={onTerminalClick}
+                workingDirectory={workingDirectory}
               />
             </div>
           )

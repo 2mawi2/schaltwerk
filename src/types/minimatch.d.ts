@@ -12,9 +12,11 @@ declare module 'minimatch' {
     [key: string]: unknown
   }
 
-  export default function minimatch(
+  export function minimatch(
     path: string,
     pattern: string,
     options?: MinimatchOptions
   ): boolean
+
+  export default minimatch
 }

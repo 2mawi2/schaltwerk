@@ -12,6 +12,7 @@ vi.mock('@xterm/xterm', () => {
     loadAddon = vi.fn()
     open = vi.fn()
     dispose = vi.fn()
+    registerLinkProvider = vi.fn(() => ({ dispose: vi.fn() }))
     element: HTMLElement | null = null
     parser = {
       registerOscHandler: vi.fn(() => true),
