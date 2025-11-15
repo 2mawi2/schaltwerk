@@ -334,9 +334,7 @@ impl MergeService {
         };
 
         let parent_ref = find_branch(&repo, &resolved_parent).with_context(|| {
-            format!(
-                "Parent branch '{resolved_parent}' not found for session '{session_name}'"
-            )
+            format!("Parent branch '{resolved_parent}' not found for session '{session_name}'")
         })?;
         let parent_oid = parent_ref
             .get()
@@ -2286,11 +2284,7 @@ mod tests {
             std::fs::write(repo_path.join(file), "base").unwrap();
         }
         std::fs::write(repo_path.join("conflict.txt"), "base-conflict").unwrap();
-        run_git(
-            &repo_path,
-            vec![OsString::from("add"), OsString::from(".")],
-        )
-        .unwrap();
+        run_git(&repo_path, vec![OsString::from("add"), OsString::from(".")]).unwrap();
         run_git(
             &repo_path,
             vec![
@@ -2318,11 +2312,7 @@ mod tests {
         for file in &internal_files {
             std::fs::write(session.worktree_path.join(file), "session").unwrap();
         }
-        std::fs::write(
-            session.worktree_path.join("conflict.txt"),
-            "session-change",
-        )
-        .unwrap();
+        std::fs::write(session.worktree_path.join("conflict.txt"), "session-change").unwrap();
         run_git(
             &session.worktree_path,
             vec![OsString::from("add"), OsString::from(".")],
@@ -2342,11 +2332,7 @@ mod tests {
             std::fs::write(repo_path.join(file), "parent").unwrap();
         }
         std::fs::write(repo_path.join("conflict.txt"), "parent-change").unwrap();
-        run_git(
-            &repo_path,
-            vec![OsString::from("add"), OsString::from(".")],
-        )
-        .unwrap();
+        run_git(&repo_path, vec![OsString::from("add"), OsString::from(".")]).unwrap();
         run_git(
             &repo_path,
             vec![

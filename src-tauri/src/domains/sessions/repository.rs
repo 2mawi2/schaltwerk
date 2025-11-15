@@ -49,11 +49,7 @@ impl SessionDbManager {
         }
     }
 
-    fn normalize_parent_branch_with_repo(
-        &self,
-        repo: Option<&Repository>,
-        session: &mut Session,
-    ) {
+    fn normalize_parent_branch_with_repo(&self, repo: Option<&Repository>, session: &mut Session) {
         let trimmed = session.parent_branch.trim();
         if trimmed.is_empty() {
             return;

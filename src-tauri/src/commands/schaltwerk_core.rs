@@ -22,7 +22,6 @@ use schaltwerk::services::{
     shell_invocation_to_posix,
 };
 use schaltwerk::utils::env_adapter::EnvAdapter;
-use std::collections::HashSet;
 use std::path::PathBuf;
 use std::time::Duration;
 use tauri::State;
@@ -991,31 +990,7 @@ pub async fn schaltwerk_core_cancel_session(
 
         // Always close terminals BEFORE removing the worktree to avoid leaving
         // shells in deleted directories (which causes getcwd errors in tools like `just`).
-        if let Ok(terminal_manager) = get_terminal_manager().await {
-            let mut ids: HashSet<String> = HashSet::new();
-            ids.insert(terminals::terminal_id_for_session_top(&name_for_bg));
-            ids.insert(terminals::terminal_id_for_session_bottom(&name_for_bg));
-            ids.insert(terminals::previous_tilde_hashed_terminal_id_for_session_top(&name_for_bg));
-            ids.insert(
-                terminals::previous_tilde_hashed_terminal_id_for_session_bottom(&name_for_bg),
-            );
-            ids.insert(terminals::previous_hashed_terminal_id_for_session_top(
-                &name_for_bg,
-            ));
-            ids.insert(terminals::previous_hashed_terminal_id_for_session_bottom(
-                &name_for_bg,
-            ));
-            ids.insert(terminals::legacy_terminal_id_for_session_top(&name_for_bg));
-            ids.insert(terminals::legacy_terminal_id_for_session_bottom(
-                &name_for_bg,
-            ));
-
-            for id in ids {
-                if let Err(e) = terminal_manager.close_terminal(id.clone()).await {
-                    log::debug!("Terminal {id} cleanup (pre-cancel): {e}");
-                }
-            }
-        }
+        terminals::close_session_terminals_if_any(&name_for_bg).await;
 
         let cancel_result = match get_core_write().await {
             Ok(core) => {

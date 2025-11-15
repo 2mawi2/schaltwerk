@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::path::Path;
 
+use schaltwerk::shared::terminal_id::session_terminal_base_variants;
 pub use schaltwerk::shared::terminal_id::{
     legacy_terminal_id_for_session_bottom, legacy_terminal_id_for_session_top,
     previous_hashed_terminal_id_for_session_bottom, previous_hashed_terminal_id_for_session_top,
@@ -40,6 +41,13 @@ pub async fn close_session_terminals_if_any(session_name: &str) {
         ids.insert(legacy_terminal_id_for_session_top(session_name));
         ids.insert(legacy_terminal_id_for_session_bottom(session_name));
 
+        let prefixes = session_terminal_prefixes(session_name);
+        for (active_id, _) in manager.get_all_terminal_activity().await {
+            if matches_session_terminal(&active_id, &prefixes) {
+                ids.insert(active_id);
+            }
+        }
+
         for id in ids {
             if let Ok(true) = manager.terminal_exists(&id).await {
                 let _ = manager.close_terminal(id).await;
@@ -48,9 +56,39 @@ pub async fn close_session_terminals_if_any(session_name: &str) {
     }
 }
 
+fn session_terminal_prefixes(session_name: &str) -> Vec<String> {
+    session_terminal_base_variants(session_name)
+        .into_iter()
+        .flat_map(|base| {
+            ["-top", "-bottom"]
+                .into_iter()
+                .map(move |suffix| format!("{base}{suffix}"))
+        })
+        .collect()
+}
+
+fn matches_session_terminal(terminal_id: &str, prefixes: &[String]) -> bool {
+    prefixes
+        .iter()
+        .any(|prefix| terminal_matches_prefix(terminal_id, prefix))
+}
+
+fn terminal_matches_prefix(terminal_id: &str, prefix: &str) -> bool {
+    if terminal_id == prefix {
+        return true;
+    }
+
+    terminal_id
+        .strip_prefix(prefix)
+        .and_then(|rest| rest.strip_prefix('-'))
+        .map(|suffix| !suffix.is_empty() && suffix.chars().all(|c| c.is_ascii_digit()))
+        .unwrap_or(false)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use schaltwerk::shared::terminal_id::session_terminal_base;
     use std::path::PathBuf;
 
     #[test]
@@ -84,5 +122,31 @@ mod tests {
         assert!(err.contains("not found"));
         // cleanup
         drop(tmp);
+    }
+
+    #[test]
+    fn prefixes_cover_all_variant_generations() {
+        let prefixes = session_terminal_prefixes("alpha beta");
+        assert!(prefixes.iter().any(|p| p.contains('~')));
+        assert!(prefixes.iter().any(|p| !p.contains('~')));
+        assert!(prefixes.iter().any(|p| p.ends_with("-top")));
+        assert!(prefixes.iter().any(|p| p.ends_with("-bottom")));
+    }
+
+    #[test]
+    fn numeric_suffix_matching_handles_extra_tabs() {
+        let prefixes = session_terminal_prefixes("dreamy kirch");
+        let base = session_terminal_base("dreamy kirch");
+        let bottom = format!("{base}-bottom");
+        assert!(matches_session_terminal(&bottom, &prefixes));
+        assert!(matches_session_terminal(&format!("{bottom}-2"), &prefixes));
+        assert!(!matches_session_terminal(
+            &format!("{bottom}-custom"),
+            &prefixes
+        ));
+        assert!(!matches_session_terminal(
+            "session-other~00000000-bottom-1",
+            &prefixes
+        ));
     }
 }

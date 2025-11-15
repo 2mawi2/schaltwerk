@@ -54,7 +54,9 @@ pub async fn schaltwerk_core_list_codex_models() -> Result<codex_models::CodexMo
             if let Some(version) = &detected_version {
                 log::warn!("Detected Codex CLI version during fallback: {version}");
             }
-            Ok(builtin_codex_model_catalog_for_version(detected_version.as_deref()))
+            Ok(builtin_codex_model_catalog_for_version(
+                detected_version.as_deref(),
+            ))
         }
     }
 }
