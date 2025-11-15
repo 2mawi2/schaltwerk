@@ -1,0 +1,38 @@
+diff --git a/node_modules/gray-matter/lib/engines.js b/node_modules/gray-matter/lib/engines.js
+index 38f993d..7e1710c 100644
+--- a/node_modules/gray-matter/lib/engines.js
++++ b/node_modules/gray-matter/lib/engines.js
+@@ -8,13 +8,31 @@ const yaml = require('js-yaml');
+ 
+ const engines = exports = module.exports;
+ 
++const getYamlParser = () => {
++  if (typeof yaml.load === 'function') {
++    return yaml.load.bind(yaml);
++  }
++  return yaml.safeLoad.bind(yaml);
++};
++
++const getYamlStringifier = () => {
++  if (typeof yaml.dump === 'function') {
++    return yaml.dump.bind(yaml);
++  }
++  return yaml.safeDump.bind(yaml);
++};
++
+ /**
+  * YAML
+  */
+ 
+ engines.yaml = {
+-  parse: yaml.safeLoad.bind(yaml),
+-  stringify: yaml.safeDump.bind(yaml)
++  parse(str, options) {
++    return getYamlParser()(str, options);
++  },
++  stringify(obj, options) {
++    return getYamlStringifier()(obj, options);
++  }
+ };
+ 
+ /**
