@@ -44,6 +44,18 @@ describe('parseTerminalFileReference', () => {
   it('rejects paths without an extension in the last segment', () => {
     expect(parseTerminalFileReference('LICENSE:5')).toBeNull()
   })
+
+  it('rejects files with extensions outside the allowed patterns', () => {
+    expect(parseTerminalFileReference('logs/build.artifact:1')).toBeNull()
+  })
+
+  it('accepts extensionless files that match wildcard allowlist entries', () => {
+    expect(parseTerminalFileReference('Dockerfile:12')).toEqual({
+      filePath: 'Dockerfile',
+      startLine: 12,
+      endLine: undefined,
+    })
+  })
 })
 
 describe('resolveTerminalFileReference', () => {
