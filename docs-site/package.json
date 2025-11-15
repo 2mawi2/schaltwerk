@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "mintlify dev",
     "build": "mintlify build",
-    "preview": "mintlify preview"
+    "preview": "mintlify preview",
+    "postinstall": "patch-package"
   },
   "keywords": [
     "schaltwerk",
@@ -15,6 +16,10 @@
   "author": "Schaltwerk Team",
   "license": "MIT",
   "devDependencies": {
-    "mintlify": "^4.2.140"
+    "mintlify": "^4.2.202",
+    "patch-package": "^8.0.0"
+  },
+  "overrides": {
+    "js-yaml": "^4.1.1"
   }
 }
