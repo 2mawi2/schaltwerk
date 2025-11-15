@@ -1,0 +1,17 @@
+.schaltwerk-terminal-wrapper {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  position: relative;
+  overflow: hidden;
+}
+
+.schaltwerk-terminal-wrapper .xterm {
+  position: absolute;
+  inset: 0;
+}
+
+.schaltwerk-terminal-wrapper .xterm-viewport {
+  top: 0;
+  bottom: 0;
+}

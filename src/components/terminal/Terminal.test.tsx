@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, waitFor, cleanup, act } from '@testing-library/react'
 import { Terminal } from './Terminal'
-import * as autoScrollModule from './autoScroll'
+import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import { startSessionTop } from '../../common/agentSpawn'
 
 const ATLAS_CONTRAST_BASE = 1.1
@@ -36,6 +36,7 @@ type HarnessConfig = {
   fontFamily: string
   readOnly?: boolean
   minimumContrastRatio: number
+  smoothScrolling?: boolean
   [key: string]: unknown
 }
 
@@ -126,6 +127,7 @@ const terminalHarness = vi.hoisted(() => {
     attach = vi.fn()
     detach = vi.fn()
     dispose = vi.fn()
+    setSmoothScrolling = vi.fn()
     applyConfig = vi.fn((partial: Record<string, unknown>) => {
       this.config = { ...this.config, ...partial } as HarnessConfig
     })
@@ -236,7 +238,12 @@ vi.mock('../../terminal/transport/backend', () => ({
 
 vi.mock('../../common/eventSystem', () => ({
   listenEvent: vi.fn(async () => () => {}),
-  SchaltEvent: { TerminalFocusRequested: 'TerminalFocusRequested' },
+  SchaltEvent: {
+    TerminalFocusRequested: 'TerminalFocusRequested',
+    TerminalAgentStarted: 'TerminalAgentStarted',
+    TerminalClosed: 'TerminalClosed',
+    TerminalForceScroll: 'TerminalForceScroll',
+  },
 }))
 
 vi.mock('../../common/uiEvents', () => ({
@@ -297,6 +304,8 @@ beforeEach(() => {
   globalContext.ResizeObserver = NoopObserver
   globalContext.IntersectionObserver = NoopObserver
   globalContext.MutationObserver = NoopObserver
+  vi.mocked(listenEvent).mockReset()
+  vi.mocked(listenEvent).mockImplementation(async () => () => {})
   terminalHarness.instances.length = 0
   terminalHarness.acquireMock.mockClear()
   terminalHarness.setNextIsNew(true)
@@ -449,116 +458,83 @@ describe('Terminal', () => {
     })
   })
 
-  it('sticks back to the buffer base after manual scroll once the viewport catches up', async () => {
-    const shouldStickSpy = vi.spyOn(autoScrollModule, 'shouldStickToBottom')
-    render(<Terminal terminalId="session-scroll-stick" sessionName="scroll-stick" />)
-
-    await waitFor(() => {
-      expect(terminalHarness.acquireMock).toHaveBeenCalled()
-      expect(terminalHarness.instances.length).toBeGreaterThan(0)
+  it('scrolls to the bottom when a TerminalForceScroll event targets the terminal', async () => {
+    const listeners = new Map<string, (payload: { terminal_id: string }) => void>()
+    const originalImplementation = vi.mocked(listenEvent).getMockImplementation()
+    vi.mocked(listenEvent).mockImplementation(async (event, handler) => {
+      listeners.set(String(event), handler as (payload: { terminal_id: string }) => void)
+      return () => {
+        listeners.delete(String(event))
+      }
     })
 
-    const instance = terminalHarness.instances[terminalHarness.instances.length - 1] as HarnessInstance
-    await waitFor(() => {
-      expect(instance.raw.onScroll).toHaveBeenCalled()
-    })
-
-    const scrollCalls = instance.raw.onScroll.mock.calls
-    const scrollHandler = scrollCalls[scrollCalls.length - 1]?.[0] as ((position: number) => void) | undefined
-    expect(typeof scrollHandler).toBe('function')
-
-    instance.raw.buffer.active.baseY = 360
-    instance.raw.buffer.active.viewportY = 240
-
-    await new Promise(resolve => setTimeout(resolve, 20))
-    shouldStickSpy.mockClear()
-
     try {
-      await act(async () => {
-        instance.raw.buffer.active.viewportY = 360
-        scrollHandler!(360)
-        await new Promise(resolve => setTimeout(resolve, 0))
-      })
-
-      await waitFor(() => {
-        expect(shouldStickSpy).toHaveBeenCalled()
-      })
-
-      await waitFor(() => {
-        const matches = shouldStickSpy.mock.calls.some(
-          call => (call[0] as autoScrollModule.StickToBottomInput)?.viewportY === 360,
-        )
-        expect(matches).toBe(true)
-      })
-    } finally {
-      shouldStickSpy.mockRestore()
-    }
-  })
-
-  it.skip('restores the bottom when the user scrolls downward but lands one line short', async () => {
-    const shouldStickSpy = vi.spyOn(autoScrollModule, 'shouldStickToBottom')
-    try {
-      render(<Terminal terminalId="session-scroll-tolerance" sessionName="scroll-tolerance" />)
+      render(<Terminal terminalId="session-force-scroll" sessionName="force-scroll" />)
 
       await waitFor(() => {
         expect(terminalHarness.acquireMock).toHaveBeenCalled()
         expect(terminalHarness.instances.length).toBeGreaterThan(0)
       })
 
+      await waitFor(() => {
+        expect(listeners.get(String(SchaltEvent.TerminalForceScroll))).toBeDefined()
+      })
+
       const instance = terminalHarness.instances[terminalHarness.instances.length - 1] as HarnessInstance
-      await waitFor(() => {
-        expect(instance.raw.onScroll).toHaveBeenCalled()
-      })
-
-      const scrollCalls = instance.raw.onScroll.mock.calls
-      const scrollHandler = scrollCalls[scrollCalls.length - 1]?.[0] as ((position: number) => void) | undefined
-      expect(typeof scrollHandler).toBe('function')
-
-      instance.raw.buffer.active.baseY = 420
-      instance.raw.buffer.active.viewportY = 418
-
-      await act(async () => {
-        scrollHandler!(418)
-      })
-
-      await waitFor(() => {
-        expect(shouldStickSpy).toHaveBeenCalled()
-      })
-
-      shouldStickSpy.mockClear()
       instance.raw.scrollToBottom.mockClear()
 
-      instance.raw.buffer.active.viewportY = 419
-      await act(async () => {
-        scrollHandler!(419)
-      })
+      const handler = listeners.get(String(SchaltEvent.TerminalForceScroll))
+      expect(handler).toBeDefined()
 
       await act(async () => {
-        await waitFor(() => {
-          const hasCorrectCall = shouldStickSpy.mock.calls.some(
-            call =>
-              (call[0] as autoScrollModule.StickToBottomInput)?.viewportY === 419 &&
-              (call[0] as autoScrollModule.StickToBottomInput)?.toleranceLines === 1,
-          )
-          if (!hasCorrectCall && shouldStickSpy.mock.calls.length > 0) {
-            console.log('Calls after second scroll:', shouldStickSpy.mock.calls.map(c => JSON.stringify(c[0])))
-            console.log('scrollToBottom call count:', instance.raw.scrollToBottom.mock.calls.length)
-          }
-          expect(hasCorrectCall).toBe(true)
-        })
+        handler?.({ terminal_id: 'session-force-scroll' })
       })
 
-      await act(async () => {
-        await waitFor(() => {
-          if (!instance.raw.scrollToBottom.mock.calls.length) {
-            console.log('scrollToBottom not called. shouldStickToBottom results:',
-              shouldStickSpy.mock.results.map(r => r.value))
-          }
-          expect(instance.raw.scrollToBottom).toHaveBeenCalled()
-        })
+      await waitFor(() => {
+        expect(instance.raw.scrollToBottom).toHaveBeenCalled()
       })
     } finally {
-      shouldStickSpy.mockRestore()
+      vi.mocked(listenEvent).mockImplementation(originalImplementation ?? (async () => () => {}))
+    }
+  })
+
+  it('ignores TerminalForceScroll events for other terminals', async () => {
+    const listeners = new Map<string, (payload: { terminal_id: string }) => void>()
+    const originalImplementation = vi.mocked(listenEvent).getMockImplementation()
+    vi.mocked(listenEvent).mockImplementation(async (event, handler) => {
+      listeners.set(String(event), handler as (payload: { terminal_id: string }) => void)
+      return () => {
+        listeners.delete(String(event))
+      }
+    })
+
+    try {
+      render(<Terminal terminalId="session-force-ignore" sessionName="force-ignore" />)
+
+      await waitFor(() => {
+        expect(terminalHarness.acquireMock).toHaveBeenCalled()
+        expect(terminalHarness.instances.length).toBeGreaterThan(0)
+      })
+
+      await waitFor(() => {
+        expect(listeners.get(String(SchaltEvent.TerminalForceScroll))).toBeDefined()
+      })
+
+      const instance = terminalHarness.instances[terminalHarness.instances.length - 1] as HarnessInstance
+      instance.raw.scrollToBottom.mockClear()
+
+      const handler = listeners.get(String(SchaltEvent.TerminalForceScroll))
+      expect(handler).toBeDefined()
+
+      await act(async () => {
+        handler?.({ terminal_id: 'other-terminal' })
+      })
+
+      await new Promise(resolve => setTimeout(resolve, 0))
+
+      expect(instance.raw.scrollToBottom).not.toHaveBeenCalled()
+    } finally {
+      vi.mocked(listenEvent).mockImplementation(originalImplementation ?? (async () => () => {}))
     }
   })
 })

@@ -188,6 +188,8 @@ pub struct TerminalSettings {
     pub font_family: Option<String>,
     #[serde(default = "default_true")]
     pub webgl_enabled: bool,
+    #[serde(default = "default_true")]
+    pub smooth_scrolling: bool,
 }
 
 impl Default for TerminalSettings {
@@ -197,6 +199,7 @@ impl Default for TerminalSettings {
             shell_args: Vec::new(),
             font_family: None,
             webgl_enabled: true,
+            smooth_scrolling: true,
         }
     }
 }

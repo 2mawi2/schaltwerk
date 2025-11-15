@@ -34,6 +34,7 @@ export interface TerminalTabsHandle {
      closeTab: (index: number) => void
      setActiveTab: (index: number) => void
    }
+   getActiveTerminalRef: () => TerminalHandle | null
 }
 
 const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(({
@@ -61,7 +62,6 @@ const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(
 
    useImperativeHandle(ref, () => ({
      focus: () => {
-       // Since we only render the active terminal, it should be the only one in the refs
        const activeTerminalRef = terminalRefs.current.get(activeTab)
        if (activeTerminalRef) {
          safeTerminalFocusImmediate(() => activeTerminalRef.focus(), isAnyModalOpen)
@@ -89,7 +89,8 @@ const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(
        addTab,
        closeTab,
        setActiveTab
-     })
+     }),
+     getActiveTerminalRef: () => terminalRefs.current.get(activeTab) ?? null,
    }), [activeTab, tabs, canAddTab, addTab, closeTab, setActiveTab, isAnyModalOpen])
 
 
@@ -98,28 +99,33 @@ const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(
     return (
       <div className={`h-full ${className}`}>
         <div className="h-full relative">
-          {tabs.filter(tab => tab.index === activeTab).map((tab) => (
-            <div
-              key={tab.terminalId}
-              className="absolute inset-0"
-            >
-              <Terminal
-                ref={(ref) => {
-                  if (ref) {
-                    terminalRefs.current.set(tab.index, ref)
-                  } else {
-                    terminalRefs.current.delete(tab.index)
-                  }
-                }}
-                terminalId={tab.terminalId}
-                className="h-full w-full"
-                sessionName={sessionName}
-                isCommander={isCommander}
-                agentType={agentType}
-                onTerminalClick={onTerminalClick}
-              />
-            </div>
-          ))}
+          {tabs.map((tab) => {
+            const isActive = tab.index === activeTab
+            return (
+              <div
+                key={tab.terminalId}
+                className={`absolute inset-0 transition-opacity duration-150 ${isActive ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+                style={{ visibility: isActive ? 'visible' : 'hidden' }}
+                aria-hidden={!isActive}
+              >
+                <Terminal
+                  ref={(ref) => {
+                    if (ref) {
+                      terminalRefs.current.set(tab.index, ref)
+                    } else {
+                      terminalRefs.current.delete(tab.index)
+                    }
+                  }}
+                  terminalId={tab.terminalId}
+                  className="h-full w-full"
+                  sessionName={sessionName}
+                  isCommander={isCommander}
+                  agentType={agentType}
+                  onTerminalClick={onTerminalClick}
+                />
+              </div>
+            )
+          })}
         </div>
       </div>
     )
@@ -172,28 +178,33 @@ const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(
       </div>
 
       <div className="flex-1 min-h-0 relative">
-        {tabs.filter(tab => tab.index === activeTab).map((tab) => (
-          <div
-            key={tab.terminalId}
-            className="absolute inset-0"
-          >
-            <Terminal
-              ref={(ref) => {
-                if (ref) {
-                  terminalRefs.current.set(tab.index, ref)
-                } else {
-                  terminalRefs.current.delete(tab.index)
-                }
-              }}
-              terminalId={tab.terminalId}
-              className="h-full w-full"
-              sessionName={sessionName}
-              isCommander={isCommander}
-              agentType={agentType}
-              onTerminalClick={onTerminalClick}
-            />
-          </div>
-        ))}
+        {tabs.map((tab) => {
+          const isActive = tab.index === activeTab
+          return (
+            <div
+              key={tab.terminalId}
+              className={`absolute inset-0 transition-opacity duration-150 ${isActive ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+              style={{ visibility: isActive ? 'visible' : 'hidden' }}
+              aria-hidden={!isActive}
+            >
+              <Terminal
+                ref={(ref) => {
+                  if (ref) {
+                    terminalRefs.current.set(tab.index, ref)
+                  } else {
+                    terminalRefs.current.delete(tab.index)
+                  }
+                }}
+                terminalId={tab.terminalId}
+                className="h-full w-full"
+                sessionName={sessionName}
+                isCommander={isCommander}
+                agentType={agentType}
+                onTerminalClick={onTerminalClick}
+              />
+            </div>
+          )
+        })}
       </div>
     </div>
   )
