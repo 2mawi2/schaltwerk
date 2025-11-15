@@ -227,10 +227,10 @@ describe('DiffFileList', () => {
     // Should show orchestrator-specific header
     expect(await screen.findByText('Uncommitted Changes')).toBeInTheDocument()
     expect(await screen.findByText('(on main)')).toBeInTheDocument()
-    
+
     // Should show orchestrator changes
-    expect(screen.getByText('orchestrator.ts')).toBeInTheDocument()
-    expect(screen.getByText('config.json')).toBeInTheDocument()
+    expect(await screen.findByText('orchestrator.ts')).toBeInTheDocument()
+    expect(await screen.findByText('config.json')).toBeInTheDocument()
   })
 
   it('shows orchestrator empty state when no working changes', async () => {
@@ -275,8 +275,10 @@ describe('DiffFileList', () => {
     )
 
     // Should show non-.schaltwerk files
-    expect(await screen.findByText('main.ts')).toBeInTheDocument()
-    
+    await waitFor(() => {
+      expect(screen.getByText('main.ts')).toBeInTheDocument()
+    })
+
     // Should NOT show .schaltwerk files (they should be filtered by backend)
     expect(screen.queryByText('.schaltwerk')).not.toBeInTheDocument()
     expect(screen.queryByText('session.db')).not.toBeInTheDocument()
