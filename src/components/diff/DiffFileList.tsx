@@ -18,6 +18,8 @@ import { theme } from '../../common/theme'
 import { useAtomValue } from 'jotai'
 import { projectPathAtom } from '../../store/atoms/project'
 import { isSessionMissingError } from '../../types/errors'
+import { FileTree } from './FileTree'
+import type { FileNode } from '../../utils/folderTree'
 
 interface DiffFileListProps {
   onFileSelect: (filePath: string) => void
@@ -54,13 +56,13 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
   const [files, setFiles] = useState<ChangedFile[]>([])
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [branchInfo, setBranchInfo] = useState<{ 
-    currentBranch: string, 
+  const [branchInfo, setBranchInfo] = useState<{
+    currentBranch: string,
     baseBranch: string,
-    baseCommit: string, 
-    headCommit: string 
+    baseCommit: string,
+    headCommit: string
   } | null>(null)
-  
+
   const sessionName = sessionNameOverride ?? (selection.kind === 'session' ? selection.payload : null)
   const [isResetting, setIsResetting] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -611,7 +613,77 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
       alert(errorMessage)
     }
   }, [sessionName, isCommander])
-  
+
+  const renderFileNode = (node: FileNode, depth: number) => {
+    const additions = node.file.additions ?? 0
+    const deletions = node.file.deletions ?? 0
+    const totalChanges = node.file.changes ?? additions + deletions
+    const isBinary = node.file.is_binary ?? (node.file.change_type !== 'deleted' && isBinaryFileByExtension(node.file.path))
+
+    return (
+      <div
+        key={node.path}
+        className={clsx(
+          'flex items-start gap-3 rounded cursor-pointer',
+          'hover:bg-slate-800/50',
+          selectedFile === node.file.path && 'bg-slate-800/30'
+        )}
+        style={{ paddingLeft: `${depth * 12 + 12}px`, paddingTop: '4px', paddingBottom: '4px' }}
+        onClick={() => handleFileClick(node.file)}
+        data-selected={selectedFile === node.file.path}
+        data-file-path={node.file.path}
+      >
+        {getFileIcon(node.file.change_type, node.file.path)}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start gap-2 justify-between">
+            <div className="text-sm truncate font-medium" style={{ color: theme.colors.text.primary }}>
+              {node.name}
+            </div>
+            <DiffChangeBadges
+              additions={additions}
+              deletions={deletions}
+              changes={totalChanges}
+              isBinary={isBinary}
+              className="flex-shrink-0"
+              layout="row"
+              size="compact"
+            />
+          </div>
+        </div>
+        <button
+          title="Open file in editor"
+          aria-label={`Open ${node.file.path}`}
+          className="ml-2 p-1 rounded hover:bg-slate-800"
+          style={{ color: theme.colors.text.secondary }}
+          onClick={(e) => {
+            e.stopPropagation()
+            void handleOpenFile(node.file.path)
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = theme.colors.text.primary
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = theme.colors.text.secondary
+          }}
+        >
+          <VscFolder className="text-base" />
+        </button>
+        <button
+          title="Discard changes for this file"
+          aria-label={`Discard ${node.file.path}`}
+          className="p-1 rounded hover:bg-slate-800 text-slate-300"
+          onClick={(e) => {
+            e.stopPropagation()
+            setPendingDiscardFile(node.file.path)
+            setDiscardOpen(true)
+          }}
+        >
+          <VscDiscard className="text-base" />
+        </button>
+      </div>
+    )
+  }
+
   return (
     <>
     <div className="h-full flex flex-col bg-panel">
@@ -672,82 +744,8 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
         </div>
       ) : files.length > 0 ? (
         <div className="flex-1 overflow-y-auto">
-          <div className="p-2">
-            {files.map(file => {
-              const additions = file.additions ?? 0
-              const deletions = file.deletions ?? 0
-              const totalChanges = file.changes ?? additions + deletions
-              const isBinary = file.is_binary ?? (file.change_type !== 'deleted' && isBinaryFileByExtension(file.path))
-              const fileName = file.path.split('/').pop() ?? file.path
-              const directory = file.path.includes('/')
-                ? file.path.substring(0, file.path.lastIndexOf('/'))
-                : ''
-
-              return (
-                <div
-                  key={file.path}
-                  className={clsx(
-                    'flex items-start gap-3 px-2 py-2 rounded cursor-pointer',
-                    'hover:bg-slate-800/50',
-                    selectedFile === file.path && 'bg-slate-800/30'
-                  )}
-                  onClick={() => handleFileClick(file)}
-                  data-selected={selectedFile === file.path}
-                  data-file-path={file.path}
-                >
-                  {getFileIcon(file.change_type, file.path)}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start gap-2 justify-between">
-                      <div className="min-w-0">
-                        <div className="text-sm truncate font-medium">{fileName}</div>
-                        {directory && (
-                          <div className="text-xs text-slate-500 truncate">{directory}</div>
-                        )}
-                      </div>
-                      <DiffChangeBadges
-                        additions={additions}
-                        deletions={deletions}
-                        changes={totalChanges}
-                        isBinary={isBinary}
-                        className="flex-shrink-0"
-                        layout="column"
-                        size="compact"
-                      />
-                    </div>
-                  </div>
-                  <button
-                    title="Open file in editor"
-                    aria-label={`Open ${file.path}`}
-                    className="ml-2 p-1 rounded hover:bg-slate-800"
-                    style={{ color: theme.colors.text.secondary }}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      void handleOpenFile(file.path)
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.color = theme.colors.text.primary
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.color = theme.colors.text.secondary
-                    }}
-                  >
-                    <VscFolder className="text-base" />
-                  </button>
-                  <button
-                    title="Discard changes for this file"
-                    aria-label={`Discard ${file.path}`}
-                    className="p-1 rounded hover:bg-slate-800 text-slate-300"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setPendingDiscardFile(file.path)
-                      setDiscardOpen(true)
-                    }}
-                  >
-                    <VscDiscard className="text-base" />
-                  </button>
-                </div>
-              )
-            })}
+          <div className="px-2">
+            <FileTree files={files} renderFileNode={renderFileNode} />
           </div>
         </div>
       ) : (
