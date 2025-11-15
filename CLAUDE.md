@@ -116,6 +116,21 @@ just release major      # Create major release (x.0.0) - creates DRAFT
 # I run: gh release edit vX.Y.Z --notes "generated notes"
 # User reviews notes (can ask for edits)
 
+# Release Notes Format:
+## What's New in vX.Y.Z
+
+### Features
+- **Feature name** - Brief description (only if notable features)
+
+### Improvements
+- User-visible enhancements
+
+### Fixes
+- Fixed [specific issue]
+
+### Maintenance
+- Dependency updates (if any)
+
 # Step 3: Publish release
 # User asks: "Publish the release" OR clicks button on GitHub
 # I run: gh release edit vX.Y.Z --draft=false
@@ -354,11 +369,10 @@ just release major  # Major release
 Automatically updates versions, commits, tags, and triggers GitHub Actions.
 
 ### Release Notes Checklist
-- Always discover the base commit by querying the latest published GitHub release (exclude drafts) and diffing from that commit to the new tag.
-- Confirm no commits are skipped (a released tag may lag behind newer lightweight tags or drafts).
-- Capture dependency bumps, infrastructure fixes, and workflow changes alongside feature work.
-- Format notes using the four sections `Features`, `Improvements`, `Fixes`, and `Maintenance`, each as a plain heading followed by bullet points. Include a `- No changes in this release.` bullet when a section has nothing to report.
-- Do not include installation, first-launch, or boilerplate setup instructions in the release body; publish only the categorized change log.
+- Base commit: Query latest published release (exclude drafts)
+- Capture all commits: dependencies, infrastructure, features
+- Use format from Step 2 above (Features/Improvements/Fixes/Maintenance)
+- No installation instructions in release body
 
 ## Development Workflow
 
