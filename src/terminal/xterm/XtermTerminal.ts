@@ -16,6 +16,7 @@ export interface XtermTerminalConfig {
   fontFamily: string
   readOnly: boolean
   minimumContrastRatio: number
+  smoothScrolling: boolean
 }
 
 export interface XtermTerminalOptions {
@@ -50,6 +51,8 @@ function buildTheme(): TerminalTheme {
   }
 }
 
+const DEFAULT_SMOOTH_SCROLL_DURATION_MS = 125
+
 function buildTerminalOptions(config: XtermTerminalConfig): ITerminalOptions {
   return {
     theme: buildTheme(),
@@ -59,7 +62,7 @@ function buildTerminalOptions(config: XtermTerminalConfig): ITerminalOptions {
     cursorStyle: 'block',
     cursorInactiveStyle: 'outline',
     scrollback: config.scrollback,
-    smoothScrollDuration: 0,
+    smoothScrollDuration: config.smoothScrolling ? DEFAULT_SMOOTH_SCROLL_DURATION_MS : 0,
     convertEol: false,
     disableStdin: config.readOnly,
     minimumContrastRatio: config.minimumContrastRatio,
@@ -117,14 +120,13 @@ export class XtermTerminal {
 
     this.container = document.createElement('div')
     this.container.dataset.terminalId = options.terminalId
+    this.container.classList.add('schaltwerk-terminal-wrapper')
     this.container.style.width = '100%'
     this.container.style.height = '100%'
-    this.container.style.display = 'flex'
-    this.container.style.flexDirection = 'column'
-    this.container.style.flex = '1 1 auto'
-    this.container.style.alignItems = 'stretch'
-    this.container.style.justifyContent = 'stretch'
+    this.container.style.position = 'relative'
+    this.container.style.display = 'block'
     this.container.style.overflow = 'hidden'
+    this.container.style.boxSizing = 'border-box'
 
     this.registerOscHandlers()
   }
@@ -141,7 +143,7 @@ export class XtermTerminal {
     if (this.container.parentElement !== target) {
       target.appendChild(this.container)
     }
-    this.container.style.display = 'flex'
+    this.container.style.display = 'block'
   }
 
   detach(): void {
@@ -175,6 +177,10 @@ export class XtermTerminal {
     if (partial.minimumContrastRatio !== undefined) {
       this.raw.options.minimumContrastRatio = next.minimumContrastRatio
     }
+
+    if (partial.smoothScrolling !== undefined) {
+      this.setSmoothScrolling(partial.smoothScrolling)
+    }
   }
 
   updateOptions(options: Partial<ITerminalOptions>): void {
@@ -196,6 +202,9 @@ export class XtermTerminal {
     if (scrollback !== undefined) {
       configUpdates.scrollback = scrollback
     }
+    if (typeof options.smoothScrollDuration === 'number') {
+      configUpdates.smoothScrolling = options.smoothScrollDuration > 0
+    }
 
     if (Object.keys(configUpdates).length > 0) {
       this.applyConfig(configUpdates)
@@ -206,6 +215,10 @@ export class XtermTerminal {
         ;(this.raw.options as Record<string, unknown>)[key] = value
       }
     }
+  }
+
+  setSmoothScrolling(enabled: boolean): void {
+    this.raw.options.smoothScrollDuration = enabled ? DEFAULT_SMOOTH_SCROLL_DURATION_MS : 0
   }
 
   dispose(): void {

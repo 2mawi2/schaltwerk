@@ -21,6 +21,12 @@ export enum KeyboardShortcutAction {
   NavigateNextFilter = 'navigateNextFilter',
   FocusClaude = 'focusClaude',
   FocusTerminal = 'focusTerminal',
+  ScrollTerminalLineUp = 'scrollTerminalLineUp',
+  ScrollTerminalLineDown = 'scrollTerminalLineDown',
+  ScrollTerminalPageUp = 'scrollTerminalPageUp',
+  ScrollTerminalPageDown = 'scrollTerminalPageDown',
+  ScrollTerminalToTop = 'scrollTerminalToTop',
+  ScrollTerminalToBottom = 'scrollTerminalToBottom',
   InsertTerminalNewLine = 'insertTerminalNewLine',
   NewSession = 'newSession',
   NewSpec = 'newSpec',
@@ -83,6 +89,12 @@ export const defaultShortcutConfig: KeyboardShortcutConfig = {
   [KeyboardShortcutAction.NavigateNextFilter]: createNormalizedBindings(['Mod+ArrowRight']),
   [KeyboardShortcutAction.FocusClaude]: createNormalizedBindings(['Mod+T']),
   [KeyboardShortcutAction.FocusTerminal]: createNormalizedBindings(['Mod+/']),
+  [KeyboardShortcutAction.ScrollTerminalLineUp]: createNormalizedBindings(['Mod+Ctrl+ArrowUp']),
+  [KeyboardShortcutAction.ScrollTerminalLineDown]: createNormalizedBindings(['Mod+Ctrl+ArrowDown']),
+  [KeyboardShortcutAction.ScrollTerminalPageUp]: createNormalizedBindings(['Mod+Alt+ArrowUp']),
+  [KeyboardShortcutAction.ScrollTerminalPageDown]: createNormalizedBindings(['Mod+Alt+ArrowDown']),
+  [KeyboardShortcutAction.ScrollTerminalToTop]: createNormalizedBindings(['Mod+Shift+ArrowUp']),
+  [KeyboardShortcutAction.ScrollTerminalToBottom]: createNormalizedBindings(['Mod+Shift+ArrowDown']),
   [KeyboardShortcutAction.InsertTerminalNewLine]: createNormalizedBindings(['Mod+Enter']),
   [KeyboardShortcutAction.NewSession]: createNormalizedBindings(['Mod+N']),
   [KeyboardShortcutAction.NewSpec]: createNormalizedBindings(['Mod+Shift+N']),
@@ -128,4 +140,3 @@ export const mergeShortcutConfig = (
 export const normalizeShortcutConfig = (
   config: PartialKeyboardShortcutConfig,
 ): KeyboardShortcutConfig => mergeShortcutConfig(config)
-

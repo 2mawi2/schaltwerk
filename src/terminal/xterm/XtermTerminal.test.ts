@@ -70,6 +70,7 @@ describe('XtermTerminal wrapper', () => {
         fontFamily: 'Fira Code',
         readOnly: false,
         minimumContrastRatio: 1.3,
+        smoothScrolling: true,
       },
     })
     await wrapper.ensureCoreAddonsLoaded()
@@ -84,6 +85,7 @@ describe('XtermTerminal wrapper', () => {
     expect(instance.options.fontFamily).toBe('Fira Code')
     expect(instance.options.disableStdin).toBe(false)
     expect(instance.options.minimumContrastRatio).toBe(1.3)
+    expect(instance.options.smoothScrollDuration).toBeGreaterThan(0)
     expect(instance.options.theme).toMatchObject({
       background: theme.colors.background.secondary,
       foreground: theme.colors.text.primary,
@@ -104,14 +106,18 @@ describe('XtermTerminal wrapper', () => {
     expect(container.children).toHaveLength(1)
     const child = container.children[0] as HTMLElement
     expect(child.dataset.terminalId).toBe('test-id')
+    expect(child.classList.contains('schaltwerk-terminal-wrapper')).toBe(true)
+    expect(child.style.position).toBe('relative')
+    expect(child.style.width).toBe('100%')
+    expect(child.style.height).toBe('100%')
+    expect(child.style.display).toBe('block')
     expect(instance.open).toHaveBeenCalledTimes(1)
-    expect((child as HTMLElement).style.display).toBe('flex')
 
     wrapper.detach()
     expect((child as HTMLElement).style.display).toBe('none')
 
     wrapper.attach(container)
-    expect((child as HTMLElement).style.display).toBe('flex')
+    expect((child as HTMLElement).style.display).toBe('block')
     expect(instance.open).toHaveBeenCalledTimes(1)
   })
 
@@ -126,6 +132,7 @@ describe('XtermTerminal wrapper', () => {
         fontFamily: 'Menlo',
         readOnly: false,
         minimumContrastRatio: 1.0,
+        smoothScrolling: false,
       },
     })
     await wrapper.ensureCoreAddonsLoaded()
@@ -151,6 +158,7 @@ describe('XtermTerminal wrapper', () => {
         fontFamily: 'Menlo',
         readOnly: false,
         minimumContrastRatio: 1.0,
+        smoothScrolling: true,
       },
     })
 
@@ -159,13 +167,44 @@ describe('XtermTerminal wrapper', () => {
     }
     const instance = MockTerminal.__instances.at(-1)!
 
-    wrapper.applyConfig({ readOnly: true, minimumContrastRatio: 1.6, scrollback: 12000 })
+    wrapper.applyConfig({ readOnly: true, minimumContrastRatio: 1.6, scrollback: 12000, smoothScrolling: false })
     expect(instance.options.disableStdin).toBe(true)
     expect(instance.options.minimumContrastRatio).toBe(1.6)
     expect(instance.options.scrollback).toBe(12000)
+    expect(instance.options.smoothScrollDuration).toBe(0)
 
-    wrapper.updateOptions({ disableStdin: false, scrollback: 8000 })
+    wrapper.updateOptions({ disableStdin: false, scrollback: 8000, smoothScrollDuration: 125 })
     expect(instance.options.disableStdin).toBe(false)
     expect(instance.options.scrollback).toBe(8000)
+    expect(instance.options.smoothScrollDuration).toBe(125)
+
+    wrapper.setSmoothScrolling(true)
+    expect(instance.options.smoothScrollDuration).toBeGreaterThan(0)
+  })
+
+  it('toggles smooth scrolling independently', async () => {
+    const { XtermTerminal } = await import('./XtermTerminal')
+
+    const wrapper = new XtermTerminal({
+      terminalId: 'smooth',
+      config: {
+        scrollback: 4000,
+        fontSize: 12,
+        fontFamily: 'Menlo',
+        readOnly: false,
+        minimumContrastRatio: 1.0,
+        smoothScrolling: true,
+      },
+    })
+
+    const { Terminal: MockTerminal } = await import('@xterm/xterm') as unknown as {
+      Terminal: { __instances: Array<{ options: Record<string, unknown> }> }
+    }
+    const instance = MockTerminal.__instances.at(-1)!
+    expect(instance.options.smoothScrollDuration).toBeGreaterThan(0)
+    wrapper.setSmoothScrolling(false)
+    expect(instance.options.smoothScrollDuration).toBe(0)
+    wrapper.setSmoothScrolling(true)
+    expect(instance.options.smoothScrollDuration).toBeGreaterThan(0)
   })
 })
