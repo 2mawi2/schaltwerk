@@ -1,3 +1,5 @@
+import { isAllowedFileName } from './allowedFilePatterns'
+
 const TRAILING_QUOTE_PATTERN = /["')]+$/
 const LEADING_QUOTE_PATTERN = /^["'(]+/
 const HASH_RANGE_PATTERN = /#L(\d+)(?:-L?(\d+))?$/i
@@ -23,7 +25,6 @@ export function parseTerminalFileReference(input: string | null | undefined): Te
   let candidate = trimmed.replace(LEADING_QUOTE_PATTERN, '').replace(TRAILING_QUOTE_PATTERN, '')
   if (!candidate) return null
   if (candidate.includes('://')) return null
-  if (!candidate.includes('.')) return null
 
   let startLine: number | undefined
   let endLine: number | undefined
@@ -53,10 +54,10 @@ export function parseTerminalFileReference(input: string | null | undefined): Te
   }
 
   const lastSegment = sanitizedPath.split(/[\\/]/).pop() ?? ''
-  if (!lastSegment.includes('.')) {
+  if (!/[a-zA-Z]/.test(lastSegment)) {
     return null
   }
-  if (!/[a-zA-Z]/.test(lastSegment)) {
+  if (!isAllowedFileName(lastSegment)) {
     return null
   }
 
