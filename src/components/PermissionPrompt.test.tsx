@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { PermissionPrompt } from './PermissionPrompt'
 import { TauriCommands } from '../common/tauriCommands'
 
@@ -70,7 +70,9 @@ describe('PermissionPrompt', () => {
     mockInvoke.mockClear()
 
     const button = await screen.findByRole('button', { name: /Open System Settings/i })
-    fireEvent.click(button)
+    await act(async () => {
+      fireEvent.click(button)
+    })
 
     expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.OpenDocumentsPrivacySettings)
   })
@@ -85,7 +87,9 @@ describe('PermissionPrompt', () => {
     mockInvoke.mockClear()
 
     const button = await screen.findByRole('button', { name: /Reset Folder Access/i })
-    fireEvent.click(button)
+    await act(async () => {
+      fireEvent.click(button)
+    })
 
     expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.ResetFolderPermissions)
   })

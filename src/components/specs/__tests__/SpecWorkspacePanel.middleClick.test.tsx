@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, cleanup } from '@testing-library/react'
+import { render, screen, fireEvent, cleanup, act } from '@testing-library/react'
 import { SpecWorkspacePanel } from '../SpecWorkspacePanel'
 import { SessionState, EnrichedSession } from '../../../types/session'
 
@@ -46,25 +46,29 @@ describe('SpecWorkspacePanel middle-click behavior', () => {
     cleanup()
   })
 
-  it('closes a spec tab when middle-clicked', () => {
+  it('closes a spec tab when middle-clicked', async () => {
     const handleClose = vi.fn()
     const handleChange = vi.fn()
 
-    render(
-      <SpecWorkspacePanel
-        specs={[baseSpec]}
-        openTabs={[specId]}
-        activeTab={specId}
-        onTabChange={handleChange}
-        onTabClose={handleClose}
-        onOpenPicker={() => {}}
-        showPicker={false}
-        onPickerClose={() => {}}
-      />
-    )
+    await act(async () => {
+      render(
+        <SpecWorkspacePanel
+          specs={[baseSpec]}
+          openTabs={[specId]}
+          activeTab={specId}
+          onTabChange={handleChange}
+          onTabClose={handleClose}
+          onOpenPicker={() => {}}
+          showPicker={false}
+          onPickerClose={() => {}}
+        />
+      )
+    })
 
     const tabLabel = screen.getByText('Spec Example')
-    fireEvent.mouseDown(tabLabel, { button: 1 })
+    act(() => {
+      fireEvent.mouseDown(tabLabel, { button: 1 })
+    })
 
     expect(handleClose).toHaveBeenCalledWith(specId)
     expect(handleChange).not.toHaveBeenCalled()

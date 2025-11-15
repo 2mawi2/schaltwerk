@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { render, screen, act } from '@testing-library/react'
+import { render, screen, act, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { SpecEditor } from './SpecEditor'
 import { TestProviders } from '../../tests/test-utils'
@@ -162,15 +162,14 @@ describe('SpecEditor spec content persistence', () => {
       await user.type(editor, 'Updated content')
     })
 
-    await act(async () => {
-      await new Promise(resolve => setTimeout(resolve, 450))
-      await flushPromises()
-    })
+    await flushPromises()
 
-    expect(mockInvoke).toHaveBeenCalledWith(
-      TauriCommands.SchaltwerkCoreUpdateSpecContent,
-      { name: specSessionId, content: 'Updated content' }
-    )
+    await waitFor(() => {
+      expect(mockInvoke).toHaveBeenCalledWith(
+        TauriCommands.SchaltwerkCoreUpdateSpecContent,
+        { name: specSessionId, content: 'Updated content' }
+      )
+    })
 
     const toggle = screen.getByTestId('toggle-editor')
     await user.click(toggle)

@@ -197,8 +197,8 @@ describe('SpecEditor keyboard shortcuts', () => {
 
     await pressKey('t', { metaKey: true })
 
-    await new Promise(resolve => setTimeout(resolve, 100))
-
-    expect(mockFocusEnd).not.toHaveBeenCalled()
+    await waitFor(() => {
+      expect(mockFocusEnd).not.toHaveBeenCalled()
+    })
   })
 })

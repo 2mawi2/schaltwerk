@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { DiffFileList } from './DiffFileList'
 import { TauriCommands } from '../../common/tauriCommands'
@@ -60,12 +60,16 @@ describe('DiffFileList header reset button', () => {
     )
     const btn = await screen.findByRole('button', { name: /reset session/i })
     expect(btn).toBeInTheDocument()
-    fireEvent.click(btn)
+    await act(async () => {
+      fireEvent.click(btn)
+    })
     // Wait for the confirmation dialog to appear, then find the Reset button in it
     const confirmButtons = await screen.findAllByRole('button', { name: /^Reset$/ })
     // The Reset button should be the last one (in the dialog, not the header)
     const confirmButton = confirmButtons[confirmButtons.length - 1]
-    fireEvent.click(confirmButton)
+    await act(async () => {
+      fireEvent.click(confirmButton)
+    })
     expect(invokeMock).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreResetSessionWorktree, expect.any(Object))
   })
 })

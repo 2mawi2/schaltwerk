@@ -157,26 +157,24 @@ describe('SwitchOrchestratorModal', () => {
   })
 
   it('switches model on click (success path)', async () => {
-    const slowResolve = vi.fn().mockImplementation(
-      () => new Promise<void>(resolve => setTimeout(resolve, 50))
-    )
+    const slowResolve = vi.fn().mockImplementation(async () => {
+      await Promise.resolve()
+    })
     openModal({ onSwitch: slowResolve })
     await waitFor(() => screen.getByRole('button', { name: /opencode/i }))
     const switchBtn = screen.getByRole('button', { name: /switch agent/i }) as HTMLButtonElement
 
-    await act(async () => {
-      fireEvent.click(switchBtn)
-      // Wait for the async operation to complete
-      await waitFor(() => expect(slowResolve).toHaveBeenCalledTimes(1))
-    })
+    fireEvent.click(switchBtn)
+    await waitFor(() => expect(slowResolve).toHaveBeenCalledTimes(1))
   })
 
   // Note: component does not synchronously guard against double submit due to async state update
 
   it('re-enables controls after switch failure', async () => {
-    const rejectOnce = vi.fn().mockImplementation(
-      () => new Promise<void>((_r, rej) => setTimeout(() => rej(new Error('boom')), 10))
-    )
+    const rejectOnce = vi.fn().mockImplementation(async () => {
+      await Promise.resolve()
+      throw new Error('boom')
+    })
     openModal({ onSwitch: rejectOnce })
     // Wait for initial load before triggering switch
     await waitFor(() => screen.getByRole('button', { name: /opencode/i }))
@@ -189,18 +187,13 @@ describe('SwitchOrchestratorModal', () => {
     }
     window.addEventListener('unhandledrejection', handler)
     try {
-      await act(async () => {
-        fireEvent.click(switchBtn)
-        // Wait until first failure processed
-        await waitFor(() => expect(rejectOnce).toHaveBeenCalledTimes(1))
-      })
+      fireEvent.click(switchBtn)
+      await waitFor(() => expect(rejectOnce).toHaveBeenCalledTimes(1))
       await waitFor(() => expect(switchBtn).not.toBeDisabled())
 
       // Can retry switching again after failure
-      await act(async () => {
-        fireEvent.click(switchBtn)
-        await waitFor(() => expect(rejectOnce).toHaveBeenCalledTimes(2))
-      })
+      fireEvent.click(switchBtn)
+      await waitFor(() => expect(rejectOnce).toHaveBeenCalledTimes(2))
     } finally {
       window.removeEventListener('unhandledrejection', handler)
     }

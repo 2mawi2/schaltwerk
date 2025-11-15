@@ -433,12 +433,16 @@ describe('Terminal', () => {
       Object.defineProperty(element!, 'clientWidth', { configurable: true, value: 800 })
       Object.defineProperty(element!, 'clientHeight', { configurable: true, value: 600 })
 
-      resizeCallback?.()
-      await vi.runOnlyPendingTimersAsync()
+      await act(async () => {
+        resizeCallback?.()
+        await vi.runOnlyPendingTimersAsync()
+      })
       const baselineResizes = instance.raw.resize.mock.calls.length
 
-      resizeCallback?.()
-      await vi.runOnlyPendingTimersAsync()
+      await act(async () => {
+        resizeCallback?.()
+        await vi.runOnlyPendingTimersAsync()
+      })
 
       expect(instance.raw.resize.mock.calls.length).toBe(baselineResizes)
     } finally {
@@ -532,9 +536,9 @@ describe('Terminal', () => {
         handler?.({ terminal_id: 'other-terminal' })
       })
 
-      await new Promise(resolve => setTimeout(resolve, 0))
-
-      expect(instance.raw.scrollToBottom).not.toHaveBeenCalled()
+      await waitFor(() => {
+        expect(instance.raw.scrollToBottom).not.toHaveBeenCalled()
+      })
     } finally {
       vi.mocked(listenEvent).mockImplementation(originalImplementation ?? (async () => () => {}))
     }
