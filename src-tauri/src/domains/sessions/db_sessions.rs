@@ -22,6 +22,11 @@ pub trait SessionMethods {
     fn list_sessions_by_state(&self, repo_path: &Path, state: SessionState)
     -> Result<Vec<Session>>;
     fn update_session_status(&self, id: &str, status: SessionStatus) -> Result<()>;
+    fn set_session_activity(
+        &self,
+        id: &str,
+        timestamp: chrono::DateTime<chrono::Utc>,
+    ) -> Result<()>;
     fn update_session_display_name(&self, id: &str, display_name: &str) -> Result<()>;
     fn update_session_branch(&self, id: &str, new_branch: &str) -> Result<()>;
     fn update_session_parent_branch(&self, id: &str, new_parent_branch: &str) -> Result<()>;
@@ -358,7 +363,7 @@ impl SessionMethods for Database {
                         session_state, resume_allowed, amp_thread_id
                  FROM sessions
                  WHERE repository_path = ?1
-                 ORDER BY ready_to_merge ASC, created_at DESC",
+                 ORDER BY ready_to_merge ASC, last_activity DESC",
             )?;
 
             let rows = stmt.query_map(params![repo_path.to_string_lossy()], |row| {
@@ -426,7 +431,7 @@ impl SessionMethods for Database {
                         session_state, resume_allowed, amp_thread_id
                  FROM sessions
                  WHERE status = 'active'
-                 ORDER BY ready_to_merge ASC, created_at DESC",
+                 ORDER BY ready_to_merge ASC, last_activity DESC",
             )?;
 
             let rows = stmt.query_map([], |row| {
@@ -495,6 +500,19 @@ impl SessionMethods for Database {
         Ok(())
     }
 
+    fn set_session_activity(
+        &self,
+        id: &str,
+        timestamp: chrono::DateTime<chrono::Utc>,
+    ) -> Result<()> {
+        let conn = self.get_conn()?;
+        conn.execute(
+            "UPDATE sessions SET last_activity = ?1 WHERE id = ?2",
+            params![timestamp.timestamp(), id],
+        )?;
+        Ok(())
+    }
+
     fn update_session_display_name(&self, id: &str, display_name: &str) -> Result<()> {
         let conn = self.get_conn()?;
         conn.execute(
@@ -560,7 +578,7 @@ impl SessionMethods for Database {
                         session_state, resume_allowed, amp_thread_id
                  FROM sessions
                  WHERE repository_path = ?1 AND session_state = ?2
-                 ORDER BY ready_to_merge ASC, created_at DESC",
+                 ORDER BY ready_to_merge ASC, last_activity DESC",
             )?;
 
             let rows = stmt.query_map(
@@ -802,11 +820,11 @@ mod tests {
             .expect("failed to collect index info");
         assert_eq!(
             columns,
-            vec!["repository_path", "ready_to_merge", "created_at"],
-            "idx_sessions_repo_order should cover repository_path, ready_to_merge, created_at"
+            vec!["repository_path", "ready_to_merge", "last_activity"],
+            "idx_sessions_repo_order should cover repository_path, ready_to_merge, last_activity"
         );
 
-        let plan_sql = "EXPLAIN QUERY PLAN SELECT id FROM sessions WHERE repository_path = ?1 ORDER BY ready_to_merge ASC, created_at DESC";
+        let plan_sql = "EXPLAIN QUERY PLAN SELECT id FROM sessions WHERE repository_path = ?1 ORDER BY ready_to_merge ASC, last_activity DESC";
         let mut stmt = conn
             .prepare(plan_sql)
             .expect("failed to prepare EXPLAIN statement");
@@ -838,11 +856,11 @@ mod tests {
             .expect("failed to collect index info");
         assert_eq!(
             columns,
-            vec!["status", "ready_to_merge", "created_at"],
-            "idx_sessions_status_order should cover status, ready_to_merge, created_at"
+            vec!["status", "ready_to_merge", "last_activity"],
+            "idx_sessions_status_order should cover status, ready_to_merge, last_activity"
         );
 
-        let plan_sql = "EXPLAIN QUERY PLAN SELECT id FROM sessions WHERE status = ?1 ORDER BY ready_to_merge ASC, created_at DESC";
+        let plan_sql = "EXPLAIN QUERY PLAN SELECT id FROM sessions WHERE status = ?1 ORDER BY ready_to_merge ASC, last_activity DESC";
         let mut stmt = conn
             .prepare(plan_sql)
             .expect("failed to prepare EXPLAIN statement");

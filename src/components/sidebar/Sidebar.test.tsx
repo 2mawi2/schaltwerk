@@ -29,9 +29,32 @@ vi.mock('../hooks/useKeyboardShortcuts', () => ({
   useKeyboardShortcuts: vi.fn()
 }))
 
+// Mock time utility
+vi.mock('../utils/time', () => ({
+  formatLastActivity: vi.fn((timestamp?: string) => {
+    if (!timestamp) return 'unknown'
+    return '5m' // Mock return value
+  })
+}))
+
+
+
 
 // Reducer functions extracted for testing
 export const sessionReducers = {
+  updateActivity: (sessions: EnrichedSession[], payload: { session_name: string, last_activity_ts: number }) => {
+    return sessions.map(s => {
+      if (s.info.session_id !== payload.session_name) return s
+      return {
+        ...s,
+        info: {
+          ...s.info,
+          last_modified: new Date(payload.last_activity_ts * 1000).toISOString(),
+        }
+      }
+    })
+  },
+
   updateGitStats: (sessions: EnrichedSession[], payload: {
     session_name: string
     files_changed: number
@@ -64,6 +87,7 @@ export const sessionReducers = {
     worktree_path: string
     parent_branch: string
     created_at: string
+    last_modified?: string
   }) => {
     // Avoid duplicates
     if (sessions.some(s => s.info.session_id === payload.session_name)) return sessions
@@ -75,6 +99,7 @@ export const sessionReducers = {
       base_branch: payload.parent_branch,
       status: 'active',
       created_at: payload.created_at,
+      last_modified: payload.last_modified ?? payload.created_at,
       has_uncommitted_changes: false,
       is_current: false,
       session_type: 'worktree',
@@ -275,9 +300,10 @@ describe('Sidebar', () => {
             is_current: false,
             session_type: 'worktree',
             session_state: 'running',
+            last_modified: '2025-01-01T10:00:00Z',
             diff_stats: {
-                files_changed: 2,
-                additions: 50,
+              files_changed: 2,
+              additions: 50,
               deletions: 10,
               insertions: 50
             }
@@ -300,6 +326,19 @@ describe('Sidebar', () => {
           terminals: []
         }
       ]
+    })
+
+    it('should handle schaltwerk:session-activity events', async () => {
+      const activityPayload = {
+        session_id: 'session1',
+        session_name: 'session1',
+        last_activity_ts: 1640995200 // 2022-01-01T00:00:00Z
+      }
+
+      const updatedSessions = sessionReducers.updateActivity(initialSessions, activityPayload)
+
+      expect(updatedSessions[0].info.last_modified).toBe('2022-01-01T00:00:00.000Z')
+      expect(updatedSessions[1].info.last_modified).toBeUndefined() // Other session unchanged
     })
 
     it('should handle schaltwerk:session-git-stats events', async () => {

@@ -18,6 +18,8 @@ const baseSession: SessionCardProps['session'] = {
     status: 'active',
     is_current: false,
     session_type: 'worktree',
+    last_modified: new Date().toISOString(),
+    last_modified_ts: Date.now(),
     todo_percentage: 0,
     is_blocked: false,
     has_uncommitted_changes: false,

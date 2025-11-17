@@ -16,6 +16,7 @@ mod session_sorting_tests {
         state: SessionState,
         ready_to_merge: bool,
         created_offset_minutes: i64,
+        last_activity_offset_minutes: Option<i64>,
         repo_path: &PathBuf,
     ) -> Session {
         let now = Utc::now();
@@ -33,7 +34,8 @@ mod session_sorting_tests {
             status,
             created_at: now - Duration::minutes(created_offset_minutes),
             updated_at: now,
-            last_activity: None,
+            last_activity: last_activity_offset_minutes
+                .map(|offset| now - Duration::minutes(offset)),
             initial_prompt: Some(format!("Test agent for {}", name)),
             ready_to_merge,
             original_agent_type: Some("claude".to_string()),
@@ -71,6 +73,7 @@ mod session_sorting_tests {
                 SessionState::Spec,
                 false,
                 60,
+                None,
                 &repo_path,
             ),
             create_test_session_with_repo(
@@ -79,6 +82,7 @@ mod session_sorting_tests {
                 SessionState::Spec,
                 false,
                 30,
+                None,
                 &repo_path,
             ),
             // Running sessions (different last activity)
@@ -88,6 +92,7 @@ mod session_sorting_tests {
                 SessionState::Running,
                 false,
                 90,
+                Some(5),
                 &repo_path,
             ),
             create_test_session_with_repo(
@@ -96,6 +101,7 @@ mod session_sorting_tests {
                 SessionState::Running,
                 false,
                 45,
+                Some(10),
                 &repo_path,
             ),
             create_test_session_with_repo(
@@ -104,6 +110,7 @@ mod session_sorting_tests {
                 SessionState::Running,
                 false,
                 20,
+                Some(15),
                 &repo_path,
             ),
             // Reviewed sessions
@@ -113,6 +120,7 @@ mod session_sorting_tests {
                 SessionState::Running,
                 true,
                 120,
+                Some(2),
                 &repo_path,
             ),
             create_test_session_with_repo(
@@ -121,6 +129,7 @@ mod session_sorting_tests {
                 SessionState::Running,
                 true,
                 75,
+                Some(8),
                 &repo_path,
             ),
         ];
@@ -204,6 +213,34 @@ mod session_sorting_tests {
             .collect();
 
         assert_eq!(reviewed_names, vec!["reviewed-foxtrot", "reviewed-golf"]);
+    }
+
+    #[tokio::test]
+    async fn test_sort_by_last_edited() {
+        let (_temp_dir, manager, _sessions) = setup_test_sessions();
+
+        let sorted_sessions = manager
+            .list_enriched_sessions_sorted(SortMode::LastEdited, FilterMode::All)
+            .unwrap();
+
+        // Check that sessions are sorted by last activity (most recent first)
+        let session_names: Vec<&str> = sorted_sessions
+            .iter()
+            .filter(|s| !s.info.ready_to_merge)
+            .map(|s| s.info.session_id.as_str())
+            .collect();
+
+        // Expected order by last activity: running-charlie (5min ago), running-delta (10min ago), running-echo (15min ago), then specs by created time
+        assert_eq!(
+            session_names,
+            vec![
+                "running-charlie",
+                "running-delta",
+                "running-echo",
+                "spec-beta",
+                "spec-alpha"
+            ]
+        );
     }
 
     #[tokio::test]
@@ -293,6 +330,7 @@ mod session_sorting_tests {
             SessionState::Running,
             false,
             1,
+            Some(1),
             &temp_dir.path().to_path_buf(),
         );
         manager.db_ref().create_session(&new_session).unwrap();

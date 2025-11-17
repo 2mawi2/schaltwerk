@@ -40,7 +40,7 @@ export function SpecMetadataPanel({ sessionName }: Props) {
         const session = await invoke<Record<string, unknown>>(TauriCommands.SchaltwerkCoreGetSession, { name: sessionName })
         setMetadata({
           created_at: session.created_at as string | undefined,
-          updated_at: session.updated_at as string | undefined,
+          updated_at: (session.updated_at as string | undefined) || (session.last_modified as string | undefined),
           agent_content: session.current_task as string | undefined
         })
       } catch (error) {
