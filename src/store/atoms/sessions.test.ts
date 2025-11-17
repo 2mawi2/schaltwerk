@@ -112,6 +112,7 @@ const createSession = (overrides: Partial<EnrichedSession['info']>): EnrichedSes
         status: 'active',
         session_state: SessionState.Running,
         created_at: '2024-01-01T00:00:00.000Z',
+        last_modified: '2024-01-02T00:00:00.000Z',
         ready_to_merge: false,
         has_uncommitted_changes: false,
         has_conflicts: false,
@@ -174,6 +175,7 @@ describe('sessions atoms', () => {
                 display_name: 'Active B',
                 created_at: '2024-01-04T00:00:00.000Z',
                 ready_to_merge: false,
+                last_modified: '2024-01-05T00:00:00.000Z',
             }),
             createSession({
                 session_id: 'reviewed-one',
@@ -1039,6 +1041,7 @@ describe('sessions atoms', () => {
         listeners['schaltwerk:session-added']?.({
             session_name: 'session-b',
             created_at: '2024-01-01T00:05:00.000Z',
+            last_modified: '2024-01-01T00:05:00.000Z',
         })
 
         await vi.waitFor(() => {

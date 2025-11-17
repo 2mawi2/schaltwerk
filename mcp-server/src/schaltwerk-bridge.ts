@@ -18,6 +18,7 @@ export interface Session {
   session_state?: 'Spec' | 'Running' | 'Reviewed'
   created_at: number
   updated_at: number
+  last_activity?: number
   initial_prompt?: string
   draft_content?: string
   spec_content?: string
@@ -406,6 +407,7 @@ export class SchaltwerkBridge {
           session_state: string;
           created_at?: string;
           updated_at?: string;
+          last_activity?: string;
           initial_prompt?: string;
           draft_content?: string;
           spec_content?: string;
@@ -431,6 +433,7 @@ export class SchaltwerkBridge {
         session_state: es.info.session_state as 'Spec' | 'Running' | 'Reviewed' | undefined,
         created_at: es.info.created_at ? new Date(es.info.created_at).getTime() : Date.now(),
         updated_at: es.info.updated_at ? new Date(es.info.updated_at).getTime() : Date.now(),
+        last_activity: es.info.last_activity ? new Date(es.info.last_activity).getTime() : undefined,
         initial_prompt: es.info.initial_prompt || undefined,
         draft_content: es.info.draft_content || undefined,
         spec_content: es.info.spec_content || undefined,
@@ -1046,6 +1049,7 @@ export class SchaltwerkBridge {
           session_state: string;
           created_at?: string;
           updated_at?: string;
+          last_activity?: string;
           initial_prompt?: string;
           draft_content?: string;
           spec_content?: string;
@@ -1071,6 +1075,7 @@ export class SchaltwerkBridge {
         session_state: es.info.session_state as 'Spec' | 'Running' | 'Reviewed' | undefined,
         created_at: es.info.created_at ? new Date(es.info.created_at).getTime() : Date.now(),
         updated_at: es.info.updated_at ? new Date(es.info.updated_at).getTime() : Date.now(),
+        last_activity: es.info.last_activity ? new Date(es.info.last_activity).getTime() : undefined,
         initial_prompt: es.info.initial_prompt || undefined,
         draft_content: es.info.draft_content || undefined,
         spec_content: es.info.spec_content || undefined,

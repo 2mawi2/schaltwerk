@@ -1061,6 +1061,7 @@ describe('validatePanelPercentage', () => {
             status: 'active',
             session_state: 'running' as const,
             created_at: isoNow,
+            last_modified: isoNow,
             ready_to_merge: false,
             has_uncommitted_changes: false,
             has_conflicts: false,

@@ -9,6 +9,8 @@ const SESSION_INFO_KEYS: ReadonlyArray<keyof SessionInfo> = [
     'parent_branch',
     'status',
     'created_at',
+    'last_modified',
+    'last_modified_ts',
     'has_uncommitted_changes',
     'has_conflicts',
     'is_current',

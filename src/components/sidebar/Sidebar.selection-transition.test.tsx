@@ -62,6 +62,7 @@ function createEnrichedSession(
       parent_branch: 'main',
       status: state === SessionState.Spec ? 'spec' : 'active',
       created_at: now,
+      last_modified: now,
       has_uncommitted_changes: false,
       is_current: false,
       session_type: 'worktree',

@@ -1,7 +1,7 @@
 use crate::domains::agents::AgentLaunchSpec;
 use crate::shared::terminal_id::{terminal_id_for_session_bottom, terminal_id_for_session_top};
 use anyhow::{Context, Result, anyhow};
-use chrono::Utc;
+use chrono::{TimeZone, Utc};
 use log::{info, warn};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -1970,6 +1970,7 @@ impl SessionManager {
         let finalization_config = FinalizationConfig {
             session: session.clone(),
             compute_git_stats: true,
+            update_activity: true,
         };
 
         let finalization_result = match finalizer.finalize_creation(finalization_config) {
@@ -2257,6 +2258,7 @@ impl SessionManager {
                     base_branch: session.parent_branch.clone(),
                     status: SessionStatusType::Spec,
                     created_at: Some(session.created_at),
+                    last_modified: session.last_activity,
                     has_uncommitted_changes: Some(false),
                     has_conflicts: Some(false),
                     is_current: false,
@@ -2372,6 +2374,7 @@ impl SessionManager {
                 base_branch: session.parent_branch.clone(),
                 status: status_type,
                 created_at: Some(session.created_at),
+                last_modified: session.last_activity,
                 has_uncommitted_changes: Some(has_uncommitted),
                 has_conflicts: Some(has_conflicts),
                 is_current: false,
@@ -3221,6 +3224,10 @@ impl SessionManager {
             self.db_manager
                 .update_session_state(&session.id, SessionState::Running)?;
 
+            // Touch last_activity to surface recency deterministically
+            let _ = self
+                .db_manager
+                .set_session_activity(&session.id, chrono::Utc::now());
             return Ok(true);
         }
 
@@ -3443,6 +3450,12 @@ impl SessionManager {
         let mut git_stats = git::calculate_git_stats_fast(&worktree_path, &parent_branch)?;
         git_stats.session_id = session_id.clone();
         self.db_manager.save_git_stats(&git_stats)?;
+        if let Some(ts) = git_stats.last_diff_change_ts
+            && let Some(dt) = Utc.timestamp_opt(ts, 0).single()
+        {
+            let _ = self.db_manager.set_session_activity(&session_id, dt);
+        }
+
         Ok(())
     }
 
@@ -3651,6 +3664,12 @@ impl SessionManager {
         let mut git_stats = git::calculate_git_stats_fast(&session.worktree_path, &parent_branch)?;
         git_stats.session_id = session.id.clone();
         self.db_manager.save_git_stats(&git_stats)?;
+        if let Some(ts) = git_stats.last_diff_change_ts
+            && let Some(dt) = Utc.timestamp_opt(ts, 0).single()
+        {
+            let _ = self.db_manager.set_session_activity(&session.id, dt);
+        }
+
         Ok(())
     }
 

@@ -17,6 +17,7 @@ pub struct SessionFinalizer<'a> {
 pub struct FinalizationConfig {
     pub session: Session,
     pub compute_git_stats: bool,
+    pub update_activity: bool,
 }
 
 pub struct FinalizationResult {
@@ -51,6 +52,15 @@ impl<'a> SessionFinalizer<'a> {
             None
         };
 
+        if config.update_activity
+            && let Err(e) = self.update_activity(&config.session.id)
+        {
+            warn!(
+                "Failed to update activity for '{}': {}",
+                config.session.name, e
+            );
+        }
+
         info!("Successfully finalized session '{}'", config.session.name);
 
         Ok(FinalizationResult {
@@ -72,6 +82,8 @@ impl<'a> SessionFinalizer<'a> {
             .with_context(|| {
                 format!("Failed to update session state for '{session_id}' to {state_str}")
             })?;
+
+        self.update_activity(session_id).ok();
 
         Ok(())
     }
@@ -109,6 +121,13 @@ impl<'a> SessionFinalizer<'a> {
         }
 
         Ok(stats)
+    }
+
+    pub fn update_activity(&self, session_id: &str) -> Result<()> {
+        let now = Utc::now();
+        self.db_manager
+            .set_session_activity(session_id, now)
+            .with_context(|| format!("Failed to update activity for session '{session_id}'"))
     }
 
     pub fn unreserve_session_name(&self, name: &str) {
@@ -239,6 +258,7 @@ mod tests {
         let config = FinalizationConfig {
             session: session.clone(),
             compute_git_stats: false,
+            update_activity: false,
         };
 
         let result = finalizer.finalize_creation(config).unwrap();
@@ -263,6 +283,25 @@ mod tests {
 
         let updated = db_manager.get_session_by_id(&session.id).unwrap();
         assert_eq!(updated.session_state, SessionState::Reviewed);
+    }
+
+    #[test]
+    #[serial]
+    fn test_update_activity() {
+        let (temp_dir, db) = setup_test_db();
+        let repo_path = temp_dir.path().to_path_buf();
+        let db_manager = SessionDbManager::new(db.clone(), repo_path.clone());
+        let cache_manager = SessionCacheManager::new(repo_path);
+        let finalizer = SessionFinalizer::new(&db_manager, &cache_manager);
+
+        let session = create_test_session(PathBuf::from("/tmp/worktree"));
+        finalizer.persist_session(&session).unwrap();
+
+        let result = finalizer.update_activity(&session.id);
+        assert!(result.is_ok());
+
+        let updated = db_manager.get_session_by_id(&session.id).unwrap();
+        assert!(updated.last_activity.is_some());
     }
 
     #[test]

@@ -7,6 +7,7 @@ use std::str::FromStr;
 pub enum SortMode {
     Name,
     Created,
+    LastEdited,
 }
 
 impl FromStr for SortMode {
@@ -16,6 +17,7 @@ impl FromStr for SortMode {
         match s {
             "name" => Ok(SortMode::Name),
             "created" => Ok(SortMode::Created),
+            "last-edited" => Ok(SortMode::LastEdited),
             _ => Err(format!("Invalid sort mode: {s}")),
         }
     }
@@ -246,6 +248,7 @@ pub struct SessionInfo {
     pub base_branch: String,
     pub status: SessionStatusType,
     pub created_at: Option<DateTime<Utc>>,
+    pub last_modified: Option<DateTime<Utc>>,
     pub has_uncommitted_changes: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     /// Merge conflict status derived from git when available. None indicates the

@@ -11,6 +11,7 @@ pub enum SchaltEvent {
     CancelError,
     TerminalCreated,
 
+    SessionActivity,
     SessionGitStats,
     TerminalAttention,
     TerminalClosed,
@@ -42,6 +43,7 @@ impl SchaltEvent {
             SchaltEvent::CancelError => "schaltwerk:cancel-error",
             SchaltEvent::TerminalCreated => "schaltwerk:terminal-created",
 
+            SchaltEvent::SessionActivity => "schaltwerk:session-activity",
             SchaltEvent::SessionGitStats => "schaltwerk:session-git-stats",
             SchaltEvent::TerminalAttention => "schaltwerk:terminal-attention",
             SchaltEvent::TerminalClosed => "schaltwerk:terminal-closed",

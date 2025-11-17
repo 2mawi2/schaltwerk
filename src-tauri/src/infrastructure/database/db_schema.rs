@@ -44,12 +44,17 @@ pub fn initialize_schema(db: &Database) -> anyhow::Result<()> {
     )?;
 
     conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_sessions_repo_order ON sessions(repository_path, ready_to_merge, created_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_sessions_activity ON sessions(last_activity)",
         [],
     )?;
 
     conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_sessions_status_order ON sessions(status, ready_to_merge, created_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_sessions_repo_order ON sessions(repository_path, ready_to_merge, last_activity DESC)",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_sessions_status_order ON sessions(status, ready_to_merge, last_activity DESC)",
         [],
     )?;
 

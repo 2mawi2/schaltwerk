@@ -20,6 +20,7 @@ const createSession = (id: string, createdAt: string, readyToMerge = false): Enr
     base_branch: 'main',
     status: 'active' as const,
     created_at: createdAt,
+    last_modified: createdAt,
     has_uncommitted_changes: false,
     is_current: false,
     session_type: 'worktree',
