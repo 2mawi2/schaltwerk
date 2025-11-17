@@ -251,6 +251,7 @@ describe('Sidebar status indicators and actions', () => {
               status: 'spec',
               created_at: '2024-01-01T00:00:00.000Z',
               updated_at: '2024-01-01T00:00:00.000Z',
+              last_activity: null,
               initial_prompt: null,
               ready_to_merge: false,
               original_agent_type: null,

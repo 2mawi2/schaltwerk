@@ -22,6 +22,7 @@ function createSession(id: string, content: string, displayName?: string): Enric
       status: 'spec',
       session_state: 'spec',
       created_at: new Date().toISOString(),
+      last_modified: new Date().toISOString(),
       has_uncommitted_changes: false,
       is_current: false,
       session_type: 'worktree',

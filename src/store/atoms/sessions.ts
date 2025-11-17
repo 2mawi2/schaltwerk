@@ -159,6 +159,7 @@ function enrichDraftSessions(drafts: RawSession[]): EnrichedSession[] {
             status: 'spec',
             session_state: SessionState.Spec,
             created_at: spec.created_at ? new Date(spec.created_at).toISOString() : undefined,
+            last_modified: spec.updated_at ? new Date(spec.updated_at).toISOString() : undefined,
             has_uncommitted_changes: false,
             ready_to_merge: false,
             diff_stats: undefined,
@@ -1142,6 +1143,27 @@ export const initializeSessionsEventsActionAtom = atom(
             })
         })
 
+        await register(SchaltEvent.SessionActivity, (payload) => {
+            const event = payload as { session_name: string; last_activity_ts: number; current_task?: string | null; todo_percentage?: number | null; is_blocked?: boolean | null }
+            set(allSessionsAtom, (prev) => prev.map(session => {
+                if (session.info.session_id !== event.session_name) {
+                    return session
+                }
+                return {
+                    ...session,
+                    info: {
+                        ...session.info,
+                        last_modified: new Date((event.last_activity_ts ?? 0) * 1000).toISOString(),
+                        last_modified_ts: (event.last_activity_ts ?? 0) * 1000,
+                        current_task: event.current_task ?? session.info.current_task,
+                        todo_percentage: event.todo_percentage ?? session.info.todo_percentage,
+                        is_blocked: event.is_blocked ?? session.info.is_blocked,
+                    },
+                }
+            }))
+            syncSnapshotsFromAtom(get)
+        })
+
         await register(SchaltEvent.TerminalAttention, (payload) => {
             const event = payload as { session_id: string; terminal_id: string; needs_attention?: boolean }
             if (!isTopTerminalId(event.terminal_id)) {
@@ -1257,6 +1279,7 @@ export const initializeSessionsEventsActionAtom = atom(
                 worktree_path?: string
                 parent_branch?: string
                 created_at?: string
+                last_modified?: string
             }
 
             const previousStatesSnapshot = new Map(previousSessionStates)
@@ -1268,6 +1291,7 @@ export const initializeSessionsEventsActionAtom = atom(
                 }
                 const nowIso = new Date().toISOString()
                 const createdAtIso = event.created_at ?? nowIso
+                const lastModifiedIso = event.last_modified ?? createdAtIso
                 const info: SessionInfo = {
                     session_id: event.session_name,
                     branch: event.branch ?? '',
@@ -1276,6 +1300,7 @@ export const initializeSessionsEventsActionAtom = atom(
                     parent_branch: event.parent_branch ?? null,
                     status: 'active' as const,
                     created_at: createdAtIso,
+                    last_modified: lastModifiedIso,
                     has_uncommitted_changes: false,
                     has_conflicts: false,
                     is_current: false,

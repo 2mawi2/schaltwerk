@@ -51,6 +51,8 @@ function mapSessionUiState(info: SessionInfo): 'spec' | 'running' | 'reviewed' {
 function isSpec(info: SessionInfo): boolean { return mapSessionUiState(info) === 'spec' }
 function isReviewed(info: SessionInfo): boolean { return mapSessionUiState(info) === 'reviewed' }
 
+// Removed legacy terminal-stuck idle handling; we rely on last-edited timestamps only
+
 interface SidebarProps {
     isDiffViewerOpen?: boolean
     openTabs?: Array<{projectPath: string, projectName: string}>

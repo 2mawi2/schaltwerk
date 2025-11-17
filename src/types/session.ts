@@ -47,6 +47,8 @@ export interface SessionInfo {
     parent_branch?: string | null
     status: 'active' | 'dirty' | 'missing' | 'archived' | 'spec'
     created_at?: string
+    last_modified?: string
+    last_modified_ts?: number
     has_uncommitted_changes?: boolean
     has_conflicts?: boolean
     merge_has_conflicts?: boolean
@@ -103,6 +105,7 @@ export interface RawSession {
     status: 'active' | 'cancelled' | 'spec'
     created_at: string
     updated_at: string
+    last_activity?: string
     initial_prompt?: string
     ready_to_merge: boolean
     original_agent_type?: AgentType

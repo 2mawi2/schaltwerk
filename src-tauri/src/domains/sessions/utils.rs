@@ -357,6 +357,18 @@ impl SessionUtils {
                     (None, None) => a.info.session_id.cmp(&b.info.session_id),
                 });
             }
+            SortMode::LastEdited => {
+                sessions.sort_by(|a, b| {
+                    let a_time = a.info.last_modified.or(a.info.created_at);
+                    let b_time = b.info.last_modified.or(b.info.created_at);
+                    match (a_time, b_time) {
+                        (Some(a_time), Some(b_time)) => b_time.cmp(&a_time),
+                        (Some(_), None) => std::cmp::Ordering::Less,
+                        (None, Some(_)) => std::cmp::Ordering::Greater,
+                        (None, None) => a.info.session_id.cmp(&b.info.session_id),
+                    }
+                });
+            }
         }
     }
 
