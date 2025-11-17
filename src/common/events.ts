@@ -6,8 +6,6 @@ export enum SchaltEvent {
   SessionCancelling = 'schaltwerk:session-cancelling',
   CancelError = 'schaltwerk:cancel-error',
   TerminalCreated = 'schaltwerk:terminal-created',
-
-  SessionActivity = 'schaltwerk:session-activity',
   SessionGitStats = 'schaltwerk:session-git-stats',
   TerminalAttention = 'schaltwerk:terminal-attention',
   TerminalClosed = 'schaltwerk:terminal-closed',
@@ -30,15 +28,6 @@ export enum SchaltEvent {
   CloneProgress = 'schaltwerk:clone-progress'
 }
 
-
-export interface SessionActivityUpdated {
-  session_id: string
-  session_name: string
-  last_activity_ts: number
-  current_task: string | null
-  todo_percentage: number | null
-  is_blocked: boolean | null
-}
 
 export interface SessionGitStatsUpdated {
   session_id: string
@@ -166,7 +155,6 @@ export type EventPayloadMap = {
     worktree_path: string
     parent_branch: string
     created_at: string
-    last_modified?: string
   }
   [SchaltEvent.SessionRemoved]: { session_name: string }
   [SchaltEvent.ArchiveUpdated]: { repo: string, count: number }
@@ -174,7 +162,6 @@ export type EventPayloadMap = {
   [SchaltEvent.CancelError]: { session_name: string, error: string }
   [SchaltEvent.TerminalCreated]: { terminal_id: string, cwd: string }
 
-  [SchaltEvent.SessionActivity]: SessionActivityUpdated
   [SchaltEvent.SessionGitStats]: SessionGitStatsUpdated
   [SchaltEvent.TerminalAttention]: { session_id: string, terminal_id: string, needs_attention: boolean }
   [SchaltEvent.TerminalClosed]: { terminal_id: string }

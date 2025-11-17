@@ -18,7 +18,6 @@ const createMockSession = (sessionId: string, displayName?: string): EnrichedSes
     base_branch: 'main',
     status: 'active',
     created_at: '2023-01-01T00:00:00Z',
-    last_modified: '2023-01-01T01:00:00Z',
     has_uncommitted_changes: false,
     is_current: false,
     session_type: 'worktree',

@@ -286,16 +286,6 @@ impl SessionDbManager {
             .map_err(|e| anyhow!("Failed to set session original settings: {e}"))
     }
 
-    pub fn set_session_activity(
-        &self,
-        session_id: &str,
-        activity_time: chrono::DateTime<Utc>,
-    ) -> Result<()> {
-        self.db
-            .set_session_activity(session_id, activity_time)
-            .map_err(|e| anyhow!("Failed to set session activity: {e}"))
-    }
-
     pub fn set_session_version_info(
         &self,
         session_id: &str,

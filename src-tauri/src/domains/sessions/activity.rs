@@ -7,30 +7,19 @@ use crate::{
 use anyhow::Result;
 #[cfg(test)]
 use chrono::DateTime;
-use chrono::{TimeZone, Utc};
+#[cfg(test)]
+use chrono::Utc;
 use git2::Repository;
 use serde::Serialize;
-#[cfg(test)]
-use std::path::Path;
 use std::sync::Arc;
-#[cfg(test)]
-use std::time::UNIX_EPOCH;
 use tauri::AppHandle;
 use tokio::time::{Duration, interval};
-#[cfg(test)]
-use walkdir::WalkDir;
 
 pub trait EventEmitter: Send + Sync {
-    fn emit_session_activity(&self, payload: SessionActivityUpdated) -> Result<()>;
     fn emit_session_git_stats(&self, payload: SessionGitStatsUpdated) -> Result<()>;
 }
 
 impl EventEmitter for AppHandle {
-    fn emit_session_activity(&self, payload: SessionActivityUpdated) -> Result<()> {
-        emit_event(self, SchaltEvent::SessionActivity, &payload)
-            .map_err(|e| anyhow::anyhow!("Failed to emit session activity: {e}"))
-    }
-
     fn emit_session_git_stats(&self, payload: SessionGitStatsUpdated) -> Result<()> {
         emit_event(self, SchaltEvent::SessionGitStats, &payload)
             .map_err(|e| anyhow::anyhow!("Failed to emit git stats: {e}"))
@@ -72,9 +61,8 @@ impl<E: EventEmitter> ActivityTracker<E> {
     fn refresh_stats_and_activity_for_session(
         &self,
         session: &crate::domains::sessions::entity::Session,
-    ) -> Result<bool> {
+    ) -> Result<()> {
         // Prefer diff-aware last change time via git stats; fall back to filesystem walk only if unavailable
-        let mut emitted_activity = false;
 
         if session.worktree_path.exists() {
             match git::calculate_git_stats_fast(&session.worktree_path, &session.parent_branch) {
@@ -146,29 +134,6 @@ impl<E: EventEmitter> ActivityTracker<E> {
                         }
                     }
 
-                    if let Some(mut ts) = stats.last_diff_change_ts {
-                        // Clamp future timestamps to now to avoid monotonic lock-in from clock skew
-                        let now = Utc::now().timestamp();
-                        if ts > now + 120 {
-                            ts = now;
-                        }
-                        // Persist as last_activity if monotonically newer
-                        if let Some(dt) = Utc.timestamp_opt(ts, 0).single() {
-                            // Use strict set to ensure UI reflects the new diff-aware time (even if earlier/later)
-                            self.db.set_session_activity(&session.id, dt)?;
-                            let session_info = self.db.get_session_by_id(&session.id)?;
-                            let payload = SessionActivityUpdated {
-                                session_id: session.id.clone(),
-                                session_name: session.name.clone(),
-                                last_activity_ts: dt.timestamp(),
-                                current_task: session_info.initial_prompt.clone(),
-                                todo_percentage: None, // Not available in Session
-                                is_blocked: None,      // Not available in Session
-                            };
-                            let _ = self.emitter.emit_session_activity(payload);
-                            emitted_activity = true;
-                        }
-                    }
                 }
                 Err(e) => {
                     log::warn!(
@@ -180,58 +145,14 @@ impl<E: EventEmitter> ActivityTracker<E> {
             }
         }
 
-        // No filesystem walk fallback: if diff timestamp was not derived, do not emit or set last_activity
+        // No filesystem walk fallback: if diff timestamp was not derived, we still rely on existing stats data
 
-        Ok(emitted_activity)
+        Ok(())
     }
 
-    #[cfg(test)]
-    fn get_last_modification(&self, path: &Path) -> Result<Option<DateTime<Utc>>> {
-        if !path.exists() {
-            return Ok(None);
-        }
-
-        let mut latest = 0i64;
-
-        for entry in WalkDir::new(path)
-            .follow_links(false)
-            .into_iter()
-            .filter_map(|e| e.ok())
-        {
-            if entry.path().components().any(|c| c.as_os_str() == ".git") {
-                continue;
-            }
-
-            if let Ok(metadata) = entry.metadata() {
-                if let Ok(modified) = metadata.modified() {
-                    let timestamp = modified.duration_since(UNIX_EPOCH).unwrap().as_secs() as i64;
-
-                    if timestamp > latest {
-                        latest = timestamp;
-                    }
-                }
-            }
-        }
-
-        if latest > 0 {
-            Ok(Utc.timestamp_opt(latest, 0).single())
-        } else {
-            Ok(None)
-        }
-    }
 }
 
 // Removed unused legacy API `start_activity_tracking` to simplify code.
-
-#[derive(Serialize, Clone, Debug)]
-pub struct SessionActivityUpdated {
-    pub session_id: String,
-    pub session_name: String,
-    pub last_activity_ts: i64,
-    pub current_task: Option<String>,
-    pub todo_percentage: Option<f64>,
-    pub is_blocked: Option<bool>,
-}
 
 #[derive(Serialize, Clone, Debug)]
 pub struct SessionGitStatsUpdated {
@@ -274,20 +195,14 @@ mod tests {
 
     #[derive(Clone)]
     struct MockEmitter {
-        activity_events: Arc<Mutex<Vec<SessionActivityUpdated>>>,
         git_stats_events: Arc<Mutex<Vec<SessionGitStatsUpdated>>>,
     }
 
     impl MockEmitter {
         fn new() -> Self {
             Self {
-                activity_events: Arc::new(Mutex::new(Vec::new())),
                 git_stats_events: Arc::new(Mutex::new(Vec::new())),
             }
-        }
-
-        fn get_activity_events(&self) -> Vec<SessionActivityUpdated> {
-            self.activity_events.lock().unwrap().clone()
         }
 
         fn get_git_stats_events(&self) -> Vec<SessionGitStatsUpdated> {
@@ -296,47 +211,14 @@ mod tests {
     }
 
     impl EventEmitter for MockEmitter {
-        fn emit_session_activity(&self, payload: SessionActivityUpdated) -> Result<()> {
-            self.activity_events.lock().unwrap().push(payload);
-            Ok(())
-        }
-
         fn emit_session_git_stats(&self, payload: SessionGitStatsUpdated) -> Result<()> {
             self.git_stats_events.lock().unwrap().push(payload);
             Ok(())
         }
     }
-
-    #[test]
-    fn test_payload_mapping_for_session_activity() {
-        let payload = SessionActivityUpdated {
-            session_id: "test-session-123".to_string(),
-            session_name: "my-feature-branch".to_string(),
-            last_activity_ts: 1704067200,
-            current_task: Some("implement feature".to_string()),
-            todo_percentage: Some(50.0),
-            is_blocked: Some(true),
-        };
-
-        assert_eq!(payload.session_id, "test-session-123");
-        assert_eq!(payload.session_name, "my-feature-branch");
-        assert_eq!(payload.last_activity_ts, 1704067200);
-        assert_eq!(payload.current_task, Some("implement feature".to_string()));
-        assert_eq!(payload.todo_percentage, Some(50.0));
-        assert_eq!(payload.is_blocked, Some(true));
-    }
     #[test]
     fn test_event_emitter_trait_methods() {
         let mock_emitter = MockEmitter::new();
-
-        let activity_payload = SessionActivityUpdated {
-            session_id: "session1".to_string(),
-            session_name: "feature".to_string(),
-            last_activity_ts: 1704067200,
-            current_task: None,
-            todo_percentage: None,
-            is_blocked: None,
-        };
 
         let stats_payload = SessionGitStatsUpdated {
             session_id: "session1".to_string(),
@@ -353,19 +235,12 @@ mod tests {
         };
 
         mock_emitter
-            .emit_session_activity(activity_payload.clone())
-            .unwrap();
-        mock_emitter
             .emit_session_git_stats(stats_payload.clone())
             .unwrap();
 
-        let activity_events = mock_emitter.get_activity_events();
         let git_events = mock_emitter.get_git_stats_events();
 
-        assert_eq!(activity_events.len(), 1);
         assert_eq!(git_events.len(), 1);
-
-        assert_eq!(activity_events[0].session_id, "session1");
         assert_eq!(git_events[0].files_changed, 5);
     }
 
@@ -391,36 +266,6 @@ mod tests {
         assert_eq!(payload.lines_added, 45);
         assert_eq!(payload.lines_removed, 12);
         assert!(!payload.has_uncommitted);
-    }
-
-    #[test]
-    fn test_get_last_modification_nonexistent_path() {
-        let temp_dir = TempDir::new().unwrap();
-        let db_path = temp_dir.path().join("test.db");
-        let db = Arc::new(Database::new(Some(db_path)).unwrap());
-        let mock_emitter = MockEmitter::new();
-        let tracker = ActivityTracker::new(db, mock_emitter);
-
-        let nonexistent_path = temp_dir.path().join("nonexistent");
-        let result = tracker.get_last_modification(&nonexistent_path).unwrap();
-        assert!(result.is_none());
-    }
-
-    #[test]
-    fn test_get_last_modification_with_git_directory() {
-        let temp_dir = TempDir::new().unwrap();
-        let git_dir = temp_dir.path().join(".git");
-        std::fs::create_dir_all(&git_dir).unwrap();
-        std::fs::write(git_dir.join("config"), "git config").unwrap();
-        std::fs::write(temp_dir.path().join("regular.txt"), "content").unwrap();
-
-        let db_path = temp_dir.path().join("test.db");
-        let db = Arc::new(Database::new(Some(db_path)).unwrap());
-        let mock_emitter = MockEmitter::new();
-        let tracker = ActivityTracker::new(db, mock_emitter);
-
-        let result = tracker.get_last_modification(temp_dir.path()).unwrap();
-        assert!(result.is_some());
     }
 
     #[test]
@@ -514,17 +359,12 @@ mod tests {
             .output()
             .unwrap();
 
-        let emitted = tracker
+        tracker
             .refresh_stats_and_activity_for_session(&session)
             .unwrap();
-        assert!(emitted, "Should emit activity for changed files");
 
-        // Verify DB updated
-        let updated = db.get_session_by_id(&session.id).unwrap();
-        assert!(updated.last_activity.is_some());
-
-        // Verify events emitted
-        let events = mock_emitter.get_activity_events();
+        // Verify git stats events emitted
+        let events = mock_emitter.get_git_stats_events();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].session_name, session.name);
     }
@@ -570,14 +410,11 @@ mod tests {
         };
         db.create_session(&session).unwrap();
 
-        let emitted = tracker
+        tracker
             .refresh_stats_and_activity_for_session(&session)
             .unwrap();
         // We removed filesystem fallback: should not emit anything when git stats are unavailable
-        assert!(!emitted, "Should not emit when git stats unavailable");
-        let updated = db.get_session_by_id(&session.id).unwrap();
-        assert!(updated.last_activity.is_none());
-        let events = mock_emitter.get_activity_events();
+        let events = mock_emitter.get_git_stats_events();
         assert_eq!(events.len(), 0);
     }
 }

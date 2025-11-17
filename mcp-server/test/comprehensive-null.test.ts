@@ -4,7 +4,7 @@ const formatListJson = (s: any) => ({
   status: s.status === 'spec' ? 'spec' : (s.ready_to_merge ? 'reviewed' : 'new'),
   state: s.session_state,
   created_at: s.created_at ? new Date(s.created_at).toISOString() : null,
-  last_activity: s.last_activity ? new Date(s.last_activity).toISOString() : null,
+  updated_at: s.updated_at ? new Date(s.updated_at).toISOString() : null,
   agent_type: s.original_agent_type || 'claude',
   branch: s.branch,
   worktree_path: s.worktree_path,
@@ -21,9 +21,9 @@ const formatListText = (s: any) => {
   } else {
     const reviewed = s.ready_to_merge ? '[REVIEWED]' : '[NEW]'
     const agent = s.original_agent_type || 'unknown'
-    const modified = s.last_activity ? new Date(s.last_activity).toLocaleString() : 'never'
+    const updated = s.updated_at ? new Date(s.updated_at).toLocaleString() : 'unknown'
     const name = s.display_name || s.name
-    return `${reviewed} ${name} - Agent: ${agent}, Modified: ${modified}`
+    return `${reviewed} ${name} - Agent: ${agent}, Updated: ${updated}`
   }
 }
 
@@ -56,7 +56,6 @@ const formatTask = (t: any) => ({
   status: t.status,
   session_state: t.session_state,
   created_at: t.created_at ? new Date(t.created_at).toISOString() : null,
-  last_activity: t.last_activity ? new Date(t.last_activity).toISOString() : null,
   initial_prompt: t.initial_prompt || null,
   draft_content: t.draft_content || null,
   ready_to_merge: t.ready_to_merge || false,
@@ -93,11 +92,11 @@ const validateSessionFormatting = (session: any) => {
     expect(json.created_at).toBeNull()
   }
   
-  if (!session.last_activity) {
+  if (!session.updated_at) {
     if (session.status !== 'spec') {
-      expect(text).toContain('Modified: never')
+      expect(text).toContain('Updated: unknown')
     }
-    expect(json.last_activity).toBeNull()
+    expect(json.updated_at).toBeNull()
   }
 }
 
@@ -130,11 +129,6 @@ const validateTaskFormatting = (agent: any) => {
     expect(result.created_at).toBe('1970-01-01T00:00:00.000Z')
   }
   
-  if (!agent.last_activity) {
-    expect(result.last_activity).toBeNull()
-  } else if (agent.last_activity === 0) {
-    expect(result.last_activity).toBe('1970-01-01T00:00:00.000Z')
-  }
 }
 
 const validateEdgeCase = (edgeCase: { value: any; expected: any }) => {
@@ -154,11 +148,11 @@ describe('Comprehensive MCP Null Handling', () => {
   describe('All date fields across all commands', () => {
     it('should handle null/undefined dates in schaltwerk_list', () => {
       const testSessions = [
-        { name: 'test1', status: 'active', created_at: null, last_activity: null },
-        { name: 'test2', status: 'active', created_at: undefined, last_activity: undefined },
-        { name: 'test3', status: 'spec', created_at: null, last_activity: null },
-        { name: 'test4', status: 'spec', created_at: undefined, last_activity: undefined },
-        { name: 'test5', status: 'active', created_at: Date.now(), last_activity: Date.now() },
+        { name: 'test1', status: 'active', created_at: null, updated_at: null },
+        { name: 'test2', status: 'active', created_at: undefined, updated_at: undefined },
+        { name: 'test3', status: 'spec', created_at: null, updated_at: null },
+        { name: 'test4', status: 'spec', created_at: undefined, updated_at: undefined },
+        { name: 'test5', status: 'active', created_at: Date.now(), updated_at: Date.now() },
       ]
 
       testSessions.forEach(validateSessionFormatting)
@@ -178,11 +172,11 @@ describe('Comprehensive MCP Null Handling', () => {
 
     it('should handle null/undefined dates in schaltwerk_get_current_tasks', () => {
       const testTasks = [
-        { name: 'task1', status: 'active', created_at: null, last_activity: null },
-        { name: 'task2', status: 'spec', created_at: undefined, last_activity: undefined },
-        { name: 'task3', status: 'active', created_at: 0, last_activity: 0 },
-        { name: 'task4', status: 'spec', created_at: Date.now(), last_activity: null },
-        { name: 'task5', status: 'active', created_at: Date.now(), last_activity: Date.now() },
+        { name: 'task1', status: 'active', created_at: null },
+        { name: 'task2', status: 'spec', created_at: undefined },
+        { name: 'task3', status: 'active', created_at: 0 },
+        { name: 'task4', status: 'spec', created_at: Date.now() },
+        { name: 'task5', status: 'active', created_at: Date.now() },
       ]
 
       testTasks.forEach(validateTaskFormatting)
