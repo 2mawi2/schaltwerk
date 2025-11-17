@@ -38,7 +38,6 @@ describe('useSpecMode', () => {
       base_branch: 'main',
       status: 'spec' as const,
       created_at: createdAt,
-      last_modified: createdAt,
       has_uncommitted_changes: false,
       is_current: false,
       session_type: 'worktree' as const,

@@ -1,6 +1,5 @@
 import { memo } from 'react'
 import { clsx } from 'clsx'
-import { formatLastActivity } from '../../utils/time'
 import { SessionActions } from '../session/SessionActions'
 import { SessionInfo, SessionMonitorStatus } from '../../types/session'
 import { UncommittedIndicator } from '../common/UncommittedIndicator'
@@ -171,7 +170,6 @@ export const SessionCard = memo<SessionCardProps>(({
     const additions = s.diff_stats?.insertions || s.diff_stats?.additions || 0
     const deletions = s.diff_stats?.deletions || 0
     const filesChanged = s.diff_stats?.files_changed || 0
-    const lastActivity = formatLastActivity(s.last_modified)
     const isBlocked = s.is_blocked || false
     const isReadyToMerge = s.ready_to_merge || false
     const agentType = s.original_agent_type as (SessionInfo['original_agent_type'])
@@ -496,7 +494,6 @@ export const SessionCard = memo<SessionCardProps>(({
                             {agentLabel}
                         </span>
                     )}
-                    <div style={sessionText.meta}>Last: {lastActivity}</div>
                 </div>
             </div>
         </div>

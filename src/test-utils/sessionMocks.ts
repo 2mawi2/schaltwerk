@@ -11,7 +11,6 @@ export const mockEnrichedSession = (name: string, status: string = 'active', rea
     status: status === 'spec' ? 'spec' : 'active',
     session_state: status,
     created_at: new Date().toISOString(),
-    last_modified: new Date().toISOString(),
     has_uncommitted_changes: false,
     ready_to_merge: readyToMerge,
     diff_stats: undefined,
@@ -23,4 +22,3 @@ export const mockEnrichedSession = (name: string, status: string = 'active', rea
     stableSessionTerminalId(name, 'bottom')
   ]
 })
-

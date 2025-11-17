@@ -21,7 +21,6 @@ const droidSession: EnrichedSession = {
     parent_branch: null,
     status: 'active',
     created_at: '2024-01-01T00:00:00Z',
-    last_modified: '2024-01-01T00:00:00Z',
     is_current: true,
     session_type: 'worktree',
     session_state: 'running',

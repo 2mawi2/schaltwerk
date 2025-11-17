@@ -521,7 +521,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               type: "array",
               items: {
                 type: "string",
-                enum: ["name", "display_name", "status", "session_state", "created_at", "last_activity", "branch", "worktree_path", "ready_to_merge", "initial_prompt", "draft_content", "all"]
+                enum: ["name", "display_name", "status", "session_state", "created_at", "branch", "worktree_path", "ready_to_merge", "initial_prompt", "draft_content", "all"]
               },
               description: "Fields to include in response. Defaults to ['name', 'status', 'session_state', 'branch']. Use 'all' for complete data.",
               default: ["name", "status", "session_state", "branch"]
@@ -665,7 +665,6 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
             session_state: s.session_state,
             ready_to_merge: s.ready_to_merge || false,
             created_at: s.created_at && !isNaN(new Date(s.created_at).getTime()) ? new Date(s.created_at).toISOString() : null,
-            last_activity: s.last_activity && !isNaN(new Date(s.last_activity).getTime()) ? new Date(s.last_activity).toISOString() : null,
             agent_type: s.original_agent_type || 'claude',
             branch: s.branch,
             worktree_path: s.worktree_path,
@@ -687,10 +686,10 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
               } else {
                 const reviewed = s.ready_to_merge ? '[REVIEWED]' : '[NEW]'
                 const agent = s.original_agent_type || 'unknown'
-                const modified = s.last_activity && !isNaN(new Date(s.last_activity).getTime()) ? new Date(s.last_activity).toLocaleString() : 'never'
+                const updated = s.updated_at && !isNaN(new Date(s.updated_at).getTime()) ? new Date(s.updated_at).toLocaleString() : 'unknown'
                 const name = s.display_name || s.name
-                return `${reviewed} ${name} - Agent: ${agent}, Modified: ${modified}`
-              }
+                return `${reviewed} ${name} - Agent: ${agent}, Updated: ${updated}`
+            }
             })
             
             const filterLabel = listArgs.filter ? ` (${listArgs.filter})` : ''
@@ -896,9 +895,6 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
           }
           if (includeAll || requestedFields.includes('created_at')) {
             agent.created_at = t.created_at ? new Date(t.created_at).toISOString() : null
-          }
-          if (includeAll || requestedFields.includes('last_activity')) {
-            agent.last_activity = t.last_activity ? new Date(t.last_activity).toISOString() : null
           }
           if (includeAll || requestedFields.includes('branch')) {
             agent.branch = t.branch
