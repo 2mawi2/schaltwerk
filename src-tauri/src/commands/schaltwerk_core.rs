@@ -530,7 +530,6 @@ pub async fn schaltwerk_core_create_session(
         worktree_path: String,
         parent_branch: String,
         created_at: String,
-        last_modified: Option<String>,
     }
     let _ = emit_event(
         &app,
@@ -541,7 +540,6 @@ pub async fn schaltwerk_core_create_session(
             worktree_path: session.worktree_path.to_string_lossy().to_string(),
             parent_branch: session.parent_branch.clone(),
             created_at: session.created_at.to_rfc3339(),
-            last_modified: session.last_activity.map(|ts| ts.to_rfc3339()),
         },
     );
 

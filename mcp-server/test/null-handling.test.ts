@@ -12,15 +12,15 @@ describe('MCP Server Null Handling', () => {
     })
 
     it('should handle null dates in text formatting', () => {
-      const formatModified = (last_activity: number | null | undefined) => {
-        const modified = last_activity ? new Date(last_activity).toLocaleString() : 'never'
-        return modified
+      const formatUpdated = (updated_at: number | null | undefined) => {
+        const updated = updated_at ? new Date(updated_at).toLocaleString() : 'unknown'
+        return updated
       }
 
-      expect(formatModified(Date.now())).not.toBe('never')
-      expect(formatModified(null)).toBe('never')
-      expect(formatModified(undefined)).toBe('never')
-      expect(formatModified(0)).toBe('never')
+      expect(formatUpdated(Date.now())).not.toBe('unknown')
+      expect(formatUpdated(null)).toBe('unknown')
+      expect(formatUpdated(undefined)).toBe('unknown')
+      expect(formatUpdated(0)).toBe('unknown')
     })
 
     it('should handle null dates in JSON formatting', () => {
@@ -41,7 +41,7 @@ describe('MCP Server Null Handling', () => {
         status: 'active' | 'spec'
         ready_to_merge: boolean
         original_agent_type?: string
-        last_activity?: number
+        updated_at?: number
         created_at: number
         draft_content?: string
       }
@@ -55,9 +55,9 @@ describe('MCP Server Null Handling', () => {
         } else {
           const reviewed = s.ready_to_merge ? '[REVIEWED]' : '[NEW]'
           const agent = s.original_agent_type || 'unknown'
-          const modified = s.last_activity ? new Date(s.last_activity).toLocaleString() : 'never'
+          const updated = s.updated_at ? new Date(s.updated_at).toLocaleString() : 'unknown'
           const name = s.display_name || s.name
-          return `${reviewed} ${name} - Agent: ${agent}, Modified: ${modified}`
+          return `${reviewed} ${name} - Agent: ${agent}, Updated: ${updated}`
         }
       }
 
@@ -66,7 +66,7 @@ describe('MCP Server Null Handling', () => {
         display_name: s.display_name || s.name,
         status: s.status === 'spec' ? 'spec' : (s.ready_to_merge ? 'reviewed' : 'new'),
         created_at: new Date(s.created_at).toISOString(),
-        last_activity: s.last_activity ? new Date(s.last_activity).toISOString() : null,
+        updated_at: s.updated_at ? new Date(s.updated_at).toISOString() : null,
         agent_type: s.original_agent_type || 'claude'
       })
 
@@ -76,7 +76,7 @@ describe('MCP Server Null Handling', () => {
         status: 'active',
         ready_to_merge: false,
         original_agent_type: 'claude',
-        last_activity: Date.now(),
+        updated_at: Date.now(),
         created_at: Date.now()
       }
 
@@ -86,7 +86,7 @@ describe('MCP Server Null Handling', () => {
         status: 'active',
         ready_to_merge: false,
         original_agent_type: 'claude',
-        last_activity: undefined,
+        updated_at: undefined,
         created_at: Date.now()
       }
 
@@ -106,24 +106,24 @@ describe('MCP Server Null Handling', () => {
       expect(() => formatSessionJson(sessionWithNullValues)).not.toThrow()
 
       const text1 = formatSessionText(sessionWithActivity)
-      expect(text1).toContain('Modified:')
-      expect(text1).not.toContain('never')
+      expect(text1).toContain('Updated:')
+      expect(text1).not.toContain('unknown')
 
       const text2 = formatSessionText(sessionWithoutActivity)
-      expect(text2).toContain('Modified: never')
+      expect(text2).toContain('Updated: unknown')
 
       const text3 = formatSessionText(sessionWithNullValues)
-      expect(text3).toContain('Modified: never')
+      expect(text3).toContain('Updated: unknown')
       expect(text3).toContain('Agent: unknown')
 
       const json1 = formatSessionJson(sessionWithActivity)
-      expect(json1.last_activity).not.toBeNull()
+      expect(json1.updated_at).not.toBeNull()
 
       const json2 = formatSessionJson(sessionWithoutActivity)
-      expect(json2.last_activity).toBeNull()
+      expect(json2.updated_at).toBeNull()
 
       const json3 = formatSessionJson(sessionWithNullValues)
-      expect(json3.last_activity).toBeNull()
+      expect(json3.updated_at).toBeNull()
       expect(json3.agent_type).toBe('claude')
     })
   })

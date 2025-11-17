@@ -11,7 +11,6 @@ const baseInfo: SessionInfo = {
   worktree_path: '/tmp/wt',
   base_branch: 'main',
   status: 'active',
-  last_modified: new Date().toISOString(),
   has_uncommitted_changes: false,
   is_current: false,
   session_type: 'worktree',

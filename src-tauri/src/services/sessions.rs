@@ -119,7 +119,6 @@ mod tests {
                 base_branch: "main".to_string(),
                 status: SessionStatusType::Active,
                 created_at: Some(chrono::Utc::now()),
-                last_modified: None,
                 has_uncommitted_changes: Some(false),
                 has_conflicts: Some(false),
                 is_current: false,
