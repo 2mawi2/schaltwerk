@@ -44,6 +44,7 @@ export enum UiEvent {
   OpenSettings = 'schaltwerk:open-settings',
   SelectionChanged = 'schaltwerk:selection-changed',
   SessionStateChanged = 'schaltwerk:session-state-changed',
+  AgentBinariesUpdated = 'schaltwerk:agent-binaries-updated',
 }
 
 export interface TerminalResizeRequestDetail {
@@ -225,6 +226,7 @@ export type UiEventPayloads = {
   [UiEvent.SessionStateChanged]: { sessionId: string }
   [UiEvent.InsertTerminalText]: InsertTerminalTextDetail
   [UiEvent.OpenSettings]: OpenSettingsDetail | undefined
+  [UiEvent.AgentBinariesUpdated]: undefined
 }
 
 type UiEventArgs<T extends UiEvent> = undefined extends UiEventPayloads[T]
