@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow};
-use git2::{BranchType, ErrorCode, MergeOptions, Oid, Repository, build::CheckoutBuilder};
+use git2::{BranchType, ErrorCode, IndexAddOption, MergeOptions, Oid, Repository, build::CheckoutBuilder};
 #[cfg(test)]
 use log::error;
 use log::{debug, info, warn};
@@ -20,7 +20,7 @@ use tokio::task;
 use tokio::time::timeout;
 
 use crate::domains::git::operations::{
-    get_uncommitted_changes_status, has_uncommitted_changes, uncommitted_sample_paths,
+    commit_all_changes, get_uncommitted_changes_status, has_uncommitted_changes, uncommitted_sample_paths,
 };
 use crate::domains::git::service as git;
 use crate::domains::merge::lock;
@@ -77,6 +77,118 @@ impl MergeService {
         SessionManager::new(self.db.clone(), self.repo_path.clone())
     }
 
+    pub fn preview_with_worktree(&self, session_name: &str) -> Result<MergePreview> {
+        let manager = self.session_manager();
+        let session = manager
+            .get_session(session_name)
+            .with_context(|| format!("Session '{session_name}' not found"))?;
+
+        if session.session_state == SessionState::Spec {
+            return Err(anyhow!(
+                "Session '{session_name}' is still a spec. Start it before merging."
+            ));
+        }
+
+        if !session.worktree_path.exists() {
+            return Err(anyhow!(
+                "Worktree for session '{session_name}' is missing at {}",
+                session.worktree_path.display()
+            ));
+        }
+
+        let parent_branch = session.parent_branch.trim();
+        if parent_branch.is_empty() {
+            return Err(anyhow!(
+                "Session '{session_name}' has no recorded parent branch"
+            ));
+        }
+
+        // Use the session worktree so unstaged/untracked changes are visible.
+        let repo = Repository::open(&session.worktree_path).with_context(|| {
+            format!(
+                "Failed to open git repository at {}",
+                session.worktree_path.display()
+            )
+        })?;
+
+        let session_ref = find_branch(&repo, &session.branch).with_context(|| {
+            format!(
+                "Session branch '{}' not found for session '{session_name}'",
+                session.branch
+            )
+        })?;
+        let parent_ref = find_branch(&repo, parent_branch).with_context(|| {
+            format!("Parent branch '{parent_branch}' not found for session '{session_name}'")
+        })?;
+
+        let session_commit = session_ref.get().peel_to_commit()?;
+        let parent_commit = parent_ref.get().peel_to_commit()?;
+
+        let merge_base_oid = repo.merge_base(session_commit.id(), parent_commit.id())?;
+        let merge_base_commit = repo.find_commit(merge_base_oid)?;
+
+        let head_tree = session_commit.tree()?;
+        let parent_tree = parent_commit.tree()?;
+        let base_tree = merge_base_commit.tree()?;
+
+        // Build synthetic tree representing working directory (committed + staged + unstaged + untracked)
+        let mut index = repo.index()?;
+        index.read_tree(&head_tree)?;
+        index.add_all(["*"], IndexAddOption::DEFAULT, None)?;
+        let worktree_tree_oid = index.write_tree_to(&repo)?;
+        let worktree_tree = repo.find_tree(worktree_tree_oid)?;
+
+        // Conflict simulation
+        let mut merge_opts = MergeOptions::new();
+        merge_opts.fail_on_conflict(false);
+
+        let merge_index = repo
+            .merge_trees(&base_tree, &worktree_tree, &parent_tree, Some(&merge_opts))
+            .with_context(|| {
+                format!(
+                    "Failed to simulate merge between working tree of '{}' and parent '{}'",
+                    session.name, parent_branch
+                )
+            })?;
+
+        let conflicting_paths = if merge_index.has_conflicts() {
+            collect_conflicting_paths(&merge_index)?
+        } else {
+            Vec::new()
+        };
+
+        let has_conflicts = !conflicting_paths.is_empty();
+
+        // Up-to-date check (no effective diff)
+        let diff = repo
+            .diff_tree_to_tree(Some(&parent_tree), Some(&worktree_tree), None)
+            .with_context(|| "Failed to diff worktree tree against parent")?;
+        let is_up_to_date = diff.deltas().len() == 0;
+
+        let default_message = format!("Merge session {} into {}", session.name, parent_branch);
+
+        Ok(MergePreview {
+            session_branch: session.branch.clone(),
+            parent_branch: parent_branch.to_string(),
+            squash_commands: vec![
+                format!("git rebase {}", parent_branch),
+                format!("git reset --soft {}", parent_branch),
+                "git commit -m \"<your message>\"".to_string(),
+            ],
+            reapply_commands: vec![
+                format!("git rebase {}", parent_branch),
+                format!(
+                    "git update-ref refs/heads/{} $(git rev-parse HEAD)",
+                    parent_branch
+                ),
+            ],
+            default_commit_message: default_message,
+            has_conflicts,
+            conflicting_paths,
+            is_up_to_date,
+        })
+    }
+
     pub fn preview(&self, session_name: &str) -> Result<MergePreview> {
         let context = self.prepare_context(session_name)?;
         let default_message = format!(
@@ -112,6 +224,86 @@ impl MergeService {
             conflicting_paths: assessment.conflicting_paths,
             is_up_to_date: assessment.is_up_to_date,
         })
+    }
+
+    pub async fn merge_from_modal(
+        &self,
+        session_name: &str,
+        mode: MergeMode,
+        commit_message: Option<String>,
+    ) -> Result<MergeOutcome> {
+        let manager = self.session_manager();
+        let session = manager.get_session(session_name)?;
+
+        if session.session_state == SessionState::Spec {
+            return Err(anyhow!(
+                "Session '{session_name}' is still a spec. Start it before merging."
+            ));
+        }
+
+        if !session.worktree_path.exists() {
+            return Err(anyhow!(
+                "Worktree for session '{session_name}' is missing at {}",
+                session.worktree_path.display()
+            ));
+        }
+
+        // Preflight: assess conflicts/up-to-date against current worktree snapshot (no writes)
+        let preview = self.preview_with_worktree(session_name)?;
+        if preview.has_conflicts {
+            return Err(anyhow!(
+                "Merge conflicts detected. Resolve conflicts before merging. Conflicting paths: {}",
+                preview.conflicting_paths.join(", ")
+            ));
+        }
+        if preview.is_up_to_date {
+            return Err(anyhow!(
+                "Nothing to merge: the session is already up to date with parent branch '{}'.",
+                preview.parent_branch
+            ));
+        }
+
+        match mode {
+            MergeMode::Squash => {
+                let message = commit_message
+                    .as_ref()
+                    .map(|m| m.trim().to_string())
+                    .filter(|m| !m.is_empty())
+                    .ok_or_else(|| anyhow!("Commit message is required for squash merges"))?;
+
+                let dirty = get_uncommitted_changes_status(&session.worktree_path)?;
+                if dirty.has_tracked_changes || dirty.has_untracked_changes {
+                    commit_all_changes(&session.worktree_path, &message)?;
+
+                    if has_uncommitted_changes(&session.worktree_path)? {
+                        return Err(anyhow!(
+                            "Failed to prepare squash merge because the session worktree is still dirty."
+                        ));
+                    }
+                }
+
+                if !session.ready_to_merge {
+                    manager
+                        .mark_session_ready_with_message(session_name, false, Some(&message))
+                        .with_context(|| format!("Failed to mark session '{session_name}' ready"))?;
+                }
+            }
+            MergeMode::Reapply => {
+                if has_uncommitted_changes(&session.worktree_path)? {
+                    return Err(anyhow!(
+                        "Uncommitted changes detected. Please commit your changes before reapplying."
+                    ));
+                }
+
+                if !session.ready_to_merge {
+                    manager
+                        .mark_session_ready_with_message(session_name, false, None)
+                        .with_context(|| format!("Failed to mark session '{session_name}' ready"))?;
+                }
+            }
+        }
+
+        self.merge(session_name, mode, commit_message).await
     }
 
     pub async fn merge(
@@ -1176,6 +1368,265 @@ mod tests {
         assert!(preview.is_up_to_date);
         assert!(!preview.has_conflicts);
         assert!(preview.conflicting_paths.is_empty());
+    }
+
+    #[tokio::test]
+    async fn preview_with_worktree_handles_unstaged_changes_without_marking_ready() {
+        let temp = TempDir::new().unwrap();
+        let (manager, db, repo_path) = create_session_manager(&temp);
+
+        let params = SessionCreationParams {
+            name: "dirty-session",
+            prompt: Some("dirty"),
+            base_branch: Some("main"),
+            custom_branch: None,
+            was_auto_generated: false,
+            version_group_id: None,
+            version_number: None,
+            agent_type: None,
+            skip_permissions: None,
+        };
+
+        let session = manager.create_session_with_agent(params).unwrap();
+
+        // Unstaged + untracked changes
+        std::fs::write(session.worktree_path.join("dirty.txt"), "local change\n").unwrap();
+        std::fs::write(session.worktree_path.join("untracked.txt"), "new file\n").unwrap();
+
+        let service = MergeService::new(db.clone(), repo_path.clone());
+        let preview = service.preview_with_worktree(&session.name).unwrap();
+
+        assert!(!preview.is_up_to_date);
+        assert!(!preview.has_conflicts);
+        assert!(preview.conflicting_paths.is_empty());
+
+        // Session should remain unreviewed (no ready flag flip)
+        let refreshed = manager.get_session(&session.name).unwrap();
+        assert!(!refreshed.ready_to_merge);
+    }
+
+    #[tokio::test]
+    async fn merge_from_modal_squash_commits_dirty_worktree() {
+        let temp = TempDir::new().unwrap();
+        let (manager, db, repo_path) = create_session_manager(&temp);
+
+        let params = SessionCreationParams {
+            name: "squash-dirty",
+            prompt: Some("do work"),
+            base_branch: Some("main"),
+            custom_branch: None,
+            was_auto_generated: false,
+            version_group_id: None,
+            version_number: None,
+            agent_type: None,
+            skip_permissions: None,
+        };
+
+        let session = manager.create_session_with_agent(params).unwrap();
+
+        std::fs::write(session.worktree_path.join("feature.txt"), "dirty work\n").unwrap();
+
+        let service = MergeService::new(db.clone(), repo_path.clone());
+        service
+            .merge_from_modal(&session.name, MergeMode::Squash, Some("squash message".into()))
+            .await
+            .unwrap();
+
+        // Parent branch should contain the change after merge
+        let parent_contents = std::fs::read_to_string(repo_path.join("feature.txt")).unwrap();
+        assert_eq!(parent_contents, "dirty work\n");
+
+        // Worktree should now be clean
+        assert!(!has_uncommitted_changes(&session.worktree_path).unwrap());
+    }
+
+    #[tokio::test]
+    async fn merge_from_modal_reapply_blocks_dirty_worktree() {
+        let temp = TempDir::new().unwrap();
+        let (_manager, db, repo_path) = create_session_manager(&temp);
+
+        let params = SessionCreationParams {
+            name: "reapply-dirty",
+            prompt: Some("do work"),
+            base_branch: Some("main"),
+            custom_branch: None,
+            was_auto_generated: false,
+            version_group_id: None,
+            version_number: None,
+            agent_type: None,
+            skip_permissions: None,
+        };
+
+        let manager = SessionManager::new(db.clone(), repo_path.clone());
+        let session = manager.create_session_with_agent(params).unwrap();
+
+        std::fs::write(
+            session.worktree_path.join("conflict.txt"),
+            "dirty change\n",
+        )
+        .unwrap();
+
+        let service = MergeService::new(db.clone(), repo_path.clone());
+        let err = service
+            .merge_from_modal(&session.name, MergeMode::Reapply, Some("message".into()))
+            .await
+            .unwrap_err();
+
+        let msg = err.to_string();
+        assert!(
+            msg.contains("commit your changes") || msg.contains("uncommitted changes"),
+            "unexpected error message: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn merge_from_modal_does_not_mark_ready_when_up_to_date() {
+        let temp = TempDir::new().unwrap();
+        let (manager, db, repo_path) = create_session_manager(&temp);
+
+        let params = SessionCreationParams {
+            name: "up-to-date",
+            prompt: Some("noop"),
+            base_branch: Some("main"),
+            custom_branch: None,
+            was_auto_generated: false,
+            version_group_id: None,
+            version_number: None,
+            agent_type: None,
+            skip_permissions: None,
+        };
+
+        let session = manager.create_session_with_agent(params).unwrap();
+
+        // no changes in worktree
+        let service = MergeService::new(db.clone(), repo_path.clone());
+        let err = service
+            .merge_from_modal(&session.name, MergeMode::Reapply, Some("msg".into()))
+            .await
+            .unwrap_err()
+            .to_string();
+
+        assert!(err.contains("Nothing to merge") || err.contains("up to date"), "unexpected message: {err}");
+
+        let refreshed = manager.get_session(&session.name).unwrap();
+        assert!(!refreshed.ready_to_merge);
+    }
+
+    #[tokio::test]
+    async fn merge_from_modal_squash_allows_clean_committed_changes() {
+        let temp = TempDir::new().unwrap();
+        let (manager, db, repo_path) = create_session_manager(&temp);
+
+        let params = SessionCreationParams {
+            name: "clean-squash",
+            prompt: Some("clean squash"),
+            base_branch: Some("main"),
+            custom_branch: None,
+            was_auto_generated: false,
+            version_group_id: None,
+            version_number: None,
+            agent_type: None,
+            skip_permissions: None,
+        };
+
+        let session = manager.create_session_with_agent(params).unwrap();
+
+        // Commit a change manually (clean tree afterwards)
+        std::fs::write(session.worktree_path.join("file.txt"), "commit me\n").unwrap();
+        run_git(
+            &session.worktree_path,
+            vec![OsString::from("add"), OsString::from("file.txt")],
+        )
+        .unwrap();
+        run_git(
+            &session.worktree_path,
+            vec![
+                OsString::from("commit"),
+                OsString::from("-m"),
+                OsString::from("manual change"),
+            ],
+        )
+        .unwrap();
+
+        let service = MergeService::new(db.clone(), repo_path.clone());
+        service
+            .merge_from_modal(&session.name, MergeMode::Squash, Some("squash message".into()))
+            .await
+            .unwrap();
+
+        let parent_contents = std::fs::read_to_string(repo_path.join("file.txt")).unwrap();
+        assert_eq!(parent_contents, "commit me\n");
+    }
+
+    #[tokio::test]
+    async fn preview_with_worktree_detects_conflicts_from_dirty_files() {
+        let temp = TempDir::new().unwrap();
+        let (manager, db, repo_path) = create_session_manager(&temp);
+
+        // Base file on parent
+        std::fs::write(repo_path.join("conflict.txt"), "base\n").unwrap();
+        run_git(
+            &repo_path,
+            vec![OsString::from("add"), OsString::from("conflict.txt")],
+        )
+        .unwrap();
+        run_git(
+            &repo_path,
+            vec![
+                OsString::from("commit"),
+                OsString::from("-m"),
+                OsString::from("add base"),
+            ],
+        )
+        .unwrap();
+
+        let params = SessionCreationParams {
+            name: "dirty-conflict",
+            prompt: Some("conflict dirty"),
+            base_branch: Some("main"),
+            custom_branch: None,
+            was_auto_generated: false,
+            version_group_id: None,
+            version_number: None,
+            agent_type: None,
+            skip_permissions: None,
+        };
+
+        let session = manager.create_session_with_agent(params).unwrap();
+
+        // Parent diverges
+        std::fs::write(repo_path.join("conflict.txt"), "parent change\n").unwrap();
+        run_git(
+            &repo_path,
+            vec![OsString::from("add"), OsString::from("conflict.txt")],
+        )
+        .unwrap();
+        run_git(
+            &repo_path,
+            vec![
+                OsString::from("commit"),
+                OsString::from("-m"),
+                OsString::from("parent diverge"),
+            ],
+        )
+        .unwrap();
+
+        // Session makes conflicting unstaged change
+        std::fs::write(
+            session.worktree_path.join("conflict.txt"),
+            "session change\n",
+        )
+        .unwrap();
+
+        let service = MergeService::new(db.clone(), repo_path.clone());
+        let preview = service.preview_with_worktree(&session.name).unwrap();
+
+        assert!(preview.has_conflicts);
+        assert!(!preview.conflicting_paths.is_empty());
+        assert!(!preview.is_up_to_date);
+
+        let refreshed = manager.get_session(&session.name).unwrap();
+        assert!(!refreshed.ready_to_merge);
     }
 
     #[tokio::test]

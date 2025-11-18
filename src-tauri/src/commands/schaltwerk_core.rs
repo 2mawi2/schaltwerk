@@ -173,6 +173,21 @@ pub async fn schaltwerk_core_get_merge_preview(name: String) -> Result<MergePrev
     service.preview(&name).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub async fn schaltwerk_core_get_merge_preview_with_worktree(
+    name: String,
+) -> Result<MergePreview, String> {
+    let (db, repo_path) = {
+        let core = get_core_read().await?;
+        (core.db.clone(), core.repo_path.clone())
+    };
+
+    let service = MergeService::new(db, repo_path);
+    service
+        .preview_with_worktree(&name)
+        .map_err(|e| e.to_string())
+}
+
 #[derive(Debug, Clone)]
 pub struct MergeCommandError {
     pub message: String,
@@ -184,7 +199,7 @@ pub async fn merge_session_with_events(
     name: &str,
     mode: MergeMode,
     commit_message: Option<String>,
-) -> Result<MergeOutcome, MergeCommandError> {
+    ) -> Result<MergeOutcome, MergeCommandError> {
     let (db, repo_path) = match get_core_write().await {
         Ok(core) => (core.db.clone(), core.repo_path.clone()),
         Err(e) => {
@@ -196,7 +211,9 @@ pub async fn merge_session_with_events(
     };
 
     let service = MergeService::new(db, repo_path);
-    let preview = service.preview(name).map_err(|e| MergeCommandError {
+    let manager = service.session_manager();
+
+    let session = manager.get_session(name).map_err(|e| MergeCommandError {
         message: e.to_string(),
         conflict: false,
     })?;
@@ -204,12 +221,15 @@ pub async fn merge_session_with_events(
     events::emit_git_operation_started(
         app,
         name,
-        &preview.session_branch,
-        &preview.parent_branch,
+        &session.branch,
+        &session.parent_branch,
         mode.as_str(),
     );
 
-    match service.merge(name, mode, commit_message).await {
+    match service
+        .merge_from_modal(name, mode, commit_message.clone())
+        .await
+    {
         Ok(outcome) => {
             events::emit_git_operation_completed(
                 app,
@@ -229,7 +249,7 @@ pub async fn merge_session_with_events(
             let message = if conflict {
                 format!(
                     "Merge conflicts detected while updating '{}'. Resolve the conflicts in the session worktree and try again.\n{}",
-                    preview.parent_branch, summary
+                    session.parent_branch, summary
                 )
             } else {
                 summary.clone()
@@ -248,7 +268,8 @@ pub async fn merge_session_with_events(
                         schaltwerk::domains::git::operations::has_conflicts(&session.worktree_path)
                             .unwrap_or(false);
 
-                    let mut merge_snapshot = MergeStateSnapshot::from_preview(Some(&preview));
+                    let preview = service.preview_with_worktree(name).ok();
+                    let mut merge_snapshot = MergeStateSnapshot::from_preview(preview.as_ref());
                     merge_snapshot.merge_has_conflicts = Some(true);
 
                     let payload = schaltwerk::domains::sessions::activity::SessionGitStatsUpdated {
@@ -278,8 +299,8 @@ pub async fn merge_session_with_events(
             events::emit_git_operation_failed(
                 app,
                 name,
-                &preview.session_branch,
-                &preview.parent_branch,
+                &session.branch,
+                &session.parent_branch,
                 mode.as_str(),
                 if conflict { "conflict" } else { "error" },
                 &message,

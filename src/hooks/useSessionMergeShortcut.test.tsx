@@ -70,7 +70,7 @@ describe('useSessionMergeShortcut', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     const session = createSession()
-    quickMergeSession.mockResolvedValue({ status: 'blocked', reason: 'already-merged' })
+    quickMergeSession.mockResolvedValue({ status: 'needs-modal', reason: 'confirm' })
     setFilterMode.mockReset()
     isMergeInFlight.mockReturnValue(false)
     isAnyModalOpen.mockReturnValue(false)
@@ -121,7 +121,7 @@ describe('useSessionMergeShortcut', () => {
   })
 
   it('keeps filter steady by default even after auto-marking ready', async () => {
-    quickMergeSession.mockResolvedValueOnce({ status: 'started', autoMarkedReady: true })
+    quickMergeSession.mockResolvedValueOnce({ status: 'needs-modal', reason: 'confirm' })
     const { result } = renderHook(() => useSessionMergeShortcut())
 
     await act(async () => {
@@ -132,8 +132,8 @@ describe('useSessionMergeShortcut', () => {
     expect(quickMergeSession).toHaveBeenCalledWith('session-1', { commitMessage: null })
   })
 
-  it('pivots filter when opt-in is enabled and session is auto-marked ready', async () => {
-    quickMergeSession.mockResolvedValueOnce({ status: 'started', autoMarkedReady: true })
+  it('does not pivot filter even when filter pivot opt-in is on (no auto-ready)', async () => {
+    quickMergeSession.mockResolvedValueOnce({ status: 'needs-modal', reason: 'confirm' })
     const { result } = renderHook(() =>
       useSessionMergeShortcut({ enableFilterPivot: true }),
     )
@@ -142,11 +142,11 @@ describe('useSessionMergeShortcut', () => {
       await result.current.handleMergeShortcut()
     })
 
-    expect(setFilterMode).toHaveBeenCalledWith(FilterMode.All)
+    expect(setFilterMode).not.toHaveBeenCalled()
   })
 
   it('passes cached commit drafts into quick merges', async () => {
-    quickMergeSession.mockResolvedValueOnce({ status: 'started', autoMarkedReady: false })
+    quickMergeSession.mockResolvedValueOnce({ status: 'needs-modal', reason: 'confirm' })
     const getCommitDraftForSession = vi.fn().mockReturnValue('cached message')
     const { result } = renderHook(() =>
       useSessionMergeShortcut({ getCommitDraftForSession }),
