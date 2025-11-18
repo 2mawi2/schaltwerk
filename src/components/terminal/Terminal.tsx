@@ -40,6 +40,8 @@ import { shouldEmitControlPaste, shouldEmitControlNewline } from './terminalKeyb
 import { hydrateReusedTerminal } from './hydration'
 import { parseTerminalFileReference, resolveTerminalFileReference } from '../../terminal/xterm/fileLinks/terminalFileLinks'
 
+import { TerminalViewportController } from './viewport/TerminalViewportController'
+
 const DEFAULT_SCROLLBACK_LINES = 10000
 const BACKGROUND_SCROLLBACK_LINES = 5000
 const AGENT_SCROLLBACK_LINES = 20000
@@ -197,6 +199,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const lastSize = useRef<{ cols: number; rows: number }>({ cols: 80, rows: 24 });
     const lastEffectiveRef = useRef<{ cols: number; rows: number }>(lastEffectiveRefInit);
     const resizeCoordinatorRef = useRef<TerminalResizeCoordinator | null>(null);
+    const viewportControllerRef = useRef<TerminalViewportController | null>(null);
     const existingInstance = hasTerminalInstance(terminalId);
     const [hydrated, setHydrated] = useState(existingInstance);
     const hydratedRef = useRef<boolean>(existingInstance);
@@ -341,7 +344,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             requestAnimationFrame(() => {
                 requestAnimationFrame(() => {
                     try {
-                        terminal.current?.scrollToBottom();
+                        viewportControllerRef.current?.onResize();
                     } catch (e) {
                         logger.debug(`[Terminal ${terminalId}] Failed to scroll to bottom after resize`, e);
                     }
@@ -416,6 +419,23 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             resizeCoordinatorRef.current = null;
         };
     }, [applySizeUpdate]);
+
+    // Initialize Viewport Controller
+    useEffect(() => {
+        // We need the terminal instance to be ready
+        if (!xtermWrapperRef.current) return;
+
+        const controller = new TerminalViewportController({
+            terminal: xtermWrapperRef.current,
+            logger: termDebug() ? (msg) => logger.debug(`[Terminal ${terminalId}] ${msg}`) : undefined
+        });
+        viewportControllerRef.current = controller;
+
+        return () => {
+            controller.dispose();
+            viewportControllerRef.current = null;
+        };
+    }, [terminalId, hydrated]); // Re-init if hydration changes (implies instance might have changed/reset)
 
     const {
         gpuRenderer,
@@ -589,10 +609,12 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 xtermWrapperRef.current.setSmoothScrolling(smoothScrollingEnabled && next);
             }
         };
-
-        node.addEventListener('wheel', handleWheel, { passive: true });
+        
+        // Use capture phase for wheel events to intercept them before xterm consumes them
+        // This is crucial for custom scrolling behavior or monitoring
+        node.addEventListener('wheel', handleWheel, { passive: true, capture: true });
         return () => {
-            node.removeEventListener('wheel', handleWheel);
+            node.removeEventListener('wheel', handleWheel, { capture: true });
         };
     }, [smoothScrollingEnabled]);
 
@@ -623,6 +645,10 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             if (target && searchContainerRef.current && searchContainerRef.current.contains(target)) {
                 return;
             }
+
+            // Fix for stuck scrolling: refresh viewport and re-engage scroll lock if close to bottom
+            // This mirrors the resize fix but triggers on focus/interaction
+            viewportControllerRef.current?.onFocusOrClick();
             onTerminalClick();
         };
 
@@ -773,7 +799,12 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 unlistenForceScroll = await listenEvent(SchaltEvent.TerminalForceScroll, (payload) => {
                     if (payload.terminal_id === terminalId) {
                         logger.info(`[Terminal] Force scrolling terminal ${terminalId} to bottom`);
-                        scrollToBottomInstant();
+                        // Use controller if available for consistent logging/behavior, fallback to direct call
+                        if (viewportControllerRef.current) {
+                            viewportControllerRef.current.onResize(); // onResize forces scroll to bottom
+                        } else {
+                            scrollToBottomInstant();
+                        }
                     }
                 });
             } catch (e) {
@@ -1184,6 +1215,10 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                     logger.debug(`[Terminal ${terminalId}] Visibility pre-fit failure`, e);
                 }
                 resizeCoordinatorRef.current?.flush('visibility');
+                
+                // Ensure viewport is synced (scroll lock + refresh)
+                viewportControllerRef.current?.onVisibilityChange(true);
+
                 try {
                     requestResize('visibility', { immediate: true, force: true });
                 } catch (e) {
