@@ -199,7 +199,7 @@ pub async fn merge_session_with_events(
     name: &str,
     mode: MergeMode,
     commit_message: Option<String>,
-    ) -> Result<MergeOutcome, MergeCommandError> {
+) -> Result<MergeOutcome, MergeCommandError> {
     let (db, repo_path) = match get_core_write().await {
         Ok(core) => (core.db.clone(), core.repo_path.clone()),
         Err(e) => {
