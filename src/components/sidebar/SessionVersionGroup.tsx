@@ -34,6 +34,7 @@ interface SessionVersionGroupProps {
   currentSpecId?: string | null  // Optional: current spec selected in spec mode
   isSessionRunning?: (sessionId: string) => boolean  // Function to check if a session is running
   onMerge?: (sessionId: string) => void
+  onQuickMerge?: (sessionId: string) => void
   isMergeDisabled?: (sessionId: string) => boolean
   getMergeStatus?: (sessionId: string) => MergeStatus
   isMarkReadyDisabled?: boolean
@@ -62,6 +63,7 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
   currentSpecId,
   isSessionRunning,
   onMerge,
+  onQuickMerge,
   isMergeDisabled,
   getMergeStatus,
   isMarkReadyDisabled = false,
@@ -102,6 +104,7 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
         isResetting={isResettingForSession}
         isRunning={isSessionRunning?.(session.session.info.session_id) || false}
         onMerge={onMerge}
+        onQuickMerge={onQuickMerge}
         disableMerge={isMergeDisabled?.(session.session.info.session_id) || false}
         mergeStatus={getMergeStatus?.(session.session.info.session_id) ?? 'idle'}
         isMarkReadyDisabled={isMarkReadyDisabled}
@@ -326,6 +329,7 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
                         && resettingSelection.payload === version.session.info.session_id}
                       isRunning={isSessionRunning?.(version.session.info.session_id) || false}
                       onMerge={onMerge}
+                      onQuickMerge={onQuickMerge}
                       disableMerge={isMergeDisabled?.(version.session.info.session_id) || false}
                       mergeStatus={getMergeStatus?.(version.session.info.session_id) ?? 'idle'}
                       isMarkReadyDisabled={isMarkReadyDisabled}

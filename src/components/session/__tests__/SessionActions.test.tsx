@@ -116,3 +116,47 @@ describe('SessionActions – GitHub PR button', () => {
     })
   })
 })
+
+describe('SessionActions – Running state', () => {
+  const mockGithub = {
+    canCreatePr: true,
+    isCreatingPr: () => false,
+    getCachedPrUrl: () => undefined,
+    isGhMissing: false,
+    hasRepository: true,
+  } as unknown as GithubIntegrationValue
+
+  it('shows quick merge button when onQuickMerge is provided', () => {
+    const onQuickMerge = vi.fn()
+    render(
+      <GithubIntegrationContext.Provider value={mockGithub}>
+        <SessionActions
+          sessionState="running"
+          isReadyToMerge={false}
+          sessionId="session-123"
+          onQuickMerge={onQuickMerge}
+        />
+      </GithubIntegrationContext.Provider>
+    )
+
+    const button = screen.getByLabelText('Quick merge session')
+    expect(button).toBeInTheDocument()
+    fireEvent.click(button)
+    expect(onQuickMerge).toHaveBeenCalledWith('session-123')
+  })
+
+  it('does not show quick merge button when onQuickMerge is missing', () => {
+    render(
+      <GithubIntegrationContext.Provider value={mockGithub}>
+        <SessionActions
+          sessionState="running"
+          isReadyToMerge={false}
+          sessionId="session-123"
+        />
+      </GithubIntegrationContext.Provider>
+    )
+
+    const button = screen.queryByLabelText('Quick merge session')
+    expect(button).not.toBeInTheDocument()
+  })
+})
