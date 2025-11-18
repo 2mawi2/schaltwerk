@@ -251,7 +251,7 @@ describe('selection atoms', () => {
     })
   })
 
-  it('ignores first spec revert after running and clears on second', async () => {
+  it('verifies state with backend before resetting terminals on running->spec transition', async () => {
     await withNodeEnv('development', async () => {
       const backend = await import('../../terminal/transport/backend')
 
@@ -259,22 +259,29 @@ describe('selection atoms', () => {
       await store.set(initializeSelectionEventsActionAtom)
 
       // Start in running state
+      nextSessionResponse = createRawSession({ session_state: 'running', status: 'running', ready_to_merge: false })
       await emitSessionsRefreshed([
         { info: { session_id: 'session-1', session_state: 'running', status: 'running', ready_to_merge: false } },
       ])
 
       vi.mocked(backend.closeTerminalBackend).mockClear()
 
-      // First revert to spec should be ignored
+      // Simulate STALE spec event (e.g. from slow query)
+      // BUT make sure the backend query returns RUNNING when verified
+      nextSessionResponse = createRawSession({ session_state: 'running', status: 'running', ready_to_merge: false })
+      
       await emitSessionsRefreshed([
         { info: { session_id: 'session-1', session_state: 'spec', status: 'spec', ready_to_merge: false } },
       ])
 
       await waitFor(() => {
+        // Verification should have prevented close
         expect(vi.mocked(backend.closeTerminalBackend)).not.toHaveBeenCalled()
       })
 
-      // Second consecutive spec should trigger cleanup
+      // Now simulate ACTUAL spec transition (backend returns spec)
+      nextSessionResponse = createRawSession({ session_state: 'spec', status: 'spec', ready_to_merge: false })
+      
       await emitSessionsRefreshed([
         { info: { session_id: 'session-1', session_state: 'spec', status: 'spec', ready_to_merge: false } },
       ])
