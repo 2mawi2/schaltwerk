@@ -1539,72 +1539,88 @@ function AppContent() {
                       </SessionErrorBoundary>
                     </div>
                     <div
-                      className="p-2 border-t grid grid-cols-2 gap-2"
+                      className="p-2 border-t"
                       style={{ borderTopColor: theme.colors.border.default }}
                     >
-                      <button
-                        onClick={() => {
-                          previousFocusRef.current = document.activeElement
-                          setNewSessionOpen(true)
-                        }}
-                        className="w-full text-sm px-3 py-2 rounded group transition-colors flex items-center justify-between border"
-                        style={{
-                          backgroundColor: `${theme.colors.background.elevated}99`,
-                          color: theme.colors.text.primary,
-                          borderColor: theme.colors.border.subtle
-                        }}
-                        data-onboarding="start-agent-button"
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = `${theme.colors.background.hover}99`
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = `${theme.colors.background.elevated}99`
-                        }}
-                        title={`Start agent (${startShortcut})`}
+                      <div
+                        className="flex items-center justify-between px-1 pb-2 text-[11px]"
+                        style={{ color: theme.colors.text.muted, fontSize: theme.fontSize.caption }}
+                        aria-hidden="true"
                       >
-                        <span>Start Agent</span>
-                        <span
-                          className="text-xs px-2 py-0.5 rounded transition-opacity group-hover:opacity-100"
-                          style={{
-                            backgroundColor: theme.colors.background.secondary,
-                            color: theme.colors.text.secondary
-                          }}
-                        >
-                          {startShortcut}
+                        <span className="flex items-center gap-2">
+                          <span>Navigate sessions</span>
+                          <span style={{ color: theme.colors.text.secondary }}>⌘↑ · ⌘↓</span>
                         </span>
-                      </button>
-                      <button
-                        onClick={() => {
-                          previousFocusRef.current = document.activeElement
-                          setOpenAsSpec(true)
-                          setNewSessionOpen(true)
-                        }}
-                        className="w-full text-sm px-3 py-2 rounded group border transition-colors flex items-center justify-between"
-                        style={{
-                          backgroundColor: theme.colors.accent.amber.bg,
-                          borderColor: theme.colors.accent.amber.border,
-                          color: theme.colors.text.primary
-                        }}
-                        data-onboarding="create-spec-button"
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = `${theme.colors.accent.amber.DEFAULT}33`
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = theme.colors.accent.amber.bg
-                        }}
-                        title={`Create spec (${specShortcut})`}
-                      >
-                        <span>Create Spec</span>
-                        <span
-                          className="text-xs px-2 py-0.5 rounded transition-opacity group-hover:opacity-100"
-                          style={{
-                            backgroundColor: withOpacity(theme.colors.accent.amber.DEFAULT, 0.15),
-                            color: theme.colors.accent.amber.light
-                          }}
-                        >
-                          {specShortcut}
+                        <span className="flex items-center gap-2">
+                          <span>Cycle filters</span>
+                          <span style={{ color: theme.colors.text.secondary }}>⌘← · ⌘→</span>
                         </span>
-                      </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => {
+                            previousFocusRef.current = document.activeElement
+                            setNewSessionOpen(true)
+                          }}
+                          className="w-full text-sm px-3 py-2 rounded group transition-colors flex items-center justify-between border"
+                          style={{
+                            backgroundColor: `${theme.colors.background.elevated}99`,
+                            color: theme.colors.text.primary,
+                            borderColor: theme.colors.border.subtle
+                          }}
+                          data-onboarding="start-agent-button"
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = `${theme.colors.background.hover}99`
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = `${theme.colors.background.elevated}99`
+                          }}
+                          title={`Start agent (${startShortcut})`}
+                        >
+                          <span>Start Agent</span>
+                          <span
+                            className="text-xs px-2 py-0.5 rounded transition-opacity group-hover:opacity-100"
+                            style={{
+                              backgroundColor: theme.colors.background.secondary,
+                              color: theme.colors.text.secondary
+                            }}
+                          >
+                            {startShortcut}
+                          </span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            previousFocusRef.current = document.activeElement
+                            setOpenAsSpec(true)
+                            setNewSessionOpen(true)
+                          }}
+                          className="w-full text-sm px-3 py-2 rounded group border transition-colors flex items-center justify-between"
+                          style={{
+                            backgroundColor: theme.colors.accent.amber.bg,
+                            borderColor: theme.colors.accent.amber.border,
+                            color: theme.colors.text.primary
+                          }}
+                          data-onboarding="create-spec-button"
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = `${theme.colors.accent.amber.DEFAULT}33`
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = theme.colors.accent.amber.bg
+                          }}
+                          title={`Create spec (${specShortcut})`}
+                        >
+                          <span>Create Spec</span>
+                          <span
+                            className="text-xs px-2 py-0.5 rounded transition-opacity group-hover:opacity-100"
+                            style={{
+                              backgroundColor: withOpacity(theme.colors.accent.amber.DEFAULT, 0.15),
+                              color: theme.colors.accent.amber.light
+                            }}
+                          >
+                            {specShortcut}
+                          </span>
+                        </button>
+                      </div>
                     </div>
               </div>
                 </div>
