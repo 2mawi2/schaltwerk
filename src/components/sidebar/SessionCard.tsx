@@ -43,6 +43,7 @@ interface SessionCardProps {
     isResetting?: boolean
     isRunning?: boolean
     onMerge?: (sessionId: string) => void
+    onQuickMerge?: (sessionId: string) => void
     disableMerge?: boolean
     mergeStatus?: MergeStatus
     isMarkReadyDisabled?: boolean
@@ -122,6 +123,7 @@ export const SessionCard = memo<SessionCardProps>(({
     isResetting = false,
     isRunning = false,
     onMerge,
+    onQuickMerge,
     disableMerge = false,
     mergeStatus = 'idle',
     isMarkReadyDisabled = false,
@@ -413,6 +415,7 @@ export const SessionCard = memo<SessionCardProps>(({
                             onSwitchModel={onSwitchModel}
                             isResetting={isResetting}
                             onMerge={onMerge}
+                            onQuickMerge={onQuickMerge}
                             disableMerge={disableMerge}
                             mergeStatus={mergeStatus}
                             mergeConflictingPaths={s.merge_conflicting_paths}
@@ -446,6 +449,7 @@ export const SessionCard = memo<SessionCardProps>(({
                         onSwitchModel={onSwitchModel}
                         isResetting={isResetting}
                         onMerge={onMerge}
+                        onQuickMerge={onQuickMerge}
                         disableMerge={disableMerge}
                         mergeStatus={mergeStatus}
                         mergeConflictingPaths={s.merge_conflicting_paths}

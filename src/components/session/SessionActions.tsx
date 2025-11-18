@@ -50,6 +50,7 @@ interface SessionActionsProps {
   onSwitchModel?: (sessionId: string) => void;
   isResetting?: boolean;
   onMerge?: (sessionId: string) => void;
+  onQuickMerge?: (sessionId: string) => void;
   disableMerge?: boolean;
   mergeStatus?: MergeStatus;
   isMarkReadyDisabled?: boolean;
@@ -78,6 +79,7 @@ export function SessionActions({
   onReset,
   onSwitchModel,
   onMerge,
+  onQuickMerge,
   isResetting = false,
   disableMerge = false,
   mergeStatus = 'idle',
@@ -218,6 +220,14 @@ export function SessionActions({
               ariaLabel="Reset session"
               tooltip="Reset session (⌘Y)"
               disabled={isResetting}
+            />
+          )}
+          {onQuickMerge && (
+            <IconButton
+              icon={<VscGitMerge />}
+              onClick={() => onQuickMerge(sessionId)}
+              ariaLabel="Quick merge session"
+              tooltip="Merge session (⌘⇧M)"
             />
           )}
           {onMarkReviewed && (
