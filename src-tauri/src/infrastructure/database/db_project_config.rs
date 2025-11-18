@@ -497,19 +497,16 @@ impl ProjectConfigMethods for Database {
         let canonical_path =
             std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
 
-        let query_res: rusqlite::Result<i64> = conn.query_row(
+        let query_res: rusqlite::Result<Option<i64>> = conn.query_row(
             "SELECT auto_cancel_after_merge FROM project_config WHERE repository_path = ?1",
             params![canonical_path.to_string_lossy()],
             |row| row.get(0),
         );
 
         let auto_cancel = match query_res {
-            Ok(auto_cancel_raw) => auto_cancel_raw != 0,
-            Err(rusqlite::Error::QueryReturnedNoRows) => true,
-            Err(e) => match e {
-                rusqlite::Error::SqliteFailure(_, _) => true,
-                other => return Err(other.into()),
-            },
+            Ok(Some(value)) => value != 0,
+            Ok(None) | Err(rusqlite::Error::QueryReturnedNoRows) => true,
+            Err(e) => return Err(e.into()),
         };
 
         Ok(ProjectMergePreferences {
@@ -527,7 +524,11 @@ impl ProjectConfigMethods for Database {
 
         let canonical_path =
             std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
-        let value = if preferences.auto_cancel_after_merge { 1 } else { 0 };
+        let value = if preferences.auto_cancel_after_merge {
+            1
+        } else {
+            0
+        };
 
         conn.execute(
             "INSERT INTO project_config (repository_path, auto_cancel_after_merge,

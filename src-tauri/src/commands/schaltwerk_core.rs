@@ -199,7 +199,7 @@ pub async fn merge_session_with_events(
     name: &str,
     mode: MergeMode,
     commit_message: Option<String>,
-) -> Result<MergeOutcome, MergeCommandError> {
+    ) -> Result<MergeOutcome, MergeCommandError> {
     let (db, repo_path) = match get_core_write().await {
         Ok(core) => (core.db.clone(), core.repo_path.clone()),
         Err(e) => {
@@ -1176,8 +1176,6 @@ pub async fn schaltwerk_core_start_claude_with_restart(
     log::info!("Starting Claude for session: {session_name}");
 
     let core = get_core_write().await?;
-    let db = core.db.clone();
-    let repo_path = core.repo_path.clone();
     let manager = core.session_manager();
 
     let session = manager
@@ -1240,9 +1238,6 @@ pub async fn schaltwerk_core_start_claude_with_restart(
             format!("Failed to start {agent_type} in session: {e}")
         })?;
 
-    // Drop the global core write lock before doing any potentially slow terminal launches.
-    drop(core);
-
     let command = spec.shell_command.clone();
     let initial_command = spec.initial_command.clone();
 
@@ -1303,7 +1298,7 @@ pub async fn schaltwerk_core_start_claude_with_restart(
     }
 
     let (mut env_vars, cli_args, preferences) =
-        agent_ctx::collect_agent_env_and_cli(&agent_kind, &repo_path, &db).await;
+        agent_ctx::collect_agent_env_and_cli(&agent_kind, &core.repo_path, &core.db).await;
     log::info!(
         "Creating terminal with {agent_name} directly: {terminal_id} with {} env vars and CLI args: '{cli_args}'",
         env_vars.len()
@@ -1332,7 +1327,7 @@ pub async fn schaltwerk_core_start_claude_with_restart(
             use_shell_chain = true;
         }
     }
-    if let Ok(Some(setup)) = db.get_project_setup_script(&repo_path)
+    if let Ok(Some(setup)) = core.db.get_project_setup_script(&core.repo_path)
         && !setup.trim().is_empty()
     {
         // Persist setup script to a temp file for reliable execution
@@ -1516,10 +1511,10 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
             return Err(format!("Failed to initialize orchestrator: {e}"));
         }
     };
-    let db = core.db.clone();
-    let repo_path = core.repo_path.clone();
     let manager = core.session_manager();
-    let configured_default_branch = db
+    let repo_path = core.repo_path.clone();
+    let configured_default_branch = core
+        .db
         .get_default_base_branch()
         .map_err(|err| {
             log::warn!(
@@ -1559,9 +1554,6 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
             format!("Failed to start Claude in orchestrator: {e}")
         })?;
 
-    // Release the global write lock before launching the terminal process.
-    drop(core);
-
     log::info!(
         "Claude command for orchestrator: {}",
         command_spec.shell_command.as_str()
@@ -1569,12 +1561,14 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
     let result = agent_launcher::launch_in_terminal(
         terminal_id.clone(),
         command_spec,
-        &db,
-        &repo_path,
+        &core.db,
+        &core.repo_path,
         cols,
         rows,
     )
     .await?;
+
+    drop(core);
 
     emit_terminal_agent_started(&app, &terminal_id, None);
 

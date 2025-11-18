@@ -395,7 +395,7 @@ describe('useSettings', () => {
       }
 
       const mergePreferences = {
-        autoCancelAfterMerge: true,
+        autoCancelAfterMerge: true
       }
 
       const saveResult = await act(async () => {
@@ -487,7 +487,7 @@ describe('useSettings', () => {
       }
 
       const mergePreferences = {
-        autoCancelAfterMerge: false,
+        autoCancelAfterMerge: false
       }
 
       const saveResult = await act(async () => {
@@ -575,7 +575,7 @@ describe('useSettings', () => {
       }
 
       const mergePreferences = {
-        autoCancelAfterMerge: false,
+        autoCancelAfterMerge: false
       }
 
       const saveResult = await act(async () => {

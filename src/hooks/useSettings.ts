@@ -353,11 +353,11 @@ export const useSettings = () => {
 
     const loadMergePreferences = useCallback(async (): Promise<ProjectMergePreferences> => {
         try {
-            const preferences = await invoke<{ auto_cancel_after_merge?: boolean }>(
+            const preferences = await invoke<{ auto_cancel_after_merge: boolean }>(
                 TauriCommands.GetProjectMergePreferences
             )
             return {
-                autoCancelAfterMerge: preferences?.auto_cancel_after_merge !== false,
+                autoCancelAfterMerge: preferences?.auto_cancel_after_merge !== false
             }
         } catch (error) {
             logger.error('Failed to load project merge preferences:', error)

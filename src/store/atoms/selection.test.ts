@@ -62,8 +62,6 @@ vi.mock('../../common/uiEvents', () => ({
     }
     return Promise.resolve(() => {})
   }),
-  hasBackgroundStart: vi.fn(() => false),
-  clearBackgroundStarts: vi.fn(),
 }))
 
 vi.mock('../../terminal/transport/backend', () => ({
@@ -72,16 +70,9 @@ vi.mock('../../terminal/transport/backend', () => ({
 }))
 
 vi.mock('../../terminal/registry/terminalRegistry', () => ({
-  hasTerminalInstance: vi.fn(),
-  acquireTerminalInstance: vi.fn(() => ({ record: { refCount: 1 }, isNew: true })),
-  releaseTerminalInstance: vi.fn(),
-  removeTerminalInstance: vi.fn(),
+  hasTerminalInstance: vi.fn(() => false),
   releaseSessionTerminals: vi.fn(),
-}))
-
-vi.mock('../../components/terminal/Terminal', () => ({
-  Terminal: () => null,
-  clearTerminalStartedTracking: vi.fn(),
+  releaseTerminalInstance: vi.fn(),
 }))
 
 function createRawSession(overrides: Partial<Record<string, unknown>> = {}) {
@@ -170,9 +161,6 @@ describe('selection atoms', () => {
     vi.mocked(registry.hasTerminalInstance).mockReturnValue(false)
     vi.mocked(registry.releaseSessionTerminals).mockReset()
     vi.mocked(registry.releaseTerminalInstance).mockReset()
-
-    const terminal = await import('../../components/terminal/Terminal')
-    vi.mocked(terminal.clearTerminalStartedTracking).mockClear()
   })
 
   const getInvokeCallCount = (command: string) =>
@@ -184,13 +172,6 @@ describe('selection atoms', () => {
     expect(store.get(selectionValueAtom)).toEqual({ kind: 'orchestrator', projectPath: null })
     expect(store.get(isReadyAtom)).toBe(true)
     expect(store.get(isSpecAtom)).toBe(false)
-  })
-
-  it('clears terminal started tracking when clearing terminals', async () => {
-    const terminal = await import('../../components/terminal/Terminal')
-    const ids = ['term-1', 'term-2']
-    await store.set(clearTerminalTrackingActionAtom, ids)
-    expect(vi.mocked(terminal.clearTerminalStartedTracking)).toHaveBeenCalledWith(ids)
   })
 
   it('derives orchestrator terminal ids from project path', async () => {

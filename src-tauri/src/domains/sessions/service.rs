@@ -3181,12 +3181,6 @@ impl SessionManager {
 
         let has_uncommitted = git::has_uncommitted_changes(&session.worktree_path)?;
 
-        if has_uncommitted && !auto_commit {
-            return Err(anyhow!(
-                "Session '{session_name}' has uncommitted changes. Enable auto-commit or clean the worktree before marking as reviewed."
-            ));
-        }
-
         if has_uncommitted && auto_commit {
             let message = commit_message
                 .map(|m| m.to_string())
@@ -3209,13 +3203,6 @@ impl SessionManager {
         let session = self.db_manager.get_session_by_name(session_name)?;
         self.db_manager
             .update_session_ready_to_merge(&session.id, false)?;
-        Ok(())
-    }
-
-    pub fn set_session_ready_flag(&self, session_name: &str, ready: bool) -> Result<()> {
-        let session = self.db_manager.get_session_by_name(session_name)?;
-        self.db_manager
-            .update_session_ready_to_merge(&session.id, ready)?;
         Ok(())
     }
 

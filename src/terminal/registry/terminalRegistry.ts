@@ -3,6 +3,7 @@ import { XtermTerminal } from '../xterm/XtermTerminal';
 import { disposeGpuRenderer } from '../gpu/gpuRendererRegistry';
 import { sessionTerminalBaseVariants, sanitizeSessionName } from '../../common/terminalIdentity';
 import { terminalOutputManager } from '../stream/terminalOutputManager';
+import { closeTerminalBackend } from '../transport/backend';
 
 export interface TerminalInstanceRecord {
   id: string;
@@ -159,12 +160,14 @@ class TerminalInstanceRegistry {
     }
   }
 
-  forceRemove(id: string): void {
-    const record = this.instances.get(id);
-    if (record) {
-      record.refCount = 0;
-      this.release(id);
+  getIdsByPredicate(predicate: (id: string) => boolean): string[] {
+    const ids: string[] = [];
+    for (const id of this.instances.keys()) {
+      if (predicate(id)) {
+        ids.push(id);
+      }
     }
+    return ids;
   }
 
   private ensureStream(record: TerminalInstanceRecord): void {
@@ -274,15 +277,11 @@ export function releaseTerminalInstance(id: string): void {
   registry.release(id);
 }
 
-export function removeTerminalInstance(id: string): void {
-  registry.forceRemove(id);
-}
-
 export function detachTerminalInstance(id: string): void {
   registry.detach(id);
 }
 
-export function releaseSessionTerminals(sessionName: string): void {
+export async function releaseSessionTerminals(sessionName: string): Promise<void> {
   const bases = sessionTerminalBaseVariants(sessionName);
   const runCandidateIds = new Set<string>();
   if (sessionName) {
@@ -290,7 +289,8 @@ export function releaseSessionTerminals(sessionName: string): void {
     const sanitized = sanitizeSessionName(sessionName);
     runCandidateIds.add(`run-terminal-${sanitized}`);
   }
-  registry.releaseByPredicate(id => {
+
+  const ids = registry.getIdsByPredicate(id => {
     for (const base of bases) {
       if (id === base || id.startsWith(`${base}-`)) {
         return true;
@@ -301,6 +301,15 @@ export function releaseSessionTerminals(sessionName: string): void {
     }
     return false;
   });
+
+  for (const id of ids) {
+    try {
+      await closeTerminalBackend(id);
+    } catch (error) {
+      logger.warn(`[Registry] Failed to close backend for terminal ${id}`, error);
+    }
+    registry.release(id);
+  }
 }
 
 export function hasTerminalInstance(id: string): boolean {

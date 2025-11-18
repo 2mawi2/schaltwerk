@@ -8,13 +8,13 @@ import { mapSessionUiState, searchSessions as searchSessionsUtil } from '../../u
 import { SessionState, type RawSession, type SessionInfo } from '../../types/session'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import { projectPathAtom } from './project'
-import { setSelectionFilterModeActionAtom, clearTerminalTrackingActionAtom } from './selection'
+import { setSelectionFilterModeActionAtom } from './selection'
 import type { GitOperationFailedPayload, GitOperationPayload, SessionsRefreshedEventPayload } from '../../common/events'
 import { hasInflight, singleflight } from '../../utils/singleflight'
 import { stableSessionTerminalId, isTopTerminalId } from '../../common/terminalIdentity'
 import { hasBackgroundStart, emitUiEvent, UiEvent } from '../../common/uiEvents'
 import { startSessionTop, computeProjectOrchestratorId } from '../../common/agentSpawn'
-import { releaseSessionTerminals, hasTerminalInstance } from '../../terminal/registry/terminalRegistry'
+import { releaseSessionTerminals } from '../../terminal/registry/terminalRegistry'
 import { logger } from '../../utils/logger'
 import { getErrorMessage } from '../../types/errors'
 
@@ -250,8 +250,6 @@ async function releaseRemovedSessions(get: Getter, set: Setter, previous: Enrich
 
     const pending = new Map(get(pendingStartupsAtom))
     let pendingChanged = false
-    const terminalsToClear: string[] = []
-
     for (const sessionId of removed) {
         const protectionUntil = protectedReleaseUntil.get(sessionId) ?? 0
 
@@ -267,13 +265,7 @@ async function releaseRemovedSessions(get: Getter, set: Setter, previous: Enrich
             pendingChanged = true
         }
         suppressedAutoStart.delete(sessionId)
-        releaseSessionTerminals(sessionId)
-        terminalsToClear.push(stableSessionTerminalId(sessionId, 'top'))
-        terminalsToClear.push(stableSessionTerminalId(sessionId, 'bottom'))
-    }
-
-    if (terminalsToClear.length > 0) {
-        await set(clearTerminalTrackingActionAtom, terminalsToClear)
+        await releaseSessionTerminals(sessionId)
     }
 
     if (pendingChanged) {
@@ -429,11 +421,6 @@ function autoStartRunningSessions(
 
         if (hasBackgroundStart(topId) || hasInflight(topId)) {
             logger.info(`[AGENT_LAUNCH_TRACE] autoStartRunningSessions - skipping ${sessionId}; background mark or inflight present (${reason})`)
-            continue
-        }
-
-        if (!hasTerminalInstance(topId)) {
-            logger.debug(`[SessionsAtoms] Skipping auto-start for ${sessionId}: terminal not created (lazy)`)
             continue
         }
 
@@ -650,9 +637,9 @@ const mergeErrorCache = new Map<string, string>()
 const mergePreviewCache = new Map<string, MergePreviewResponse>()
 const protectedReleaseUntil = new Map<string, number>()
 let sessionsRefreshedReloadPending = false
-const sessionsEventHandlersForTests = new Map<SchaltEvent, (payload: unknown) => void>()
+const sessionsEventHandlersForTests = new Map<SchaltEvent, (payload: unknown) => void | Promise<void>>()
 
-export function __getSessionsEventHandlerForTest(event: SchaltEvent): ((payload: unknown) => void) | undefined {
+export function __getSessionsEventHandlerForTest(event: SchaltEvent): ((payload: unknown) => void | Promise<void>) | undefined {
     return sessionsEventHandlersForTests.get(event)
 }
 
@@ -858,7 +845,9 @@ export const cleanupProjectSessionsCacheActionAtom = atom(
         if (!snapshot || snapshot.length === 0) {
             return
         }
-        // We want to cleanup even if it matches active project path (e.g. closing project)
+        if (get(projectPathAtom) === projectPath) {
+            return
+        }
         await releaseRemovedSessions(get, set, snapshot, [])
     },
 )
@@ -990,10 +979,15 @@ export const initializeSessionsEventsActionAtom = atom(
 
         const unlisteners: Array<() => void> = []
 
-        const register = async <E extends SchaltEvent>(event: E, handler: (payload: unknown) => void) => {
+        const register = async <E extends SchaltEvent>(event: E, handler: (payload: unknown) => void | Promise<void>) => {
             const unlisten = await listenEvent(event, (payload) => {
                 try {
-                    handler(payload)
+                    const result = handler(payload)
+                    if (result instanceof Promise) {
+                        result.catch(error => {
+                            logger.error(`[SessionsAtoms] Failed to handle ${event} (async):`, error)
+                        })
+                    }
                 } catch (error) {
                     logger.error(`[SessionsAtoms] Failed to handle ${event}:`, error)
                 }
@@ -1002,7 +996,7 @@ export const initializeSessionsEventsActionAtom = atom(
             sessionsEventHandlersForTests.set(event, handler)
         }
 
-        await register(SchaltEvent.SessionsRefreshed, (payload) => {
+        await register(SchaltEvent.SessionsRefreshed, async (payload) => {
             const normalized = parseSessionsRefreshedPayload(payload)
             const activeProject = get(projectPathAtom)
 
@@ -1029,13 +1023,11 @@ export const initializeSessionsEventsActionAtom = atom(
                 return
             }
 
-            void (async () => {
-                const previousStatesSnapshot = new Map(previousSessionStates)
-                await applySessionsSnapshot(get, set, normalized.sessions, {
-                    reason: 'sessions-refreshed',
-                    previousStates: previousStatesSnapshot,
-                })
-            })()
+            const previousStatesSnapshot = new Map(previousSessionStates)
+            await applySessionsSnapshot(get, set, normalized.sessions, {
+                reason: 'sessions-refreshed',
+                previousStates: previousStatesSnapshot,
+            })
         })
 
         await register(SchaltEvent.GitOperationStarted, (payload) => {
@@ -1390,7 +1382,7 @@ export const initializeSessionsEventsActionAtom = atom(
             syncSnapshotsFromAtom(get)
         })
 
-        await register(SchaltEvent.SessionRemoved, (payload) => {
+        await register(SchaltEvent.SessionRemoved, async (payload) => {
             const event = payload as { session_name: string }
             let removed = false
             set(allSessionsAtom, (prev) => {
@@ -1403,7 +1395,7 @@ export const initializeSessionsEventsActionAtom = atom(
             })
 
             if (removed) {
-                releaseSessionTerminals(event.session_name)
+                await releaseSessionTerminals(event.session_name)
                 suppressedAutoStart.delete(event.session_name)
                 const pending = new Map(get(pendingStartupsAtom))
                 if (pending.delete(event.session_name)) {

@@ -1594,10 +1594,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                             emitUiEvent(UiEvent.SpawnError, { error: errorMessage, terminalId });
                         } else if (errorMessage.includes(AGENT_START_TIMEOUT_MESSAGE)) {
                             emitUiEvent(UiEvent.SpawnError, { error: errorMessage, terminalId });
-                            terminalEverStartedRef.current = true;
-                            setAgentStopped(true);
-                            sessionStorage.setItem(`schaltwerk:agent-stopped:${terminalId}`, 'true');
-                            clearTerminalStartedTracking([terminalId]);
                          } else if (errorMessage.includes('not a git repository')) {
                              logger.error(`[Terminal ${terminalId}] Not a git repository:`, errorMessage);
                              emitUiEvent(UiEvent.NotGitError, { error: errorMessage, terminalId });
@@ -1660,10 +1656,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                             emitUiEvent(UiEvent.PermissionError, { error: errorMessage });
                         } else if (errorMessage.includes(AGENT_START_TIMEOUT_MESSAGE)) {
                             emitUiEvent(UiEvent.SpawnError, { error: errorMessage, terminalId });
-                            terminalEverStartedRef.current = true;
-                            setAgentStopped(true);
-                            sessionStorage.setItem(`schaltwerk:agent-stopped:${terminalId}`, 'true');
-                            clearTerminalStartedTracking([terminalId]);
                          }
                          throw e;
                      }

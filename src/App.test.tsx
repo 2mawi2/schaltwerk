@@ -6,7 +6,7 @@ import { UiEvent, emitUiEvent } from './common/uiEvents'
 import { SchaltEvent } from './common/eventSystem'
 
 const listenEventHandlers = vi.hoisted(
-  () => [] as Array<{ event: unknown; handler: (detail: unknown) => void }>
+  () => [] as Array<{ event: unknown; handler: (detail: unknown) => void | Promise<void> }>
 )
 
 vi.mock('./common/eventSystem', async () => {
@@ -14,8 +14,8 @@ vi.mock('./common/eventSystem', async () => {
   return {
     ...actual,
     listenEvent: vi.fn(async (event, handler) => {
-      listenEventHandlers.push({ event, handler: handler as (detail: unknown) => void })
-      return () => {}
+      listenEventHandlers.push({ event, handler: handler as (detail: unknown) => void | Promise<void> })
+      return () => { }
     }),
   }
 })
@@ -147,7 +147,7 @@ type OnCreatePayload = {
 type OnCreateFn = (data: OnCreatePayload) => Promise<void>
 
 const startSessionTopMock = vi.hoisted(() =>
-  vi.fn(async (_params: StartSessionTopParams) => {})
+  vi.fn(async (_params: StartSessionTopParams) => { })
 ) as MockedFunction<(params: StartSessionTopParams) => Promise<void>>
 
 vi.mock('./common/agentSpawn', async () => {
@@ -523,7 +523,7 @@ describe('App.tsx', () => {
 
     // Open a project - the mocked HomeScreen passes '/Users/me/sample-project'
     mockState.isGitRepo = true
-    
+
     await clickElement(screen.getByTestId('open-project'))
 
     // Wait for app to switch to main view with increased timeout
@@ -809,7 +809,7 @@ describe('validatePanelPercentage', () => {
     const sessionsHandler = __getSessionsEventHandlerForTest(SchaltEvent.SessionsRefreshed)
     expect(sessionsHandler).toBeDefined()
     await act(async () => {
-      sessionsHandler?.([
+      await sessionsHandler?.([
         { info: { session_id: 'feature-unique', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } },
         { info: { session_id: 'feature-unique_v2', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } },
         { info: { session_id: 'feature-unique_v3', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } }
@@ -818,13 +818,13 @@ describe('validatePanelPercentage', () => {
 
     const sessionsRefreshedHandlers = listenEventHandlers.filter(entry => String(entry.event) === String(SchaltEvent.SessionsRefreshed))
     await act(async () => {
-      sessionsRefreshedHandlers.forEach(({ handler }) => {
-        handler([
+      for (const { handler } of sessionsRefreshedHandlers) {
+        await handler([
           { info: { session_id: 'feature-unique', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } },
           { info: { session_id: 'feature-unique_v2', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } },
           { info: { session_id: 'feature-unique_v3', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } }
         ])
-      })
+      }
     })
 
     await createPromise
@@ -906,7 +906,7 @@ describe('validatePanelPercentage', () => {
     startSessionTopMock.mockClear()
 
     await act(async () => {
-      sessionsHandler?.([
+      await sessionsHandler?.([
         {
           info: {
             session_id: 'feature',
@@ -922,8 +922,8 @@ describe('validatePanelPercentage', () => {
       .filter(entry => String(entry.event) === String(SchaltEvent.SessionsRefreshed))
 
     await act(async () => {
-      sessionsRefreshedHandlers.forEach(({ handler }) => {
-        handler([
+      for (const { handler } of sessionsRefreshedHandlers) {
+        await handler([
           {
             info: {
               session_id: 'feature',
@@ -933,7 +933,7 @@ describe('validatePanelPercentage', () => {
             }
           }
         ])
-      })
+      }
     })
 
     await waitFor(() => {
@@ -1076,8 +1076,10 @@ describe('validatePanelPercentage', () => {
       await act(async () => {
         const sessionsHandler = __getSessionsEventHandlerForTest(SchaltEvent.SessionsRefreshed)
         expect(sessionsHandler).toBeDefined()
-        sessionsHandler?.(runningPayload)
-        sessionsRefreshedHandlers.forEach(({ handler }) => handler(runningPayload))
+        await sessionsHandler?.(runningPayload)
+        for (const { handler } of sessionsRefreshedHandlers) {
+          await handler(runningPayload)
+        }
       })
 
       await waitFor(() => {
@@ -1151,7 +1153,7 @@ describe('validatePanelPercentage', () => {
     expect(sessionsHandler).toBeDefined()
 
     await act(async () => {
-      sessionsHandler?.([
+      await sessionsHandler?.([
         { info: { session_id: 'session-b', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } }
       ])
     })
@@ -1159,11 +1161,11 @@ describe('validatePanelPercentage', () => {
     const sessionsRefreshedHandlers = listenEventHandlers.filter(entry => String(entry.event) === String(SchaltEvent.SessionsRefreshed))
 
     await act(async () => {
-      sessionsRefreshedHandlers.forEach(({ handler }) => {
-        handler([
+      for (const { handler } of sessionsRefreshedHandlers) {
+        await handler([
           { info: { session_id: 'session-b', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } }
         ])
-      })
+      }
     })
 
 

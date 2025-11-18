@@ -214,7 +214,6 @@ vi.mock('../../terminal/registry/terminalRegistry', () => {
   return {
     acquireTerminalInstance: vi.fn((id: string, factory: () => unknown) => acquireMock(id, factory as () => HarnessInstance)),
     releaseTerminalInstance: vi.fn(),
-    removeTerminalInstance: vi.fn(),
     detachTerminalInstance: vi.fn(),
     hasTerminalInstance: registryMocks.hasTerminalInstance,
   }
@@ -307,7 +306,6 @@ beforeEach(() => {
   globalContext.ResizeObserver = NoopObserver
   globalContext.IntersectionObserver = NoopObserver
   globalContext.MutationObserver = NoopObserver
-  sessionStorage.clear()
   vi.mocked(listenEvent).mockReset()
   vi.mocked(listenEvent).mockImplementation(async () => () => {})
   terminalHarness.instances.length = 0
@@ -390,27 +388,6 @@ describe('Terminal', () => {
 
     await waitFor(() => {
       expect(startSessionTop).not.toHaveBeenCalled()
-    })
-  })
-
-  it('shows a restart banner when the initial agent start times out', async () => {
-    vi.mocked(startSessionTop).mockRejectedValueOnce(new Error('timeout'))
-
-    const { getByText } = render(
-      <Terminal terminalId="session-timeout-top" sessionName="timeout" />
-    )
-
-    await waitFor(() => {
-      expect(startSessionTop).toHaveBeenCalledWith({
-        sessionName: 'timeout',
-        topId: 'session-timeout-top',
-        measured: expect.any(Object),
-        agentType: undefined,
-      })
-    })
-
-    await waitFor(() => {
-      expect(getByText(/Agent stopped/i)).toBeVisible()
     })
   })
 

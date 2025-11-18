@@ -4,8 +4,6 @@ use schaltwerk::services::CreateTerminalWithAppAndSizeParams;
 use schaltwerk::services::{AgentLaunchSpec, parse_agent_command};
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock};
-use std::time::Duration;
-use tokio::time::timeout;
 use tokio::sync::Mutex as AsyncMutex;
 
 static START_LOCKS: LazyLock<AsyncMutex<HashMap<String, Arc<AsyncMutex<()>>>>> =
@@ -35,65 +33,46 @@ pub async fn launch_in_terminal(
     };
     let _guard = term_lock.lock().await;
 
-    let launch_future = async {
-        let command_line = launch_spec.format_for_shell();
-        let (cwd, agent_name, agent_args) = parse_agent_command(&command_line)?;
-        terminals::ensure_cwd_access(&cwd)?;
+    let command_line = launch_spec.format_for_shell();
+    let (cwd, agent_name, agent_args) = parse_agent_command(&command_line)?;
+    terminals::ensure_cwd_access(&cwd)?;
 
-        let agent_kind = agent_ctx::infer_agent_kind(&agent_name);
-        let (env_vars, cli_text, preferences) =
-            agent_ctx::collect_agent_env_and_cli(&agent_kind, repo_path, db).await;
-        let merged_env = merge_env_vars(env_vars, &launch_spec.env_vars);
-        let final_args = agent_ctx::build_final_args(&agent_kind, agent_args, &cli_text, &preferences);
+    let agent_kind = agent_ctx::infer_agent_kind(&agent_name);
+    let (env_vars, cli_text, preferences) =
+        agent_ctx::collect_agent_env_and_cli(&agent_kind, repo_path, db).await;
+    let merged_env = merge_env_vars(env_vars, &launch_spec.env_vars);
+    let final_args = agent_ctx::build_final_args(&agent_kind, agent_args, &cli_text, &preferences);
 
-        let manager = get_terminal_manager().await?;
-        if manager.terminal_exists(&terminal_id).await? {
-            manager.close_terminal(terminal_id.clone()).await?;
-        }
-
-        if let (Some(c), Some(r)) = (cols, rows) {
-            manager
-                .create_terminal_with_app_and_size(CreateTerminalWithAppAndSizeParams {
-                    id: terminal_id.clone(),
-                    cwd: cwd.clone(),
-                    command: agent_name.clone(),
-                    args: final_args.clone(),
-                    env: merged_env.clone(),
-                    cols: c,
-                    rows: r,
-                })
-                .await?;
-        } else {
-            manager
-                .create_terminal_with_app(
-                    terminal_id.clone(),
-                    cwd.clone(),
-                    agent_name.clone(),
-                    final_args.clone(),
-                    merged_env.clone(),
-                )
-                .await?;
-        }
-
-        Ok::<_, String>(launch_spec.shell_command)
-    };
-
-    // Prevent a stuck PTY spawn from blocking all future retries on this terminal id.
-    match timeout(Duration::from_secs(12), launch_future).await {
-        Ok(result) => result,
-        Err(_) => {
-            log::error!(
-                "[AGENT_LAUNCH_TRACE] launch_in_terminal timed out after 12s for {terminal_id}; forcing cleanup to allow retry"
-            );
-            if let Ok(manager) = get_terminal_manager().await {
-                let close_result = manager.close_terminal(terminal_id.clone()).await;
-                if let Err(err) = close_result {
-                    log::warn!("Failed to close terminal {terminal_id} after launch timeout: {err}");
-                }
-            }
-            Err("Agent launch exceeded 12 seconds and was cancelled. Please retry.".to_string())
-        }
+    let manager = get_terminal_manager().await?;
+    if manager.terminal_exists(&terminal_id).await? {
+        manager.close_terminal(terminal_id.clone()).await?;
     }
+
+    if let (Some(c), Some(r)) = (cols, rows) {
+        manager
+            .create_terminal_with_app_and_size(CreateTerminalWithAppAndSizeParams {
+                id: terminal_id.clone(),
+                cwd: cwd.clone(),
+                command: agent_name.clone(),
+                args: final_args.clone(),
+                env: merged_env.clone(),
+                cols: c,
+                rows: r,
+            })
+            .await?;
+    } else {
+        manager
+            .create_terminal_with_app(
+                terminal_id.clone(),
+                cwd.clone(),
+                agent_name.clone(),
+                final_args.clone(),
+                merged_env.clone(),
+            )
+            .await?;
+    }
+
+    Ok(launch_spec.shell_command)
 }
 
 fn merge_env_vars(

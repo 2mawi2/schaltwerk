@@ -51,7 +51,6 @@ import { useOnboarding } from './hooks/useOnboarding'
 import { useSessionPrefill } from './hooks/useSessionPrefill'
 import { useRightPanelPersistence } from './hooks/useRightPanelPersistence'
 import { useAttentionNotifications } from './hooks/useAttentionNotifications'
-import { useAgentBinarySnapshot } from './hooks/useAgentBinarySnapshot'
 import { theme } from './common/theme'
 import { withOpacity } from './common/colorUtils'
 import { GithubIntegrationProvider, useGithubIntegrationContext } from './contexts/GithubIntegrationContext'
@@ -79,7 +78,6 @@ import { AppUpdateResultPayload } from './common/events'
 import { RawSession } from './types/session'
 import { stableSessionTerminalId } from './common/terminalIdentity'
 import { registerDevErrorListeners } from './dev/registerDevErrorListeners'
-import { AgentCliMissingModal } from './components/agentBinary/AgentCliMissingModal'
 import type { SettingsCategory } from './types/settings'
 
 
@@ -110,26 +108,10 @@ function AppContent() {
   const agentLifecycleStateRef = useRef(new Map<string, { state: 'spawned' | 'ready'; timestamp: number }>())
   const [devErrorToastsEnabled, setDevErrorToastsEnabled] = useState(false)
   const [attentionCounts, setAttentionCounts] = useState<Record<string, number>>({})
-  const [showCliMissingModal, setShowCliMissingModal] = useState(false)
-  const [cliModalEverShown, setCliModalEverShown] = useState(false)
-  const {
-    loading: agentDetectLoading,
-    allMissing: agentAllMissing,
-    statusByAgent: agentStatusByName,
-    refresh: refreshAgentDetection,
-  } = useAgentBinarySnapshot()
 
   useEffect(() => {
     void initializeFontSizes()
   }, [initializeFontSizes])
-
-  useEffect(() => {
-    if (agentDetectLoading) return
-    if (agentAllMissing) {
-      setShowCliMissingModal(true)
-      setCliModalEverShown(true)
-    }
-  }, [agentAllMissing, agentDetectLoading])
 
   useEffect(() => {
     void initializeSelectionEvents()
@@ -281,10 +263,6 @@ function AppContent() {
         }
       }
       toast.pushToast({ tone: 'error', title: 'Failed to start agent', description })
-      if (agentAllMissing && !cliModalEverShown) {
-        setShowCliMissingModal(true)
-        setCliModalEverShown(true)
-      }
     })
     const noProjectCleanup = listenUiEvent(UiEvent.NoProjectError, (detail: { error?: string }) => {
       const description = detail?.error?.trim() || 'Open a project before starting an agent.'
@@ -299,7 +277,7 @@ function AppContent() {
       noProjectCleanup()
       notGitCleanup()
     }
-  }, [toast, agentAllMissing, cliModalEverShown])
+  }, [toast])
 
   useEffect(() => {
     const cleanup = listenUiEvent(UiEvent.AgentLifecycle, (detail: AgentLifecycleDetail) => {
@@ -1744,14 +1722,6 @@ function AppContent() {
             />
           )}
           
-          <AgentCliMissingModal
-            open={showCliMissingModal}
-            loading={agentDetectLoading}
-            statusByAgent={agentStatusByName}
-            onRefresh={() => { void refreshAgentDetection() }}
-            onOpenSettings={() => emitUiEvent(UiEvent.OpenSettings, { tab: 'environment' })}
-            onClose={() => setShowCliMissingModal(false)}
-          />
 
           {/* Settings Modal */}
           <SettingsModal
