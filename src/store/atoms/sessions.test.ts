@@ -111,8 +111,8 @@ const createSession = (overrides: Partial<EnrichedSession['info']>): EnrichedSes
         base_branch: 'main',
         status: 'active',
         session_state: SessionState.Running,
-        created_at: '2024-01-01T00:00:00.000Z',
-        last_modified: '2024-01-02T00:00:00.000Z',
+        created_at: '2023-01-01T00:00:00.000Z',
+        last_modified: '2023-01-02T00:00:00.000Z',
         ready_to_merge: false,
         has_uncommitted_changes: false,
         has_conflicts: false,
@@ -936,6 +936,30 @@ describe('sessions atoms', () => {
         ])
 
         expect(releaseSessionTerminals).not.toHaveBeenCalledWith('test-session')
+    })
+
+    it('does not release a brand-new running session on first missing refresh (grace window)', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+
+        vi.mocked(invoke).mockImplementation(async (cmd) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
+                return [createSession({ session_id: 'fresh-session', created_at: new Date().toISOString() })]
+            }
+            if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) {
+                return []
+            }
+            return undefined
+        })
+
+        store.set(projectPathAtom, '/project')
+        await store.set(initializeSessionsEventsActionAtom)
+        await store.set(refreshSessionsActionAtom)
+
+        vi.mocked(releaseSessionTerminals).mockClear()
+
+        emitSessionsRefreshed([])
+
+        expect(releaseSessionTerminals).not.toHaveBeenCalled()
     })
 
     it('does not release terminals when SessionsRefreshed payload targets another project', async () => {
