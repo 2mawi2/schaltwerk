@@ -135,6 +135,7 @@ impl MergeService {
         let mut index = repo.index()?;
         index.read_tree(&head_tree)?;
         index.add_all(["*"], IndexAddOption::DEFAULT, None)?;
+        index.update_all(["*"], None)?;
         let worktree_tree_oid = index.write_tree_to(&repo)?;
         let worktree_tree = repo.find_tree(worktree_tree_oid)?;
 
@@ -433,6 +434,12 @@ impl MergeService {
             session_name = context.session_name
         );
         let manager = self.session_manager();
+        if let Err(err) = manager.set_session_ready_flag(&context.session_name, true) {
+            warn!(
+                "{OPERATION_LABEL}: failed to set ready flag for '{session_name}' after merge: {err}",
+                session_name = context.session_name
+            );
+        }
         manager.update_session_state(&context.session_name, SessionState::Reviewed)?;
 
         if let Err(err) = manager.update_git_stats(&context.session_id) {
@@ -454,12 +461,6 @@ impl MergeService {
         if session.session_state == SessionState::Spec {
             return Err(anyhow!(
                 "Session '{session_name}' is still a spec. Start it before merging."
-            ));
-        }
-
-        if !session.ready_to_merge {
-            return Err(anyhow!(
-                "Session '{session_name}' is not marked ready to merge"
             ));
         }
 
@@ -1441,6 +1442,42 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn merge_from_modal_squash_allows_running_session_without_ready_flag() {
+        let temp = TempDir::new().unwrap();
+        let (manager, db, repo_path) = create_session_manager(&temp);
+
+        let params = SessionCreationParams {
+            name: "squash-running",
+            prompt: Some("do work"),
+            base_branch: Some("main"),
+            custom_branch: None,
+            was_auto_generated: false,
+            version_group_id: None,
+            version_number: None,
+            agent_type: None,
+            skip_permissions: None,
+        };
+
+        let session = manager.create_session_with_agent(params).unwrap();
+
+        std::fs::write(session.worktree_path.join("feature.txt"), "dirty work\n").unwrap();
+
+        let service = MergeService::new(db.clone(), repo_path.clone());
+        service
+            .merge_from_modal(&session.name, MergeMode::Squash, Some("squash message".into()))
+            .await
+            .unwrap();
+
+        let parent_contents = std::fs::read_to_string(repo_path.join("feature.txt")).unwrap();
+        assert_eq!(parent_contents, "dirty work\n");
+
+        let refreshed = manager.get_session(&session.name).unwrap();
+        assert!(refreshed.ready_to_merge);
+        assert_eq!(refreshed.session_state, SessionState::Reviewed);
+    }
+
+    #[tokio::test]
+    #[tokio::test]
     async fn merge_from_modal_reapply_blocks_dirty_worktree() {
         let temp = TempDir::new().unwrap();
         let (_manager, db, repo_path) = create_session_manager(&temp);
@@ -1550,7 +1587,11 @@ mod tests {
 
         let service = MergeService::new(db.clone(), repo_path.clone());
         service
-            .merge_from_modal(&session.name, MergeMode::Squash, Some("squash message".into()))
+            .merge_from_modal(
+                &session.name,
+                MergeMode::Squash,
+                Some("squash message".into()),
+            )
             .await
             .unwrap();
 
@@ -1752,7 +1793,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn preview_requires_session_be_ready() {
+    async fn preview_allows_running_session() {
         let temp = TempDir::new().unwrap();
         let (manager, db, repo_path) = create_session_manager(&temp);
 
@@ -1771,13 +1812,9 @@ mod tests {
         let session = manager.create_session_with_agent(params).unwrap();
 
         let service = MergeService::new(db.clone(), repo_path.clone());
-        let err = service
-            .preview(&session.name)
-            .expect_err("must reject unrready sessions");
-        assert!(
-            err.to_string().contains("not marked ready"),
-            "error should mention readiness requirement"
-        );
+        let preview = service.preview(&session.name).expect("running sessions should be previewable");
+        assert_eq!(preview.session_branch, session.branch);
+        assert_eq!(preview.parent_branch, "main");
     }
 
     #[tokio::test]

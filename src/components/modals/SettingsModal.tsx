@@ -463,7 +463,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
         resetToDefaults
     } = useActionButtons()
 
-    const {
+        const {
         autoCancelAfterMerge: contextAutoCancelAfterMerge,
         updateAutoCancelAfterMerge,
     } = useSessions()
@@ -756,9 +756,18 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
 
     useEffect(() => {
         if (!hasUnsavedChanges) {
-            setMergePreferences({ autoCancelAfterMerge: contextAutoCancelAfterMerge })
+            setMergePreferences(prev => ({
+                ...prev,
+                autoCancelAfterMerge: contextAutoCancelAfterMerge,
+            }))
         }
     }, [contextAutoCancelAfterMerge, hasUnsavedChanges])
+
+    useEffect(() => {
+        if (!hasUnsavedChanges) {
+            // no includeUnstagedOnSquash toggle anymore
+        }
+    }, [hasUnsavedChanges])
 
     useEffect(() => {
         if (!shortcutRecording) return
@@ -1032,7 +1041,10 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
                                 type="checkbox"
                                 checked={mergePreferences.autoCancelAfterMerge}
                                 onChange={(event) => {
-                                    setMergePreferences({ autoCancelAfterMerge: event.target.checked })
+                                    setMergePreferences(prev => ({
+                                        ...prev,
+                                        autoCancelAfterMerge: event.target.checked,
+                                    }))
                                     setHasUnsavedChanges(true)
                                 }}
                                 className="rounded border-slate-600 bg-slate-800 text-cyan-400 focus:ring-cyan-400"

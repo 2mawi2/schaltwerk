@@ -157,10 +157,10 @@ export function MergeSessionModal({
 
   const handleConfirm = useCallback(() => {
     if (status === 'loading' || status === 'running' || hasConflicts || isUpToDate) return
-      if (mode === 'squash') {
-        const trimmed = commitMessage.trim()
-        if (!trimmed) {
-          setCommitMessage('')
+    if (mode === 'squash') {
+      const trimmed = commitMessage.trim()
+      if (!trimmed) {
+        setCommitMessage('')
         focusCommitMessage()
         return
       }
