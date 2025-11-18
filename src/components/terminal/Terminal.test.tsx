@@ -214,6 +214,7 @@ vi.mock('../../terminal/registry/terminalRegistry', () => {
   return {
     acquireTerminalInstance: vi.fn((id: string, factory: () => unknown) => acquireMock(id, factory as () => HarnessInstance)),
     releaseTerminalInstance: vi.fn(),
+    removeTerminalInstance: vi.fn(),
     detachTerminalInstance: vi.fn(),
     hasTerminalInstance: registryMocks.hasTerminalInstance,
   }

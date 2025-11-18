@@ -44,7 +44,7 @@ import {
 } from './sessions'
 import { projectPathAtom } from './project'
 import { listenEvent as listenEventMock } from '../../common/eventSystem'
-import { releaseSessionTerminals } from '../../terminal/registry/terminalRegistry'
+import { releaseSessionTerminals, hasTerminalInstance } from '../../terminal/registry/terminalRegistry'
 import { startSessionTop } from '../../common/agentSpawn'
 import { singleflight as singleflightMock } from '../../utils/singleflight'
 
@@ -78,6 +78,7 @@ vi.mock('../../common/agentSpawn', () => ({
 
 vi.mock('../../common/uiEvents', () => ({
     hasBackgroundStart: vi.fn(() => false),
+    clearBackgroundStarts: vi.fn(),
     emitUiEvent: vi.fn(),
     UiEvent: {
         PermissionError: 'permission-error',
@@ -85,12 +86,17 @@ vi.mock('../../common/uiEvents', () => ({
 }))
 
 vi.mock('../../terminal/registry/terminalRegistry', () => ({
-    releaseSessionTerminals: vi.fn(),
+  hasTerminalInstance: vi.fn(),
+  acquireTerminalInstance: vi.fn(),
+  releaseTerminalInstance: vi.fn(),
+  removeTerminalInstance: vi.fn(),
+  releaseSessionTerminals: vi.fn(),
 }))
 
 vi.mock('../../utils/singleflight', () => ({
     hasInflight: vi.fn(() => false),
     singleflight: vi.fn(async (_key: string, fn: () => Promise<unknown>) => await fn()),
+    clearInflights: vi.fn(),
 }))
 
 vi.mock('../../utils/logger', () => ({
@@ -144,6 +150,7 @@ describe('sessions atoms', () => {
     beforeEach(() => {
         store = createStore()
         vi.clearAllMocks()
+        vi.mocked(hasTerminalInstance).mockReturnValue(true)
         Object.keys(listeners).forEach(key => delete listeners[key])
         __resetSessionsTestingState()
         vi.useFakeTimers()
