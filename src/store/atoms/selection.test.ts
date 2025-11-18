@@ -69,6 +69,12 @@ vi.mock('../../terminal/transport/backend', () => ({
   closeTerminalBackend: vi.fn(() => Promise.resolve()),
 }))
 
+vi.mock('../../terminal/registry/terminalRegistry', () => ({
+  hasTerminalInstance: vi.fn(() => false),
+  releaseSessionTerminals: vi.fn(),
+  releaseTerminalInstance: vi.fn(),
+}))
+
 function createRawSession(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     name: 'session-1',
@@ -149,10 +155,18 @@ describe('selection atoms', () => {
     const backend = await import('../../terminal/transport/backend')
     vi.mocked(backend.createTerminalBackend).mockClear()
     vi.mocked(backend.closeTerminalBackend).mockClear()
+
+    const registry = await import('../../terminal/registry/terminalRegistry')
+    vi.mocked(registry.hasTerminalInstance).mockReset()
+    vi.mocked(registry.hasTerminalInstance).mockReturnValue(false)
+    vi.mocked(registry.releaseSessionTerminals).mockReset()
+    vi.mocked(registry.releaseTerminalInstance).mockReset()
   })
 
   const getInvokeCallCount = (command: string) =>
     vi.mocked(core.invoke).mock.calls.filter(([cmd]) => cmd === command).length
+
+  const setProjectPath = (path: string | null) => store.set(setProjectPathActionAtom, path)
 
   it('exposes orchestrator as default selection and is ready', () => {
     expect(store.get(selectionValueAtom)).toEqual({ kind: 'orchestrator', projectPath: null })
@@ -189,6 +203,67 @@ describe('selection atoms', () => {
     await store.set(getSessionSnapshotActionAtom, { sessionId: 'session-1' })
     await store.set(getSessionSnapshotActionAtom, { sessionId: 'session-1' })
     expect(getInvokeCallCount(TauriCommands.SchaltwerkCoreGetSession)).toBe(1)
+  })
+
+  it('rebinds existing registry terminal instead of recreating when cache key changes', async () => {
+    await withNodeEnv('development', async () => {
+      const backend = await import('../../terminal/transport/backend')
+      const registry = await import('../../terminal/registry/terminalRegistry')
+
+      await setProjectPath('/projects/alpha')
+      await store.set(setSelectionActionAtom, {
+        selection: { kind: 'session', payload: 'session-1', worktreePath: '/tmp/worktrees/session-1', sessionState: 'running', projectPath: '/projects/alpha' },
+      })
+
+      // First creation creates top + bottom
+      expect(vi.mocked(backend.createTerminalBackend).mock.calls.length).toBeGreaterThanOrEqual(2)
+
+      vi.mocked(backend.createTerminalBackend).mockClear()
+      vi.mocked(registry.hasTerminalInstance).mockReturnValue(true)
+
+      await store.set(setSelectionActionAtom, {
+        selection: { kind: 'session', payload: 'session-1', worktreePath: '/tmp/worktrees/session-1', sessionState: 'running', projectPath: '/projects/beta' },
+        remember: false,
+      })
+
+      // Rebinding should skip backend creation when registry already has the id
+      expect(vi.mocked(backend.createTerminalBackend)).not.toHaveBeenCalled()
+      expect(vi.mocked(backend.closeTerminalBackend)).not.toHaveBeenCalled()
+    })
+  })
+
+  it('ignores first spec revert after running and clears on second', async () => {
+    await withNodeEnv('development', async () => {
+      const backend = await import('../../terminal/transport/backend')
+
+      await setProjectPath('/projects/alpha')
+      await store.set(initializeSelectionEventsActionAtom)
+
+      // Start in running state
+      await emitSessionsRefreshed([
+        { info: { session_id: 'session-1', session_state: 'running', status: 'running', ready_to_merge: false } },
+      ])
+
+      vi.mocked(backend.closeTerminalBackend).mockClear()
+
+      // First revert to spec should be ignored
+      await emitSessionsRefreshed([
+        { info: { session_id: 'session-1', session_state: 'spec', status: 'spec', ready_to_merge: false } },
+      ])
+
+      await waitFor(() => {
+        expect(vi.mocked(backend.closeTerminalBackend)).not.toHaveBeenCalled()
+      })
+
+      // Second consecutive spec should trigger cleanup
+      await emitSessionsRefreshed([
+        { info: { session_id: 'session-1', session_state: 'spec', status: 'spec', ready_to_merge: false } },
+      ])
+
+      await waitFor(() => {
+        expect(vi.mocked(backend.closeTerminalBackend)).toHaveBeenCalled()
+      })
+    })
   })
 
   it('exposes orchestrator selection when project path changes before selection updates', async () => {
@@ -372,18 +447,47 @@ describe('selection atoms', () => {
         ([event]) => event === uiEvents.UiEvent.ProjectSwitchComplete,
       )
       expect(betaSwitchCalls).toHaveLength(1)
-      expect(betaSwitchCalls[0]?.[1]).toEqual({ projectPath: '/projects/beta' })
+    expect(betaSwitchCalls[0]?.[1]).toEqual({ projectPath: '/projects/beta' })
 
-      vi.mocked(backend.createTerminalBackend).mockClear()
-      vi.mocked(uiEvents.emitUiEvent).mockClear()
+    vi.mocked(backend.createTerminalBackend).mockClear()
+    vi.mocked(uiEvents.emitUiEvent).mockClear()
 
-      await store.set(setProjectPathActionAtom, '/projects/alpha')
-      expect(vi.mocked(backend.createTerminalBackend)).not.toHaveBeenCalled()
+    await store.set(setProjectPathActionAtom, '/projects/alpha')
+    expect(vi.mocked(backend.createTerminalBackend)).not.toHaveBeenCalled()
       const alphaSwitchCalls = vi.mocked(uiEvents.emitUiEvent).mock.calls.filter(
         ([event]) => event === uiEvents.UiEvent.ProjectSwitchComplete,
       )
       expect(alphaSwitchCalls).toHaveLength(1)
       expect(alphaSwitchCalls[0]?.[1]).toEqual({ projectPath: '/projects/alpha' })
+    })
+  })
+
+  it('does not recreate session terminals when project path changes and session is reselected', async () => {
+    await withNodeEnv('development', async () => {
+      const backend = await import('../../terminal/transport/backend')
+
+      await store.set(setProjectPathActionAtom, '/projects/alpha')
+      await store.set(setSelectionActionAtom, {
+        selection: { kind: 'session', payload: 'session-1', sessionState: 'running', worktreePath: '/tmp/worktrees/session-1' },
+      })
+
+      expect(vi.mocked(backend.createTerminalBackend).mock.calls.length).toBeGreaterThanOrEqual(2)
+
+      vi.mocked(backend.createTerminalBackend).mockClear()
+
+      // Switch to another project (selection will fall back to orchestrator)
+      await store.set(setProjectPathActionAtom, '/projects/beta')
+
+      // Reselect same session (simulating user switching back or remembered selection)
+      await store.set(setSelectionActionAtom, {
+        selection: { kind: 'session', payload: 'session-1', sessionState: 'running', worktreePath: '/tmp/worktrees/session-1', projectPath: '/projects/beta' },
+      })
+
+      // Should not recreate session terminals; orchestrator boot is allowed
+      const sessionCalls = vi.mocked(backend.createTerminalBackend).mock.calls.filter(
+        ([args]) => (args?.id ?? '').includes('session-')
+      )
+      expect(sessionCalls).toHaveLength(0)
     })
   })
 

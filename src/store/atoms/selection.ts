@@ -6,6 +6,7 @@ type SetAtomFunction = <Value, Result>(
 ) => Result
 import { invoke } from '@tauri-apps/api/core'
 import { sessionTerminalGroup } from '../../common/terminalIdentity'
+import { hasTerminalInstance } from '../../terminal/registry/terminalRegistry'
 import { TauriCommands } from '../../common/tauriCommands'
 import { emitUiEvent, listenUiEvent, UiEvent } from '../../common/uiEvents'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
@@ -234,6 +235,7 @@ const terminalsCache = new Map<string, Set<string>>()
 const terminalToSelectionKey = new Map<string, string>()
 const selectionsNeedingRecreate = new Set<string>()
 const lastKnownSessionState = new Map<string, NormalizedSessionState>()
+const ignoredSpecReverts = new Set<string>()
 const lastSelectionByProject = new Map<string, Selection>()
 let pendingAsyncEffect: Promise<void> | null = null
 
@@ -307,8 +309,7 @@ function selectionCacheKey(selection: Selection, projectPath?: string | null): s
   if (selection.kind === 'orchestrator') {
     return `orchestrator:${projectPath ?? 'none'}`
   }
-  const scopedProject = selection.projectPath ?? projectPath ?? 'none'
-  return `session:${scopedProject}:${selection.payload ?? 'unknown'}`
+  return `session:${selection.payload ?? 'unknown'}`
 }
 
 
@@ -325,6 +326,18 @@ async function ensureTerminal(
     return
   }
 
+  const registryHasInstance = hasTerminalInstance(id)
+  if (!force && registryHasInstance) {
+    logger.info('[selection] Rebinding existing terminal instance to selection cache', {
+      id,
+      cacheKey,
+      cwd,
+    })
+    tracked.add(id)
+    terminalToSelectionKey.set(id, cacheKey)
+    return
+  }
+
   if (force && tracked.has(id)) {
     try {
       await closeTerminalBackend(id)
@@ -333,6 +346,15 @@ async function ensureTerminal(
     }
     tracked.delete(id)
     terminalToSelectionKey.delete(id)
+  }
+
+  if (force && registryHasInstance) {
+    logger.info('[selection] Closing existing registry terminal before recreation', { id, cacheKey })
+    try {
+      await closeTerminalBackend(id)
+    } catch (error) {
+      logger.warn('[selection] Failed to close registry terminal during force recreate', { id, error })
+    }
   }
 
   if (isTestEnv) {
@@ -531,6 +553,26 @@ async function handleSessionStateUpdate(
   projectPath: string | null,
 ): Promise<void> {
   const previous = lastKnownSessionState.get(sessionId)
+
+  if (nextState === 'running') {
+    ignoredSpecReverts.delete(sessionId)
+  }
+
+  if (nextState === 'spec' && previous === 'running') {
+    if (!ignoredSpecReverts.has(sessionId)) {
+      ignoredSpecReverts.add(sessionId)
+      logger.warn('[selection] Ignoring single spec-state revert after running to prevent terminal reset', {
+        sessionId,
+        projectPath,
+      })
+      return
+    }
+    logger.warn('[selection] Applying spec-state revert after prior ignore (second consecutive)', {
+      sessionId,
+      projectPath,
+    })
+  }
+
   lastKnownSessionState.set(sessionId, nextState)
 
   if (nextState === 'spec' && previous !== 'spec') {
@@ -835,6 +877,7 @@ export function resetSelectionAtomsForTest(): void {
   selectionsNeedingRecreate.clear()
   lastSelectionByProject.clear()
   lastKnownSessionState.clear()
+  ignoredSpecReverts.clear()
   cachedProjectPath = null
   cachedProjectId = 'default'
   currentFilterMode = FilterMode.All
