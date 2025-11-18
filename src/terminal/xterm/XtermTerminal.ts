@@ -237,6 +237,11 @@ export class XtermTerminal {
     }
   }
 
+  refresh(): void {
+    // refresh is not in the public API types but is available on the instance
+    ;(this.raw as unknown as { refresh: (start: number, end: number) => void }).refresh(0, this.raw.rows - 1)
+  }
+
   setSmoothScrolling(enabled: boolean): void {
     this.raw.options.smoothScrollDuration = enabled ? DEFAULT_SMOOTH_SCROLL_DURATION_MS : 0
   }
