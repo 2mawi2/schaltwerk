@@ -1396,6 +1396,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                     resettingSelection={resettingSelection}
                                     isSessionRunning={isSessionRunning}
                                     onMerge={handleMergeSession}
+                                    onQuickMerge={(sessionId) => { void handleMergeShortcut(sessionId) }}
                                     isMergeDisabled={isSessionMerging}
                                     getMergeStatus={getMergeStatus}
                                     isMarkReadyDisabled={isMarkReadyCoolingDown}
