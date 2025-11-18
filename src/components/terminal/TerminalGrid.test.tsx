@@ -34,6 +34,7 @@ interface MockTerminalRef {
 interface MockTerminalTabsRef {
   focus: () => void
   focusTerminal: () => void
+  getActiveTerminalRef: () => MockTerminalRef | null
   getTabsState: () => {
     tabs: Array<{ index: number; terminalId: string; label: string }>
     activeTab: number
@@ -192,6 +193,16 @@ vi.mock('./TerminalTabs', () => {
     useImperativeHandle(ref, () => ({ 
       focus: focusRef.current!,
       focusTerminal,
+      getActiveTerminalRef: vi.fn(() => ({
+        focus: vi.fn(),
+        showSearch: vi.fn(),
+        scrollToBottom: vi.fn(),
+        scrollLineUp: vi.fn(),
+        scrollLineDown: vi.fn(),
+        scrollPageUp: vi.fn(),
+        scrollPageDown: vi.fn(),
+        scrollToTop: vi.fn(),
+      })),
       getTabsState: () => ({
         tabs: [{ index: 0, terminalId, label: 'Terminal 1' }],
         activeTab: 0,
@@ -938,9 +949,9 @@ describe('TerminalGrid', () => {
 
   describe('Terminal Minimization', () => {
     it('initializes split sizes from sessionStorage entries with sensible fallbacks', async () => {
-      sessionStorage.setItem('schaltwerk:terminal-grid:sizes:orchestrator', 'not-json')
-      sessionStorage.setItem('schaltwerk:terminal-grid:collapsed:orchestrator', 'true')
-      sessionStorage.setItem('schaltwerk:terminal-grid:lastExpandedBottom:orchestrator', '200')
+      sessionStorage.setItem('schaltwerk:layout:bottomTerminalSizes', 'not-json')
+      sessionStorage.setItem('schaltwerk:layout:bottomTerminalCollapsed', 'true')
+      sessionStorage.setItem('schaltwerk:layout:bottomTerminalLastExpandedSize', '200')
 
       await renderGrid()
       vi.useRealTimers()
@@ -961,6 +972,7 @@ describe('TerminalGrid', () => {
       })
 
       const expandedSizesAttr = screen.getByTestId('split').getAttribute('data-sizes')
+      // Expecting default 28 since 200 was invalid/ignored or we fallback to default 28
       expect(expandedSizesAttr).toBe(JSON.stringify([72, 28]))
     })
 
@@ -1009,7 +1021,7 @@ describe('TerminalGrid', () => {
       })
     })
 
-    it('persists collapse state per session in sessionStorage', async () => {
+    it('persists collapse state globally in sessionStorage', async () => {
       // Clear sessionStorage to start fresh
       sessionStorage.clear()
 
@@ -1031,8 +1043,8 @@ describe('TerminalGrid', () => {
         expect(expandBtn).toBeInTheDocument()
       })
 
-      // Check sessionStorage was updated for orchestrator
-      expect(sessionStorage.getItem('schaltwerk:terminal-grid:collapsed:orchestrator')).toBe('true')
+      // Check sessionStorage was updated globally
+      expect(sessionStorage.getItem('schaltwerk:layout:bottomTerminalCollapsed')).toBe('true')
 
       // Switch to a session
       await act(async () => {
@@ -1044,13 +1056,11 @@ describe('TerminalGrid', () => {
         expect(screen.getByText('Agent — test-session')).toBeInTheDocument()
       })
 
-      // Agent should inherit the collapsed state from orchestrator since it has no sessionStorage entry
+      // Agent should inherit the collapsed state because it's global
       expect(screen.getByTestId('split')).toBeInTheDocument()
       const expandBtn = screen.getByLabelText('Expand terminal panel')
       expect(expandBtn).toBeInTheDocument()
-      // The inherited collapsed state is immediately persisted
-      expect(sessionStorage.getItem('schaltwerk:terminal-grid:collapsed:test-session')).toBe('true')
-
+      
       // First expand it
       fireEvent.click(expandBtn)
       
@@ -1068,7 +1078,7 @@ describe('TerminalGrid', () => {
         expect(expandBtn2).toBeInTheDocument()
       })
 
-      expect(sessionStorage.getItem('schaltwerk:terminal-grid:collapsed:test-session')).toBe('true')
+      expect(sessionStorage.getItem('schaltwerk:layout:bottomTerminalCollapsed')).toBe('true')
 
       // Switch back to orchestrator
       await act(async () => {
@@ -1080,17 +1090,15 @@ describe('TerminalGrid', () => {
         expect(screen.getByText('Orchestrator — main repo')).toBeInTheDocument()
       })
 
-      // Orchestrator should still be collapsed (state was persisted)
+      // Orchestrator should still be collapsed (state was persisted globally)
       const expandBtnOrch = screen.getByLabelText('Expand terminal panel')
       expect(expandBtnOrch).toBeInTheDocument()
       expect(screen.getByTestId('split')).toBeInTheDocument()
     })
 
-    it('restores correct minimization state when switching between sessions', async () => {
-      // Set up different collapse states in sessionStorage
-      sessionStorage.setItem('schaltwerk:terminal-grid:collapsed:orchestrator', 'false')
-      sessionStorage.setItem('schaltwerk:terminal-grid:collapsed:session-a', 'true')
-      sessionStorage.setItem('schaltwerk:terminal-grid:collapsed:session-b', 'false')
+    it('maintains minimization state when switching between sessions', async () => {
+      // Set up collapse state in global sessionStorage
+      sessionStorage.setItem('schaltwerk:layout:bottomTerminalCollapsed', 'true')
 
       await renderGrid()
       vi.useRealTimers()
@@ -1100,24 +1108,32 @@ describe('TerminalGrid', () => {
         expect(bridge?.isReady).toBe(true)
       }, { timeout: 3000 })
 
-      // Orchestrator starts not collapsed
+      // Orchestrator starts collapsed
       expect(screen.getByTestId('split')).toBeInTheDocument()
-      const collapseBtn = screen.getByLabelText('Collapse terminal panel')
-      expect(collapseBtn).toBeInTheDocument()
+      const expandBtn = screen.getByLabelText('Expand terminal panel')
+      expect(expandBtn).toBeInTheDocument()
 
-      // Switch to session-a (should be collapsed)
+      // Switch to session-a (should also be collapsed)
       await act(async () => {
         await bridge!.setSelection({ kind: 'session', payload: 'session-a', worktreePath: '/a/path' })
       })
 
       await waitFor(() => {
         expect(screen.getByText('Agent — session-a')).toBeInTheDocument()
-        const expandBtn = screen.getByLabelText('Expand terminal panel')
-        expect(expandBtn).toBeInTheDocument()
+        const expandBtnA = screen.getByLabelText('Expand terminal panel')
+        expect(expandBtnA).toBeInTheDocument()
         expect(screen.getByTestId('split')).toBeInTheDocument()
       })
 
-      // Switch to session-b (should not be collapsed)
+      // Expand in session-a
+      fireEvent.click(screen.getByLabelText('Expand terminal panel'))
+      
+      await waitFor(() => {
+        const collapseBtn = screen.getByLabelText('Collapse terminal panel')
+        expect(collapseBtn).toBeInTheDocument()
+      })
+
+      // Switch to session-b (should now be expanded because state is global)
       await act(async () => {
         await bridge!.setSelection({ kind: 'session', payload: 'session-b', worktreePath: '/b/path' })
       })
@@ -1125,26 +1141,26 @@ describe('TerminalGrid', () => {
       await waitFor(() => {
         expect(screen.getByText('Agent — session-b')).toBeInTheDocument()
         expect(screen.getByTestId('split')).toBeInTheDocument()
-        const collapseBtn = screen.getByLabelText('Collapse terminal panel')
-        expect(collapseBtn).toBeInTheDocument()
+        const collapseBtnB = screen.getByLabelText('Collapse terminal panel')
+        expect(collapseBtnB).toBeInTheDocument()
       })
 
-      // Switch back to session-a (should still be collapsed)
+      // Switch back to session-a (should still be expanded)
       await act(async () => {
         await bridge!.setSelection({ kind: 'session', payload: 'session-a', worktreePath: '/a/path' })
       })
 
       await waitFor(() => {
         expect(screen.getByText('Agent — session-a')).toBeInTheDocument()
-        const expandBtn = screen.getByLabelText('Expand terminal panel')
-        expect(expandBtn).toBeInTheDocument()
+        const collapseBtnA = screen.getByLabelText('Collapse terminal panel')
+        expect(collapseBtnA).toBeInTheDocument()
         expect(screen.getByTestId('split')).toBeInTheDocument()
       })
     })
 
     it('expands terminal when clicking expand button while collapsed', async () => {
-      // Pre-set collapsed state for the test session
-      sessionStorage.setItem('schaltwerk:terminal-grid:collapsed:test', 'true')
+      // Pre-set collapsed state globally
+      sessionStorage.setItem('schaltwerk:layout:bottomTerminalCollapsed', 'true')
       
       await renderGrid()
       vi.useRealTimers()
@@ -1154,7 +1170,7 @@ describe('TerminalGrid', () => {
         expect(bridge?.isReady).toBe(true)
       }, { timeout: 3000 })
 
-      // Switch to the test session which has collapsed state
+      // Switch to the test session
       await act(async () => {
         await bridge!.setSelection({ kind: 'session', payload: 'test', worktreePath: '/test' })
       })
@@ -1163,8 +1179,7 @@ describe('TerminalGrid', () => {
          expect(screen.getByText('Agent — test')).toBeInTheDocument()
        })
 
-       // Terminal should be collapsed for this session (from sessionStorage)
-       // Wait for the button to have the correct aria-label
+       // Terminal should be collapsed (global state)
        let expandBtn: HTMLElement
        await waitFor(() => {
          expandBtn = screen.getByLabelText('Expand terminal panel')
@@ -1682,6 +1697,41 @@ describe('TerminalGrid', () => {
     // Body class should be cleared by the safety net
     await waitFor(() => {
       expect(document.body.classList.contains('is-split-dragging')).toBe(false)
+    })
+  })
+
+  describe('Keyboard Toggle Consistency', () => {
+    it('collapses bottom terminal when Cmd+/ is pressed while terminal is focused', async () => {
+      // Start collapsed=false in storage
+      sessionStorage.setItem('schaltwerk:layout:bottomTerminalCollapsed', 'false')
+      sessionStorage.setItem('schaltwerk:layout:bottomTerminalSizes', JSON.stringify([70, 30]))
+
+      await renderGrid()
+      vi.useRealTimers()
+
+      await waitForGridReady()
+
+      // Verify initially expanded (Collapse button visible)
+      expect(screen.getByLabelText('Collapse terminal panel')).toBeInTheDocument()
+
+      // Find any bottom terminal and focus it
+      const terminals = screen.getAllByTestId(/^terminal-.*-bottom-0$/)
+      expect(terminals.length).toBeGreaterThan(0)
+      const bottomTerminal = terminals[0]
+      fireEvent.click(bottomTerminal)
+
+      // Press Cmd+/
+      await act(async () => {
+        fireEvent.keyDown(document, { key: '/', metaKey: true })
+      })
+
+      // Should now be collapsed (Expand button visible)
+      await waitFor(() => {
+        expect(screen.getByLabelText('Expand terminal panel')).toBeInTheDocument()
+      })
+      
+      // Verify persisted state
+      expect(sessionStorage.getItem('schaltwerk:layout:bottomTerminalCollapsed')).toBe('true')
     })
   })
 })

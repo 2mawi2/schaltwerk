@@ -63,8 +63,11 @@ export function AgentBinaryStatus() {
           return (
             <div
               key={agent}
-              className="rounded-lg border px-3 py-2.5 flex flex-col gap-2 shadow-[0_1px_2px_rgba(0,0,0,0.25)]"
-              style={styles}
+              className="rounded-lg border px-3 py-2.5 flex flex-col gap-2"
+              style={{
+                ...styles,
+                boxShadow: theme.shadow.sm,
+              }}
             >
               <div className="flex items-center justify-between text-sm font-semibold">
                 <span className="flex items-center gap-2">

@@ -18,6 +18,12 @@ import { getActionButtonColorClasses } from '../../constants/actionButtonColors'
 import { ConfirmResetDialog } from '../common/ConfirmResetDialog'
 import { VscDiscard } from 'react-icons/vsc'
 import { useRef, useEffect, useState, useMemo, useCallback, memo } from 'react'
+import { useAtom } from 'jotai'
+import {
+  bottomTerminalCollapsedAtom,
+  bottomTerminalSizesAtom,
+  bottomTerminalLastExpandedSizeAtom,
+} from '../../store/atoms/layout'
 import { useShortcutDisplay } from '../../keyboardShortcuts/useShortcutDisplay'
 import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
 import { useKeyboardShortcutsConfig } from '../../contexts/KeyboardShortcutsContext'
@@ -110,33 +116,15 @@ const TerminalGridComponent = () => {
     )
     const containerRef = useRef<HTMLDivElement>(null)
     const [collapsedPercent, setCollapsedPercent] = useState<number>(10) // fallback ~ header height in % with safety margin
-    // Initialize persisted UI state synchronously to avoid extra re-renders that remount children in tests
-    const initialPersistKey = selection.kind === 'orchestrator' ? 'orchestrator' : selection.payload || 'unknown'
-    const initialIsCollapsed = (sessionStorage.getItem(`schaltwerk:terminal-grid:collapsed:${initialPersistKey}`) === 'true')
-    const initialExpanded = (() => {
-        const rawExpanded = sessionStorage.getItem(`schaltwerk:terminal-grid:lastExpandedBottom:${initialPersistKey}`)
-        const v = rawExpanded ? Number(rawExpanded) : NaN
-        return !Number.isNaN(v) && v > 0 && v < 100 ? v : 28
-    })()
-    const [isBottomCollapsed, setIsBottomCollapsed] = useState<boolean>(initialIsCollapsed)
-    const [lastExpandedBottomPercent, setLastExpandedBottomPercent] = useState<number>(initialExpanded)
-    const isBottomCollapsedRef = useRef(initialIsCollapsed)
+
+    const [isBottomCollapsed, setIsBottomCollapsed] = useAtom(bottomTerminalCollapsedAtom)
+    const [sizes, setSizes] = useAtom(bottomTerminalSizesAtom)
+    const [lastExpandedBottomPercent, setLastExpandedBottomPercent] = useAtom(bottomTerminalLastExpandedSizeAtom)
+
+    const isBottomCollapsedRef = useRef(isBottomCollapsed)
     const isDraggingRef = useRef(false)
     const pendingInsertTextRef = useRef<string | null>(null)
-    const [sizes, setSizes] = useState<number[]>(() => {
-        const raw = sessionStorage.getItem(`schaltwerk:terminal-grid:sizes:${initialPersistKey}`)
-        let base: number[] = [72, 28]
-        if (raw) {
-            try { const parsed = JSON.parse(raw) as number[]; if (Array.isArray(parsed) && parsed.length === 2) base = parsed } catch {
-                // JSON parsing failed, use default
-            }
-        }
-        if (initialIsCollapsed) {
-            const pct = 10
-            return [100 - pct, pct]
-        }
-        return base
-    })
+
     useEffect(() => {
         isBottomCollapsedRef.current = isBottomCollapsed
     }, [isBottomCollapsed])
@@ -247,24 +235,18 @@ const TerminalGridComponent = () => {
         return terminalTabsState.activeTab + 1
     }, [terminalTabsState.activeTab, RUN_TAB_INDEX])
 
-    const toggleTerminalCollapsed = () => {
-        const newCollapsed = !isBottomCollapsed
-        setIsBottomCollapsed(newCollapsed)
-        sessionStorage.setItem(`schaltwerk:terminal-grid:collapsed:${sessionKey}`, String(newCollapsed))
-
-        if (newCollapsed) {
-            // When collapsing, save current size and set to collapsed size
-            const currentBottom = sizes[1]
-            if (currentBottom > collapsedPercent) {
-                setLastExpandedBottomPercent(currentBottom)
-            }
-            setSizes([100 - collapsedPercent, collapsedPercent])
+    const toggleTerminalCollapsed = useCallback(() => {
+        if (isBottomCollapsed) {
+            // Expand
+            const expanded = lastExpandedBottomPercent || 28
+            void setSizes([100 - expanded, expanded])
+            void setIsBottomCollapsed(false)
         } else {
-            // When expanding, restore to last expanded size
-            const expandedSize = lastExpandedBottomPercent || 28
-            setSizes([100 - expandedSize, expandedSize])
+            // Collapse
+            void setSizes([100 - collapsedPercent, collapsedPercent])
+            void setIsBottomCollapsed(true)
         }
-    }
+    }, [isBottomCollapsed, lastExpandedBottomPercent, collapsedPercent, setSizes, setIsBottomCollapsed])
     
     // Listen for terminal reset events and focus terminal events
     useEffect(() => {
@@ -300,9 +282,7 @@ const TerminalGridComponent = () => {
 
             // Expand if collapsed
             if (isBottomCollapsed) {
-                const expandedSize = lastExpandedBottomPercent || 28
-                setSizes([100 - expandedSize, expandedSize])
-                setIsBottomCollapsed(false)
+                void setIsBottomCollapsed(false)
             }
 
             // If a specific terminalId was provided, prefer focusing that one
@@ -342,7 +322,7 @@ const TerminalGridComponent = () => {
             cleanupFocus()
             cleanupReady()
         }
-    }, [isBottomCollapsed, lastExpandedBottomPercent, runModeActive, terminalTabsState.activeTab, isAnyModalOpen, selection.kind, selection.payload])
+    }, [isBottomCollapsed, runModeActive, terminalTabsState.activeTab, isAnyModalOpen, selection.kind, selection.payload, setIsBottomCollapsed])
 
     // Fetch agent type based on selection
     useEffect(() => {
@@ -455,8 +435,8 @@ const TerminalGridComponent = () => {
 
         if (isBottomCollapsed) {
             const expandedSize = lastExpandedBottomPercent || 28
-            setSizes([100 - expandedSize, expandedSize])
-            setIsBottomCollapsed(false)
+            void setSizes([100 - expandedSize, expandedSize])
+            void setIsBottomCollapsed(false)
         }
 
         setPendingRunToggle(true)
@@ -470,10 +450,10 @@ const TerminalGridComponent = () => {
         activeTabKey,
         RUN_TAB_INDEX,
         isBottomCollapsed,
-        lastExpandedBottomPercent,
-        setSizes,
         setIsBottomCollapsed,
-        setPendingRunToggle
+        setPendingRunToggle,
+        lastExpandedBottomPercent,
+        setSizes
     ])
 
     useEffect(() => {
@@ -592,9 +572,7 @@ const TerminalGridComponent = () => {
                     })
                     sessionStorage.setItem(activeTabKey, String(RUN_TAB_INDEX))
                     if (isBottomCollapsed) {
-                        const expandedSize = lastExpandedBottomPercent || 28
-                        setSizes([100 - expandedSize, expandedSize])
-                        setIsBottomCollapsed(false)
+                        toggleTerminalCollapsed()
                     }
                     setPendingRunToggle(false)
                     return
@@ -617,9 +595,7 @@ const TerminalGridComponent = () => {
                 })
                 
                 if (isBottomCollapsed) {
-                    const expandedSize = lastExpandedBottomPercent || 28
-                    setSizes([100 - expandedSize, expandedSize])
-                    setIsBottomCollapsed(false)
+                    toggleTerminalCollapsed()
                 }
                 
                 setPendingRunToggle(true)
@@ -628,6 +604,7 @@ const TerminalGridComponent = () => {
             // Cmd+/ for Terminal Focus (Mac only)
             if (event.metaKey && event.key === '/') {
                 event.preventDefault()
+                event.stopImmediatePropagation()
                 
                 const sessionKey = getSessionKey()
                 const lastFocus = getFocusForSession(sessionKey)
@@ -650,9 +627,7 @@ const TerminalGridComponent = () => {
                     
                     // Expand if collapsed
                     if (isBottomCollapsed) {
-                        const expandedSize = lastExpandedBottomPercent || 28
-                        setSizes([100 - expandedSize, expandedSize])
-                        setIsBottomCollapsed(false)
+                        toggleTerminalCollapsed()
                     }
                     
                     // Focus the terminal
@@ -665,25 +640,40 @@ const TerminalGridComponent = () => {
                     // Default to terminal if no previous focus or invalid focus
                     const targetFocus = (lastFocus === 'claude' || lastFocus === 'terminal') ? lastFocus : 'terminal'
                     
-                    // Set focus for session
-                    setFocusForSession(sessionKey, targetFocus)
-                    setLocalFocus(targetFocus)
-                    
-                    // Expand terminal panel if collapsed and focusing terminal
-                    if (targetFocus === 'terminal' && isBottomCollapsed) {
-                        const expandedSize = lastExpandedBottomPercent || 28
-                        setSizes([100 - expandedSize, expandedSize])
-                        setIsBottomCollapsed(false)
-                    }
-                    
-                    // Focus the appropriate terminal
-                    requestAnimationFrame(() => {
-                        if (targetFocus === 'claude' && claudeTerminalRef.current) {
-                            claudeTerminalRef.current.focus()
-                        } else if (targetFocus === 'terminal' && terminalTabsRef.current) {
-                            terminalTabsRef.current.focus()
+                    // Toggle Logic
+                    if (isBottomCollapsed) {
+                        // Expand and Focus
+                        toggleTerminalCollapsed()
+                        
+                        setFocusForSession(sessionKey, targetFocus)
+                        setLocalFocus(targetFocus)
+                        requestAnimationFrame(() => {
+                            if (targetFocus === 'claude' && claudeTerminalRef.current) {
+                                claudeTerminalRef.current.focus()
+                            } else if (targetFocus === 'terminal' && terminalTabsRef.current) {
+                                terminalTabsRef.current.focus()
+                            }
+                        })
+                    } else {
+                        // Expanded
+                        if (localFocus === 'terminal') {
+                            // If focused on terminal, collapse and focus Claude
+                            toggleTerminalCollapsed()
+                            
+                            setFocusForSession(sessionKey, 'claude')
+                            setLocalFocus('claude')
+                            requestAnimationFrame(() => {
+                                claudeTerminalRef.current?.focus()
+                            })
+                        } else {
+                            // If focused on Claude (or elsewhere), focus Terminal
+                            setFocusForSession(sessionKey, 'terminal')
+                            setLocalFocus('terminal')
+                            requestAnimationFrame(() => {
+                                terminalTabsRef.current?.focus()
+                            })
                         }
-                    })
+                    }
                 }
             }
         }
@@ -692,7 +682,28 @@ const TerminalGridComponent = () => {
         return () => {
             document.removeEventListener('keydown', handleKeyDown)
         }
-    }, [hasRunScripts, isBottomCollapsed, lastExpandedBottomPercent, runModeActive, terminalTabsState.activeTab, sessionKey, getFocusForSession, setFocusForSession, isAnyModalOpen, activeTabKey, RUN_TAB_INDEX, getSessionKey, applyTabsState, persistRunModeState])
+    }, [
+        hasRunScripts, 
+        isBottomCollapsed, 
+        runModeActive, 
+        terminalTabsState.activeTab, 
+        sessionKey, 
+        getFocusForSession, 
+        setFocusForSession, 
+        isAnyModalOpen, 
+        activeTabKey, 
+        RUN_TAB_INDEX, 
+        getSessionKey, 
+        applyTabsState, 
+        persistRunModeState, 
+        localFocus, 
+        setLocalFocus, 
+        setIsBottomCollapsed,
+        lastExpandedBottomPercent,
+        setSizes,
+        collapsedPercent,
+        toggleTerminalCollapsed
+    ])
 
     // Handle pending run toggle after RunTerminal mounts with proper timing
     useEffect(() => {
@@ -740,7 +751,6 @@ const TerminalGridComponent = () => {
 
     // Compute collapsed percent based on actual header height and container size
     useEffect(() => {
-        if (!isBottomCollapsed) return
         let measureRafId: number | null = null
         let applyRafId: number | null = null
         const compute = () => {
@@ -755,16 +765,17 @@ const TerminalGridComponent = () => {
             const pct = Math.max(minPct, Math.min(15, (headerHeight / total) * 100))
             if (Math.abs(pct - collapsedPercent) > 1.0) {
                 setCollapsedPercent(pct)
-                if (applyRafId !== null) {
-                    cancelAnimationFrame(applyRafId)
-                }
-                applyRafId = requestAnimationFrame(() => {
-                    if (!isBottomCollapsedRef.current) {
-                        return
+                
+                // Only apply sizes if currently collapsed
+                if (isBottomCollapsedRef.current) {
+                    if (applyRafId !== null) {
+                        cancelAnimationFrame(applyRafId)
                     }
-                    setSizes([100 - pct, pct])
-                    applyRafId = null
-                })
+                    applyRafId = requestAnimationFrame(() => {
+                        void setSizes([100 - pct, pct])
+                        applyRafId = null
+                    })
+                }
             }
         }
         let rafPending = false
@@ -790,58 +801,9 @@ const TerminalGridComponent = () => {
             }
             ro.disconnect()
         }
-    }, [isBottomCollapsed, collapsedPercent])
+    }, [collapsedPercent, setSizes])
 
-    // Load sizes/collapse state when selection changes (avoid unnecessary updates)
-    const getStorageKey = useCallback(() => (selection.kind === 'orchestrator' ? 'orchestrator' : selection.payload || 'unknown'), [selection.kind, selection.payload])
-    useEffect(() => {
-        const key = getStorageKey()
-        const raw = sessionStorage.getItem(`schaltwerk:terminal-grid:sizes:${key}`)
-        const rawCollapsed = sessionStorage.getItem(`schaltwerk:terminal-grid:collapsed:${key}`)
-        const rawExpanded = sessionStorage.getItem(`schaltwerk:terminal-grid:lastExpandedBottom:${key}`)
-        let nextSizes: number[] = [72, 28]
-        let expandedBottom = 28
-        
-        if (raw) {
-            try { const parsed = JSON.parse(raw) as number[]; if (Array.isArray(parsed) && parsed.length === 2) nextSizes = parsed } catch {
-                // JSON parsing failed, use default
-            }
-        }
-        if (rawExpanded) { const v = Number(rawExpanded); if (!Number.isNaN(v) && v > 0 && v < 100) expandedBottom = v }
-        
-        // Only change collapsed state if there's an explicit localStorage value for this session
-        // Otherwise, keep the current collapsed state
-        if (rawCollapsed !== null) {
-            const collapsed = rawCollapsed === 'true'
-            setIsBottomCollapsed(collapsed)
-            if (collapsed) {
-                const pct = collapsedPercent
-                const target = [100 - pct, pct]
-                if (sizes[0] !== target[0] || sizes[1] !== target[1]) setSizes(target)
-            } else {
-                if (sizes[0] !== nextSizes[0] || sizes[1] !== nextSizes[1]) setSizes(nextSizes)
-            }
-        } else {
-            // No localStorage entry - keep current collapsed state but update sizes
-            if (!isBottomCollapsed) {
-                if (sizes[0] !== nextSizes[0] || sizes[1] !== nextSizes[1]) setSizes(nextSizes)
-            }
-        }
-        
-        setLastExpandedBottomPercent(expandedBottom)
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selection])
-
-    // Persist when sizes change (and not collapsed)
-    useEffect(() => {
-        if (!sizes) return
-        const key = getStorageKey()
-        sessionStorage.setItem(`schaltwerk:terminal-grid:sizes:${key}`, JSON.stringify(sizes))
-        if (!isBottomCollapsed) {
-            setLastExpandedBottomPercent(sizes[1])
-            sessionStorage.setItem(`schaltwerk:terminal-grid:lastExpandedBottom:${key}`, String(sizes[1]))
-        }
-    }, [sizes, isBottomCollapsed, sessionKey, getStorageKey])
+    // Removed session-based storage effects
 
     // Safety net: ensure dragging state is cleared if pointer ends outside the gutter/component
     useEffect(() => {
@@ -860,11 +822,12 @@ const TerminalGridComponent = () => {
         }
     }, [])
 
-    // Persist collapsed state
+    // Sync sizes to lastExpandedBottomPercent when not collapsed
     useEffect(() => {
-        const key = getStorageKey()
-        sessionStorage.setItem(`schaltwerk:terminal-grid:collapsed:${key}`, String(isBottomCollapsed))
-    }, [isBottomCollapsed, selection, sessionKey, getStorageKey])
+        if (!isBottomCollapsed && sizes && sizes.length === 2) {
+             void setLastExpandedBottomPercent(sizes[1])
+        }
+    }, [sizes, isBottomCollapsed, setLastExpandedBottomPercent])
 
     // Keep a mutable reference of the latest terminal tabs state for persistence between sessions
     useEffect(() => {
@@ -965,11 +928,11 @@ const TerminalGridComponent = () => {
         const sessionKey = getSessionKey()
         setFocusForSession(sessionKey, 'terminal')
         setLocalFocus('terminal')
-        // If collapsed, uncollapse first
+                        // If collapsed, uncollapse first
         if (isBottomCollapsed) {
             const expanded = lastExpandedBottomPercent || 28
-            setSizes([100 - expanded, expanded])
-            setIsBottomCollapsed(false)
+            void setSizes([100 - expanded, expanded])
+            void setIsBottomCollapsed(false)
             safeTerminalFocus(() => {
                 terminalTabsRef.current?.focus()
             }, isAnyModalOpen)
@@ -1113,8 +1076,8 @@ const TerminalGridComponent = () => {
                     isDraggingRef.current = true
                 }}
                 onDragEnd={(nextSizes: number[]) => {
-                    setSizes(nextSizes)
-                    setIsBottomCollapsed(false)
+                    void setSizes(nextSizes)
+                    void setIsBottomCollapsed(false)
                     isDraggingRef.current = false
                     endSplitDrag('terminal-grid')
                     window.dispatchEvent(new Event('terminal-split-drag-end'))
