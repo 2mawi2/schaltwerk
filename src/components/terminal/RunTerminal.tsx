@@ -60,6 +60,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
   const [scrollRequestId, setScrollRequestId] = useState(0)
   const pendingScrollToBottomRef = useRef(false)
   const startPendingRef = useRef(false)
+  const scrollRafRef = useRef<number | null>(null)
 
   const handleRunComplete = useCallback((exitCode: string) => {
     logger.info('[RunTerminal] Detected run command completion with exit code:', exitCode || 'unknown')
@@ -198,6 +199,14 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
     const handler = (chunk: string) => {
       if (!chunk) return
       processChunk(chunk)
+
+      // Always follow streaming output for the run terminal
+      if (scrollRafRef.current === null) {
+        scrollRafRef.current = requestAnimationFrame(() => {
+          scrollRafRef.current = null
+          terminalRef.current?.scrollToBottom()
+        })
+      }
     }
 
     terminalOutputManager.addListener(runTerminalId, handler)
@@ -207,6 +216,10 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
 
     return () => {
       terminalOutputManager.removeListener(runTerminalId, handler)
+      if (scrollRafRef.current !== null) {
+        cancelAnimationFrame(scrollRafRef.current)
+        scrollRafRef.current = null
+      }
     }
   }, [runTerminalId, processChunk])
 
