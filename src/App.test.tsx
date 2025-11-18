@@ -182,6 +182,8 @@ async function defaultInvokeImpl(cmd: string, _args?: unknown) {
       return { worktree_path: '/tmp/worktrees/abc' }
     case TauriCommands.GetProjectActionButtons:
       return []
+    case TauriCommands.GetAllAgentBinaryConfigs:
+      return []
     case TauriCommands.InitializeProject:
     case TauriCommands.AddRecentProject:
     case TauriCommands.SchaltwerkCoreCreateSession:

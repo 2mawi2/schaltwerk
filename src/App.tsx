@@ -17,7 +17,7 @@ import { SettingsModal } from './components/modals/SettingsModal'
 import { ProjectSelectorModal } from './components/modals/ProjectSelectorModal'
 import { invoke } from '@tauri-apps/api/core'
 import { useSelection } from './hooks/useSelection'
-import { useAtomValue, useSetAtom } from 'jotai'
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import {
   increaseFontSizesActionAtom,
   decreaseFontSizesActionAtom,
@@ -42,6 +42,11 @@ import {
   initializeSessionsSettingsActionAtom,
   refreshSessionsActionAtom,
 } from './store/atoms/sessions'
+import {
+  rightPanelCollapsedAtom,
+  rightPanelSizesAtom,
+  rightPanelLastExpandedSizeAtom,
+} from './store/atoms/layout'
 import { useSessions } from './hooks/useSessions'
 import { HomeScreen } from './components/home/HomeScreen'
 import { TopBar } from './components/TopBar'
@@ -49,7 +54,7 @@ import { PermissionPrompt } from './components/PermissionPrompt'
 import { OnboardingModal } from './components/onboarding/OnboardingModal'
 import { useOnboarding } from './hooks/useOnboarding'
 import { useSessionPrefill } from './hooks/useSessionPrefill'
-import { useRightPanelPersistence } from './hooks/useRightPanelPersistence'
+// useRightPanelPersistence removed
 import { useAttentionNotifications } from './hooks/useAttentionNotifications'
 import { useAgentBinarySnapshot } from './hooks/useAgentBinarySnapshot'
 import { theme } from './common/theme'
@@ -643,19 +648,33 @@ function AppContent() {
     }
   }, [openProject])
 
-  const rightPanelStorageKey = selection
-    ? selection.kind === 'orchestrator'
-      ? 'orchestrator'
-      : selection.payload || 'unknown'
-    : 'default'
+  // Right panel global state (using atoms for persistence)
+  const [rightSizes, setRightSizes] = useAtom(rightPanelSizesAtom)
+  const [isRightCollapsed, setIsRightCollapsed] = useAtom(rightPanelCollapsedAtom)
+  const [lastExpandedRightPercent, setLastExpandedRightPercent] = useAtom(rightPanelLastExpandedSizeAtom)
 
-  const {
-    sizes: rightSizes,
-    setSizes: setRightSizes,
-    isCollapsed: isRightCollapsed,
-    toggleCollapsed: toggleRightPanelCollapsed,
-    setCollapsedExplicit: setRightPanelCollapsedExplicit
-  } = useRightPanelPersistence({ storageKey: rightPanelStorageKey })
+  const toggleRightPanelCollapsed = useCallback(() => {
+    void setIsRightCollapsed(prev => {
+        const willCollapse = !prev
+        if (willCollapse) {
+            void setRightSizes([100, 0])
+        } else {
+            const expanded = lastExpandedRightPercent || 30
+            void setRightSizes([100 - expanded, expanded])
+        }
+        return willCollapse
+    })
+  }, [setIsRightCollapsed, lastExpandedRightPercent, setRightSizes])
+
+  const setRightPanelCollapsedExplicit = useCallback((collapsed: boolean) => {
+    if (collapsed) {
+        void setRightSizes([100, 0])
+    } else {
+        const expanded = lastExpandedRightPercent || 30
+        void setRightSizes([100 - expanded, expanded])
+    }
+    void setIsRightCollapsed(collapsed)
+  }, [setIsRightCollapsed, lastExpandedRightPercent, setRightSizes])
   
   // Right panel drag state for performance optimization
   const [isDraggingRightSplit, setIsDraggingRightSplit] = useState(false)
@@ -676,7 +695,11 @@ function AppContent() {
 
     const resultSizes = options?.sizes
     if (Array.isArray(resultSizes) && resultSizes.length === 2) {
-      setRightSizes((): [number, number] => [resultSizes[0], resultSizes[1]])
+      void setRightSizes((): [number, number] => [resultSizes[0], resultSizes[1]])
+      // Update last expanded size if we have a valid right panel size (and not collapsed)
+      if (resultSizes[1] > 0) {
+          void setLastExpandedRightPercent(resultSizes[1])
+      }
     }
     setRightPanelCollapsedExplicit(false)
 
@@ -703,7 +726,7 @@ function AppContent() {
     } catch (e) {
       logger.warn('[App] Failed to dispatch generic terminal resize request on right panel drag end', e)
     }
-  }, [selection, setRightPanelCollapsedExplicit, setRightSizes])
+  }, [selection, setRightPanelCollapsedExplicit, setRightSizes, setLastExpandedRightPercent])
 
   const handleRightSplitDragEnd = useCallback((nextSizes: number[]) => {
     finalizeRightSplitDrag({ sizes: nextSizes })
