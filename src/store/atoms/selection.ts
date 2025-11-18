@@ -235,7 +235,7 @@ const terminalsCache = new Map<string, Set<string>>()
 const terminalToSelectionKey = new Map<string, string>()
 const selectionsNeedingRecreate = new Set<string>()
 const lastKnownSessionState = new Map<string, NormalizedSessionState>()
-const ignoredSpecReverts = new Set<string>()
+// const ignoredSpecReverts = new Set<string>() // Removed as part of fix
 const lastSelectionByProject = new Map<string, Selection>()
 let pendingAsyncEffect: Promise<void> | null = null
 
@@ -557,20 +557,26 @@ async function handleSessionStateUpdate(
 ): Promise<void> {
   const previous = lastKnownSessionState.get(sessionId)
 
-  if (nextState === 'running') {
-    ignoredSpecReverts.delete(sessionId)
-  }
-
   if (nextState === 'spec' && previous === 'running') {
-    if (!ignoredSpecReverts.has(sessionId)) {
-      ignoredSpecReverts.add(sessionId)
-      logger.warn('[selection] Ignoring single spec-state revert after running to prevent terminal reset', {
-        sessionId,
-        projectPath,
-      })
-      return
+    // When we receive a spec state for a running session, it might be a stale event
+    // (e.g. from a slow refresh or out-of-order event). We must verify the true state
+    // before destroying terminals.
+    try {
+      const snapshot = await set(getSessionSnapshotActionAtom, { sessionId, refresh: true })
+      if (snapshot && snapshot.sessionState === 'running') {
+        logger.warn('[selection] Ignoring stale spec event. Backend verification confirms session is still running.', {
+          sessionId,
+          projectPath,
+        })
+        // Force local state to remain running so subsequent correct events are processed normally
+        lastKnownSessionState.set(sessionId, 'running')
+        return
+      }
+    } catch (error) {
+      logger.warn('[selection] Failed to verify session state during spec transition check', { sessionId, error })
     }
-    logger.warn('[selection] Applying spec-state revert after prior ignore (second consecutive)', {
+    
+    logger.info('[selection] Confirmed transition to spec state. Releasing terminals.', {
       sessionId,
       projectPath,
     })
@@ -880,7 +886,7 @@ export function resetSelectionAtomsForTest(): void {
   selectionsNeedingRecreate.clear()
   lastSelectionByProject.clear()
   lastKnownSessionState.clear()
-  ignoredSpecReverts.clear()
+  // ignoredSpecReverts.clear()
   cachedProjectPath = null
   cachedProjectId = 'default'
   currentFilterMode = FilterMode.All
