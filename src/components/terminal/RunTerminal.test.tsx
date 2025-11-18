@@ -315,6 +315,28 @@ describe('RunTerminal', () => {
     expect(scrollToBottomMock).toHaveBeenCalled()
   })
 
+  it('keeps the run terminal pinned to the bottom while output streams', async () => {
+    render(<Wrapper />)
+
+    await screen.findByText('Ready to run:')
+
+    await act(async () => {
+      screen.getByText('toggle').click()
+    })
+
+    await screen.findByText('Running:')
+
+    const callsBeforeOutput = scrollToBottomMock.mock.calls.length
+
+    await act(async () => {
+      terminalOutputHarness.emit('run-terminal-test', 'hello\n')
+    })
+
+    await waitFor(() => {
+      expect(scrollToBottomMock.mock.calls.length).toBeGreaterThan(callsBeforeOutput)
+    })
+  })
+
   it('resets running state when run command exits naturally', async () => {
     const { invoke } = await import('@tauri-apps/api/core')
     const mockInvoke = vi.mocked(invoke)
