@@ -1,4 +1,5 @@
 import type { XtermTerminal } from '../../../terminal/xterm/XtermTerminal'
+import { logger } from '../../../utils/logger'
 
 const SCROLL_LOCK_THRESHOLD_LINES = 5
 
@@ -75,10 +76,14 @@ export class TerminalViewportController {
         if (distance > 0) {
           this._logger?.(`[TerminalViewportController] Snapping to bottom (source=${source}, distance=${distance})`)
         }
-        this._terminal.scrollToBottom()
+        this._terminal.raw.scrollToBottom()
       }
     } catch (e) {
-      this._logger?.(`[TerminalViewportController] Error during refresh/snap: ${String(e)}`)
+      const msg = `[TerminalViewportController] Error during refresh/snap: ${String(e)}`
+      // Always log errors to global logger to ensure visibility and satisfy architecture requirements
+      logger.error(msg)
+      // Also invoke the instance logger if provided (e.g. for debug tracing)
+      this._logger?.(msg)
     }
   }
 
