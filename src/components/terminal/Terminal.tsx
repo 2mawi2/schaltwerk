@@ -282,7 +282,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
          setAgentStopped(sessionStorage.getItem(key) === 'true');
      }, [isAgentTopTerminal, terminalId]);
 
-    const applySizeUpdate = useCallback((cols: number, rows: number, reason: string, force = false) => {
+    const applySizeUpdate = useCallback((cols: number, rows: number, reason: string, _force = false) => {
         const MIN_DIMENSION = MIN_TERMINAL_COLUMNS;
         if (!terminal.current) return false;
         // Step 1: only apply resize thrash suppression (no right-edge margin yet)
@@ -303,30 +303,23 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         }
 
         const dragging = document.body.classList.contains('is-split-dragging');
-        // Suppress resize thrash: ignore tiny oscillations (<2 total delta) unless forced or dragging
-        if (!force && !dragging) {
-            const dCols = Math.abs(cols - lastSize.current.cols);
-            const dRows = Math.abs(rows - lastSize.current.rows);
-            if (dCols + dRows < 2) return false;
-        }
 
         const effectiveCols = calculateEffectiveColumns(cols);
 
         const measuredChanged = (cols !== lastSize.current.cols) || (rows !== lastSize.current.rows);
         lastSize.current = { cols, rows };
 
-        let wasAtBottom = false;
         let bufferLinesBefore = 0;
+        let wasAtBottom = false;
         try {
             const buf = terminal.current.buffer.active;
-            wasAtBottom = buf.viewportY === buf.baseY;
             bufferLinesBefore = buf.length;
+            wasAtBottom = buf.viewportY === buf.baseY;
             if (termDebug()) {
                 logger.debug(`[Terminal ${terminalId}] BEFORE resize: buffer.length=${buf.length}, viewportY=${buf.viewportY}, baseY=${buf.baseY}, wasAtBottom=${wasAtBottom}`);
             }
         } catch (e) {
-            logger.debug(`[Terminal ${terminalId}] Failed to read buffer state, defaulting to bottom`, e);
-            wasAtBottom = true;
+            logger.debug(`[Terminal ${terminalId}] Failed to read buffer state before resize`, e);
         }
 
         // Align frontend grid to effective size first, then repaint
@@ -343,20 +336,17 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 }
             }
 
-            if (wasAtBottom) {
+            // After any size change, force-align the viewport to the bottom.
+            // This mirrors VS Code's behavior of keeping the prompt visible through rapid height changes.
+            requestAnimationFrame(() => {
                 requestAnimationFrame(() => {
                     try {
-                        if (!terminal.current) return;
-                        const buf = terminal.current.buffer.active;
-                        const linesToScroll = buf.baseY - buf.viewportY;
-                        if (linesToScroll !== 0) {
-                            terminal.current.scrollLines(linesToScroll);
-                        }
+                        terminal.current?.scrollToBottom();
                     } catch (e) {
                         logger.debug(`[Terminal ${terminalId}] Failed to scroll to bottom after resize`, e);
                     }
                 });
-            }
+            });
         } catch (e) {
             logger.debug(`[Terminal ${terminalId}] Failed to apply frontend resize to ${effectiveCols}x${rows}`, e);
         }
