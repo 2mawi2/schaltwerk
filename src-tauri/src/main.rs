@@ -991,6 +991,7 @@ fn main() {
             schaltwerk_core_set_orchestrator_skip_permissions,
             schaltwerk_core_get_orchestrator_skip_permissions,
             schaltwerk_core_get_merge_preview,
+            schaltwerk_core_get_merge_preview_with_worktree,
             schaltwerk_core_merge_session_to_main,
             schaltwerk_core_mark_session_ready,
             schaltwerk_core_has_uncommitted_changes,

@@ -107,6 +107,7 @@ export const TauriCommands = {
   SchaltwerkCoreGetSkipPermissions: 'schaltwerk_core_get_skip_permissions',
   SchaltwerkCoreGetOrchestratorSkipPermissions: 'schaltwerk_core_get_orchestrator_skip_permissions',
   SchaltwerkCoreGetMergePreview: 'schaltwerk_core_get_merge_preview',
+  SchaltwerkCoreGetMergePreviewWithWorktree: 'schaltwerk_core_get_merge_preview_with_worktree',
   SchaltwerkCoreHasUncommittedChanges: 'schaltwerk_core_has_uncommitted_changes',
   SchaltwerkCoreListArchivedSpecs: 'schaltwerk_core_list_archived_specs',
   SchaltwerkCoreListEnrichedSessions: 'schaltwerk_core_list_enriched_sessions',

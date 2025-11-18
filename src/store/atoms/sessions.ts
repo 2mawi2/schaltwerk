@@ -1469,7 +1469,7 @@ export const openMergeDialogActionAtom = atom(
         })
 
         try {
-            const preview = await invoke<MergePreviewResponse>(TauriCommands.SchaltwerkCoreGetMergePreview, { name: sessionId })
+            const preview = await invoke<MergePreviewResponse>(TauriCommands.SchaltwerkCoreGetMergePreviewWithWorktree, { name: sessionId })
             set(mergeDialogStateAtom, {
                 isOpen: true,
                 status: 'ready',
@@ -1529,6 +1529,14 @@ export const confirmMergeActionAtom = atom(
             })
 
             set(mergeDialogStateAtom, defaultMergeDialogState())
+        } catch (error) {
+            const message = getErrorMessage(error)
+            logger.error(`Confirm merge failed for ${input.sessionId}`, error)
+            set(mergeDialogStateAtom, (prev) => ({
+                ...prev,
+                status: 'ready',
+                error: message,
+            }))
         } finally {
             set(mergeInFlightStateAtom, (prev) => {
                 const next = new Map(prev)
@@ -1554,33 +1562,8 @@ export const shortcutMergeActionAtom = atom(
             return { status: 'blocked', reason: 'no-session' }
         }
 
-        let autoMarkedReady = false
-
-        if (!session.info.ready_to_merge) {
-            if (session.info.session_state === 'spec') {
-                return { status: 'blocked', reason: 'not-ready' }
-            }
-
-            try {
-                await invoke<boolean>(TauriCommands.SchaltwerkCoreMarkSessionReady, {
-                    name: sessionId,
-                    autoCommit: true,
-                    commitMessage: null,
-                })
-            } catch (error) {
-                return { status: 'error', message: getErrorMessage(error) }
-            }
-
-            autoMarkedReady = true
-            await set(reloadSessionsActionAtom)
-            session = findSession()
-            if (!session || !session.info.ready_to_merge) {
-                return { status: 'blocked', reason: 'not-ready', autoMarkedReady }
-            }
-        }
-
-        if (session.info.merge_is_up_to_date) {
-            return { status: 'blocked', reason: 'already-merged' }
+        if (session.info.session_state === 'spec') {
+            return { status: 'blocked', reason: 'not-ready' }
         }
 
         if (get(mergeInFlightStateAtom).get(sessionId)) {
@@ -1589,18 +1572,11 @@ export const shortcutMergeActionAtom = atom(
 
         let preview: MergePreviewResponse
         try {
-            preview = await invoke<MergePreviewResponse>(TauriCommands.SchaltwerkCoreGetMergePreview, { name: sessionId })
+            preview = await invoke<MergePreviewResponse>(TauriCommands.SchaltwerkCoreGetMergePreviewWithWorktree, { name: sessionId })
             mergePreviewCache.set(sessionId, preview)
         } catch (error) {
-            return { status: 'error', message: getErrorMessage(error), autoMarkedReady }
+            return { status: 'error', message: getErrorMessage(error) }
         }
-
-        const hasKnownConflicts =
-            session.info.merge_has_conflicts === true ||
-            session.info.has_conflicts === true ||
-            (Array.isArray(session.info.merge_conflicting_paths) && session.info.merge_conflicting_paths.length > 0)
-
-        const previewHasConflicts = preview.hasConflicts || hasKnownConflicts
 
         const openMergeDialogWithPreview = () => {
             set(mergeDialogStateAtom, {
@@ -1612,7 +1588,7 @@ export const shortcutMergeActionAtom = atom(
             })
         }
 
-        if (previewHasConflicts) {
+        if (preview.hasConflicts) {
             set(mergeStatusesStateAtom, (prev) => {
                 const next = new Map(prev)
                 next.set(sessionId, 'conflict')
@@ -1621,7 +1597,7 @@ export const shortcutMergeActionAtom = atom(
 
             openMergeDialogWithPreview()
 
-            return { status: 'needs-modal', reason: 'conflict', autoMarkedReady }
+            return { status: 'needs-modal', reason: 'conflict' }
         }
 
         if (preview.isUpToDate) {
@@ -1630,7 +1606,7 @@ export const shortcutMergeActionAtom = atom(
                 next.set(sessionId, 'merged')
                 return next
             })
-            return { status: 'blocked', reason: 'already-merged', autoMarkedReady }
+            return { status: 'blocked', reason: 'already-merged' }
         }
 
         const commitFromInput = typeof input.commitMessage === 'string' ? input.commitMessage.trim() : ''
@@ -1638,11 +1614,11 @@ export const shortcutMergeActionAtom = atom(
 
         if (!commitMessage) {
             openMergeDialogWithPreview()
-            return { status: 'needs-modal', reason: 'missing-commit', autoMarkedReady }
+            return { status: 'needs-modal', reason: 'missing-commit' }
         }
 
         openMergeDialogWithPreview()
-        return { status: 'needs-modal', reason: 'confirm', autoMarkedReady }
+        return { status: 'needs-modal', reason: 'confirm' }
     },
 )
 
