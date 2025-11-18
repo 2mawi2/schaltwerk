@@ -216,7 +216,21 @@ function mergeSessionsPreferDraft(base: EnrichedSession[], specs: EnrichedSessio
     return Array.from(byId.values())
 }
 
+const SESSION_RELEASE_GRACE_MS = 4_000
+
 function releaseRemovedSessions(get: Getter, set: Setter, previous: EnrichedSession[], next: EnrichedSession[]) {
+    const now = Date.now()
+
+    for (const session of next) {
+        const id = session.info.session_id
+        const nextState = mapSessionUiState(session.info)
+        const previousState = previousSessionStates.get(id) ?? null
+
+        if (previousState === SessionState.Spec && nextState === SessionState.Running) {
+            protectedReleaseUntil.set(id, now + SESSION_RELEASE_GRACE_MS)
+        }
+    }
+
     if (!previous.length) {
         return
     }
@@ -237,6 +251,16 @@ function releaseRemovedSessions(get: Getter, set: Setter, previous: EnrichedSess
     const pending = new Map(get(pendingStartupsAtom))
     let pendingChanged = false
     for (const sessionId of removed) {
+        const protectionUntil = protectedReleaseUntil.get(sessionId) ?? 0
+
+        if (protectionUntil > now) {
+            logger.debug('[SessionsAtoms] Skipping terminal release during grace window', {
+                sessionId,
+                remainingMs: protectionUntil - now,
+            })
+            continue
+        }
+
         if (pending.delete(sessionId)) {
             pendingChanged = true
         }
@@ -252,6 +276,7 @@ function releaseRemovedSessions(get: Getter, set: Setter, previous: EnrichedSess
         `[SessionsAtoms] releaseRemovedSessions removed ${removed.length} session terminals (previous=${previous.length}, next=${next.length}): ${removed.join(', ')}`,
     )
 }
+
 
 function syncMergeStatuses(set: Setter, sessions: EnrichedSession[]) {
     set(mergeStatusesStateAtom, (prev) => {
@@ -610,6 +635,7 @@ const projectSessionStatesCache = new Map<string, Map<string, string>>()
 const suppressedAutoStart = new Set<string>()
 const mergeErrorCache = new Map<string, string>()
 const mergePreviewCache = new Map<string, MergePreviewResponse>()
+const protectedReleaseUntil = new Map<string, number>()
 let sessionsRefreshedReloadPending = false
 const sessionsEventHandlersForTests = new Map<SchaltEvent, (payload: unknown) => void>()
 
@@ -1427,6 +1453,7 @@ export function __resetSessionsTestingState() {
     suppressedAutoStart.clear()
     mergeErrorCache.clear()
     mergePreviewCache.clear()
+    protectedReleaseUntil.clear()
     sessionsEventHandlersForTests.clear()
 }
 
