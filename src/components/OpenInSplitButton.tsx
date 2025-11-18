@@ -28,11 +28,11 @@ export function OpenInSplitButton({ resolvePath, onOpenReady, filter }: OpenInSp
     const load = async () => {
       try {
         const [available, def] = await Promise.all([
-          invoke<OpenApp[]>(TauriCommands.ListAvailableOpenApps),
+          invoke<OpenApp[] | undefined>(TauriCommands.ListAvailableOpenApps),
           invoke<string>(TauriCommands.GetDefaultOpenApp),
         ])
         if (!mounted) return
-        setApps(available)
+        setApps(Array.isArray(available) ? available : [])
         if (def && ['finder','cursor','vscode','code','ghostty','warp','terminal','intellij','zed'].includes(def)) {
           setDefaultApp(def as OpenApp['id'])
         }
