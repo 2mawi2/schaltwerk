@@ -1159,13 +1159,19 @@ async fn merge_session(
     };
 
     let mode = payload.mode.unwrap_or(MergeMode::Squash);
-    let outcome =
-        match merge_session_with_events(&app, name, mode, payload.commit_message.clone()).await {
-            Ok(outcome) => outcome,
-            Err(MergeCommandError { message, conflict }) => {
-                let status = if conflict {
-                    StatusCode::CONFLICT
-                } else {
+    let outcome = match merge_session_with_events(
+        &app,
+        name,
+        mode,
+        payload.commit_message.clone(),
+    )
+    .await
+    {
+        Ok(outcome) => outcome,
+        Err(MergeCommandError { message, conflict }) => {
+            let status = if conflict {
+                StatusCode::CONFLICT
+            } else {
                     StatusCode::BAD_REQUEST
                 };
                 return Ok(error_response(status, message));
