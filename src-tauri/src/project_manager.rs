@@ -342,32 +342,59 @@ impl ProjectManager {
 
         let mut projects = self.projects.write().await;
 
-        if let Some(project) = projects.remove(&canonical) {
-            info!("🧹 Removing project from manager: {}", canonical.display());
-
-            drop(projects);
-
-            if let Err(e) = project.terminal_manager.cleanup_all().await {
-                warn!(
-                    "Failed to cleanup terminals for project {}: {}",
-                    canonical.display(),
-                    e
-                );
-                return Err(e);
+        let (project, key_removed) = if let Some(p) = projects.remove(&canonical) {
+            (p, canonical.clone())
+        } else {
+            // Fallback: scan for matching project path
+            // This handles cases where canonicalize might return differently or keys diverged
+            let mut found = None;
+            for (k, p) in projects.iter() {
+                if p.path == canonical || p.path == *path {
+                    found = Some(k.clone());
+                    break;
+                }
             }
 
-            drop(project);
-            info!("✅ Removed project from manager: {}", canonical.display());
-        } else {
-            drop(projects);
-            info!("⚠️ Project not found in manager: {}", canonical.display());
+            if let Some(k) = found {
+                log::warn!("⚠️ Project found via fallback scan: {}", k.display());
+                if let Some(p) = projects.remove(&k) {
+                    (p, k)
+                } else {
+                    drop(projects);
+                    return Ok(());
+                }
+            } else {
+                let keys: Vec<_> = projects.keys().map(|p| p.display().to_string()).collect();
+                log::warn!(
+                    "⚠️ Project not found for removal. Req: {}, Canon: {}. Keys: {:?}",
+                    path.display(),
+                    canonical.display(),
+                    keys
+                );
+                drop(projects);
+                return Ok(());
+            }
+        };
+
+        info!("🧹 Removing project from manager: {}", key_removed.display());
+
+        drop(projects);
+
+        if let Err(e) = project.terminal_manager.cleanup_all().await {
+            warn!(
+                "Failed to cleanup terminals for project {}: {}",
+                key_removed.display(),
+                e
+            );
+            return Err(e);
         }
 
         let mut current = self.current_project.write().await;
-        if current.as_ref() == Some(&canonical) {
+        if current.as_ref() == Some(&key_removed) {
             *current = None;
         }
 
+        info!("✅ Removed project from manager: {}", key_removed.display());
         Ok(())
     }
 

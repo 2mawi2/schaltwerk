@@ -159,6 +159,14 @@ class TerminalInstanceRegistry {
     }
   }
 
+  forceRemove(id: string): void {
+    const record = this.instances.get(id);
+    if (record) {
+      record.refCount = 0;
+      this.release(id);
+    }
+  }
+
   private ensureStream(record: TerminalInstanceRecord): void {
     if (record.streamRegistered) {
       return;
@@ -264,6 +272,10 @@ export function acquireTerminalInstance(id: string, factory: TerminalInstanceFac
 
 export function releaseTerminalInstance(id: string): void {
   registry.release(id);
+}
+
+export function removeTerminalInstance(id: string): void {
+  registry.forceRemove(id);
 }
 
 export function detachTerminalInstance(id: string): void {

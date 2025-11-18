@@ -6,7 +6,7 @@ type SetAtomFunction = <Value, Result>(
 ) => Result
 import { invoke } from '@tauri-apps/api/core'
 import { sessionTerminalGroup } from '../../common/terminalIdentity'
-import { hasTerminalInstance } from '../../terminal/registry/terminalRegistry'
+import { hasTerminalInstance, removeTerminalInstance } from '../../terminal/registry/terminalRegistry'
 import { TauriCommands } from '../../common/tauriCommands'
 import { emitUiEvent, listenUiEvent, UiEvent } from '../../common/uiEvents'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
@@ -255,7 +255,6 @@ export const cleanupOrchestratorTerminalsActionAtom = atom(
       return
     }
     await set(clearTerminalTrackingActionAtom, ids)
-    clearTerminalStartedTracking(ids)
   },
 )
 
@@ -528,6 +527,9 @@ export const clearTerminalTrackingActionAtom = atom(
       } catch (error) {
         logger.warn('[selection] Failed to close terminal during cleanup', { id, error })
       }
+      // Always remove from registry, even if backend close failed (e.g. project closed)
+      removeTerminalInstance(id)
+
       const key = terminalToSelectionKey.get(id)
       if (!key) {
         continue
@@ -543,6 +545,7 @@ export const clearTerminalTrackingActionAtom = atom(
         terminalsCache.delete(key)
       }
     }
+    clearTerminalStartedTracking(terminalIds)
   },
 )
 
