@@ -41,6 +41,13 @@ fn analyze_control_sequence(
             _ => ControlSequenceAction::Pass,
         },
         b'R' => ControlSequenceAction::Drop,
+        b'M' | b'm' => {
+            if prefix == Some(b'<') {
+                ControlSequenceAction::Drop
+            } else {
+                ControlSequenceAction::Pass
+            }
+        }
         _ => ControlSequenceAction::Pass,
     }
 }
@@ -69,7 +76,7 @@ pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
             b'[' => {
                 let mut cursor = i + 2;
                 let prefix =
-                    if cursor < input.len() && (input[cursor] == b'?' || input[cursor] == b'>') {
+                    if cursor < input.len() && (input[cursor] == b'?' || input[cursor] == b'>' || input[cursor] == b'<') {
                         let p = input[cursor];
                         cursor += 1;
                         Some(p)
@@ -234,22 +241,22 @@ mod tests {
     }
 
     #[test]
-    fn preserves_sgr_mouse_sequences() {
+    fn drops_sgr_mouse_sequences() {
         let sequence = b"\x1b[<35;85;40M";
         let result = sanitize_control_sequences(sequence);
 
-        assert_eq!(result.data, sequence);
+        assert!(result.data.is_empty());
         assert!(result.remainder.is_none());
         assert!(result.cursor_query_offsets.is_empty());
         assert!(result.responses.is_empty());
     }
 
     #[test]
-    fn preserves_sgr_mouse_release_sequences() {
+    fn drops_sgr_mouse_release_sequences() {
         let sequence = b"\x1b[<0;12;24m";
         let result = sanitize_control_sequences(sequence);
 
-        assert_eq!(result.data, sequence);
+        assert!(result.data.is_empty());
         assert!(result.remainder.is_none());
         assert!(result.cursor_query_offsets.is_empty());
         assert!(result.responses.is_empty());
