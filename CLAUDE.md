@@ -161,6 +161,7 @@ Sessions use SQLite `sessions.db` under `~/Library/Application Support/schaltwer
 - **Persistence**: Terminals stay alive until explicitly closed
 - **PTY Backend**: `LocalPtyAdapter` spawns shell with session's worktree as working directory
 - Each session gets 2 terminals (top/bottom) with the worktree as working directory
+- **Terminal ID rules (critical)**: Terminal IDs are derived **only** from the session name (sanitized) and never include `projectPath`. Tracking caches must use the same ID scope; changing projects should **rebind**, not recreate, existing IDs. Avoid project-scoped cache keys for terminals to prevent resets/remounts.
 
 #### Terminal Roles
 - **Top terminal** (`TerminalGrid` mounts `terminals.top` from `SelectionContext`) runs the active agent process for the selected session. Switching sessions swaps this agent terminal so Claude, Codex, etc. always stay in the upper pane tied to that session.
