@@ -860,6 +860,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
                 ...prev,
                 [agent]: updatedConfig
             }))
+            emitUiEvent(UiEvent.AgentBinariesUpdated)
         } catch (error) {
             logger.error(`Failed to update binary path for ${agent}:`, error)
             showNotification(`Failed to update binary path: ${error}`, 'error')
@@ -884,6 +885,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
                 ...prev,
                 [agent]: updatedConfig
             }))
+            emitUiEvent(UiEvent.AgentBinariesUpdated)
         } catch (error) {
             logger.error(`Failed to refresh binary detection for ${agent}:`, error)
         }

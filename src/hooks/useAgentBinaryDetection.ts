@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { TauriCommands } from '../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { logger } from '../utils/logger'
+import { UiEvent, listenUiEvent } from '../common/uiEvents'
 
 export interface DetectedBinary {
     path: string
@@ -289,6 +290,19 @@ export function useAgentBinaryDetection(options: UseAgentBinaryDetectionOptions 
         if (autoLoad) {
             void loadAllBinaryConfigs()
         }
+    }, [autoLoad, loadAllBinaryConfigs])
+
+    // Listen for external binary updates
+    useEffect(() => {
+        const cleanup = listenUiEvent(UiEvent.AgentBinariesUpdated, () => {
+            logger.info('[useAgentBinaryDetection] clearing cache due to AgentBinariesUpdated event')
+            configCache.clear()
+            latestBinaryConfigs = null
+            if (autoLoad) {
+                void loadAllBinaryConfigs()
+            }
+        })
+        return cleanup
     }, [autoLoad, loadAllBinaryConfigs])
 
     return {
