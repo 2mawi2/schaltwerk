@@ -1,4 +1,5 @@
 import React from 'react'
+import { AgentBinaryStatus } from './AgentBinaryStatus'
 
 export interface OnboardingStep {
     title: string
@@ -24,6 +25,17 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                 </ul>
             </div>
         )
+    },
+    {
+        title: 'Check your agent CLIs',
+        content: (
+            <div>
+                <p className="mb-4 text-slate-300">
+                    Schaltwerk scans for agent command-line tools on your system. If any are missing, install them or set a custom path in Settings → Agent Configuration.
+                </p>
+                <AgentBinaryStatus />
+            </div>
+        ),
     },
     {
         title: 'Start in the Orchestrator',
