@@ -339,6 +339,11 @@ export const closeProjectActionAtom = atom(
       }
     }
 
+    // Cleanup terminals and cache BEFORE closing the project on backend
+    // This prevents "No active project" errors when trying to close terminals
+    await set(cleanupOrchestratorTerminalsActionAtom, normalized)
+    await set(cleanupProjectSessionsCacheActionAtom, normalized)
+
     try {
       await invoke(TauriCommands.CloseProject, { path: normalized })
     } catch (error) {
@@ -356,8 +361,6 @@ export const closeProjectActionAtom = atom(
 
     const remaining = get(projectTabsInternalAtom).filter(tab => tab.projectPath !== normalized)
     set(projectTabsInternalAtom, remaining)
-    await set(cleanupOrchestratorTerminalsActionAtom, normalized)
-    await set(cleanupProjectSessionsCacheActionAtom, normalized)
 
     if (!closingActive) {
       nextActivePath = get(projectPathAtom)
