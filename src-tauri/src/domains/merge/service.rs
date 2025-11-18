@@ -418,7 +418,7 @@ impl MergeService {
                 format!(" Offending paths: {sample}")
             };
             warn!(
-                "{OPERATION_LABEL}: parent branch '{branch}' has uncommitted changes in repository '{repo}'. Merge will update refs only without touching the working tree.{hint}",
+                "{OPERATION_LABEL}: parent branch '{branch}' has uncommitted changes in repository '{repo}'. Merge will attempt to preserve local changes, but may fail if conflicts occur.{hint}",
                 branch = context.parent_branch,
                 repo = context.repo_path.display(),
                 hint = hint
@@ -1012,59 +1012,35 @@ fn fast_forward_branch(repo: &Repository, branch: &str, new_oid: Oid) -> Result<
         ));
     }
 
-    let pre_update_state = repo.workdir().map(get_uncommitted_changes_status);
+    // Check if we are updating the currently checked out branch
+    let is_head = if let Ok(head) = repo.head() {
+        head.is_branch() && head.shorthand() == Some(branch)
+    } else {
+        false
+    };
 
-    reference.set_target(new_oid, "schaltwerk fast-forward merge")?;
+    if is_head {
+        // If we are on the branch, we must update the working tree and index FIRST to ensure
+        // the operation is safe and respects local changes.
+        // We use Safe checkout strategy to fail if there are conflicts with local changes.
+        debug!("{OPERATION_LABEL}: attempting safe checkout of new commit {new_oid} for '{branch}'");
 
-    let mut should_update_worktree = false;
-    let mut skip_reason: Option<String> = None;
-
-    if let Ok(head) = repo.head()
-        && head.is_branch()
-        && head.shorthand() == Some(branch)
-    {
-        if let Some(workdir) = repo.workdir() {
-            let workdir_path = workdir.to_path_buf();
-            match pre_update_state {
-                Some(Ok(status)) => {
-                    if status.has_tracked_changes {
-                        skip_reason = Some(format!(
-                            "working tree '{}' has tracked changes",
-                            workdir_path.display()
-                        ));
-                    } else {
-                        should_update_worktree = true;
-                        if status.has_untracked_changes {
-                            debug!(
-                                "{OPERATION_LABEL}: updating working tree for branch '{branch}' while preserving untracked files"
-                            );
-                        }
-                    }
-                }
-                Some(Err(err)) => {
-                    skip_reason = Some(format!(
-                        "unable to inspect working tree '{}': {err}",
-                        workdir_path.display()
-                    ));
-                }
-                None => {
-                    should_update_worktree = true;
-                }
-            }
-        } else {
-            should_update_worktree = true;
-        }
-    }
-
-    if should_update_worktree {
-        debug!("{OPERATION_LABEL}: updating working tree for branch '{branch}'");
+        let new_commit_obj = repo.find_commit(new_oid)?;
         let mut checkout = CheckoutBuilder::new();
-        checkout.force();
-        repo.checkout_head(Some(&mut checkout))?;
-    } else if let Some(reason) = skip_reason {
-        info!(
-            "{OPERATION_LABEL}: skipping working tree checkout for branch '{branch}' because {reason}"
-        );
+        checkout.safe(); // Fail on conflict, preserve non-conflicting local changes
+        checkout.recreate_missing(true);
+
+        repo.checkout_tree(new_commit_obj.as_object(), Some(&mut checkout))
+            .with_context(|| {
+                format!("Failed to checkout new commit {new_oid} into working tree. You may have local changes that conflict with the merge.")
+            })?;
+
+        // If checkout succeeded, it's safe to update the reference
+        reference.set_target(new_oid, "schaltwerk fast-forward merge")?;
+    } else {
+        // If not on the branch, just update the reference (standard fast-forward for non-checked-out branch)
+        debug!("{OPERATION_LABEL}: fast-forwarding non-HEAD branch '{branch}' (ref update only)");
+        reference.set_target(new_oid, "schaltwerk fast-forward merge")?;
     }
 
     Ok(())
@@ -1476,7 +1452,6 @@ mod tests {
         assert_eq!(refreshed.session_state, SessionState::Reviewed);
     }
 
-    #[tokio::test]
     #[tokio::test]
     async fn merge_from_modal_reapply_blocks_dirty_worktree() {
         let temp = TempDir::new().unwrap();
