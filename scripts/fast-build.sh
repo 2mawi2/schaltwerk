@@ -29,4 +29,4 @@ cd src-tauri && cargo build --release
 cd ..
 
 echo "✅ Build complete! Starting application..."
-VITE_PORT=$PORT PORT=$PORT PARA_REPO_PATH="$(pwd)" ./src-tauri/target/release/schaltwerk
+VITE_PORT=$PORT PORT=$PORT PARA_REPO_PATH="$(pwd)" ./src-tauri/target/release/schaltwerk "$(pwd)"
