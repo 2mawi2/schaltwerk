@@ -121,7 +121,7 @@ function setupInvokeMock(changedFiles: ChangedFile[]) {
       case TauriCommands.GetDiffViewPreferences:
         return { continuous_scroll: false, compact_diffs: true, sidebar_width: 320 }
       case TauriCommands.GetSessionPreferences:
-        return { auto_commit_on_review: false, skip_confirmation_modals: false }
+        return { skip_confirmation_modals: false }
       case TauriCommands.ListAvailableOpenApps:
         return []
       case TauriCommands.GetDefaultOpenApp:

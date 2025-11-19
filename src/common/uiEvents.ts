@@ -133,7 +133,6 @@ export interface DevErrorToastPreferenceDetail {
 }
 
 export interface SessionPreferencesDetail {
-  autoCommitOnReview?: boolean
   skipConfirmationModals?: boolean
   alwaysShowLargeDiffs?: boolean
   attentionNotificationMode?: 'off' | 'dock' | 'system' | 'both'

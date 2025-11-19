@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { UnifiedDiffModal } from './UnifiedDiffModal'
 import { TestProviders } from '../../tests/test-utils'
 import { TauriCommands } from '../../common/tauriCommands'
@@ -100,9 +100,8 @@ describe('UnifiedDiffModal mark reviewed button', () => {
     vi.clearAllMocks()
   })
 
-  it('marks session as reviewed immediately when auto-commit is enabled', async () => {
+  it('marks session as reviewed when the button is clicked', async () => {
     invokeMock.mockImplementation(async (cmd: string, _args?: Record<string, unknown>) => {
-      if (cmd === TauriCommands.GetAutoCommitOnReview) return true
       if (cmd === TauriCommands.SchaltwerkCoreMarkSessionReady) return true
       return baseInvoke(cmd)
     })
@@ -121,43 +120,12 @@ describe('UnifiedDiffModal mark reviewed button', () => {
     fireEvent.click(markButton)
 
     await waitFor(() => {
-      expect(invokeMock).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreMarkSessionReady, expect.objectContaining({ name: 'demo', autoCommit: true }))
+      expect(invokeMock).toHaveBeenCalledWith(
+        TauriCommands.SchaltwerkCoreMarkSessionReady,
+        expect.objectContaining({ name: 'demo', autoCommit: false })
+      )
     })
 
-    await waitFor(() => expect(reloadSessionsMock).toHaveBeenCalled())
-    await waitFor(() => expect(onClose).toHaveBeenCalled())
-  })
-
-  it('shows confirmation modal when auto-commit is disabled and closes after confirm', async () => {
-    sessionsState = [createSession({ has_uncommitted_changes: true })]
-
-    invokeMock.mockImplementation(async (cmd: string, _args?: Record<string, unknown>) => {
-      if (cmd === TauriCommands.GetAutoCommitOnReview) return false
-      if (cmd === TauriCommands.SchaltwerkCoreHasUncommittedChanges) return true
-      if (cmd === TauriCommands.SchaltwerkCoreMarkSessionReady) return true
-      return baseInvoke(cmd)
-    })
-
-    const onClose = vi.fn()
-
-    render(
-      <TestProviders>
-        <UnifiedDiffModal filePath={null} isOpen={true} onClose={onClose} />
-      </TestProviders>
-    )
-
-    await waitFor(() => expect(screen.getByText('Git Diff Viewer')).toBeInTheDocument())
-
-    const markButton = await screen.findByRole('button', { name: /mark as reviewed/i })
-    fireEvent.click(markButton)
-
-    await waitFor(() => expect(screen.getByText(/Mark Session as Reviewed/i)).toBeInTheDocument())
-
-    const dialog = screen.getByRole('dialog')
-    const confirm = within(dialog).getByRole('button', { name: /Mark as Reviewed/i })
-    fireEvent.click(confirm)
-
-    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreMarkSessionReady, expect.objectContaining({ name: 'demo', autoCommit: true })))
     await waitFor(() => expect(reloadSessionsMock).toHaveBeenCalled())
     await waitFor(() => expect(onClose).toHaveBeenCalled())
   })

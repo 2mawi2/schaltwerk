@@ -4,7 +4,6 @@ import { VscCheck, VscDiscard } from 'react-icons/vsc'
 import type { EnrichedSession } from '../../types/session'
 import { TauriCommands } from '../../common/tauriCommands'
 import { ConfirmResetDialog } from '../common/ConfirmResetDialog'
-import { MarkReadyConfirmation } from '../modals/MarkReadyConfirmation'
 import { logger } from '../../utils/logger'
 import { UiEvent, emitUiEvent } from '../../common/uiEvents'
 
@@ -24,18 +23,6 @@ interface DiffSessionActionsProps {
   children: (parts: DiffSessionActionsRenderProps) => ReactNode
 }
 
-interface MarkReadyModalState {
-  open: boolean
-  sessionName: string
-  hasUncommitted: boolean
-}
-
-const initialMarkReadyState: MarkReadyModalState = {
-  open: false,
-  sessionName: '',
-  hasUncommitted: false
-}
-
 export function DiffSessionActions({
   isSessionSelection,
   sessionName,
@@ -49,16 +36,6 @@ export function DiffSessionActions({
   const [isResetting, setIsResetting] = useState(false)
   const [confirmResetOpen, setConfirmResetOpen] = useState(false)
   const [isMarkingReviewed, setIsMarkingReviewed] = useState(false)
-  const [markReadyModal, setMarkReadyModal] = useState<MarkReadyModalState>(initialMarkReadyState)
-
-  const openMarkReadyModal = useCallback(() => {
-    if (!sessionName || !targetSession) return
-    setMarkReadyModal({
-      open: true,
-      sessionName,
-      hasUncommitted: targetSession.info.has_uncommitted_changes ?? false
-    })
-  }, [sessionName, targetSession])
 
   const handleConfirmReset = useCallback(async () => {
     if (!sessionName) return
@@ -81,35 +58,19 @@ export function DiffSessionActions({
 
     setIsMarkingReviewed(true)
     try {
-      const autoCommit = await invoke<boolean>(TauriCommands.GetAutoCommitOnReview)
-      if (autoCommit) {
-        try {
-          const success = await invoke<boolean>(TauriCommands.SchaltwerkCoreMarkSessionReady, {
-            name: sessionName,
-            autoCommit: true
-          })
-
-          if (success) {
-            await onReloadSessions()
-            onClose()
-          } else {
-            alert('Failed to mark session as reviewed automatically.')
-          }
-        } catch (error) {
-          logger.error('[DiffSessionActions] Failed to auto-mark session as reviewed:', error)
-          alert(`Failed to mark session as reviewed: ${error}`)
-        }
-        return
-      }
-
-      openMarkReadyModal()
+      await invoke(TauriCommands.SchaltwerkCoreMarkSessionReady, {
+        name: sessionName,
+        autoCommit: false
+      })
+      await onReloadSessions()
+      onClose()
     } catch (error) {
-      logger.error('[DiffSessionActions] Failed to load auto-commit setting for mark reviewed:', error)
-      openMarkReadyModal()
+      logger.error('[DiffSessionActions] Failed to mark session as reviewed:', error)
+      alert(`Failed to mark session as reviewed: ${error}`)
     } finally {
       setIsMarkingReviewed(false)
     }
-  }, [targetSession, sessionName, isMarkingReviewed, onReloadSessions, onClose, openMarkReadyModal])
+  }, [targetSession, sessionName, isMarkingReviewed, onReloadSessions, onClose])
 
   const headerActions = useMemo(() => {
     if (!isSessionSelection) return null
@@ -141,36 +102,13 @@ export function DiffSessionActions({
   }, [isSessionSelection, isResetting, canMarkReviewed, handleMarkReviewedClick, isMarkingReviewed])
 
   const dialogs = useMemo(() => (
-    <>
-      <MarkReadyConfirmation
-        open={markReadyModal.open}
-        sessionName={markReadyModal.sessionName}
-        hasUncommittedChanges={markReadyModal.hasUncommitted}
-        onClose={() => setMarkReadyModal(initialMarkReadyState)}
-        onSuccess={() => {
-          void (async () => {
-            await onReloadSessions()
-            onClose()
-          })()
-        }}
-      />
-
-      <ConfirmResetDialog
-        open={confirmResetOpen && isSessionSelection}
-        onCancel={() => setConfirmResetOpen(false)}
-        onConfirm={() => { void handleConfirmReset() }}
-        isBusy={isResetting}
-      />
-    </>
-  ), [
-    markReadyModal,
-    onReloadSessions,
-    onClose,
-    confirmResetOpen,
-    isSessionSelection,
-    handleConfirmReset,
-    isResetting
-  ])
+    <ConfirmResetDialog
+      open={confirmResetOpen && isSessionSelection}
+      onCancel={() => setConfirmResetOpen(false)}
+      onConfirm={() => { void handleConfirmReset() }}
+      isBusy={isResetting}
+    />
+  ), [confirmResetOpen, isSessionSelection, handleConfirmReset, isResetting])
 
   return <>{children({ headerActions, dialogs })}</>
 }

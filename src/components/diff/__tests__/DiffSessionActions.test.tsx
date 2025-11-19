@@ -6,8 +6,6 @@ import type { EnrichedSession } from '../../../types/session'
 
 const invokeMock = vi.fn(async (command: string, _args?: Record<string, unknown>) => {
   switch (command) {
-    case TauriCommands.GetAutoCommitOnReview:
-      return true
     case TauriCommands.SchaltwerkCoreMarkSessionReady:
       return true
     case TauriCommands.SchaltwerkCoreResetSessionWorktree:
@@ -51,7 +49,7 @@ describe('DiffSessionActions', () => {
     vi.unstubAllGlobals()
   })
 
-  it('renders session controls and marks session ready when auto-commit is enabled', async () => {
+  it('renders session controls and marks session ready immediately', async () => {
     const onClose = vi.fn()
     const onReloadSessions = vi.fn(async () => {})
     const onLoadChangedFiles = vi.fn(async () => {})
@@ -79,13 +77,9 @@ describe('DiffSessionActions', () => {
     fireEvent.click(markButton)
 
     await waitFor(() => {
-      expect(invokeMock).toHaveBeenCalledWith(TauriCommands.GetAutoCommitOnReview)
-    })
-
-    await waitFor(() => {
       expect(invokeMock).toHaveBeenCalledWith(
         TauriCommands.SchaltwerkCoreMarkSessionReady,
-        expect.objectContaining({ name: 'demo', autoCommit: true })
+        expect.objectContaining({ name: 'demo', autoCommit: false })
       )
     })
 

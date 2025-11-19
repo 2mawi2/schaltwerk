@@ -92,8 +92,8 @@ function sortSessionsByCreationDate(sessions: EnrichedSession[]): EnrichedSessio
 
     const sessionMap = new Map(sessions.map(session => [session.info.session_id, session]))
 
-    const reviewed = sessions.filter(session => session.info.ready_to_merge)
-    const unreviewed = sessions.filter(session => !session.info.ready_to_merge)
+    const reviewed = sessions.filter(session => mapSessionUiState(session.info) === SessionState.Reviewed)
+    const unreviewed = sessions.filter(session => mapSessionUiState(session.info) !== SessionState.Reviewed)
 
     const compareByCreated = (a: EnrichedSession, b: EnrichedSession) => {
         const aTime = new Date(a.info.created_at || 0).getTime()

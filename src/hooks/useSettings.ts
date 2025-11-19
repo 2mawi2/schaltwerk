@@ -70,7 +70,6 @@ interface TerminalSettings {
 }
 
 interface SessionPreferences {
-    auto_commit_on_review: boolean
     skip_confirmation_modals: boolean
     always_show_large_diffs: boolean
     attention_notification_mode: AttentionNotificationMode
@@ -165,7 +164,6 @@ export const useSettings = () => {
     const saveSessionPreferences = useCallback(async (sessionPreferences: SessionPreferences): Promise<void> => {
         await invoke(TauriCommands.SetSessionPreferences, { preferences: sessionPreferences })
         emitUiEvent(UiEvent.SessionPreferencesUpdated, {
-            autoCommitOnReview: sessionPreferences.auto_commit_on_review,
             skipConfirmationModals: sessionPreferences.skip_confirmation_modals,
             alwaysShowLargeDiffs: sessionPreferences.always_show_large_diffs,
             attentionNotificationMode: sessionPreferences.attention_notification_mode,
@@ -333,7 +331,6 @@ export const useSettings = () => {
     
     const loadSessionPreferences = useCallback(async (): Promise<SessionPreferences> => {
         const defaults: SessionPreferences = {
-            auto_commit_on_review: false,
             skip_confirmation_modals: false,
             always_show_large_diffs: false,
             attention_notification_mode: 'dock',

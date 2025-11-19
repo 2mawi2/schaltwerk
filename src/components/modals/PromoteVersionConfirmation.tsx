@@ -6,7 +6,6 @@ import { invoke } from '@tauri-apps/api/core'
 import { logger } from '../../utils/logger'
 
 interface SessionPreferences {
-  auto_commit_on_review: boolean
   skip_confirmation_modals: boolean
 }
 

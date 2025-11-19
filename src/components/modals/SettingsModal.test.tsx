@@ -159,7 +159,6 @@ const createDefaultUseSettingsValue = () => ({
   loadProjectSettings: vi.fn().mockResolvedValue({ setupScript: '', branchPrefix: 'schaltwerk', environmentVariables: [] }),
   loadTerminalSettings: vi.fn().mockResolvedValue({ shell: null, shellArgs: [], fontFamily: null }),
   loadSessionPreferences: vi.fn().mockResolvedValue({
-    auto_commit_on_review: false,
     skip_confirmation_modals: false,
     always_show_large_diffs: false,
     attention_notification_mode: 'dock',
@@ -233,7 +232,6 @@ describe('SettingsModal loading indicators', () => {
   it('triggers attention notification test button', async () => {
     const settingsValue = createDefaultUseSettingsValue()
     settingsValue.loadSessionPreferences = vi.fn().mockResolvedValue({
-      auto_commit_on_review: false,
       skip_confirmation_modals: false,
       always_show_large_diffs: false,
       attention_notification_mode: 'dock',
@@ -261,7 +259,6 @@ describe('SettingsModal loading indicators', () => {
   it('disables remember idle baseline toggle when notifications are off', async () => {
     const settingsValue = createDefaultUseSettingsValue()
     settingsValue.loadSessionPreferences = vi.fn().mockResolvedValue({
-      auto_commit_on_review: false,
       skip_confirmation_modals: false,
       always_show_large_diffs: false,
       attention_notification_mode: 'off',
