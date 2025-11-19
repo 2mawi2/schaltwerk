@@ -106,35 +106,82 @@ pub async fn handle_coalesced_output(
     }
 
     if let Some(bytes) = emit_bytes {
-        if let Some(handle) = coalescing_state.app_handle.lock().await.as_ref() {
-            let event_name = terminal_output_event_name(params.terminal_id);
-            let (payload, remainder_prefix) = {
-                let mut utf8_streams = coalescing_state.utf8_streams.write().await;
-                decode_coalesced_bytes(bytes, params.terminal_id, &mut utf8_streams)
-            };
+        emit_now(coalescing_state, params.terminal_id, bytes, true).await;
+    }
+}
 
-            if let Some(prefix) = remainder_prefix
-                && !prefix.is_empty()
-            {
-                let mut buffers = coalescing_state.emit_buffers.write().await;
-                let entry = buffers.entry(params.terminal_id.to_string()).or_default();
-                entry.splice(0..0, prefix);
-            }
-
-            if let Some(text) = payload
-                && let Err(e) = handle.emit(&event_name, text)
-            {
-                warn!("Failed to emit terminal output: {e}");
-            }
-        } else {
-            // No app handle available (tests or early startup): restore bytes back to buffer
+/// Flush any buffered output for a terminal, even if it previously contained
+/// an incomplete ANSI/UTF-8 sequence that prevented immediate emission.
+/// Used on terminal shutdown to avoid losing final error output.
+pub async fn flush_terminal_output(coalescing_state: &CoalescingState, terminal_id: &str) {
+    loop {
+        let maybe_buffer = {
             let mut buffers = coalescing_state.emit_buffers.write().await;
-            let entry = buffers.entry(params.terminal_id.to_string()).or_default();
-            // Prepend emitted bytes back to the front to preserve ordering
-            let mut restored = bytes;
-            restored.extend_from_slice(entry);
-            *entry = restored;
+            buffers.remove(terminal_id)
+        };
+
+        let Some(buffer) = maybe_buffer else { break };
+        if buffer.is_empty() {
+            continue;
         }
+
+        // Try to preserve ANSI safety when possible
+        let safe_split = ansi::find_safe_split_point(&buffer);
+
+        if safe_split == buffer.len() || safe_split == 0 {
+            emit_now(coalescing_state, terminal_id, buffer, false).await;
+            // Nothing more to drain — prevent infinite requeue on fully unsafe chunks
+            break;
+        }
+
+        // Emit the safe prefix, then loop to handle the remainder
+        let (head, tail) = buffer.split_at(safe_split);
+        emit_now(coalescing_state, terminal_id, head.to_vec(), false).await;
+
+        if !tail.is_empty() {
+            let mut buffers = coalescing_state.emit_buffers.write().await;
+            buffers.insert(terminal_id.to_string(), tail.to_vec());
+        }
+    }
+}
+
+async fn emit_now(
+    coalescing_state: &CoalescingState,
+    terminal_id: &str,
+    bytes: Vec<u8>,
+    restore_if_missing_handle: bool,
+) {
+    if bytes.is_empty() {
+        return;
+    }
+
+    if let Some(handle) = coalescing_state.app_handle.lock().await.as_ref() {
+        let event_name = terminal_output_event_name(terminal_id);
+        let (payload, remainder_prefix) = {
+            let mut utf8_streams = coalescing_state.utf8_streams.write().await;
+            decode_coalesced_bytes(bytes, terminal_id, &mut utf8_streams)
+        };
+
+        if let Some(prefix) = remainder_prefix
+            && !prefix.is_empty()
+        {
+            let mut buffers = coalescing_state.emit_buffers.write().await;
+            let entry = buffers.entry(terminal_id.to_string()).or_default();
+            entry.splice(0..0, prefix);
+        }
+
+        if let Some(text) = payload {
+            handle.emit(&event_name, text).unwrap_or_else(|e| {
+                warn!("Failed to emit terminal output: {e}");
+            });
+        }
+    } else if restore_if_missing_handle {
+        // No app handle available (tests or early startup): restore bytes back to buffer
+        let mut buffers = coalescing_state.emit_buffers.write().await;
+        let entry = buffers.entry(terminal_id.to_string()).or_default();
+        let mut restored = bytes;
+        restored.extend_from_slice(entry);
+        *entry = restored;
     }
 }
 
@@ -660,5 +707,30 @@ mod tests {
         let buffer = buffers.get("test-term").unwrap();
         // CRLF sequences should be preserved
         assert_eq!(buffer, b"Line 1\r\nLine 2\r\nLine 3");
+    }
+
+    #[tokio::test]
+    async fn test_flush_terminal_output_emits_unsafe_tail() {
+        // Buffer ends with an incomplete CSI sequence; previously this would sit forever
+        // and only appear after a manual hydration/refresh
+        let state = CoalescingState {
+            app_handle: Arc::new(Mutex::new(None)),
+            emit_buffers: Arc::new(RwLock::new(HashMap::new())),
+            emit_scheduled: Arc::new(RwLock::new(HashMap::new())),
+            emit_buffers_norm: Arc::new(RwLock::new(HashMap::new())),
+            norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
+            utf8_streams: Arc::new(RwLock::new(HashMap::new())),
+        };
+
+        let terminal_id = "flush-unsafe";
+        {
+            let mut buffers = state.emit_buffers.write().await;
+            buffers.insert(terminal_id.to_string(), b"error followed by esc\x1b".to_vec());
+        }
+
+        flush_terminal_output(&state, terminal_id).await;
+
+        let buffers = state.emit_buffers.read().await;
+        assert!(!buffers.contains_key(terminal_id));
     }
 }
