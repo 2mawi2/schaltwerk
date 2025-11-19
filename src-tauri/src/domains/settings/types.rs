@@ -124,6 +124,8 @@ pub struct DiffViewPreferences {
     pub compact_diffs: bool,
     #[serde(default = "default_sidebar_width")]
     pub sidebar_width: u32,
+    #[serde(default = "default_true")]
+    pub inline_sidebar_default: bool,
 }
 
 impl Default for DiffViewPreferences {
@@ -132,6 +134,7 @@ impl Default for DiffViewPreferences {
             continuous_scroll: false,
             compact_diffs: true,
             sidebar_width: default_sidebar_width(),
+            inline_sidebar_default: true,
         }
     }
 }

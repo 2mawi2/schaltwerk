@@ -25,6 +25,9 @@ interface DiffFileListProps {
   onFileSelect: (filePath: string) => void
   sessionNameOverride?: string
   isCommander?: boolean
+  getCommentCountForFile?: (filePath: string) => number
+  selectedFilePath?: string | null
+  onFilesChange?: (hasFiles: boolean) => void
 }
 
 const serializeChangedFileSignature = (file: ChangedFile) => {
@@ -51,7 +54,7 @@ const safeUnlisten = (unlisten: (() => void) | null, label: string) => {
   }
 }
 
-export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }: DiffFileListProps) {
+export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, getCommentCountForFile, selectedFilePath, onFilesChange }: DiffFileListProps) {
   const { selection } = useSelection()
   const [files, setFiles] = useState<ChangedFile[]>([])
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
@@ -62,6 +65,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
     baseCommit: string,
     headCommit: string
   } | null>(null)
+  const [hasLoadedInitialResult, setHasLoadedInitialResult] = useState(false)
 
   const sessionName = sessionNameOverride ?? (selection.kind === 'session' ? selection.payload : null)
   const [isResetting, setIsResetting] = useState(false)
@@ -169,6 +173,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
             lastSessionKeyRef.current = sessionKey
             setFiles(cachedPayload.files)
             setBranchInfo(cachedPayload.branchInfo)
+            setHasLoadedInitialResult(true)
           }
           return
         }
@@ -181,6 +186,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
             lastSessionKeyRef.current = getSessionKey(null, false)
             setFiles([])
             setBranchInfo(null)
+            setHasLoadedInitialResult(true)
           }
           return
         }
@@ -214,6 +220,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
           lastSessionKeyRef.current = sessionKey
           setFiles(cachedPayload.files)
           setBranchInfo(cachedPayload.branchInfo)
+          setHasLoadedInitialResult(true)
         }
       } catch (error: unknown) {
         const message = String(error ?? '')
@@ -249,6 +256,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
 
         setFiles([])
         setBranchInfo(null)
+        setHasLoadedInitialResult(true)
         lastResultRef.current = ''
         lastSessionKeyRef.current = sessionKey
         if (sessionKey !== 'no-session') {
@@ -291,6 +299,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
       // Clear files when no session and not orchestrator
       setFiles([])
       setBranchInfo(null)
+      setHasLoadedInitialResult(true)
       lastResultRef.current = 'no-session'
       lastSessionKeyRef.current = getSessionKey(null, false)
       return
@@ -304,11 +313,13 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
     if (cachedData) {
       setFiles(cachedData.files)
       setBranchInfo(cachedData.branchInfo)
+      setHasLoadedInitialResult(true)
       lastResultRef.current = cachedData.signature
       lastSessionKeyRef.current = newSessionKey
     } else if (needsDataClear) {
       setFiles([])
       setBranchInfo(null)
+      setHasLoadedInitialResult(false)
       lastResultRef.current = ''
       lastSessionKeyRef.current = newSessionKey
     }
@@ -360,6 +371,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
             // Clear data immediately
             setFiles([])
             setBranchInfo(null)
+            setHasLoadedInitialResult(true)
             sessionDataCacheRef.current.delete(getSessionKey(currentSession, false))
             // Stop polling
             if (pollInterval) {
@@ -438,6 +450,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
 
           setFiles(event.changed_files)
           setBranchInfo(branchInfoPayload)
+          setHasLoadedInitialResult(true)
 
           lastResultRef.current = signature
           lastSessionKeyRef.current = cacheKey
@@ -523,6 +536,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
           lastSessionKeyRef.current = null
           setFiles([])
           setBranchInfo(null)
+          setHasLoadedInitialResult(false)
           setIsLoading(false)
           void loadChangedFiles()
         })
@@ -556,6 +570,21 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
     setSelectedFile(file.path)
     onFileSelect(file.path)
   }
+
+  useEffect(() => {
+    if (typeof selectedFilePath === 'string' && selectedFilePath !== selectedFile) {
+      setSelectedFile(selectedFilePath)
+    } else if (selectedFilePath === null && selectedFile !== null) {
+      setSelectedFile(null)
+    }
+  }, [selectedFilePath, selectedFile])
+
+  useEffect(() => {
+    if (!hasLoadedInitialResult) {
+      return
+    }
+    onFilesChange?.(files.length > 0)
+  }, [files, hasLoadedInitialResult, onFilesChange])
   
   const getFileIcon = (changeType: string, filePath: string) => {
     if (isBinaryFileByExtension(filePath)) {
@@ -619,6 +648,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
     const deletions = node.file.deletions ?? 0
     const totalChanges = node.file.changes ?? additions + deletions
     const isBinary = node.file.is_binary ?? (node.file.change_type !== 'deleted' && isBinaryFileByExtension(node.file.path))
+    const commentCount = getCommentCountForFile ? getCommentCountForFile(node.file.path) : 0
 
     return (
       <div
@@ -635,19 +665,33 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
       >
         {getFileIcon(node.file.change_type, node.file.path)}
         <div className="flex-1 min-w-0">
-          <div className="flex items-start gap-2 justify-between">
+            <div className="flex items-start gap-2 justify-between">
             <div className="text-sm truncate font-medium" style={{ color: theme.colors.text.primary }}>
               {node.name}
             </div>
-            <DiffChangeBadges
-              additions={additions}
-              deletions={deletions}
-              changes={totalChanges}
-              isBinary={isBinary}
-              className="flex-shrink-0"
-              layout="row"
-              size="compact"
-            />
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {commentCount > 0 && (
+                <span
+                  className="text-xs px-1.5 py-0.5 rounded font-medium"
+                  style={{
+                    backgroundColor: theme.colors.accent.blue.bg,
+                    color: theme.colors.accent.blue.light
+                  }}
+                  aria-label={`${commentCount} comments on ${node.file.path}`}
+                >
+                  {commentCount}
+                </span>
+              )}
+              <DiffChangeBadges
+                additions={additions}
+                deletions={deletions}
+                changes={totalChanges}
+                isBinary={isBinary}
+                className="flex-shrink-0"
+                layout="row"
+                size="compact"
+              />
+            </div>
           </div>
         </div>
         <button
