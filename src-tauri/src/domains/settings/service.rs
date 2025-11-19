@@ -349,18 +349,6 @@ impl SettingsService {
         self.save()
     }
 
-    pub fn get_auto_commit_on_review(&self) -> bool {
-        self.settings.session.auto_commit_on_review
-    }
-
-    pub fn set_auto_commit_on_review(
-        &mut self,
-        auto_commit: bool,
-    ) -> Result<(), SettingsServiceError> {
-        self.settings.session.auto_commit_on_review = auto_commit;
-        self.save()
-    }
-
     pub fn get_auto_update_enabled(&self) -> bool {
         self.settings.updater.auto_update_enabled
     }

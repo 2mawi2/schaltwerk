@@ -10,7 +10,7 @@ export function mapSessionUiState(info: SessionStateSource): SessionUiState {
         return SessionState.Spec
     }
 
-    if (info.ready_to_merge) {
+    if (info.session_state === SessionState.Reviewed || info.ready_to_merge) {
         return SessionState.Reviewed
     }
 

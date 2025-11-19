@@ -2,7 +2,7 @@ import { memo, useState } from 'react'
 import { clsx } from 'clsx'
 import { SessionCard } from './SessionCard'
 import { SessionVersionGroup as SessionVersionGroupType } from '../../utils/sessionVersions'
-import { isSpec } from '../../utils/sessionFilters'
+import { isSpec, mapSessionUiState } from '../../utils/sessionFilters'
 import { SessionSelection } from '../../hooks/useSessionManagement'
 import { theme } from '../../common/theme'
 import { withOpacity } from '../../common/colorUtils'
@@ -19,7 +19,7 @@ interface SessionVersionGroupProps {
 
   hasFollowUpMessage: (sessionId: string) => boolean
   onSelect: (index: number) => void
-  onMarkReady: (sessionId: string, hasUncommitted: boolean) => void
+  onMarkReady: (sessionId: string) => void
   onUnmarkReady: (sessionId: string) => void
   onCancel: (sessionId: string, hasUncommitted: boolean) => void
   onConvertToSpec?: (sessionId: string) => void
@@ -121,9 +121,10 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
 
   const versionStatusSummary = group.versions.reduce<{ active: number; idle: number }>((acc, version) => {
     const info = version.session.info
+    const uiState = mapSessionUiState(info)
     if (info.attention_required) {
       acc.idle += 1
-    } else if (info.session_state === 'running' && !info.ready_to_merge) {
+    } else if (uiState === 'running') {
       acc.active += 1
     }
     return acc

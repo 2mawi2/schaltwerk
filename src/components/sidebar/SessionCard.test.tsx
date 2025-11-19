@@ -38,7 +38,8 @@ describe('SessionCard dirty indicator', () => {
       info: { 
         ...baseSession.info, 
         has_uncommitted_changes: true,
-        ready_to_merge: true,
+        ready_to_merge: false,
+        session_state: 'reviewed',
         status: 'dirty',
         top_uncommitted_paths: ['src/main.rs', 'README.md']
       } 
@@ -100,6 +101,7 @@ describe('SessionCard dirty indicator', () => {
           info: {
             ...baseSession.info,
             ready_to_merge: true,
+            session_state: 'reviewed',
             status: 'active',
           },
         }}
@@ -125,8 +127,8 @@ describe('SessionCard running tag', () => {
       ...baseSession,
       info: {
         ...baseSession.info,
-        ready_to_merge: true,
-        session_state: 'running',
+        ready_to_merge: false,
+        session_state: 'reviewed',
       },
     }
 

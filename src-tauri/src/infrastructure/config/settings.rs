@@ -223,16 +223,6 @@ impl SettingsManager {
             .map_err(|e| e.to_string())
     }
 
-    pub fn get_auto_commit_on_review(&self) -> bool {
-        self.service.get_auto_commit_on_review()
-    }
-
-    pub fn set_auto_commit_on_review(&mut self, auto_commit: bool) -> Result<(), String> {
-        self.service
-            .set_auto_commit_on_review(auto_commit)
-            .map_err(|e| e.to_string())
-    }
-
     pub fn get_auto_update_enabled(&self) -> bool {
         self.service.get_auto_update_enabled()
     }

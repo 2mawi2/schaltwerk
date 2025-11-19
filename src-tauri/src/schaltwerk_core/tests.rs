@@ -1553,6 +1553,60 @@ fn test_follow_up_noop_for_spec() {
 }
 
 #[test]
+fn test_mark_reviewed_when_dirty_keeps_ready_flag_false() {
+    use crate::domains::sessions::entity::SessionState;
+
+    let env = TestEnvironment::new().unwrap();
+    let manager = env.get_session_manager().unwrap();
+
+    let session = manager
+        .create_session("dirty-review", None, None)
+        .unwrap();
+
+    std::fs::write(session.worktree_path.join("dirty.txt"), "dirty").unwrap();
+
+    let ready = manager.mark_session_ready(&session.name, false).unwrap();
+    assert!(
+        !ready,
+        "dirty sessions without auto-commit should not be ready_to_merge"
+    );
+
+    let refreshed = manager
+        .db_ref()
+        .get_session_by_name(&env.repo_path, &session.name)
+        .unwrap();
+    assert!(!refreshed.ready_to_merge);
+    assert_eq!(refreshed.session_state, SessionState::Reviewed);
+}
+
+#[test]
+fn test_follow_up_handles_reviewed_sessions_without_ready_flag() {
+    use crate::domains::sessions::entity::SessionState;
+
+    let env = TestEnvironment::new().unwrap();
+    let manager = env.get_session_manager().unwrap();
+
+    let session = manager
+        .create_session("followup-dirty-review", None, None)
+        .unwrap();
+
+    std::fs::write(session.worktree_path.join("dirty.txt"), "dirty").unwrap();
+    manager.mark_session_ready(&session.name, false).unwrap();
+
+    let changed = manager
+        .unmark_reviewed_on_follow_up(&session.name)
+        .unwrap();
+    assert!(changed, "dirty reviewed sessions should move back to running");
+
+    let refreshed = manager
+        .db_ref()
+        .get_session_by_name(&env.repo_path, &session.name)
+        .unwrap();
+    assert_eq!(refreshed.session_state, SessionState::Running);
+    assert!(!refreshed.ready_to_merge);
+}
+
+#[test]
 #[serial_test::serial]
 fn test_codex_spec_start_respects_resume_gate() {
     use std::fs;

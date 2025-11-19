@@ -39,7 +39,7 @@ interface SessionActionsProps {
   onRunSpec?: (sessionId: string) => void;
   onRefineSpec?: (sessionId: string) => void;
   onDeleteSpec?: (sessionId: string) => void;
-  onMarkReviewed?: (sessionId: string, hasUncommitted: boolean) => void;
+  onMarkReviewed?: (sessionId: string) => void;
   onUnmarkReviewed?: (sessionId: string) => void;
   onCancel?: (sessionId: string, hasUncommitted: boolean) => void;
   onConvertToSpec?: (sessionId: string) => void;
@@ -233,7 +233,7 @@ export function SessionActions({
           {onMarkReviewed && (
             <IconButton
               icon={<VscCheck />}
-              onClick={() => onMarkReviewed(sessionId, hasUncommittedChanges)}
+              onClick={() => onMarkReviewed(sessionId)}
               ariaLabel="Mark as reviewed"
               tooltip="Mark as reviewed (⌘R)"
               variant="success"

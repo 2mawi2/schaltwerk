@@ -1812,18 +1812,7 @@ pub async fn schaltwerk_core_mark_session_ready(
     commit_message: Option<String>,
 ) -> Result<bool, String> {
     log::info!("Marking session {name} as reviewed (auto_commit: {auto_commit})");
-
-    let effective_auto_commit = if auto_commit {
-        true
-    } else {
-        let settings_manager = crate::SETTINGS_MANAGER
-            .get()
-            .ok_or_else(|| "Settings manager not initialized".to_string())?;
-        let manager = settings_manager.lock().await;
-        manager.get_auto_commit_on_review()
-    };
-
-    log::info!("Effective auto_commit setting: {effective_auto_commit}");
+    let effective_auto_commit = auto_commit;
 
     let core = get_core_write().await?;
     let manager = core.session_manager();
