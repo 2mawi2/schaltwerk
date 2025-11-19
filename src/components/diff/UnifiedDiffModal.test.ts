@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { shouldBypassHighlighting, computeHistorySeedWindow, computeLargeDiffVisibleSet } from './UnifiedDiffModal'
+import { shouldBypassHighlighting, computeHistorySeedWindow, computeLargeDiffVisibleSet } from './UnifiedDiffView'
 import type { FileDiffData } from './loadDiffs'
 import type { ChangedFile } from './DiffFileExplorer'
 import { createChangedFile } from '../../tests/test-utils'

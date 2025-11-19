@@ -1,3 +1,5 @@
+import type { CommitFileChange } from '../components/git-graph/types'
+
 export interface LineInfo {
   content?: string
   type: 'added' | 'removed' | 'unchanged'
@@ -39,4 +41,13 @@ export interface SplitDiffResponse {
   isLargeFile: boolean
   isBinary?: boolean
   unsupportedReason?: string
+}
+
+export interface HistoryDiffContext {
+  repoPath: string
+  commitHash: string
+  subject: string
+  author: string
+  committedAt?: string
+  files: CommitFileChange[]
 }

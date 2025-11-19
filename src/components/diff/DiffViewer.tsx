@@ -510,7 +510,7 @@ export function DiffViewer({
         <div className="p-4 text-slate-600">Preparing preview…</div>
       )}
 
-      <div className="flex-1 overflow-auto font-mono text-sm" ref={scrollContainerRef}>
+      <div className="flex-1 overflow-auto min-h-0 w-full font-mono text-sm" ref={scrollContainerRef}>
         {/* In large diff mode, only render the selected file */}
         {isLargeDiffMode ? (
           files.filter(f => f.path === selectedFile).map((file) => {
