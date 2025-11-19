@@ -86,6 +86,7 @@ import { stableSessionTerminalId } from './common/terminalIdentity'
 import { registerDevErrorListeners } from './dev/registerDevErrorListeners'
 import { AgentCliMissingModal } from './components/agentBinary/AgentCliMissingModal'
 import type { SettingsCategory } from './types/settings'
+import { SPLIT_GUTTER_SIZE } from './common/splitLayout'
 
 
 
@@ -1562,7 +1563,7 @@ function AppContent() {
                 className="h-full w-full flex"
                 sizes={isLeftPanelCollapsed ? [0, 100] : leftPanelSizes}
                 minSize={[isLeftPanelCollapsed ? 0 : 240, 400]}
-                gutterSize={isLeftPanelCollapsed ? 0 : 10}
+                gutterSize={isLeftPanelCollapsed ? 0 : SPLIT_GUTTER_SIZE}
                 onDragStart={handleLeftSplitDragStart}
                 onDragEnd={handleLeftSplitDragEnd}
               >
@@ -1681,7 +1682,7 @@ function AppContent() {
                       className="h-full w-full flex" 
                       sizes={rightSizes} 
                       minSize={[400, 280]} 
-                      gutterSize={12}
+                      gutterSize={SPLIT_GUTTER_SIZE}
                       onDragStart={handleRightSplitDragStart}
                       onDragEnd={handleRightSplitDragEnd}
                     >

@@ -30,6 +30,7 @@ import { useKeyboardShortcutsConfig } from '../../contexts/KeyboardShortcutsCont
 import { detectPlatformSafe, isShortcutForAction } from '../../keyboardShortcuts/helpers'
 import { mapSessionUiState } from '../../utils/sessionFilters'
 import { theme } from '../../common/theme'
+import { SPLIT_GUTTER_SIZE } from '../../common/splitLayout'
 import { logger } from '../../utils/logger'
 import { loadRunScriptConfiguration } from '../../utils/runScriptLoader'
 import { useModal } from '../../contexts/ModalContext'
@@ -1054,13 +1055,13 @@ const TerminalGridComponent = () => {
     }
 
     return (
-        <div ref={containerRef} className="h-full px-2 pb-2 pt-0 relative">
+        <div ref={containerRef} className="h-full pb-2 pt-0 relative px-0">
             <Split 
                 className="h-full flex flex-col overflow-hidden" 
                 direction="vertical" 
                 sizes={effectiveSizes || [72, 28]} 
                 minSize={[120, isBottomCollapsed ? 44 : 24]} 
-                gutterSize={12}
+                gutterSize={SPLIT_GUTTER_SIZE}
                 onDragStart={() => {
                     beginSplitDrag('terminal-grid', { orientation: 'row' })
                     setIsDraggingSplit(true)
