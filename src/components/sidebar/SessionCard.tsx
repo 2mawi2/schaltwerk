@@ -28,7 +28,7 @@ interface SessionCardProps {
     willBeDeleted?: boolean
     isPromotionPreview?: boolean
     onSelect: (index: number) => void
-    onMarkReady: (sessionId: string, hasUncommitted: boolean) => void
+    onMarkReady: (sessionId: string) => void
     onUnmarkReady: (sessionId: string) => void
     onCancel: (sessionId: string, hasUncommitted: boolean) => void
     onConvertToSpec?: (sessionId: string) => void
@@ -176,6 +176,7 @@ export const SessionCard = memo<SessionCardProps>(({
     const lastActivity = formatLastActivity(s.last_modified)
     const isBlocked = s.is_blocked || false
     const isReadyToMerge = s.ready_to_merge || false
+    const isReviewedState = s.session_state === 'reviewed'
     const agentType = s.original_agent_type as (SessionInfo['original_agent_type'])
     const agentKey = (agentType || '').toLowerCase()
     const agentLabel = agentKey
@@ -196,7 +197,7 @@ export const SessionCard = memo<SessionCardProps>(({
     const colorScheme = getAgentColorScheme(agentColor)
 
     const sessionState = s.session_state
-    const showReviewedDirtyBadge = isReadyToMerge && !isRunning && !!s.has_uncommitted_changes
+    const showReviewedDirtyBadge = isReviewedState && !isReadyToMerge && !!s.has_uncommitted_changes
     
     // State icon removed - no longer using emojis
 
@@ -211,7 +212,7 @@ export const SessionCard = memo<SessionCardProps>(({
             return 'session-ring session-ring-green border-transparent shadow-lg shadow-green-400/20'
         }
         if (isSelected) return 'session-ring session-ring-blue border-transparent'
-        if (isReadyToMerge) return 'session-ring session-ring-green border-transparent opacity-90'
+        if (isReviewedState) return 'session-ring session-ring-green border-transparent opacity-90'
         if (sessionState === 'running') return 'border-slate-700 bg-slate-800/50 hover:bg-slate-800/60'
         if (sessionState === 'spec') return 'border-slate-800 bg-slate-900/30 hover:bg-slate-800/30 opacity-85'
         return 'border-slate-800 bg-slate-900/40 hover:bg-slate-800/30'
@@ -270,7 +271,7 @@ export const SessionCard = memo<SessionCardProps>(({
                 <div className="flex-1 min-w-0">
                     <div className="truncate flex items-center gap-2" style={sessionText.title}>
                         {sessionName}
-                        {isReadyToMerge && (
+                        {isReviewedState && (
                             <span
                                 className="ml-2"
                                 style={{
@@ -282,7 +283,7 @@ export const SessionCard = memo<SessionCardProps>(({
                             </span>
                         )}
                         {/* State pill */}
-                         {isRunning && isReadyToMerge && (
+                        {isRunning && isReviewedState && (
                              <span
                                  className="ml-2 px-1.5 py-0.5 rounded border"
                                  style={{
@@ -295,7 +296,7 @@ export const SessionCard = memo<SessionCardProps>(({
                                  Running
                              </span>
                          )}
-                        {!isReadyToMerge && !isRunning && sessionState === 'spec' && (
+                        {!isReviewedState && !isRunning && sessionState === 'spec' && (
                             <span
                                 className="px-1.5 py-0.5 rounded border"
                                 style={{

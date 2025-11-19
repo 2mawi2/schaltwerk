@@ -31,7 +31,6 @@ export const TauriCommands = {
   GetAgentPreferences: 'get_agent_preferences',
   GetAllAgentBinaryConfigs: 'get_all_agent_binary_configs',
   GetAppVersion: 'get_app_version',
-  GetAutoCommitOnReview: 'get_auto_commit_on_review',
   GetAutoUpdateEnabled: 'get_auto_update_enabled',
   GetDevErrorToastsEnabled: 'get_dev_error_toasts_enabled',
   GetBaseBranchName: 'get_base_branch_name',

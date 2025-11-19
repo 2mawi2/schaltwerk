@@ -11,10 +11,9 @@ import { useSelection } from '../../hooks/useSelection'
 import { useSessions } from '../../hooks/useSessions'
 import { captureSelectionSnapshot, SelectionMemoryEntry } from '../../utils/selectionMemory'
 import { computeSelectionCandidate } from '../../utils/selectionPostMerge'
-import { MarkReadyConfirmation } from '../modals/MarkReadyConfirmation'
 import { ConvertToSpecConfirmation } from '../modals/ConvertToSpecConfirmation'
 import { FilterMode, FILTER_MODES } from '../../types/sessionFilters'
-import { calculateFilterCounts } from '../../utils/sessionFilters'
+import { calculateFilterCounts, mapSessionUiState, isReviewed, isSpec } from '../../utils/sessionFilters'
 import { groupSessionsByVersion, selectBestVersionAndCleanup, SessionVersionGroup as SessionVersionGroupType } from '../../utils/sessionVersions'
 import { SessionVersionGroup } from './SessionVersionGroup'
 import { PromoteVersionConfirmation } from '../modals/PromoteVersionConfirmation'
@@ -30,7 +29,7 @@ import { clearTerminalStartedTracking } from '../terminal/Terminal'
 import { logger } from '../../utils/logger'
 import { UiEvent, emitUiEvent, listenUiEvent } from '../../common/uiEvents'
 import { runSpecRefineWithOrchestrator } from '../../utils/specRefine'
-import { AGENT_TYPES, AgentType, EnrichedSession, SessionInfo } from '../../types/session'
+import { AGENT_TYPES, AgentType, EnrichedSession } from '../../types/session'
 import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
 import { useRun } from '../../contexts/RunContext'
 import { useModal } from '../../contexts/ModalContext'
@@ -40,16 +39,6 @@ import { ORCHESTRATOR_SESSION_NAME } from '../../constants/sessions'
 import { useAtomValue } from 'jotai'
 import { projectPathAtom } from '../../store/atoms/project'
 import { useSessionMergeShortcut } from '../../hooks/useSessionMergeShortcut'
-
-// Normalize backend states to UI categories
-function mapSessionUiState(info: SessionInfo): 'spec' | 'running' | 'reviewed' {
-    if (info.session_state === 'spec' || info.status === 'spec') return 'spec'
-    if (info.ready_to_merge) return 'reviewed'
-    return 'running'
-}
-
-function isSpec(info: SessionInfo): boolean { return mapSessionUiState(info) === 'spec' }
-function isReviewed(info: SessionInfo): boolean { return mapSessionUiState(info) === 'reviewed' }
 
 // Removed legacy terminal-stuck idle handling; we rely on last-edited timestamps only
 
@@ -180,11 +169,6 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         [isSessionMerging, openMergeDialog]
     )
 
-    const [markReadyModal, setMarkReadyModal] = useState<{ open: boolean; sessionName: string; hasUncommitted: boolean }>({
-        open: false,
-        sessionName: '',
-        hasUncommitted: false
-    })
     const [convertToSpecModal, setConvertToDraftModal] = useState<{ 
         open: boolean; 
         sessionName: string; 
@@ -313,7 +297,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         const mergedSessionInfo = mergedCandidate
             ? allSessionsSnapshot.find(s => s.info.session_id === mergedCandidate)
             : undefined
-        const mergedStillReviewed = mergedSessionInfo?.info.ready_to_merge ?? false
+        const mergedStillReviewed = mergedSessionInfo ? isReviewed(mergedSessionInfo.info) : false
 
         const shouldAdvanceFromMerged = Boolean(
             mergedCandidate &&
@@ -325,18 +309,24 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             lastMergedReviewedSessionRef.current = null
         }
 
-        const wasReviewedSession = removalCandidateFromEvent ?
-            allSessionsSnapshot.find(s => s.info.session_id === removalCandidateFromEvent)?.info.ready_to_merge : false
+        const removalCandidateSession = removalCandidateFromEvent
+            ? allSessionsSnapshot.find(s => s.info.session_id === removalCandidateFromEvent)
+            : undefined
+        const wasReviewedSession = removalCandidateSession ? isReviewed(removalCandidateSession.info) : false
         const shouldPreserveForReviewedRemoval = Boolean(wasReviewedSession && removalCandidateFromEvent && filterMode !== FilterMode.Reviewed)
 
         const filterModeChanged = previousFilterModeRef.current !== filterMode
         previousFilterModeRef.current = filterMode
 
+        const currentSelectionSession = currentSelectionId
+            ? allSessionsSnapshot.find(s => s.info.session_id === currentSelectionId)
+            : undefined
         const currentSessionMovedToReviewed = Boolean(
             !filterModeChanged &&
             currentSelectionId &&
             !visibleIds.has(currentSelectionId) &&
-            allSessionsSnapshot.find(s => s.info.session_id === currentSelectionId)?.info.ready_to_merge &&
+            currentSelectionSession &&
+            isReviewed(currentSelectionSession.info) &&
             filterMode === FilterMode.Running
         )
 
@@ -573,58 +563,29 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         }
     }
 
-    const handleMarkReady = useCallback(async (sessionId: string, hasUncommitted: boolean) => {
+    const handleMarkReady = useCallback(async (sessionId: string) => {
         try {
-            // Check global auto-commit setting first
-            const globalAutoCommit = await invoke<boolean>(TauriCommands.GetAutoCommitOnReview)
-            
-            if (globalAutoCommit) {
-                // Auto-commit is enabled, execute directly without modal
-                try {
-                    const success = await invoke<boolean>(TauriCommands.SchaltwerkCoreMarkSessionReady, {
-                        name: sessionId,
-                        autoCommit: true // Explicitly commit when global auto-commit is enabled
-                    })
-                    
-                    if (success) {
-                        // Reload sessions to reflect the change
-                        await reloadSessionsAndRefreshIdle()
-                    } else {
-                        alert('Failed to mark session as reviewed automatically.')
-                    }
-                } catch (error) {
-                    logger.error('Failed to auto-mark session as reviewed:', error)
-                    alert(`Failed to mark session as reviewed: ${error}`)
-                }
-            } else {
-                // Auto-commit is disabled, show modal for confirmation
-                setMarkReadyModal({
-                    open: true,
-                    sessionName: sessionId,
-                    hasUncommitted
-                })
-            }
-        } catch (error) {
-            logger.error('Failed to load auto-commit setting:', error)
-            // If settings check fails, fall back to showing the modal
-            setMarkReadyModal({
-                open: true,
-                sessionName: sessionId,
-                hasUncommitted
+            await invoke(TauriCommands.SchaltwerkCoreMarkSessionReady, {
+                name: sessionId,
+                autoCommit: false
             })
+            await reloadSessionsAndRefreshIdle()
+        } catch (error) {
+            logger.error('Failed to mark session as reviewed:', error)
+            alert(`Failed to mark session as reviewed: ${error}`)
         }
-    }, [reloadSessionsAndRefreshIdle, setMarkReadyModal])
+    }, [reloadSessionsAndRefreshIdle])
 
-    const triggerMarkReady = useCallback(async (sessionId: string, hasUncommitted: boolean) => {
+    const triggerMarkReady = useCallback(async (sessionId: string) => {
         if (markReadyCooldownRef.current) {
             logger.debug(`[Sidebar] Skipping mark-ready for ${sessionId} (cooldown active)`)
             return
         }
 
-        logger.debug(`[Sidebar] Triggering mark-ready for ${sessionId} (hasUncommitted=${hasUncommitted})`)
+        logger.debug(`[Sidebar] Triggering mark-ready for ${sessionId}`)
         engageMarkReadyCooldown('mark-ready-trigger')
         try {
-            await handleMarkReady(sessionId, hasUncommitted)
+            await handleMarkReady(sessionId)
         } catch (error) {
             logger.error('Failed to mark session ready during cooldown window:', error)
         } finally {
@@ -640,7 +601,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
 
         const sessionInfo = selectedSession.info
 
-        if (sessionInfo.ready_to_merge) {
+        if (isReviewed(sessionInfo)) {
             if (markReadyCooldownRef.current) {
                 logger.debug(`[Sidebar] Skipping unmark-ready for ${sessionInfo.session_id} (cooldown active)`)
                 return
@@ -664,7 +625,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             return
         }
 
-        await triggerMarkReady(sessionInfo.session_id, sessionInfo.has_uncommitted_changes || false)
+        await triggerMarkReady(sessionInfo.session_id)
     }, [
         selection,
         sessions,
@@ -1300,11 +1261,11 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                     onSelect={(index) => {
                                         void handleSelectSession(index)
                                     }}
-                                    onMarkReady={(sessionId, hasUncommitted) => {
+                                    onMarkReady={(sessionId) => {
                                         if (markReadyCooldownRef.current) {
                                             return
                                         }
-                                        void triggerMarkReady(sessionId, hasUncommitted)
+                                        void triggerMarkReady(sessionId)
                                     }}
                                     onUnmarkReady={(sessionId) => {
                                         if (markReadyCooldownRef.current) {
@@ -1409,16 +1370,6 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 )}
             </div>
             
-            
-            <MarkReadyConfirmation
-                open={markReadyModal.open}
-                sessionName={markReadyModal.sessionName}
-                hasUncommittedChanges={markReadyModal.hasUncommitted}
-                onClose={() => setMarkReadyModal({ open: false, sessionName: '', hasUncommitted: false })}
-                onSuccess={() => {
-                    void reloadSessionsAndRefreshIdle()
-                }}
-            />
             <ConvertToSpecConfirmation
                 open={convertToSpecModal.open}
                 sessionName={convertToSpecModal.sessionName}

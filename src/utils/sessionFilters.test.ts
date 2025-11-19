@@ -46,6 +46,11 @@ describe('mapSessionUiState', () => {
         expect(mapSessionUiState(session.info)).toBe('reviewed')
     })
 
+    it('should return "reviewed" when session_state = "reviewed" even if ready_to_merge is false', () => {
+        const session = createMockSession({ session_state: 'reviewed', ready_to_merge: false })
+        expect(mapSessionUiState(session.info)).toBe('reviewed')
+    })
+
     it('should return "running" for normal active sessions', () => {
         const session = createMockSession({ session_state: 'running' })
         expect(mapSessionUiState(session.info)).toBe('running')
@@ -66,6 +71,7 @@ describe('Session type checking functions', () => {
 
     it('isReviewed should correctly identify reviewed sessions', () => {
         expect(isReviewed(createMockSession({ ready_to_merge: true }).info)).toBe(true)
+        expect(isReviewed(createMockSession({ session_state: 'reviewed' }).info)).toBe(true)
         expect(isReviewed(createMockSession({ ready_to_merge: false }).info)).toBe(false)
     })
 

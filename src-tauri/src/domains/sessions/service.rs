@@ -127,7 +127,7 @@ pub struct SessionCreationParams<'a> {
     pub skip_permissions: Option<bool>,
 }
 
-const SESSION_READY_COMMIT_MESSAGE: &str = "Complete development work for {}";
+const SESSION_READY_COMMIT_MESSAGE: &str = "schaltwerk: mark {} ready";
 use crate::{
     domains::git::service as git,
     domains::sessions::cache::{SessionCacheManager, clear_session_prompted_non_test},
@@ -3179,36 +3179,37 @@ impl SessionManager {
     ) -> Result<bool> {
         let session = self.db_manager.get_session_by_name(session_name)?;
 
-        let has_uncommitted = git::has_uncommitted_changes(&session.worktree_path)?;
+        let mut ready_to_merge = !git::has_uncommitted_changes(&session.worktree_path)?;
 
-        if has_uncommitted && !auto_commit {
-            return Err(anyhow!(
-                "Session '{session_name}' has uncommitted changes. Enable auto-commit or clean the worktree before marking as reviewed."
-            ));
-        }
-
-        if has_uncommitted && auto_commit {
+        if !ready_to_merge && auto_commit {
             let message = commit_message
                 .map(|m| m.to_string())
                 .unwrap_or_else(|| SESSION_READY_COMMIT_MESSAGE.replace("{}", session_name));
 
             git::commit_all_changes(&session.worktree_path, &message)?;
+            ready_to_merge = !git::has_uncommitted_changes(&session.worktree_path)?;
         }
 
         self.db_manager
-            .update_session_ready_to_merge(&session.id, true)?;
+            .update_session_ready_to_merge(&session.id, ready_to_merge)?;
+        self.db_manager
+            .update_session_state(&session.id, SessionState::Reviewed)?;
 
         if let Err(e) = self.db_manager.update_git_stats(&session.id) {
             log::warn!("mark_session_ready: failed to refresh git stats for '{session_name}': {e}");
         }
 
-        Ok(!has_uncommitted || auto_commit)
+        Ok(ready_to_merge)
     }
 
     pub fn unmark_session_ready(&self, session_name: &str) -> Result<()> {
         let session = self.db_manager.get_session_by_name(session_name)?;
         self.db_manager
             .update_session_ready_to_merge(&session.id, false)?;
+        if session.session_state != SessionState::Spec {
+            self.db_manager
+                .update_session_state(&session.id, SessionState::Running)?;
+        }
         Ok(())
     }
 
@@ -3220,7 +3221,7 @@ impl SessionManager {
     }
 
     // When a follow-up message arrives for a reviewed session, it should move back to running.
-    // Only act if the session is actually marked reviewed (ready_to_merge = true).
+    // Only act if the session is actually marked reviewed (session_state = Reviewed).
     // Returns true if a change was applied, false if no-op (not reviewed/spec/missing flags).
     pub fn unmark_reviewed_on_follow_up(&self, session_name: &str) -> Result<bool> {
         let session = self.db_manager.get_session_by_name(session_name)?;
@@ -3230,8 +3231,8 @@ impl SessionManager {
             return Ok(false);
         }
 
-        if session.ready_to_merge {
-            // Clear review flag and ensure state is Running for UI consistency
+        if session.session_state == SessionState::Reviewed {
+            // Clear review flag/state and ensure state is Running for UI consistency
             self.db_manager
                 .update_session_ready_to_merge(&session.id, false)?;
             self.db_manager
