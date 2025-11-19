@@ -251,6 +251,38 @@ describe('selection atoms', () => {
     })
   })
 
+  it('verifies state with backend before resetting terminals when previous state is unknown but terminals exist', async () => {
+    await withNodeEnv('development', async () => {
+      const backend = await import('../../terminal/transport/backend')
+
+      await setProjectPath('/projects/alpha')
+      await store.set(initializeSelectionEventsActionAtom)
+
+      // Manually create a terminal to simulate "tracking" without prior session state history
+      // (e.g. via setSelectionActionAtom which doesn't update lastKnownSessionState)
+      await store.set(setSelectionActionAtom, {
+        selection: { kind: 'session', payload: 'session-1', sessionState: 'running', worktreePath: '/tmp/worktrees/session-1' },
+      })
+      
+      // Verify terminal created
+      expect(vi.mocked(backend.createTerminalBackend)).toHaveBeenCalled()
+      vi.mocked(backend.closeTerminalBackend).mockClear()
+
+      // Now receive a stale SPEC event
+      // Backend verification should say "running"
+      nextSessionResponse = createRawSession({ session_state: 'running', status: 'running', ready_to_merge: false })
+      
+      await emitSessionsRefreshed([
+        { info: { session_id: 'session-1', session_state: 'spec', status: 'spec', ready_to_merge: false } },
+      ])
+
+      await waitFor(() => {
+        // Verification should have prevented close
+        expect(vi.mocked(backend.closeTerminalBackend)).not.toHaveBeenCalled()
+      })
+    })
+  })
+
   it('verifies state with backend before resetting terminals on running->spec transition', async () => {
     await withNodeEnv('development', async () => {
       const backend = await import('../../terminal/transport/backend')
