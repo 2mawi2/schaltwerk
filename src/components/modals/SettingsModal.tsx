@@ -241,6 +241,7 @@ const CODEX_REASONING_OPTIONS: AgentPreferenceMetadataOption[] = [
     { value: 'low', label: 'Low' },
     { value: 'medium', label: 'Medium' },
     { value: 'high', label: 'High' },
+    { value: 'xhigh', label: 'Extra high' },
 ]
 
 const AGENT_PREFERENCE_METADATA: Record<AgentType, AgentPreferenceMetadata> = {

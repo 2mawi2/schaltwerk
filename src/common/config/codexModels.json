@@ -27,6 +27,35 @@
         ]
       },
       {
+        "id": "gpt-5.1-codex-max",
+        "label": "GPT-5.1 Codex Max",
+        "description": "Maximum-capability Codex model for complex coding problems.",
+        "defaultReasoning": "medium",
+        "isDefault": false,
+        "reasoningOptions": [
+          {
+            "id": "low",
+            "label": "Low",
+            "description": "Fast responses with lighter reasoning"
+          },
+          {
+            "id": "medium",
+            "label": "Medium",
+            "description": "Balances speed and reasoning depth for everyday tasks"
+          },
+          {
+            "id": "high",
+            "label": "High",
+            "description": "Maximizes reasoning depth for complex problems"
+          },
+          {
+            "id": "xhigh",
+            "label": "Extra high",
+            "description": "Extra high reasoning depth for complex problems"
+          }
+        ]
+      },
+      {
         "id": "gpt-5.1-codex-mini",
         "label": "GPT-5.1 Codex Mini",
         "description": "Cheaper, faster Codex variant for lighter tasks.",
