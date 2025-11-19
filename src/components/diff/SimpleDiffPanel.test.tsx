@@ -13,13 +13,27 @@ const invoke = (await import('@tauri-apps/api/core')).invoke as MockedFunction<
 
 // Mutable selection used by mocked hook
 let currentSelection: Record<string, unknown> = { kind: 'orchestrator' }
+const mockSetSelection = vi.fn()
+const mockTerminals = { top: 'orchestrator-top' }
+const mockClearTerminalTracking = vi.fn()
 vi.mock('../../hooks/useSelection', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('../../hooks/useSelection')
   return {
     ...actual,
-    useSelection: () => ({ selection: currentSelection })
+    useSelection: () => ({
+      selection: currentSelection,
+      terminals: mockTerminals,
+      isReady: true,
+      isSpec: false,
+      setSelection: mockSetSelection,
+      clearTerminalTracking: mockClearTerminalTracking,
+    })
   }
 })
+
+vi.mock('./UnifiedDiffView', () => ({
+  UnifiedDiffView: () => <div data-testid="mock-unified-view" />
+}))
 
 const defaultDiffPrefs = {
   continuous_scroll: false,
@@ -45,10 +59,12 @@ describe('SimpleDiffPanel', () => {
   const user = userEvent.setup()
 
   beforeEach(() => {
-    vi.resetModules()
     vi.doUnmock('./DiffFileList')
     vi.clearAllMocks()
     invoke.mockReset()
+    mockSetSelection.mockReset()
+    mockClearTerminalTracking.mockReset()
+    mockTerminals.top = 'orchestrator-top'
     setupInvoke()
     // default clipboard: prefer spying if exists; else define property
     try {
