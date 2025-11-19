@@ -377,8 +377,8 @@ run-port port:
     export VITE_PORT={{port}}
     export PORT={{port}}
     
-    # Run the release binary
-    cd "$HOME" && VITE_PORT={{port}} PORT={{port}} PARA_REPO_PATH="$PROJECT_ROOT" "$BINARY_PATH"
+    # Run the release binary (pass repo path via CLI arg for auto-switch)
+    cd "$HOME" && VITE_PORT={{port}} PORT={{port}} PARA_REPO_PATH="$PROJECT_ROOT" "$BINARY_PATH" "$PROJECT_ROOT"
 
 # Run on a specific port with hot-reload (development mode with production-like performance)
 run-port-dev port:
@@ -491,7 +491,7 @@ run-release:
         exit 1
     fi
 
-    cd "$HOME" && PARA_REPO_PATH="$PROJECT_ROOT" "$BINARY_PATH"
+    cd "$HOME" && PARA_REPO_PATH="$PROJECT_ROOT" "$BINARY_PATH" "$PROJECT_ROOT"
 
 # Build and run the application in release mode with a specific port
 # This builds fresh like 'just run' does, but creates a release build
@@ -535,7 +535,7 @@ run-port-release port:
         exit 1
     fi
 
-    cd "$HOME" && VITE_PORT={{port}} PORT={{port}} PARA_REPO_PATH="$PROJECT_ROOT" "$BINARY_PATH"
+    cd "$HOME" && VITE_PORT={{port}} PORT={{port}} PARA_REPO_PATH="$PROJECT_ROOT" "$BINARY_PATH" "$PROJECT_ROOT"
 
 # Cross-platform setup commands
 
