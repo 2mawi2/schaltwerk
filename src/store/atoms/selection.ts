@@ -549,6 +549,23 @@ export const clearTerminalTrackingActionAtom = atom(
   },
 )
 
+async function isWorktreeStillPresent(worktreePath: string): Promise<boolean> {
+  try {
+    const exists = await invoke<boolean>(TauriCommands.PathExists, { path: worktreePath })
+    if (!exists) {
+      return false
+    }
+    const gitDirExists = await invoke<boolean>(TauriCommands.PathExists, { path: `${worktreePath}/.git` })
+    return gitDirExists
+  } catch (error) {
+    logger.warn('[selection] Failed to verify worktree removal during spec transition', {
+      worktreePath,
+      error,
+    })
+    return true
+  }
+}
+
 async function handleSessionStateUpdate(
   set: SetAtomFunction,
   sessionId: string,
@@ -557,7 +574,8 @@ async function handleSessionStateUpdate(
 ): Promise<void> {
   const previous = lastKnownSessionState.get(sessionId)
   const cacheKey = selectionCacheKey({ kind: 'session', payload: sessionId, projectPath }, projectPath)
-  const isTracking = terminalsCache.has(cacheKey)
+  const tracked = terminalsCache.get(cacheKey)
+  const isTracking = Boolean(tracked && tracked.size > 0)
 
   if (nextState === 'spec' && (previous === 'running' || isTracking)) {
     // When we receive a spec state for a running session, it might be a stale event
@@ -574,10 +592,22 @@ async function handleSessionStateUpdate(
         lastKnownSessionState.set(sessionId, 'running')
         return
       }
+      if (snapshot && snapshot.sessionState === 'spec' && snapshot.worktreePath) {
+        const stillPresent = await isWorktreeStillPresent(snapshot.worktreePath)
+        if (stillPresent) {
+          logger.warn('[selection] Spec event arrived but session worktree still exists; deferring terminal release.', {
+            sessionId,
+            projectPath,
+            worktreePath: snapshot.worktreePath,
+          })
+          lastKnownSessionState.set(sessionId, 'running')
+          return
+        }
+      }
     } catch (error) {
       logger.warn('[selection] Failed to verify session state during spec transition check', { sessionId, error })
     }
-    
+
     logger.info('[selection] Confirmed transition to spec state. Releasing terminals.', {
       sessionId,
       projectPath,

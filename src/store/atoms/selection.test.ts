@@ -85,12 +85,15 @@ vi.mock('../../components/terminal/Terminal', () => ({
 }))
 
 function createRawSession(overrides: Partial<Record<string, unknown>> = {}) {
+  const requestedState = typeof overrides.session_state === 'string' ? overrides.session_state : 'running'
+  const defaultStatus = requestedState === 'spec' ? 'spec' : 'running'
+  const defaultWorktree = requestedState === 'spec' ? null : '/tmp/worktrees/session-1'
   return {
     name: 'session-1',
-    session_state: 'running',
-    status: 'running',
+    session_state: requestedState,
+    status: defaultStatus,
     ready_to_merge: false,
-    worktree_path: '/tmp/worktrees/session-1',
+    worktree_path: defaultWorktree,
     branch: 'schaltwerk/session-1',
     ...overrides,
   }
@@ -312,8 +315,100 @@ describe('selection atoms', () => {
       })
 
       // Now simulate ACTUAL spec transition (backend returns spec)
-      nextSessionResponse = createRawSession({ session_state: 'spec', status: 'spec', ready_to_merge: false })
+      nextSessionResponse = createRawSession({
+        session_state: 'spec',
+        status: 'spec',
+        ready_to_merge: false,
+        worktree_path: null,
+      })
       
+      await emitSessionsRefreshed([
+        { info: { session_id: 'session-1', session_state: 'spec', status: 'spec', ready_to_merge: false } },
+      ])
+
+      await waitFor(() => {
+        expect(vi.mocked(backend.closeTerminalBackend)).toHaveBeenCalled()
+      })
+    })
+  })
+
+  it('defers terminal release when spec verification still reports a worktree path', async () => {
+    await withNodeEnv('development', async () => {
+      const backend = await import('../../terminal/transport/backend')
+
+      await setProjectPath('/projects/alpha')
+      await store.set(initializeSelectionEventsActionAtom)
+
+      await store.set(setSelectionActionAtom, {
+        selection: {
+          kind: 'session',
+          payload: 'session-1',
+          sessionState: 'running',
+          worktreePath: '/tmp/worktrees/session-1',
+        },
+      })
+
+      vi.mocked(backend.closeTerminalBackend).mockClear()
+
+      nextSessionResponse = createRawSession({
+        session_state: 'spec',
+        status: 'spec',
+        ready_to_merge: false,
+        worktree_path: '/tmp/worktrees/session-1',
+      })
+
+      await emitSessionsRefreshed([
+        { info: { session_id: 'session-1', session_state: 'spec', status: 'spec', ready_to_merge: false } },
+      ])
+
+      await waitFor(() => {
+        expect(vi.mocked(backend.closeTerminalBackend)).not.toHaveBeenCalled()
+      })
+    })
+  })
+
+  it('releases terminals once the worktree disappears after a deferred spec event', async () => {
+    await withNodeEnv('development', async () => {
+      const backend = await import('../../terminal/transport/backend')
+
+      await setProjectPath('/projects/alpha')
+      await store.set(initializeSelectionEventsActionAtom)
+
+      await store.set(setSelectionActionAtom, {
+        selection: {
+          kind: 'session',
+          payload: 'session-1',
+          sessionState: 'running',
+          worktreePath: '/tmp/worktrees/session-1',
+        },
+      })
+
+      vi.mocked(backend.closeTerminalBackend).mockClear()
+
+      // First spec event keeps worktree and should be ignored
+      nextSessionResponse = createRawSession({
+        session_state: 'spec',
+        status: 'spec',
+        ready_to_merge: false,
+        worktree_path: '/tmp/worktrees/session-1',
+      })
+
+      await emitSessionsRefreshed([
+        { info: { session_id: 'session-1', session_state: 'spec', status: 'spec', ready_to_merge: false } },
+      ])
+
+      await waitFor(() => {
+        expect(vi.mocked(backend.closeTerminalBackend)).not.toHaveBeenCalled()
+      })
+
+      // Now simulate backend removing the worktree path
+      nextSessionResponse = createRawSession({
+        session_state: 'spec',
+        status: 'spec',
+        ready_to_merge: false,
+        worktree_path: null,
+      })
+
       await emitSessionsRefreshed([
         { info: { session_id: 'session-1', session_state: 'spec', status: 'spec', ready_to_merge: false } },
       ])
@@ -746,39 +841,52 @@ describe('selection atoms', () => {
     })
   })
 
-  it('clears session terminals when SessionStateChanged converts to spec', async () => {
-    const backend = await import('../../terminal/transport/backend')
-    const closeMock = vi.mocked(backend.closeTerminalBackend)
-    closeMock.mockClear()
+  it('propagates SessionStateChanged to spec selection and releases after next refresh', async () => {
+    await withNodeEnv('development', async () => {
+      const backend = await import('../../terminal/transport/backend')
+      const closeMock = vi.mocked(backend.closeTerminalBackend)
+      closeMock.mockClear()
 
-    await store.set(setSelectionActionAtom, {
-      selection: {
-        kind: 'session',
-        payload: 'session-1',
-      },
-    })
+      await setProjectPath('/projects/alpha')
+      await store.set(setSelectionActionAtom, {
+        selection: {
+          kind: 'session',
+          payload: 'session-1',
+        },
+      })
 
-    await store.set(initializeSelectionEventsActionAtom)
-    await waitForSelectionAsyncEffectsForTest()
+      await store.set(initializeSelectionEventsActionAtom)
+      await waitForSelectionAsyncEffectsForTest()
 
-    nextSessionResponse = createRawSession({
-      session_state: 'spec',
-      status: 'spec',
-      ready_to_merge: false,
-    })
+      nextSessionResponse = createRawSession({
+        session_state: 'spec',
+        status: 'spec',
+        ready_to_merge: false,
+      })
 
-    expect(sessionStateHandlers.length).toBeGreaterThan(0)
-    sessionStateHandlers[0]({ sessionId: 'session-1' })
-    await waitForSelectionAsyncEffectsForTest()
+      expect(sessionStateHandlers.length).toBeGreaterThan(0)
+      sessionStateHandlers[0]({ sessionId: 'session-1' })
+      await waitForSelectionAsyncEffectsForTest()
 
-    const topId = stableSessionTerminalId('session-1', 'top')
-    const bottomId = stableSessionTerminalId('session-1', 'bottom')
+      const topId = stableSessionTerminalId('session-1', 'top')
+      const bottomId = stableSessionTerminalId('session-1', 'bottom')
 
-    await waitFor(() => {
-      expect(closeMock).toHaveBeenCalledWith(topId)
-    })
-    await waitFor(() => {
-      expect(closeMock).toHaveBeenCalledWith(bottomId)
+      nextSessionResponse = createRawSession({
+        session_state: 'spec',
+        status: 'spec',
+        ready_to_merge: false,
+      })
+
+      await emitSessionsRefreshed([
+        { info: { session_id: 'session-1', session_state: 'spec', status: 'spec', ready_to_merge: false } },
+      ])
+
+      await waitFor(() => {
+        expect(closeMock).toHaveBeenCalledWith(topId)
+      })
+      await waitFor(() => {
+        expect(closeMock).toHaveBeenCalledWith(bottomId)
+      })
     })
   })
 })
