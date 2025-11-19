@@ -46,10 +46,20 @@ export function shouldCollapseDiff(
   filePath: string,
   lineCount: number,
   sizeBytes: number,
-  alwaysShowLargeDiffs: boolean
+  options: {
+    alwaysShowLargeDiffs: boolean
+    isCompactView?: boolean
+    changedLinesCount?: number
+  }
 ): DiffFilterResult {
+  const { alwaysShowLargeDiffs, isCompactView = false, changedLinesCount } = options
   const isGenerated = isGeneratedFile(filePath)
   const isLarge = isLargeDiff(lineCount, sizeBytes)
+  const hasSmallChangeInCompactView =
+    isLarge &&
+    isCompactView &&
+    typeof changedLinesCount === 'number' &&
+    changedLinesCount <= 50
 
   if (!isGenerated && !isLarge) {
     return {
@@ -59,7 +69,7 @@ export function shouldCollapseDiff(
     }
   }
 
-  const shouldCollapseForSize = isLarge && !alwaysShowLargeDiffs
+  const shouldCollapseForSize = isLarge && !alwaysShowLargeDiffs && !hasSmallChangeInCompactView
   const shouldCollapse = isGenerated || shouldCollapseForSize
 
   let reason: 'generated' | 'large' | 'both' | undefined
