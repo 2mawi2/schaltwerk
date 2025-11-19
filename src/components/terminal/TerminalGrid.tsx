@@ -607,7 +607,6 @@ const TerminalGridComponent = () => {
                 event.stopImmediatePropagation()
                 
                 const sessionKey = getSessionKey()
-                const lastFocus = getFocusForSession(sessionKey)
                 
                 // Special handling: if we're on the run tab, switch to terminal tab
                 const isOnRunTab = runModeActive && terminalTabsState.activeTab === RUN_TAB_INDEX
@@ -620,7 +619,7 @@ const TerminalGridComponent = () => {
                         sessionStorage.setItem(activeTabKey, String(0))
                         return next
                     })
-                    
+
                     // Always focus terminal when switching from run tab
                     setFocusForSession(sessionKey, 'terminal')
                     setLocalFocus('terminal')
@@ -636,23 +635,15 @@ const TerminalGridComponent = () => {
                     })
                 } else {
                     // Not on run tab - use normal focus logic
-                    // Focus the last focused terminal (claude or terminal)
-                    // Default to terminal if no previous focus or invalid focus
-                    const targetFocus = (lastFocus === 'claude' || lastFocus === 'terminal') ? lastFocus : 'terminal'
-                    
                     // Toggle Logic
                     if (isBottomCollapsed) {
-                        // Expand and Focus
+                        // Expand and Focus Terminal (always focus terminal when expanding)
                         toggleTerminalCollapsed()
                         
-                        setFocusForSession(sessionKey, targetFocus)
-                        setLocalFocus(targetFocus)
+                        setFocusForSession(sessionKey, 'terminal')
+                        setLocalFocus('terminal')
                         requestAnimationFrame(() => {
-                            if (targetFocus === 'claude' && claudeTerminalRef.current) {
-                                claudeTerminalRef.current.focus()
-                            } else if (targetFocus === 'terminal' && terminalTabsRef.current) {
-                                terminalTabsRef.current.focus()
-                            }
+                            terminalTabsRef.current?.focus()
                         })
                     } else {
                         // Expanded
