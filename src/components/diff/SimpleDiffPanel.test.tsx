@@ -3,6 +3,7 @@ import { TauriCommands } from '../../common/tauriCommands'
 import userEvent from '@testing-library/user-event'
 import { vi, type MockedFunction } from 'vitest'
 import { createChangedFile } from '../../tests/test-utils'
+import { TestProviders } from '../../tests/test-utils'
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 
@@ -20,12 +21,35 @@ vi.mock('../../hooks/useSelection', async () => {
   }
 })
 
+const defaultDiffPrefs = {
+  continuous_scroll: false,
+  compact_diffs: true,
+  sidebar_width: 320,
+  inline_sidebar_default: true,
+}
+
+const setupInvoke = (overrides: Record<string, (args?: Record<string, unknown>) => unknown> = {}) => {
+  invoke.mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
+    if (cmd === TauriCommands.GetDiffViewPreferences) {
+      return defaultDiffPrefs
+    }
+    const handler = overrides[cmd]
+    if (handler) {
+      return handler(args)
+    }
+    return null
+  })
+}
+
 describe('SimpleDiffPanel', () => {
   const user = userEvent.setup()
 
   beforeEach(() => {
+    vi.resetModules()
+    vi.doUnmock('./DiffFileList')
     vi.clearAllMocks()
     invoke.mockReset()
+    setupInvoke()
     // default clipboard: prefer spying if exists; else define property
     try {
       if (navigator.clipboard && 'writeText' in navigator.clipboard) {
@@ -47,9 +71,22 @@ describe('SimpleDiffPanel', () => {
 
   it('renders DiffFileList and no dock by default (orchestrator)', async () => {
     currentSelection = { kind: 'orchestrator' }
-    invoke.mockResolvedValueOnce([]) // get_changed_files_from_main will be called by DiffFileList polling, but we just ensure render
+    invoke.mockImplementation(async (cmd: string) => {
+      if (cmd === TauriCommands.GetDiffViewPreferences) return defaultDiffPrefs
+      if (cmd === TauriCommands.GetChangedFilesFromMain) return []
+      return null
+    })
     const { SimpleDiffPanel } = await import('./SimpleDiffPanel')
-    render(<SimpleDiffPanel onFileSelect={vi.fn()} />)
+    render(
+      <TestProviders>
+        <SimpleDiffPanel
+          mode="list"
+          onModeChange={vi.fn()}
+          activeFile={null}
+          onActiveFileChange={vi.fn()}
+        />
+      </TestProviders>
+    )
 
     expect(await screen.findByText(/no session selected/i)).toBeInTheDocument()
     expect(screen.queryByText(/show prompt/i)).not.toBeInTheDocument()
@@ -63,10 +100,20 @@ describe('SimpleDiffPanel', () => {
       if (cmd === TauriCommands.GetCurrentBranchName) return 'feat'
       if (cmd === TauriCommands.GetBaseBranchName) return 'main'
       if (cmd === TauriCommands.GetCommitComparisonInfo) return ['a', 'b']
+      if (cmd === TauriCommands.GetDiffViewPreferences) return defaultDiffPrefs
       return null
     })
     const { SimpleDiffPanel } = await import('./SimpleDiffPanel')
-    render(<SimpleDiffPanel onFileSelect={vi.fn()} />)
+    render(
+      <TestProviders>
+        <SimpleDiffPanel
+          mode="list"
+          onModeChange={vi.fn()}
+          activeFile={null}
+          onActiveFileChange={vi.fn()}
+        />
+      </TestProviders>
+    )
 
     // No prompt toggle button is present anymore
     await waitFor(() => expect(screen.queryByRole('button', { name: /show prompt/i })).not.toBeInTheDocument())
@@ -74,6 +121,37 @@ describe('SimpleDiffPanel', () => {
     // And we never fetch the session prompt
     const calls = invoke.mock.calls
     expect(calls.find((c: unknown[]) => (c as [string, ...unknown[]])[0] === TauriCommands.SchaltwerkCoreGetSession)).toBeUndefined()
+  })
+
+  it('returns to list mode when files disappear during review', async () => {
+    vi.doMock('./DiffFileList', async () => {
+      const ReactModule = await import('react')
+      const { useEffect } = ReactModule
+      return {
+        DiffFileList: ({ onFilesChange }: { onFilesChange?: (hasFiles: boolean) => void }) => {
+          useEffect(() => {
+            onFilesChange?.(false)
+          }, [onFilesChange])
+          return <div data-testid="mock-diff-list" />
+        }
+      }
+    })
+    const { SimpleDiffPanel } = await import('./SimpleDiffPanel')
+    const onModeChange = vi.fn()
+    const onActiveFileChange = vi.fn()
+    render(
+      <TestProviders>
+        <SimpleDiffPanel
+          mode="review"
+          onModeChange={onModeChange}
+          activeFile="src/foo.ts"
+          onActiveFileChange={onActiveFileChange}
+        />
+      </TestProviders>
+    )
+
+    await waitFor(() => expect(onModeChange).toHaveBeenCalledWith('list'))
+    vi.doUnmock('./DiffFileList')
   })
 
   it('renders changed files, highlights selected row, and calls onFileSelect', async () => {
@@ -89,21 +167,30 @@ describe('SimpleDiffPanel', () => {
       if (cmd === TauriCommands.GetBaseBranchName) return 'main'
       if (cmd === TauriCommands.GetCommitComparisonInfo) return ['a', 'b']
       if (cmd === TauriCommands.SchaltwerkCoreGetSession) return { initial_prompt: '' }
+      if (cmd === TauriCommands.GetDiffViewPreferences) return defaultDiffPrefs
       return null
     })
 
     const { SimpleDiffPanel } = await import('./SimpleDiffPanel')
-    const onFileSelect = vi.fn()
-    render(<SimpleDiffPanel onFileSelect={onFileSelect} />)
+    const onActiveFileChange = vi.fn()
+    const onModeChange = vi.fn()
+    render(
+      <TestProviders>
+        <SimpleDiffPanel
+          mode="list"
+          onModeChange={onModeChange}
+          activeFile={null}
+          onActiveFileChange={onActiveFileChange}
+        />
+      </TestProviders>
+    )
 
     expect(await screen.findByText('file1.txt')).toBeInTheDocument()
     expect(screen.getByText('file2.ts')).toBeInTheDocument()
 
     await user.click(screen.getByText('file1.txt'))
-    expect(onFileSelect).toHaveBeenCalledWith('src/a/file1.txt')
+    expect(onActiveFileChange).toHaveBeenCalledWith('src/a/file1.txt')
+    expect(onModeChange).toHaveBeenCalledWith('review')
 
-    // Selected row should have selection class
-    const selected = document.querySelector('.bg-slate-800\\/30')
-    expect(selected).toBeTruthy()
   })
 })

@@ -1074,11 +1074,6 @@ function AppContent() {
     }
   }
 
-  const handleFileSelect = (filePath: string) => {
-    setDiffViewerState({ mode: 'session', filePath })
-    setIsDiffViewerOpen(true)
-  }
-
   const handleOpenHistoryDiff = useCallback((payload: { repoPath: string; commit: HistoryItem; files: CommitFileChange[]; initialFilePath?: string | null }) => {
     const { repoPath, commit, files, initialFilePath } = payload
     const committedAt = Number.isFinite(commit.timestamp)
@@ -1698,7 +1693,6 @@ function AppContent() {
                       <section className={`overflow-hidden`}>
                         <ErrorBoundary name="RightPanel">
                           <RightPanelTabs 
-                            onFileSelect={handleFileSelect}
                             onOpenHistoryDiff={handleOpenHistoryDiff}
                             isDragging={isDraggingRightSplit}
                           />

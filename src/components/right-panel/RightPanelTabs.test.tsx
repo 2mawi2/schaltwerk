@@ -123,7 +123,6 @@ describe('RightPanelTabs split layout', () => {
 
     renderWithProject(
       <RightPanelTabs
-        onFileSelect={vi.fn()}
         selectionOverride={{ kind: 'session', payload: 'test-session', worktreePath: '/tmp/session-worktree' }}
         isSpecOverride={false}
       />
@@ -154,7 +153,6 @@ describe('RightPanelTabs split layout', () => {
 
     renderWithProject(
       <RightPanelTabs
-        onFileSelect={vi.fn()}
         selectionOverride={{ kind: 'session', payload: 'test-session', worktreePath: '/tmp/session-worktree' }}
         isSpecOverride={false}
       />
@@ -177,7 +175,6 @@ describe('RightPanelTabs split layout', () => {
     }))
     const { rerender } = renderWithProject(
       <RightPanelTabs
-        onFileSelect={vi.fn()}
         selectionOverride={{ kind: 'orchestrator' }}
       />
     )
@@ -193,7 +190,6 @@ describe('RightPanelTabs split layout', () => {
     // Switch to a running session (split mode)
     rerender(
       <RightPanelTabs
-        onFileSelect={vi.fn()}
         selectionOverride={{ kind: 'session', payload: 'run-1' }}
         isSpecOverride={false}
       />
@@ -202,7 +198,6 @@ describe('RightPanelTabs split layout', () => {
     // Switch back to orchestrator
     rerender(
       <RightPanelTabs
-        onFileSelect={vi.fn()}
         selectionOverride={{ kind: 'orchestrator' }}
       />
     )
@@ -222,7 +217,6 @@ describe('RightPanelTabs split layout', () => {
 
     renderWithProject(
       <RightPanelTabs
-        onFileSelect={vi.fn()}
         selectionOverride={{ kind: 'session', payload: 'test-session' }}
         isSpecOverride={false}
       />
@@ -254,7 +248,6 @@ describe('RightPanelTabs split layout', () => {
 
     renderWithProject(
       <RightPanelTabs
-        onFileSelect={vi.fn()}
         selectionOverride={{ kind: 'session', payload: 'test-session', worktreePath: '/tmp/session-worktree' }}
         isSpecOverride={false}
       />
@@ -280,7 +273,6 @@ describe('RightPanelTabs split layout', () => {
 
     renderWithProject(
       <RightPanelTabs
-        onFileSelect={vi.fn()}
         selectionOverride={{ kind: 'session', payload: 'feature/alias-branch', worktreePath: '/tmp/alias-worktree' }}
         isSpecOverride={false}
       />
@@ -299,7 +291,6 @@ describe('RightPanelTabs split layout', () => {
 
     renderWithProject(
       <RightPanelTabs
-        onFileSelect={vi.fn()}
         selectionOverride={{ kind: 'orchestrator' }}
       />
     )
@@ -330,7 +321,6 @@ describe('RightPanelTabs split layout', () => {
 
     const { rerender } = renderWithProject(
       <RightPanelTabs
-        onFileSelect={vi.fn()}
         selectionOverride={{ kind: 'session', payload: 'run-session', worktreePath: '/tmp/run-session' }}
         isSpecOverride={false}
       />
@@ -341,7 +331,6 @@ describe('RightPanelTabs split layout', () => {
 
     rerender(
       <RightPanelTabs
-        onFileSelect={vi.fn()}
         selectionOverride={{ kind: 'session', payload: 'spec-session', worktreePath: '/tmp/spec-session' }}
         isSpecOverride={true}
       />
@@ -350,7 +339,6 @@ describe('RightPanelTabs split layout', () => {
 
     rerender(
       <RightPanelTabs
-        onFileSelect={vi.fn()}
         selectionOverride={{ kind: 'session', payload: 'run-session', worktreePath: '/tmp/run-session' }}
         isSpecOverride={false}
       />
@@ -374,7 +362,6 @@ describe('RightPanelTabs split layout', () => {
 
     renderWithProject(
       <RightPanelTabs
-        onFileSelect={vi.fn()}
         selectionOverride={{ kind: 'session', payload: 'spec-session', worktreePath: '/tmp/spec-session' }}
         isSpecOverride={true}
       />
