@@ -292,7 +292,8 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     // Maintain per-filter selection memory and choose the next best session when visibility changes
     useEffect(() => {
         if (isProjectSwitching.current) {
-            return
+            // Allow refocus even if the project switch completion event is delayed
+            isProjectSwitching.current = false
         }
 
         const allSessionsSnapshot = allSessions.length > 0 ? allSessions : latestSessionsRef.current
