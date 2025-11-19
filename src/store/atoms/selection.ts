@@ -556,8 +556,10 @@ async function handleSessionStateUpdate(
   projectPath: string | null,
 ): Promise<void> {
   const previous = lastKnownSessionState.get(sessionId)
+  const cacheKey = selectionCacheKey({ kind: 'session', payload: sessionId, projectPath }, projectPath)
+  const isTracking = terminalsCache.has(cacheKey)
 
-  if (nextState === 'spec' && previous === 'running') {
+  if (nextState === 'spec' && (previous === 'running' || isTracking)) {
     // When we receive a spec state for a running session, it might be a stale event
     // (e.g. from a slow refresh or out-of-order event). We must verify the true state
     // before destroying terminals.
