@@ -319,6 +319,30 @@ describe('DiffViewer', () => {
     expect(screen.queryByTestId('diff-placeholder')).not.toBeInTheDocument()
   })
 
+  it('shows small diffs for large files in compact view', () => {
+    const largeFile = createChangedFile({ path: 'src/huge.ts', change_type: 'modified', additions: 1, deletions: 1 })
+    const largeDiff = {
+      ...mockFileDiff,
+      file: largeFile,
+      fileInfo: { language: 'typescript', sizeBytes: 150_000 },
+      changedLinesCount: 2
+    }
+
+    const props = {
+      ...mockProps,
+      files: [largeFile],
+      selectedFile: 'src/huge.ts',
+      allFileDiffs: new Map([['src/huge.ts', largeDiff]]),
+      isLargeDiffMode: true,
+      expandedFiles: new Set<string>()
+    }
+
+    render(<DiffViewer {...props as DiffViewerProps} />)
+
+    expect(screen.queryByText(/Large file/i)).not.toBeInTheDocument()
+    expect(screen.getByText('added line')).toBeInTheDocument()
+  })
+
   it('applies horizontal scrolling at the file level instead of per line', () => {
     render(<DiffViewer {...mockProps as DiffViewerProps} />)
 
