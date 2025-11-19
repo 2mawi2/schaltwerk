@@ -3,6 +3,7 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, act, waitFor, fireEvent } from '@testing-library/react'
 import { theme } from '../../common/theme'
+import { SPLIT_GUTTER_SIZE } from '../../common/splitLayout'
 import { withOpacity } from '../../common/colorUtils'
 import { MockTauriInvokeArgs } from '../../types/testing'
 import { UiEvent, emitUiEvent } from '../../common/uiEvents'
@@ -495,7 +496,7 @@ describe('TerminalGrid', () => {
     // minSize may be a single number or an array (top,bottom)
     const minsizeAttr = split.getAttribute('data-minsize') || ''
     expect(minsizeAttr === '120' || minsizeAttr === '120,24' || minsizeAttr === '[120,24]').toBe(true)
-    expect(split.getAttribute('data-gutter')).toBe('12')
+    expect(split.getAttribute('data-gutter')).toBe(String(SPLIT_GUTTER_SIZE))
   })
 
   describe('Run tab visibility', () => {

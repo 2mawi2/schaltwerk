@@ -155,13 +155,13 @@ button:disabled {
 }
 
 .gutter.gutter-horizontal::after {
-  width: 6px;
-  height: 48px;
+  width: 3px;
+  height: 40px;
 }
 
 .gutter.gutter-vertical::after {
-  width: 48px;
-  height: 6px;
+  width: 40px;
+  height: 3px;
 }
 
 .gutter:hover::after { opacity: 1; }

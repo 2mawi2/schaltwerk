@@ -27,6 +27,7 @@ import { useAtomValue } from 'jotai'
 import { projectPathAtom } from '../../store/atoms/project'
 import { WebPreviewPanel } from './WebPreviewPanel'
 import { buildPreviewKey } from '../../store/atoms/preview'
+import { SPLIT_GUTTER_SIZE } from '../../common/splitLayout'
 
 interface RightPanelTabsProps {
   onOpenHistoryDiff?: (payload: { repoPath: string; commit: HistoryItem; files: CommitFileChange[]; initialFilePath?: string | null }) => void
@@ -420,7 +421,7 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
               className="h-full flex flex-col"
               sizes={[58, 42]}
               minSize={[140, 120]}
-              gutterSize={12}
+              gutterSize={SPLIT_GUTTER_SIZE}
               direction="vertical"
               onDragStart={handleInternalSplitDragStart}
               onDragEnd={handleInternalSplitDragEnd}
