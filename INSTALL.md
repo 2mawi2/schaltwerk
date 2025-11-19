@@ -71,6 +71,51 @@ codesign --force --deep -s - /Applications/Schaltwerk.app
 3. Double-click Schaltwerk
 4. Follow the First Launch Setup steps above if blocked
 
+## Linux (Flatpak)
+
+Flatpak builds are attached to every GitHub release starting with the first Linux bundle. Each release ships two files:
+
+- `Schaltwerk-<version>.flatpak` – single-file bundle you can install locally
+- `Schaltwerk-<version>.flatpakrepo.tar.gz` – exported OSTree repo for anyone who wants to host their own remote
+
+### Prerequisites
+
+Install Flatpak and the GNOME runtime (47) once per machine:
+
+```bash
+sudo apt install flatpak         # or use your distro’s package manager
+flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+flatpak install flathub org.gnome.Platform//47
+```
+
+### Install Schaltwerk
+
+1. Download the latest `Schaltwerk-<version>.flatpak` from GitHub Releases.
+2. Install it with:
+
+   ```bash
+   flatpak install --user Schaltwerk-<version>.flatpak
+   ```
+
+3. Launch the app:
+
+   ```bash
+   flatpak run com.mariuswichtner.schaltwerk
+   ```
+
+The Flatpak already has access to your network stack, `$HOME` (needed for git worktrees), Wayland/X11 sockets, and desktop notifications, so no overrides are required. If you need to constrain the sandbox further, use `flatpak override`.
+
+### Updating
+
+- To move to a newer release, download the new `.flatpak` and run `flatpak install --user` again—Flatpak treats it as an in-place upgrade.
+- If you host the exported `.flatpakrepo` on your own remote, you can add it with `flatpak remote-add schaltwerk https://your-domain/schaltwerk.flatpakrepo` and rely on `flatpak update`.
+
+### Uninstalling
+
+```bash
+flatpak uninstall com.mariuswichtner.schaltwerk
+```
+
 ## Troubleshooting
 
 ## Automatic Updates

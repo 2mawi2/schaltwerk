@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Schaltwerk
+Comment=Manage isolated AI coding sessions
+Exec=schaltwerk %u
+Icon=com.mariuswichtner.schaltwerk
+Terminal=false
+Categories=Development;Utility;
+StartupWMClass=Schaltwerk
