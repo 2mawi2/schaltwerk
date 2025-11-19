@@ -1502,9 +1502,10 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
     cols: Option<u16>,
     rows: Option<u16>,
 ) -> Result<String, String> {
-    log::info!("Starting Claude for orchestrator in terminal: {terminal_id}");
+    log::info!("[AGENT_LAUNCH_TRACE] Starting Claude for orchestrator in terminal: {terminal_id}");
 
     // First check if we have a valid project initialized
+    log::info!("[AGENT_LAUNCH_TRACE] Acquiring core write lock for {terminal_id}");
     let core = match get_core_write().await {
         Ok(c) => c,
         Err(e) => {
@@ -1516,6 +1517,7 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
             return Err(format!("Failed to initialize orchestrator: {e}"));
         }
     };
+    log::info!("[AGENT_LAUNCH_TRACE] Acquired core write lock for {terminal_id}");
     let db = core.db.clone();
     let repo_path = core.repo_path.clone();
     let manager = core.session_manager();
@@ -1561,11 +1563,13 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
 
     // Release the global write lock before launching the terminal process.
     drop(core);
+    log::info!("[AGENT_LAUNCH_TRACE] Dropped core write lock for {terminal_id}");
 
     log::info!(
         "Claude command for orchestrator: {}",
         command_spec.shell_command.as_str()
     );
+    log::info!("[AGENT_LAUNCH_TRACE] Calling launch_in_terminal for {terminal_id}");
     let result = agent_launcher::launch_in_terminal(
         terminal_id.clone(),
         command_spec,

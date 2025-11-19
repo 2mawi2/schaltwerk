@@ -27,13 +27,16 @@ pub async fn launch_in_terminal(
     // Acquire (or create) a lock specific to this terminal id and hold it for the
     // whole close→create sequence. This guarantees only one launch pipeline runs
     // at a time for a given terminal.
+    log::info!("[AGENT_LAUNCH_TRACE] Acquiring START_LOCKS for {terminal_id}");
     let term_lock = {
         let mut map = START_LOCKS.lock().await;
         map.entry(terminal_id.clone())
             .or_insert_with(|| Arc::new(AsyncMutex::new(())))
             .clone()
     };
+    log::info!("[AGENT_LAUNCH_TRACE] Acquiring term_lock for {terminal_id}");
     let _guard = term_lock.lock().await;
+    log::info!("[AGENT_LAUNCH_TRACE] Acquired term_lock for {terminal_id}");
 
     let launch_future = async {
         let command_line = launch_spec.format_for_shell();
