@@ -196,4 +196,46 @@ describe('Sidebar selection transitions', () => {
     })
     expect(result.current.selectionCtx.selection.kind).toBe('session')
   })
+
+  it('re-focuses when switching filter after project switch without waiting for ProjectSwitchComplete', async () => {
+    const sessionA = createEnrichedSession('session-a', '/worktrees/a', SessionState.Running, false)
+    const sessionB = createEnrichedSession('session-b', '/worktrees/b', SessionState.Reviewed, true)
+    enrichedSessions = [sessionA, sessionB]
+    rawSessions['session-a'] = createRawSession('session-a', '/worktrees/a', SessionState.Running, false)
+    rawSessions['session-b'] = createRawSession('session-b', '/worktrees/b', SessionState.Reviewed, true)
+
+    const { result } = renderHook(() => ({
+      selectionCtx: useSelection(),
+      sessionsCtx: useSessions(),
+    }), { wrapper })
+
+    await waitFor(() => {
+      expect(result.current.sessionsCtx.sessions.length).toBeGreaterThan(0)
+    })
+
+    // Start in Running filter automatically (mock settings) and select the running session
+    await act(async () => {
+      await result.current.selectionCtx.setSelection({
+        kind: 'session',
+        payload: 'session-a',
+        sessionState: 'running',
+        worktreePath: '/worktrees/a',
+      })
+    })
+
+    // Simulate project switch flag set (without ProjectSwitchComplete firing yet)
+    await act(async () => {
+      // trigger filter change to Reviewed while switch flag would be true
+      result.current.sessionsCtx.setFilterMode(FilterMode.Reviewed)
+    })
+
+    await waitFor(() => {
+      expect(result.current.sessionsCtx.filterMode).toBe(FilterMode.Reviewed)
+    })
+
+    await waitFor(() => {
+      // Should refocus to the reviewed session, not stay on the hidden running one
+      expect(result.current.selectionCtx.selection.payload).toBe('session-b')
+    })
+  })
 })
