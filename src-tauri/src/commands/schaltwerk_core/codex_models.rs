@@ -532,6 +532,22 @@ mod tests {
     }
 
     #[test]
+    fn builtin_catalog_includes_codex_max_with_extra_high_reasoning() {
+        let catalog = builtin_codex_model_catalog();
+        let max = catalog
+            .models
+            .iter()
+            .find(|model| model.id == "gpt-5.1-codex-max")
+            .expect("expected gpt-5.1-codex-max to be present in builtin catalog");
+
+        assert_eq!(max.default_reasoning, "medium");
+        assert!(max
+            .reasoning_options
+            .iter()
+            .any(|option| option.id == "xhigh"));
+    }
+
+    #[test]
     fn builtin_catalog_for_version_uses_legacy_when_version_is_old() {
         let catalog = builtin_codex_model_catalog_for_version(Some("Codex CLI 0.57.2"));
         assert_eq!(catalog.models[0].id, "gpt-5-codex");
