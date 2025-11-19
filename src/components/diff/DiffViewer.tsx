@@ -592,7 +592,11 @@ export function DiffViewer({
                     file.path,
                     fileDiff.totalLineCount ?? 0,
                     fileDiff.fileInfo.sizeBytes,
-                    alwaysShowLargeDiffs
+                    {
+                      alwaysShowLargeDiffs,
+                      isCompactView: isLargeDiffMode,
+                      changedLinesCount: fileDiff.changedLinesCount
+                    }
                   )
                   const isFileExpanded = expandedFiles.has(file.path)
                   const isDeletedFile = file.change_type === 'deleted'
@@ -800,7 +804,11 @@ export function DiffViewer({
                     file.path,
                     fileDiff.totalLineCount ?? 0,
                     fileDiff.fileInfo.sizeBytes,
-                    alwaysShowLargeDiffs
+                    {
+                      alwaysShowLargeDiffs,
+                      isCompactView: isLargeDiffMode,
+                      changedLinesCount: fileDiff.changedLinesCount
+                    }
                   )
                   const isFileExpanded = expandedFiles.has(file.path)
                   const isDeletedFile = file.change_type === 'deleted'
