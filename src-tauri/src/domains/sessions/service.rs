@@ -622,6 +622,30 @@ mod service_unified_tests {
     }
 
     #[test]
+    fn list_enriched_sessions_retains_missing_worktree_entries() {
+        let (manager, temp_dir) = create_test_session_manager();
+        let session = create_test_session(&temp_dir, "claude", "missing");
+        manager
+            .db_manager
+            .create_session(&session)
+            .expect("session should be created");
+
+        // Simulate transient filesystem blip where the worktree path is temporarily missing
+        std::fs::remove_dir_all(&session.worktree_path).unwrap();
+
+        let enriched = manager
+            .list_enriched_sessions()
+            .expect("listing enriched sessions should succeed");
+
+        assert_eq!(
+            enriched.len(),
+            1,
+            "Session should remain visible even if the worktree is temporarily missing"
+        );
+        assert_eq!(enriched[0].info.session_id, session.name);
+    }
+
+    #[test]
     #[serial_test::serial]
     fn test_start_spec_with_config_uses_codex_and_prompt_without_resume() {
         use std::process::Command;
@@ -2232,6 +2256,8 @@ impl SessionManager {
             bulk_stats_time.as_millis()
         );
 
+        let default_agent_type = self.db_manager.get_agent_type().ok();
+
         let mut enriched = Vec::new();
         let mut git_stats_total_time = std::time::Duration::ZERO;
         let mut worktree_check_time = std::time::Duration::ZERO;
@@ -2267,7 +2293,7 @@ impl SessionManager {
                     original_agent_type: session
                         .original_agent_type
                         .clone()
-                        .or_else(|| self.db_manager.get_agent_type().ok()),
+                        .or_else(|| default_agent_type.clone()),
                     current_task: session.initial_prompt.clone(),
                     diff_stats: None,
                     ready_to_merge: session.ready_to_merge,
@@ -2298,49 +2324,55 @@ impl SessionManager {
 
             if !worktree_exists && !cfg!(test) {
                 log::warn!(
-                    "list_enriched_sessions: skipping session '{}' (status={:?}, state={:?}) - worktree missing: {}",
+                    "list_enriched_sessions: worktree missing for '{}' (status={:?}, state={:?}) at {}",
                     session.name,
                     session.status,
                     session.session_state,
                     session.worktree_path.display()
                 );
-                continue;
             }
 
-            let git_stats_start = std::time::Instant::now();
-            let cached_stats = stats_by_id.get(&session.id);
-            let git_stats = get_or_compute_git_stats(
-                &session.id,
-                &session.worktree_path,
-                &session.parent_branch,
-                cached_stats,
-                |stats| self.db_manager.save_git_stats(stats),
-            );
-            let git_stats_elapsed = git_stats_start.elapsed();
-            git_stats_total_time += git_stats_elapsed;
-
-            if git_stats_elapsed.as_millis() > 100 {
-                log::warn!(
-                    "Slow git stats for session '{}': {}ms",
-                    session.name,
-                    git_stats_elapsed.as_millis()
+            let (git_stats, has_conflicts) = if worktree_exists {
+                let git_stats_start = std::time::Instant::now();
+                let cached_stats = stats_by_id.get(&session.id);
+                let git_stats = get_or_compute_git_stats(
+                    &session.id,
+                    &session.worktree_path,
+                    &session.parent_branch,
+                    cached_stats,
+                    |stats| self.db_manager.save_git_stats(stats),
                 );
-            }
+                let git_stats_elapsed = git_stats_start.elapsed();
+                git_stats_total_time += git_stats_elapsed;
+
+                if git_stats_elapsed.as_millis() > 100 {
+                    log::warn!(
+                        "Slow git stats for session '{}': {}ms",
+                        session.name,
+                        git_stats_elapsed.as_millis()
+                    );
+                }
+
+                let has_conflicts = match git::has_conflicts(&session.worktree_path) {
+                    Ok(value) => value,
+                    Err(err) => {
+                        log::warn!(
+                            "Conflict detection failed for session '{}': {err}",
+                            session.name
+                        );
+                        false
+                    }
+                };
+
+                (git_stats, Some(has_conflicts))
+            } else {
+                (None, None)
+            };
+
             let has_uncommitted = git_stats
                 .as_ref()
                 .map(|s| s.has_uncommitted)
                 .unwrap_or(false);
-
-            let has_conflicts = match git::has_conflicts(&session.worktree_path) {
-                Ok(value) => value,
-                Err(err) => {
-                    log::warn!(
-                        "Conflict detection failed for session '{}': {err}",
-                        session.name
-                    );
-                    false
-                }
-            };
 
             let diff_stats = git_stats.as_ref().map(|stats| DiffStats {
                 files_changed: stats.files_changed as usize,
@@ -2349,7 +2381,9 @@ impl SessionManager {
                 insertions: stats.lines_added as usize,
             });
 
-            let status_type = if has_uncommitted {
+            let status_type = if !worktree_exists && !cfg!(test) {
+                SessionStatusType::Missing
+            } else if has_uncommitted {
                 SessionStatusType::Dirty
             } else {
                 match session.status {
@@ -2362,7 +2396,7 @@ impl SessionManager {
             let original_agent_type = session
                 .original_agent_type
                 .clone()
-                .or_else(|| self.db_manager.get_agent_type().ok());
+                .or_else(|| default_agent_type.clone());
 
             let info = SessionInfo {
                 session_id: session.name.clone(),
@@ -2376,11 +2410,11 @@ impl SessionManager {
                 created_at: Some(session.created_at),
                 last_modified: session.last_activity,
                 has_uncommitted_changes: Some(has_uncommitted),
-                has_conflicts: Some(has_conflicts),
+                has_conflicts,
                 is_current: false,
                 session_type: SessionType::Worktree,
                 container_status: None,
-                original_agent_type,
+                original_agent_type: original_agent_type.or_else(|| default_agent_type.clone()),
                 current_task: session.initial_prompt.clone(),
                 diff_stats: diff_stats.clone(),
                 ready_to_merge: session.ready_to_merge,

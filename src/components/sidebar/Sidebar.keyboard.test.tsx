@@ -250,7 +250,7 @@ describe('Sidebar keyboard navigation basic', () => {
       expect(selectedSpecButton?.className).toContain('session-ring')
     })
 
-    // Try to mark spec as ready with Cmd+R - should log warning and not open modal
+    // Try to mark spec as ready with Cmd+R - should log warning and not call backend
     await press('r', { metaKey: true })
 
     // Verify warning was logged
@@ -258,10 +258,7 @@ describe('Sidebar keyboard navigation basic', () => {
       expect.stringContaining('Cannot mark spec "spec-session" as reviewed')
     )
 
-    // Modal should not appear
-    await waitFor(() => {
-      expect(screen.queryByText('Mark Session as Reviewed')).not.toBeInTheDocument()
-    })
+    expect(invoke).not.toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreMarkSessionReady, expect.anything())
 
     // Now select the running session
     const runningButton = screen.getByText('running-session').closest('[role="button"]') as HTMLElement | null
@@ -284,9 +281,9 @@ describe('Sidebar keyboard navigation basic', () => {
     // Verify no warning was logged for running session
     expect(consoleWarnSpy).not.toHaveBeenCalled()
 
-    // Modal should appear
-    await waitFor(() => {
-      expect(screen.getByText('Mark Session as Reviewed')).toBeInTheDocument()
+    expect(invoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreMarkSessionReady, {
+      name: 'running-session',
+      autoCommit: false,
     })
 
     consoleWarnSpy.mockRestore()
