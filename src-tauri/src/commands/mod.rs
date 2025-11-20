@@ -40,6 +40,7 @@ pub use schaltwerk_core::{
     schaltwerk_core_get_orchestrator_agent_type,
     schaltwerk_core_get_orchestrator_skip_permissions, schaltwerk_core_get_session,
     schaltwerk_core_get_session_agent_content, schaltwerk_core_get_skip_permissions,
+    schaltwerk_core_get_spec,
     schaltwerk_core_has_uncommitted_changes, schaltwerk_core_list_archived_specs,
     schaltwerk_core_list_codex_models, schaltwerk_core_list_enriched_sessions,
     schaltwerk_core_list_enriched_sessions_sorted, schaltwerk_core_list_project_files,
