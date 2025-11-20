@@ -1175,16 +1175,18 @@ pub async fn schaltwerk_core_start_claude_with_restart(
 ) -> Result<String, String> {
     log::info!("Starting Claude for session: {session_name}");
 
-    let core = get_core_write().await?;
+    // We only need read access to the core snapshot; avoid write lock to prevent launch deadlocks
+    let core = get_core_read().await?;
     let db = core.db.clone();
     let repo_path = core.repo_path.clone();
     let manager = core.session_manager();
+    drop(core); // release lock before any potentially long operations
 
     let session = manager
         .get_session(&session_name)
         .map_err(|e| format!("Failed to get session: {e}"))?;
     let agent_type = session.original_agent_type.clone().unwrap_or(
-        core.db
+        db
             .get_agent_type()
             .map_err(|e| format!("Failed to get agent type: {e}"))?,
     );
@@ -1239,9 +1241,6 @@ pub async fn schaltwerk_core_start_claude_with_restart(
             log::error!("Failed to build {agent_type} command for session {session_name}: {e}");
             format!("Failed to start {agent_type} in session: {e}")
         })?;
-
-    // Drop the global core write lock before doing any potentially slow terminal launches.
-    drop(core);
 
     let command = spec.shell_command.clone();
     let initial_command = spec.initial_command.clone();
@@ -1505,8 +1504,8 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
     log::info!("[AGENT_LAUNCH_TRACE] Starting Claude for orchestrator in terminal: {terminal_id}");
 
     // First check if we have a valid project initialized
-    log::info!("[AGENT_LAUNCH_TRACE] Acquiring core write lock for {terminal_id}");
-    let core = match get_core_write().await {
+    log::info!("[AGENT_LAUNCH_TRACE] Acquiring core read lock for {terminal_id}");
+    let core = match get_core_read().await {
         Ok(c) => c,
         Err(e) => {
             log::error!("Failed to get schaltwerk_core for orchestrator: {e}");
@@ -1517,7 +1516,7 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
             return Err(format!("Failed to initialize orchestrator: {e}"));
         }
     };
-    log::info!("[AGENT_LAUNCH_TRACE] Acquired core write lock for {terminal_id}");
+    log::info!("[AGENT_LAUNCH_TRACE] Acquired core read lock for {terminal_id}");
     let db = core.db.clone();
     let repo_path = core.repo_path.clone();
     let manager = core.session_manager();
@@ -1561,9 +1560,9 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
             format!("Failed to start Claude in orchestrator: {e}")
         })?;
 
-    // Release the global write lock before launching the terminal process.
+    // Release the global read lock before launching the terminal process.
     drop(core);
-    log::info!("[AGENT_LAUNCH_TRACE] Dropped core write lock for {terminal_id}");
+    log::info!("[AGENT_LAUNCH_TRACE] Dropped core read lock for {terminal_id}");
 
     log::info!(
         "Claude command for orchestrator: {}",
