@@ -1559,9 +1559,7 @@ fn test_mark_reviewed_when_dirty_keeps_ready_flag_false() {
     let env = TestEnvironment::new().unwrap();
     let manager = env.get_session_manager().unwrap();
 
-    let session = manager
-        .create_session("dirty-review", None, None)
-        .unwrap();
+    let session = manager.create_session("dirty-review", None, None).unwrap();
 
     std::fs::write(session.worktree_path.join("dirty.txt"), "dirty").unwrap();
 
@@ -1593,10 +1591,11 @@ fn test_follow_up_handles_reviewed_sessions_without_ready_flag() {
     std::fs::write(session.worktree_path.join("dirty.txt"), "dirty").unwrap();
     manager.mark_session_ready(&session.name, false).unwrap();
 
-    let changed = manager
-        .unmark_reviewed_on_follow_up(&session.name)
-        .unwrap();
-    assert!(changed, "dirty reviewed sessions should move back to running");
+    let changed = manager.unmark_reviewed_on_follow_up(&session.name).unwrap();
+    assert!(
+        changed,
+        "dirty reviewed sessions should move back to running"
+    );
 
     let refreshed = manager
         .db_ref()

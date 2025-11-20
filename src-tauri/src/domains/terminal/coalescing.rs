@@ -725,7 +725,10 @@ mod tests {
         let terminal_id = "flush-unsafe";
         {
             let mut buffers = state.emit_buffers.write().await;
-            buffers.insert(terminal_id.to_string(), b"error followed by esc\x1b".to_vec());
+            buffers.insert(
+                terminal_id.to_string(),
+                b"error followed by esc\x1b".to_vec(),
+            );
         }
 
         flush_terminal_output(&state, terminal_id).await;
