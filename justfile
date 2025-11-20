@@ -493,6 +493,12 @@ run-release:
 
     cd "$HOME" && PARA_REPO_PATH="$PROJECT_ROOT" "$BINARY_PATH"
 
+# Run the release binary with adjustable logging (defaults to debug)
+run-release-logs log_level="debug" rust_log="schaltwerk=debug":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    RUST_LOG="{{rust_log}}" LOG_LEVEL="{{log_level}}" just run-release
+
 # Build and run the application in release mode with a specific port
 # This builds fresh like 'just run' does, but creates a release build
 run-port-release port:
