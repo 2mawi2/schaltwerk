@@ -1,4 +1,6 @@
-use super::coalescing::{CoalescingParams, CoalescingState, flush_terminal_output, handle_coalesced_output};
+use super::coalescing::{
+    CoalescingParams, CoalescingState, flush_terminal_output, handle_coalesced_output,
+};
 use super::command_builder::build_command_spec;
 use super::control_sequences::{SanitizedOutput, SequenceResponse, sanitize_control_sequences};
 use super::idle_detection::{IdleDetector, IdleTransition};
@@ -593,8 +595,11 @@ impl LocalPtyAdapter {
                                 {
                                     let _ = child.kill();
                                 }
-                                flush_terminal_output(&coalescing_state_clone, &id_clone_for_cleanup)
-                                    .await;
+                                flush_terminal_output(
+                                    &coalescing_state_clone,
+                                    &id_clone_for_cleanup,
+                                )
+                                .await;
                                 lifecycle::cleanup_dead_terminal(
                                     id_clone_for_cleanup.clone(),
                                     &deps,

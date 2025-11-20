@@ -428,8 +428,7 @@ function autoStartRunningSessions(
         const previousState = previousStates.get(sessionId)
         const wasRunning = previousState === SessionState.Running
         if (wasRunning) {
-            logger.debug(`[AGENT_LAUNCH_TRACE] autoStartRunningSessions - skipping ${sessionId}: was already running`)
-            continue
+            logger.debug(`[AGENT_LAUNCH_TRACE] autoStartRunningSessions - already running last tick; will verify terminal before restart`)
         }
 
         if (previousState === undefined && nextState === SessionState.Running) {
