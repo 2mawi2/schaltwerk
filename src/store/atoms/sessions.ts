@@ -321,10 +321,14 @@ function autoStartRunningSessions(
         return
     }
 
+    const projectPath = get(projectPathAtom)
+    if (!projectPath) {
+        return
+    }
+
     const pending = new Map(get(pendingStartupsAtom))
     const previousStates = options.previousStates ?? previousSessionStates
     const reason = options.reason ?? 'sessions-refresh'
-    const projectPath = get(projectPathAtom)
 
     let pendingChanged = false
     const now = Date.now()
@@ -375,6 +379,15 @@ function autoStartRunningSessions(
             logger.info(`[AGENT_LAUNCH_TRACE] pending startup starting ${sessionId} (queued=${pendingElapsed}ms, reason=${reason})`)
             void (async () => {
                 try {
+                    const exists = await invoke<boolean>(TauriCommands.TerminalExists, { id: topId })
+                    if (exists) {
+                        logger.debug(
+                            `[AGENT_LAUNCH_TRACE] autoStartRunningSessions - skipping ${sessionId}: backend terminal already exists`
+                        )
+                        suppressedAutoStart.add(sessionId)
+                        return
+                    }
+
                     const projectOrchestratorId = computeProjectOrchestratorId(projectPath ?? null)
                     const fallbackAgent = session.info.original_agent_type ?? undefined
                     await startSessionTop({
@@ -441,6 +454,15 @@ function autoStartRunningSessions(
 
         void (async () => {
             try {
+                const exists = await invoke<boolean>(TauriCommands.TerminalExists, { id: topId })
+                if (exists) {
+                    logger.debug(
+                        `[AGENT_LAUNCH_TRACE] autoStartRunningSessions - skipping ${sessionId}: backend terminal already exists`
+                    )
+                    suppressedAutoStart.add(sessionId)
+                    return
+                }
+
                 const projectOrchestratorId = computeProjectOrchestratorId(projectPath ?? null)
                 const agentType = session.info.original_agent_type ?? undefined
                 await startSessionTop({ sessionName: sessionId, topId, projectOrchestratorId, agentType })
@@ -836,10 +858,6 @@ export const refreshSessionsActionAtom = atom(
             await applySessionsSnapshot(get, set, sessions, { reason: 'refresh' })
         } catch (error) {
             logger.error('[SessionsAtoms] Failed to load sessions:', error)
-            await releaseRemovedSessions(get, set, previousSessionsSnapshot, [])
-            previousSessionsSnapshot = []
-            previousSessionStates = new Map()
-            set(allSessionsAtom, [])
         } finally {
             set(lastRefreshStateAtom, Date.now())
         }

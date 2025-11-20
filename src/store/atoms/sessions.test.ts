@@ -47,6 +47,7 @@ import { listenEvent as listenEventMock } from '../../common/eventSystem'
 import { releaseSessionTerminals, hasTerminalInstance } from '../../terminal/registry/terminalRegistry'
 import { startSessionTop } from '../../common/agentSpawn'
 import { singleflight as singleflightMock } from '../../utils/singleflight'
+import { stableSessionTerminalId } from '../../common/terminalIdentity'
 
 vi.mock('@tauri-apps/api/core', () => ({
     invoke: vi.fn(),
@@ -495,6 +496,67 @@ describe('sessions atoms', () => {
         vi.setSystemTime(now + 200)
         store.set(cleanupExpiredPendingStartupsActionAtom)
         expect(store.get(pendingStartupsAtom).has('beta')).toBe(false)
+    })
+
+    it('skips auto-start when backend terminal already exists', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+        store.set(projectPathAtom, '/project')
+
+        const session = createSession({ session_id: 'alpha', session_state: SessionState.Running, status: 'active' })
+        const topId = stableSessionTerminalId(session.info.session_id, 'top')
+
+        vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
+                return [session]
+            }
+            if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) {
+                return []
+            }
+            if (cmd === TauriCommands.TerminalExists) {
+                const id = (args as { id?: string } | undefined)?.id
+                return id === topId ? true : false
+            }
+            return undefined
+        })
+
+        await store.set(refreshSessionsActionAtom)
+
+        await Promise.resolve()
+        expect(invoke).toHaveBeenCalledWith(TauriCommands.TerminalExists, { id: topId })
+        expect(startSessionTop).not.toHaveBeenCalled()
+    })
+
+    it('auto-starts when backend terminal is missing', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+        store.set(projectPathAtom, '/project')
+
+        const session = createSession({ session_id: 'beta', session_state: SessionState.Running, status: 'active' })
+        const topId = stableSessionTerminalId(session.info.session_id, 'top')
+
+        vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
+                return [session]
+            }
+            if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) {
+                return []
+            }
+            if (cmd === TauriCommands.TerminalExists) {
+                const id = (args as { id?: string } | undefined)?.id
+                return id === topId ? false : false
+            }
+            return undefined
+        })
+
+        await store.set(refreshSessionsActionAtom)
+
+        await Promise.resolve()
+        expect(invoke).toHaveBeenCalledWith(TauriCommands.TerminalExists, { id: topId })
+        expect(startSessionTop).toHaveBeenCalledWith({
+            sessionName: session.info.session_id,
+            topId,
+            projectOrchestratorId: 'orchestrator-test',
+            agentType: undefined,
+        })
     })
 
     it('initializes event listeners and responds to refresh events', async () => {
