@@ -28,6 +28,9 @@ import { useHighlightWorker } from '../../hooks/useHighlightWorker'
 import { hashSegments } from '../../utils/hashSegments'
 import { stableSessionTerminalId } from '../../common/terminalIdentity'
 import { ReviewCommentThread, ReviewComment } from '../../types/review'
+import { listenEvent, SchaltEvent } from '../../common/eventSystem'
+import { ORCHESTRATOR_SESSION_NAME } from '../../constants/sessions'
+import { createGuardedLoader } from './guardedLoader'
 import { theme } from '../../common/theme'
 import { ResizableModal } from '../shared/ResizableModal'
 import { computeRenderOrder } from './virtualization'
@@ -49,6 +52,12 @@ interface DiffViewPreferences {
   compact_diffs: boolean
   sidebar_width?: number
   inline_sidebar_default?: boolean
+}
+
+export const shouldHandleFileChange = (eventSession: string | null | undefined, isCommander: boolean, sessionName: string | null) => {
+  const targetSession = isCommander ? ORCHESTRATOR_SESSION_NAME : sessionName
+  if (!targetSession) return false
+  return eventSession === targetSession
 }
 
 const RECENTLY_RENDERED_LIMIT = 8
@@ -582,6 +591,10 @@ export function UnifiedDiffView({
       logger.error('Failed to load changed files:', error)
     }
   }, [mode, historyContext, historyFiles, historyInitialFile, isCommanderView, fetchOrchestratorChangedFiles, fetchSessionChangedFiles, filePath, sessionName])
+
+  // Prevent overlapping loads; queue a single follow-up run if an event fires mid-load.
+  const guardedLoaderRef = useRef(createGuardedLoader(loadChangedFiles))
+  const loadChangedFilesGuarded = useCallback(() => guardedLoaderRef.current.run(), [])
 
   const handleDiscardFile = useCallback(async (filePath: string) => {
     if (mode === 'history') {
@@ -1126,7 +1139,7 @@ export function UnifiedDiffView({
 
   useEffect(() => {
     if (isOpen) {
-      void loadChangedFiles()
+      void loadChangedFilesGuarded()
       if (!isSidebarMode) {
         void invoke<DiffViewPreferences>(TauriCommands.GetDiffViewPreferences)
         .then(prefs => {
@@ -1143,7 +1156,35 @@ export function UnifiedDiffView({
         setCompactDiffs(true)
       }
     }
-  }, [isOpen, loadChangedFiles, clampSidebarWidth, isSidebarMode])
+  }, [isOpen, loadChangedFilesGuarded, clampSidebarWidth, isSidebarMode])
+
+  useEffect(() => {
+    if (!isOpen || mode !== 'session') return
+
+    let unlisten: (() => void) | null = null
+
+    void listenEvent(SchaltEvent.FileChanges, (event) => {
+      if (!shouldHandleFileChange(event.session_name, isCommanderView(), sessionName)) return
+      void loadChangedFilesGuarded()
+    }).then(remove => { unlisten = remove }).catch(err => {
+      logger.warn('[UnifiedDiffView] Failed to attach FileChanges listener', err)
+    })
+
+    return () => {
+      if (unlisten) {
+        try {
+          const maybePromise = unlisten()
+          if (maybePromise && typeof maybePromise === 'object' && 'then' in maybePromise) {
+            void (maybePromise as Promise<unknown>).catch(error => {
+              logger.warn('[UnifiedDiffView] Failed to detach FileChanges listener', error)
+            })
+          }
+        } catch (error) {
+          logger.warn('[UnifiedDiffView] Error while detaching FileChanges listener', error)
+        }
+      }
+    }
+  }, [isOpen, mode, sessionName, isCommanderView, loadChangedFilesGuarded])
 
 
   useEffect(() => {
