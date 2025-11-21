@@ -352,6 +352,7 @@ impl SessionMethods for Database {
     }
 
     fn list_sessions(&self, repo_path: &Path) -> Result<Vec<Session>> {
+        log::debug!("list_sessions: start repo={}", repo_path.display());
         let summary_timer = Instant::now();
         let conn = self.get_conn()?;
         let summaries = {
@@ -567,6 +568,11 @@ impl SessionMethods for Database {
         repo_path: &Path,
         state: SessionState,
     ) -> Result<Vec<Session>> {
+        log::debug!(
+            "list_sessions_by_state: start repo={} state={:?}",
+            repo_path.display(),
+            state
+        );
         let summary_timer = Instant::now();
         let conn = self.get_conn()?;
         let summaries = {

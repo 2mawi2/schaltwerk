@@ -24,14 +24,22 @@ impl<B: SessionsBackend> SessionsServiceImpl<B> {
     }
 
     pub async fn list_enriched_sessions(&self) -> Result<Vec<EnrichedSession>, String> {
-        log::debug!("Listing enriched sessions via SessionsService");
+        let call_id = uuid::Uuid::new_v4();
+        log::debug!("SessionsService list_enriched_sessions start call_id={call_id}");
+        let start = std::time::Instant::now();
+
         let sessions = self
             .backend
             .list_enriched_sessions()
             .await
             .map_err(|err| format!("Failed to list sessions: {err}"))?;
 
-        log::debug!("Found {} sessions", sessions.len());
+        log::debug!(
+            "SessionsService list_enriched_sessions done call_id={} count={} elapsed={}ms",
+            call_id,
+            sessions.len(),
+            start.elapsed().as_millis()
+        );
         Ok(sessions)
     }
 }
@@ -69,12 +77,43 @@ impl ProjectSessionsBackend {
 #[async_trait]
 impl SessionsBackend for ProjectSessionsBackend {
     async fn list_enriched_sessions(&self) -> Result<Vec<EnrichedSession>, String> {
+        let call_id = uuid::Uuid::new_v4();
+        let start = std::time::Instant::now();
+        log::debug!("ProjectSessionsBackend list_enriched_sessions start call_id={call_id}");
+
         let core = self.get_core().await?;
+        let core_wait = std::time::Instant::now();
         let core = core.read().await;
+        let core_ready = core_wait.elapsed().as_millis();
+        if core_ready > 200 {
+            log::warn!(
+                "ProjectSessionsBackend call_id={call_id} core read lock wait={core_ready}ms"
+            );
+        } else {
+            log::debug!(
+                "ProjectSessionsBackend call_id={call_id} core read lock wait={core_ready}ms"
+            );
+        }
+
         let manager = core.session_manager();
-        manager
+        let result = manager
             .list_enriched_sessions()
-            .map_err(|err| err.to_string())
+            .map_err(|err| err.to_string());
+
+        match &result {
+            Ok(list) => log::debug!(
+                "ProjectSessionsBackend call_id={call_id} done count={} elapsed={}ms",
+                list.len(),
+                start.elapsed().as_millis()
+            ),
+            Err(err) => log::error!(
+                "ProjectSessionsBackend call_id={call_id} error elapsed={}ms err={}",
+                start.elapsed().as_millis(),
+                err
+            ),
+        }
+
+        result
     }
 }
 

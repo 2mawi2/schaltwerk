@@ -9,7 +9,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow};
-use git2::{BranchType, ErrorCode, IndexAddOption, MergeOptions, Oid, Repository, build::CheckoutBuilder};
+use git2::{
+    BranchType, ErrorCode, IndexAddOption, MergeOptions, Oid, Repository, build::CheckoutBuilder,
+};
 #[cfg(test)]
 use log::error;
 use log::{debug, info, warn};
@@ -20,7 +22,8 @@ use tokio::task;
 use tokio::time::timeout;
 
 use crate::domains::git::operations::{
-    commit_all_changes, get_uncommitted_changes_status, has_uncommitted_changes, uncommitted_sample_paths,
+    commit_all_changes, get_uncommitted_changes_status, has_uncommitted_changes,
+    uncommitted_sample_paths,
 };
 use crate::domains::git::service as git;
 use crate::domains::merge::lock;
@@ -286,7 +289,9 @@ impl MergeService {
                 if !session.ready_to_merge {
                     manager
                         .mark_session_ready_with_message(session_name, false, Some(&message))
-                        .with_context(|| format!("Failed to mark session '{session_name}' ready"))?;
+                        .with_context(|| {
+                            format!("Failed to mark session '{session_name}' ready")
+                        })?;
                 }
             }
             MergeMode::Reapply => {
@@ -299,7 +304,9 @@ impl MergeService {
                 if !session.ready_to_merge {
                     manager
                         .mark_session_ready_with_message(session_name, false, None)
-                        .with_context(|| format!("Failed to mark session '{session_name}' ready"))?;
+                        .with_context(|| {
+                            format!("Failed to mark session '{session_name}' ready")
+                        })?;
                 }
             }
         }
@@ -1023,7 +1030,9 @@ fn fast_forward_branch(repo: &Repository, branch: &str, new_oid: Oid) -> Result<
         // If we are on the branch, we must update the working tree and index FIRST to ensure
         // the operation is safe and respects local changes.
         // We use Safe checkout strategy to fail if there are conflicts with local changes.
-        debug!("{OPERATION_LABEL}: attempting safe checkout of new commit {new_oid} for '{branch}'");
+        debug!(
+            "{OPERATION_LABEL}: attempting safe checkout of new commit {new_oid} for '{branch}'"
+        );
 
         let new_commit_obj = repo.find_commit(new_oid)?;
         let mut checkout = CheckoutBuilder::new();
@@ -1405,7 +1414,11 @@ mod tests {
 
         let service = MergeService::new(db.clone(), repo_path.clone());
         service
-            .merge_from_modal(&session.name, MergeMode::Squash, Some("squash message".into()))
+            .merge_from_modal(
+                &session.name,
+                MergeMode::Squash,
+                Some("squash message".into()),
+            )
             .await
             .unwrap();
 
@@ -1440,7 +1453,11 @@ mod tests {
 
         let service = MergeService::new(db.clone(), repo_path.clone());
         service
-            .merge_from_modal(&session.name, MergeMode::Squash, Some("squash message".into()))
+            .merge_from_modal(
+                &session.name,
+                MergeMode::Squash,
+                Some("squash message".into()),
+            )
             .await
             .unwrap();
 
@@ -1472,11 +1489,7 @@ mod tests {
         let manager = SessionManager::new(db.clone(), repo_path.clone());
         let session = manager.create_session_with_agent(params).unwrap();
 
-        std::fs::write(
-            session.worktree_path.join("conflict.txt"),
-            "dirty change\n",
-        )
-        .unwrap();
+        std::fs::write(session.worktree_path.join("conflict.txt"), "dirty change\n").unwrap();
 
         let service = MergeService::new(db.clone(), repo_path.clone());
         let err = service
@@ -1518,7 +1531,10 @@ mod tests {
             .unwrap_err()
             .to_string();
 
-        assert!(err.contains("Nothing to merge") || err.contains("up to date"), "unexpected message: {err}");
+        assert!(
+            err.contains("Nothing to merge") || err.contains("up to date"),
+            "unexpected message: {err}"
+        );
 
         let refreshed = manager.get_session(&session.name).unwrap();
         assert!(!refreshed.ready_to_merge);
@@ -1787,7 +1803,9 @@ mod tests {
         let session = manager.create_session_with_agent(params).unwrap();
 
         let service = MergeService::new(db.clone(), repo_path.clone());
-        let preview = service.preview(&session.name).expect("running sessions should be previewable");
+        let preview = service
+            .preview(&session.name)
+            .expect("running sessions should be previewable");
         assert_eq!(preview.session_branch, session.branch);
         assert_eq!(preview.parent_branch, "main");
     }

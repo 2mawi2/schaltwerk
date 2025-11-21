@@ -149,6 +149,25 @@ impl ProjectManager {
             }
         };
 
+        let current_before = self.current_project.read().await;
+        if let Some(current_path) = current_before.as_ref() {
+            if *current_path == path {
+                info!(
+                    "📁 ProjectManager::switch_to_project target matches current project; reusing existing instance"
+                );
+            } else {
+                info!(
+                    "📁 ProjectManager::switch_to_project changing project: {} -> {}",
+                    current_path.display(),
+                    path.display()
+                );
+            }
+        } else {
+            info!("📁 ProjectManager::switch_to_project with no active project set");
+        }
+
+        drop(current_before);
+
         info!("Switching to project: {}", path.display());
 
         // Check if project already exists
@@ -376,7 +395,10 @@ impl ProjectManager {
             }
         };
 
-        info!("🧹 Removing project from manager: {}", key_removed.display());
+        info!(
+            "🧹 Removing project from manager: {}",
+            key_removed.display()
+        );
 
         drop(projects);
 
