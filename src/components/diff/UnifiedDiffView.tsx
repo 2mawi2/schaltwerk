@@ -1617,6 +1617,11 @@ export function UnifiedDiffView({
           return
         }
 
+        const shouldHandleEscape = !isSidebarMode || isSearchVisible || showCommentForm
+        if (!shouldHandleEscape) {
+          return
+        }
+
         e.preventDefault()
         e.stopPropagation()
         if (isSearchVisible) {
@@ -1625,7 +1630,7 @@ export function UnifiedDiffView({
           setShowCommentForm(false)
           setCommentFormPosition(null)
           clearActiveSelection()
-        } else if (isOpen && mode === 'session' && !isSidebarMode) {
+        } else if (mode === 'session' && !isSidebarMode) {
           onClose()
         }
       } else if (isOpen && !showCommentForm && !isSearchVisible && !isSidebarMode) {
