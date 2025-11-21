@@ -16,6 +16,7 @@ import { logger } from '../../utils/logger'
 import { FontPicker } from './FontPicker'
 import { GithubProjectIntegrationCard } from '../settings/GithubProjectIntegrationCard'
 import { AGENT_TYPES, createAgentRecord } from '../../types/session'
+import { DEFAULT_AGENT } from '../../constants/agents'
 import { displayNameForAgent } from '../shared/agentDefaults'
 import {
     KeyboardShortcutAction,
@@ -292,7 +293,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
     const [uiFontSize, setUiFontSize] = useAtom(uiFontSizeAtom)
     const { applyOverrides: applyShortcutOverrides } = useKeyboardShortcutsConfig()
     const [activeCategory, setActiveCategory] = useState<SettingsCategory>(initialTab || 'appearance')
-    const [activeAgentTab, setActiveAgentTab] = useState<AgentType>('claude')
+    const [activeAgentTab, setActiveAgentTab] = useState<AgentType>(DEFAULT_AGENT)
     const [projectPath, setProjectPath] = useState<string>('')
     const [projectAvailable, setProjectAvailable] = useState<boolean>(false)
     const [projectSettings, setProjectSettings] = useState<ProjectSettings>({

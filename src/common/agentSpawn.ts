@@ -11,6 +11,7 @@ import {
   EXTENDED_AGENT_START_TIMEOUT_MS,
   DEFAULT_AGENT_START_TIMEOUT_MS,
 } from './agentLifecycleTracker'
+import { DEFAULT_AGENT } from '../constants/agents'
 
 export { EXTENDED_AGENT_START_TIMEOUT_MS, DEFAULT_AGENT_START_TIMEOUT_MS } from './agentLifecycleTracker'
 
@@ -120,7 +121,7 @@ export async function startSessionTop(params: {
   agentType?: string
 }) {
   const { sessionName, topId, projectOrchestratorId, measured } = params
-  const agentType = params.agentType ?? 'claude'
+  const agentType = params.agentType ?? DEFAULT_AGENT
 
   logger.info(`[AGENT_LAUNCH_TRACE] startSessionTop called: sessionName=${sessionName}, topId=${topId}, agentType=${agentType}`)
 
@@ -190,7 +191,7 @@ export async function startOrchestratorTop(params: {
   if (hasInflight(terminalId)) return
 
   // Orchestrator always runs Claude today; keep agentType aligned with backend expectations/metrics
-  const agentType = 'claude'
+  const agentType = DEFAULT_AGENT
   const lifecycleBase = { terminalId, agentType }
   const { cols, rows } = computeSpawnSize({ topId: terminalId, measured })
   const timeoutMs = determineStartTimeoutMs(agentType)
