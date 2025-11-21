@@ -1046,7 +1046,7 @@ const TerminalGridComponent = () => {
 
     if (selectionIsSpec) {
         return (
-            <div className="h-full p-2 relative">
+            <div className="h-full relative px-0 py-2">
                 <div className="bg-panel rounded border border-slate-800 overflow-hidden min-h-0 h-full">
                     <SpecPlaceholder />
                 </div>
