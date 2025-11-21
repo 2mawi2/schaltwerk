@@ -3,14 +3,49 @@ use r2d2::{ManageConnection, Pool, PooledConnection};
 use rusqlite::Connection;
 #[cfg(test)]
 use rusqlite::OpenFlags;
+use std::cell::Cell;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 // Import the db_schema module
 use super::db_schema;
 
 const DEFAULT_POOL_SIZE: u32 = 4;
+const BUSY_TIMEOUT_MS: u64 = 5_000;
+
+thread_local! {
+    static BUSY_START: Cell<Option<Instant>> = const { Cell::new(None) };
+}
+
+fn sqlite_busy_handler(attempts: i32) -> bool {
+    BUSY_START.with(|start_cell| {
+        let start = if attempts == 0 {
+            let now = Instant::now();
+            start_cell.set(Some(now));
+            log::warn!("SQLite busy; waiting for lock (timeout={BUSY_TIMEOUT_MS}ms)");
+            now
+        } else {
+            start_cell.get().unwrap_or_else(|| {
+                let now = Instant::now();
+                start_cell.set(Some(now));
+                now
+            })
+        };
+
+        let elapsed = start.elapsed();
+        if elapsed.as_millis() as u64 >= BUSY_TIMEOUT_MS {
+            let elapsed_ms = elapsed.as_millis();
+            let attempt_count = attempts + 1;
+            log::error!("SQLite busy timeout after {elapsed_ms}ms (attempts={attempt_count})");
+            start_cell.set(None);
+            return false;
+        }
+
+        std::thread::sleep(Duration::from_millis(2));
+        true
+    })
+}
 
 #[derive(Clone)]
 pub struct Database {
@@ -58,7 +93,7 @@ impl SqliteConnectionManager {
             log::warn!("Failed to enable WAL journal mode: {err}");
         }
 
-        conn.busy_timeout(Duration::from_millis(5_000))?;
+        conn.busy_handler(Some(sqlite_busy_handler))?;
         Ok(())
     }
 }
@@ -130,9 +165,31 @@ impl Database {
     }
 
     pub(crate) fn get_conn(&self) -> Result<PooledConnection<SqliteConnectionManager>> {
-        self.pool
+        let wait_start = Instant::now();
+        let conn = self
+            .pool
             .get()
-            .context("failed to borrow SQLite connection from pool")
+            .context("failed to borrow SQLite connection from pool")?;
+
+        let waited = wait_start.elapsed();
+        let state = self.pool.state();
+        if waited.as_millis() > 200 {
+            log::warn!(
+                "sqlite_pool wait={}ms idle={} total={} (slow acquire)",
+                waited.as_millis(),
+                state.idle_connections,
+                state.connections
+            );
+        } else {
+            log::debug!(
+                "sqlite_pool wait={}ms idle={} total={}",
+                waited.as_millis(),
+                state.idle_connections,
+                state.connections
+            );
+        }
+
+        Ok(conn)
     }
 
     fn initialize_schema(&self) -> Result<()> {

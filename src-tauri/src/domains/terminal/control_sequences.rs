@@ -75,14 +75,15 @@ pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
         match kind {
             b'[' => {
                 let mut cursor = i + 2;
-                let prefix =
-                    if cursor < input.len() && (input[cursor] == b'?' || input[cursor] == b'>' || input[cursor] == b'<') {
-                        let p = input[cursor];
-                        cursor += 1;
-                        Some(p)
-                    } else {
-                        None
-                    };
+                let prefix = if cursor < input.len()
+                    && (input[cursor] == b'?' || input[cursor] == b'>' || input[cursor] == b'<')
+                {
+                    let p = input[cursor];
+                    cursor += 1;
+                    Some(p)
+                } else {
+                    None
+                };
 
                 let params_start = cursor;
                 while cursor < input.len() {

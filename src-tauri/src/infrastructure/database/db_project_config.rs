@@ -527,7 +527,11 @@ impl ProjectConfigMethods for Database {
 
         let canonical_path =
             std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
-        let value = if preferences.auto_cancel_after_merge { 1 } else { 0 };
+        let value = if preferences.auto_cancel_after_merge {
+            1
+        } else {
+            0
+        };
 
         conn.execute(
             "INSERT INTO project_config (repository_path, auto_cancel_after_merge,

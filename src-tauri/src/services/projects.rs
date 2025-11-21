@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use uuid::Uuid;
 
 #[async_trait]
 pub trait ProjectsBackend: Send + Sync {
@@ -28,8 +29,13 @@ impl<B: ProjectsBackend> ProjectsServiceImpl<B> {
     }
 
     pub async fn initialize_project(&self, path: String) -> Result<(), String> {
+        let call_id = Uuid::new_v4();
+        let lock_wait_started = std::time::Instant::now();
         let _guard = self.switch_lock.lock().await;
-        log::info!("🔧 Initialize project command called with path: {path}");
+        let waited_ms = lock_wait_started.elapsed().as_millis();
+        log::info!(
+            "🔧 Initialize project command called call_id={call_id} path: {path} (switch_lock_wait={waited_ms}ms)"
+        );
         let path_buf = PathBuf::from(&path);
 
         if path_buf.exists() {
@@ -49,7 +55,10 @@ impl<B: ProjectsBackend> ProjectsServiceImpl<B> {
             log::error!("  ❌ Path does not exist: {}", path_buf.display());
         }
 
-        log::info!("Switching to project: {}", path_buf.display());
+        log::info!(
+            "Switching to project call_id={call_id}: {}",
+            path_buf.display()
+        );
         let result = self
             .backend
             .initialize_project(path_buf.clone())
@@ -60,7 +69,7 @@ impl<B: ProjectsBackend> ProjectsServiceImpl<B> {
             });
 
         if result.is_ok() {
-            log::info!("✅ Project initialized successfully");
+            log::info!("✅ Project initialized successfully call_id={call_id}");
         }
 
         result
