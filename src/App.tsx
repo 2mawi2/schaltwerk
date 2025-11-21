@@ -89,6 +89,7 @@ import { registerDevErrorListeners } from './dev/registerDevErrorListeners'
 import { AgentCliMissingModal } from './components/agentBinary/AgentCliMissingModal'
 import type { SettingsCategory } from './types/settings'
 import { SPLIT_GUTTER_SIZE } from './common/splitLayout'
+import { isNotificationPermissionGranted } from './utils/notificationPermission'
 
 
 
@@ -131,6 +132,10 @@ function AppContent() {
   useEffect(() => {
     void initializeFontSizes()
   }, [initializeFontSizes])
+
+  useEffect(() => {
+    void isNotificationPermissionGranted()
+  }, [])
 
   useEffect(() => {
     if (agentDetectLoading) return
