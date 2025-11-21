@@ -30,6 +30,44 @@ const cleanupRegistryMock = vi.hoisted(() => ({
   addInterval: vi.fn(),
 }))
 
+const viewportControllerMocks = vi.hoisted(() => {
+  const instances: Array<{
+    options: { terminal?: unknown }
+    api: {
+      onResize: ReturnType<typeof vi.fn>
+      onFocusOrClick: ReturnType<typeof vi.fn>
+      onVisibilityChange: ReturnType<typeof vi.fn>
+      dispose: ReturnType<typeof vi.fn>
+    }
+  }> = []
+
+  const factory = vi.fn((options: { terminal: unknown }) => {
+    const api = {
+      onResize: vi.fn(() => {
+        try {
+          const raw = (options?.terminal as { raw?: HarnessInstance['raw'] } | undefined)?.raw
+          const buf = raw?.buffer?.active
+          if (buf) {
+            const distance = buf.baseY - buf.viewportY
+            if (distance < 5 && typeof raw?.scrollToBottom === 'function') {
+              raw.scrollToBottom()
+            }
+          }
+        } catch {
+          // ignore test-time snap failures
+        }
+      }),
+      onFocusOrClick: vi.fn(),
+      onVisibilityChange: vi.fn(),
+      dispose: vi.fn(),
+    }
+    instances.push({ options, api })
+    return api
+  })
+
+  return { factory, instances }
+})
+
 type HarnessConfig = {
   scrollback: number
   fontSize: number
@@ -133,6 +171,7 @@ const terminalHarness = vi.hoisted(() => {
     detach = vi.fn()
     dispose = vi.fn()
     setSmoothScrolling = vi.fn()
+    refresh = vi.fn()
     applyConfig = vi.fn((partial: Record<string, unknown>) => {
       this.config = { ...this.config, ...partial } as HarnessConfig
     })
@@ -230,6 +269,16 @@ vi.mock('../../terminal/xterm/XtermTerminal', () => {
   return { XtermTerminal: MockXtermTerminal }
 })
 
+vi.mock('./viewport/TerminalViewportController', () => {
+  const { factory } = viewportControllerMocks
+  const Ctor = vi.fn(function TerminalViewportController(options: unknown) {
+    return factory(options as { terminal: unknown })
+  })
+  return {
+    TerminalViewportController: Ctor,
+  }
+})
+
 vi.mock('../../terminal/stream/terminalOutputManager', () => ({
   terminalOutputManager: {
     ensureStarted: vi.fn(async () => {}),
@@ -323,6 +372,8 @@ beforeEach(() => {
   cleanupRegistryMock.addResizeObserver.mockClear()
   cleanupRegistryMock.addTimeout.mockClear()
   cleanupRegistryMock.addInterval.mockClear()
+  viewportControllerMocks.factory.mockClear()
+  viewportControllerMocks.instances.length = 0
   const navigatorAny = navigator as Navigator & { userAgent?: string }
   Object.defineProperty(navigatorAny, 'userAgent', {
     value: 'Macintosh',
@@ -428,6 +479,23 @@ describe('Terminal', () => {
     expect(instance.applyConfig).toHaveBeenCalledWith(expect.objectContaining({
       readOnly: true,
     }))
+  })
+
+  it('initializes the viewport controller when reusing an existing terminal instance', async () => {
+    terminalHarness.setNextIsNew(false)
+    registryMocks.hasTerminalInstance.mockReturnValue(true)
+
+    render(<Terminal terminalId="session-reuse-viewport-top" sessionName="reuse-viewport" />)
+
+    await waitFor(() => {
+      expect(terminalHarness.acquireMock).toHaveBeenCalled()
+      expect(viewportControllerMocks.factory).toHaveBeenCalled()
+    })
+
+    const controllerRecord = viewportControllerMocks.instances[viewportControllerMocks.instances.length - 1]
+    const instance = terminalHarness.instances[terminalHarness.instances.length - 1] as HarnessInstance
+
+    expect(controllerRecord?.options?.terminal).toBe(instance)
   })
 
   it('ignores duplicate resize observer measurements', async () => {
