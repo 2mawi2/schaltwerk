@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react'
+import { DEFAULT_AGENT } from '../constants/agents'
 
 type FocusArea = 'claude' | 'terminal' | 'diff' | 'sidebar'
 
@@ -23,7 +24,7 @@ export function FocusProvider({ children }: { children: ReactNode }) {
   })
 
   const getFocusForSession = useCallback((sessionKey: string): FocusArea => {
-    return focusState.sessionFocus.get(sessionKey) ?? 'claude'
+    return focusState.sessionFocus.get(sessionKey) ?? (DEFAULT_AGENT as FocusArea)
   }, [focusState.sessionFocus])
 
   const setFocusForSession = useCallback((sessionKey: string, focus: FocusArea) => {

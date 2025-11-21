@@ -15,6 +15,7 @@ pub enum AgentKind {
     Gemini,
     Amp,
     Droid,
+    Qwen,
     Fallback,
 }
 
@@ -33,6 +34,8 @@ pub fn infer_agent_kind(agent_name: &str) -> AgentKind {
         AgentKind::Amp
     } else if agent_name.ends_with("/droid") || agent_name == "droid" {
         AgentKind::Droid
+    } else if agent_name.ends_with("/qwen") || agent_name == "qwen" {
+        AgentKind::Qwen
     } else {
         AgentKind::Fallback
     }
@@ -48,6 +51,7 @@ impl AgentKind {
             AgentKind::Gemini => "gemini",
             AgentKind::Amp => "amp",
             AgentKind::Droid => "droid",
+            AgentKind::Qwen => "qwen",
             AgentKind::Fallback => "claude",
         }
     }
@@ -66,6 +70,7 @@ pub async fn collect_agent_env_and_cli(
         AgentKind::Gemini => "gemini",
         AgentKind::Amp => "amp",
         AgentKind::Droid => "droid",
+        AgentKind::Qwen => "qwen",
         AgentKind::Fallback => "claude",
     };
 
@@ -322,6 +327,11 @@ mod tests {
             infer_agent_kind("/Users/test/.local/bin/droid"),
             AgentKind::Droid
         ));
+        assert!(matches!(infer_agent_kind("qwen"), AgentKind::Qwen));
+        assert!(matches!(
+            infer_agent_kind("/usr/bin/qwen"),
+            AgentKind::Qwen
+        ));
         assert!(matches!(infer_agent_kind("unknown"), AgentKind::Fallback));
     }
 
@@ -367,6 +377,7 @@ mod tests {
         assert_eq!(AgentKind::Gemini.manifest_key(), "gemini");
         assert_eq!(AgentKind::Amp.manifest_key(), "amp");
         assert_eq!(AgentKind::Droid.manifest_key(), "droid");
+        assert_eq!(AgentKind::Qwen.manifest_key(), "qwen");
         assert_eq!(AgentKind::Fallback.manifest_key(), "claude");
     }
 

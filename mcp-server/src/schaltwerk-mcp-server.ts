@@ -13,6 +13,8 @@ import {
 } from "@modelcontextprotocol/sdk/types.js"
 import { SchaltwerkBridge, Session, MergeModeOption } from "./schaltwerk-bridge.js"
 
+const DEFAULT_AGENT = 'claude'
+
 interface SchaltwerkStartArgs {
   name?: string
   prompt?: string
@@ -644,7 +646,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
 - Name: ${session.name}
 - Branch: ${session.branch}
 - Worktree: ${session.worktree_path}
-- Agent: ${createArgs.agent_type || 'claude'}
+- Agent: ${createArgs.agent_type || DEFAULT_AGENT}
 - Base Branch: ${session.parent_branch}
 ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
         }
@@ -666,7 +668,7 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
             ready_to_merge: s.ready_to_merge || false,
             created_at: s.created_at && !isNaN(new Date(s.created_at).getTime()) ? new Date(s.created_at).toISOString() : null,
             last_activity: s.last_activity && !isNaN(new Date(s.last_activity).getTime()) ? new Date(s.last_activity).toISOString() : null,
-            agent_type: s.original_agent_type || 'claude',
+            agent_type: s.original_agent_type || DEFAULT_AGENT,
             branch: s.branch,
             worktree_path: s.worktree_path,
             initial_prompt: s.initial_prompt || null,
@@ -795,7 +797,7 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
         )
         
         result = `Spec '${draftStartArgs.session_name}' started successfully:
-- Agent Type: ${draftStartArgs.agent_type || 'claude'}
+- Agent Type: ${draftStartArgs.agent_type || DEFAULT_AGENT}
 - Skip Permissions: ${draftStartArgs.skip_permissions || false}
 - Status: Active (worktree created, agent ready)`
         break
@@ -910,7 +912,7 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
             agent.ready_to_merge = t.ready_to_merge || false
           }
           if (includeAll || requestedFields.includes('agent_type')) {
-            agent.agent_type = t.original_agent_type || 'claude'
+            agent.agent_type = t.original_agent_type || DEFAULT_AGENT
           }
           if (includeAll || requestedFields.includes('skip_permissions')) {
             agent.skip_permissions = t.original_skip_permissions ?? null

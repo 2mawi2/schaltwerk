@@ -39,6 +39,7 @@ import { ORCHESTRATOR_SESSION_NAME } from '../../constants/sessions'
 import { useAtomValue } from 'jotai'
 import { projectPathAtom } from '../../store/atoms/project'
 import { useSessionMergeShortcut } from '../../hooks/useSessionMergeShortcut'
+import { DEFAULT_AGENT } from '../../constants/agents'
 
 // Removed legacy terminal-stuck idle handling; we rely on last-edited timestamps only
 
@@ -89,7 +90,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         if (value && AGENT_TYPES.includes(value as AgentType)) {
             return value as AgentType
         }
-        return 'claude'
+        return DEFAULT_AGENT
     }, [])
 
     // Removed: stuckTerminals; idle is computed from last edit timestamps
