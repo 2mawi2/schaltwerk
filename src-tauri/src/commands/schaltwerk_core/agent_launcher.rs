@@ -18,6 +18,7 @@ pub async fn launch_in_terminal(
     repo_path: &std::path::Path,
     cols: Option<u16>,
     rows: Option<u16>,
+    _force_restart: bool,
 ) -> Result<String, String> {
     log::info!(
         "[AGENT_LAUNCH_TRACE] launch_in_terminal called: terminal_id={terminal_id}, command={}",
@@ -51,6 +52,7 @@ pub async fn launch_in_terminal(
             agent_ctx::build_final_args(&agent_kind, agent_args, &cli_text, &preferences);
 
         let manager = get_terminal_manager().await?;
+        // Always relaunch the agent command to ensure it actually starts; if a terminal exists, close it first
         if manager.terminal_exists(&terminal_id).await? {
             manager.close_terminal(terminal_id.clone()).await?;
         }

@@ -16,7 +16,7 @@ use crate::commands::sessions_refresh::{SessionsRefreshReason, request_sessions_
 use crate::mcp_api::diff_api::{DiffApiError, DiffChunkRequest, DiffScope, SummaryQuery};
 use crate::{get_core_read, get_core_write};
 use schaltwerk::domains::merge::MergeMode;
-use schaltwerk::domains::sessions::entity::Session;
+use schaltwerk::domains::sessions::entity::{Session, Spec};
 use schaltwerk::infrastructure::events::{SchaltEvent, emit_event};
 use schaltwerk::schaltwerk_core::{SessionManager, SessionState};
 
@@ -140,12 +140,17 @@ fn create_spec_session_with_notifications<F>(
     agent_type: Option<&str>,
     skip_permissions: Option<bool>,
     emit_sessions: F,
-) -> anyhow::Result<Session>
+) -> anyhow::Result<Spec>
 where
     F: Fn() -> Result<(), tauri::Error>,
 {
-    let session =
-        manager.create_spec_session_with_agent(name, content, agent_type, skip_permissions)?;
+    let session = manager.create_spec_session_with_agent(
+        name,
+        content,
+        agent_type,
+        skip_permissions,
+        None,
+    )?;
     if let Err(e) = emit_sessions() {
         warn!("Failed to emit SessionsRefreshed after creating spec '{name}': {e}");
     }
@@ -380,7 +385,6 @@ mod tests {
     use super::*;
     use chrono::Utc;
     use git2::Repository;
-    use schaltwerk::domains::sessions::entity::{SessionState, SessionStatus};
     use schaltwerk::schaltwerk_core::Database;
     use std::path::Path;
     use std::path::PathBuf;
@@ -421,32 +425,16 @@ mod tests {
         SessionManager::new(database, repo_path.to_path_buf())
     }
 
-    fn make_spec_session(name: &str, content: Option<&str>) -> Session {
-        Session {
+    fn make_spec_session(name: &str, content: Option<&str>) -> Spec {
+        Spec {
             id: format!("spec-{name}"),
             name: name.to_string(),
             display_name: Some(format!("Display {name}")),
-            version_group_id: None,
-            version_number: None,
             repository_path: PathBuf::from("/tmp/mock"),
             repository_name: "mock".to_string(),
-            branch: format!("spec/{name}"),
-            parent_branch: "main".to_string(),
-            worktree_path: PathBuf::from("/tmp/mock/spec"),
-            status: SessionStatus::Spec,
+            content: content.unwrap_or_default().to_string(),
             created_at: Utc::now(),
             updated_at: Utc::now(),
-            last_activity: None,
-            initial_prompt: None,
-            ready_to_merge: false,
-            original_agent_type: None,
-            original_skip_permissions: None,
-            pending_name_generation: false,
-            was_auto_generated: false,
-            spec_content: content.map(|c| c.to_string()),
-            session_state: SessionState::Spec,
-            resume_allowed: false,
-            amp_thread_id: None,
         }
     }
 
@@ -496,7 +484,7 @@ mod tests {
     fn spec_summary_from_session_surface_length_and_display_name() {
         let content = "# Spec\n\nDetails line";
         let session = make_spec_session("alpha", Some(content));
-        let summary = SpecSummary::from_session(&session);
+        let summary = SpecSummary::from_spec(&session);
         assert_eq!(summary.session_id, "alpha");
         assert_eq!(summary.display_name.as_deref(), Some("Display alpha"));
         assert_eq!(summary.content_length, content.chars().count());
@@ -509,7 +497,7 @@ mod tests {
     #[test]
     fn spec_content_response_defaults_to_empty_when_missing() {
         let session = make_spec_session("beta", None);
-        let response = SpecContentResponse::from_session(&session);
+        let response = SpecContentResponse::from_spec(&session);
         assert_eq!(response.session_id, "beta");
         assert_eq!(response.display_name.as_deref(), Some("Display beta"));
         assert_eq!(response.content, "");
@@ -609,31 +597,27 @@ struct SpecContentResponse {
 }
 
 impl SpecSummary {
-    fn from_session(session: &Session) -> Self {
-        let content_length = session
-            .spec_content
-            .as_ref()
-            .map(|content| content.chars().count())
-            .unwrap_or(0);
+    fn from_spec(spec: &Spec) -> Self {
+        let content_length = spec.content.chars().count();
         Self {
-            session_id: session.name.clone(),
-            display_name: session.display_name.clone(),
+            session_id: spec.name.clone(),
+            display_name: spec.display_name.clone(),
             content_length,
-            updated_at: session.updated_at.to_rfc3339(),
+            updated_at: spec.updated_at.to_rfc3339(),
         }
     }
 }
 
 impl SpecContentResponse {
-    fn from_session(session: &Session) -> Self {
-        let content = session.spec_content.clone().unwrap_or_default();
+    fn from_spec(spec: &Spec) -> Self {
+        let content = spec.content.clone();
         let content_length = content.chars().count();
         Self {
-            session_id: session.name.clone(),
-            display_name: session.display_name.clone(),
+            session_id: spec.name.clone(),
+            display_name: spec.display_name.clone(),
             content,
             content_length,
-            updated_at: session.updated_at.to_rfc3339(),
+            updated_at: spec.updated_at.to_rfc3339(),
         }
     }
 }
@@ -650,16 +634,16 @@ async fn list_drafts() -> Result<Response<String>, hyper::Error> {
         }
     };
 
-    match manager.list_sessions_by_state(SessionState::Spec) {
-        Ok(sessions) => {
-            let json = serde_json::to_string(&sessions).unwrap_or_else(|e| {
-                error!("Failed to serialize sessions: {e}");
+    match manager.list_specs() {
+        Ok(specs) => {
+            let json = serde_json::to_string(&specs).unwrap_or_else(|e| {
+                error!("Failed to serialize specs: {e}");
                 "[]".to_string()
             });
             Ok(json_response(StatusCode::OK, json))
         }
         Err(e) => {
-            error!("Failed to list spec sessions: {e}");
+            error!("Failed to list specs: {e}");
             Ok(error_response(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("Failed to list specs: {e}"),
@@ -680,10 +664,10 @@ async fn list_spec_summaries() -> Result<Response<String>, hyper::Error> {
         }
     };
 
-    match manager.list_sessions_by_state(SessionState::Spec) {
-        Ok(mut sessions) => {
-            sessions.sort_by(|a, b| a.name.cmp(&b.name));
-            let specs: Vec<SpecSummary> = sessions.iter().map(SpecSummary::from_session).collect();
+    match manager.list_specs() {
+        Ok(mut specs_list) => {
+            specs_list.sort_by(|a, b| a.name.cmp(&b.name));
+            let specs: Vec<SpecSummary> = specs_list.iter().map(SpecSummary::from_spec).collect();
             let payload = SpecSummaryResponse { specs };
             match serde_json::to_string(&payload) {
                 Ok(json) => Ok(json_response(StatusCode::OK, json)),
@@ -718,11 +702,8 @@ async fn get_spec_content(name: &str) -> Result<Response<String>, hyper::Error> 
         }
     };
 
-    let session = match manager
-        .get_session(name)
-        .or_else(|_| manager.get_session_by_id(name))
-    {
-        Ok(session) => session,
+    let spec = match manager.get_spec(name) {
+        Ok(spec) => spec,
         Err(_) => {
             return Ok(json_error_response(
                 StatusCode::NOT_FOUND,
@@ -731,14 +712,7 @@ async fn get_spec_content(name: &str) -> Result<Response<String>, hyper::Error> 
         }
     };
 
-    if session.session_state != SessionState::Spec {
-        return Ok(json_error_response(
-            StatusCode::NOT_FOUND,
-            format!("Spec '{name}' is not available in spec state"),
-        ));
-    }
-
-    let payload = SpecContentResponse::from_session(&session);
+    let payload = SpecContentResponse::from_spec(&spec);
     match serde_json::to_string(&payload) {
         Ok(json) => Ok(json_response(StatusCode::OK, json)),
         Err(e) => {
@@ -862,7 +836,7 @@ async fn start_spec_session(
         agent_type,
         skip_permissions,
     ) {
-        Ok(()) => {
+        Ok(_session) => {
             info!("Started spec session via API: {name}");
             request_sessions_refresh(&app, SessionsRefreshReason::SessionLifecycle);
             Ok(Response::new("OK".to_string()))

@@ -58,18 +58,6 @@ pub fn emit_session_cancelling(app: &AppHandle, name: &str) {
     );
 }
 
-pub fn emit_selection_running(app: &AppHandle, name: &str) {
-    let _ = emit_event(
-        app,
-        SchaltEvent::Selection,
-        &SelectionPayload {
-            kind: "session",
-            payload: name.to_string(),
-            session_state: "running",
-        },
-    );
-}
-
 pub fn emit_selection_spec(app: &AppHandle, name: &str) {
     let _ = emit_event(
         app,

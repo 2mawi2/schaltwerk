@@ -1061,6 +1061,25 @@ impl TerminalBackend for LocalPtyAdapter {
         Ok(self.terminals.read().await.contains_key(id))
     }
 
+    async fn is_process_alive(&self, id: &str) -> Result<bool, String> {
+        let mut guard = self.pty_children.lock().await;
+        if let Some(child) = guard.get_mut(id) {
+            match child.try_wait() {
+                Ok(None) => Ok(true),
+                Ok(Some(status)) => {
+                    info!("Terminal {id} process exited with status {status:?}");
+                    Ok(false)
+                }
+                Err(err) => {
+                    warn!("Failed to check child status for {id}: {err}");
+                    Ok(false)
+                }
+            }
+        } else {
+            Ok(false)
+        }
+    }
+
     async fn snapshot(&self, id: &str, from_seq: Option<u64>) -> Result<TerminalSnapshot, String> {
         let terminals = self.terminals.read().await;
         if let Some(state) = terminals.get(id) {

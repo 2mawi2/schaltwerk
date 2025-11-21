@@ -100,7 +100,7 @@ export interface RawSession {
     repository_path: string
     repository_name: string
     branch: string
-    parent_branch: string
+    parent_branch?: string
     worktree_path: string
     status: 'active' | 'cancelled' | 'spec'
     created_at: string

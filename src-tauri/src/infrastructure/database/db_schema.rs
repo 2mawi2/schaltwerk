@@ -109,6 +109,38 @@ pub fn initialize_schema(db: &Database) -> anyhow::Result<()> {
     // Apply migrations for sessions table
     apply_sessions_migrations(&conn)?;
 
+    // Specs table (decoupled from sessions)
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS specs (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            display_name TEXT,
+            repository_path TEXT NOT NULL,
+            repository_name TEXT NOT NULL,
+            content TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            UNIQUE(repository_path, name)
+        )",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_specs_repo ON specs(repository_path)",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_specs_name_repo ON specs(repository_path, name)",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_specs_updated_at ON specs(updated_at)",
+        [],
+    )?;
+
+    // Apply migrations for specs table (including legacy spec rows)
+    apply_specs_migrations(&conn)?;
+
     // Create project_config table for project-specific settings
     conn.execute(
         "CREATE TABLE IF NOT EXISTS project_config (
@@ -251,6 +283,28 @@ fn apply_sessions_migrations(conn: &rusqlite::Connection) -> anyhow::Result<()> 
     Ok(())
 }
 
+/// Apply migrations for the specs table and migrate legacy spec-state sessions.
+fn apply_specs_migrations(conn: &rusqlite::Connection) -> anyhow::Result<()> {
+    let tx = conn.unchecked_transaction()?;
+
+    tx.execute(
+        "INSERT INTO specs (id, name, display_name, repository_path, repository_name, content, created_at, updated_at)
+         SELECT s.id, s.name, s.display_name,
+                s.repository_path, s.repository_name,
+                COALESCE(s.spec_content, s.initial_prompt, ''),
+                s.created_at, s.updated_at
+         FROM sessions s
+         WHERE s.session_state = 'spec'
+           AND NOT EXISTS (SELECT 1 FROM specs sp WHERE sp.id = s.id)",
+        [],
+    )?;
+
+    tx.execute("DELETE FROM sessions WHERE session_state = 'spec'", [])?;
+
+    tx.commit()?;
+    Ok(())
+}
+
 /// Apply migrations for the project_config table
 fn apply_project_config_migrations(conn: &rusqlite::Connection) -> anyhow::Result<()> {
     // These migrations are idempotent - they silently fail if column already exists
@@ -300,4 +354,86 @@ fn apply_project_config_migrations(conn: &rusqlite::Connection) -> anyhow::Resul
         [],
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::apply_specs_migrations;
+    use rusqlite::Connection;
+
+    #[test]
+    fn specs_migration_does_not_delete_on_insert_failure() {
+        let conn = Connection::open_in_memory().unwrap();
+
+        conn.execute(
+            "CREATE TABLE sessions (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                display_name TEXT,
+                repository_path TEXT NOT NULL,
+                repository_name TEXT NOT NULL,
+                branch TEXT NOT NULL,
+                parent_branch TEXT NOT NULL,
+                worktree_path TEXT NOT NULL,
+                status TEXT NOT NULL,
+                session_state TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                initial_prompt TEXT,
+                spec_content TEXT
+            )",
+            [],
+        )
+        .unwrap();
+
+        conn.execute(
+            "CREATE TABLE specs (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                display_name TEXT,
+                repository_path TEXT NOT NULL,
+                repository_name TEXT NOT NULL,
+                content TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                UNIQUE(repository_path, name)
+            )",
+            [],
+        )
+        .unwrap();
+
+        // Existing spec causes INSERT conflict on (repository_path, name)
+        conn.execute(
+            "INSERT INTO specs (id, name, display_name, repository_path, repository_name, content, created_at, updated_at)
+             VALUES ('spec-existing', 'spec-session', NULL, '/repo', 'repo', 'existing', 0, 0)",
+            [],
+        )
+        .unwrap();
+
+        // Legacy spec row still in sessions
+        conn.execute(
+            "INSERT INTO sessions (id, name, display_name, repository_path, repository_name, branch, parent_branch, worktree_path, status, session_state, created_at, updated_at, initial_prompt)
+             VALUES ('spec-legacy', 'spec-session', NULL, '/repo', 'repo', 'refs/heads/x', 'main', '/tmp/wt', 'active', 'spec', 0, 0, '# prompty')",
+            [],
+        )
+        .unwrap();
+
+        let result = apply_specs_migrations(&conn);
+        assert!(
+            result.is_err(),
+            "migration should surface insert failure to avoid silent deletion"
+        );
+
+        let remaining: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sessions WHERE session_state = 'spec'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            remaining, 1,
+            "spec rows in sessions must not be deleted on failed insert"
+        );
+    }
 }

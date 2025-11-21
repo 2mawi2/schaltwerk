@@ -5,6 +5,7 @@ use crate::domains::sessions::repository::SessionDbManager;
 use anyhow::{Context, Result, anyhow};
 use log::{info, warn};
 use std::path::Path;
+use tokio::runtime::Handle;
 
 pub struct CancellationCoordinator<'a> {
     repo_path: &'a Path,
@@ -165,7 +166,16 @@ impl<'a> CancellationCoordinator<'a> {
             return Vec::new();
         }
 
-        match tauri::async_runtime::block_on(terminate_processes_with_cwd(&session.worktree_path)) {
+        let terminate_future = terminate_processes_with_cwd(&session.worktree_path);
+
+        // If we're already running inside a Tokio runtime (e.g., called from an async Tauri command),
+        // avoid nesting a runtime and use block_in_place + the current handle instead of block_on.
+        let result = match Handle::try_current() {
+            Ok(handle) => tokio::task::block_in_place(|| handle.block_on(terminate_future)),
+            Err(_) => tauri::async_runtime::block_on(terminate_future),
+        };
+
+        match result {
             Ok(pids) => {
                 if !pids.is_empty() {
                     info!(
@@ -480,6 +490,57 @@ mod tests {
 
         assert!(!result.worktree_removed);
         assert_eq!(result.terminated_processes.len(), 0);
+    }
+
+    // Regression: calling the SYNC helpers from inside a Tokio runtime must not panic
+    // with "Cannot start a runtime from within a runtime".
+    #[tokio::test(flavor = "multi_thread")]
+    async fn terminate_processes_sync_is_safe_inside_runtime() {
+        let temp_dir = TempDir::new().unwrap();
+        let repo_path = temp_dir.path().to_path_buf();
+        std::fs::create_dir_all(&repo_path).unwrap();
+
+        // Minimal SessionDbManager; we don't need real git metadata for this test.
+        let db = Database::new(Some(repo_path.join("test.db"))).unwrap();
+        let db_manager = SessionDbManager::new(db, repo_path.clone());
+
+        // Create an existing worktree dir so the code path runs terminate_processes_with_cwd.
+        let worktree_path = repo_path.join("worktree");
+        std::fs::create_dir_all(&worktree_path).unwrap();
+
+        let session = Session {
+            id: Uuid::new_v4().to_string(),
+            name: "panic-guard".to_string(),
+            display_name: None,
+            version_group_id: None,
+            version_number: None,
+            repository_path: repo_path.clone(),
+            repository_name: "test-repo".to_string(),
+            branch: "schaltwerk/panic-guard".to_string(),
+            parent_branch: "main".to_string(),
+            worktree_path: worktree_path.clone(),
+            status: SessionStatus::Active,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            last_activity: None,
+            initial_prompt: None,
+            ready_to_merge: false,
+            original_agent_type: None,
+            original_skip_permissions: None,
+            pending_name_generation: false,
+            was_auto_generated: false,
+            spec_content: None,
+            session_state: SessionState::Running,
+            resume_allowed: true,
+            amp_thread_id: None,
+        };
+
+        let coordinator = CancellationCoordinator::new(&repo_path, &db_manager);
+        let mut errors = Vec::new();
+        let pids = coordinator.terminate_session_processes_sync(&session, &mut errors);
+
+        assert!(pids.is_empty());
+        assert!(errors.is_empty());
     }
 
     #[test]

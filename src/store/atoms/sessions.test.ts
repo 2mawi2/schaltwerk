@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createStore } from 'jotai'
 import { FilterMode } from '../../types/sessionFilters'
-import { SessionState, type EnrichedSession } from '../../types/session'
+import { SessionState, type EnrichedSession, type RawSession } from '../../types/session'
 import { TauriCommands } from '../../common/tauriCommands'
 import {
     allSessionsAtom,
@@ -41,6 +41,7 @@ import {
     setSessionsToastHandlers,
     __resetSessionsTestingState,
     cleanupProjectSessionsCacheActionAtom,
+    expectSessionActionAtom,
 } from './sessions'
 import { projectPathAtom } from './project'
 import { listenEvent as listenEventMock } from '../../common/eventSystem'
@@ -135,6 +136,28 @@ const createSession = (overrides: Partial<EnrichedSession['info']>): EnrichedSes
     },
     terminals: [],
 })
+
+const createRawSession = (name: string, overrides: Partial<RawSession> = {}): RawSession => {
+    const timestamp = new Date().toISOString()
+    return {
+        id: `${name}-id`,
+        name,
+        display_name: name,
+        repository_path: '/tmp/repo',
+        repository_name: 'project',
+        branch: `schaltwerk/${name}`,
+        parent_branch: 'main',
+        worktree_path: `/tmp/${name}`,
+        status: 'active',
+        created_at: timestamp,
+        updated_at: timestamp,
+        ready_to_merge: false,
+        pending_name_generation: false,
+        was_auto_generated: false,
+        session_state: SessionState.Running,
+        ...overrides,
+    }
+}
 
 describe('sessions atoms', () => {
     let store: ReturnType<typeof createStore>
@@ -589,6 +612,12 @@ describe('sessions atoms', () => {
             if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) {
                 return []
             }
+            if (cmd === TauriCommands.SchaltwerkCoreStartSpecSession) {
+                return createRawSession('draft')
+            }
+            if (cmd === TauriCommands.SchaltwerkCoreConvertSessionToDraft) {
+                return 'running-draft'
+            }
             return undefined
         })
 
@@ -951,28 +980,21 @@ describe('sessions atoms', () => {
         expect(releaseSessionTerminals).not.toHaveBeenCalledWith('test-session')
     })
 
-    it('does not release a brand-new running session on first missing refresh (grace window)', async () => {
-        const { invoke } = await import('@tauri-apps/api/core')
-
-        vi.mocked(invoke).mockImplementation(async (cmd) => {
-            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
-                return [createSession({ session_id: 'fresh-session', created_at: new Date().toISOString() })]
-            }
-            if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) {
-                return []
-            }
-            return undefined
-        })
-
+    it('preserves an expected session when it is missing from a refresh snapshot', async () => {
         store.set(projectPathAtom, '/project')
+        // Seed with a session and register expectation
+        const session = createSession({ session_id: 'volatile-session' })
+        store.set(allSessionsAtom, [session])
         await store.set(initializeSessionsEventsActionAtom)
-        await store.set(refreshSessionsActionAtom)
+        store.set(expectSessionActionAtom, 'volatile-session')
 
         vi.mocked(releaseSessionTerminals).mockClear()
 
         emitSessionsRefreshed([])
 
         expect(releaseSessionTerminals).not.toHaveBeenCalled()
+        expect(store.get(allSessionsAtom)).toHaveLength(1)
+        expect(store.get(allSessionsAtom)[0].info.session_id).toBe('volatile-session')
     })
 
     it('does not release terminals when SessionsRefreshed payload targets another project', async () => {

@@ -494,6 +494,10 @@ impl TerminalManager {
             .await
     }
 
+    pub async fn is_process_alive(&self, id: &str) -> Result<bool, String> {
+        self.backend.is_process_alive(id).await
+    }
+
     pub async fn get_terminal_buffer(
         &self,
         id: String,

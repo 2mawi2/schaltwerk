@@ -29,6 +29,7 @@ pub enum SchaltEvent {
     AppUpdateResult,
     DevBackendError,
     CloneProgress,
+    OrchestratorLaunchFailed,
 }
 
 impl SchaltEvent {
@@ -60,6 +61,7 @@ impl SchaltEvent {
             SchaltEvent::AppUpdateResult => "schaltwerk:app-update-result",
             SchaltEvent::DevBackendError => "schaltwerk:dev-backend-error",
             SchaltEvent::CloneProgress => "schaltwerk:clone-progress",
+            SchaltEvent::OrchestratorLaunchFailed => "schaltwerk:orchestrator-launch-failed",
         }
     }
 }

@@ -146,30 +146,6 @@ function createPendingStartup(_sessionId: string, agentType?: AgentType, ttlMs: 
     }
 }
 
-function enrichDraftSessions(drafts: RawSession[]): EnrichedSession[] {
-    return drafts.map(spec => ({
-        id: spec.id,
-        info: {
-            session_id: spec.name,
-            display_name: spec.display_name || spec.name,
-            branch: spec.branch,
-            worktree_path: spec.worktree_path || '',
-            base_branch: spec.parent_branch,
-            parent_branch: spec.parent_branch,
-            status: 'spec',
-            session_state: SessionState.Spec,
-            created_at: spec.created_at ? new Date(spec.created_at).toISOString() : undefined,
-            last_modified: spec.updated_at ? new Date(spec.updated_at).toISOString() : undefined,
-            has_uncommitted_changes: false,
-            ready_to_merge: false,
-            diff_stats: undefined,
-            is_current: false,
-            session_type: 'worktree',
-        },
-        terminals: [],
-    }))
-}
-
 function buildStateMap(sessions: EnrichedSession[]): Map<string, string> {
     const map = new Map<string, string>()
     for (const session of sessions) {
@@ -202,21 +178,8 @@ function dedupeSessions(sessions: EnrichedSession[]): EnrichedSession[] {
     return Array.from(byId.values())
 }
 
-function mergeSessionsPreferDraft(base: EnrichedSession[], specs: EnrichedSession[]): EnrichedSession[] {
-    const byId = new Map<string, EnrichedSession>()
-    for (const session of base) {
-        byId.set(session.info.session_id, session)
-    }
-    for (const draft of specs) {
-        const existing = byId.get(draft.info.session_id)
-        if (!existing || mapSessionUiState(existing.info) !== 'spec') {
-            byId.set(draft.info.session_id, draft)
-        }
-    }
-    return Array.from(byId.values())
-}
-
 const SESSION_RELEASE_GRACE_MS = 4_000
+const EXPECTED_SESSION_TTL_MS = 15_000
 
 async function releaseRemovedSessions(get: Getter, set: Setter, previous: EnrichedSession[], next: EnrichedSession[]) {
     const now = Date.now()
@@ -323,13 +286,13 @@ function autoStartRunningSessions(
 
     const projectPath = get(projectPathAtom)
     if (!projectPath) {
+        logger.debug('[AGENT_LAUNCH_TRACE] autoStartRunningSessions skipped: no project path')
         return
     }
 
     const pending = new Map(get(pendingStartupsAtom))
     const previousStates = options.previousStates ?? previousSessionStates
     const reason = options.reason ?? 'sessions-refresh'
-
     let pendingChanged = false
     const now = Date.now()
     for (const [sessionId, entry] of pending) {
@@ -445,7 +408,7 @@ function autoStartRunningSessions(
         }
 
         if (!hasTerminalInstance(topId)) {
-            logger.debug(`[SessionsAtoms] Skipping auto-start for ${sessionId}: terminal not created (lazy)`)
+            logger.debug(`[SessionsAtoms] Skipping auto-start for ${sessionId}: terminal not created (lazy)`) 
             continue
         }
 
@@ -529,6 +492,40 @@ async function applySessionsSnapshot(
     const withSnapshots = sessions.map(session => attachMergeSnapshot(session, previousMap))
     const deduped = dedupeSessions(withSnapshots)
 
+    // Re-inject expected sessions that are temporarily missing (e.g. immediately after we create/promote one
+    // but before backend refresh catches up). This keeps the UI stable without showing a flicker.
+    const currentIds = new Set(deduped.map(session => session.info.session_id))
+    const now = Date.now()
+    const preserved: EnrichedSession[] = []
+    const expired: string[] = []
+
+    for (const [expectedId, expected] of expectedSessions) {
+        const { expiresAt, session: expectedSession } = expected
+        if (now > expiresAt) {
+            expired.push(expectedId)
+            continue
+        }
+        if (!currentIds.has(expectedId)) {
+            if (expectedSession) {
+                preserved.push(expectedSession)
+            } else {
+                const prev = previousSessionsSnapshot.find(s => s.info.session_id === expectedId)
+                if (prev) {
+                    preserved.push(prev)
+                }
+            }
+        } else {
+            expectedSessions.delete(expectedId)
+        }
+    }
+
+    if (preserved.length > 0) {
+        deduped.push(...preserved)
+    }
+    for (const id of expired) {
+        expectedSessions.delete(id)
+    }
+
     if (projectPath) {
         await releaseRemovedSessions(get, set, previousSessionsSnapshot, deduped)
     }
@@ -585,25 +582,10 @@ async function loadSessionsSnapshot(projectPath: string | null): Promise<Enriche
     }
 
     const cacheKey = `list_enriched_sessions:${projectPath}`
-    const enrichedSessions = await singleflight(cacheKey, () => invoke<EnrichedSession[]>(TauriCommands.SchaltwerkCoreListEnrichedSessions))
-    const enriched = Array.isArray(enrichedSessions) ? enrichedSessions : []
-
-    const hasSpecSessions = enriched.some(session => mapSessionUiState(session.info) === SessionState.Spec)
-    if (hasSpecSessions) {
-        return enriched
-    }
-
-    try {
-        const draftSessions = await invoke<RawSession[]>(TauriCommands.SchaltwerkCoreListSessionsByState, { state: SessionState.Spec })
-        if (Array.isArray(draftSessions) && draftSessions.some(draft => draft && (draft.name || draft.id))) {
-            const enrichedDrafts = enrichDraftSessions(draftSessions)
-            return mergeSessionsPreferDraft(enriched, enrichedDrafts)
-        }
-    } catch (error) {
-        logger.warn('[SessionsAtoms] Failed to fetch draft sessions, continuing with enriched sessions only:', error)
-    }
-
-    return enriched
+    const enrichedSessions = await singleflight(cacheKey, () =>
+        invoke<EnrichedSession[]>(TauriCommands.SchaltwerkCoreListEnrichedSessions)
+    )
+    return Array.isArray(enrichedSessions) ? enrichedSessions : []
 }
 
 function deriveMergeStatusFromSession(session: EnrichedSession): MergeStatus | undefined {
@@ -670,6 +652,8 @@ const suppressedAutoStart = new Set<string>()
 const mergeErrorCache = new Map<string, string>()
 const mergePreviewCache = new Map<string, MergePreviewResponse>()
 const protectedReleaseUntil = new Map<string, number>()
+type ExpectedSession = { expiresAt: number; session?: EnrichedSession }
+const expectedSessions = new Map<string, ExpectedSession>()
 let sessionsRefreshedReloadPending = false
 const sessionsEventHandlersForTests = new Map<SchaltEvent, (payload: unknown) => void>()
 
@@ -679,6 +663,21 @@ export function __getSessionsEventHandlerForTest(event: SchaltEvent): ((payload:
 
 export const autoCancelAfterMergeAtom = atom((get) => get(autoCancelAfterMergeStateAtom))
 export const sessionsLoadingAtom = atom((get) => get(loadingStateAtom))
+
+export const expectSessionActionAtom = atom(
+    null,
+    (_get, _set, sessionOrId: string | EnrichedSession) => {
+        if (!sessionOrId) return
+
+        const { id, payload } =
+            typeof sessionOrId === 'string'
+                ? { id: sessionOrId, payload: undefined }
+                : { id: sessionOrId.info.session_id, payload: sessionOrId }
+
+        logger.debug(`[SessionsAtoms] Expecting session ${id}`)
+        expectedSessions.set(id, { expiresAt: Date.now() + EXPECTED_SESSION_TTL_MS, session: payload })
+    },
+)
 
 export function setSessionsToastHandlers(handlers: { pushToast?: PushToast | null }) {
     pushToastHandler = handlers.pushToast ?? null
@@ -832,6 +831,9 @@ export const refreshSessionsActionAtom = atom(
     async (get, set) => {
         const projectPath = get(projectPathAtom)
 
+        const started = performance.now()
+        logger.debug(`[SessionsAtoms] refreshSessionsActionAtom start (project=${projectPath ?? 'none'})`)
+
         if (projectPath) {
             const cachedSnapshot = projectSessionsSnapshotCache.get(projectPath)
             previousSessionsSnapshot = cachedSnapshot ? [...cachedSnapshot] : []
@@ -853,12 +855,19 @@ export const refreshSessionsActionAtom = atom(
         }
 
         try {
+            const loadStart = performance.now()
             const sessions = await loadSessionsSnapshot(projectPath)
+            logger.debug(
+                `[SessionsAtoms] loadSessionsSnapshot success in ${(performance.now() - loadStart).toFixed(1)}ms (count=${sessions.length})`,
+            )
             await applySessionsSnapshot(get, set, sessions, { reason: 'refresh' })
         } catch (error) {
-            logger.error('[SessionsAtoms] Failed to load sessions:', error)
+            logger.error('[SessionsAtoms] Failed to load sessions (keeping stale state):', error)
+            // Keep previous snapshot to avoid tearing down terminals on transient errors
         } finally {
             set(lastRefreshStateAtom, Date.now())
+            const elapsed = performance.now() - started
+            logger.debug(`[SessionsAtoms] refreshSessionsActionAtom end in ${elapsed.toFixed(1)}ms`)
         }
     },
 )
@@ -1485,6 +1494,7 @@ export function __resetSessionsTestingState() {
     mergePreviewCache.clear()
     protectedReleaseUntil.clear()
     sessionsEventHandlersForTests.clear()
+    expectedSessions.clear()
 }
 
 export const openMergeDialogActionAtom = atom(
@@ -1673,12 +1683,37 @@ export const updateSessionStatusActionAtom = atom(
             return
         }
 
+        const currentSelection = get(currentSelectionStateAtom)
+
         try {
             if (input.status === 'spec') {
-                await invoke(TauriCommands.SchaltwerkCoreConvertSessionToDraft, { name: input.sessionId })
+                const createdSpecName = await invoke<string>(TauriCommands.SchaltwerkCoreConvertSessionToDraft, { name: input.sessionId })
+                const specSessionName = createdSpecName ?? input.sessionId
+                const optimisticSpec: EnrichedSession = {
+                    ...session,
+                    info: {
+                        ...session.info,
+                        session_id: specSessionName,
+                        display_name: specSessionName,
+                        session_state: SessionState.Spec,
+                        status: 'spec',
+                        ready_to_merge: false,
+                        has_uncommitted_changes: false,
+                    },
+                }
+                set(expectSessionActionAtom, optimisticSpec)
+                // Replace old session entry optimistically with spec so UI stays stable until refresh
+                set(allSessionsAtom, prev => [
+                    optimisticSpec,
+                    ...prev.filter(s => s.info.session_id !== input.sessionId),
+                ])
+                // Move selection to the new spec name if user had the old session selected
+                if (currentSelection === input.sessionId) {
+                    set(currentSelectionStateAtom, createdSpecName ?? null)
+                }
             } else if (input.status === 'active') {
                 if (session.info.status === 'spec') {
-                    await invoke(TauriCommands.SchaltwerkCoreStartSpecSession, { name: input.sessionId })
+                    await invoke<RawSession>(TauriCommands.SchaltwerkCoreStartSpecSession, { name: input.sessionId })
                 } else if (session.info.ready_to_merge) {
                     await invoke(TauriCommands.SchaltwerkCoreUnmarkReady, { name: input.sessionId })
                 }
