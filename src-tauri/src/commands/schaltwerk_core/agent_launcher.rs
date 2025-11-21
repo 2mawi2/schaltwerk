@@ -5,8 +5,8 @@ use schaltwerk::services::{AgentLaunchSpec, parse_agent_command};
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock};
 use std::time::Duration;
-use tokio::time::timeout;
 use tokio::sync::Mutex as AsyncMutex;
+use tokio::time::timeout;
 
 static START_LOCKS: LazyLock<AsyncMutex<HashMap<String, Arc<AsyncMutex<()>>>>> =
     LazyLock::new(|| AsyncMutex::new(HashMap::new()));
@@ -47,7 +47,8 @@ pub async fn launch_in_terminal(
         let (env_vars, cli_text, preferences) =
             agent_ctx::collect_agent_env_and_cli(&agent_kind, repo_path, db).await;
         let merged_env = merge_env_vars(env_vars, &launch_spec.env_vars);
-        let final_args = agent_ctx::build_final_args(&agent_kind, agent_args, &cli_text, &preferences);
+        let final_args =
+            agent_ctx::build_final_args(&agent_kind, agent_args, &cli_text, &preferences);
 
         let manager = get_terminal_manager().await?;
         if manager.terminal_exists(&terminal_id).await? {
@@ -91,7 +92,9 @@ pub async fn launch_in_terminal(
             if let Ok(manager) = get_terminal_manager().await {
                 let close_result = manager.close_terminal(terminal_id.clone()).await;
                 if let Err(err) = close_result {
-                    log::warn!("Failed to close terminal {terminal_id} after launch timeout: {err}");
+                    log::warn!(
+                        "Failed to close terminal {terminal_id} after launch timeout: {err}"
+                    );
                 }
             }
             Err("Agent launch exceeded 12 seconds and was cancelled. Please retry.".to_string())

@@ -23,8 +23,9 @@ use schaltwerk::services::{
 };
 use schaltwerk::utils::env_adapter::EnvAdapter;
 use std::path::PathBuf;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tauri::State;
+use uuid::Uuid;
 mod agent_ctx;
 pub mod agent_launcher;
 mod codex_model_commands;
@@ -159,7 +160,26 @@ async fn session_manager_read() -> Result<SessionManager, String> {
 pub async fn schaltwerk_core_list_enriched_sessions(
     services: State<'_, ServiceHandles>,
 ) -> Result<Vec<EnrichedSession>, String> {
-    services.sessions.list_enriched_sessions().await
+    let call_id = Uuid::new_v4();
+    let start = Instant::now();
+    log::info!("list_enriched_sessions call_id={call_id} stage=start");
+
+    let result = services.sessions.list_enriched_sessions().await;
+
+    match &result {
+        Ok(list) => log::info!(
+            "list_enriched_sessions call_id={call_id} stage=done count={} elapsed={}ms",
+            list.len(),
+            start.elapsed().as_millis()
+        ),
+        Err(err) => log::error!(
+            "list_enriched_sessions call_id={call_id} stage=error elapsed={}ms error={}",
+            start.elapsed().as_millis(),
+            err
+        ),
+    }
+
+    result
 }
 
 #[tauri::command]
@@ -442,7 +462,11 @@ pub async fn schaltwerk_core_list_enriched_sessions_sorted(
     sort_mode: String,
     filter_mode: String,
 ) -> Result<Vec<EnrichedSession>, String> {
-    log::debug!("Listing sorted enriched sessions: sort={sort_mode}, filter={filter_mode}");
+    let call_id = Uuid::new_v4();
+    let start = Instant::now();
+    log::info!(
+        "list_enriched_sessions_sorted call_id={call_id} stage=start sort={sort_mode} filter={filter_mode}"
+    );
 
     let sort_mode_str = sort_mode.clone();
     let filter_mode_str = filter_mode.clone();
@@ -455,16 +479,22 @@ pub async fn schaltwerk_core_list_enriched_sessions_sorted(
 
     let manager = session_manager_read().await?;
 
-    match manager.list_enriched_sessions_sorted(sort_mode, filter_mode) {
-        Ok(sessions) => {
-            log::debug!("Found {} sorted/filtered sessions", sessions.len());
-            Ok(sessions)
-        }
-        Err(e) => {
-            log::error!("Failed to list sorted enriched sessions: {e}");
-            Err(format!("Failed to get sorted sessions: {e}"))
-        }
+    let result = manager.list_enriched_sessions_sorted(sort_mode, filter_mode);
+
+    match &result {
+        Ok(sessions) => log::info!(
+            "list_enriched_sessions_sorted call_id={call_id} stage=done count={} elapsed={}ms",
+            sessions.len(),
+            start.elapsed().as_millis()
+        ),
+        Err(e) => log::error!(
+            "list_enriched_sessions_sorted call_id={call_id} stage=error elapsed={}ms error={}",
+            start.elapsed().as_millis(),
+            e
+        ),
     }
+
+    result.map_err(|e| format!("Failed to get sorted sessions: {e}"))
 }
 
 #[derive(serde::Deserialize)]
@@ -1186,8 +1216,7 @@ pub async fn schaltwerk_core_start_claude_with_restart(
         .get_session(&session_name)
         .map_err(|e| format!("Failed to get session: {e}"))?;
     let agent_type = session.original_agent_type.clone().unwrap_or(
-        db
-            .get_agent_type()
+        db.get_agent_type()
             .map_err(|e| format!("Failed to get agent type: {e}"))?,
     );
 

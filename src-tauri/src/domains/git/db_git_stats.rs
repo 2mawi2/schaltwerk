@@ -86,6 +86,11 @@ impl GitStatsMethods for Database {
             return Ok(Vec::new());
         }
 
+        log::debug!(
+            "db_git_stats::get_git_stats_bulk start count={}",
+            session_ids.len()
+        );
+
         let conn = self.get_conn()?;
         let placeholders = session_ids
             .iter()
@@ -119,6 +124,11 @@ impl GitStatsMethods for Database {
         for stat in stats_iter {
             results.push(stat?);
         }
+
+        log::debug!(
+            "db_git_stats::get_git_stats_bulk done count={}",
+            results.len()
+        );
         Ok(results)
     }
 

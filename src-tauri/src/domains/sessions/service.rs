@@ -2221,11 +2221,20 @@ impl SessionManager {
 
     pub fn list_enriched_sessions(&self) -> Result<Vec<EnrichedSession>> {
         let start_time = std::time::Instant::now();
+        log::info!("list_enriched_sessions: stage=start");
+
+        let list_sessions_start = std::time::Instant::now();
         let sessions = self.db_manager.list_sessions()?;
-        let db_time = start_time.elapsed();
+        let db_time = list_sessions_start.elapsed();
+        let spec_count = sessions
+            .iter()
+            .filter(|s| s.session_state == SessionState::Spec)
+            .count();
         log::info!(
-            "list_enriched_sessions: Found {} total sessions in database ({}ms)",
+            "list_enriched_sessions: stage=after_list_sessions total={} specs={} non_specs={} elapsed={}ms",
             sessions.len(),
+            spec_count,
+            sessions.len().saturating_sub(spec_count),
             db_time.as_millis()
         );
 
@@ -2249,8 +2258,8 @@ impl SessionManager {
             .map(|s| (s.session_id.clone(), s))
             .collect();
         let bulk_stats_time = bulk_stats_start.elapsed();
-        log::debug!(
-            "list_enriched_sessions: Loaded {} git stats for {} sessions in {}ms",
+        log::info!(
+            "list_enriched_sessions: stage=after_git_stats_bulk stats_loaded={} requested={} elapsed={}ms",
             stats_by_id.len(),
             session_ids.len(),
             bulk_stats_time.as_millis()
@@ -2270,9 +2279,19 @@ impl SessionManager {
 
             session_count += 1;
             let session_start = std::time::Instant::now();
+            log::debug!(
+                "list_enriched_sessions: session={} stage=process_start status={:?} state={:?}",
+                session.name,
+                session.status,
+                session.session_state
+            );
 
             let is_spec_session = session.session_state == SessionState::Spec;
             if is_spec_session {
+                log::debug!(
+                    "list_enriched_sessions: session={} stage=spec skip_enrichment=true",
+                    session.name
+                );
                 // Specs do not require git stats or worktree checks; return lightweight metadata
                 let info = SessionInfo {
                     session_id: session.name.clone(),
@@ -2319,8 +2338,20 @@ impl SessionManager {
 
             // Check if worktree exists for running/reviewed sessions
             let worktree_check_start = std::time::Instant::now();
+            log::debug!(
+                "list_enriched_sessions: session={} stage=worktree_check:start path={}",
+                session.name,
+                session.worktree_path.display()
+            );
             let worktree_exists = session.worktree_path.exists();
-            worktree_check_time += worktree_check_start.elapsed();
+            let worktree_elapsed = worktree_check_start.elapsed();
+            worktree_check_time += worktree_elapsed;
+            log::debug!(
+                "list_enriched_sessions: session={} stage=worktree_check:done exists={} elapsed={}ms",
+                session.name,
+                worktree_exists,
+                worktree_elapsed.as_millis()
+            );
 
             if !worktree_exists && !cfg!(test) {
                 log::warn!(
@@ -2333,6 +2364,10 @@ impl SessionManager {
             }
 
             let (git_stats, has_conflicts) = if worktree_exists {
+                log::debug!(
+                    "list_enriched_sessions: session={} stage=git_stats:start",
+                    session.name
+                );
                 let git_stats_start = std::time::Instant::now();
                 let cached_stats = stats_by_id.get(&session.id);
                 let git_stats = get_or_compute_git_stats(
@@ -2344,6 +2379,11 @@ impl SessionManager {
                 );
                 let git_stats_elapsed = git_stats_start.elapsed();
                 git_stats_total_time += git_stats_elapsed;
+                log::debug!(
+                    "list_enriched_sessions: session={} stage=git_stats:done elapsed={}ms",
+                    session.name,
+                    git_stats_elapsed.as_millis()
+                );
 
                 if git_stats_elapsed.as_millis() > 100 {
                     log::warn!(

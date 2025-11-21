@@ -541,10 +541,11 @@ mod tests {
             .expect("expected gpt-5.1-codex-max to be present in builtin catalog");
 
         assert_eq!(max.default_reasoning, "medium");
-        assert!(max
-            .reasoning_options
-            .iter()
-            .any(|option| option.id == "xhigh"));
+        assert!(
+            max.reasoning_options
+                .iter()
+                .any(|option| option.id == "xhigh")
+        );
     }
 
     #[test]

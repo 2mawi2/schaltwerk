@@ -28,6 +28,7 @@ mod updater;
 use crate::commands::sessions_refresh::{SessionsRefreshReason, request_sessions_refresh};
 use crate::errors::SchaltError;
 use clap::Parser;
+use once_cell::sync::Lazy;
 use schaltwerk::domains::{attention::AttentionStateRegistry, git::repository};
 use schaltwerk::infrastructure::config::SettingsManager;
 use schaltwerk::project_manager::ProjectManager;
@@ -39,8 +40,10 @@ use schaltwerk::shared::terminal_id::{
 };
 use schaltwerk::utils::env_adapter::EnvAdapter;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex as StdMutex};
 use tokio::sync::{Mutex, OnceCell, OwnedRwLockReadGuard, OwnedRwLockWriteGuard, RwLock};
+use tokio::time::timeout;
+use uuid::Uuid;
 
 const UPDATER_PUBLIC_KEY: &str = include_str!("../updater-public.pem");
 
@@ -245,6 +248,8 @@ pub static SETTINGS_MANAGER: OnceCell<Arc<Mutex<SettingsManager>>> = OnceCell::c
 pub static ATTENTION_REGISTRY: OnceCell<Arc<Mutex<AttentionStateRegistry>>> = OnceCell::const_new();
 pub static FILE_WATCHER_MANAGER: OnceCell<Arc<schaltwerk::domains::workspace::FileWatcherManager>> =
     OnceCell::const_new();
+static LAST_CORE_WRITE: Lazy<StdMutex<Option<(Uuid, std::time::Instant)>>> =
+    Lazy::new(|| StdMutex::new(None));
 
 pub async fn get_project_manager() -> Arc<ProjectManager> {
     PROJECT_MANAGER
@@ -279,14 +284,90 @@ pub async fn get_schaltwerk_core()
 
 pub async fn get_core_read()
 -> Result<OwnedRwLockReadGuard<schaltwerk::schaltwerk_core::SchaltwerkCore>, String> {
+    let call_id = uuid::Uuid::new_v4();
+    let start = std::time::Instant::now();
+    log::debug!("get_core_read start call_id={call_id}");
+
     let core = get_schaltwerk_core().await?;
-    Ok(Arc::clone(&core).read_owned().await)
+    let guard_wait = std::time::Instant::now();
+    match timeout(
+        std::time::Duration::from_secs(5),
+        Arc::clone(&core).read_owned(),
+    )
+    .await
+    {
+        Ok(guard) => {
+            let waited = guard_wait.elapsed().as_millis();
+
+            if waited > 200 {
+                log::warn!("get_core_read acquired call_id={call_id} wait={waited}ms");
+            } else {
+                log::debug!("get_core_read acquired call_id={call_id} wait={waited}ms");
+            }
+            log::debug!(
+                "get_core_read done call_id={call_id} total={}ms",
+                start.elapsed().as_millis()
+            );
+            Ok(guard)
+        }
+        Err(_) => {
+            if let Ok(guard) = LAST_CORE_WRITE.lock() {
+                if let Some((writer_id, since)) = *guard {
+                    log::error!(
+                        "get_core_read timed out (5s) call_id={call_id}; last write call_id={writer_id} alive_for={}ms",
+                        since.elapsed().as_millis()
+                    );
+                } else {
+                    log::error!(
+                        "get_core_read timed out (5s) call_id={call_id}; no recorded writer"
+                    );
+                }
+            } else {
+                log::error!(
+                    "get_core_read timed out (5s) call_id={call_id}; failed to inspect last writer"
+                );
+            }
+            Err("Timed out waiting for core read lock".to_string())
+        }
+    }
 }
 
 pub async fn get_core_write()
 -> Result<OwnedRwLockWriteGuard<schaltwerk::schaltwerk_core::SchaltwerkCore>, String> {
+    let call_id = uuid::Uuid::new_v4();
+    let start = std::time::Instant::now();
+    log::debug!("get_core_write start call_id={call_id}");
+
     let core = get_schaltwerk_core().await?;
-    Ok(Arc::clone(&core).write_owned().await)
+    let guard_wait = std::time::Instant::now();
+    match timeout(
+        std::time::Duration::from_secs(5),
+        Arc::clone(&core).write_owned(),
+    )
+    .await
+    {
+        Ok(guard) => {
+            let waited = guard_wait.elapsed().as_millis();
+            if let Ok(mut last) = LAST_CORE_WRITE.lock() {
+                *last = Some((call_id, std::time::Instant::now()));
+            }
+
+            if waited > 200 {
+                log::warn!("get_core_write acquired call_id={call_id} wait={waited}ms");
+            } else {
+                log::debug!("get_core_write acquired call_id={call_id} wait={waited}ms");
+            }
+            log::debug!(
+                "get_core_write done call_id={call_id} total={}ms",
+                start.elapsed().as_millis()
+            );
+            Ok(guard)
+        }
+        Err(_) => {
+            log::error!("get_core_write timed out (5s) call_id={call_id}");
+            Err("Timed out waiting for core write lock".to_string())
+        }
+    }
 }
 
 pub async fn get_file_watcher_manager()
