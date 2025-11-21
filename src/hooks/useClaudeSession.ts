@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import { TauriCommands } from '../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { logger } from '../utils/logger'
+import { DEFAULT_AGENT } from '../constants/agents'
 
 interface ClaudeSessionOptions {
     sessionName?: string
@@ -75,7 +76,7 @@ export function useClaudeSession() {
             return await invoke<string>(TauriCommands.SchaltwerkCoreGetAgentType)
         } catch (error) {
             logger.error('Failed to get agent type:', error)
-            return 'claude'
+            return DEFAULT_AGENT
         }
     }, [])
 
@@ -94,7 +95,7 @@ export function useClaudeSession() {
             return await invoke<string>(TauriCommands.SchaltwerkCoreGetOrchestratorAgentType)
         } catch (error) {
             logger.error('Failed to get orchestrator agent type:', error)
-            return 'claude'
+            return DEFAULT_AGENT
         }
     }, [])
 
