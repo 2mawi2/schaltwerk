@@ -1,4 +1,65 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@tauri-apps/api/core', () => ({
+    invoke: vi.fn(),
+}))
+
+const listeners: Record<string, (payload: unknown) => void> = {}
+
+vi.mock('../../common/eventSystem', () => ({
+    listenEvent: vi.fn(async (event: string, handler: (payload: unknown) => void) => {
+        listeners[event] = handler
+        return () => {
+            delete listeners[event]
+        }
+    }),
+    SchaltEvent: {
+        SessionsRefreshed: 'schaltwerk:sessions-refreshed',
+        SessionGitStats: 'schaltwerk:session-git-stats',
+        SessionAdded: 'schaltwerk:session-added',
+        GitOperationStarted: 'schaltwerk:git-operation-started',
+        GitOperationCompleted: 'schaltwerk:git-operation-completed',
+        GitOperationFailed: 'schaltwerk:git-operation-failed',
+    },
+}))
+
+vi.mock('../../common/agentSpawn', () => ({
+    startSessionTop: vi.fn().mockResolvedValue(undefined),
+    computeProjectOrchestratorId: vi.fn(() => 'orchestrator-test'),
+}))
+
+vi.mock('../../common/uiEvents', () => ({
+    hasBackgroundStart: vi.fn(() => false),
+    clearBackgroundStarts: vi.fn(),
+    emitUiEvent: vi.fn(),
+    UiEvent: {
+        PermissionError: 'permission-error',
+    },
+}))
+
+vi.mock('../../terminal/registry/terminalRegistry', () => ({
+  hasTerminalInstance: vi.fn(() => true),
+  acquireTerminalInstance: vi.fn(),
+  releaseTerminalInstance: vi.fn(),
+  removeTerminalInstance: vi.fn(),
+  releaseSessionTerminals: vi.fn(),
+}))
+
+vi.mock('../../utils/singleflight', () => ({
+    hasInflight: vi.fn(() => false),
+    singleflight: vi.fn(async (_key: string, fn: () => Promise<unknown>) => await fn()),
+    clearInflights: vi.fn(),
+}))
+
+vi.mock('../../utils/logger', () => ({
+    logger: {
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        debug: vi.fn(),
+    },
+}))
+
 import { createStore } from 'jotai'
 import { FilterMode } from '../../types/sessionFilters'
 import { SessionState, type EnrichedSession, type RawSession } from '../../types/session'
@@ -49,66 +110,6 @@ import { releaseSessionTerminals, hasTerminalInstance } from '../../terminal/reg
 import { startSessionTop } from '../../common/agentSpawn'
 import { singleflight as singleflightMock } from '../../utils/singleflight'
 import { stableSessionTerminalId } from '../../common/terminalIdentity'
-
-vi.mock('@tauri-apps/api/core', () => ({
-    invoke: vi.fn(),
-}))
-
-const listeners: Record<string, (payload: unknown) => void> = {}
-
-vi.mock('../../common/eventSystem', () => ({
-    listenEvent: vi.fn(async (event: string, handler: (payload: unknown) => void) => {
-        listeners[event] = handler
-        return () => {
-            delete listeners[event]
-        }
-    }),
-    SchaltEvent: {
-        SessionsRefreshed: 'schaltwerk:sessions-refreshed',
-        SessionGitStats: 'schaltwerk:session-git-stats',
-        SessionAdded: 'schaltwerk:session-added',
-        GitOperationStarted: 'schaltwerk:git-operation-started',
-        GitOperationCompleted: 'schaltwerk:git-operation-completed',
-        GitOperationFailed: 'schaltwerk:git-operation-failed',
-    },
-}))
-
-vi.mock('../../common/agentSpawn', () => ({
-    startSessionTop: vi.fn().mockResolvedValue(undefined),
-    computeProjectOrchestratorId: vi.fn(() => 'orchestrator-test'),
-}))
-
-vi.mock('../../common/uiEvents', () => ({
-    hasBackgroundStart: vi.fn(() => false),
-    clearBackgroundStarts: vi.fn(),
-    emitUiEvent: vi.fn(),
-    UiEvent: {
-        PermissionError: 'permission-error',
-    },
-}))
-
-vi.mock('../../terminal/registry/terminalRegistry', () => ({
-  hasTerminalInstance: vi.fn(),
-  acquireTerminalInstance: vi.fn(),
-  releaseTerminalInstance: vi.fn(),
-  removeTerminalInstance: vi.fn(),
-  releaseSessionTerminals: vi.fn(),
-}))
-
-vi.mock('../../utils/singleflight', () => ({
-    hasInflight: vi.fn(() => false),
-    singleflight: vi.fn(async (_key: string, fn: () => Promise<unknown>) => await fn()),
-    clearInflights: vi.fn(),
-}))
-
-vi.mock('../../utils/logger', () => ({
-    logger: {
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-        debug: vi.fn(),
-    },
-}))
 
 const createSession = (overrides: Partial<EnrichedSession['info']>): EnrichedSession => ({
     info: {
@@ -174,6 +175,7 @@ describe('sessions atoms', () => {
     beforeEach(() => {
         store = createStore()
         vi.clearAllMocks()
+        vi.mocked(hasTerminalInstance).mockReset()
         vi.mocked(hasTerminalInstance).mockReturnValue(true)
         Object.keys(listeners).forEach(key => delete listeners[key])
         __resetSessionsTestingState()
@@ -370,6 +372,47 @@ describe('sessions atoms', () => {
         expect(startSessionTop).toHaveBeenCalledWith(expect.objectContaining({ sessionName: 'auto-run' }))
     })
 
+    it('suppresses hydration auto-start when backend terminal already exists and UI terminal is not yet created', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+        store.set(projectPathAtom, '/project')
+
+        const sessionId = 'hydration-run'
+        const runningSession = createSession({ session_id: sessionId, status: 'active', session_state: 'running' })
+        const topId = stableSessionTerminalId(sessionId, 'top')
+
+        // First refresh (hydration): backend terminal exists, UI terminal not mounted yet
+        vi.mocked(hasTerminalInstance)
+            .mockImplementationOnce(() => false)
+            .mockImplementation(() => true)
+
+        let terminalExistsCalls = 0
+        vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
+                return [runningSession]
+            }
+            if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) {
+                return []
+            }
+            if (cmd === TauriCommands.TerminalExists) {
+                terminalExistsCalls += 1
+                const payload = args as { id?: string }
+                if (terminalExistsCalls === 1 && payload?.id === topId) {
+                    return true
+                }
+                return false
+            }
+            return undefined
+        })
+
+        await store.set(refreshSessionsActionAtom) // hydration pass; should mark suppressed auto-start
+
+        await store.set(refreshSessionsActionAtom) // second pass; should not start agent despite terminal missing
+        await Promise.resolve()
+        await Promise.resolve()
+
+        expect(startSessionTop).not.toHaveBeenCalled()
+    })
+
     it('manages merge dialog lifecycle', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
         vi.mocked(invoke).mockImplementation(async (cmd, args) => {
@@ -556,6 +599,9 @@ describe('sessions atoms', () => {
         const session = createSession({ session_id: 'beta', session_state: SessionState.Running, status: 'active' })
         const topId = stableSessionTerminalId(session.info.session_id, 'top')
 
+        vi.mocked(hasTerminalInstance).mockClear()
+        vi.mocked(hasTerminalInstance).mockImplementation(() => true)
+
         vi.mocked(invoke).mockImplementation(async (cmd, args) => {
             if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
                 return [session]
@@ -572,13 +618,23 @@ describe('sessions atoms', () => {
 
         await store.set(refreshSessionsActionAtom)
 
-        await Promise.resolve()
-        expect(invoke).toHaveBeenCalledWith(TauriCommands.TerminalExists, { id: topId })
-        expect(startSessionTop).toHaveBeenCalledWith({
-            sessionName: session.info.session_id,
-            topId,
-            projectOrchestratorId: 'orchestrator-test',
-            agentType: undefined,
+        expect(store.get(allSessionsAtom).length).toBe(1)
+
+        await vi.waitFor(() => {
+            expect(invoke).toHaveBeenCalledWith(TauriCommands.TerminalExists, { id: topId })
+        })
+
+        await vi.waitFor(() => {
+            expect(hasTerminalInstance).toHaveBeenCalled()
+        })
+
+        await vi.waitFor(() => {
+            expect(startSessionTop).toHaveBeenCalledWith({
+                sessionName: session.info.session_id,
+                topId,
+                projectOrchestratorId: 'orchestrator-test',
+                agentType: undefined,
+            })
         })
     })
 

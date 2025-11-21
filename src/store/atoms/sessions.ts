@@ -395,11 +395,52 @@ function autoStartRunningSessions(
         }
 
         if (previousState === undefined && nextState === SessionState.Running) {
-            logger.warn(`[AGENT_LAUNCH_TRACE] autoStartRunningSessions - session ${sessionId} not in previousStates but is Running; checking inflights`)
-            if (hasBackgroundStart(topId) || hasInflight(topId)) {
-                logger.info(`[AGENT_LAUNCH_TRACE] autoStartRunningSessions - skipping ${sessionId}; has background/inflight mark (avoiding duplicate start)`)
-                continue
-            }
+            void (async () => {
+                try {
+                    const exists = await invoke<boolean>(TauriCommands.TerminalExists, { id: topId })
+                    if (exists) {
+                        logger.debug(
+                            `[AGENT_LAUNCH_TRACE] autoStartRunningSessions - hydration skip for ${sessionId}: backend terminal already exists`
+                        )
+                        suppressedAutoStart.add(sessionId)
+                        return
+                    }
+
+                    if (hasBackgroundStart(topId) || hasInflight(topId)) {
+                        logger.info(
+                            `[AGENT_LAUNCH_TRACE] autoStartRunningSessions - skipping ${sessionId}; background mark or inflight present (hydration ${reason})`
+                        )
+                        return
+                    }
+
+                    if (!hasTerminalInstance(topId)) {
+                        logger.debug(
+                            `[SessionsAtoms] Skipping hydration auto-start for ${sessionId}: terminal not created (lazy)`
+                        )
+                        return
+                    }
+
+                    logger.info(
+                        `[AGENT_LAUNCH_TRACE] autoStartRunningSessions - will auto-start ${sessionId} (hydration reason: ${reason})`
+                    )
+
+                    const projectOrchestratorId = computeProjectOrchestratorId(projectPath ?? null)
+                    const agentType = session.info.original_agent_type ?? undefined
+                    await startSessionTop({ sessionName: sessionId, topId, projectOrchestratorId, agentType })
+                    logger.info(`[SessionsAtoms] Started agent for ${sessionId} (${reason}).`)
+                } catch (error) {
+                    const message = getErrorMessage(error)
+                    if (message.includes('Permission required for folder:')) {
+                        emitUiEvent(UiEvent.PermissionError, { error: message })
+                    } else {
+                        logger.warn(
+                            `[SessionsAtoms] Auto-start failed for ${sessionId} during hydration (${reason}):`,
+                            error
+                        )
+                    }
+                }
+            })()
+            continue
         }
 
         if (hasBackgroundStart(topId) || hasInflight(topId)) {
