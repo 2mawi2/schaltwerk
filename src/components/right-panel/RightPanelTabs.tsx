@@ -28,6 +28,8 @@ import { projectPathAtom } from '../../store/atoms/project'
 import { WebPreviewPanel } from './WebPreviewPanel'
 import { buildPreviewKey } from '../../store/atoms/preview'
 import { SPLIT_GUTTER_SIZE } from '../../common/splitLayout'
+import { invoke } from '@tauri-apps/api/core'
+import { TauriCommands } from '../../common/tauriCommands'
 
 interface RightPanelTabsProps {
   onOpenHistoryDiff?: (payload: { repoPath: string; commit: HistoryItem; files: CommitFileChange[]; initialFilePath?: string | null }) => void
@@ -49,6 +51,7 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
   const platform = useMemo(() => detectPlatformSafe(), [])
   const [changesPanelMode, setChangesPanelMode] = useState<'list' | 'review'>('list')
   const [activeChangesFile, setActiveChangesFile] = useState<string | null>(null)
+  const [inlineDiffDefault, setInlineDiffDefault] = useState<boolean | null>(null)
 
   const specModeHook = useSpecMode({
     projectPath,
@@ -110,6 +113,21 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
       tabSelectionCacheRef.current.delete(selectionKey)
     }
   }, [selectionKey])
+
+  useEffect(() => {
+    let cancelled = false
+    const loadPrefs = async () => {
+      try {
+        const prefs = await invoke<{ inline_sidebar_default?: boolean }>(TauriCommands.GetDiffViewPreferences)
+        if (cancelled) return
+        setInlineDiffDefault(prefs.inline_sidebar_default ?? true)
+      } catch (error) {
+        logger.error('[RightPanelTabs] Failed to load diff view preferences:', error)
+      }
+    }
+    void loadPrefs()
+    return () => { cancelled = true }
+  }, [])
 
     // Drag handlers for internal split
     const internalSplitActiveRef = useRef(false)
@@ -355,10 +373,18 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
   const handleOpenDiff = useCallback((filePath?: string | null) => {
     if (filePath) {
       emitUiEvent(UiEvent.OpenDiffFile, { filePath })
-    } else {
-      emitUiEvent(UiEvent.OpenDiffView)
+      return
     }
-  }, [])
+
+    // When inline diffs are preferred, jump into inline review instead of modal
+    if (inlineDiffDefault ?? true) {
+      setUserSelectedTab('changes')
+      setChangesPanelMode('review')
+      return
+    }
+
+    emitUiEvent(UiEvent.OpenDiffView)
+  }, [inlineDiffDefault, setChangesPanelMode, setUserSelectedTab])
 
   // Note: removed Cmd+D toggle to reserve shortcut for New Spec
 
@@ -414,6 +440,7 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
               sessionNameOverride={effectiveSelection.kind === 'session' ? (effectiveSelection.payload as string) : undefined}
               isCommander={effectiveSelection.kind === 'orchestrator'}
               onOpenDiff={handleOpenDiff}
+              onInlinePreferenceChange={setInlineDiffDefault}
             />
           ) : (
             <Split
@@ -436,6 +463,7 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
                   sessionNameOverride={effectiveSelection.kind === 'session' ? (effectiveSelection.payload as string) : undefined}
                   isCommander={effectiveSelection.kind === 'orchestrator'}
                   onOpenDiff={handleOpenDiff}
+                  onInlinePreferenceChange={setInlineDiffDefault}
                 />
               </div>
               {/* Bottom: Spec content with copy bar */}
@@ -469,6 +497,7 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
                 sessionNameOverride={effectiveSelection.kind === 'session' ? (effectiveSelection.payload as string) : undefined}
                 isCommander={effectiveSelection.kind === 'orchestrator'}
                 onOpenDiff={handleOpenDiff}
+                onInlinePreferenceChange={setInlineDiffDefault}
               />
             ) : activeTab === 'info' ? (
               effectiveSelection.kind === 'session' && effectiveIsSpec ? (
@@ -526,6 +555,7 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
                   sessionNameOverride={undefined}
                   isCommander={true}
                   onOpenDiff={handleOpenDiff}
+                  onInlinePreferenceChange={setInlineDiffDefault}
                 />
               )
             )}
