@@ -2,10 +2,10 @@ use crate::{
     domains::git::db_git_stats::GitStatsMethods,
     domains::git::service as git,
     domains::sessions::db_sessions::SessionMethods,
-    domains::sessions::entity::{GitStats, Session, SessionState, SessionStatus},
-    infrastructure::database::{AppConfigMethods, Database, ProjectConfigMethods},
+    domains::sessions::entity::{GitStats, Session, SessionState, SessionStatus, Spec},
+    infrastructure::database::{AppConfigMethods, Database, ProjectConfigMethods, SpecMethods},
 };
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, Context};
 use chrono::Utc;
 use git2::Repository;
 use log::{debug, warn};
@@ -163,6 +163,35 @@ impl SessionDbManager {
             .collect())
     }
 
+    pub fn list_specs(&self) -> Result<Vec<Spec>> {
+        self.db
+            .list_specs(&self.repo_path)
+            .map_err(|e| anyhow!("Failed to list specs: {e}"))
+    }
+
+    pub fn get_spec_by_name(&self, name: &str) -> Result<Spec> {
+        self.db
+            .get_spec_by_name(&self.repo_path, name)
+            .map_err(|e| anyhow!("Failed to get spec '{name}': {e}"))
+    }
+
+    pub fn create_spec(&self, spec: &Spec) -> Result<()> {
+        self.db
+            .create_spec(spec)
+            .map_err(|e| anyhow!("Failed to create spec '{}': {e}", spec.name))
+    }
+
+    pub fn update_spec_content_by_id(&self, id: &str, content: &str) -> Result<()> {
+        SpecMethods::update_spec_content(&self.db, id, content)
+            .map_err(|e| anyhow!("Failed to update spec content: {e}"))
+    }
+
+    pub fn delete_spec(&self, id: &str) -> Result<()> {
+        self.db
+            .delete_spec(id)
+            .map_err(|e| anyhow!("Failed to delete spec: {e}"))
+    }
+
     pub fn update_session_status(&self, session_id: &str, status: SessionStatus) -> Result<()> {
         self.db
             .update_session_status(session_id, status)
@@ -197,21 +226,29 @@ impl SessionDbManager {
     }
 
     pub fn update_spec_content(&self, session_id: &str, content: &str) -> Result<()> {
-        self.db
-            .update_spec_content(session_id, content)
-            .map_err(|e| anyhow!("Failed to update spec content: {e}"))?;
+        let spec = self
+            .db
+            .get_spec_by_id(session_id)
+            .context("Spec not found while updating content")?;
 
-        if let Ok(session) = self.db.get_session_by_id(session_id) {
-            crate::domains::sessions::cache::invalidate_spec_content(
-                &self.repo_path,
-                &session.name,
-            );
-        }
-
+        self.update_spec_content_by_id(&spec.id, content)?;
+        crate::domains::sessions::cache::invalidate_spec_content(&self.repo_path, &spec.name);
         Ok(())
     }
 
     pub fn append_spec_content(&self, session_id: &str, content: &str) -> Result<()> {
+        // Specs: replace with append semantics on specs table
+        if let Ok(spec) = self.db.get_spec_by_id(session_id) {
+            let combined = if spec.content.is_empty() {
+                content.to_string()
+            } else {
+                format!("{}\n{}", spec.content, content)
+            };
+            self.update_spec_content_by_id(&spec.id, &combined)?;
+            crate::domains::sessions::cache::invalidate_spec_content(&self.repo_path, &spec.name);
+            return Ok(());
+        }
+
         self.db
             .append_spec_content(session_id, content)
             .map_err(|e| anyhow!("Failed to append spec content: {e}"))?;
@@ -246,6 +283,17 @@ impl SessionDbManager {
                         matches!(sql_error, rusqlite::Error::QueryReturnedNoRows)
                     })
                 {
+                    // Try the specs table as a fallback
+                    if let Ok(spec) = self.db.get_spec_by_name(&self.repo_path, name) {
+                        let result = (Some(spec.content.clone()), None, SessionState::Spec);
+                        crate::domains::sessions::cache::cache_spec_content(
+                            &self.repo_path,
+                            name,
+                            (Some(spec.content), None),
+                        );
+                        return Ok((result.0.clone(), result.1.clone()));
+                    }
+
                     warn!(
                         "Spec content requested for missing session '{name}', returning empty payload"
                     );
@@ -457,7 +505,11 @@ impl SessionDbManager {
     }
 
     pub fn session_exists(&self, name: &str) -> bool {
-        self.get_session_by_name(name).is_ok()
+        if self.get_session_by_name(name).is_ok() {
+            return true;
+        }
+
+        self.get_spec_by_name(name).is_ok()
     }
 }
 

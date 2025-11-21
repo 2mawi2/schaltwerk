@@ -188,27 +188,34 @@ export async function startOrchestratorTop(params: {
 }) {
   const { terminalId, measured } = params
   if (hasInflight(terminalId)) return
-  markBackgroundStart(terminalId)
-  try {
-    const { cols, rows } = computeSpawnSize({ topId: terminalId, measured })
-    const agentType = 'claude'
-    const timeoutMs = determineStartTimeoutMs(agentType)
-    await singleflight(terminalId, async () => {
-      const lifecycleBase = { terminalId, agentType }
-      const startPromise = invoke(TauriCommands.SchaltwerkCoreStartClaudeOrchestrator, { terminalId, cols, rows })
-      const spawnedAt = Date.now()
-      recordAgentLifecycle({ ...lifecycleBase, state: 'spawned', whenMs: spawnedAt })
-      emitUiEvent(UiEvent.AgentLifecycle, { ...lifecycleBase, state: 'spawned', occurredAtMs: spawnedAt })
 
+  // Orchestrator always runs Claude today; keep agentType aligned with backend expectations/metrics
+  const agentType = 'claude'
+  const lifecycleBase = { terminalId, agentType }
+  const { cols, rows } = computeSpawnSize({ topId: terminalId, measured })
+  const timeoutMs = determineStartTimeoutMs(agentType)
+  const command = TauriCommands.SchaltwerkCoreStartClaudeOrchestrator
+
+  markBackgroundStart(terminalId)
+  const spawnedAt = Date.now()
+  recordAgentLifecycle({ ...lifecycleBase, state: 'spawned', whenMs: spawnedAt })
+  emitUiEvent(UiEvent.AgentLifecycle, { ...lifecycleBase, state: 'spawned', occurredAtMs: spawnedAt })
+  logger.info(
+    `[AGENT_LAUNCH_TRACE] orchestrator start requested terminalId=${terminalId}, cols=${cols}, rows=${rows}`
+  )
+
+  try {
+    await singleflight(terminalId, async () => {
       try {
         await withAgentStartTimeout(
-          startPromise,
+          invoke(command, { terminalId, cols, rows }),
           timeoutMs,
-          { id: terminalId, command: TauriCommands.SchaltwerkCoreStartClaudeOrchestrator }
+          { id: terminalId, command }
         )
         const readyAt = Date.now()
         recordAgentLifecycle({ ...lifecycleBase, state: 'ready', whenMs: readyAt })
         emitUiEvent(UiEvent.AgentLifecycle, { ...lifecycleBase, state: 'ready', occurredAtMs: readyAt })
+        logger.debug(`[AGENT_LAUNCH_TRACE] orchestrator start completed terminalId=${terminalId}`)
       } catch (error) {
         const failedAt = Date.now()
         const message = getErrorMessage(error)
@@ -219,6 +226,7 @@ export async function startOrchestratorTop(params: {
           occurredAtMs: failedAt,
           reason: message,
         })
+        logger.warn(`[AGENT_LAUNCH_TRACE] Orchestrator start failed: ${message}`)
         throw error
       }
     })
@@ -226,7 +234,10 @@ export async function startOrchestratorTop(params: {
     try {
       clearBackgroundStarts([terminalId])
     } catch (cleanupErr) {
-      logger.debug(`[agentSpawn] Failed to clear background starts during error cleanup for ${terminalId}`, cleanupErr)
+      logger.debug(
+        `[agentSpawn] Failed to clear background starts during orchestrator error cleanup for ${terminalId}`,
+        cleanupErr
+      )
     }
     throw e
   }

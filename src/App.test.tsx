@@ -4,6 +4,7 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { vi, type MockedFunction } from 'vitest'
 import { UiEvent, emitUiEvent } from './common/uiEvents'
 import { SchaltEvent } from './common/eventSystem'
+import type { RawSession } from './types/session'
 
 const listenEventHandlers = vi.hoisted(
   () => [] as Array<{ event: unknown; handler: (detail: unknown) => void }>
@@ -165,6 +166,28 @@ const mockState = {
   defaultBranch: 'main',
 }
 
+function buildRawSession(name: string, overrides: Partial<RawSession> = {}): RawSession {
+  const timestamp = new Date().toISOString()
+  return {
+    id: `${name}-id`,
+    name,
+    display_name: name,
+    repository_path: '/tmp/repo',
+    repository_name: 'sample-project',
+    branch: `schaltwerk/${name}`,
+    parent_branch: 'main',
+    worktree_path: `/tmp/worktrees/${name}`,
+    status: 'active',
+    created_at: timestamp,
+    updated_at: timestamp,
+    ready_to_merge: false,
+    pending_name_generation: false,
+    was_auto_generated: false,
+    session_state: 'running',
+    ...overrides,
+  }
+}
+
 async function defaultInvokeImpl(cmd: string, _args?: unknown) {
   switch (cmd) {
     case TauriCommands.GetCurrentDirectory:
@@ -180,10 +203,17 @@ async function defaultInvokeImpl(cmd: string, _args?: unknown) {
       return null
     case TauriCommands.SchaltwerkCoreGetSession:
       return { worktree_path: '/tmp/worktrees/abc' }
+    case TauriCommands.SchaltwerkCoreGetSpec:
+      return { name: 'draft', content: '# spec content', parent_branch: 'main' }
     case TauriCommands.GetProjectActionButtons:
       return []
     case TauriCommands.GetAllAgentBinaryConfigs:
       return []
+    case TauriCommands.SchaltwerkCoreStartSpecSession:
+    case TauriCommands.SchaltwerkCoreCreateAndStartSpecSession: {
+      const name = getNameArgOrDefault(_args, 'draft')
+      return buildRawSession(name)
+    }
     case TauriCommands.InitializeProject:
     case TauriCommands.AddRecentProject:
     case TauriCommands.SchaltwerkCoreCreateSession:
@@ -198,6 +228,16 @@ async function defaultInvokeImpl(cmd: string, _args?: unknown) {
 }
 
 type InvokeMock = MockedFunction<(cmd: string, args?: Record<string, unknown>) => Promise<unknown>>
+
+function getNameArgOrDefault(args: unknown, fallback: string): string {
+  if (typeof args === 'object' && args && 'name' in (args as Record<string, unknown>)) {
+    const val = (args as Record<string, unknown>).name
+    if (val !== undefined && val !== null) {
+      return String(val)
+    }
+  }
+  return fallback
+}
 
 async function getInvokeMock(): Promise<InvokeMock> {
   const { invoke } = await import('@tauri-apps/api/core')
@@ -997,10 +1037,10 @@ describe('validatePanelPercentage', () => {
         return [specSession]
       }
       if (cmd === TauriCommands.SchaltwerkCoreStartSpecSession) {
-        return null
+        return buildRawSession(args?.name as string ?? 'draft-one')
       }
       if (cmd === TauriCommands.SchaltwerkCoreCreateAndStartSpecSession) {
-        return null
+        return buildRawSession(args?.name as string ?? 'draft-one_v2')
       }
       if (cmd === TauriCommands.SchaltwerkCoreUpdateSpecContent) {
         return null

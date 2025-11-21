@@ -27,7 +27,8 @@ export enum SchaltEvent {
   GitHubStatusChanged = 'schaltwerk:github-status-changed',
   AppUpdateResult = 'schaltwerk:app-update-result',
   DevBackendError = 'schaltwerk:dev-backend-error',
-  CloneProgress = 'schaltwerk:clone-progress'
+  CloneProgress = 'schaltwerk:clone-progress',
+  OrchestratorLaunchFailed = 'schaltwerk:orchestrator-launch-failed',
 }
 
 
@@ -144,6 +145,11 @@ export interface CloneProgressPayload {
   kind: CloneProgressKind
 }
 
+export interface OrchestratorLaunchFailedPayload {
+  terminal_id: string
+  error: string
+}
+
 import { EnrichedSession } from '../types/session'
 
 export interface SessionsRefreshedEventPayload {
@@ -199,4 +205,5 @@ export type EventPayloadMap = {
   [SchaltEvent.AppUpdateResult]: AppUpdateResultPayload
   [SchaltEvent.DevBackendError]: DevBackendErrorPayload
   [SchaltEvent.CloneProgress]: CloneProgressPayload
+  [SchaltEvent.OrchestratorLaunchFailed]: OrchestratorLaunchFailedPayload
 }

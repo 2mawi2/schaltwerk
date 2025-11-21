@@ -102,8 +102,9 @@ pub async fn close_project(path: String) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn get_project_default_branch() -> Result<String, String> {
+    let start = std::time::Instant::now();
     let manager = get_project_manager().await;
-    if let Ok(project) = manager.current_project().await {
+    let result = if let Ok(project) = manager.current_project().await {
         schaltwerk::domains::git::get_default_branch(&project.path)
             .map_err(|e| format!("Failed to get default branch: {e}"))
     } else {
@@ -111,13 +112,24 @@ pub async fn get_project_default_branch() -> Result<String, String> {
             std::env::current_dir().map_err(|e| format!("Failed to get current directory: {e}"))?;
         schaltwerk::domains::git::get_default_branch(&current_dir)
             .map_err(|e| format!("Failed to get default branch: {e}"))
+    };
+    let elapsed = start.elapsed().as_millis();
+    match &result {
+        Ok(branch) => log::info!(
+            "[BRANCHES] get_project_default_branch took {elapsed}ms -> {branch}"
+        ),
+        Err(err) => log::warn!(
+            "[BRANCHES] get_project_default_branch failed after {elapsed}ms: {err}"
+        ),
     }
+    result
 }
 
 #[tauri::command]
 pub async fn list_project_branches() -> Result<Vec<String>, String> {
+    let start = std::time::Instant::now();
     let manager = get_project_manager().await;
-    if let Ok(project) = manager.current_project().await {
+    let result = if let Ok(project) = manager.current_project().await {
         schaltwerk::domains::git::list_branches(&project.path)
             .map_err(|e| format!("Failed to list branches: {e}"))
     } else {
@@ -125,7 +137,18 @@ pub async fn list_project_branches() -> Result<Vec<String>, String> {
             std::env::current_dir().map_err(|e| format!("Failed to get current directory: {e}"))?;
         schaltwerk::domains::git::list_branches(&current_dir)
             .map_err(|e| format!("Failed to list branches: {e}"))
+    };
+    let elapsed = start.elapsed().as_millis();
+    match &result {
+        Ok(list) => log::info!(
+            "[BRANCHES] list_project_branches took {elapsed}ms (count={})",
+            list.len()
+        ),
+        Err(err) => log::warn!(
+            "[BRANCHES] list_project_branches failed after {elapsed}ms: {err}"
+        ),
     }
+    result
 }
 
 #[tauri::command]

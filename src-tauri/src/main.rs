@@ -1061,6 +1061,7 @@ fn main() {
             schaltwerk_core_list_enriched_sessions,
             schaltwerk_core_list_enriched_sessions_sorted,
             schaltwerk_core_get_session,
+            schaltwerk_core_get_spec,
             schaltwerk_core_get_session_agent_content,
             schaltwerk_core_cancel_session,
             schaltwerk_core_convert_session_to_draft,

@@ -727,41 +727,55 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         }
     }, [terminalId])
 
-     // Listen for unified agent-start events to prevent double-starting
-     useEffect(() => {
-         let unlistenAgentStarted: UnlistenFn | null = null;
+    // Listen for unified agent-start events to prevent double-starting
+    useEffect(() => {
+        let unlistenAgentStarted: UnlistenFn | null = null;
+        // Dedup duplicate start events that arrive back-to-back, but still allow later restarts
+        // Map stores last-handled timestamp per terminal id; entries naturally expire by time window
+        const handledStarts = new Map<string, number>();
+        const DEDUP_WINDOW_MS = 1_000;
 
-         const setupListener = async () => {
-             try {
-                 unlistenAgentStarted = await listenEvent(SchaltEvent.TerminalAgentStarted, (payload) => {
-                     logger.debug(`[Terminal] Received terminal-agent-started event for ${payload.terminal_id}`);
+        const setupListener = async () => {
+            try {
+                unlistenAgentStarted = await listenEvent(SchaltEvent.TerminalAgentStarted, (payload) => {
+                    const id = payload?.terminal_id;
+                    if (!id) return;
+                    const now = Date.now();
+                    const lastHandled = handledStarts.get(id);
+                    if (lastHandled && now - lastHandled < DEDUP_WINDOW_MS) {
+                        return;
+                    }
+                    handledStarts.set(id, now);
 
-                     startedGlobal.add(payload.terminal_id);
+                    logger.debug(`[Terminal] Received terminal-agent-started event for ${id}`);
 
-                     if (payload?.terminal_id === terminalId) {
-                         sessionStorage.removeItem(`schaltwerk:agent-stopped:${terminalId}`);
-                         setAgentStopped(false);
-                         terminalEverStartedRef.current = true;
-                         setRestartInFlight(false);
-                     }
-                 });
-             } catch (e) {
-                 logger.error('[Terminal] Failed to set up terminal-agent-started listener:', e);
-             }
-         };
+                    startedGlobal.add(id);
 
-         void setupListener();
+                    if (id === terminalId) {
+                        sessionStorage.removeItem(`schaltwerk:agent-stopped:${terminalId}`);
+                        setAgentStopped(false);
+                        terminalEverStartedRef.current = true;
+                        setRestartInFlight(false);
+                    }
+                });
+            } catch (e) {
+                logger.error('[Terminal] Failed to set up terminal-agent-started listener:', e);
+            }
+        };
 
-         return () => {
-             if (unlistenAgentStarted) {
-                 try {
-                     unlistenAgentStarted();
-                 } catch (error) {
-                     logger.warn(`[Terminal ${terminalId}] Failed to remove terminal-agent-started listener`, error);
-                 }
-             }
-         };
-      }, [terminalId]);
+        void setupListener();
+
+        return () => {
+            handledStarts.clear();
+            if (unlistenAgentStarted) {
+                try {
+                    unlistenAgentStarted();
+                } catch (error) {
+                    logger.warn(`[Terminal ${terminalId}] Failed to remove terminal-agent-started listener`, error);
+                }
+            }
+        };
+    }, [terminalId]);
 
       // Listen for TerminalClosed events to detect when agent terminals are killed
       useEffect(() => {

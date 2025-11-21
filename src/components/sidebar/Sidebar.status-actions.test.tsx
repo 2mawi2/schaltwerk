@@ -269,7 +269,7 @@ describe('Sidebar status indicators and actions', () => {
       if (cmd === TauriCommands.SchaltwerkCoreConvertSessionToDraft) {
         currentSessionState = 'spec'
         hasUncommitted = false
-        serveStaleSnapshot = true // First reload returns stale data to emulate backend cache
+        serveStaleSnapshot = false
         return 's1-spec'
       }
       if (cmd === TauriCommands.GetCurrentDirectory) return '/cwd'

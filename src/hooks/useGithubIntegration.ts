@@ -51,24 +51,15 @@ export function useGithubIntegration(): GithubIntegrationValue {
   const [lastPrUrls, setLastPrUrls] = useState<Record<string, string>>({})
   const unlistenRef = useRef<(() => void) | null>(null)
   const projectPath = useAtomValue(projectPathAtom)
-  const lastInitializedPathRef = useRef<string | null>(null)
 
   const ensureActiveProjectInitialized = useCallback(async () => {
     if (!projectPath) return
-
-    if (lastInitializedPathRef.current === projectPath) {
-      logger.debug('[useGithubIntegration] Skipping InitializeProject; already initialized', {
-        projectPath,
-      })
-      return
-    }
 
     logger.info('[useGithubIntegration] Ensuring project initialized for GitHub sync', {
       projectPath,
     })
     try {
       await invoke(TauriCommands.InitializeProject, { path: projectPath })
-      lastInitializedPathRef.current = projectPath
     } catch (error) {
       logger.warn('[useGithubIntegration] Failed to refresh active project before GitHub sync', error)
     }
