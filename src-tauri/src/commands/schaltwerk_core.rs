@@ -1631,117 +1631,107 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
     drop(core);
     log::info!("[AGENT_LAUNCH_TRACE] Dropped core read lock for {terminal_id}");
 
-    let app_handle = app.clone();
-    let terminal_id_clone = terminal_id.clone();
-    let repo_path_clone = repo_path.clone();
+    let launch_result = agent_launcher::launch_in_terminal(
+        terminal_id.clone(),
+        command_spec,
+        &db,
+        repo_path.as_path(),
+        cols,
+        rows,
+        true,
+    )
+    .await;
 
-    tauri::async_runtime::spawn(async move {
-        log::info!(
-            "[AGENT_LAUNCH_TRACE] (background) Calling launch_in_terminal for {terminal_id_clone}"
-        );
-        match agent_launcher::launch_in_terminal(
-            terminal_id_clone.clone(),
-            command_spec,
-            &db,
-            &repo_path,
-            cols,
-            rows,
-            true,
-        )
-        .await
-        {
-            Ok(_) => {
-                let alive = if let Ok(mgr) = get_terminal_manager().await {
-                    match mgr.is_process_alive(&terminal_id_clone).await {
-                        Ok(v) => v,
-                        Err(e) => {
-                            log::warn!(
-                                "[AGENT_LAUNCH_TRACE] is_process_alive failed for {terminal_id_clone}: {e}; assuming alive"
-                            );
-                            true
-                        }
-                    }
-                } else {
-                    true
-                };
-
-                if !alive {
-                    log::warn!(
-                        "Orchestrator process for {terminal_id_clone} exited immediately after launch"
-                    );
-                    #[derive(serde::Serialize, Clone)]
-                    struct OrchestratorLaunchFailedPayload<'a> {
-                        terminal_id: &'a str,
-                        error: &'a str,
-                    }
-                    let _ = emit_event(
-                        &app_handle,
-                        SchaltEvent::OrchestratorLaunchFailed,
-                        &OrchestratorLaunchFailedPayload {
-                            terminal_id: &terminal_id_clone,
-                            error: "Orchestrator process exited immediately after launch",
-                        },
-                    );
-                    if let Ok(manager) = get_terminal_manager().await
-                        && let Err(close_err) =
-                            manager.close_terminal(terminal_id_clone.clone()).await
-                    {
+    match launch_result {
+        Ok(_) => {
+            let alive = if let Ok(mgr) = get_terminal_manager().await {
+                match mgr.is_process_alive(&terminal_id).await {
+                    Ok(v) => v,
+                    Err(e) => {
                         log::warn!(
-                            "[AGENT_LAUNCH_TRACE] Failed to close terminal {terminal_id_clone} after early exit: {close_err}"
+                            "[AGENT_LAUNCH_TRACE] is_process_alive failed for {terminal_id}: {e}; assuming alive"
                         );
+                        true
                     }
-                    return;
                 }
+            } else {
+                true
+            };
 
-                emit_terminal_agent_started(&app_handle, &terminal_id_clone, None);
-
-                let base_branch = configured_default_branch.unwrap_or_else(|| {
-                    repository::get_default_branch(repo_path_clone.as_path())
-                        .unwrap_or_else(|_| "main".to_string())
-                });
-
-                if let Ok(manager) = get_file_watcher_manager().await
-                    && let Err(err) = manager
-                        .start_watching_orchestrator(repo_path_clone.clone(), base_branch.clone())
-                        .await
-                {
-                    log::warn!(
-                        "Failed to start orchestrator file watcher for {} on branch {}: {err}",
-                        repo_path_clone.display(),
-                        base_branch
-                    );
-                }
-            }
-            Err(err) => {
-                log::error!(
-                    "[AGENT_LAUNCH_TRACE] Orchestrator launch failed for {terminal_id_clone}: {err}"
-                );
+            if !alive {
+                let message = "Orchestrator process exited immediately after launch".to_string();
+                log::warn!("{message} for {terminal_id}");
                 #[derive(serde::Serialize, Clone)]
                 struct OrchestratorLaunchFailedPayload<'a> {
                     terminal_id: &'a str,
                     error: &'a str,
                 }
                 let _ = emit_event(
-                    &app_handle,
+                    &app,
                     SchaltEvent::OrchestratorLaunchFailed,
                     &OrchestratorLaunchFailedPayload {
-                        terminal_id: &terminal_id_clone,
-                        error: err.as_str(),
+                        terminal_id: &terminal_id,
+                        error: &message,
                     },
                 );
                 if let Ok(manager) = get_terminal_manager().await
-                    && let Err(close_err) =
-                        manager.close_terminal(terminal_id_clone.clone()).await
+                    && let Err(close_err) = manager.close_terminal(terminal_id.clone()).await
                 {
                     log::warn!(
-                        "[AGENT_LAUNCH_TRACE] Failed to close terminal {terminal_id_clone} after launch failure: {close_err}"
+                        "[AGENT_LAUNCH_TRACE] Failed to close terminal {terminal_id} after early exit: {close_err}"
                     );
                 }
+                return Err(message);
             }
-        }
-    });
 
-    Ok("orchestrator-started".to_string())
+            emit_terminal_agent_started(&app, &terminal_id, None);
+
+            let base_branch = configured_default_branch.unwrap_or_else(|| {
+                repository::get_default_branch(repo_path.as_path())
+                    .unwrap_or_else(|_| "main".to_string())
+            });
+
+            if let Ok(manager) = get_file_watcher_manager().await
+                && let Err(err) = manager
+                    .start_watching_orchestrator(repo_path.clone(), base_branch.clone())
+                    .await
+            {
+                log::warn!(
+                    "Failed to start orchestrator file watcher for {} on branch {}: {err}",
+                    repo_path.display(),
+                    base_branch
+                );
+            }
+
+            Ok("orchestrator-started".to_string())
+        }
+        Err(err) => {
+            log::error!(
+                "[AGENT_LAUNCH_TRACE] Orchestrator launch failed for {terminal_id}: {err}"
+            );
+            #[derive(serde::Serialize, Clone)]
+            struct OrchestratorLaunchFailedPayload<'a> {
+                terminal_id: &'a str,
+                error: &'a str,
+            }
+            let _ = emit_event(
+                &app,
+                SchaltEvent::OrchestratorLaunchFailed,
+                &OrchestratorLaunchFailedPayload {
+                    terminal_id: &terminal_id,
+                    error: err.as_str(),
+                },
+            );
+            if let Ok(manager) = get_terminal_manager().await
+                && let Err(close_err) = manager.close_terminal(terminal_id.clone()).await
+            {
+                log::warn!(
+                    "[AGENT_LAUNCH_TRACE] Failed to close terminal {terminal_id} after launch failure: {close_err}"
+                );
+            }
+            Err(err)
+        }
+    }
 }
 
 #[tauri::command]
@@ -2376,6 +2366,8 @@ pub async fn schaltwerk_core_start_fresh_orchestrator(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use schaltwerk::schaltwerk_core::Database;
+    use schaltwerk::services::AgentLaunchSpec;
 
     #[test]
     fn test_codex_flag_normalization_integration() {
@@ -2415,6 +2407,49 @@ mod tests {
         assert_eq!(sh_quote_string("a'b"), "'a'\\''b'");
         assert_eq!(sh_quote_string("a b"), "'a b'");
         assert!(sh_quote_string("--flag").starts_with("'--flag'"));
+    }
+
+    #[tokio::test]
+    async fn orchestrator_launch_propagates_errors() {
+        async fn run_with_stubbed_launch<L, Fut>(launch_fn: L) -> Result<String, String>
+        where
+            L: Fn(
+                String,
+                AgentLaunchSpec,
+                &Database,
+                &std::path::Path,
+                Option<u16>,
+                Option<u16>,
+                bool,
+            ) -> Fut,
+            Fut: std::future::Future<Output = Result<String, String>>,
+        {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let db_path = temp_dir.path().join("test.db");
+            let db = Database::new(Some(db_path)).unwrap();
+            let spec = AgentLaunchSpec::new(
+                "echo orchestrator".to_string(),
+                temp_dir.path().to_path_buf(),
+            );
+
+            launch_fn(
+                "orchestrator-terminal".to_string(),
+                spec,
+                &db,
+                temp_dir.path(),
+                None,
+                None,
+                true,
+            )
+            .await
+        }
+
+        let result = run_with_stubbed_launch(|_id, _spec, _db, _repo, _cols, _rows, _force_restart| async {
+            Err("launch failed".to_string())
+        })
+        .await;
+
+        assert_eq!(result.unwrap_err(), "launch failed".to_string());
     }
 }
 
