@@ -11,6 +11,7 @@
         "@tailwindcss/postcss": "^4.1.14",
         "@tauri-apps/api": "^2.9.0",
         "@tauri-apps/plugin-dialog": "^2.4.0",
+        "@tauri-apps/plugin-notification": "^2.3.3",
         "@tauri-apps/plugin-os": "^2.0.0",
         "@types/react": "^19.2.2",
         "@types/react-dom": "^19.2.1",
@@ -394,6 +395,8 @@
     "@tauri-apps/cli-win32-x64-msvc": ["@tauri-apps/cli-win32-x64-msvc@2.9.0", "", { "os": "win32", "cpu": "x64" }, "sha512-Ja2LCRGhEBV/FxRF3ofGGO8ZAVrZt5P0MKkAyJ2wQGRB7xcFoadmnkKwpF0uFOjT/6ygh4f/RV46cjo3pbZxyA=="],
 
     "@tauri-apps/plugin-dialog": ["@tauri-apps/plugin-dialog@2.4.0", "", { "dependencies": { "@tauri-apps/api": "^2.8.0" } }, "sha512-OvXkrEBfWwtd8tzVCEXIvRfNEX87qs2jv6SqmVPiHcJjBhSF/GUvjqUNIDmKByb5N8nvDqVUM7+g1sXwdC/S9w=="],
+
+    "@tauri-apps/plugin-notification": ["@tauri-apps/plugin-notification@2.3.3", "", { "dependencies": { "@tauri-apps/api": "^2.8.0" } }, "sha512-Zw+ZH18RJb41G4NrfHgIuofJiymusqN+q8fGUIIV7vyCH+5sSn5coqRv/MWB9qETsUs97vmU045q7OyseCV3Qg=="],
 
     "@tauri-apps/plugin-os": ["@tauri-apps/plugin-os@2.3.1", "", { "dependencies": { "@tauri-apps/api": "^2.8.0" } }, "sha512-ty5V8XDUIFbSnrk3zsFoP3kzN+vAufYzalJSlmrVhQTImIZa1aL1a03bOaP2vuBvfR+WDRC6NgV2xBl8G07d+w=="],
 

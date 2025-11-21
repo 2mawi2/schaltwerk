@@ -12,6 +12,8 @@
     "core:window:allow-maximize",
     "core:window:allow-unmaximize",
     "core:window:allow-close",
+    "notification:allow-is-permission-granted",
+    "notification:allow-request-permission",
     "dialog:default",
     "dialog:allow-open"
   ]
