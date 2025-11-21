@@ -28,6 +28,7 @@ interface SimpleDiffPanelProps {
   sessionNameOverride?: string
   isCommander?: boolean
   onOpenDiff?: (filePath?: string | null) => void
+  onInlinePreferenceChange?: (value: boolean) => void
 }
 
 export function SimpleDiffPanel({
@@ -37,7 +38,8 @@ export function SimpleDiffPanel({
   onActiveFileChange,
   sessionNameOverride,
   isCommander,
-  onOpenDiff
+  onOpenDiff,
+  onInlinePreferenceChange
 }: SimpleDiffPanelProps) {
   const [hasFiles, setHasFiles] = useState(true)
   const [preferInline, setPreferInline] = useState(true)
@@ -77,7 +79,9 @@ export function SimpleDiffPanel({
         const prefs = await invoke<StoredDiffViewPreferences>(TauriCommands.GetDiffViewPreferences)
         if (!isMounted) return
         diffPreferencesRef.current = prefs
-        setPreferInline(prefs.inline_sidebar_default ?? true)
+        const inlineDefault = prefs.inline_sidebar_default ?? true
+        setPreferInline(inlineDefault)
+        onInlinePreferenceChange?.(inlineDefault)
       } catch (error) {
         logger.error('Failed to load diff view preferences for sidebar toggle:', error)
       }
@@ -109,8 +113,9 @@ export function SimpleDiffPanel({
 const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     const next = event.target.checked
     setPreferInline(next)
+    onInlinePreferenceChange?.(next)
     void persistInlinePreference(next)
-  }, [persistInlinePreference])
+  }, [onInlinePreferenceChange, persistInlinePreference])
 
   const handleFinishReview = useCallback(async () => {
     if (!currentReview || currentReview.comments.length === 0) return
@@ -152,11 +157,10 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
       }
 
       clearReview()
-      handleBackToList()
     } catch (error) {
       logger.error('Failed to send review to terminal from sidebar:', error)
     }
-  }, [clearReview, currentReview, formatReviewForPrompt, handleBackToList, selection, sessions, setCurrentFocus, setFocusForSession, setSelection, terminals])
+  }, [clearReview, currentReview, formatReviewForPrompt, selection, sessions, setCurrentFocus, setFocusForSession, setSelection, terminals])
 
   const handleCancelReview = useCallback(() => {
     clearReview()
