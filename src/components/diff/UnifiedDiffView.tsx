@@ -1161,7 +1161,7 @@ export function UnifiedDiffView({
   useEffect(() => {
     if (!isOpen || mode !== 'session') return
 
-    let unlisten: (() => void) | null = null
+    let unlisten: (() => void | Promise<void>) | null = null
 
     void listenEvent(SchaltEvent.FileChanges, (event) => {
       if (!shouldHandleFileChange(event.session_name, isCommanderView(), sessionName)) return
@@ -1174,8 +1174,8 @@ export function UnifiedDiffView({
       if (unlisten) {
         try {
           const maybePromise = unlisten()
-          if (maybePromise && typeof maybePromise === 'object' && 'then' in maybePromise) {
-            void (maybePromise as Promise<unknown>).catch(error => {
+          if (maybePromise instanceof Promise) {
+            void maybePromise.catch(error => {
               logger.warn('[UnifiedDiffView] Failed to detach FileChanges listener', error)
             })
           }
