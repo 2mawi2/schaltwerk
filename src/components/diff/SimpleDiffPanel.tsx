@@ -89,7 +89,7 @@ export function SimpleDiffPanel({
 
     void loadPreferences()
     return () => { isMounted = false }
-  }, [])
+  }, [onInlinePreferenceChange])
 
   const persistInlinePreference = useCallback(async (value: boolean) => {
     const current = diffPreferencesRef.current ?? {}

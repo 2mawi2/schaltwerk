@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createGuardedLoader } from './guardedLoader'
 
-const flushPromises = () => new Promise(resolve => queueMicrotask(resolve))
+const flushPromises = () => new Promise<void>(resolve => queueMicrotask(() => resolve()))
 
 describe('createGuardedLoader', () => {
   it('runs the loader immediately on first trigger', async () => {
