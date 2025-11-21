@@ -15,7 +15,7 @@ jobs:
 
     steps:
       - name: Checkout Homebrew tap
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           repository: 2mawi2/homebrew-tap
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
