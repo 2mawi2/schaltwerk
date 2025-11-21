@@ -106,6 +106,18 @@ pub struct Session {
     pub amp_thread_id: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Spec {
+    pub id: String,
+    pub name: String,
+    pub display_name: Option<String>,
+    pub repository_path: PathBuf,
+    pub repository_name: String,
+    pub content: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum SessionStatus {

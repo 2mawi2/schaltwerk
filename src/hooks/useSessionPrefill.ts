@@ -19,6 +19,11 @@ export interface SessionData {
   parent_branch?: string | null
 }
 
+interface SpecData {
+  name: string
+  content: string
+}
+
 /**
  * Extracts the session content from the session data
  * Prioritizes spec_content, then draft_content, then initial_prompt
@@ -42,9 +47,27 @@ export function useSessionPrefill() {
     setError(null)
 
     try {
-      const sessionData = await invoke<SessionData>(TauriCommands.SchaltwerkCoreGetSession, { name: sessionName })
-      logger.info('[useSessionPrefill] Raw session data:', sessionData)
-      
+      let sessionData: SessionData | null = null
+
+      const spec = await invoke<SpecData>(TauriCommands.SchaltwerkCoreGetSpec, { name: sessionName }).catch((err) => {
+        const msg = err instanceof Error ? err.message : String(err)
+        const notFound = msg.toLowerCase().includes('not found')
+        if (!notFound) {
+          logger.warn('[useSessionPrefill] Spec fetch failed (non-not-found)', err)
+        }
+        return null
+      })
+
+      if (spec) {
+        sessionData = {
+          spec_content: spec.content,
+        }
+        logger.info('[useSessionPrefill] Raw spec data:', spec)
+      } else {
+        sessionData = await invoke<SessionData>(TauriCommands.SchaltwerkCoreGetSession, { name: sessionName })
+        logger.info('[useSessionPrefill] Raw session data:', sessionData)
+      }
+
       const taskContent = extractSessionContent(sessionData)
       logger.info('[useSessionPrefill] Extracted agent content:', taskContent?.substring(0, 100), '...')
       

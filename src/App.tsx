@@ -41,6 +41,7 @@ import {
   initializeSessionsEventsActionAtom,
   initializeSessionsSettingsActionAtom,
   refreshSessionsActionAtom,
+  expectSessionActionAtom,
 } from './store/atoms/sessions'
 import {
   rightPanelCollapsedAtom,
@@ -70,6 +71,7 @@ import {
   SessionActionDetail,
   StartAgentFromSpecDetail,
   AgentLifecycleDetail,
+  clearBackgroundStarts,
 } from './common/uiEvents'
 import { logger } from './utils/logger'
 import { installSmartDashGuards } from './utils/normalizeCliText'
@@ -108,6 +110,7 @@ function AppContent() {
   const initializeSessionsEvents = useSetAtom(initializeSessionsEventsActionAtom)
   const initializeSessionsSettings = useSetAtom(initializeSessionsSettingsActionAtom)
   const refreshSessions = useSetAtom(refreshSessionsActionAtom)
+  const expectSession = useSetAtom(expectSessionActionAtom)
   const { isOnboardingOpen, completeOnboarding, closeOnboarding, openOnboarding } = useOnboarding()
   const { fetchSessionForPrefill } = useSessionPrefill()
   const github = useGithubIntegrationContext()
@@ -300,10 +303,27 @@ function AppContent() {
       const description = detail?.error?.trim() || 'Initialize a Git repository to start agents.'
       toast.pushToast({ tone: 'error', title: 'Git repository required', description })
     })
+    let orchestratorCleanup: (() => void) | undefined
+    void (async () => {
+      try {
+        orchestratorCleanup = await listenEvent(SchaltEvent.OrchestratorLaunchFailed, payload => {
+          clearBackgroundStarts([payload.terminal_id])
+          toast.pushToast({
+            tone: 'error',
+            title: 'Orchestrator failed to start',
+            description: payload.error || 'Launch error. Please retry.',
+            durationMs: 6000,
+          })
+        })
+      } catch (error) {
+        logger.warn('[App] Failed to listen for orchestrator launch failures', error)
+      }
+    })()
     return () => {
       spawnCleanup()
       noProjectCleanup()
       notGitCleanup()
+      orchestratorCleanup?.()
     }
   }, [toast, agentAllMissing, cliModalEverShown])
 
@@ -1157,8 +1177,8 @@ function AppContent() {
             agentTypes: data.agentTypes,
           })
 
-          // Create array of session names and process them
-          const sessionNames = Array.from({ length: count }, (_, i) =>
+          // Create array of desired session names and process them
+          const desiredSessionNames = Array.from({ length: count }, (_, i) =>
             i === 0 ? data.name : `${data.name}_v${i + 1}`
           )
 
@@ -1167,48 +1187,58 @@ function AppContent() {
             ? (globalThis.crypto as Crypto & { randomUUID(): string }).randomUUID()
             : `${data.name}-${Date.now()}`
           const sessionPromotionStartTimes = new Map<string, number>()
+          const realizedSessionNames: string[] = []
 
-          for (const [index, sessionName] of sessionNames.entries()) {
+          for (const [index, desiredName] of desiredSessionNames.entries()) {
             const agentTypeForVersion = useAgentTypes ? (data.agentTypes?.[index] ?? null) : (data.agentType || null)
             const promotionStart = performance.now()
-            sessionPromotionStartTimes.set(sessionName, promotionStart)
+            sessionPromotionStartTimes.set(desiredName, promotionStart)
             logger.info('[SpecStart] Enqueue pending startup', {
-              sessionName,
+              sessionName: desiredName,
               agentType: agentTypeForVersion ?? 'default',
               versionIndex: index + 1,
             })
 
-            await enqueuePendingStartup(sessionName, agentTypeForVersion ?? undefined)
-
-            if (index === 0) {
-              await waitForSessionsRefreshed(() =>
-                invoke(TauriCommands.SchaltwerkCoreStartSpecSession, {
-                  name: sessionName,
+            const createdSessionName = await waitForSessionsRefreshed(async () => {
+              if (index === 0) {
+                const created = await invoke<RawSession>(TauriCommands.SchaltwerkCoreStartSpecSession, {
+                  name: desiredName,
                   baseBranch: data.baseBranch || null,
                   versionGroupId,
                   versionNumber: index + 1,
                   agentType: agentTypeForVersion,
                   skipPermissions: data.skipPermissions ?? null,
                 })
-              )
+                return created.name
+              }
+
+              const created = await invoke<RawSession>(TauriCommands.SchaltwerkCoreCreateAndStartSpecSession, {
+                name: desiredName,
+                specContent: contentToUse,
+                baseBranch: data.baseBranch || null,
+                versionGroupId,
+                versionNumber: index + 1,
+                agentType: agentTypeForVersion,
+                skipPermissions: data.skipPermissions ?? null,
+              })
+              return created.name
+            })
+
+            realizedSessionNames.push(createdSessionName)
+            sessionPromotionStartTimes.delete(desiredName)
+            sessionPromotionStartTimes.set(createdSessionName, promotionStart)
+            expectSession(createdSessionName)
+
+            await enqueuePendingStartup(createdSessionName, agentTypeForVersion ?? undefined)
+
+            if (index === 0) {
               logger.info('[SpecStart] StartSpecSession completed', {
-                sessionName,
+                sessionName: createdSessionName,
                 elapsedMs: Math.round(performance.now() - promotionStart),
               })
             } else {
-              await waitForSessionsRefreshed(() =>
-                invoke(TauriCommands.SchaltwerkCoreCreateAndStartSpecSession, {
-                  name: sessionName,
-                  specContent: contentToUse,
-                  baseBranch: data.baseBranch || null,
-                  versionGroupId,
-                  versionNumber: index + 1,
-                  agentType: agentTypeForVersion,
-                  skipPermissions: data.skipPermissions ?? null,
-                })
-              )
               logger.info('[SpecStart] CreateAndStartSpecSession completed', {
-                sessionName,
+                sessionName: createdSessionName,
                 elapsedMs: Math.round(performance.now() - promotionStart),
               })
             }
@@ -1219,17 +1249,18 @@ function AppContent() {
           setCachedPrompt('')
 
           // Dispatch event for other components to know a session was created from spec
-          emitUiEvent(UiEvent.SessionCreated, { name: firstSessionName })
+          const primarySessionName = realizedSessionNames[0] || firstSessionName
+          emitUiEvent(UiEvent.SessionCreated, { name: primarySessionName })
 
           const ensureTerminalStart = performance.now()
           // Agents are already running because StartSpecSession/CreateAndStartSpecSession start them.
           // Only ensure terminals exist, do not start again to avoid duplicate agent processes.
           try {
-            for (const sessionName of sessionNames) {
+            for (const sessionName of realizedSessionNames) {
               await createTerminalsForSession(sessionName)
             }
             logger.info('[SpecStart] Terminal ensure completed', {
-              sessionNames,
+              sessionNames: realizedSessionNames,
               elapsedMs: Math.round(performance.now() - ensureTerminalStart),
             })
           } catch (e) {
@@ -1238,9 +1269,9 @@ function AppContent() {
 
           const totalElapsedMs = Math.round(performance.now() - overallSpecStart)
           logger.info('[SpecStart] Completed spec agent promotion', {
-            sessions: sessionNames,
+            sessions: realizedSessionNames,
             totalElapsedMs,
-            durations: sessionNames.reduce<Record<string, number | undefined>>((acc, name) => {
+            durations: realizedSessionNames.reduce<Record<string, number | undefined>>((acc, name) => {
               const start = sessionPromotionStartTimes.get(name)
               acc[name] = start ? Math.round(ensureTerminalStart - start) : undefined
               return acc
@@ -1324,6 +1355,7 @@ function AppContent() {
 
             const actualSessionName = createdSession?.name ?? versionName
             createdSessions.push({ name: actualSessionName, agentType: agentTypeForVersion })
+            expectSession(actualSessionName)
 
             if (!data.isSpec && actualSessionName !== versionName) {
               try {

@@ -22,6 +22,17 @@ import { invoke } from '@tauri-apps/api/core'
 describe('useSessionPrefill', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === TauriCommands.SchaltwerkCoreGetSpec) {
+        return { name: 'test-session', content: '# Spec Content' }
+      }
+      return {
+        draft_content: '# Spec Content',
+        spec_content: null,
+        initial_prompt: null,
+        parent_branch: 'main',
+      }
+    })
   })
 
   describe('extractSessionContent', () => {
@@ -77,14 +88,6 @@ describe('useSessionPrefill', () => {
 
   describe('fetchSessionForPrefill', () => {
     it('fetches and transforms session data successfully', async () => {
-      const mockSessionData = {
-        draft_content: '# Spec Content',
-        initial_prompt: 'Initial prompt',
-        parent_branch: 'main',
-      }
-
-      vi.mocked(invoke).mockResolvedValue(mockSessionData)
-
       const { result } = renderHook(() => useSessionPrefill())
 
       let prefillData
@@ -95,13 +98,13 @@ describe('useSessionPrefill', () => {
       expect(prefillData).toEqual({
         name: 'test-session',
         taskContent: '# Spec Content',
-        baseBranch: 'main',
+        baseBranch: undefined,
         lockName: false,
         fromDraft: true,
         originalSpecName: 'test-session',
       })
 
-      expect(invoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreGetSession, { name: 'test-session' })
+      expect(invoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreGetSpec, { name: 'test-session' })
       expect(result.current.error).toBeNull()
       expect(result.current.isLoading).toBe(false)
     })
@@ -113,7 +116,12 @@ describe('useSessionPrefill', () => {
         parent_branch: 'develop',
       }
 
-      vi.mocked(invoke).mockResolvedValue(mockSessionData)
+      vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+        if (cmd === TauriCommands.SchaltwerkCoreGetSpec) {
+          throw new Error('not a spec')
+        }
+        return mockSessionData
+      })
 
       const { result } = renderHook(() => useSessionPrefill())
 
@@ -134,7 +142,12 @@ describe('useSessionPrefill', () => {
         parent_branch: null,
       }
 
-      vi.mocked(invoke).mockResolvedValue(mockSessionData)
+      vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+        if (cmd === TauriCommands.SchaltwerkCoreGetSpec) {
+          throw new Error('not a spec')
+        }
+        return mockSessionData
+      })
 
       const { result } = renderHook(() => useSessionPrefill())
 

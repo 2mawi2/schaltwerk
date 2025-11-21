@@ -102,6 +102,7 @@ export const TauriCommands = {
   SchaltwerkCoreGetArchiveMaxEntries: 'schaltwerk_core_get_archive_max_entries',
   SchaltwerkCoreGetFontSizes: 'schaltwerk_core_get_font_sizes',
   SchaltwerkCoreGetSession: 'schaltwerk_core_get_session',
+  SchaltwerkCoreGetSpec: 'schaltwerk_core_get_spec',
   SchaltwerkCoreGetSessionAgentContent: 'schaltwerk_core_get_session_agent_content',
   SchaltwerkCoreGetSkipPermissions: 'schaltwerk_core_get_skip_permissions',
   SchaltwerkCoreGetOrchestratorSkipPermissions: 'schaltwerk_core_get_orchestrator_skip_permissions',

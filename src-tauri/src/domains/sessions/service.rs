@@ -1,7 +1,7 @@
 use crate::domains::agents::AgentLaunchSpec;
 use crate::shared::terminal_id::{terminal_id_for_session_bottom, terminal_id_for_session_top};
 use anyhow::{Context, Result, anyhow};
-use chrono::{TimeZone, Utc};
+use chrono::Utc;
 use log::{info, warn};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -130,12 +130,11 @@ pub struct SessionCreationParams<'a> {
 const SESSION_READY_COMMIT_MESSAGE: &str = "schaltwerk: mark {} ready";
 use crate::{
     domains::git::service as git,
-    domains::sessions::cache::{SessionCacheManager, clear_session_prompted_non_test},
-    domains::sessions::db_sessions::SessionMethods as _,
+    domains::sessions::cache::SessionCacheManager,
     domains::sessions::entity::ArchivedSpec,
     domains::sessions::entity::{
         DiffStats, EnrichedSession, FilterMode, GitStats, Session, SessionInfo, SessionState,
-        SessionStatus, SessionStatusType, SessionType, SortMode,
+        SessionStatus, SessionStatusType, SessionType, SortMode, Spec,
     },
     domains::sessions::repository::SessionDbManager,
     domains::sessions::utils::SessionUtils,
@@ -281,12 +280,11 @@ mod service_unified_tests {
         manager
             .create_spec_session(spec_name, "Build feature A")
             .unwrap();
-        manager
+        let session = manager
             .start_spec_session(spec_name, None, None, None)
             .unwrap();
 
         // Simulate Claude session files existing for this worktree so resume would normally happen
-        let session = manager.db_manager.get_session_by_name(spec_name).unwrap();
         // Use the same sanitizer as Claude for projects dir name via public fast finder side-effect
         let projects_root = home_dir.path().join(".claude").join("projects");
         let sanitized = {
@@ -309,7 +307,7 @@ mod service_unified_tests {
         // First start should be FRESH (no --continue / no -r)
         let cmd1 = manager
             .start_claude_in_session_with_restart_and_binary(
-                spec_name,
+                &session.name,
                 false,
                 &HashMap::new(),
                 None,
@@ -323,7 +321,7 @@ mod service_unified_tests {
         // Second start should allow resume now (resume_allowed flipped true)
         let cmd2 = manager
             .start_claude_in_session_with_restart_and_binary(
-                spec_name,
+                &session.name,
                 false,
                 &HashMap::new(),
                 None,
@@ -687,12 +685,9 @@ mod service_unified_tests {
             .create_spec_session(spec_name, spec_content)
             .unwrap();
 
-        manager
+        let running = manager
             .start_spec_session_with_config(spec_name, None, None, None, Some("codex"), Some(true))
             .unwrap();
-
-        // Fetch running session to start agent
-        let running = manager.db_manager.get_session_by_name(spec_name).unwrap();
 
         // Build the start command (unified start handles correct agent based on original settings)
         let cmd = manager
@@ -804,11 +799,9 @@ mod service_unified_tests {
             .create_spec_session(spec_name, spec_content)
             .unwrap();
 
-        manager
+        let running = manager
             .start_spec_session_with_config(spec_name, None, None, None, Some("droid"), None)
             .unwrap();
-
-        let running = manager.db_manager.get_session_by_name(spec_name).unwrap();
 
         let cmd = manager
             .start_claude_in_session(&running.name)
@@ -872,11 +865,9 @@ mod service_unified_tests {
             .create_spec_session(spec_name, spec_content)
             .unwrap();
 
-        manager
+        let running = manager
             .start_spec_session_with_config(spec_name, None, None, None, Some("droid"), None)
             .unwrap();
-
-        let running = manager.db_manager.get_session_by_name(spec_name).unwrap();
 
         let home_dir = tempfile::TempDir::new().unwrap();
         let sessions_dir = home_dir.path().join(".factory/sessions");
@@ -974,7 +965,7 @@ mod service_unified_tests {
 
         let group_id = "version-group-123";
 
-        manager
+        let running = manager
             .start_spec_session_with_config(
                 spec_name,
                 None,
@@ -984,8 +975,6 @@ mod service_unified_tests {
                 Some(false),
             )
             .unwrap();
-
-        let running = manager.db_manager.get_session_by_name(spec_name).unwrap();
         assert_eq!(running.version_group_id.as_deref(), Some(group_id));
         assert_eq!(running.version_number, Some(1));
     }
@@ -1056,13 +1045,8 @@ mod service_unified_tests {
             .output()
             .unwrap();
 
-        manager
-            .start_spec_session("feature_spec", Some("feature/login"), None, None)
-            .unwrap();
-
         let session = manager
-            .db_manager
-            .get_session_by_name("feature_spec")
+            .start_spec_session("feature_spec", Some("feature/login"), None, None)
             .unwrap();
         assert_eq!(session.parent_branch, "feature/login");
 
@@ -1085,7 +1069,7 @@ mod service_unified_tests {
 
     #[test]
     #[serial_test::serial]
-    fn start_spec_session_without_override_uses_stored_parent_branch() {
+    fn start_spec_session_without_override_uses_default_parent_branch() {
         use std::process::Command;
 
         let (manager, temp_dir) = create_test_session_manager();
@@ -1149,15 +1133,10 @@ mod service_unified_tests {
             .output()
             .unwrap();
 
-        manager
+        let session = manager
             .start_spec_session("stored_spec", None, None, None)
             .unwrap();
-
-        let session = manager
-            .db_manager
-            .get_session_by_name("stored_spec")
-            .unwrap();
-        assert_eq!(session.parent_branch, "feature/login");
+        assert_eq!(session.parent_branch, "main");
 
         let session_commit = Command::new("git")
             .args(["rev-parse", &session.branch])
@@ -1165,7 +1144,7 @@ mod service_unified_tests {
             .output()
             .unwrap();
         let feature_commit = Command::new("git")
-            .args(["rev-parse", "feature/login"])
+            .args(["rev-parse", "main"])
             .current_dir(&repo)
             .output()
             .unwrap();
@@ -2025,7 +2004,18 @@ impl SessionManager {
             CancellationConfig, CancellationCoordinator,
         };
 
-        let session = self.db_manager.get_session_by_name(name)?;
+        let session = match self.db_manager.get_session_by_name(name) {
+            Ok(s) => s,
+            Err(e) => {
+                // If this is a spec stored in specs table, archive it directly
+                if self.db_manager.get_spec_by_name(name).is_ok() {
+                    log::info!("Cancel {name}: Archiving spec (spec store)");
+                    self.archive_spec_session(name)?;
+                    return Ok(());
+                }
+                return Err(e);
+            }
+        };
         log::debug!("Cancel {name}: Retrieved session");
 
         if session.session_state == SessionState::Spec {
@@ -2071,31 +2061,7 @@ impl SessionManager {
             return Err(anyhow!("Session '{name}' is not in running state"));
         }
 
-        log::info!("Converting session '{name}' from running to spec");
-
-        let has_uncommitted = if session.worktree_path.exists() {
-            git::has_uncommitted_changes(&session.worktree_path).unwrap_or(false)
-        } else {
-            false
-        };
-
-        if has_uncommitted {
-            log::warn!("Converting session '{name}' to spec with uncommitted changes");
-        }
-
-        if session.worktree_path.exists()
-            && let Err(e) = git::remove_worktree(&self.repo_path, &session.worktree_path)
-        {
-            log::warn!(
-                "Failed to remove worktree when converting to spec (will continue anyway): {e}"
-            );
-        }
-
-        if git::branch_exists(&self.repo_path, &session.branch)?
-            && let Err(e) = git::delete_branch(&self.repo_path, &session.branch)
-        {
-            log::warn!("Failed to delete branch '{}': {}", session.branch, e);
-        }
+        log::info!("Converting session '{name}' from running to spec (new entity flow)");
 
         let (spec_content, initial_prompt) = self
             .db_manager
@@ -2103,95 +2069,64 @@ impl SessionManager {
             .unwrap_or((None, None));
         let preserved_content = spec_content.or(initial_prompt).unwrap_or_default();
 
-        if let Err(e) = self
-            .db_manager
-            .set_session_resume_allowed(&session.id, false)
-        {
-            log::warn!("Failed to gate resume for session '{name}': {e}");
-        }
+        // Cancel the running session (cleans processes/worktree, keeps record as cancelled)
+        self.cancel_session(name)?;
 
-        if let Err(e) = self.db_manager.clear_session_run_state(&session.id) {
-            log::warn!("Failed to clear run state for session '{name}': {e}");
-        }
-
-        crate::domains::sessions::cache::invalidate_spec_content(&self.repo_path, &session.name);
-
-        if let Err(e) = self.db_manager.delete_session(&session.id) {
-            return Err(anyhow!(
-                "Failed to remove session '{name}' while converting to spec: {e}"
-            ));
-        }
-
-        self.cache_manager.unreserve_name(&session.name);
-
-        let base_name = format!("{name}-spec");
-        let new_session = self.create_spec_session_with_agent(
-            &base_name,
+        // Create new spec entity; name collisions handled internally
+        let spec = self.create_spec_session_with_agent(
+            &session.name,
             &preserved_content,
             session.original_agent_type.as_deref(),
             session.original_skip_permissions,
+            Some(&session.parent_branch),
         )?;
 
         log::info!(
-            "Successfully converted session '{name}' to spec '{}'",
-            new_session.name
+            "Successfully converted session '{name}' to new spec '{}'",
+            spec.name
         );
 
-        Ok(new_session.name)
+        Ok(spec.name)
     }
 
-    pub fn convert_session_to_spec_temp_compat(&self, name: &str) -> Result<()> {
+    /// Async-safe version of convert_session_to_draft that avoids blocking the Tokio runtime.
+    pub async fn convert_session_to_draft_async(&self, name: &str) -> Result<String> {
         let session = self.db_manager.get_session_by_name(name)?;
 
         if session.session_state != SessionState::Running {
             return Err(anyhow!("Session '{name}' is not in running state"));
         }
 
-        log::info!("Converting session '{name}' from running to spec");
+        log::info!("Converting session '{name}' from running to spec (async flow)");
 
-        let has_uncommitted = if session.worktree_path.exists() {
-            git::has_uncommitted_changes(&session.worktree_path).unwrap_or(false)
-        } else {
-            false
-        };
-
-        if has_uncommitted {
-            log::warn!("Converting session '{name}' to spec with uncommitted changes");
-        }
-
-        if session.worktree_path.exists()
-            && let Err(e) = git::remove_worktree(&self.repo_path, &session.worktree_path)
-        {
-            log::warn!(
-                "Failed to remove worktree when converting to spec (will continue anyway): {e}. This may be due to active processes or file locks in the worktree directory."
-            );
-            // Continue with conversion even if worktree removal fails - the important part
-            // is updating the session state in the database. The orphaned directory
-            // can be cleaned up later via cleanup_orphaned_worktrees()
-        }
-
-        if git::branch_exists(&self.repo_path, &session.branch)?
-            && let Err(e) = git::delete_branch(&self.repo_path, &session.branch)
-        {
-            log::warn!("Failed to delete branch '{}': {}", session.branch, e);
-        }
-
-        self.db_manager
-            .update_session_status(&session.id, SessionStatus::Spec)?;
-        self.db_manager
-            .update_session_state(&session.id, SessionState::Spec)?;
-        // Gate resume until first start after conversion
-        let _ = self
+        let (spec_content, initial_prompt) = self
             .db_manager
-            .set_session_resume_allowed(&session.id, false);
+            .get_session_task_content(&session.name)
+            .unwrap_or((None, None));
+        let preserved_content = spec_content.or(initial_prompt).unwrap_or_default();
 
-        // Reset run state fields when converting to spec
-        self.db_manager
-            .update_session_ready_to_merge(&session.id, false)?;
-        self.db_manager.clear_session_run_state(&session.id)?;
+        // Async cancellation (no nested runtimes)
+        self.fast_cancel_session(name).await?;
 
-        clear_session_prompted_non_test(&session.worktree_path);
+        // Create new spec entity; name collisions handled internally
+        let spec = self.create_spec_session_with_agent(
+            &session.name,
+            &preserved_content,
+            session.original_agent_type.as_deref(),
+            session.original_skip_permissions,
+            Some(&session.parent_branch),
+        )?;
 
+        log::info!(
+            "Successfully converted session '{name}' to new spec '{}' (async flow)",
+            spec.name
+        );
+
+        Ok(spec.name)
+    }
+
+    pub fn convert_session_to_spec_temp_compat(&self, name: &str) -> Result<()> {
+        self.convert_session_to_draft(name)?;
         Ok(())
     }
 
@@ -2203,12 +2138,20 @@ impl SessionManager {
         self.db_manager.get_session_by_id(id)
     }
 
+    pub fn get_spec(&self, name: &str) -> Result<Spec> {
+        self.db_manager.get_spec_by_name(name)
+    }
+
     pub fn get_session_task_content(&self, name: &str) -> Result<(Option<String>, Option<String>)> {
         self.db_manager.get_session_task_content(name)
     }
 
     pub fn list_sessions(&self) -> Result<Vec<Session>> {
         self.db_manager.list_sessions()
+    }
+
+    pub fn list_specs(&self) -> Result<Vec<Spec>> {
+        self.db_manager.list_specs()
     }
 
     pub fn update_git_stats(&self, session_id: &str) -> Result<()> {
@@ -2221,22 +2164,42 @@ impl SessionManager {
 
     pub fn list_enriched_sessions(&self) -> Result<Vec<EnrichedSession>> {
         let start_time = std::time::Instant::now();
-        log::info!("list_enriched_sessions: stage=start");
+        log::info!("[SES] list_enriched_sessions start");
 
-        let list_sessions_start = std::time::Instant::now();
+        let sessions_start = std::time::Instant::now();
         let sessions = self.db_manager.list_sessions()?;
-        let db_time = list_sessions_start.elapsed();
+        let sessions_elapsed = sessions_start.elapsed().as_millis();
+        log::info!(
+            "[SES] list_sessions fetched {} rows in {}ms",
+            sessions.len(),
+            sessions_elapsed
+        );
+
+        let specs_start = std::time::Instant::now();
+        let specs = self.db_manager.list_specs()?;
+        let specs_elapsed = specs_start.elapsed().as_millis();
+        log::info!(
+            "[SES] list_specs fetched {} rows in {}ms",
+            specs.len(),
+            specs_elapsed
+        );
+
         let spec_count = sessions
             .iter()
             .filter(|s| s.session_state == SessionState::Spec)
             .count();
         log::info!(
-            "list_enriched_sessions: stage=after_list_sessions total={} specs={} non_specs={} elapsed={}ms",
+            "[SES] totals sessions={} specs_in_sessions={} specs_table={} non_specs={}",
             sessions.len(),
             spec_count,
-            sessions.len().saturating_sub(spec_count),
-            db_time.as_millis()
+            specs.len(),
+            sessions.len().saturating_sub(spec_count)
         );
+
+        let db_time = std::time::Duration::from_millis((sessions_elapsed + specs_elapsed) as u64);
+
+        // Fetch global defaults once to avoid per-row DB hits
+        let default_agent_type = self.db_manager.get_agent_type().ok();
 
         let bulk_stats_start = std::time::Instant::now();
         let session_ids: Vec<String> = sessions
@@ -2265,12 +2228,52 @@ impl SessionManager {
             bulk_stats_time.as_millis()
         );
 
-        let default_agent_type = self.db_manager.get_agent_type().ok();
-
         let mut enriched = Vec::new();
         let mut git_stats_total_time = std::time::Duration::ZERO;
         let mut worktree_check_time = std::time::Duration::ZERO;
         let mut session_count = 0;
+
+        // Push specs (lightweight, no worktrees)
+        for spec in specs {
+            let worktree_path = self
+                .repo_path
+                .join(".schaltwerk")
+                .join("specs")
+                .join(&spec.name);
+            let base_branch = self
+                .resolve_parent_branch(None)
+                .unwrap_or_else(|_| "main".to_string());
+
+            let info = SessionInfo {
+                session_id: spec.name.clone(),
+                display_name: spec.display_name.clone(),
+                version_group_id: None,
+                version_number: None,
+                branch: format!("specs/{}", spec.name),
+                worktree_path: worktree_path.to_string_lossy().to_string(),
+                base_branch: base_branch.clone(),
+                status: SessionStatusType::Spec,
+                created_at: Some(spec.created_at),
+                last_modified: Some(spec.updated_at),
+                has_uncommitted_changes: Some(false),
+                has_conflicts: Some(false),
+                is_current: false,
+                session_type: SessionType::Worktree,
+                container_status: None,
+                original_agent_type: default_agent_type.clone(),
+                current_task: None,
+                diff_stats: None,
+                ready_to_merge: false,
+                spec_content: Some(spec.content.clone()),
+                session_state: SessionState::Spec,
+            };
+
+            enriched.push(EnrichedSession {
+                info,
+                status: None,
+                terminals: Vec::new(),
+            });
+        }
 
         for session in sessions {
             if session.status == SessionStatus::Cancelled {
@@ -3215,7 +3218,7 @@ impl SessionManager {
         version_number: Option<i32>,
         agent_type: Option<&str>,
         skip_permissions: Option<bool>,
-    ) -> Result<()> {
+    ) -> Result<Session> {
         // Set global agent type if provided
         if let Some(agent_type) = agent_type {
             if let Err(e) = self.set_global_agent_type(agent_type) {
@@ -3237,8 +3240,7 @@ impl SessionManager {
         }
 
         // Start the draft session
-        self.start_spec_session(session_name, base_branch, version_group_id, version_number)?;
-        Ok(())
+        self.start_spec_session(session_name, base_branch, version_group_id, version_number)
     }
 
     pub fn mark_session_ready(&self, session_name: &str, auto_commit: bool) -> Result<bool> {
@@ -3298,7 +3300,16 @@ impl SessionManager {
     // Only act if the session is actually marked reviewed (session_state = Reviewed).
     // Returns true if a change was applied, false if no-op (not reviewed/spec/missing flags).
     pub fn unmark_reviewed_on_follow_up(&self, session_name: &str) -> Result<bool> {
-        let session = self.db_manager.get_session_by_name(session_name)?;
+        let session = match self.db_manager.get_session_by_name(session_name) {
+            Ok(s) => s,
+            Err(_) => {
+                // Specs (stored separately) have no follow-up behavior; treat as no-op
+                if self.db_manager.get_spec_by_name(session_name).is_ok() {
+                    return Ok(false);
+                }
+                return Err(anyhow!("Session '{session_name}' not found"));
+            }
+        };
 
         // Do nothing for specs (cannot receive follow-ups into terminals)
         if session.session_state == SessionState::Spec {
@@ -3322,8 +3333,8 @@ impl SessionManager {
         Ok(false)
     }
 
-    pub fn create_spec_session(&self, name: &str, spec_content: &str) -> Result<Session> {
-        self.create_spec_session_with_agent(name, spec_content, None, None)
+    pub fn create_spec_session(&self, name: &str, spec_content: &str) -> Result<Spec> {
+        self.create_spec_session_with_agent(name, spec_content, None, None, None)
     }
 
     pub fn create_spec_session_with_agent(
@@ -3331,10 +3342,11 @@ impl SessionManager {
         name: &str,
         spec_content: &str,
         agent_type: Option<&str>,
-        skip_permissions: Option<bool>,
-    ) -> Result<Session> {
+        _skip_permissions: Option<bool>,
+        _parent_branch_override: Option<&str>,
+    ) -> Result<Spec> {
         log::info!(
-            "Creating spec session '{}' with agent_type={:?} in repository: {}",
+            "Creating spec '{}' (agent hints: {:?}) in repository: {}",
             name,
             agent_type,
             self.repo_path.display()
@@ -3345,57 +3357,78 @@ impl SessionManager {
 
         if !git::is_valid_session_name(name) {
             return Err(anyhow!(
-                "Invalid session name: use only letters, numbers, hyphens, and underscores"
+                "Invalid spec name: use only letters, numbers, hyphens, and underscores"
             ));
         }
 
-        let (unique_name, branch, worktree_path) = self.utils.find_unique_session_paths(name)?;
+        // Reuse session name uniqueness logic to avoid future branch/worktree collisions
+        let (unique_name, _, _) = self.utils.find_unique_session_paths(name)?;
 
-        let session_id = SessionUtils::generate_session_id();
+        let spec_id = SessionUtils::generate_session_id();
         let repo_name = self.utils.get_repo_name()?;
         let now = Utc::now();
 
-        // Set pending_name_generation flag if we have agent type and content
-        let pending_name_generation = agent_type.is_some() && !spec_content.trim().is_empty();
-
-        let parent_branch = match self.resolve_parent_branch(None) {
-            Ok(branch) => branch,
-            Err(err) => {
-                self.cache_manager.unreserve_name(&unique_name);
-                return Err(err);
-            }
-        };
-
-        let session = Session {
-            id: session_id.clone(),
+        let spec = Spec {
+            id: spec_id,
             name: unique_name.clone(),
-            display_name: None, // Will be generated later when the spec is started
-            version_group_id: None,
-            version_number: None,
+            display_name: None,
             repository_path: self.repo_path.clone(),
             repository_name: repo_name,
-            branch: branch.clone(),
-            parent_branch,
-            worktree_path: worktree_path.clone(),
-            status: SessionStatus::Spec,
+            content: spec_content.to_string(),
             created_at: now,
             updated_at: now,
-            last_activity: None,
-            initial_prompt: None, // Spec sessions don't use initial_prompt
-            ready_to_merge: false,
-            original_agent_type: agent_type.map(|s| s.to_string()),
-            original_skip_permissions: skip_permissions,
-            pending_name_generation,
-            was_auto_generated: false,
-            spec_content: Some(spec_content.to_string()),
-            session_state: SessionState::Spec,
-            resume_allowed: true,
-            amp_thread_id: None,
         };
 
-        self.db_manager.create_session(&session)?;
+        self.db_manager.create_spec(&spec)?;
 
-        Ok(session)
+        // cache spec content for quick fetches
+        crate::domains::sessions::cache::cache_spec_content(
+            &self.repo_path,
+            &spec.name,
+            (Some(spec_content.to_string()), None),
+        );
+
+        self.cache_manager.unreserve_name(&unique_name);
+        Ok(spec)
+    }
+
+    fn spec_to_virtual_session(&self, spec: Spec) -> Session {
+        let spec_name = spec.name.clone();
+        let worktree_path = self
+            .repo_path
+            .join(".schaltwerk")
+            .join("specs")
+            .join(&spec_name);
+        let branch = format!("specs/{spec_name}");
+
+        Session {
+            id: spec.id,
+            name: spec_name.clone(),
+            display_name: spec.display_name,
+            version_group_id: None,
+            version_number: None,
+            repository_path: spec.repository_path.clone(),
+            repository_name: spec.repository_name,
+            branch,
+            parent_branch: self
+                .resolve_parent_branch(None)
+                .unwrap_or_else(|_| "main".to_string()),
+            worktree_path,
+            status: SessionStatus::Spec,
+            created_at: spec.created_at,
+            updated_at: spec.updated_at,
+            last_activity: Some(spec.updated_at),
+            initial_prompt: None,
+            ready_to_merge: false,
+            original_agent_type: None,
+            original_skip_permissions: None,
+            pending_name_generation: false,
+            was_auto_generated: false,
+            spec_content: Some(spec.content),
+            session_state: SessionState::Spec,
+            resume_allowed: false,
+            amp_thread_id: None,
+        }
     }
 
     pub fn create_and_start_spec_session(
@@ -3405,146 +3438,18 @@ impl SessionManager {
         base_branch: Option<&str>,
         version_group_id: Option<&str>,
         version_number: Option<i32>,
-    ) -> Result<()> {
+    ) -> Result<Session> {
         log::info!(
-            "Creating and starting spec session '{}' in repository: {}",
+            "Creating and starting spec '{}' in repository: {}",
             name,
             self.repo_path.display()
         );
 
-        let repo_lock = self.cache_manager.get_repo_lock();
-        let _guard = repo_lock.lock().unwrap();
-
-        if !git::is_valid_session_name(name) {
-            return Err(anyhow!(
-                "Invalid session name: use only letters, numbers, hyphens, and underscores"
-            ));
-        }
-
-        let (unique_name, branch, worktree_path) = self.utils.find_unique_session_paths(name)?;
-
-        let session_id = SessionUtils::generate_session_id();
-        let repo_name = self.utils.get_repo_name()?;
-        let now = Utc::now();
-
-        let parent_branch = match self.resolve_parent_branch(base_branch) {
-            Ok(branch) => branch,
-            Err(err) => {
-                self.cache_manager.unreserve_name(&unique_name);
-                return Err(err);
-            }
-        };
-
-        let session = Session {
-            id: session_id.clone(),
-            name: unique_name.clone(),
-            display_name: None,
-            version_group_id: version_group_id.map(|s| s.to_string()),
-            version_number,
-            repository_path: self.repo_path.clone(),
-            repository_name: repo_name,
-            branch: branch.clone(),
-            parent_branch: parent_branch.clone(),
-            worktree_path: worktree_path.clone(),
-            status: SessionStatus::Spec,
-            created_at: now,
-            updated_at: now,
-            last_activity: None,
-            initial_prompt: None,
-            ready_to_merge: false,
-            original_agent_type: None,
-            original_skip_permissions: None,
-            pending_name_generation: false,
-            was_auto_generated: false,
-            spec_content: Some(spec_content.to_string()),
-            session_state: SessionState::Spec,
-            resume_allowed: true,
-            amp_thread_id: None,
-        };
-
-        if let Err(e) = self.db_manager.create_session(&session) {
-            self.cache_manager.unreserve_name(&unique_name);
-            return Err(anyhow!("Failed to save spec session to database: {e}"));
-        }
-
-        self.cache_manager.unreserve_name(&unique_name);
-
-        self.utils.cleanup_existing_worktree(&worktree_path)?;
-
-        let create_result = git::create_worktree_from_base(
-            &self.repo_path,
-            &branch,
-            &worktree_path,
-            &parent_branch,
-        );
-
-        if let Err(e) = create_result {
-            return Err(anyhow!("Failed to create worktree: {e}"));
-        }
-
-        // Verify the worktree was created successfully and is valid
-        if !worktree_path.exists() {
-            return Err(anyhow!(
-                "Worktree directory was not created: {}",
-                worktree_path.display()
-            ));
-        }
-
-        let git_dir = worktree_path.join(".git");
-        if !git_dir.exists() {
-            return Err(anyhow!(
-                "Worktree git directory is missing: {}",
-                git_dir.display()
-            ));
-        }
-
-        log::info!("Worktree verified and ready: {}", worktree_path.display());
-
-        if let Ok(Some(setup_script)) = self.db_manager.get_project_setup_script()
-            && !setup_script.trim().is_empty()
-        {
-            self.utils.execute_setup_script(
-                &setup_script,
-                &unique_name,
-                &branch,
-                &worktree_path,
-            )?;
-        }
-
-        self.db_manager
-            .update_session_status(&session_id, SessionStatus::Active)?;
-        self.db_manager
-            .update_session_state(&session_id, SessionState::Running)?;
-
-        log::info!(
-            "Copying spec content to initial_prompt for session '{unique_name}': '{spec_content}'"
-        );
-        self.db_manager
-            .update_session_initial_prompt(&session_id, spec_content)?;
-        clear_session_prompted_non_test(&worktree_path);
-        log::info!(
-            "Cleared prompt state for session '{unique_name}' to ensure spec content is used"
-        );
-
-        let global_agent = self
-            .db_manager
-            .get_agent_type()
-            .unwrap_or_else(|_| "claude".to_string());
-        let global_skip = self.db_manager.get_skip_permissions().unwrap_or(false);
-        let _ =
-            self.db_manager
-                .set_session_original_settings(&session_id, &global_agent, global_skip);
-
-        let mut git_stats = git::calculate_git_stats_fast(&worktree_path, &parent_branch)?;
-        git_stats.session_id = session_id.clone();
-        self.db_manager.save_git_stats(&git_stats)?;
-        if let Some(ts) = git_stats.last_diff_change_ts
-            && let Some(dt) = Utc.timestamp_opt(ts, 0).single()
-        {
-            let _ = self.db_manager.set_session_activity(&session_id, dt);
-        }
-
-        Ok(())
+        let spec =
+            self.create_spec_session_with_agent(name, spec_content, None, None, base_branch)?;
+        let session =
+            self.start_spec_session(&spec.name, base_branch, version_group_id, version_number)?;
+        Ok(session)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -3557,9 +3462,9 @@ impl SessionManager {
         version_number: Option<i32>,
         agent_type: Option<&str>,
         skip_permissions: Option<bool>,
-    ) -> Result<()> {
+    ) -> Result<Session> {
         // Reuse the existing flow to create and start
-        self.create_and_start_spec_session(
+        let session = self.create_and_start_spec_session(
             name,
             spec_content,
             base_branch,
@@ -3569,7 +3474,6 @@ impl SessionManager {
 
         // Override original settings if provided, otherwise keep globals already stored
         if agent_type.is_some() || skip_permissions.is_some() {
-            let session = self.db_manager.get_session_by_name(name)?;
             let agent = agent_type.map(|s| s.to_string()).unwrap_or_else(|| {
                 self.db_manager
                     .get_agent_type()
@@ -3585,180 +3489,56 @@ impl SessionManager {
             );
         }
 
-        Ok(())
+        Ok(session)
     }
 
     pub fn start_spec_session(
         &self,
-        session_name: &str,
+        spec_name: &str,
         base_branch: Option<&str>,
         version_group_id: Option<&str>,
         version_number: Option<i32>,
-    ) -> Result<()> {
+    ) -> Result<Session> {
         log::info!(
-            "Starting spec session '{}' in repository: {}",
-            session_name,
+            "Starting spec '{}' in repository: {}",
+            spec_name,
             self.repo_path.display()
         );
 
-        let repo_lock = self.cache_manager.get_repo_lock();
-        let _guard = repo_lock.lock().unwrap();
-
-        let session = self.db_manager.get_session_by_name(session_name)?;
-        // If version grouping info provided, set it on this spec before starting
-        if version_group_id.is_some() || version_number.is_some() {
-            let _ = self.db_manager.set_session_version_info(
-                &session.id,
-                version_group_id,
-                version_number,
-            );
-        }
-
-        if session.session_state != SessionState::Spec {
-            return Err(anyhow!("Session '{session_name}' is not in spec state"));
-        }
-
-        let override_parent_branch = base_branch
-            .and_then(|raw| {
-                let trimmed = raw.trim();
-                if trimmed.is_empty() {
-                    log::warn!(
-                        "Start spec session '{session_name}' received empty base branch override; ignoring"
-                    );
-                    None
-                } else {
-                    Some(trimmed.to_string())
-                }
-            });
-
-        let parent_branch = if let Some(branch) = override_parent_branch {
-            log::info!("Using explicit base branch '{branch}' for spec session '{session_name}'");
-            branch
-        } else {
-            let stored = session.parent_branch.trim();
-            if !stored.is_empty() {
-                log::info!(
-                    "Using stored parent branch '{stored}' for spec session '{session_name}'"
-                );
-                stored.to_string()
-            } else {
-                log::info!(
-                    "Spec session '{session_name}' has no stored parent branch; resolving from repository state"
-                );
-                match self.resolve_parent_branch(None) {
-                    Ok(resolved) => resolved,
-                    Err(e) => {
-                        log::error!(
-                            "Failed to resolve parent branch for spec '{session_name}': {e}"
-                        );
-                        return Err(anyhow!(
-                            "Failed to detect base branch: {e}. Please ensure the repository has at least one branch (e.g., 'main' or 'master')"
-                        ));
-                    }
-                }
-            }
-        };
-
-        if session.parent_branch.trim() != parent_branch {
-            log::info!(
-                "Updating parent branch for session '{session_name}' from '{}' to '{}'",
-                session.parent_branch,
-                parent_branch
-            );
-            self.db_manager
-                .db
-                .update_session_parent_branch(&session.id, &parent_branch)?;
-        }
-
-        self.utils
-            .cleanup_existing_worktree(&session.worktree_path)?;
-
-        let create_result = git::create_worktree_from_base(
-            &self.repo_path,
-            &session.branch,
-            &session.worktree_path,
-            &parent_branch,
-        );
-
-        if let Err(e) = create_result {
-            return Err(anyhow!("Failed to create worktree: {e}"));
-        }
-
-        // Verify the worktree was created successfully and is valid
-        if !session.worktree_path.exists() {
-            return Err(anyhow!(
-                "Worktree directory was not created: {}",
-                session.worktree_path.display()
-            ));
-        }
-
-        let git_dir = session.worktree_path.join(".git");
-        if !git_dir.exists() {
-            return Err(anyhow!(
-                "Worktree git directory is missing: {}",
-                git_dir.display()
-            ));
-        }
-
-        log::info!(
-            "Worktree verified and ready: {}",
-            session.worktree_path.display()
-        );
-
-        if let Ok(Some(setup_script)) = self.db_manager.get_project_setup_script()
-            && !setup_script.trim().is_empty()
-        {
-            self.utils.execute_setup_script(
-                &setup_script,
-                &session.name,
-                &session.branch,
-                &session.worktree_path,
-            )?;
-        }
-
-        self.db_manager
-            .update_session_status(&session.id, SessionStatus::Active)?;
-        self.db_manager
-            .update_session_state(&session.id, SessionState::Running)?;
-        // Ensure we gate resume on first agent start after spec start
-        self.db_manager
-            .set_session_resume_allowed(&session.id, false)?;
-
-        if let Some(spec_content) = session.spec_content {
-            log::info!(
-                "Copying spec content to initial_prompt for session '{session_name}': '{spec_content}'"
-            );
-            self.db_manager
-                .update_session_initial_prompt(&session.id, &spec_content)?;
-            clear_session_prompted_non_test(&session.worktree_path);
-            log::info!(
-                "Cleared prompt state for session '{session_name}' to ensure spec content is used"
-            );
-        } else {
-            log::warn!(
-                "No spec_content found for session '{session_name}' - initial_prompt will not be set"
-            );
-        }
-
-        let global_agent = self
+        let spec = self
             .db_manager
-            .get_agent_type()
-            .unwrap_or_else(|_| "claude".to_string());
-        let global_skip = self.db_manager.get_skip_permissions().unwrap_or(false);
-        let _ =
-            self.db_manager
-                .set_session_original_settings(&session.id, &global_agent, global_skip);
+            .get_spec_by_name(spec_name)
+            .map_err(|e| anyhow!("Spec '{spec_name}' not found: {e}"))?;
 
-        let mut git_stats = git::calculate_git_stats_fast(&session.worktree_path, &parent_branch)?;
-        git_stats.session_id = session.id.clone();
-        self.db_manager.save_git_stats(&git_stats)?;
-        if let Some(ts) = git_stats.last_diff_change_ts
-            && let Some(dt) = Utc.timestamp_opt(ts, 0).single()
-        {
-            let _ = self.db_manager.set_session_activity(&session.id, dt);
-        }
+        let parent_branch = base_branch
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .or_else(|| self.resolve_parent_branch(None).ok())
+            .ok_or_else(|| anyhow!("Failed to resolve base branch for spec '{spec_name}'"))?;
 
-        Ok(())
+        let effective_group_id = version_group_id.map(|s| s.to_string());
+        let effective_version_number = version_number;
+
+        let mut session = self.create_session_with_auto_flag(
+            &spec.name,
+            Some(&spec.content),
+            Some(&parent_branch),
+            false,
+            effective_group_id.as_deref(),
+            effective_version_number,
+        )?;
+
+        // Gate resume until first start after spec conversion
+        let _ = self
+            .db_manager
+            .set_session_resume_allowed(&session.id, false);
+        session.resume_allowed = false;
+
+        // spec fulfilled -> delete
+        self.db_manager.delete_spec(&spec.id)?;
+        crate::domains::sessions::cache::invalidate_spec_content(&self.repo_path, &spec.name);
+
+        Ok(session)
     }
 
     pub fn update_session_state(&self, session_name: &str, state: SessionState) -> Result<()> {
@@ -3834,22 +3614,13 @@ impl SessionManager {
             session_name,
             content.len()
         );
-        let session = self.db_manager.get_session_by_name(session_name)?;
-        info!(
-            "SessionCore: Found session with id: {}, state: {:?}",
-            session.id, session.session_state
-        );
+        let spec = self
+            .db_manager
+            .get_spec_by_name(session_name)
+            .map_err(|e| anyhow::anyhow!("Cannot update spec '{session_name}': {e}"))?;
 
-        // Only allow updating content for sessions in Spec state
-        if session.session_state != SessionState::Spec {
-            return Err(anyhow::anyhow!(
-                "Cannot update content for session '{}': only Spec sessions can have their content updated. Current state: {:?}",
-                session_name,
-                session.session_state
-            ));
-        }
-
-        self.db_manager.update_spec_content(&session.id, content)?;
+        self.db_manager
+            .update_spec_content_by_id(&spec.id, content)?;
         info!(
             "SessionCore: Successfully updated spec content in database for session '{session_name}'"
         );
@@ -3862,18 +3633,19 @@ impl SessionManager {
             session_name,
             content.len()
         );
-        let session = self.db_manager.get_session_by_name(session_name)?;
+        let spec = self
+            .db_manager
+            .get_spec_by_name(session_name)
+            .map_err(|e| anyhow::anyhow!("Cannot append content for spec '{session_name}': {e}"))?;
 
-        // Only allow appending content for sessions in Spec state
-        if session.session_state != SessionState::Spec {
-            return Err(anyhow::anyhow!(
-                "Cannot append content to session '{}': only Spec sessions can have content appended. Current state: {:?}",
-                session_name,
-                session.session_state
-            ));
-        }
+        let combined = if spec.content.is_empty() {
+            content.to_string()
+        } else {
+            format!("{}\n{}", spec.content, content)
+        };
 
-        self.db_manager.append_spec_content(&session.id, content)?;
+        self.db_manager
+            .update_spec_content_by_id(&spec.id, &combined)?;
         info!(
             "SessionCore: Successfully appended spec content in database for session '{session_name}'"
         );
@@ -3881,6 +3653,15 @@ impl SessionManager {
     }
 
     pub fn list_sessions_by_state(&self, state: SessionState) -> Result<Vec<Session>> {
+        if state == SessionState::Spec {
+            let specs = self.db_manager.list_specs()?;
+            let sessions = specs
+                .into_iter()
+                .map(|spec| self.spec_to_virtual_session(spec))
+                .collect();
+            return Ok(sessions);
+        }
+
         self.db_manager.list_sessions_by_state(state)
     }
 
@@ -3896,22 +3677,19 @@ impl SessionManager {
     }
 
     pub fn archive_spec_session(&self, name: &str) -> Result<()> {
-        // Only archive Spec sessions
-        let session = self.db_manager.get_session_by_name(name)?;
-        if session.session_state != SessionState::Spec {
-            return Err(anyhow!("Can only archive spec sessions"));
-        }
+        // Only archive specs (new table)
+        let spec = self
+            .db_manager
+            .get_spec_by_name(name)
+            .map_err(|e| anyhow!("Spec '{name}' not found for archive: {e}"))?;
 
-        let content = session
-            .spec_content
-            .or(session.initial_prompt)
-            .unwrap_or_default();
+        let content = spec.content.clone();
 
         let archived = ArchivedSpec {
             id: Uuid::new_v4().to_string(),
-            session_name: session.name.clone(),
+            session_name: spec.name.clone(),
             repository_path: self.repo_path.clone(),
-            repository_name: session.repository_name.clone(),
+            repository_name: spec.repository_name.clone(),
             content,
             archived_at: Utc::now(),
         };
@@ -3919,13 +3697,14 @@ impl SessionManager {
         // Insert into archive, then delete the session
         self.db_manager.db.insert_archived_spec(&archived)?;
 
-        // Physically remove spec session from DB to declutter
-        self.db_manager.db.delete_session(&session.id)?;
+        // Physically remove spec from DB to declutter
+        self.db_manager.delete_spec(&spec.id)?;
+        crate::domains::sessions::cache::invalidate_spec_content(&self.repo_path, name);
 
         // Enforce archive limit for this repository
         self.db_manager.db.enforce_archive_limit(&self.repo_path)?;
 
-        log::info!("Archived spec session '{name}' and removed from active sessions");
+        log::info!("Archived spec '{name}' and removed from active specs");
         Ok(())
     }
 
@@ -3933,11 +3712,7 @@ impl SessionManager {
         self.db_manager.db.list_archived_specs(&self.repo_path)
     }
 
-    pub fn restore_archived_spec(
-        &self,
-        archived_id: &str,
-        new_name: Option<&str>,
-    ) -> Result<Session> {
+    pub fn restore_archived_spec(&self, archived_id: &str, new_name: Option<&str>) -> Result<Spec> {
         // Load archived entry
         let archived = {
             let specs = self.db_manager.db.list_archived_specs(&self.repo_path)?;

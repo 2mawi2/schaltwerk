@@ -12,7 +12,7 @@ use schaltwerk::services::ServiceHandles;
 use schaltwerk::services::SessionMethods;
 use schaltwerk::services::get_project_files_with_status;
 use schaltwerk::services::repository;
-use schaltwerk::services::{AgentManifest, naming, parse_agent_command};
+use schaltwerk::services::{AgentManifest, parse_agent_command};
 use schaltwerk::services::{
     EnrichedSessionEntity as EnrichedSession, FilterMode, Session, SessionState, SortMode,
 };
@@ -22,7 +22,6 @@ use schaltwerk::services::{
     shell_invocation_to_posix,
 };
 use schaltwerk::utils::env_adapter::EnvAdapter;
-use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use tauri::State;
 use uuid::Uuid;
@@ -381,19 +380,29 @@ pub async fn schaltwerk_core_restore_archived_spec(
     app: tauri::AppHandle,
     id: String,
     new_name: Option<String>,
-) -> Result<schaltwerk::domains::sessions::entity::Session, String> {
-    let (session, repo, count) = {
+) -> Result<Session, String> {
+    let (spec_name, repo, count) = {
         let core = get_core_write().await?;
         let manager = core.session_manager();
-        let session = manager
+        let spec = manager
             .restore_archived_spec(&id, new_name.as_deref())
             .map_err(|e| format!("Failed to restore archived spec: {e}"))?;
         let repo = core.repo_path.to_string_lossy().to_string();
         let count = manager.list_archived_specs().map(|v| v.len()).unwrap_or(0);
-        (session, repo, count)
+        (spec.name, repo, count)
     };
     events::emit_archive_updated(&app, &repo, count);
     events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SpecSync);
+
+    let core = get_core_write().await?;
+    let manager = core.session_manager();
+    let session = manager
+        .list_sessions_by_state(SessionState::Spec)
+        .map_err(|e| format!("Failed to list specs: {e}"))?
+        .into_iter()
+        .find(|s| s.name == spec_name)
+        .ok_or_else(|| "Spec session not found after restore".to_string())?;
+
     Ok(session)
 }
 
@@ -966,6 +975,23 @@ pub async fn schaltwerk_core_get_session(name: String) -> Result<Session, Schalt
 }
 
 #[tauri::command]
+pub async fn schaltwerk_core_get_spec(
+    name: String,
+) -> Result<schaltwerk::domains::sessions::entity::Spec, SchaltError> {
+    let manager = session_manager_read()
+        .await
+        .map_err(|e| SchaltError::DatabaseError {
+            message: e.to_string(),
+        })?;
+
+    manager
+        .get_spec(&name)
+        .map_err(|_| SchaltError::SessionNotFound {
+            session_id: name.clone(),
+        })
+}
+
+#[tauri::command]
 pub async fn schaltwerk_core_get_session_agent_content(
     name: String,
 ) -> Result<(Option<String>, Option<String>), SchaltError> {
@@ -1122,7 +1148,7 @@ pub async fn schaltwerk_core_convert_session_to_draft(
     // pointing at a deleted directory (which triggers getcwd errors).
     terminals::close_session_terminals_if_any(&name).await;
 
-    match manager.convert_session_to_draft(&name) {
+    match manager.convert_session_to_draft_async(&name).await {
         Ok(new_spec_name) => {
             log::info!("Successfully converted session to spec: {name}");
 
@@ -1297,7 +1323,9 @@ pub async fn schaltwerk_core_start_claude_with_restart(
     let terminal_id = terminals::terminal_id_for_session_top(&session_name);
     let terminal_manager = get_terminal_manager().await?;
 
+    // Always relaunch: close existing terminal if present
     if terminal_manager.terminal_exists(&terminal_id).await? {
+        log::info!("Terminal {terminal_id} exists, closing before restart (force_restart={force_restart})");
         terminal_manager.close_terminal(terminal_id.clone()).await?;
     }
 
@@ -1504,6 +1532,20 @@ pub async fn schaltwerk_core_start_claude_with_restart(
     // Do not implement non-deterministic paste-based workarounds.
 
     log::info!("Successfully started agent in terminal: {terminal_id}");
+
+    // Verify the agent process is alive; if it exited immediately, return an error
+    let alive = match terminal_manager.is_process_alive(&terminal_id).await {
+        Ok(v) => v,
+        Err(e) => {
+            log::warn!("is_process_alive failed for {terminal_id}: {e}; assuming alive");
+            true
+        }
+    };
+    if !alive {
+        log::error!("Agent process for {terminal_id} exited immediately after launch");
+        return Err("Agent process exited immediately after launch".to_string());
+    }
+
     emit_terminal_agent_started(&app, &terminal_id, Some(&session_name));
 
     Ok(command)
@@ -1532,13 +1574,11 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
 ) -> Result<String, String> {
     log::info!("[AGENT_LAUNCH_TRACE] Starting Claude for orchestrator in terminal: {terminal_id}");
 
-    // First check if we have a valid project initialized
     log::info!("[AGENT_LAUNCH_TRACE] Acquiring core read lock for {terminal_id}");
     let core = match get_core_read().await {
         Ok(c) => c,
         Err(e) => {
             log::error!("Failed to get schaltwerk_core for orchestrator: {e}");
-            // If we can't get a schaltwerk_core (no project), create a user-friendly error
             if e.contains("No active project") {
                 return Err("No project is currently open. Please open a project folder first before starting the orchestrator.".to_string());
             }
@@ -1546,6 +1586,7 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
         }
     };
     log::info!("[AGENT_LAUNCH_TRACE] Acquired core read lock for {terminal_id}");
+
     let db = core.db.clone();
     let repo_path = core.repo_path.clone();
     let manager = core.session_manager();
@@ -1560,12 +1601,10 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
         .ok()
         .flatten();
 
-    // Resolve binary paths at command level (with caching)
     let binary_paths = if let Some(settings_manager) = SETTINGS_MANAGER.get() {
         let settings = settings_manager.lock().await;
         let mut paths = std::collections::HashMap::new();
 
-        // Get resolved binary paths for all agents
         for agent in [
             "claude", "copilot", "codex", "opencode", "gemini", "droid", "qwen", "amp",
         ] {
@@ -1589,51 +1628,120 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
             format!("Failed to start Claude in orchestrator: {e}")
         })?;
 
-    // Release the global read lock before launching the terminal process.
     drop(core);
     log::info!("[AGENT_LAUNCH_TRACE] Dropped core read lock for {terminal_id}");
 
-    log::info!(
-        "Claude command for orchestrator: {}",
-        command_spec.shell_command.as_str()
-    );
-    log::info!("[AGENT_LAUNCH_TRACE] Calling launch_in_terminal for {terminal_id}");
-    let result = agent_launcher::launch_in_terminal(
-        terminal_id.clone(),
-        command_spec,
-        &db,
-        &repo_path,
-        cols,
-        rows,
-    )
-    .await?;
+    let app_handle = app.clone();
+    let terminal_id_clone = terminal_id.clone();
+    let repo_path_clone = repo_path.clone();
 
-    emit_terminal_agent_started(&app, &terminal_id, None);
+    tauri::async_runtime::spawn(async move {
+        log::info!(
+            "[AGENT_LAUNCH_TRACE] (background) Calling launch_in_terminal for {terminal_id_clone}"
+        );
+        match agent_launcher::launch_in_terminal(
+            terminal_id_clone.clone(),
+            command_spec,
+            &db,
+            &repo_path,
+            cols,
+            rows,
+            true,
+        )
+        .await
+        {
+            Ok(_) => {
+                let alive = if let Ok(mgr) = get_terminal_manager().await {
+                    match mgr.is_process_alive(&terminal_id_clone).await {
+                        Ok(v) => v,
+                        Err(e) => {
+                            log::warn!(
+                                "[AGENT_LAUNCH_TRACE] is_process_alive failed for {terminal_id_clone}: {e}; assuming alive"
+                            );
+                            true
+                        }
+                    }
+                } else {
+                    true
+                };
 
-    // Ensure orchestrator watcher is running so git graph reacts to commits in main repo
-    let base_branch = configured_default_branch.unwrap_or_else(|| {
-        repository::get_default_branch(repo_path.as_path()).unwrap_or_else(|_| "main".to_string())
-    });
+                if !alive {
+                    log::warn!(
+                        "Orchestrator process for {terminal_id_clone} exited immediately after launch"
+                    );
+                    #[derive(serde::Serialize, Clone)]
+                    struct OrchestratorLaunchFailedPayload<'a> {
+                        terminal_id: &'a str,
+                        error: &'a str,
+                    }
+                    let _ = emit_event(
+                        &app_handle,
+                        SchaltEvent::OrchestratorLaunchFailed,
+                        &OrchestratorLaunchFailedPayload {
+                            terminal_id: &terminal_id_clone,
+                            error: "Orchestrator process exited immediately after launch",
+                        },
+                    );
+                    if let Ok(manager) = get_terminal_manager().await
+                        && let Err(close_err) =
+                            manager.close_terminal(terminal_id_clone.clone()).await
+                    {
+                        log::warn!(
+                            "[AGENT_LAUNCH_TRACE] Failed to close terminal {terminal_id_clone} after early exit: {close_err}"
+                        );
+                    }
+                    return;
+                }
 
-    match get_file_watcher_manager().await {
-        Ok(manager) => {
-            if let Err(err) = manager
-                .start_watching_orchestrator(repo_path.clone(), base_branch.clone())
-                .await
-            {
-                log::warn!(
-                    "Failed to start orchestrator file watcher for {} on branch {}: {err}",
-                    repo_path.display(),
-                    base_branch
+                emit_terminal_agent_started(&app_handle, &terminal_id_clone, None);
+
+                let base_branch = configured_default_branch.unwrap_or_else(|| {
+                    repository::get_default_branch(repo_path_clone.as_path())
+                        .unwrap_or_else(|_| "main".to_string())
+                });
+
+                if let Ok(manager) = get_file_watcher_manager().await
+                    && let Err(err) = manager
+                        .start_watching_orchestrator(repo_path_clone.clone(), base_branch.clone())
+                        .await
+                {
+                    log::warn!(
+                        "Failed to start orchestrator file watcher for {} on branch {}: {err}",
+                        repo_path_clone.display(),
+                        base_branch
+                    );
+                }
+            }
+            Err(err) => {
+                log::error!(
+                    "[AGENT_LAUNCH_TRACE] Orchestrator launch failed for {terminal_id_clone}: {err}"
                 );
+                #[derive(serde::Serialize, Clone)]
+                struct OrchestratorLaunchFailedPayload<'a> {
+                    terminal_id: &'a str,
+                    error: &'a str,
+                }
+                let _ = emit_event(
+                    &app_handle,
+                    SchaltEvent::OrchestratorLaunchFailed,
+                    &OrchestratorLaunchFailedPayload {
+                        terminal_id: &terminal_id_clone,
+                        error: err.as_str(),
+                    },
+                );
+                if let Ok(manager) = get_terminal_manager().await
+                    && let Err(close_err) =
+                        manager.close_terminal(terminal_id_clone.clone()).await
+                {
+                    log::warn!(
+                        "[AGENT_LAUNCH_TRACE] Failed to close terminal {terminal_id_clone} after launch failure: {close_err}"
+                    );
+                }
             }
         }
-        Err(err) => {
-            log::warn!("File watcher manager unavailable while starting orchestrator: {err}");
-        }
-    }
+    });
 
-    Ok(result)
+    Ok("orchestrator-started".to_string())
 }
 
 #[tauri::command]
@@ -1938,142 +2046,36 @@ pub async fn schaltwerk_core_create_spec_session(
     agent_type: Option<String>,
     skip_permissions: Option<bool>,
 ) -> Result<Session, String> {
-    log::info!("Creating spec session: {name} with agent_type={agent_type:?}");
+    log::info!("Creating spec: {name} with agent_type={agent_type:?}");
 
     let core = get_core_write().await?;
     let manager = core.session_manager();
 
-    let session = manager
+    let spec = manager
         .create_spec_session_with_agent(
             &name,
             &spec_content,
             agent_type.as_deref(),
             skip_permissions,
+            None,
         )
         .map_err(|e| format!("Failed to create spec session: {e}"))?;
 
-    // Store session details for name generation
-    let session_id = session.id.clone();
-    let session_name = session.name.clone();
-    let has_agent_type = agent_type.is_some();
-    let has_content = !spec_content.trim().is_empty();
-    let should_generate_name =
-        has_agent_type && has_content && !is_versioned_session_name(&session_name);
+    let spec_session = manager
+        .list_sessions_by_state(SessionState::Spec)
+        .map_err(|e| format!("Failed to list specs: {e}"))?
+        .into_iter()
+        .find(|s| s.name == spec.name)
+        .ok_or_else(|| {
+            "Spec session not found after creation; inconsistent spec/session sync".to_string()
+        })?;
 
-    // Emit event with actual sessions list
-    // Invalidate cache before emitting refreshed event
     log::info!("Queueing sessions refresh after creating spec session");
     events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SpecSync);
 
-    // Drop the lock before spawning async task
     drop(core);
 
-    // Trigger name generation for specs created with agent type
-    if should_generate_name {
-        log::info!(
-            "Spec session '{session_name}' created with agent type, spawning name generation"
-        );
-        let app_handle = app.clone();
-        let agent_type_clone = agent_type.clone();
-        let spec_content_clone = spec_content.clone();
-
-        tokio::spawn(async move {
-            // Get fresh session data
-            let (repo_path, worktree_path, branch, db_clone) = {
-                let core = match get_core_read().await {
-                    Ok(c) => c,
-                    Err(e) => {
-                        log::warn!("Cannot get schaltwerk_core for spec name generation: {e}");
-                        return;
-                    }
-                };
-                let manager = core.session_manager();
-                let session = match manager.get_session(&session_name) {
-                    Ok(s) => s,
-                    Err(e) => {
-                        log::warn!("Cannot load spec session '{session_name}' for naming: {e}");
-                        return;
-                    }
-                };
-
-                (
-                    session.repository_path.clone(),
-                    session.worktree_path.clone(),
-                    session.branch.clone(),
-                    core.db.clone(),
-                )
-            };
-
-            let agent = agent_type_clone.unwrap_or_else(|| "claude".to_string());
-            let (mut env_vars, cli_args, binary_path, _preferences) =
-                get_agent_env_and_cli_args(&agent);
-
-            if let Ok(project_env_vars) = db_clone.get_project_environment_variables(&repo_path) {
-                for (key, value) in project_env_vars {
-                    env_vars.push((key, value));
-                }
-            }
-
-            log::info!(
-                "Starting name generation for spec session '{session_name}' with agent '{agent}'..."
-            );
-
-            // Generate display name - use spec_content as the prompt
-            let ctx = naming::SessionRenameContext {
-                db: &db_clone,
-                session_id: &session_id,
-                worktree_path: &worktree_path,
-                repo_path: &repo_path,
-                current_branch: &branch,
-                agent_type: &agent,
-                initial_prompt: Some(&spec_content_clone), // Pass spec content as initial_prompt for name generation
-                cli_args: if cli_args.is_empty() {
-                    None
-                } else {
-                    Some(cli_args)
-                },
-                env_vars,
-                binary_path,
-            };
-
-            match naming::generate_display_name_and_rename_branch(ctx).await {
-                Ok(Some(display_name)) => {
-                    log::info!(
-                        "Generated display name '{display_name}' for spec session '{session_name}'"
-                    );
-
-                    // Update the display name in database
-                    if let Err(e) = db_clone.update_session_display_name(&session_id, &display_name)
-                    {
-                        log::warn!(
-                            "Failed to update display name for spec session '{session_name}': {e}"
-                        );
-                    } else {
-                        // Clear the pending flag
-                        let _ = db_clone.set_pending_name_generation(&session_id, false);
-
-                        log::info!("Queueing sessions refresh after spec renaming");
-                        events::request_sessions_refreshed(
-                            &app_handle,
-                            events::SessionsRefreshReason::SpecSync,
-                        );
-                    }
-                }
-                Ok(None) => {
-                    log::info!("No display name generated for spec session '{session_name}'");
-                    let _ = db_clone.set_pending_name_generation(&session_id, false);
-                }
-                Err(e) => {
-                    log::warn!(
-                        "Failed to generate display name for spec session '{session_name}': {e}"
-                    );
-                    let _ = db_clone.set_pending_name_generation(&session_id, false);
-                }
-            }
-        });
-    }
-
-    Ok(session)
+    Ok(spec_session)
 }
 
 #[tauri::command]
@@ -2087,13 +2089,13 @@ pub async fn schaltwerk_core_create_and_start_spec_session(
     version_number: Option<i32>,
     agent_type: Option<String>,
     skip_permissions: Option<bool>,
-) -> Result<(), String> {
+) -> Result<Session, String> {
     log::info!("Creating and starting spec session: {name}");
 
     let core = get_core_write().await?;
     let manager = core.session_manager();
 
-    manager
+    let session = manager
         .create_and_start_spec_session_with_config(
             &name,
             &spec_content,
@@ -2106,7 +2108,7 @@ pub async fn schaltwerk_core_create_and_start_spec_session(
         .map_err(|e| format!("Failed to create and start spec session: {e}"))?;
 
     // Spawn thread watcher for Amp sessions to capture thread ID on first run
-    if let Err(e) = manager.spawn_amp_thread_watcher(&name) {
+    if let Err(e) = manager.spawn_amp_thread_watcher(&session.name) {
         log::warn!("Failed to spawn amp thread watcher for session '{name}': {e}");
     }
 
@@ -2117,7 +2119,7 @@ pub async fn schaltwerk_core_create_and_start_spec_session(
     // Drop the lock
     drop(core);
 
-    Ok(())
+    Ok(session)
 }
 
 #[tauri::command]
@@ -2129,13 +2131,13 @@ pub async fn schaltwerk_core_start_spec_session(
     version_number: Option<i32>,
     agent_type: Option<String>,
     skip_permissions: Option<bool>,
-) -> Result<(), String> {
+) -> Result<Session, String> {
     log::info!("Starting spec session: {name}");
 
     let core = get_core_write().await?;
     let manager = core.session_manager();
 
-    manager
+    let session = manager
         .start_spec_session_with_config(
             &name,
             base_branch.as_deref(),
@@ -2146,261 +2148,20 @@ pub async fn schaltwerk_core_start_spec_session(
         )
         .map_err(|e| format!("Failed to start spec session: {e}"))?;
 
-    // Spawn thread watcher for Amp sessions to capture thread ID on first run
-    if let Err(e) = manager.spawn_amp_thread_watcher(&name) {
-        log::warn!("Failed to spawn amp thread watcher for session '{name}': {e}");
-    }
-
-    // Check if AI renaming should be triggered for spec-derived sessions
-    // First, get the session info to check if it has auto-generation potential
-    let session = match manager.get_session(&name) {
-        Ok(s) => s,
-        Err(_) => {
-            drop(core);
-            return Ok(());
-        }
-    };
-
-    // Check if the session has content that could enable AI renaming
-    // Skip if display name already exists (generated when spec was created)
-    let has_display_name = session.display_name.is_some();
-    if has_display_name {
-        log::info!("Spec session '{name}' already has display name, skipping regeneration");
-        drop(core);
-        // Emit refresh since name generation won't happen
-        log::info!(
-            "Queueing sessions refresh after starting spec session (no name generation needed)"
-        );
-        events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SpecSync);
-        return Ok(());
-    }
-
-    // For spec sessions, the content is in spec_content field, not initial_prompt
-    let has_prompt_content = session
-        .initial_prompt
-        .as_ref()
-        .map(|p| !p.trim().is_empty())
-        .unwrap_or(false);
-    let has_spec_content = session
-        .spec_content
-        .as_ref()
-        .map(|c| !c.trim().is_empty())
-        .unwrap_or(false);
-    let should_trigger_renaming = has_prompt_content || has_spec_content;
-
-    if should_trigger_renaming && !is_versioned_session_name(&name) {
-        log::info!("Spec session '{name}' has content (prompt or spec), enabling AI renaming");
-
-        // Set the pending_name_generation flag to enable AI renaming
-        let db = core.db.clone();
-        if let Err(e) = db.set_pending_name_generation(&session.id, true) {
-            log::warn!("Failed to set pending_name_generation for spec session '{name}': {e}");
-        }
-    }
-
-    log::info!("Queueing sessions refresh after starting spec session '{name}' (pre-rename)");
+    log::info!("Queueing sessions refresh after starting spec session");
     events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SpecSync);
 
-    // Drop the lock before spawning rename work
     drop(core);
 
-    // Trigger AI renaming for spec-started sessions with meaningful content
-    if should_trigger_renaming && !is_versioned_session_name(&name) && !has_display_name {
-        log::info!("Spec session '{name}' converted to running, spawning name generation agent");
-        let session_name_clone = name.clone();
-        let app_handle = app.clone();
-
-        tokio::spawn(async move {
-            let (session_info, db_clone) = {
-                let core = match get_core_read().await {
-                    Ok(c) => c,
-                    Err(e) => {
-                        log::warn!(
-                            "Cannot get schaltwerk_core for session '{session_name_clone}': {e}"
-                        );
-                        return;
-                    }
-                };
-                let manager = core.session_manager();
-                let session = match manager.get_session(&session_name_clone) {
-                    Ok(s) => s,
-                    Err(e) => {
-                        log::warn!("Cannot load session '{session_name_clone}' for naming: {e}");
-                        return;
-                    }
-                };
-                log::info!(
-                    "Session '{}' loaded: pending_name_generation={}, original_agent_type={:?}",
-                    session_name_clone,
-                    session.pending_name_generation,
-                    session.original_agent_type
-                );
-
-                if !session.pending_name_generation {
-                    log::info!(
-                        "Session '{session_name_clone}' does not have pending_name_generation flag, skipping"
-                    );
-                    return;
-                }
-                let agent = session.original_agent_type.clone().unwrap_or_else(|| {
-                    core.db
-                        .get_agent_type()
-                        .unwrap_or_else(|_| "claude".to_string())
-                });
-
-                log::info!(
-                    "Using agent '{agent}' for name generation of spec-started session '{session_name_clone}'"
-                );
-
-                // Use initial_prompt if available, otherwise use spec_content
-                let prompt_content = session
-                    .initial_prompt
-                    .clone()
-                    .or_else(|| session.spec_content.clone());
-
-                (
-                    (
-                        session.id.clone(),
-                        session.worktree_path.clone(),
-                        session.repository_path.clone(),
-                        session.branch.clone(),
-                        agent,
-                        prompt_content,
-                    ),
-                    core.db.clone(),
-                )
-            };
-
-            let (session_id, worktree_path, repo_path, current_branch, agent, initial_prompt): (
-                String,
-                PathBuf,
-                PathBuf,
-                String,
-                String,
-                Option<String>,
-            ) = session_info;
-
-            log::info!(
-                "Starting name generation for spec-started session '{}' with prompt: {:?}",
-                session_name_clone,
-                initial_prompt.as_ref().map(|p| {
-                    let max_len = 50;
-                    if p.len() <= max_len {
-                        p.as_str()
-                    } else {
-                        let mut end = max_len;
-                        while !p.is_char_boundary(end) && end > 0 {
-                            end -= 1;
-                        }
-                        &p[..end]
-                    }
-                })
-            );
-
-            // Build env vars and CLI args as used to start the session
-            let (mut env_vars, cli_args, binary_path) =
-                if let Some(settings_manager) = crate::SETTINGS_MANAGER.get() {
-                    let manager = settings_manager.lock().await;
-                    let env_vars = manager
-                        .get_agent_env_vars(&agent)
-                        .into_iter()
-                        .collect::<Vec<(String, String)>>();
-                    let cli_args = manager.get_agent_cli_args(&agent);
-                    let binary_path = manager.get_effective_binary_path(&agent).ok();
-                    (env_vars, cli_args, binary_path)
-                } else {
-                    (vec![], String::new(), None)
-                };
-
-            // Add project-specific environment variables
-            if let Ok(project_env_vars) = db_clone.get_project_environment_variables(&repo_path) {
-                for (key, value) in project_env_vars {
-                    env_vars.push((key, value));
-                }
-            }
-
-            let cli_args = if cli_args.is_empty() {
-                None
-            } else {
-                Some(cli_args)
-            };
-
-            let ctx = schaltwerk::domains::agents::naming::SessionRenameContext {
-                db: &db_clone,
-                session_id: &session_id,
-                worktree_path: &worktree_path,
-                repo_path: &repo_path,
-                current_branch: &current_branch,
-                agent_type: &agent,
-                initial_prompt: initial_prompt.as_deref(),
-                cli_args,
-                env_vars,
-                binary_path,
-            };
-            match schaltwerk::domains::agents::naming::generate_display_name_and_rename_branch(ctx)
-                .await
-            {
-                Ok(Some(display_name)) => {
-                    log::info!(
-                        "Successfully generated display name '{display_name}' for spec-started session '{session_name_clone}'"
-                    );
-
-                    if let Err(e) = db_clone.set_pending_name_generation(&session_id, false) {
-                        log::warn!(
-                            "Failed to clear pending_name_generation for spec-started session '{session_name_clone}': {e}"
-                        );
-                    }
-                    log::info!("Queueing sessions refresh after spec-session name generation");
-                    events::request_sessions_refreshed(
-                        &app_handle,
-                        events::SessionsRefreshReason::SpecSync,
-                    );
-                    // Emit selection event after sessions refresh so auto-start runs first
-                    events::emit_selection_running(&app_handle, &session_name_clone);
-                }
-                Ok(None) => {
-                    log::warn!(
-                        "Name generation returned None for spec-started session '{session_name_clone}'"
-                    );
-                    let _ = db_clone.set_pending_name_generation(&session_id, false);
-                    log::info!(
-                        "Queueing sessions refresh after spec-session name generation (None)"
-                    );
-                    events::request_sessions_refreshed(
-                        &app_handle,
-                        events::SessionsRefreshReason::SpecSync,
-                    );
-                    // Emit selection event after sessions refresh so auto-start runs first
-                    events::emit_selection_running(&app_handle, &session_name_clone);
-                }
-                Err(e) => {
-                    log::error!(
-                        "Failed to generate display name for spec-started session '{session_name_clone}': {e}"
-                    );
-                    let _ = db_clone.set_pending_name_generation(&session_id, false);
-                    log::info!(
-                        "Queueing sessions refresh after spec-session name generation (Err)"
-                    );
-                    events::request_sessions_refreshed(
-                        &app_handle,
-                        events::SessionsRefreshReason::SpecSync,
-                    );
-                    // Emit selection event after sessions refresh so auto-start runs first
-                    events::emit_selection_running(&app_handle, &session_name_clone);
-                }
-            }
-        });
-    } else {
-        // Name generation won't be triggered, so emit refresh to trigger auto-start
-        log::info!(
-            "Queueing sessions refresh after starting spec session (name generation not needed)"
+    if let Err(e) = manager.spawn_amp_thread_watcher(&session.name) {
+        log::warn!(
+            "Failed to spawn amp thread watcher for session '{}': {}",
+            session.name,
+            e
         );
-        events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SpecSync);
-        // Emit selection event after sessions refresh so auto-start runs first
-        events::emit_selection_running(&app, &name);
     }
 
-    Ok(())
+    Ok(session)
 }
 
 #[tauri::command]
@@ -2581,6 +2342,7 @@ pub async fn schaltwerk_core_start_fresh_orchestrator(
         &core.repo_path,
         None,
         None,
+        true,
     )
     .await?;
 
