@@ -230,6 +230,36 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         setSearchTerm('');
     }, []);
     const termDebug = () => (typeof window !== 'undefined' && localStorage.getItem('TERMINAL_DEBUG') === '1');
+    const setupViewportController = useCallback((instance: XtermTerminal | null) => {
+        const current = viewportControllerRef.current;
+        if (current) {
+            try {
+                current.dispose();
+            } catch (e) {
+                logger.debug(`[Terminal ${terminalId}] Failed to dispose previous viewport controller`, e);
+            }
+        }
+        viewportControllerRef.current = null;
+
+        if (!instance) {
+            return;
+        }
+
+        // Mirror VS Code's attach path: ensure renderer/viewport is refreshed on reattach so
+        // buffer + scroll state are in sync before we (re)apply snap-to-bottom logic.
+        if (typeof instance.refresh === 'function') {
+            try {
+                instance.refresh();
+            } catch (e) {
+                logger.debug(`[Terminal ${terminalId}] Viewport refresh during controller setup failed`, e);
+            }
+        }
+
+        viewportControllerRef.current = new TerminalViewportController({
+            terminal: instance,
+            logger: termDebug() ? (msg) => logger.debug(`[Terminal ${terminalId}] ${msg}`) : undefined,
+        });
+    }, [terminalId]);
     const mountedRef = useRef<boolean>(false);
     const startingTerminals = useRef<Map<string, boolean>>(new Map());
     const previousTerminalId = useRef<string>(terminalId);
@@ -419,23 +449,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             resizeCoordinatorRef.current = null;
         };
     }, [applySizeUpdate]);
-
-    // Initialize Viewport Controller
-    useEffect(() => {
-        // We need the terminal instance to be ready
-        if (!xtermWrapperRef.current) return;
-
-        const controller = new TerminalViewportController({
-            terminal: xtermWrapperRef.current,
-            logger: termDebug() ? (msg) => logger.debug(`[Terminal ${terminalId}] ${msg}`) : undefined
-        });
-        viewportControllerRef.current = controller;
-
-        return () => {
-            controller.dispose();
-            viewportControllerRef.current = null;
-        };
-    }, [terminalId, hydrated]); // Re-init if hydration changes (implies instance might have changed/reset)
 
     const {
         gpuRenderer,
@@ -1075,6 +1088,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         }
         instance.setSmoothScrolling(smoothScrollingEnabled && isPhysicalWheelRef.current);
         xtermWrapperRef.current = instance;
+        setupViewportController(instance);
         if (fileLinkHandlerRef.current) {
             instance.setFileLinkHandler(fileLinkHandlerRef.current);
         }
@@ -1524,6 +1538,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 onDataDisposableRef.current = null;
             }
 
+            setupViewportController(null);
             detachTerminalInstance(terminalId);
             xtermWrapperRef.current = null;
             gpuRenderer.current = null;
@@ -1556,6 +1571,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         handleFontPreferenceChange,
         webglRendererActive,
         smoothScrollingEnabled,
+        setupViewportController,
     ]);
 
 
