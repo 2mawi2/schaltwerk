@@ -33,6 +33,7 @@ import { theme } from '../../common/theme'
 import { SPLIT_GUTTER_SIZE } from '../../common/splitLayout'
 import { logger } from '../../utils/logger'
 import { loadRunScriptConfiguration } from '../../utils/runScriptLoader'
+import { validatePanelPercentage } from '../../utils/panel'
 import { useModal } from '../../contexts/ModalContext'
 import { safeTerminalFocus } from '../../utils/safeFocus'
 import { UiEvent, emitUiEvent, listenUiEvent, TerminalResetDetail } from '../../common/uiEvents'
@@ -239,7 +240,10 @@ const TerminalGridComponent = () => {
     const toggleTerminalCollapsed = useCallback(() => {
         if (isBottomCollapsed) {
             // Expand
-            const expanded = lastExpandedBottomPercent || 28
+            const expanded = validatePanelPercentage(
+                typeof lastExpandedBottomPercent === 'number' ? lastExpandedBottomPercent.toString() : null,
+                28
+            )
             void setSizes([100 - expanded, expanded])
             void setIsBottomCollapsed(false)
         } else {
