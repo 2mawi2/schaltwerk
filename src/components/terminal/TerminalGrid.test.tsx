@@ -411,6 +411,7 @@ beforeEach(() => {
   runTerminalStates.clear()
   // Don't clear focusSpies here - let components register them after mounting
   vi.clearAllMocks()
+  localStorage.clear()
   sessionStorage.clear()
   loadRunScriptConfigurationMock.mockResolvedValue({
     hasRunScripts: false,
@@ -949,7 +950,8 @@ describe('TerminalGrid', () => {
   })
 
   describe('Terminal Minimization', () => {
-    it('initializes split sizes from sessionStorage entries with sensible fallbacks', async () => {
+    it('initializes split sizes from persisted entries with sensible fallbacks (migrates from sessionStorage)', async () => {
+      // Legacy sessionStorage values should be migrated to localStorage
       sessionStorage.setItem('schaltwerk:layout:bottomTerminalSizes', 'not-json')
       sessionStorage.setItem('schaltwerk:layout:bottomTerminalCollapsed', 'true')
       sessionStorage.setItem('schaltwerk:layout:bottomTerminalLastExpandedSize', '200')
@@ -964,6 +966,9 @@ describe('TerminalGrid', () => {
 
       const split = screen.getByTestId('split')
       expect(split.getAttribute('data-sizes')).toBe(JSON.stringify([90, 10]))
+
+      // Verify migration to localStorage
+      expect(localStorage.getItem('schaltwerk:layout:bottomTerminalCollapsed')).toBe('true')
 
       const expandButton = screen.getByLabelText('Expand terminal panel')
       fireEvent.click(expandButton)
@@ -1022,8 +1027,9 @@ describe('TerminalGrid', () => {
       })
     })
 
-    it('persists collapse state globally in sessionStorage', async () => {
-      // Clear sessionStorage to start fresh
+    it('persists collapse state globally in localStorage', async () => {
+      // Clear storage to start fresh
+      localStorage.clear()
       sessionStorage.clear()
 
       await renderGrid()
@@ -1044,8 +1050,8 @@ describe('TerminalGrid', () => {
         expect(expandBtn).toBeInTheDocument()
       })
 
-      // Check sessionStorage was updated globally
-      expect(sessionStorage.getItem('schaltwerk:layout:bottomTerminalCollapsed')).toBe('true')
+      // Check localStorage was updated globally
+      expect(localStorage.getItem('schaltwerk:layout:bottomTerminalCollapsed')).toBe('true')
 
       // Switch to a session
       await act(async () => {
@@ -1079,7 +1085,7 @@ describe('TerminalGrid', () => {
         expect(expandBtn2).toBeInTheDocument()
       })
 
-      expect(sessionStorage.getItem('schaltwerk:layout:bottomTerminalCollapsed')).toBe('true')
+      expect(localStorage.getItem('schaltwerk:layout:bottomTerminalCollapsed')).toBe('true')
 
       // Switch back to orchestrator
       await act(async () => {
@@ -1098,8 +1104,8 @@ describe('TerminalGrid', () => {
     })
 
     it('maintains minimization state when switching between sessions', async () => {
-      // Set up collapse state in global sessionStorage
-      sessionStorage.setItem('schaltwerk:layout:bottomTerminalCollapsed', 'true')
+      // Set up collapse state in global storage
+      localStorage.setItem('schaltwerk:layout:bottomTerminalCollapsed', 'true')
 
       await renderGrid()
       vi.useRealTimers()
@@ -1161,7 +1167,7 @@ describe('TerminalGrid', () => {
 
     it('expands terminal when clicking expand button while collapsed', async () => {
       // Pre-set collapsed state globally
-      sessionStorage.setItem('schaltwerk:layout:bottomTerminalCollapsed', 'true')
+      localStorage.setItem('schaltwerk:layout:bottomTerminalCollapsed', 'true')
       
       await renderGrid()
       vi.useRealTimers()
@@ -1704,8 +1710,8 @@ describe('TerminalGrid', () => {
   describe('Keyboard Toggle Consistency', () => {
     it('collapses bottom terminal when Cmd+/ is pressed while terminal is focused', async () => {
       // Start collapsed=false in storage
-      sessionStorage.setItem('schaltwerk:layout:bottomTerminalCollapsed', 'false')
-      sessionStorage.setItem('schaltwerk:layout:bottomTerminalSizes', JSON.stringify([70, 30]))
+      localStorage.setItem('schaltwerk:layout:bottomTerminalCollapsed', 'false')
+      localStorage.setItem('schaltwerk:layout:bottomTerminalSizes', JSON.stringify([70, 30]))
 
       await renderGrid()
       vi.useRealTimers()
@@ -1732,7 +1738,7 @@ describe('TerminalGrid', () => {
       })
       
       // Verify persisted state
-      expect(sessionStorage.getItem('schaltwerk:layout:bottomTerminalCollapsed')).toBe('true')
+      expect(localStorage.getItem('schaltwerk:layout:bottomTerminalCollapsed')).toBe('true')
     })
   })
 })
