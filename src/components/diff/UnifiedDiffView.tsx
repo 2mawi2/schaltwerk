@@ -23,8 +23,6 @@ import {
   VscSend,
   VscListFlat,
   VscListSelection,
-  VscCollapseAll,
-  VscExpandAll,
 } from "react-icons/vsc";
 import { SearchBox } from "../common/SearchBox";
 import "../../styles/vscode-dark-theme.css";

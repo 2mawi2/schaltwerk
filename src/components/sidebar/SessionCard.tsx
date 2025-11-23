@@ -63,6 +63,69 @@ function getSessionStateColor(state?: string): "green" | "violet" | "gray" {
   }
 }
 
+type SessionCardSurfaceOptions = {
+  sessionState: SessionInfo['session_state']
+  isSelected: boolean
+  isReviewedState: boolean
+  isRunning: boolean
+  hasFollowUpMessage?: boolean
+  willBeDeleted?: boolean
+  isPromotionPreview?: boolean
+}
+
+export function getSessionCardSurfaceClasses({
+  sessionState,
+  isSelected,
+  isReviewedState,
+  isRunning,
+  hasFollowUpMessage,
+  willBeDeleted,
+  isPromotionPreview,
+}: SessionCardSurfaceOptions) {
+  const baseTone = (() => {
+    if (willBeDeleted) {
+      return "border-red-600/50 bg-red-950/20 opacity-30 transition-all duration-200";
+    }
+    if (isPromotionPreview) {
+      return "session-ring session-ring-green border-transparent shadow-lg shadow-green-400/20";
+    }
+    if (isSelected) return "session-ring session-ring-blue border-transparent";
+    if (isReviewedState) return "session-ring session-ring-green border-transparent opacity-90";
+    if (sessionState === "running") return "border-slate-700 bg-slate-800/50 hover:bg-slate-800/60";
+    if (sessionState === "spec") return "border-slate-800 bg-slate-900/30 hover:bg-slate-800/30 opacity-85";
+    return "border-slate-800 bg-slate-900/40 hover:bg-slate-800/30";
+  })();
+
+  return clsx(
+    baseTone,
+    hasFollowUpMessage && !isSelected &&
+      "ring-2 ring-blue-400/50 shadow-lg shadow-blue-400/20 bg-blue-950/20",
+    isRunning && !isSelected &&
+      "ring-2 ring-pink-500/50 shadow-lg shadow-pink-500/20 bg-pink-950/20"
+  );
+}
+
+export const getAgentColorKey = (
+  agent: string,
+): "blue" | "green" | "orange" | "violet" | "red" | "yellow" => {
+  switch (agent) {
+    case "claude":
+      return "blue";
+    case "opencode":
+      return "green";
+    case "gemini":
+      return "orange";
+    case "droid":
+      return "violet";
+    case "codex":
+      return "red";
+    case "amp":
+      return "yellow";
+    default:
+      return "red";
+  }
+};
+
 const sessionText = {
   title: {
     ...typography.heading,
@@ -188,28 +251,7 @@ export const SessionCard = memo<SessionCardProps>(
     const agentKey = (agentType || "").toLowerCase();
     const agentLabel = agentKey;
 
-    const getAgentColor = (
-      agent: string,
-    ): "blue" | "green" | "orange" | "violet" | "red" | "yellow" => {
-      switch (agent) {
-        case "claude":
-          return "blue";
-        case "opencode":
-          return "green";
-        case "gemini":
-          return "orange";
-        case "droid":
-          return "violet";
-        case "codex":
-          return "red";
-        case "amp":
-          return "yellow";
-        default:
-          return "red";
-      }
-    };
-
-    const agentColor = getAgentColor(agentKey);
+    const agentColor = getAgentColorKey(agentKey);
     const colorScheme = getAgentColorScheme(agentColor);
 
     const sessionState = s.session_state;
@@ -217,27 +259,6 @@ export const SessionCard = memo<SessionCardProps>(
       isReviewedState && !isReadyToMerge && !!s.has_uncommitted_changes;
 
     // State icon removed - no longer using emojis
-
-    // Get background color based on state
-    const getStateBackground = () => {
-      if (willBeDeleted) {
-        // Sessions that will be deleted: faded with red tint
-        return "border-red-600/50 bg-red-950/20 opacity-30 transition-all duration-200";
-      }
-      if (isPromotionPreview) {
-        // Selected session being promoted: green emphasis
-        return "session-ring session-ring-green border-transparent shadow-lg shadow-green-400/20";
-      }
-      if (isSelected)
-        return "session-ring session-ring-blue border-transparent";
-      if (isReviewedState)
-        return "session-ring session-ring-green border-transparent opacity-90";
-      if (sessionState === "running")
-        return "border-slate-700 bg-slate-800/50 hover:bg-slate-800/60";
-      if (sessionState === "spec")
-        return "border-slate-800 bg-slate-900/30 hover:bg-slate-800/30 opacity-85";
-      return "border-slate-800 bg-slate-900/40 hover:bg-slate-800/30";
-    };
 
     return (
       <div
@@ -260,14 +281,15 @@ export const SessionCard = memo<SessionCardProps>(
         data-session-selected={isSelected ? "true" : "false"}
         className={clsx(
           "group relative w-full text-left px-3 py-2.5 rounded-md mb-2 border transition-all duration-300",
-          getStateBackground(),
-
-          hasFollowUpMessage &&
-            !isSelected &&
-            "ring-2 ring-blue-400/50 shadow-lg shadow-blue-400/20 bg-blue-950/20",
-          isRunning &&
-            !isSelected &&
-            "ring-2 ring-pink-500/50 shadow-lg shadow-pink-500/20 bg-pink-950/20",
+          getSessionCardSurfaceClasses({
+            sessionState,
+            isSelected,
+            isReviewedState,
+            isRunning: Boolean(isRunning),
+            hasFollowUpMessage,
+            willBeDeleted,
+            isPromotionPreview,
+          }),
           isBusy ? "cursor-progress opacity-60" : "cursor-pointer",
         )}
         aria-label={getAccessibilityLabel(isSelected, index)}

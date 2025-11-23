@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, useEffectEvent } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useEffectEvent, useMemo } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
 import clsx from 'clsx'
 import { invoke } from '@tauri-apps/api/core'
@@ -14,8 +14,10 @@ import { computeSelectionCandidate } from '../../utils/selectionPostMerge'
 import { ConvertToSpecConfirmation } from '../modals/ConvertToSpecConfirmation'
 import { FilterMode, FILTER_MODES } from '../../types/sessionFilters'
 import { calculateFilterCounts, mapSessionUiState, isReviewed, isSpec } from '../../utils/sessionFilters'
+import { theme } from '../../common/theme'
 import { groupSessionsByVersion, selectBestVersionAndCleanup, SessionVersionGroup as SessionVersionGroupType } from '../../utils/sessionVersions'
 import { SessionVersionGroup } from './SessionVersionGroup'
+import { CollapsedSidebarRail } from './CollapsedSidebarRail'
 import { PromoteVersionConfirmation } from '../modals/PromoteVersionConfirmation'
 import { useSessionManagement } from '../../hooks/useSessionManagement'
 import { SwitchOrchestratorModal } from '../modals/SwitchOrchestratorModal'
@@ -48,9 +50,24 @@ interface SidebarProps {
     openTabs?: Array<{projectPath: string, projectName: string}>
     onSelectPrevProject?: () => void
     onSelectNextProject?: () => void
+    isCollapsed?: boolean
+    onExpandRequest?: () => void
 }
 
-export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, onSelectNextProject }: SidebarProps) {
+const flattenGroupedSessions = (sessionsToFlatten: EnrichedSession[]): EnrichedSession[] => {
+    const sessionGroups = groupSessionsByVersion(sessionsToFlatten)
+    const flattenedSessions: EnrichedSession[] = []
+    
+    for (const group of sessionGroups) {
+        for (const version of group.versions) {
+            flattenedSessions.push(version.session)
+        }
+    }
+    
+    return flattenedSessions
+}
+
+export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, onSelectNextProject, isCollapsed = false, onExpandRequest }: SidebarProps) {
     const { selection, setSelection, terminals, clearTerminalTracking } = useSelection()
     const projectPath = useAtomValue(projectPathAtom)
     const { setFocusForSession, setCurrentFocus } = useFocus()
@@ -215,6 +232,8 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         [activeMergeSessionId]
     )
     const sidebarRef = useRef<HTMLDivElement>(null)
+    const sessionListRef = useRef<HTMLDivElement>(null)
+    const sessionScrollTopRef = useRef(0)
     const isProjectSwitching = useRef(false)
     const previousProjectPathRef = useRef<string | null>(null)
     const previousFilterModeRef = useRef<FilterMode>(filterMode)
@@ -233,6 +252,8 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
       }
       return selectionMemoryRef.current.get(key)!;
     }, [projectPath]);
+
+    const flattenedSessions = useMemo(() => flattenGroupedSessions(sessions), [sessions])
 
     useEffect(() => {
         if (previousProjectPathRef.current !== null && previousProjectPathRef.current !== projectPath) {
@@ -449,25 +470,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const handleSelectOrchestrator = useCallback(async () => {
         await setSelection({ kind: 'orchestrator' }, false, true) // User clicked - intentional
     }, [setSelection])
-    
-    // Helper to flatten grouped sessions into a linear array
-    const flattenGroupedSessions = (sessionsToFlatten: EnrichedSession[]): EnrichedSession[] => {
-        const sessionGroups = groupSessionsByVersion(sessionsToFlatten)
-        const flattenedSessions: EnrichedSession[] = []
-        
-        for (const group of sessionGroups) {
-            for (const version of group.versions) {
-                flattenedSessions.push(version.session)
-            }
-        }
-        
-        return flattenedSessions
-    }
-
     const handleSelectSession = async (index: number) => {
-        // When sessions are grouped, we need to find the correct session by flattening the groups
-        const flattenedSessions = flattenGroupedSessions(sessions)
-        
         const session = flattenedSessions[index]
         if (session) {
             const s = session.info
@@ -536,7 +539,6 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         if (sessions.length === 0) return
 
         if (selection.kind === 'session') {
-            const flattenedSessions = flattenGroupedSessions(sessions)
             const currentIndex = flattenedSessions.findIndex(s => s.info.session_id === selection.payload)
             if (currentIndex <= 0) {
                 await handleSelectOrchestrator()
@@ -555,7 +557,6 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         }
 
         if (selection.kind === 'session') {
-            const flattenedSessions = flattenGroupedSessions(sessions)
             const currentIndex = flattenedSessions.findIndex(s => s.info.session_id === selection.payload)
             const nextIndex = Math.min(currentIndex + 1, flattenedSessions.length - 1)
             if (nextIndex != currentIndex) {
@@ -935,10 +936,24 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                         block: 'nearest',
                         inline: 'nearest'
                     })
+                    if (sessionListRef.current) {
+                        sessionScrollTopRef.current = sessionListRef.current.scrollTop
+                    }
                 }
             })
         })
     }, [selection])
+
+    const handleSessionScroll = useCallback((event: { currentTarget: { scrollTop: number } }) => {
+        sessionScrollTopRef.current = event.currentTarget.scrollTop
+    }, [])
+
+    useEffect(() => {
+        const node = sessionListRef.current
+        if (node) {
+            node.scrollTop = sessionScrollTopRef.current
+        }
+    }, [isCollapsed])
 
     // Subscribe to backend push updates and merge into sessions list incrementally
     useEffect(() => {
@@ -1022,10 +1037,16 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const { allCount, specsCount, runningCount, reviewedCount } = calculateFilterCounts(allSessions)
 
     return (
-        <div ref={sidebarRef} className="h-full flex flex-col min-h-0">
-            <div className="h-8 px-3 border-b border-slate-800 text-xs flex items-center text-slate-300">Repository (Orchestrator)</div>
-
-            <div className="px-2 pt-2">
+        <div
+            ref={sidebarRef}
+            className="h-full flex flex-col min-h-0"
+            onDoubleClick={() => {
+                if (isCollapsed && onExpandRequest) {
+                    onExpandRequest()
+                }
+            }}
+        >
+            <div className={clsx('pt-2', isCollapsed ? 'px-1' : 'px-2')}>
                 <div
                     role="button"
                     tabIndex={0}
@@ -1037,7 +1058,8 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                         }
                     }}
                     className={clsx(
-                        'w-full text-left px-3 py-2 rounded-md mb-1 group border transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500/70 focus-visible:ring-offset-slate-900',
+                        'w-full text-left py-2 rounded-md mb-1 group border transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500/70 focus-visible:ring-offset-slate-900',
+                        isCollapsed ? 'px-0 justify-center flex' : 'px-3',
                         selection.kind === 'orchestrator'
                             ? 'bg-slate-800/60 session-ring session-ring-blue border-transparent'
                             : 'hover:bg-slate-800/30 border-slate-800',
@@ -1048,132 +1070,178 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                     aria-pressed={selection.kind === 'orchestrator'}
                     data-onboarding="orchestrator-entry"
                 >
-                    <div className="flex items-center justify-between">
-                        <div className="font-medium text-slate-100 flex items-center gap-2">
-                            orchestrator
-                            {orchestratorRunning && (
-                                <ProgressIndicator size="sm" />
-                            )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <div className="flex items-center gap-0.5">
-                                <IconButton
-                                    icon={<VscCode />}
-                                    onClick={() => {
-                                        setSwitchModelSessionId(null)
-                                        void Promise.all([getOrchestratorAgentType(), getOrchestratorSkipPermissions()]).then(([initialAgentType, initialSkipPermissions]) => {
-                                            setSwitchOrchestratorModal({
-                                                open: true,
-                                                initialAgentType: normalizeAgentType(initialAgentType),
-                                                initialSkipPermissions,
-                                                targetSessionId: null
-                                            })
-                                        })
-                                    }}
-                                    ariaLabel="Switch orchestrator model"
-                                    tooltip="Switch model (⌘P)"
-                                />
-                                <IconButton
-                                    icon={<VscRefresh />}
-                                    onClick={() => {
-                                        void (async () => {
-                                            if (selection.kind === 'orchestrator') {
-                                                await resetSession(selection, terminals)
-                                            }
-                                        })()
-                                    }}
-                                    ariaLabel="Reset orchestrator"
-                                    tooltip="Reset orchestrator (⌘Y)"
-                                    disabled={orchestratorResetting}
-                                />
-                            </div>
-                            <span className="text-xs px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400">
-                                {orchestratorShortcut || '⌘1'}
-                            </span>
-                            <span className="text-xs px-1.5 py-0.5 rounded bg-blue-600/20 text-blue-400">{orchestratorBranch}</span>
-                        </div>
+                    <div className={clsx('flex items-center w-full', isCollapsed ? 'flex-col justify-center gap-1' : 'justify-between')}>
+                        {!isCollapsed && (
+                            <>
+                                <div className="font-medium text-slate-100 flex items-center gap-2">
+                                    orchestrator
+                                    {orchestratorRunning && (
+                                        <ProgressIndicator size="sm" />
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-0.5">
+                                        <IconButton
+                                            icon={<VscCode />}
+                                            onClick={() => {
+                                                setSwitchModelSessionId(null)
+                                                void Promise.all([getOrchestratorAgentType(), getOrchestratorSkipPermissions()]).then(([initialAgentType, initialSkipPermissions]) => {
+                                                    setSwitchOrchestratorModal({
+                                                        open: true,
+                                                        initialAgentType: normalizeAgentType(initialAgentType),
+                                                        initialSkipPermissions,
+                                                        targetSessionId: null
+                                                    })
+                                                })
+                                            }}
+                                            ariaLabel="Switch orchestrator model"
+                                            tooltip="Switch model (⌘P)"
+                                        />
+                                        <IconButton
+                                            icon={<VscRefresh />}
+                                            onClick={() => {
+                                                void (async () => {
+                                                    if (selection.kind === 'orchestrator') {
+                                                        await resetSession(selection, terminals)
+                                                    }
+                                                })()
+                                            }}
+                                            ariaLabel="Reset orchestrator"
+                                            tooltip="Reset orchestrator (⌘Y)"
+                                            disabled={orchestratorResetting}
+                                        />
+                                    </div>
+                                    <span className="text-xs px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400">
+                                        {orchestratorShortcut || '⌘1'}
+                                    </span>
+                                    <span className="text-xs px-1.5 py-0.5 rounded bg-blue-600/20 text-blue-400">{orchestratorBranch}</span>
+                                </div>
+                            </>
+                        )}
+                        {isCollapsed && (
+                            <>
+                                <div className="text-slate-400">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                                    </svg>
+                                </div>
+                                <span className="text-[9px] text-blue-400 font-mono max-w-full truncate">
+                                    {(orchestratorBranch === 'main' || orchestratorBranch === 'master') ? 'main' : (orchestratorBranch || 'brch')}
+                                </span>
+                                {orchestratorRunning && (
+                                    <div className="mt-1"><ProgressIndicator size="sm" /></div>
+                                )}
+                            </>
+                        )}
                     </div>
-                    <div className="text-xs text-slate-500">Original repository from which agents are created</div>
+                    {!isCollapsed && (
+                        <div className="text-xs text-slate-500">Original repository from which agents are created</div>
+                    )}
                 </div>
             </div>
 
-            <div
-                className="h-8 px-3 border-t border-b border-slate-800 text-xs text-slate-300 flex items-center"
-                data-onboarding="session-filter-row"
-            >
-                <div className="flex items-center gap-2 w-full">
-                    <div className="flex items-center gap-1 ml-auto flex-nowrap overflow-x-auto" style={{ scrollbarGutter: 'stable both-edges' }}>
-                        {/* Search Icon */}
-                                <button
-                                    onClick={() => {
-                                        setIsSearchVisible(true)
-                                        // Trigger OpenCode TUI resize workaround for the active context
-                                        if (selection.kind === 'session' && selection.payload) {
-                                            emitUiEvent(UiEvent.OpencodeSearchResize, { kind: 'session', sessionId: selection.payload })
-                                        } else {
-                                            emitUiEvent(UiEvent.OpencodeSearchResize, { kind: 'orchestrator' })
-                                        }
-                                        // Generic resize request for all terminals in the active context
-                                        try {
+            {isCollapsed && (
+                <div className="py-1 px-0.5 flex items-center justify-center" aria-hidden="true">
+                    <span
+                        className="px-1 py-[2px] rounded border"
+                        style={{
+                            color: theme.colors.text.secondary,
+                            borderColor: theme.colors.border.subtle,
+                            backgroundColor: theme.colors.background.elevated,
+                            fontSize: theme.fontSize.caption,
+                            lineHeight: theme.lineHeight.compact,
+                            minWidth: '24px',
+                            textAlign: 'center',
+                        }}
+                        title={`Filter: ${filterMode}`}
+                    >
+                        {filterMode === FilterMode.All && 'ALL'}
+                        {filterMode === FilterMode.Spec && 'SPEC'}
+                        {filterMode === FilterMode.Running && 'RUN'}
+                        {filterMode === FilterMode.Reviewed && 'REV'}
+                    </span>
+                </div>
+            )}
+
+            {!isCollapsed && (
+                <div
+                    className="h-8 px-3 border-t border-b border-slate-800 text-xs text-slate-300 flex items-center"
+                    data-onboarding="session-filter-row"
+                >
+                    <div className="flex items-center gap-2 w-full">
+                        <div className="flex items-center gap-1 ml-auto flex-nowrap overflow-x-auto" style={{ scrollbarGutter: 'stable both-edges' }}>
+                            {/* Search Icon */}
+                                    <button
+                                        onClick={() => {
+                                            setIsSearchVisible(true)
+                                            // Trigger OpenCode TUI resize workaround for the active context
                                             if (selection.kind === 'session' && selection.payload) {
-                                                emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'session', sessionId: selection.payload })
+                                                emitUiEvent(UiEvent.OpencodeSearchResize, { kind: 'session', sessionId: selection.payload })
                                             } else {
-                                                emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'orchestrator' })
+                                                emitUiEvent(UiEvent.OpencodeSearchResize, { kind: 'orchestrator' })
                                             }
-                                        } catch (e) {
-                                            logger.warn('[Sidebar] Failed to dispatch generic terminal resize request (search open)', e)
-                                        }
-                                    }}
-                            className={clsx('px-1 py-0.5 rounded hover:bg-slate-700/50 flex items-center flex-shrink-0',
-                                isSearchVisible ? 'bg-slate-700/50 text-white' : 'text-slate-400 hover:text-white')}
-                            title="Search sessions"
-                        >
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-                            </svg>
-                        </button>
-                        <button
-                            className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
-                                filterMode === FilterMode.All ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50',
-                                keyboardNavigatedFilter === FilterMode.All && '' )}
-                            onClick={() => setFilterMode(FilterMode.All)}
-                            title="Show all agents"
-                        >
-                            All <span className="text-slate-400">({allCount})</span>
-                        </button>
-                        <button
-                            className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1',
-                                filterMode === FilterMode.Spec ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50',
-                                keyboardNavigatedFilter === FilterMode.Spec && '' )}
-                            onClick={() => setFilterMode(FilterMode.Spec)}
-                            title="Show spec agents"
-                        >
-                            Specs <span className="text-slate-400">({specsCount})</span>
-                        </button>
-                        <button
-                            className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
-                                filterMode === FilterMode.Running ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50',
-                                keyboardNavigatedFilter === FilterMode.Running && '' )}
-                            onClick={() => setFilterMode(FilterMode.Running)}
-                            title="Show running agents"
-                        >
-                            Running <span className="text-slate-400">({runningCount})</span>
-                        </button>
-                        <button
-                            className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
-                                filterMode === FilterMode.Reviewed ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50',
-                                keyboardNavigatedFilter === FilterMode.Reviewed && '' )}
-                            onClick={() => setFilterMode(FilterMode.Reviewed)}
-                            title="Show reviewed agents"
-                        >
-                            Reviewed <span className="text-slate-400">({reviewedCount})</span>
-                        </button>
+                                            // Generic resize request for all terminals in the active context
+                                            try {
+                                                if (selection.kind === 'session' && selection.payload) {
+                                                    emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'session', sessionId: selection.payload })
+                                                } else {
+                                                    emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'orchestrator' })
+                                                }
+                                            } catch (e) {
+                                                logger.warn('[Sidebar] Failed to dispatch generic terminal resize request (search open)', e)
+                                            }
+                                        }}
+                                className={clsx('px-1 py-0.5 rounded hover:bg-slate-700/50 flex items-center flex-shrink-0',
+                                    isSearchVisible ? 'bg-slate-700/50 text-white' : 'text-slate-400 hover:text-white')}
+                                title="Search sessions"
+                            >
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                                </svg>
+                            </button>
+                            <button
+                                className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
+                                    filterMode === FilterMode.All ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50',
+                                    keyboardNavigatedFilter === FilterMode.All && '' )}
+                                onClick={() => setFilterMode(FilterMode.All)}
+                                title="Show all agents"
+                            >
+                                All <span className="text-slate-400">({allCount})</span>
+                            </button>
+                            <button
+                                className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1',
+                                    filterMode === FilterMode.Spec ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50',
+                                    keyboardNavigatedFilter === FilterMode.Spec && '' )}
+                                onClick={() => setFilterMode(FilterMode.Spec)}
+                                title="Show spec agents"
+                            >
+                                Specs <span className="text-slate-400">({specsCount})</span>
+                            </button>
+                            <button
+                                className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
+                                    filterMode === FilterMode.Running ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50',
+                                    keyboardNavigatedFilter === FilterMode.Running && '' )}
+                                onClick={() => setFilterMode(FilterMode.Running)}
+                                title="Show running agents"
+                            >
+                                Running <span className="text-slate-400">({runningCount})</span>
+                            </button>
+                            <button
+                                className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
+                                    filterMode === FilterMode.Reviewed ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50',
+                                    keyboardNavigatedFilter === FilterMode.Reviewed && '' )}
+                                onClick={() => setFilterMode(FilterMode.Reviewed)}
+                                title="Show reviewed agents"
+                            >
+                                Reviewed <span className="text-slate-400">({reviewedCount})</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
-            
+            )}
+
             {/* Search Line - appears below filters when active */}
-            {isSearchVisible && (
+            {!isCollapsed && isSearchVisible && (
                 <div className="h-8 px-3 border-b border-slate-800 bg-slate-900/50 flex items-center">
                     <div className="flex items-center gap-2 w-full">
                         <svg className="w-3 h-3 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1239,135 +1307,155 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                     </div>
                 </div>
             )}
-            <div className="flex-1 min-h-0 overflow-y-auto px-2 pt-2" data-testid="session-scroll-container" data-onboarding="session-list">
+            <div
+                ref={sessionListRef}
+                onScroll={handleSessionScroll}
+                className={clsx(
+                    'flex-1 min-h-0 overflow-y-auto pt-1',
+                    isCollapsed ? 'px-0.5' : 'px-2'
+                )}
+                data-testid="session-scroll-container"
+                data-onboarding="session-list"
+            >
                 {sessions.length === 0 && !loading ? (
                     <div className="text-center text-slate-500 py-4">No active agents</div>
                 ) : (
-                    (() => {
-                        const sessionGroups = groupSessionsByVersion(sessions)
-                        let globalIndex = 0
-                        
-                        return sessionGroups.map((group) => {
-                            const groupStartIndex = globalIndex
-                            globalIndex += group.versions.length
+                    isCollapsed ? (
+                        <CollapsedSidebarRail
+                            sessions={flattenedSessions}
+                            selection={selection}
+                            hasFollowUpMessage={(sessionId: string) => sessionsWithNotifications.has(sessionId)}
+                            isSessionRunning={isSessionRunning}
+                            onSelect={(index) => { void handleSelectSession(index) }}
+                            onExpandRequest={onExpandRequest}
+                        />
+                    ) : (
+                        (() => {
+                            const sessionGroups = groupSessionsByVersion(sessions)
+                            let globalIndex = 0
                             
-                            return (
-                                <SessionVersionGroup
-                                    key={group.baseName}
-                                    group={group}
-                                    selection={selection}
-                                    startIndex={groupStartIndex}
+                            return sessionGroups.map((group) => {
+                                const groupStartIndex = globalIndex
+                                globalIndex += group.versions.length
+                                
+                                return (
+                                    <SessionVersionGroup
+                                        key={group.baseName}
+                                        group={group}
+                                        selection={selection}
+                                        startIndex={groupStartIndex}
 
-                                    hasFollowUpMessage={(sessionId: string) => sessionsWithNotifications.has(sessionId)}
-                                    onSelect={(index) => {
-                                        void handleSelectSession(index)
-                                    }}
-                                    onMarkReady={(sessionId) => {
-                                        if (markReadyCooldownRef.current) {
-                                            return
-                                        }
-                                        void triggerMarkReady(sessionId)
-                                    }}
-                                    onUnmarkReady={(sessionId) => {
-                                        if (markReadyCooldownRef.current) {
-                                            return
-                                        }
-
-                                        engageMarkReadyCooldown('unmark-ready-click')
-                                        void (async () => {
-                                            try {
-                                                await invoke(TauriCommands.SchaltwerkCoreUnmarkSessionReady, { name: sessionId })
-                                                await reloadSessionsAndRefreshIdle()
-                                            } catch (err) {
-                                                logger.error('Failed to unmark reviewed session:', err)
-                                            } finally {
-                                                scheduleMarkReadyCooldownRelease('unmark-ready-click-complete')
-                                            }
-                                        })()
-                                    }}
-                                    onCancel={(sessionId, hasUncommitted) => {
-                                        const session = sessions.find(s => s.info.session_id === sessionId)
-                                        if (session) {
-                                            const sessionDisplayName = getSessionDisplayName(session.info)
-                                            emitUiEvent(UiEvent.SessionAction, {
-                                                action: 'cancel',
-                                                sessionId,
-                                                sessionName: sessionId,
-                                                sessionDisplayName,
-                                                branch: session.info.branch,
-                                                hasUncommittedChanges: hasUncommitted,
-                                            })
-                                        }
-                                    }}
-                                    onConvertToSpec={(sessionId) => {
-                                        const session = sessions.find(s => s.info.session_id === sessionId)
-                                        if (session) {
-                                            // Only allow converting running sessions to specs, not reviewed sessions
-                                            if (isReviewed(session.info)) {
-                                                logger.warn(`Cannot convert reviewed session "${sessionId}" to spec. Only running sessions can be converted.`)
+                                        hasFollowUpMessage={(sessionId: string) => sessionsWithNotifications.has(sessionId)}
+                                        onSelect={(index) => {
+                                            void handleSelectSession(index)
+                                        }}
+                                        onMarkReady={(sessionId) => {
+                                            if (markReadyCooldownRef.current) {
                                                 return
                                             }
-                                            // Open confirmation modal
-                                            setConvertToDraftModal({
-                                                open: true,
-                                                sessionName: sessionId,
-                                                sessionDisplayName: getSessionDisplayName(session.info),
-                                                hasUncommitted: session.info.has_uncommitted_changes || false
-                                            })
-                                        }
-                                    }}
-                                    onRunDraft={(sessionId) => {
-                                        try {
-                                            emitUiEvent(UiEvent.StartAgentFromSpec, { name: sessionId })
-                                        } catch (err) {
-                                            logger.error('Failed to open start modal from spec:', err)
-                                        }
-                                    }}
-                                    onRefineSpec={(sessionId) => {
-                                        const target = sessions.find(s => s.info.session_id === sessionId)
-                                        const displayName = target ? getSessionDisplayName(target.info) : undefined
-                                        runRefineSpecFlow(sessionId, displayName)
-                                    }}
-                                    onDeleteSpec={(sessionId) => {
-                                        beginSessionMutation(sessionId, 'remove')
-                                        void (async () => {
-                                            try {
-                                                await invoke(TauriCommands.SchaltwerkCoreCancelSession, { name: sessionId })
-                                            } catch (err) {
-                                                logger.error('Failed to delete spec:', err)
-                                            } finally {
-                                                endSessionMutation(sessionId, 'remove')
+                                            void triggerMarkReady(sessionId)
+                                        }}
+                                        onUnmarkReady={(sessionId) => {
+                                            if (markReadyCooldownRef.current) {
+                                                return
                                             }
-                                        })()
-                                    }}
-                                    onSelectBestVersion={handleSelectBestVersion}
-                                    onReset={(sessionId) => {
-                                        void (async () => {
-                                            const currentSelection = selection.kind === 'session' && selection.payload === sessionId
-                                                ? selection
-                                                : { kind: 'session' as const, payload: sessionId }
-                                            await resetSession(currentSelection, terminals)
-                                        })()
-                                    }}
-                                    onSwitchModel={(sessionId) => {
-                                        setSwitchModelSessionId(sessionId)
-                                        const session = sessions.find(s => s.info.session_id === sessionId)
-                                        const initialAgentType = normalizeAgentType(session?.info.original_agent_type)
-                                        const initialSkipPermissions = Boolean(session?.info && (session.info as { original_skip_permissions?: boolean }).original_skip_permissions)
-                                        setSwitchOrchestratorModal({ open: true, initialAgentType, initialSkipPermissions, targetSessionId: sessionId })
-                                    }}
-                                    resettingSelection={resettingSelection}
-                                    isSessionRunning={isSessionRunning}
-                                    onMerge={handleMergeSession}
-                                    onQuickMerge={(sessionId) => { void handleMergeShortcut(sessionId) }}
-                                    isMergeDisabled={isSessionMerging}
-                                    getMergeStatus={getMergeStatus}
-                                    isMarkReadyDisabled={isMarkReadyCoolingDown}
-                                    isSessionBusy={isSessionMutating}
-                                />
-                            )
-                        })
-                    })()
+
+                                            engageMarkReadyCooldown('unmark-ready-click')
+                                            void (async () => {
+                                                try {
+                                                    await invoke(TauriCommands.SchaltwerkCoreUnmarkSessionReady, { name: sessionId })
+                                                    await reloadSessionsAndRefreshIdle()
+                                                } catch (err) {
+                                                    logger.error('Failed to unmark reviewed session:', err)
+                                                } finally {
+                                                    scheduleMarkReadyCooldownRelease('unmark-ready-click-complete')
+                                                }
+                                            })()
+                                        }}
+                                        onCancel={(sessionId, hasUncommitted) => {
+                                            const session = sessions.find(s => s.info.session_id === sessionId)
+                                            if (session) {
+                                                const sessionDisplayName = getSessionDisplayName(session.info)
+                                                emitUiEvent(UiEvent.SessionAction, {
+                                                    action: 'cancel',
+                                                    sessionId,
+                                                    sessionName: sessionId,
+                                                    sessionDisplayName,
+                                                    branch: session.info.branch,
+                                                    hasUncommittedChanges: hasUncommitted,
+                                                })
+                                            }
+                                        }}
+                                        onConvertToSpec={(sessionId) => {
+                                            const session = sessions.find(s => s.info.session_id === sessionId)
+                                            if (session) {
+                                                // Only allow converting running sessions to specs, not reviewed sessions
+                                                if (isReviewed(session.info)) {
+                                                    logger.warn(`Cannot convert reviewed session "${sessionId}" to spec. Only running sessions can be converted.`)
+                                                    return
+                                                }
+                                                // Open confirmation modal
+                                                setConvertToDraftModal({
+                                                    open: true,
+                                                    sessionName: sessionId,
+                                                    sessionDisplayName: getSessionDisplayName(session.info),
+                                                    hasUncommitted: session.info.has_uncommitted_changes || false
+                                                })
+                                            }
+                                        }}
+                                        onRunDraft={(sessionId) => {
+                                            try {
+                                                emitUiEvent(UiEvent.StartAgentFromSpec, { name: sessionId })
+                                            } catch (err) {
+                                                logger.error('Failed to open start modal from spec:', err)
+                                            }
+                                        }}
+                                        onRefineSpec={(sessionId) => {
+                                            const target = sessions.find(s => s.info.session_id === sessionId)
+                                            const displayName = target ? getSessionDisplayName(target.info) : undefined
+                                            runRefineSpecFlow(sessionId, displayName)
+                                        }}
+                                        onDeleteSpec={(sessionId) => {
+                                            beginSessionMutation(sessionId, 'remove')
+                                            void (async () => {
+                                                try {
+                                                    await invoke(TauriCommands.SchaltwerkCoreCancelSession, { name: sessionId })
+                                                } catch (err) {
+                                                    logger.error('Failed to delete spec:', err)
+                                                } finally {
+                                                    endSessionMutation(sessionId, 'remove')
+                                                }
+                                            })()
+                                        }}
+                                        onSelectBestVersion={handleSelectBestVersion}
+                                        onReset={(sessionId) => {
+                                            void (async () => {
+                                                const currentSelection = selection.kind === 'session' && selection.payload === sessionId
+                                                    ? selection
+                                                    : { kind: 'session' as const, payload: sessionId }
+                                                await resetSession(currentSelection, terminals)
+                                            })()
+                                        }}
+                                        onSwitchModel={(sessionId) => {
+                                            setSwitchModelSessionId(sessionId)
+                                            const session = sessions.find(s => s.info.session_id === sessionId)
+                                            const initialAgentType = normalizeAgentType(session?.info.original_agent_type)
+                                            const initialSkipPermissions = Boolean(session?.info && (session.info as { original_skip_permissions?: boolean }).original_skip_permissions)
+                                            setSwitchOrchestratorModal({ open: true, initialAgentType, initialSkipPermissions, targetSessionId: sessionId })
+                                        }}
+                                        resettingSelection={resettingSelection}
+                                        isSessionRunning={isSessionRunning}
+                                        onMerge={handleMergeSession}
+                                        onQuickMerge={(sessionId) => { void handleMergeShortcut(sessionId) }}
+                                        isMergeDisabled={isSessionMerging}
+                                        getMergeStatus={getMergeStatus}
+                                        isMarkReadyDisabled={isMarkReadyCoolingDown}
+                                        isSessionBusy={isSessionMutating}
+                                    />
+                                )
+                            })
+                        })()
+                    )
                 )}
             </div>
             
