@@ -169,7 +169,7 @@ impl<'a> CancellationCoordinator<'a> {
         let terminate_future = terminate_processes_with_cwd(&session.worktree_path);
 
         // If we're already running inside a Tokio runtime (e.g., called from an async Tauri command),
-        // avoid nesting a runtime and use block_in_place + the current handle instead of block_on.
+        // avoid nesting a runtime and use the current handle; otherwise, block on the Tauri runtime.
         let result = match Handle::try_current() {
             Ok(handle) => tokio::task::block_in_place(|| handle.block_on(terminate_future)),
             Err(_) => tauri::async_runtime::block_on(terminate_future),

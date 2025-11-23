@@ -100,7 +100,7 @@ fn emit_terminal_agent_started(
     }
 }
 
-fn get_agent_env_and_cli_args(
+async fn get_agent_env_and_cli_args_async(
     agent_type: &str,
 ) -> (
     Vec<(String, String)>,
@@ -109,7 +109,7 @@ fn get_agent_env_and_cli_args(
     schaltwerk::domains::settings::AgentPreference,
 ) {
     if let Some(settings_manager) = SETTINGS_MANAGER.get() {
-        let manager = futures::executor::block_on(settings_manager.lock());
+        let manager = settings_manager.lock().await;
         let env_vars = manager
             .get_agent_env_vars(agent_type)
             .into_iter()
@@ -127,7 +127,6 @@ fn get_agent_env_and_cli_args(
         )
     }
 }
-
 async fn session_manager_read() -> Result<SessionManager, String> {
     Ok(get_core_read().await?.session_manager())
 }
@@ -842,7 +841,7 @@ pub async fn schaltwerk_core_rename_version_group(
 
     // Get environment variables for the agent
     let (mut env_vars, cli_args, binary_path, _preferences) =
-        get_agent_env_and_cli_args(&agent_type);
+        get_agent_env_and_cli_args_async(&agent_type).await;
 
     // Add project-specific environment variables
     if let Ok(project_env_vars) = db.get_project_environment_variables(&repo_path) {
@@ -1325,7 +1324,9 @@ pub async fn schaltwerk_core_start_claude_with_restart(
 
     // Always relaunch: close existing terminal if present
     if terminal_manager.terminal_exists(&terminal_id).await? {
-        log::info!("Terminal {terminal_id} exists, closing before restart (force_restart={force_restart})");
+        log::info!(
+            "Terminal {terminal_id} exists, closing before restart (force_restart={force_restart})"
+        );
         terminal_manager.close_terminal(terminal_id.clone()).await?;
     }
 
@@ -1707,9 +1708,7 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
             Ok("orchestrator-started".to_string())
         }
         Err(err) => {
-            log::error!(
-                "[AGENT_LAUNCH_TRACE] Orchestrator launch failed for {terminal_id}: {err}"
-            );
+            log::error!("[AGENT_LAUNCH_TRACE] Orchestrator launch failed for {terminal_id}: {err}");
             #[derive(serde::Serialize, Clone)]
             struct OrchestratorLaunchFailedPayload<'a> {
                 terminal_id: &'a str,
@@ -2445,9 +2444,11 @@ mod tests {
             .await
         }
 
-        let result = run_with_stubbed_launch(|_id, _spec, _db, _repo, _cols, _rows, _force_restart| async {
-            Err("launch failed".to_string())
-        })
+        let result = run_with_stubbed_launch(
+            |_id, _spec, _db, _repo, _cols, _rows, _force_restart| async {
+                Err("launch failed".to_string())
+            },
+        )
         .await;
 
         assert_eq!(result.unwrap_err(), "launch failed".to_string());

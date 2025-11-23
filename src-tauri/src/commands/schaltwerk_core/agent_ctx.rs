@@ -328,10 +328,7 @@ mod tests {
             AgentKind::Droid
         ));
         assert!(matches!(infer_agent_kind("qwen"), AgentKind::Qwen));
-        assert!(matches!(
-            infer_agent_kind("/usr/bin/qwen"),
-            AgentKind::Qwen
-        ));
+        assert!(matches!(infer_agent_kind("/usr/bin/qwen"), AgentKind::Qwen));
         assert!(matches!(infer_agent_kind("unknown"), AgentKind::Fallback));
     }
 
