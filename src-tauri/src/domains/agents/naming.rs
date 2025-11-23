@@ -1,6 +1,9 @@
 use crate::{
     domains::git,
-    infrastructure::database::{DEFAULT_BRANCH_PREFIX, Database},
+    infrastructure::database::{
+        db_project_config::ProjectConfigMethods, db_specs::SpecMethods, DEFAULT_BRANCH_PREFIX,
+        Database,
+    },
     shared::session_metadata_gateway::SessionMetadataGateway,
 };
 
@@ -19,6 +22,17 @@ pub struct SessionRenameContext<'a> {
     pub cli_args: Option<String>,
     pub env_vars: Vec<(String, String)>,
     pub binary_path: Option<String>,
+}
+
+pub struct NameGenerationArgs<'a> {
+    pub db: &'a Database,
+    pub target_id: &'a str,
+    pub worktree_path: &'a Path,
+    pub agent_type: &'a str,
+    pub initial_prompt: Option<&'a str>,
+    pub cli_args: Option<&'a str>,
+    pub env_vars: &'a [(String, String)],
+    pub binary_path: Option<&'a str>,
 }
 
 pub fn truncate_prompt(prompt: &str) -> String {
@@ -94,49 +108,46 @@ pub async fn generate_display_name_and_rename_branch(
         binary_path,
     } = ctx;
 
-    let session_gateway = SessionMetadataGateway::new(db);
-
-    let result = generate_display_name(
+    let args = NameGenerationArgs {
         db,
-        session_id,
+        target_id: session_id,
         worktree_path,
         agent_type,
         initial_prompt,
-        cli_args.as_deref(),
-        &env_vars,
-        binary_path.as_deref(),
-    )
+        cli_args: cli_args.as_deref(),
+        env_vars: &env_vars,
+        binary_path: binary_path.as_deref(),
+    };
+
+    let result = generate_display_name_core(args, move |db, name| {
+        SessionMetadataGateway::new(db).update_session_display_name(session_id, name)
+    })
     .await?;
 
     if let Some(ref new_name) = result {
-        let branch_prefix = session_gateway
+        let branch_prefix = db
             .get_project_branch_prefix(repo_path)
             .unwrap_or_else(|err| {
                 log::warn!("Falling back to default branch prefix during agent rename: {err}");
                 DEFAULT_BRANCH_PREFIX.to_string()
             });
-        // Generate new branch name based on the display name
         let new_branch = format!("{branch_prefix}/{new_name}");
 
-        // Only rename if the branch name would actually change
         if current_branch != new_branch {
             log::info!("Renaming branch from '{current_branch}' to '{new_branch}'");
 
-            // Rename the branch
             match git::rename_branch(repo_path, current_branch, &new_branch) {
                 Ok(()) => {
                     log::info!("Successfully renamed branch to '{new_branch}'");
 
-                    // Update the worktree to use the new branch
                     match git::update_worktree_branch(worktree_path, &new_branch) {
                         Ok(()) => {
                             log::info!(
                                 "Successfully updated worktree to use branch '{new_branch}'"
                             );
 
-                            // Update the branch name in the database
                             if let Err(e) =
-                                session_gateway.update_session_branch(session_id, &new_branch)
+                                SessionMetadataGateway::new(db).update_session_branch(session_id, &new_branch)
                             {
                                 log::error!("Failed to update branch name in database: {e}");
                             }
@@ -145,10 +156,7 @@ pub async fn generate_display_name_and_rename_branch(
                             log::error!(
                                 "Failed to update worktree to new branch '{new_branch}': {e}"
                             );
-                            // Try to revert the branch rename
-                            if let Err(revert_err) =
-                                git::rename_branch(repo_path, &new_branch, current_branch)
-                            {
+                            if let Err(revert_err) = git::rename_branch(repo_path, &new_branch, current_branch) {
                                 log::error!("Failed to revert branch rename: {revert_err}");
                             }
                         }
@@ -166,43 +174,45 @@ pub async fn generate_display_name_and_rename_branch(
     Ok(result)
 }
 
-#[allow(clippy::too_many_arguments)]
-pub async fn generate_display_name(
-    db: &Database,
-    session_id: &str,
-    _worktree_path: &Path,
-    agent_type: &str,
-    initial_prompt: Option<&str>,
-    cli_args: Option<&str>,
-    env_vars: &[(String, String)],
-    binary_path: Option<&str>,
-) -> Result<Option<String>> {
+async fn generate_display_name_core<F>(
+    args: NameGenerationArgs<'_>,
+    mut apply_display_name: F,
+) -> Result<Option<String>>
+where
+    F: FnMut(&Database, &str) -> Result<()>,
+{
+    let NameGenerationArgs {
+        db,
+        target_id,
+        worktree_path: _,
+        agent_type,
+        initial_prompt,
+        cli_args,
+        env_vars,
+        binary_path,
+    } = args;
+
     log::info!(
         "generate_display_name called: session_id={}, agent_type={}, prompt={:?}",
-        session_id,
+        target_id,
         agent_type,
         initial_prompt.map(truncate_prompt)
     );
 
-    // Check if there's any meaningful content for name generation
     if let Some(prompt) = initial_prompt {
         if prompt.trim().is_empty() {
-            log::info!("Skipping name generation for session '{session_id}' - empty prompt");
+            log::info!("Skipping name generation for session '{target_id}' - empty prompt");
             return Ok(None);
         }
     } else {
-        log::info!("Skipping name generation for session '{session_id}' - no prompt provided");
+        log::info!("Skipping name generation for session '{target_id}' - no prompt provided");
         return Ok(None);
     }
 
-    let base_prompt = initial_prompt.unwrap(); // Safe to unwrap after the check above
+    let base_prompt = initial_prompt.unwrap();
     let truncated = truncate_prompt(base_prompt);
     log::debug!("Truncated prompt for name generation: {truncated}");
 
-    let session_gateway = SessionMetadataGateway::new(db);
-
-    // Prompt for plain text result for JSON wrappers
-    // Explicitly tell the AI to not use tools for faster response
     let prompt_plain = format!(
         r#"IMPORTANT: Do not use any tools. Answer this message directly without searching or reading files.
 
@@ -227,7 +237,6 @@ Agent: {truncated}
 Respond with just the short kebab-case name:"#
     );
 
-    // JSON prompt specifically for OpenCode for more reliable parsing
     let prompt_json = format!(
         r#"IMPORTANT: Do not use any tools. Answer this message directly without searching or reading files.
 
@@ -252,18 +261,14 @@ Agent: {truncated}
 Respond with JSON: {{"name": "short-kebab-case-name"}}"#
     );
 
-    // Always use a temporary directory for agent execution to avoid interference with active sessions
     let temp_base = std::env::temp_dir();
-    let unique_temp_dir = temp_base.join(format!("schaltwerk_namegen_{session_id}"));
+    let unique_temp_dir = temp_base.join(format!("schaltwerk_namegen_{target_id}"));
 
-    // Create the temp directory if it doesn't exist
     if let Err(e) = std::fs::create_dir_all(&unique_temp_dir) {
         log::warn!("Failed to create temp directory for name generation: {e}");
     }
 
-    // For OpenCode specifically, initialize as a minimal git repo to avoid errors
     if agent_type == "opencode" {
-        // Initialize a minimal git repo structure
         if let Err(e) = std::process::Command::new("git")
             .args(["init"])
             .current_dir(&unique_temp_dir)
@@ -272,24 +277,16 @@ Respond with JSON: {{"name": "short-kebab-case-name"}}"#
             log::debug!("Failed to init git in temp dir (non-fatal): {e}");
         }
 
-        // Create a minimal file so the directory isn't empty
         let readme_path = unique_temp_dir.join("README.md");
-        if let Err(e) = std::fs::write(
-            &readme_path,
-            "# Temporary workspace for name generation
-",
-        ) {
+        if let Err(e) = std::fs::write(&readme_path, "# Temporary workspace for name generation
+") {
             log::debug!("Failed to create README in temp dir (non-fatal): {e}");
         }
     }
 
     let run_dir = unique_temp_dir.clone();
-    log::info!(
-        "Using temp directory for name generation: {}",
-        run_dir.display()
-    );
+    log::info!("Using temp directory for name generation: {}", run_dir.display());
 
-    // Handle Codex name generation
     if agent_type == "codex" {
         log::info!("Attempting to generate name with codex");
         let mut args: Vec<String> = vec![
@@ -303,13 +300,10 @@ Respond with JSON: {{"name": "short-kebab-case-name"}}"#
             let mut extra = shell_words::split(cli).unwrap_or_else(|_| vec![cli.to_string()]);
             fix_codex_single_dash_long_flags(&mut extra);
             reorder_codex_model_after_profile(&mut extra);
-            // Codex `exec` subcommand does not accept the interactive-only `--search` flag.
-            // Filter it out to avoid exit code 2 during name generation.
             extra.retain(|a| a != "--search" && a != "-search");
             args.extend(extra);
         }
-        // Capture only the last assistant message to a temp file for reliable parsing
-        let tmp_file = std::env::temp_dir().join(format!("schaltwerk_codex_name_{session_id}.txt"));
+        let tmp_file = std::env::temp_dir().join(format!("schaltwerk_codex_name_{target_id}.txt"));
         args.push("--output-last-message".into());
         args.push(tmp_file.to_string_lossy().to_string());
         args.push(prompt_plain.clone());
@@ -337,7 +331,6 @@ Respond with JSON: {{"name": "short-kebab-case-name"}}"#
         };
 
         if output.status.success() {
-            // Prefer the last message file if present
             let candidate = std::fs::read_to_string(&tmp_file)
                 .ok()
                 .map(|s| s.trim().to_string())
@@ -351,9 +344,9 @@ Respond with JSON: {{"name": "short-kebab-case-name"}}"#
                         .find(|line| {
                             !line.is_empty()
                                 && !line.contains(' ')
-                                && line.chars().all(|c| {
-                                    c.is_ascii_lowercase() || c == '-' || c.is_ascii_digit()
-                                })
+                                && line
+                                    .chars()
+                                    .all(|c| c.is_ascii_lowercase() || c == '-' || c.is_ascii_digit())
                                 && line.len() <= 30
                         })
                         .map(|s| s.to_string())
@@ -372,10 +365,11 @@ Respond with JSON: {{"name": "short-kebab-case-name"}}"#
                 let name = sanitize_name(&result);
                 log::info!("Sanitized name: {name}");
                 if !name.is_empty() {
-                    session_gateway.update_session_display_name(session_id, &name)?;
+                    apply_display_name(db, &name)?;
                     log::info!(
-                        "Updated database with display_name '{name}' for session_id '{session_id}'"
+                        "Updated database with display_name '{name}' for session_id '{target_id}'"
                     );
+                    let _ = std::fs::remove_dir_all(&unique_temp_dir);
                     return Ok(Some(name));
                 }
             } else {
@@ -391,16 +385,13 @@ Respond with JSON: {{"name": "short-kebab-case-name"}}"#
                 stdout.trim()
             );
         }
-        // Clean up temp directory
         let _ = std::fs::remove_dir_all(&unique_temp_dir);
         return Ok(None);
     }
 
-    // Handle OpenCode name generation
     if agent_type == "opencode" {
         log::info!("Attempting to generate name with opencode");
 
-        // OpenCode uses the run command for non-interactive usage
         let binary = super::opencode::resolve_opencode_binary();
         let mut command = Command::new(&binary);
         command.args(["run", &prompt_json]);
@@ -435,10 +426,11 @@ Respond with JSON: {{"name": "short-kebab-case-name"}}"#
                 log::info!("Sanitized name: {name}");
 
                 if !name.is_empty() {
-                    session_gateway.update_session_display_name(session_id, &name)?;
+                    apply_display_name(db, &name)?;
                     log::info!(
-                        "Updated database with display_name '{name}' for session_id '{session_id}'"
+                        "Updated database with display_name '{name}' for session_id '{target_id}'"
                     );
+                    let _ = std::fs::remove_dir_all(&unique_temp_dir);
                     return Ok(Some(name));
                 }
             } else {
@@ -455,12 +447,10 @@ Respond with JSON: {{"name": "short-kebab-case-name"}}"#
             );
         }
 
-        // Clean up temp directory
         let _ = std::fs::remove_dir_all(&unique_temp_dir);
         return Ok(None);
     }
 
-    // Handle Gemini name generation
     if agent_type == "gemini" {
         log::info!("Attempting to generate name with gemini");
 
@@ -490,19 +480,18 @@ Respond with JSON: {{"name": "short-kebab-case-name"}}"#
             let stdout = ansi_strip(&String::from_utf8_lossy(&output.stdout));
             log::debug!("gemini stdout: {stdout}");
 
-            // Gemini returns plain text, so we look for a kebab-case name in the output
-            // Split by newlines and find the first line that looks like a kebab-case name
             let candidate = stdout
                 .lines()
                 .map(|line| line.trim())
                 .filter(|line| !line.is_empty())
                 .filter(|line| {
-                    line.chars()
+                    line
+                        .chars()
                         .all(|c| c.is_ascii_lowercase() || c == '-' || c.is_ascii_digit())
                 })
-                .filter(|line| line.contains('-') || line.len() <= 10) // Has hyphens or very short
-                .filter(|line| line.len() <= 30) // Reasonable length
-                .find(|_| true) // Get first match
+                .filter(|line| line.contains('-') || line.len() <= 10)
+                .filter(|line| line.len() <= 30)
+                .find(|_| true)
                 .map(|s| s.to_string());
 
             if let Some(result) = candidate {
@@ -511,10 +500,11 @@ Respond with JSON: {{"name": "short-kebab-case-name"}}"#
                 log::info!("Sanitized name: {name}");
 
                 if !name.is_empty() {
-                    session_gateway.update_session_display_name(session_id, &name)?;
+                    apply_display_name(db, &name)?;
                     log::info!(
-                        "Updated database with display_name '{name}' for session_id '{session_id}'"
+                        "Updated database with display_name '{name}' for session_id '{target_id}'"
                     );
+                    let _ = std::fs::remove_dir_all(&unique_temp_dir);
                     return Ok(Some(name));
                 }
             } else {
@@ -531,15 +521,12 @@ Respond with JSON: {{"name": "short-kebab-case-name"}}"#
             );
         }
 
-        // Clean up temp directory
         let _ = std::fs::remove_dir_all(&unique_temp_dir);
         return Ok(None);
     }
 
-    // Use Claude only if claude was selected (not as a fallback)
     if agent_type != "claude" {
         log::info!("Agent type is '{agent_type}', not generating name with claude");
-        // Clean up temp directory
         let _ = std::fs::remove_dir_all(&unique_temp_dir);
         return Ok(None);
     }
@@ -574,7 +561,6 @@ Respond with JSON: {{"name": "short-kebab-case-name"}}"#
         let stdout = ansi_strip(&String::from_utf8_lossy(&output.stdout));
         log::debug!("claude stdout: {stdout}");
 
-        // Try JSON first, then fallback to raw text
         let parsed_json: Result<serde_json::Value, _> = serde_json::from_str(&stdout);
         let candidate = if let Ok(v) = parsed_json {
             v.as_str()
@@ -598,11 +584,10 @@ Respond with JSON: {{"name": "short-kebab-case-name"}}"#
             log::info!("Sanitized name: {name}");
 
             if !name.is_empty() {
-                session_gateway.update_session_display_name(session_id, &name)?;
+                apply_display_name(db, &name)?;
                 log::info!(
-                    "Updated database with display_name '{name}' for session_id '{session_id}'"
+                    "Updated database with display_name '{name}' for session_id '{target_id}'"
                 );
-                // Clean up temp directory
                 let _ = std::fs::remove_dir_all(&unique_temp_dir);
                 return Ok(Some(name));
             } else {
@@ -622,10 +607,24 @@ Respond with JSON: {{"name": "short-kebab-case-name"}}"#
         );
     }
 
-    log::warn!("No name could be generated for session_id '{session_id}'");
-    // Clean up temp directory
+    log::warn!("No name could be generated for session_id '{target_id}'");
     let _ = std::fs::remove_dir_all(&unique_temp_dir);
     Ok(None)
+}
+
+pub async fn generate_display_name(args: NameGenerationArgs<'_>) -> Result<Option<String>> {
+    let session_gateway = SessionMetadataGateway::new(args.db);
+    let target_id = args.target_id;
+    generate_display_name_core(args, move |_, name| {
+        session_gateway.update_session_display_name(target_id, name)
+    })
+    .await
+}
+
+pub async fn generate_spec_display_name(args: NameGenerationArgs<'_>) -> Result<Option<String>> {
+    let target_id = args.target_id;
+    generate_display_name_core(args, move |db, name| db.update_spec_display_name(target_id, name))
+        .await
 }
 
 fn build_claude_namegen_args(prompt_plain: &str, cli_args: Option<&str>) -> Vec<String> {
@@ -1065,53 +1064,37 @@ Line 4"
         let db = Database::new(Some(temp_dir.path().join("test.db"))).unwrap();
         let worktree_path = temp_dir.path().join("worktree");
 
-        // Test with None prompt
-        let result = generate_display_name(
-            &db,
-            "test-session",
-            &worktree_path,
-            "claude",
-            None,
-            None,
-            &[],
-            None,
-        )
-        .await;
+        fn build_args<'a>(
+            db: &'a Database,
+            worktree: &'a std::path::Path,
+            prompt: Option<&'a str>,
+        ) -> NameGenerationArgs<'a> {
+            NameGenerationArgs {
+                db,
+                target_id: "test-session",
+                worktree_path: worktree,
+                agent_type: "claude",
+                initial_prompt: prompt,
+                cli_args: None,
+                env_vars: &[],
+                binary_path: None,
+            }
+        }
+
+        let result = generate_display_name(build_args(&db, &worktree_path, None)).await;
 
         assert!(result.is_ok());
         assert!(result.unwrap().is_none());
 
         // Test with empty prompt
-        let result = generate_display_name(
-            &db,
-            "test-session",
-            &worktree_path,
-            "claude",
-            Some(""),
-            None,
-            &[],
-            None,
-        )
-        .await;
+        let result = generate_display_name(build_args(&db, &worktree_path, Some(""))).await;
 
         assert!(result.is_ok());
         assert!(result.unwrap().is_none());
 
         // Test with whitespace-only prompt
-        let result = generate_display_name(
-            &db,
-            "test-session",
-            &worktree_path,
-            "claude",
-            Some(
-                "   
-\t  ",
-            ),
-            None,
-            &[],
-            None,
-        )
-        .await;
+        let result =
+            generate_display_name(build_args(&db, &worktree_path, Some("   \n\t  "))).await;
 
         assert!(result.is_ok());
         assert!(result.unwrap().is_none());
@@ -1129,16 +1112,16 @@ Line 4"
         // Simulate timeout by using a non-existent agent
         let result = timeout(
             Duration::from_millis(100),
-            generate_display_name(
-                &db,
-                "test-timeout",
-                &worktree_path,
-                "non_existent_agent",
-                Some("Test prompt for timeout"),
-                None,
-                &[],
-                None,
-            ),
+            generate_display_name(NameGenerationArgs {
+                db: &db,
+                target_id: "test-timeout",
+                worktree_path: &worktree_path,
+                agent_type: "non_existent_agent",
+                initial_prompt: Some("Test prompt for timeout"),
+                cli_args: None,
+                env_vars: &[],
+                binary_path: None,
+            }),
         )
         .await;
 
@@ -1161,17 +1144,17 @@ Line 4"
         let worktree_path = temp_dir.path().join("worktree");
 
         // Test with unsupported agent type
-        let result = generate_display_name(
-            &db,
-            "test-unsupported",
-            &worktree_path,
-            "unsupported_agent_type",
-            Some("Test prompt"),
-            None,
-            &[],
-            None,
-        )
-        .await;
+        let args = NameGenerationArgs {
+            db: &db,
+            target_id: "test-unsupported",
+            worktree_path: &worktree_path,
+            agent_type: "unsupported_agent_type",
+            initial_prompt: Some("Test prompt"),
+            cli_args: None,
+            env_vars: &[],
+            binary_path: None,
+        };
+        let result = generate_display_name(args).await;
 
         // Should return None for unsupported agent types
         assert!(result.is_ok());

@@ -1,4 +1,4 @@
-use crate::domains::agents::AgentLaunchSpec;
+use crate::domains::agents::{AgentLaunchSpec, naming::sanitize_name};
 use crate::shared::terminal_id::{terminal_id_for_session_bottom, terminal_id_for_session_top};
 use anyhow::{Context, Result, anyhow};
 use chrono::Utc;
@@ -135,6 +135,7 @@ pub struct SessionCreationParams<'a> {
 use crate::domains::sessions::entity::GitStats;
 use crate::{
     domains::git::service as git,
+    domains::sessions::db_sessions::SessionMethods,
     domains::sessions::cache::SessionCacheManager,
     domains::sessions::entity::ArchivedSpec,
     domains::sessions::entity::{
@@ -144,6 +145,7 @@ use crate::{
     domains::sessions::repository::SessionDbManager,
     domains::sessions::utils::SessionUtils,
     infrastructure::database::{Database, db_archived_specs::ArchivedSpecMethods as _},
+    infrastructure::database::db_project_config::{DEFAULT_BRANCH_PREFIX, ProjectConfigMethods},
 };
 use uuid::Uuid;
 
@@ -1161,6 +1163,112 @@ mod service_unified_tests {
     }
 
     #[test]
+    fn start_spec_session_marks_pending_name_generation_without_display_name() {
+        use std::process::Command;
+
+        let (manager, temp_dir) = create_test_session_manager();
+
+        let repo = temp_dir.path().join("repo");
+        Command::new("git")
+            .args(["init"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.email", "test@example.com"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.name", "Test User"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        std::fs::write(repo.join("README.md"), "Initial").unwrap();
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "-m", "init"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+
+        manager
+            .create_spec_session("spec-pending", "Content for naming")
+            .unwrap();
+
+        let session = manager
+            .start_spec_session("spec-pending", None, None, None)
+            .unwrap();
+
+        assert!(session.pending_name_generation);
+        let stored = manager
+            .db_manager
+            .get_session_by_name(&session.name)
+            .unwrap();
+        assert!(stored.pending_name_generation);
+    }
+
+    #[test]
+    fn start_spec_session_applies_existing_display_name() {
+        use std::process::Command;
+        use crate::infrastructure::database::db_project_config::DEFAULT_BRANCH_PREFIX;
+
+        let (manager, temp_dir) = create_test_session_manager();
+
+        let repo = temp_dir.path().join("repo");
+        Command::new("git")
+            .args(["init"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.email", "test@example.com"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.name", "Test User"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        std::fs::write(repo.join("README.md"), "Initial").unwrap();
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "-m", "init"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+
+        let spec = manager
+            .create_spec_session("spec-friendly", "Content")
+            .unwrap();
+
+        manager
+            .db_manager
+            .update_spec_display_name(&spec.id, "friendly-name")
+            .unwrap();
+
+        let session = manager
+            .start_spec_session("spec-friendly", None, None, None)
+            .unwrap();
+
+        assert_eq!(session.display_name.as_deref(), Some("friendly-name"));
+        assert!(!session.pending_name_generation);
+        assert_eq!(
+            session.branch,
+            format!("{}/friendly-name", DEFAULT_BRANCH_PREFIX)
+        );
+    }
+
+    #[test]
     fn test_unsupported_agent_error_handling() {
         let (manager, temp_dir) = create_test_session_manager();
         let session = create_test_session(&temp_dir, "unsupported-agent", "0");
@@ -1827,6 +1935,56 @@ impl SessionManager {
         }
 
         Ok(())
+    }
+
+    fn apply_display_name_to_session(
+        &self,
+        session: &mut Session,
+        display_name: &str,
+    ) -> Result<bool> {
+        let sanitized = sanitize_name(display_name);
+
+        if sanitized.is_empty() {
+            log::warn!(
+                "Display name for session '{}' sanitized to empty; skipping rename",
+                session.name
+            );
+            return Ok(false);
+        }
+
+        self.db_manager
+            .db
+            .update_session_display_name(&session.id, &sanitized)?;
+        session.display_name = Some(sanitized.clone());
+
+        let branch_prefix = self
+            .db_manager
+            .db
+            .get_project_branch_prefix(&self.repo_path)
+            .unwrap_or_else(|err| {
+                log::warn!(
+                    "Falling back to default branch prefix while applying display name: {err}"
+                );
+                DEFAULT_BRANCH_PREFIX.to_string()
+            });
+
+        let target_branch = format!("{branch_prefix}/{sanitized}");
+        if target_branch == session.branch {
+            return Ok(true);
+        }
+
+        git::rename_branch(&self.repo_path, &session.branch, &target_branch)?;
+
+        if let Err(e) = git::update_worktree_branch(&session.worktree_path, &target_branch) {
+            let _ = git::rename_branch(&self.repo_path, &target_branch, &session.branch);
+            return Err(e);
+        }
+
+        self.db_manager
+            .db
+            .update_session_branch(&session.id, &target_branch)?;
+        session.branch = target_branch;
+        Ok(true)
     }
 
     pub fn new(db: Database, repo_path: PathBuf) -> Self {
@@ -3586,6 +3744,37 @@ impl SessionManager {
             effective_group_id.as_deref(),
             effective_version_number,
         )?;
+
+        if let Some(display_name) = spec.display_name.clone() {
+            if !self
+                .apply_display_name_to_session(&mut session, &display_name)
+                .unwrap_or(false)
+            {
+                if let Err(e) = self
+                    .db_manager
+                    .db
+                    .set_pending_name_generation(&session.id, true)
+                {
+                    log::warn!(
+                        "Failed to mark session '{}' for name generation fallback: {e}",
+                        session.name
+                    );
+                } else {
+                    session.pending_name_generation = true;
+                }
+            }
+        } else if let Err(e) = self
+            .db_manager
+            .db
+            .set_pending_name_generation(&session.id, true)
+        {
+            log::warn!(
+                "Failed to set pending_name_generation for session '{}': {e}",
+                session.name
+            );
+        } else {
+            session.pending_name_generation = true;
+        }
 
         // Gate resume until first start after spec conversion
         let _ = self
