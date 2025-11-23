@@ -25,6 +25,7 @@ import {
   resetFontSizesActionAtom,
   initializeFontSizesActionAtom,
 } from './store/atoms/fontSize'
+import { initializeInlineDiffPreferenceActionAtom } from './store/atoms/diffPreferences'
 import {
   initializeSelectionEventsActionAtom,
   setProjectPathActionAtom,
@@ -115,6 +116,7 @@ function AppContent() {
   const decreaseFontSizes = useSetAtom(decreaseFontSizesActionAtom)
   const resetFontSizes = useSetAtom(resetFontSizesActionAtom)
   const initializeFontSizes = useSetAtom(initializeFontSizesActionAtom)
+  const initializeInlineDiffPreference = useSetAtom(initializeInlineDiffPreferenceActionAtom)
   const initializeSelectionEvents = useSetAtom(initializeSelectionEventsActionAtom)
   const setSelectionProjectPath = useSetAtom(setProjectPathActionAtom)
   const initializeSessionsEvents = useSetAtom(initializeSessionsEventsActionAtom)
@@ -141,7 +143,8 @@ function AppContent() {
 
   useEffect(() => {
     void initializeFontSizes()
-  }, [initializeFontSizes])
+    void initializeInlineDiffPreference()
+  }, [initializeFontSizes, initializeInlineDiffPreference])
 
   useEffect(() => {
     void isNotificationPermissionGranted()

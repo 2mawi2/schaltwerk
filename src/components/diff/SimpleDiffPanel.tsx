@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
+import { useCallback, useEffect, useState, type ChangeEvent } from 'react'
 import { DiffFileList } from './DiffFileList'
 import { UnifiedDiffView } from './UnifiedDiffView'
 import { VscCommentDiscussion, VscScreenFull, VscChevronLeft } from 'react-icons/vsc'
@@ -12,13 +12,8 @@ import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
 import { logger } from '../../utils/logger'
 import { theme } from '../../common/theme'
-
-type StoredDiffViewPreferences = {
-  continuous_scroll?: boolean
-  compact_diffs?: boolean
-  sidebar_width?: number
-  inline_sidebar_default?: boolean
-}
+import { useAtom } from 'jotai'
+import { inlineSidebarDefaultPreferenceAtom } from '../../store/atoms/diffPreferences'
 
 interface SimpleDiffPanelProps {
   mode: 'list' | 'review'
@@ -42,15 +37,13 @@ export function SimpleDiffPanel({
   onInlinePreferenceChange
 }: SimpleDiffPanelProps) {
   const [hasFiles, setHasFiles] = useState(true)
-  const [preferInline, setPreferInline] = useState(true)
-  const [isSavingPreference, setIsSavingPreference] = useState(false)
+  const [preferInline, setPreferInline] = useAtom(inlineSidebarDefaultPreferenceAtom)
   const { currentReview, getCommentsForFile, clearReview } = useReview()
   const { formatReviewForPrompt, getConfirmationMessage } = useReviewComments()
   const { selection, setSelection, terminals } = useSelection()
   const { setFocusForSession, setCurrentFocus } = useFocus()
   const { sessions } = useSessions()
   const testProps: { 'data-testid': string } = { 'data-testid': 'diff-panel' }
-  const diffPreferencesRef = useRef<StoredDiffViewPreferences | null>(null)
 
   const handleSelectFile = useCallback((filePath: string) => {
     onActiveFileChange(filePath)
@@ -73,49 +66,13 @@ export function SimpleDiffPanel({
   }, [mode, hasFiles, handleBackToList])
 
   useEffect(() => {
-    let isMounted = true
-    const loadPreferences = async () => {
-      try {
-        const prefs = await invoke<StoredDiffViewPreferences>(TauriCommands.GetDiffViewPreferences)
-        if (!isMounted) return
-        diffPreferencesRef.current = prefs
-        const inlineDefault = prefs.inline_sidebar_default ?? true
-        setPreferInline(inlineDefault)
-        onInlinePreferenceChange?.(inlineDefault)
-      } catch (error) {
-        logger.error('Failed to load diff view preferences for sidebar toggle:', error)
-      }
-    }
-
-    void loadPreferences()
-    return () => { isMounted = false }
-  }, [onInlinePreferenceChange])
-
-  const persistInlinePreference = useCallback(async (value: boolean) => {
-    const current = diffPreferencesRef.current ?? {}
-    const payload: Required<StoredDiffViewPreferences> = {
-      continuous_scroll: current.continuous_scroll ?? false,
-      compact_diffs: current.compact_diffs ?? true,
-      sidebar_width: current.sidebar_width ?? 320,
-      inline_sidebar_default: value,
-    }
-    diffPreferencesRef.current = payload
-    setIsSavingPreference(true)
-    try {
-      await invoke(TauriCommands.SetDiffViewPreferences, { preferences: payload })
-    } catch (error) {
-      logger.error('Failed to persist default diff view preference:', error)
-    } finally {
-      setIsSavingPreference(false)
-    }
-  }, [])
+    onInlinePreferenceChange?.(preferInline)
+  }, [preferInline, onInlinePreferenceChange])
 
 const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     const next = event.target.checked
     setPreferInline(next)
-    onInlinePreferenceChange?.(next)
-    void persistInlinePreference(next)
-  }, [onInlinePreferenceChange, persistInlinePreference])
+  }, [setPreferInline])
 
   const handleFinishReview = useCallback(async () => {
     if (!currentReview || currentReview.comments.length === 0) return
@@ -263,7 +220,6 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
               className="rounded border-slate-600 bg-slate-900"
               checked={preferInline}
               onChange={handleToggleInlinePreference}
-              disabled={isSavingPreference}
             />
             <span>Open diffs inline</span>
           </label>

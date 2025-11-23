@@ -2,6 +2,8 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback, useEffectEve
 import { TauriCommands } from '../../common/tauriCommands'
 import clsx from 'clsx'
 import { invoke } from '@tauri-apps/api/core'
+import { useAtomValue } from 'jotai'
+import { inlineSidebarDefaultPreferenceAtom } from '../../store/atoms/diffPreferences'
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
 import { useFocus } from '../../contexts/FocusContext'
 import { UnlistenFn } from '@tauri-apps/api/event'
@@ -38,7 +40,6 @@ import { useModal } from '../../contexts/ModalContext'
 import { getSessionDisplayName } from '../../utils/sessionDisplayName'
 import { useClaudeSession } from '../../hooks/useClaudeSession'
 import { ORCHESTRATOR_SESSION_NAME } from '../../constants/sessions'
-import { useAtomValue } from 'jotai'
 import { projectPathAtom } from '../../store/atoms/project'
 import { useSessionMergeShortcut } from '../../hooks/useSessionMergeShortcut'
 import { DEFAULT_AGENT } from '../../constants/agents'
@@ -111,9 +112,9 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         return DEFAULT_AGENT
     }, [])
 
-    // Removed: stuckTerminals; idle is computed from last edit timestamps
     const [sessionsWithNotifications, setSessionsWithNotifications] = useState<Set<string>>(new Set())
     const [orchestratorBranch, setOrchestratorBranch] = useState<string>("main")
+    const inlineDiffDefault = useAtomValue(inlineSidebarDefaultPreferenceAtom)
     const [isMarkReadyCoolingDown, setIsMarkReadyCoolingDown] = useState(false)
     const markReadyCooldownRef = useRef(false)
     const markReadyCooldownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -425,7 +426,6 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         }
     }, [sessions, selection, filterMode, ensureProjectMemory, allSessions, setSelection])
 
-    // Fetch current branch for orchestrator
     useEffect(() => { void fetchOrchestratorBranch() }, [])
 
     useEffect(() => {
@@ -873,9 +873,12 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             // This will trigger TerminalGrid's currentFocus effect immediately
         },
         onOpenDiffViewer: () => {
-            // Open diff viewer for both sessions and orchestrator
             if (selection.kind !== 'session' && selection.kind !== 'orchestrator') return
-            emitUiEvent(UiEvent.OpenDiffView)
+            if (inlineDiffDefault) {
+                emitUiEvent(UiEvent.OpenInlineDiffView)
+            } else {
+                emitUiEvent(UiEvent.OpenDiffView)
+            }
         },
         onFocusTerminal: () => {
             // Don't dispatch focus events if any modal is open

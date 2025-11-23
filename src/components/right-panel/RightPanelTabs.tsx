@@ -265,7 +265,6 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
     }
   }, [effectiveSelection.kind, openSpecInWorkspace, openTabs, setRightPanelTab])
 
-  // Listen for OpenSpecInOrchestrator events
   useEffect(() => {
     const cleanup = listenUiEvent(UiEvent.OpenSpecInOrchestrator, (detail) => {
       if (detail?.sessionName) {
@@ -273,6 +272,15 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
         setPendingSpecToOpen(detail.sessionName)
         void setRightPanelTab('specs')
       }
+    })
+
+    return cleanup
+  }, [setRightPanelTab])
+
+  useEffect(() => {
+    const cleanup = listenUiEvent(UiEvent.OpenInlineDiffView, () => {
+      void setRightPanelTab('changes')
+      setChangesPanelMode('review')
     })
 
     return cleanup

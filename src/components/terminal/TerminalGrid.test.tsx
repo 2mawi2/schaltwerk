@@ -154,8 +154,13 @@ vi.mock('./Terminal', () => {
     return unmountCount.get(id) || 0
   }
 
+  function clearTerminalStartedTracking(_terminalIds: string[]) {
+    // Mock implementation - no-op for tests
+  }
+
   return {
     Terminal: TerminalMock,
+    clearTerminalStartedTracking,
     __getFocusSpy,
     __getMountCount,
     __getUnmountCount,
