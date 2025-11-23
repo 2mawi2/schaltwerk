@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { DiffFileList } from './DiffFileList'
 import { UnifiedDiffView } from './UnifiedDiffView'
-import { VscCommentDiscussion, VscListFlat, VscScreenFull } from 'react-icons/vsc'
+import { VscCommentDiscussion, VscScreenFull, VscChevronLeft } from 'react-icons/vsc'
 import { useReview } from '../../contexts/ReviewContext'
 import { useReviewComments } from '../../hooks/useReviewComments'
 import { useSelection } from '../../hooks/useSelection'
@@ -174,13 +174,13 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
   }, [activeFile, onActiveFileChange])
 
   const renderReviewHeader = () => (
-    <div className="flex items-center justify-between px-2 py-1 border-b border-slate-800 bg-slate-950 shrink-0 gap-2">
+    <div className="flex items-center justify-between px-3 py-2 border-b border-slate-800 bg-slate-950 shrink-0 gap-2">
       <button
         onClick={handleBackToList}
-        className="px-2 py-1 hover:bg-slate-800 rounded text-xs font-medium flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors"
+        className="group pl-3 pr-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-md text-sm font-medium flex items-center gap-2 text-slate-100 transition-all border border-slate-700 hover:border-slate-500 shadow-sm hover:shadow-md"
         title="Back to file list"
       >
-        <VscListFlat />
+        <VscChevronLeft className="w-5 h-5 text-slate-400 group-hover:text-white transition-colors" />
         <span>Back to List</span>
       </button>
       <div className="flex items-center gap-2">
