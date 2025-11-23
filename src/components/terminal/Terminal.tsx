@@ -12,8 +12,11 @@ import { schedulePtyResize } from '../../common/ptyResizeScheduler'
 import { sessionTerminalBase, stableSessionTerminalId } from '../../common/terminalIdentity'
 import { clearInflights } from '../../utils/singleflight'
 import { UnlistenFn } from '@tauri-apps/api/event';
-import { useAtomValue } from 'jotai'
+import { useAtomValue, useSetAtom } from 'jotai'
 import { terminalFontSizeAtom } from '../../store/atoms/fontSize'
+import { previewStateAtom, setPreviewUrlActionAtom } from '../../store/atoms/preview'
+import { LocalPreviewWatcher } from '../../features/preview/localPreview'
+import type { AutoPreviewConfig } from '../../utils/runScriptPreviewConfig'
 import { useCleanupRegistry } from '../../hooks/useCleanupRegistry';
 import { theme } from '../../common/theme';
 import '@xterm/xterm/css/xterm.css';
@@ -99,6 +102,8 @@ interface TerminalProps {
     onReady?: () => void;
     inputFilter?: (data: string) => boolean;
     workingDirectory?: string;
+    previewKey?: string;
+    autoPreviewConfig?: AutoPreviewConfig;
 }
 
 export interface TerminalHandle {
@@ -116,7 +121,7 @@ type TerminalFileLinkHandler = (text: string) => Promise<boolean> | boolean;
 
 const normalizeForComparison = (value: string) => value.replace(/\\/g, '/');
 
-const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalId, className = '', sessionName, isCommander = false, agentType, readOnly = false, onTerminalClick, isBackground = false, onReady, inputFilter, workingDirectory }, ref) => {
+const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalId, className = '', sessionName, isCommander = false, agentType, readOnly = false, onTerminalClick, isBackground = false, onReady, inputFilter, workingDirectory, previewKey, autoPreviewConfig }, ref) => {
     const terminalFontSize = useAtomValue(terminalFontSizeAtom);
     const { addEventListener, addResizeObserver } = useCleanupRegistry();
     const { isAnyModalOpen } = useModal();
@@ -152,6 +157,10 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     }, [readDimensions]);
     const xtermWrapperRef = useRef<XtermTerminal | null>(null);
     const fileLinkHandlerRef = useRef<TerminalFileLinkHandler | null>(null);
+    const getPreviewState = useAtomValue(previewStateAtom)
+    const setPreviewUrl = useSetAtom(setPreviewUrlActionAtom)
+    const previewWatcherRef = useRef<LocalPreviewWatcher | null>(null)
+    const previewLogStateRef = useRef<{ disabled: boolean; missing: boolean; ready: boolean }>({ disabled: false, missing: false, ready: false })
     const openFileFromTerminal = useCallback(async (text: string) => {
         if (!workingDirectory) return false;
         const parsed = parseTerminalFileReference(text);
@@ -192,6 +201,59 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             }
         };
     }, [workingDirectory, openFileFromTerminal]);
+
+    useEffect(() => {
+        if (!autoPreviewConfig || !autoPreviewConfig.interceptClicks) {
+            if (!previewLogStateRef.current.disabled) {
+                logger.info(`[Terminal ${terminalId}] Localhost click intercept disabled or not configured`);
+                previewLogStateRef.current.disabled = true;
+            }
+            previewWatcherRef.current = null;
+            return;
+        }
+
+        if (!previewKey) {
+            if (!previewLogStateRef.current.missing) {
+                logger.info(`[Terminal ${terminalId}] Localhost click intercept skipped - missing preview key`);
+                previewLogStateRef.current.missing = true;
+            }
+            previewWatcherRef.current = null;
+            return;
+        }
+
+        previewLogStateRef.current.disabled = false;
+        previewLogStateRef.current.missing = false;
+
+        previewWatcherRef.current = new LocalPreviewWatcher({
+            previewKey,
+            interceptClicks: autoPreviewConfig.interceptClicks,
+            onUrl: (url) => setPreviewUrl({ key: previewKey, url }),
+            onOpenPreviewPanel: () => emitUiEvent(UiEvent.OpenPreviewPanel, { previewKey }),
+            getCurrentUrl: () => getPreviewState(previewKey).url,
+        });
+
+        if (!previewLogStateRef.current.ready) {
+            logger.info(`[Terminal ${terminalId}] Localhost click intercept ready`, { previewKey });
+            previewLogStateRef.current.ready = true;
+        }
+
+        return () => {
+            previewWatcherRef.current = null;
+        };
+    }, [autoPreviewConfig, previewKey, setPreviewUrl, getPreviewState, terminalId]);
+
+    const handleLinkClick = useCallback((uri: string) => {
+        const watcher = previewWatcherRef.current;
+        if (watcher) {
+            const handled = watcher.handleClick(uri);
+            if (handled) {
+                logger.info(`[Terminal ${terminalId}] Detected localhost link`, { previewKey, url: uri });
+                return true;
+            }
+        }
+        return false;
+    }, [previewKey, terminalId]);
+
     const terminal = useRef<XTerm | null>(null);
     const onDataDisposableRef = useRef<IDisposable | null>(null);
     const fitAddon = useRef<FitAddon | null>(null);
@@ -1074,6 +1136,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 minimumContrastRatio: atlasContrast,
                 smoothScrolling: smoothScrollingEnabled && isPhysicalWheelRef.current,
             },
+            onLinkClick: handleLinkClick,
         }));
 
         if (isNew) {
@@ -1100,6 +1163,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 smoothScrolling: smoothScrollingEnabled && isPhysicalWheelRef.current,
             });
         }
+        instance.setLinkHandler(handleLinkClick);
         instance.setSmoothScrolling(smoothScrollingEnabled && isPhysicalWheelRef.current);
         xtermWrapperRef.current = instance;
         setupViewportController(instance);
@@ -1586,6 +1650,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         webglRendererActive,
         smoothScrollingEnabled,
         setupViewportController,
+        handleLinkClick,
     ]);
 
 

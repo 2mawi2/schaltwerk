@@ -84,6 +84,7 @@ type HarnessInstance = {
   fitAddon: { fit: ReturnType<typeof vi.fn>; proposeDimensions?: () => { cols: number; rows: number } }
   searchAddon: { findNext: ReturnType<typeof vi.fn>; findPrevious: ReturnType<typeof vi.fn> }
   setFileLinkHandler: ReturnType<typeof vi.fn>
+  setLinkHandler?: ReturnType<typeof vi.fn>
   raw: {
     cols: number
     rows: number
@@ -184,12 +185,19 @@ const terminalHarness = vi.hoisted(() => {
       }
     })
     setFileLinkHandler = vi.fn()
+    setLinkHandler = vi.fn((handler: ((uri: string) => boolean | Promise<boolean>) | null) => {
+      this.linkHandler = handler ?? null
+    })
+    linkHandler: ((uri: string) => boolean | Promise<boolean>) | null = null
     config: HarnessConfig
-    constructor(public readonly options: { config?: Partial<HarnessConfig> } = {}) {
+    constructor(public readonly options: { config?: Partial<HarnessConfig>; onLinkClick?: (uri: string) => boolean | Promise<boolean> } = {}) {
       this.raw = createMockRaw()
       this.fitAddon = { fit: vi.fn() }
       this.searchAddon = { findNext: vi.fn(), findPrevious: vi.fn() }
       this.config = { scrollback: 0, fontSize: 0, fontFamily: '', minimumContrastRatio: ATLAS_CONTRAST_BASE, ...(options?.config ?? {}) } as HarnessConfig
+      if (options?.onLinkClick) {
+        this.linkHandler = options.onLinkClick
+      }
       instances.push(this)
     }
   }

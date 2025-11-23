@@ -7,6 +7,7 @@ import { useModal } from '../../contexts/ModalContext'
 import { safeTerminalFocus, safeTerminalFocusImmediate } from '../../utils/safeFocus'
 import { TabInfo } from '../../types/terminalTabs'
 import { AddTerminalButton } from './AddTerminalButton'
+import type { AutoPreviewConfig } from '../../utils/runScriptPreviewConfig'
 
 interface TerminalTabsProps {
   baseTerminalId: string
@@ -19,6 +20,8 @@ interface TerminalTabsProps {
   onTerminalClick?: () => void
   headless?: boolean
   bootstrapTopTerminalId?: string
+  previewKey?: string
+  autoPreviewConfig?: AutoPreviewConfig
 }
 
 export interface TerminalTabsHandle {
@@ -47,7 +50,9 @@ const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(
   agentType,
   onTerminalClick,
   headless = false,
-  bootstrapTopTerminalId
+  bootstrapTopTerminalId,
+  previewKey,
+  autoPreviewConfig,
 }, ref) => {
   const { tabs, activeTab, canAddTab, addTab, closeTab, setActiveTab } = useTerminalTabs({
     baseTerminalId,
@@ -123,6 +128,8 @@ const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(
                   agentType={agentType}
                   onTerminalClick={onTerminalClick}
                   workingDirectory={workingDirectory}
+                  previewKey={previewKey}
+                  autoPreviewConfig={autoPreviewConfig}
                 />
               </div>
             )
@@ -203,6 +210,8 @@ const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(
                 agentType={agentType}
                 onTerminalClick={onTerminalClick}
                 workingDirectory={workingDirectory}
+                previewKey={previewKey}
+                autoPreviewConfig={autoPreviewConfig}
               />
             </div>
           )

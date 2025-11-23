@@ -72,7 +72,7 @@ const createPersistentStorage = (): StorageLike => {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const storage = createJSONStorage(() => createPersistentStorage()) as any
+export const layoutStorage = createJSONStorage(() => createPersistentStorage()) as any
 
 // One-time migration to move legacy sessionStorage values into localStorage eagerly
 if (typeof window !== 'undefined') {
@@ -104,21 +104,21 @@ if (typeof window !== 'undefined') {
 export const leftPanelCollapsedAtom = atomWithStorage<boolean>(
   'schaltwerk:layout:leftPanelCollapsed',
   false,
-  storage,
+  layoutStorage,
   { getOnInit: true }
 )
 
 export const leftPanelSizesAtom = atomWithStorage<number[]>(
   'schaltwerk:layout:leftPanelSizes',
   [20, 80],
-  storage,
+  layoutStorage,
   { getOnInit: true }
 )
 
 export const leftPanelLastExpandedSizesAtom = atomWithStorage<number[]>(
   'schaltwerk:layout:leftPanelLastExpandedSizes',
   [20, 80],
-  storage,
+  layoutStorage,
   { getOnInit: true }
 )
 
@@ -126,21 +126,21 @@ export const leftPanelLastExpandedSizesAtom = atomWithStorage<number[]>(
 export const rightPanelCollapsedAtom = atomWithStorage<boolean>(
   'schaltwerk:layout:rightPanelCollapsed',
   false,
-  storage,
+  layoutStorage,
   { getOnInit: true }
 )
 
 export const rightPanelSizesAtom = atomWithStorage<number[]>(
   'schaltwerk:layout:rightPanelSizes',
   [70, 30],
-  storage,
+  layoutStorage,
   { getOnInit: true }
 )
 
 export const rightPanelLastExpandedSizeAtom = atomWithStorage<number>(
   'schaltwerk:layout:rightPanelLastExpandedSize',
   30,
-  storage,
+  layoutStorage,
   { getOnInit: true }
 )
 
@@ -148,20 +148,20 @@ export const rightPanelLastExpandedSizeAtom = atomWithStorage<number>(
 export const bottomTerminalCollapsedAtom = atomWithStorage<boolean>(
   'schaltwerk:layout:bottomTerminalCollapsed',
   false,
-  storage,
+  layoutStorage,
   { getOnInit: true }
 )
 
 export const bottomTerminalSizesAtom = atomWithStorage<number[]>(
   'schaltwerk:layout:bottomTerminalSizes',
   [72, 28],
-  storage,
+  layoutStorage,
   { getOnInit: true }
 )
 
 export const bottomTerminalLastExpandedSizeAtom = atomWithStorage<number>(
   'schaltwerk:layout:bottomTerminalLastExpandedSize',
   28,
-  storage,
+  layoutStorage,
   { getOnInit: true }
 )
