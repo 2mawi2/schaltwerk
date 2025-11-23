@@ -5,6 +5,7 @@ import { TestProviders, createChangedFile } from '../../tests/test-utils'
 import { TauriCommands } from '../../common/tauriCommands'
 import type { FileDiffData } from './loadDiffs'
 import type { EnrichedSession } from '../../types/session'
+import type { ChangedFile } from '../../common/events'
 import { FilterMode } from '../../types/sessionFilters'
 import { sessionTerminalGroup, stableSessionTerminalId } from '../../common/terminalIdentity'
 
@@ -68,6 +69,12 @@ const sampleDiff: FileDiffData = {
   fileInfo: { sizeBytes: 12, language: 'typescript' },
 }
 
+const changedFilesBySession: Record<string, ChangedFile[]> = {
+  demo: [sampleDiff.file],
+  alpha: [createChangedFile({ path: 'src/alpha.txt', change_type: 'modified', additions: 1 })],
+  beta: [createChangedFile({ path: 'src/beta.txt', change_type: 'modified', additions: 2 })],
+}
+
 const loadFileDiffMock = vi.fn(async () => sampleDiff)
 
 vi.mock('./loadDiffs', async () => {
@@ -79,11 +86,13 @@ vi.mock('./loadDiffs', async () => {
   }
 })
 
-const baseInvoke = async (cmd: string, _args?: Record<string, unknown>): Promise<unknown> => {
+const baseInvoke = async (cmd: string, args?: Record<string, unknown>): Promise<unknown> => {
   switch (cmd) {
     case TauriCommands.GetChangedFilesFromMain:
-    case TauriCommands.GetOrchestratorWorkingChanges:
-      return [sampleDiff.file]
+    case TauriCommands.GetOrchestratorWorkingChanges: {
+      const sessionName = (args as { sessionName?: string } | undefined)?.sessionName ?? 'orchestrator'
+      return changedFilesBySession[sessionName] ?? changedFilesBySession.demo
+    }
     case TauriCommands.GetCurrentBranchName:
       return 'schaltwerk/demo'
     case TauriCommands.GetBaseBranchName:
@@ -172,5 +181,59 @@ describe('UnifiedDiffView sidebar escape handling', () => {
     expect(escapeEvent.defaultPrevented).toBe(false)
     expect(escapeEvent.cancelBubble).toBe(false)
     expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('reloads diffs when selection switches sessions', async () => {
+    selectionState = { kind: 'session', payload: 'alpha', sessionState: 'running' }
+    sessionsState = [createSession({ session_id: 'alpha', worktree_path: '/tmp/alpha', branch: 'feature/alpha' })]
+    invokeMock.mockClear()
+    loadFileDiffMock.mockClear()
+
+    const { rerender } = render(
+      <TestProviders>
+        <UnifiedDiffView
+          filePath={null}
+          isOpen={true}
+          onClose={() => {}}
+          viewMode="sidebar"
+        />
+      </TestProviders>
+    )
+
+    await waitFor(() => {
+      expect(loadFileDiffMock).toHaveBeenCalledWith(
+        'alpha',
+        expect.objectContaining({ path: 'src/alpha.txt' }),
+        'unified'
+      )
+    })
+
+    loadFileDiffMock.mockClear()
+    invokeMock.mockClear()
+
+    selectionState = { kind: 'session', payload: 'beta', sessionState: 'running' }
+    sessionsState = [
+      createSession({ session_id: 'alpha', worktree_path: '/tmp/alpha', branch: 'feature/alpha' }),
+      createSession({ session_id: 'beta', worktree_path: '/tmp/beta', branch: 'feature/beta' })
+    ]
+
+    rerender(
+      <TestProviders>
+        <UnifiedDiffView
+          filePath={null}
+          isOpen={true}
+          onClose={() => {}}
+          viewMode="sidebar"
+        />
+      </TestProviders>
+    )
+
+    await waitFor(() => {
+      expect(loadFileDiffMock).toHaveBeenCalledWith(
+        'beta',
+        expect.objectContaining({ path: 'src/beta.txt' }),
+        'unified'
+      )
+    })
   })
 })

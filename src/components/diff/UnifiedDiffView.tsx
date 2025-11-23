@@ -761,6 +761,11 @@ export function UnifiedDiffView({
 
   // Prevent overlapping loads; queue a single follow-up run if an event fires mid-load.
   const guardedLoaderRef = useRef(createGuardedLoader(loadChangedFiles));
+
+  useEffect(() => {
+    guardedLoaderRef.current = createGuardedLoader(loadChangedFiles);
+  }, [loadChangedFiles]);
+
   const loadChangedFilesGuarded = useCallback(
     () => guardedLoaderRef.current.run(),
     [],
@@ -1416,6 +1421,11 @@ export function UnifiedDiffView({
       }
     }
   }, [isOpen, loadChangedFilesGuarded, clampSidebarWidth, isSidebarMode]);
+
+  useEffect(() => {
+    if (!isOpen || mode === "history") return;
+    void loadChangedFilesGuarded();
+  }, [isOpen, mode, sessionName, selection.kind, loadChangedFilesGuarded]);
 
   useEffect(() => {
     if (!isOpen || mode !== "session") return;
