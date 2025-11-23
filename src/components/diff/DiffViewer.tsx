@@ -138,6 +138,7 @@ export interface DiffViewerProps {
   } | null
   expandedSectionsByFile: Map<string, Set<number>>
   isLargeDiffMode: boolean
+  isCompactView: boolean
   visibleFileSet: Set<string>
   renderedFileSet: Set<string>
   loadingFiles: Set<string>
@@ -176,6 +177,7 @@ export function DiffViewer({
   branchInfo,
   expandedSectionsByFile,
   isLargeDiffMode,
+  isCompactView,
   visibleFileSet,
   renderedFileSet,
   loadingFiles,
@@ -594,7 +596,7 @@ export function DiffViewer({
                     fileDiff.fileInfo.sizeBytes,
                     {
                       alwaysShowLargeDiffs,
-                      isCompactView: isLargeDiffMode,
+                      isCompactView,
                       changedLinesCount: fileDiff.changedLinesCount
                     }
                   )
@@ -806,7 +808,7 @@ export function DiffViewer({
                     fileDiff.fileInfo.sizeBytes,
                     {
                       alwaysShowLargeDiffs,
-                      isCompactView: isLargeDiffMode,
+                      isCompactView,
                       changedLinesCount: fileDiff.changedLinesCount
                     }
                   )

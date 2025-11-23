@@ -23,6 +23,7 @@ const baseProps: Partial<DiffViewerProps> = {
   branchInfo: null,
   expandedSectionsByFile: new Map(),
   isLargeDiffMode: true,
+  isCompactView: true,
   visibleFileSet: new Set(['src/file.ts']),
   renderedFileSet: new Set(['src/file.ts']),
   loadingFiles: new Set(),

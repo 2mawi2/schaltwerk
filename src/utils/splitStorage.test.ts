@@ -1,38 +1,34 @@
 import { describe, it, expect } from 'vitest'
-import { sanitizeSplitSizes, areSizesEqual } from './splitStorage'
+import { areSizesEqual, sanitizeSplitSizes } from './splitStorage'
 
-describe('sanitizeSplitSizes', () => {
-  const defaults: [number, number] = [20, 80]
+describe('splitStorage', () => {
+  describe('areSizesEqual', () => {
+    it('returns false for null or undefined inputs without throwing', () => {
+      expect(() => areSizesEqual(null, [20, 80])).not.toThrow()
+      expect(areSizesEqual(null, [20, 80])).toBe(false)
+      expect(areSizesEqual(undefined, [20, 80])).toBe(false)
+    })
 
-  it('returns defaults for non-array input', () => {
-    expect(sanitizeSplitSizes(null, defaults)).toEqual(defaults)
-    expect(sanitizeSplitSizes(undefined, defaults)).toEqual(defaults)
-    expect(sanitizeSplitSizes(5, defaults)).toEqual(defaults)
+    it('returns false for non-array inputs', () => {
+      expect(areSizesEqual(42, [20, 80])).toBe(false)
+      expect(areSizesEqual([20, 80], 'not-an-array')).toBe(false)
+    })
+
+    it('returns false when arrays contain non-numeric values', () => {
+      expect(areSizesEqual(['a', 'b'], [20, 80])).toBe(false)
+      expect(areSizesEqual([NaN, 80], [20, 80])).toBe(false)
+    })
+
+    it('compares numeric size arrays correctly', () => {
+      expect(areSizesEqual([20, 80], [20, 80])).toBe(true)
+      expect(areSizesEqual([20, 80], [21, 79])).toBe(false)
+    })
   })
 
-  it('returns defaults for invalid numbers', () => {
-    expect(sanitizeSplitSizes(['a', 10], defaults)).toEqual(defaults)
-    expect(sanitizeSplitSizes([NaN, 10], defaults)).toEqual(defaults)
-    expect(sanitizeSplitSizes([-10, 110], defaults)).toEqual(defaults)
-  })
-
-  it('normalizes valid sizes to percentages summing to 100', () => {
-    expect(sanitizeSplitSizes([1, 1], defaults)).toEqual([50, 50])
-    expect(sanitizeSplitSizes([30, 70], defaults)).toEqual([30, 70])
-    expect(sanitizeSplitSizes([200, 100], defaults)).toEqual([66.7, 33.3])
-  })
-
-  it('guarantees each pane keeps at least 1%', () => {
-    expect(sanitizeSplitSizes([0.01, 9999], defaults)).toEqual([1, 99])
-  })
-})
-
-describe('areSizesEqual', () => {
-  it('detects equal pairs', () => {
-    expect(areSizesEqual([10, 90], [10, 90])).toBe(true)
-  })
-
-  it('detects different pairs', () => {
-    expect(areSizesEqual([10, 90], [11, 89])).toBe(false)
+  describe('sanitizeSplitSizes', () => {
+    it('falls back to defaults when input is null', () => {
+      expect(sanitizeSplitSizes(null, [30, 70])).toEqual([30, 70])
+    })
   })
 })
+

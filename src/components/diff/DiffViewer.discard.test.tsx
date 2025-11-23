@@ -35,6 +35,7 @@ const createMockProps = (overrides?: Partial<DiffViewerProps>): DiffViewerProps 
   },
   expandedSectionsByFile: new Map<string, Set<number>>(),
   isLargeDiffMode: true,
+  isCompactView: true,
   visibleFileSet: new Set(['src/file1.ts']),
   renderedFileSet: new Set(['src/file1.ts']),
   loadingFiles: new Set<string>(),
