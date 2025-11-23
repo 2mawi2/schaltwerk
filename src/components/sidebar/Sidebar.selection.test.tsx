@@ -16,6 +16,15 @@ vi.mock('@tauri-apps/api/core', () => ({
 
 const listeners: Record<string, Array<(event: Event) => void>> = {}
 
+const toRawSession = (session: { info: { session_id: string; session_state?: string | null; status?: string | null; ready_to_merge?: boolean; worktree_path?: string | null; branch?: string | null } }) => ({
+  name: session.info.session_id,
+  session_state: session.info.session_state ?? session.info.status ?? 'running',
+  status: session.info.status ?? 'active',
+  ready_to_merge: session.info.ready_to_merge ?? false,
+  worktree_path: session.info.worktree_path ?? null,
+  branch: session.info.branch ?? '',
+})
+
 vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn().mockImplementation((eventName, callback) => {
     if (!listeners[eventName]) listeners[eventName] = []
@@ -64,6 +73,11 @@ describe('Reviewed session cancellation focus preservation', () => {
         if (mode === 'running') return sessions.filter(s => s.info.session_state !== 'spec' && !s.info.ready_to_merge)
         if (mode === 'reviewed') return sessions.filter(s => s.info.ready_to_merge)
         return sessions
+      }
+      if (cmd === TauriCommands.SchaltwerkCoreGetSession) {
+        const name = (args as { name?: string })?.name
+        const match = sessions.find(s => s.info.session_id === name)
+        return match ? toRawSession(match) : null
       }
       if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
       if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
@@ -137,6 +151,11 @@ describe('Reviewed session cancellation focus preservation', () => {
         if (mode === 'reviewed') return sessions.filter(s => s.info.ready_to_merge)
         return sessions
       }
+      if (cmd === TauriCommands.SchaltwerkCoreGetSession) {
+        const name = (args as { name?: string })?.name
+        const match = sessions.find(s => s.info.session_id === name)
+        return match ? toRawSession(match) : null
+      }
       if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
       if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
       if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
@@ -189,6 +208,12 @@ describe('Reviewed session cancellation focus preservation', () => {
         if (mode === 'running') return sessions.filter(s => s.info.session_state !== 'spec' && !s.info.ready_to_merge)
         if (mode === 'spec') return sessions.filter(s => s.info.session_state === 'spec')
         return sessions
+      }
+      if (cmd === TauriCommands.SchaltwerkCoreGetSession) {
+        const name = (args as { name?: string })?.name
+        const sessions = (globalThis as { __testCurrentSessions?: TestSession[] }).__testCurrentSessions || currentSessions
+        const match = sessions.find(s => s.info.session_id === name)
+        return match ? toRawSession(match) : null
       }
       if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
       if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'reviewed', sort_mode: 'name' }
@@ -334,6 +359,11 @@ describe('Reviewed session cancellation focus preservation', () => {
         if (mode === 'reviewed') return sessions.filter(s => s.info.ready_to_merge)
         return sessions
       }
+      if (cmd === TauriCommands.SchaltwerkCoreGetSession) {
+        const name = (args as { name?: string })?.name
+        const match = sessions.find(s => s.info.session_id === name)
+        return match ? toRawSession(match) : null
+      }
       if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
       if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
       if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
@@ -380,6 +410,11 @@ describe('Reviewed session cancellation focus preservation', () => {
         if (mode === 'running') return sessions.filter(s => s.info.session_state !== 'spec' && !s.info.ready_to_merge)
         if (mode === 'reviewed') return sessions.filter(s => s.info.ready_to_merge)
         return sessions
+      }
+      if (cmd === TauriCommands.SchaltwerkCoreGetSession) {
+        const name = (args as { name?: string })?.name
+        const match = sessions.find(s => s.info.session_id === name)
+        return match ? toRawSession(match) : null
       }
       if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
       if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
@@ -430,6 +465,11 @@ describe('Reviewed session cancellation focus preservation', () => {
         if (mode === 'running') return sessions.filter(s => s.info.session_state !== 'spec' && !s.info.ready_to_merge)
         if (mode === 'reviewed') return sessions.filter(s => s.info.ready_to_merge)
         return sessions
+      }
+      if (cmd === TauriCommands.SchaltwerkCoreGetSession) {
+        const name = (args as { name?: string })?.name
+        const match = sessions.find(s => s.info.session_id === name)
+        return match ? toRawSession(match) : null
       }
       if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
       if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
@@ -493,6 +533,11 @@ describe('Merge selection progression', () => {
         if (mode === 'running') return sessions.filter(s => s.info.session_state !== 'spec' && !s.info.ready_to_merge)
         if (mode === 'reviewed') return sessions.filter(s => s.info.ready_to_merge)
         return sessions
+      }
+      if (cmd === TauriCommands.SchaltwerkCoreGetSession) {
+        const name = (args as { name?: string })?.name
+        const match = sessions.find(s => s.info.session_id === name)
+        return match ? toRawSession(match) : null
       }
       if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
       if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
@@ -581,6 +626,11 @@ describe('Merge selection progression', () => {
         const mode = (args as { filterMode?: string })?.filterMode || 'all'
         if (mode === 'reviewed') return sessions.filter(s => s.info.ready_to_merge)
         return sessions
+      }
+      if (cmd === TauriCommands.SchaltwerkCoreGetSession) {
+        const name = (args as { name?: string })?.name
+        const match = sessions.find(s => s.info.session_id === name)
+        return match ? toRawSession(match) : null
       }
       if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
       if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
