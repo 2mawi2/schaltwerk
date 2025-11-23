@@ -288,7 +288,7 @@ impl MergeService {
 
                 if !session.ready_to_merge {
                     manager
-                        .mark_session_ready_with_message(session_name, false, Some(&message))
+                        .mark_session_ready(session_name)
                         .with_context(|| {
                             format!("Failed to mark session '{session_name}' ready")
                         })?;
@@ -303,7 +303,7 @@ impl MergeService {
 
                 if !session.ready_to_merge {
                     manager
-                        .mark_session_ready_with_message(session_name, false, None)
+                        .mark_session_ready(session_name)
                         .with_context(|| {
                             format!("Failed to mark session '{session_name}' ready")
                         })?;
@@ -1203,7 +1203,7 @@ mod tests {
 
         let session = manager.create_session_with_agent(params).unwrap();
         write_session_file(&session.worktree_path, "src/lib.rs", "pub fn demo() {}\n");
-        manager.mark_session_ready(&session.name, false).unwrap();
+        manager.mark_session_ready(&session.name).unwrap();
 
         let service = MergeService::new(db, repo_path);
         let preview = service.preview(&session.name).unwrap();
@@ -1307,7 +1307,7 @@ mod tests {
         )
         .unwrap();
 
-        manager.mark_session_ready(&session.name, false).unwrap();
+        manager.mark_session_ready(&session.name).unwrap();
 
         let service = MergeService::new(db.clone(), repo_path.clone());
         let preview = service.preview(&session.name).unwrap();
@@ -1335,7 +1335,7 @@ mod tests {
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
-        manager.mark_session_ready(&session.name, false).unwrap();
+        manager.mark_session_ready(&session.name).unwrap();
 
         // Ensure session branch matches parent by resetting to main head
         run_git(
@@ -1768,7 +1768,7 @@ mod tests {
         )
         .unwrap();
 
-        manager.mark_session_ready(&session.name, false).unwrap();
+        manager.mark_session_ready(&session.name).unwrap();
 
         db.update_session_parent_branch(&session.id, "origin/main")
             .unwrap();
@@ -1828,7 +1828,7 @@ mod tests {
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
-        manager.mark_session_ready(&session.name, false).unwrap();
+        manager.mark_session_ready(&session.name).unwrap();
 
         // Leave uncommitted file in worktree
         std::fs::write(session.worktree_path.join("dirty.txt"), "pending").unwrap();
@@ -1858,7 +1858,7 @@ mod tests {
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
-        manager.mark_session_ready(&session.name, false).unwrap();
+        manager.mark_session_ready(&session.name).unwrap();
 
         std::fs::remove_dir_all(&session.worktree_path).unwrap();
 
@@ -1888,7 +1888,7 @@ mod tests {
 
         let session = manager.create_session_with_agent(params).unwrap();
         write_session_file(&session.worktree_path, "src/lib.rs", "pub fn demo() {}\n");
-        manager.mark_session_ready(&session.name, false).unwrap();
+        manager.mark_session_ready(&session.name).unwrap();
 
         let service = MergeService::new(db.clone(), repo_path.clone());
         let outcome = service
@@ -1955,7 +1955,7 @@ mod tests {
             "src/session.rs",
             "pub fn change() {}\n",
         );
-        manager.mark_session_ready(&session.name, false).unwrap();
+        manager.mark_session_ready(&session.name).unwrap();
 
         let service = MergeService::new(db.clone(), repo_path.clone());
         let outcome = service
@@ -2045,7 +2045,7 @@ mod tests {
         )
         .unwrap();
 
-        manager.mark_session_ready(&session.name, false).unwrap();
+        manager.mark_session_ready(&session.name).unwrap();
 
         let session_after = manager.get_session(&session.name).unwrap();
         let repo = Repository::open(&session_after.repository_path).unwrap();
@@ -2103,7 +2103,7 @@ mod tests {
 
         let session = manager.create_session_with_agent(params).unwrap();
         write_session_file(&session.worktree_path, "src/lib.rs", "pub fn demo() {}\n");
-        manager.mark_session_ready(&session.name, false).unwrap();
+        manager.mark_session_ready(&session.name).unwrap();
 
         // Advance parent branch to force rebase scenario
         let repo_path = temp.path().join("repo");
@@ -2180,7 +2180,7 @@ mod tests {
         )
         .unwrap();
 
-        manager.mark_session_ready(&session.name, false).unwrap();
+        manager.mark_session_ready(&session.name).unwrap();
 
         let repo_before = Repository::open(&repo_path).unwrap();
         let parent_before_oid = resolve_branch_oid(&repo_before, "main").unwrap();
@@ -2247,7 +2247,7 @@ mod tests {
         )
         .unwrap();
 
-        manager.mark_session_ready(&session.name, false).unwrap();
+        manager.mark_session_ready(&session.name).unwrap();
 
         let repo_before = Repository::open(&repo_path).unwrap();
         let parent_before_oid = resolve_branch_oid(&repo_before, "main").unwrap();
@@ -2299,7 +2299,7 @@ mod tests {
 
         let session = manager.create_session_with_agent(params).unwrap();
         write_session_file(&session.worktree_path, "conflict.txt", "session change\n");
-        manager.mark_session_ready(&session.name, false).unwrap();
+        manager.mark_session_ready(&session.name).unwrap();
 
         std::fs::write(repo_path.join("conflict.txt"), "parent change\n").unwrap();
         run_git(
@@ -2370,7 +2370,7 @@ mod tests {
 
         let session = manager.create_session_with_agent(params).unwrap();
         write_session_file(&session.worktree_path, "conflict.txt", "session change\n");
-        manager.mark_session_ready(&session.name, false).unwrap();
+        manager.mark_session_ready(&session.name).unwrap();
 
         std::fs::write(repo_path.join("conflict.txt"), "parent change\n").unwrap();
         run_git(
@@ -2449,7 +2449,7 @@ mod tests {
             "src/lib.rs",
             "pub fn change() -> i32 { 1 }\n",
         );
-        manager.mark_session_ready(&session.name, false).unwrap();
+        manager.mark_session_ready(&session.name).unwrap();
 
         // Apply the exact same change to main, so the session commit becomes redundant.
         std::fs::create_dir_all(repo_path.join("src")).unwrap();
@@ -2508,7 +2508,7 @@ mod tests {
 
         let session = manager.create_session_with_agent(params).unwrap();
         write_session_file(&session.worktree_path, "src/lib.rs", "pub fn change() {}\n");
-        manager.mark_session_ready(&session.name, false).unwrap();
+        manager.mark_session_ready(&session.name).unwrap();
 
         std::fs::write(repo_path.join("dirty.txt"), "uncommitted change").unwrap();
 
@@ -2591,7 +2591,7 @@ mod tests {
 
         let session = manager.create_session_with_agent(params).unwrap();
         write_session_file(&session.worktree_path, "src/lib.rs", "pub fn change() {}\n");
-        manager.mark_session_ready(&session.name, false).unwrap();
+        manager.mark_session_ready(&session.name).unwrap();
 
         std::fs::write(repo_path.join("dirty.txt"), "uncommitted change").unwrap();
 
@@ -2736,7 +2736,7 @@ mod tests {
         )
         .unwrap();
 
-        manager.mark_session_ready(&session.name, false).unwrap();
+        manager.mark_session_ready(&session.name).unwrap();
 
         let service = MergeService::new(db.clone(), repo_path.clone());
         let preview = service.preview(&session.name).unwrap();
@@ -2824,7 +2824,7 @@ mod tests {
         )
         .unwrap();
 
-        manager.mark_session_ready(&session.name, false).unwrap();
+        manager.mark_session_ready(&session.name).unwrap();
 
         let service = MergeService::new(db.clone(), repo_path.clone());
         let preview = service.preview(&session.name).unwrap();

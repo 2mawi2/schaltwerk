@@ -282,8 +282,7 @@ describe('Sidebar keyboard navigation basic', () => {
     expect(consoleWarnSpy).not.toHaveBeenCalled()
 
     expect(invoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreMarkSessionReady, {
-      name: 'running-session',
-      autoCommit: false,
+      name: 'running-session'
     })
 
     consoleWarnSpy.mockRestore()

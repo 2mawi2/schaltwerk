@@ -131,7 +131,6 @@ pub struct SessionCreationParams<'a> {
     pub skip_permissions: Option<bool>,
 }
 
-const SESSION_READY_COMMIT_MESSAGE: &str = "schaltwerk: mark {} ready";
 #[cfg(test)]
 use crate::domains::sessions::entity::GitStats;
 use crate::{
@@ -3266,8 +3265,7 @@ impl SessionManager {
             ));
         }
 
-        // Use existing mark_session_ready logic (with auto_commit=false)
-        self.mark_session_ready(session_name, false)?;
+        self.mark_session_ready(session_name)?;
         Ok(())
     }
 
@@ -3317,28 +3315,10 @@ impl SessionManager {
         self.start_spec_session(session_name, base_branch, version_group_id, version_number)
     }
 
-    pub fn mark_session_ready(&self, session_name: &str, auto_commit: bool) -> Result<bool> {
-        self.mark_session_ready_with_message(session_name, auto_commit, None)
-    }
-
-    pub fn mark_session_ready_with_message(
-        &self,
-        session_name: &str,
-        auto_commit: bool,
-        commit_message: Option<&str>,
-    ) -> Result<bool> {
+    pub fn mark_session_ready(&self, session_name: &str) -> Result<bool> {
         let session = self.db_manager.get_session_by_name(session_name)?;
 
-        let mut ready_to_merge = !git::has_uncommitted_changes(&session.worktree_path)?;
-
-        if !ready_to_merge && auto_commit {
-            let message = commit_message
-                .map(|m| m.to_string())
-                .unwrap_or_else(|| SESSION_READY_COMMIT_MESSAGE.replace("{}", session_name));
-
-            git::commit_all_changes(&session.worktree_path, &message)?;
-            ready_to_merge = !git::has_uncommitted_changes(&session.worktree_path)?;
-        }
+        let ready_to_merge = !git::has_uncommitted_changes(&session.worktree_path)?;
 
         self.db_manager
             .update_session_ready_to_merge(&session.id, ready_to_merge)?;

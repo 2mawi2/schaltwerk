@@ -1427,7 +1427,7 @@ fn test_mark_reviewed_refreshes_git_stats() {
         .output()
         .unwrap();
 
-    // Immediately mark as reviewed (auto_commit = false)
+    // Immediately mark as reviewed
     manager.mark_session_as_reviewed(&session.name).unwrap();
 
     // Fetch enriched sessions; git stats should be refreshed and clean
@@ -1445,6 +1445,31 @@ fn test_mark_reviewed_refreshes_git_stats() {
         Some(false),
         "Git stats should reflect clean state after review"
     );
+}
+
+#[test]
+fn test_mark_ready_never_auto_commits_dirty_worktree() {
+    let env = TestEnvironment::new().unwrap();
+    let manager = env.get_session_manager().unwrap();
+
+    let session = manager
+        .create_session("mark-ready-dirty", None, None)
+        .unwrap();
+
+    std::fs::write(session.worktree_path.join("dirty.txt"), "uncommitted").unwrap();
+
+    let ready = manager.mark_session_ready(&session.name).unwrap();
+    assert!(!ready, "dirty worktree should not be marked ready_to_merge");
+
+    let still_dirty = git::has_uncommitted_changes(&session.worktree_path).unwrap();
+    assert!(still_dirty, "mark ready should not commit pending changes");
+
+    let db_session = manager
+        .db_ref()
+        .get_session_by_name(&env.repo_path, &session.name)
+        .unwrap();
+    assert_eq!(db_session.session_state, SessionState::Reviewed);
+    assert!(!db_session.ready_to_merge);
 }
 
 #[test]
@@ -1537,10 +1562,10 @@ fn test_mark_reviewed_when_dirty_keeps_ready_flag_false() {
 
     std::fs::write(session.worktree_path.join("dirty.txt"), "dirty").unwrap();
 
-    let ready = manager.mark_session_ready(&session.name, false).unwrap();
+    let ready = manager.mark_session_ready(&session.name).unwrap();
     assert!(
         !ready,
-        "dirty sessions without auto-commit should not be ready_to_merge"
+        "dirty sessions should not be ready_to_merge"
     );
 
     let refreshed = manager
@@ -1563,7 +1588,7 @@ fn test_follow_up_handles_reviewed_sessions_without_ready_flag() {
         .unwrap();
 
     std::fs::write(session.worktree_path.join("dirty.txt"), "dirty").unwrap();
-    manager.mark_session_ready(&session.name, false).unwrap();
+    manager.mark_session_ready(&session.name).unwrap();
 
     let changed = manager.unmark_reviewed_on_follow_up(&session.name).unwrap();
     assert!(

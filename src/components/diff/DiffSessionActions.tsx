@@ -59,8 +59,7 @@ export function DiffSessionActions({
     setIsMarkingReviewed(true)
     try {
       await invoke(TauriCommands.SchaltwerkCoreMarkSessionReady, {
-        name: sessionName,
-        autoCommit: false
+        name: sessionName
       })
       await onReloadSessions()
       onClose()
