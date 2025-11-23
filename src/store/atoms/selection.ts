@@ -127,6 +127,14 @@ function computeTerminals(selection: Selection, projectPath: string | null): Ter
     }
   }
 
+  if (selection.kind === 'session' && selection.sessionState === 'spec') {
+    return {
+      top: '',
+      bottomBase: '',
+      workingDirectory: '',
+    }
+  }
+
   const group = sessionTerminalGroup(selection.payload)
   const workingDirectory = selection.sessionState === 'running' && selection.worktreePath
     ? selection.worktreePath
@@ -944,9 +952,10 @@ export const initializeSelectionEventsActionAtom = atom(
             }
           : buildOrchestratorSelection(activeProjectPath)
 
+        const force = fallbackSelection.kind === 'orchestrator' ? false : true
         await set(setSelectionActionAtom, {
           selection: fallbackSelection,
-          forceRecreate: true,
+          forceRecreate: force,
           isIntentional: false,
           remember: Boolean(activeProjectPath),
           rememberProjectPath: activeProjectPath ?? undefined,
@@ -990,7 +999,7 @@ export const initializeSelectionEventsActionAtom = atom(
           await set(clearTerminalTrackingActionAtom, [terminals.top, terminals.bottomBase])
           await set(setSelectionActionAtom, {
             selection: buildOrchestratorSelection(projectPath),
-            forceRecreate: true,
+            forceRecreate: false,
             isIntentional: false,
             remember: Boolean(projectPath),
             rememberProjectPath: projectPath ?? undefined,

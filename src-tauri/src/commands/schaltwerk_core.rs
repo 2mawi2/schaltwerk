@@ -2204,11 +2204,6 @@ pub async fn schaltwerk_core_start_spec_session(
         spawn_session_name_generation(app.clone(), session.name.clone());
     }
 
-    log::info!("Queueing sessions refresh after starting spec session");
-    events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SpecSync);
-
-    drop(core);
-
     if let Err(e) = manager.spawn_amp_thread_watcher(&session.name) {
         log::warn!(
             "Failed to spawn amp thread watcher for session '{}': {}",
@@ -2216,6 +2211,11 @@ pub async fn schaltwerk_core_start_spec_session(
             e
         );
     }
+
+    log::info!("Queueing sessions refresh after starting spec session");
+    events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SpecSync);
+
+    drop(core);
 
     Ok(session)
 }

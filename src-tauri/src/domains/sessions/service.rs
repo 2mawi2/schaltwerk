@@ -768,6 +768,65 @@ mod service_unified_tests {
 
     #[test]
     #[serial_test::serial]
+    fn start_spec_session_with_config_sets_session_original_settings_without_touching_globals() {
+        use std::process::Command;
+        let (manager, temp_dir) = create_test_session_manager();
+
+        let repo = temp_dir.path().join("repo");
+        Command::new("git")
+            .args(["init"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.email", "test@example.com"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.name", "Test User"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        std::fs::write(repo.join("README.md"), "Initial").unwrap();
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "-m", "init"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+
+        // Seed globals to known defaults and ensure they remain unchanged
+        manager.set_global_agent_type("claude").unwrap();
+        manager.set_global_skip_permissions(false).unwrap();
+
+        let spec_name = "codex_spec_isolated_globals";
+        let spec_content = "Implement feature Z with Codex";
+        manager
+            .create_spec_session(spec_name, spec_content)
+            .unwrap();
+
+        let running = manager
+            .start_spec_session_with_config(spec_name, None, None, None, Some("codex"), Some(true))
+            .unwrap();
+
+        let stored = manager
+            .db_manager
+            .get_session_by_name(&running.name)
+            .expect("session should be persisted");
+        assert_eq!(stored.original_agent_type.as_deref(), Some("codex"));
+        assert_eq!(stored.original_skip_permissions, Some(true));
+
+        assert_eq!(manager.db_manager.get_agent_type().unwrap(), "claude");
+        assert!(!manager.db_manager.get_skip_permissions().unwrap());
+    }
+
+    #[test]
+    #[serial_test::serial]
     fn test_droid_receives_initial_prompt_on_fresh_start() {
         use std::process::Command;
         let (manager, temp_dir) = create_test_session_manager();
@@ -3454,28 +3513,47 @@ impl SessionManager {
         agent_type: Option<&str>,
         skip_permissions: Option<bool>,
     ) -> Result<Session> {
-        // Set global agent type if provided
-        if let Some(agent_type) = agent_type {
-            if let Err(e) = self.set_global_agent_type(agent_type) {
-                warn!("Failed to set global agent type to '{agent_type}': {e}");
+        // Start the draft session first
+        let mut session = self.start_spec_session(
+            session_name,
+            base_branch,
+            version_group_id,
+            version_number,
+        )?;
+
+        // Apply session-scoped original settings without mutating globals
+        if agent_type.is_some() || skip_permissions.is_some() {
+            let default_agent = self
+                .db_manager
+                .get_agent_type()
+                .unwrap_or_else(|_| "claude".to_string());
+            let default_skip = self.db_manager.get_skip_permissions().unwrap_or(false);
+
+            let effective_agent = agent_type
+                .map(|a| a.to_string())
+                .or_else(|| session.original_agent_type.clone())
+                .unwrap_or(default_agent);
+
+            let effective_skip = skip_permissions
+                .or(session.original_skip_permissions)
+                .unwrap_or(default_skip);
+
+            if let Err(e) = self.db_manager.set_session_original_settings(
+                &session.id,
+                &effective_agent,
+                effective_skip,
+            ) {
+                warn!("Failed to set session-scoped settings for '{session_name}': {e}");
             } else {
-                info!("Set global agent type to '{agent_type}' for session '{session_name}'");
+                session.original_agent_type = Some(effective_agent);
+                session.original_skip_permissions = Some(effective_skip);
             }
+
+            // Refresh the session to include persisted values (resume flags, etc.)
+            session = self.db_manager.get_session_by_id(&session.id)?;
         }
 
-        // Set global skip permissions if provided
-        if let Some(skip_permissions) = skip_permissions {
-            if let Err(e) = self.set_global_skip_permissions(skip_permissions) {
-                warn!("Failed to set global skip permissions to '{skip_permissions}': {e}");
-            } else {
-                info!(
-                    "Set global skip permissions to '{skip_permissions}' for session '{session_name}'"
-                );
-            }
-        }
-
-        // Start the draft session
-        self.start_spec_session(session_name, base_branch, version_group_id, version_number)
+        Ok(session)
     }
 
     pub fn mark_session_ready(&self, session_name: &str) -> Result<bool> {
