@@ -1,4 +1,4 @@
-import { isPermissionGranted, requestPermission } from '@tauri-apps/plugin-notification'
+import { isPermissionGranted } from '@tauri-apps/plugin-notification'
 import { logger } from './logger'
 
 let hasLoggedUnavailable = false
@@ -19,20 +19,6 @@ export const resetNotificationPermissionDebugFlag = () => {
 export async function isNotificationPermissionGranted(): Promise<boolean> {
   try {
     const granted = await isPermissionGranted()
-    if (!granted) {
-      logUnavailableOnce()
-    }
-    return granted
-  } catch (error) {
-    logUnavailableOnce(error)
-    return false
-  }
-}
-
-export async function requestNotificationPermission(): Promise<boolean> {
-  try {
-    const result = await requestPermission()
-    const granted = result === 'granted'
     if (!granted) {
       logUnavailableOnce()
     }
