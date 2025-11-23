@@ -155,6 +155,9 @@ describe('selection atoms', () => {
         }
         return true
       }
+      if (cmd === TauriCommands.TerminalExists) {
+        return false
+      }
       throw new Error(`Unexpected command ${cmd}`)
     })
 
@@ -616,7 +619,7 @@ describe('selection atoms', () => {
     })
   })
 
-  it('does not recreate session terminals when project path changes and session is reselected', async () => {
+  it('recreates session terminals when project path changes even if worktree stays the same', async () => {
     await withNodeEnv('development', async () => {
       const backend = await import('../../terminal/transport/backend')
 
@@ -637,11 +640,11 @@ describe('selection atoms', () => {
         selection: { kind: 'session', payload: 'session-1', sessionState: 'running', worktreePath: '/tmp/worktrees/session-1', projectPath: '/projects/beta' },
       })
 
-      // Should not recreate session terminals; orchestrator boot is allowed
+      // Session terminals should be recreated because caches are now scoped by project path
       const sessionCalls = vi.mocked(backend.createTerminalBackend).mock.calls.filter(
         ([args]) => (args?.id ?? '').includes('session-')
       )
-      expect(sessionCalls).toHaveLength(0)
+      expect(sessionCalls.length).toBeGreaterThanOrEqual(2)
     })
   })
 
@@ -883,6 +886,154 @@ describe('selection atoms', () => {
     })
     await waitFor(() => {
       expect(closeMock).toHaveBeenCalledWith(bottomId)
+    })
+  })
+
+  it('switches selection to new spec when current session disappears in refresh', async () => {
+    await withNodeEnv('development', async () => {
+      const backend = await import('../../terminal/transport/backend')
+      const coreModule = await import('@tauri-apps/api/core')
+      const closeMock = vi.mocked(backend.closeTerminalBackend)
+
+      await setProjectPath('/projects/alpha')
+      await store.set(setSelectionActionAtom, {
+        selection: {
+          kind: 'session',
+          payload: 'session-old',
+          sessionState: 'running',
+          worktreePath: '/tmp/worktrees/session-old',
+        },
+      })
+
+      closeMock.mockClear()
+
+      vi.mocked(coreModule.invoke).mockImplementation(async (cmd, args) => {
+        if (cmd === TauriCommands.SchaltwerkCoreGetSession) {
+          const name = (args as { name?: string } | undefined)?.name ?? ''
+          if (name === 'session-old') return null
+          if (name === 'session-old-99') {
+            return createRawSession({ name: 'session-old-99', session_state: 'spec', status: 'spec', worktree_path: null })
+          }
+          return createRawSession({ name })
+        }
+        if (cmd === TauriCommands.TerminalExists) {
+          return false
+        }
+        if (cmd === TauriCommands.PathExists || cmd === TauriCommands.DirectoryExists) {
+          return true
+        }
+        throw new Error(`Unexpected command ${cmd}`)
+      })
+
+      await store.set(initializeSelectionEventsActionAtom)
+
+      await emitSessionsRefreshed([
+        { info: { session_id: 'session-old-99', session_state: 'spec', status: 'spec', ready_to_merge: false, worktree_path: null } },
+      ])
+
+      await waitFor(() => {
+        const selection = store.get(selectionValueAtom)
+        expect(selection.kind).toBe('session')
+        expect(selection.payload).toBe('session-old-99')
+        expect(selection.sessionState).toBe('spec')
+      })
+
+      const topId = stableSessionTerminalId('session-old', 'top')
+      const bottomId = stableSessionTerminalId('session-old', 'bottom')
+
+      await waitFor(() => {
+        expect(closeMock).toHaveBeenCalledWith(topId)
+      })
+      await waitFor(() => {
+        expect(closeMock).toHaveBeenCalledWith(bottomId)
+      })
+    })
+  })
+
+  it('falls back to orchestrator when selection session is missing and no replacement spec exists', async () => {
+    await withNodeEnv('development', async () => {
+      const backend = await import('../../terminal/transport/backend')
+      const coreModule = await import('@tauri-apps/api/core')
+      const closeMock = vi.mocked(backend.closeTerminalBackend)
+
+      await setProjectPath('/projects/alpha')
+      await store.set(setSelectionActionAtom, {
+        selection: {
+          kind: 'session',
+          payload: 'ghost-session',
+          sessionState: 'running',
+          worktreePath: '/tmp/worktrees/ghost-session',
+        },
+      })
+
+      closeMock.mockClear()
+
+      vi.mocked(coreModule.invoke).mockImplementation(async (cmd, args) => {
+        if (cmd === TauriCommands.SchaltwerkCoreGetSession) {
+          const name = (args as { name?: string } | undefined)?.name ?? ''
+          if (name === 'ghost-session') return null
+          return createRawSession({ name })
+        }
+        if (cmd === TauriCommands.TerminalExists) {
+          return false
+        }
+        if (cmd === TauriCommands.PathExists || cmd === TauriCommands.DirectoryExists) {
+          return true
+        }
+        throw new Error(`Unexpected command ${cmd}`)
+      })
+
+      await store.set(initializeSelectionEventsActionAtom)
+
+      await emitSessionsRefreshed([])
+
+      await waitFor(() => {
+        const selection = store.get(selectionValueAtom)
+        expect(selection.kind).toBe('orchestrator')
+        expect(selection.projectPath).toBe('/projects/alpha')
+      })
+
+      const topId = stableSessionTerminalId('ghost-session', 'top')
+      const bottomId = stableSessionTerminalId('ghost-session', 'bottom')
+
+      await waitFor(() => {
+        expect(closeMock).toHaveBeenCalledWith(topId)
+      })
+      await waitFor(() => {
+        expect(closeMock).toHaveBeenCalledWith(bottomId)
+      })
+    })
+  })
+
+  it('closes tracked terminals when worktree disappears before reuse', async () => {
+    await withNodeEnv('development', async () => {
+      const backend = await import('../../terminal/transport/backend')
+
+      await setProjectPath('/projects/alpha')
+      await store.set(setSelectionActionAtom, {
+        selection: {
+          kind: 'session',
+          payload: 'session-vanish',
+          sessionState: 'running',
+          worktreePath: '/tmp/worktrees/session-vanish',
+        },
+      })
+
+      vi.mocked(backend.closeTerminalBackend).mockClear()
+      nextPathExistsResult = false
+
+      await store.set(setSelectionActionAtom, {
+        selection: {
+          kind: 'session',
+          payload: 'session-vanish',
+          sessionState: 'running',
+          worktreePath: '/tmp/worktrees/session-vanish',
+        },
+      })
+
+      await waitFor(() => {
+        expect(vi.mocked(backend.closeTerminalBackend)).toHaveBeenCalledTimes(2)
+      })
     })
   })
 
