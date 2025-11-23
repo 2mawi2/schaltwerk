@@ -35,6 +35,7 @@ const mockProps: Partial<DiffViewerProps> = {
   },
   expandedSectionsByFile: new Map<string, Set<number>>(),
   isLargeDiffMode: true,
+  isCompactView: true,
   visibleFileSet: new Set(['src/file1.ts']),
   renderedFileSet: new Set(['src/file1.ts']),
   loadingFiles: new Set<string>(),
@@ -319,28 +320,36 @@ describe('DiffViewer', () => {
     expect(screen.queryByTestId('diff-placeholder')).not.toBeInTheDocument()
   })
 
-  it('shows small diffs for large files in compact view', () => {
+  it('respects compact view preference when deciding to collapse large diffs', () => {
     const largeFile = createChangedFile({ path: 'src/huge.ts', change_type: 'modified', additions: 1, deletions: 1 })
     const largeDiff = {
       ...mockFileDiff,
       file: largeFile,
       fileInfo: { language: 'typescript', sizeBytes: 150_000 },
-      changedLinesCount: 2
+      changedLinesCount: 2,
+      totalLineCount: 1200
     }
 
-    const props = {
+    const baseProps = {
       ...mockProps,
       files: [largeFile],
       selectedFile: 'src/huge.ts',
       allFileDiffs: new Map([['src/huge.ts', largeDiff]]),
       isLargeDiffMode: true,
-      expandedFiles: new Set<string>()
+      isCompactView: true,
+      expandedFiles: new Set<string>(),
+      visibleFileSet: new Set(['src/huge.ts']),
+      renderedFileSet: new Set(['src/huge.ts'])
     }
 
-    render(<DiffViewer {...props as DiffViewerProps} />)
+    const { rerender } = render(<DiffViewer {...baseProps as DiffViewerProps} />)
 
     expect(screen.queryByText(/Large file/i)).not.toBeInTheDocument()
     expect(screen.getByText('added line')).toBeInTheDocument()
+
+    rerender(<DiffViewer {...{ ...baseProps, isCompactView: false } as DiffViewerProps} />)
+
+    expect(screen.getByText(/Large diff/i)).toBeInTheDocument()
   })
 
   it('applies horizontal scrolling at the file level instead of per line', () => {
