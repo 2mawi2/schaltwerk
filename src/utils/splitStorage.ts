@@ -46,6 +46,22 @@ export function sanitizeSplitSizes(
   return normalized
 }
 
-export function areSizesEqual(a: [number, number], b: [number, number]) {
-  return arraysEqual(a, b)
+export function areSizesEqual(a: unknown, b: unknown) {
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length < 2 || b.length < 2) {
+    return false
+  }
+
+  const candidateA: [number, number] = [Number(a[0]), Number(a[1])]
+  const candidateB: [number, number] = [Number(b[0]), Number(b[1])]
+
+  if (
+    !isFiniteNumber(candidateA[0]) ||
+    !isFiniteNumber(candidateA[1]) ||
+    !isFiniteNumber(candidateB[0]) ||
+    !isFiniteNumber(candidateB[1])
+  ) {
+    return false
+  }
+
+  return arraysEqual(candidateA, candidateB)
 }
