@@ -61,7 +61,7 @@ export function AgentCliMissingModal({ open, onClose, onOpenSettings, loading, s
           </button>
         </div>
         <p className="text-sm text-slate-300">
-          We couldn&apos;t find any supported agent command-line binaries. Install one (e.g., via Homebrew) or set a custom path in Settings → Agent Configuration, then re-run detection.
+          We couldn't find any supported agent command-line binaries. Install one (e.g., via Homebrew) or set a custom path in Settings → Agent Configuration, then re-run detection.
         </p>
         <StatusList items={statusByAgent} />
         <div className="flex gap-3 justify-end">
