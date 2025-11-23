@@ -568,8 +568,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const handleMarkReady = useCallback(async (sessionId: string) => {
         try {
             await invoke(TauriCommands.SchaltwerkCoreMarkSessionReady, {
-                name: sessionId,
-                autoCommit: false
+                name: sessionId
             })
             await reloadSessionsAndRefreshIdle()
         } catch (error) {

@@ -1934,17 +1934,14 @@ pub async fn schaltwerk_core_set_font_sizes(
 pub async fn schaltwerk_core_mark_session_ready(
     app: tauri::AppHandle,
     name: String,
-    auto_commit: bool,
-    commit_message: Option<String>,
 ) -> Result<bool, String> {
-    log::info!("Marking session {name} as reviewed (auto_commit: {auto_commit})");
-    let effective_auto_commit = auto_commit;
+    log::info!("Marking session {name} as reviewed");
 
     let core = get_core_write().await?;
     let manager = core.session_manager();
 
     let result = manager
-        .mark_session_ready_with_message(&name, effective_auto_commit, commit_message.as_deref())
+        .mark_session_ready(&name)
         .map_err(|e| format!("Failed to mark session as reviewed: {e}"))?;
 
     if let Ok(session) = manager.get_session(&name)
