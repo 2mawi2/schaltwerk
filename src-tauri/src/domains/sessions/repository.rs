@@ -186,6 +186,11 @@ impl SessionDbManager {
             .map_err(|e| anyhow!("Failed to update spec content: {e}"))
     }
 
+    pub fn update_spec_display_name(&self, id: &str, display_name: &str) -> Result<()> {
+        SpecMethods::update_spec_display_name(&self.db, id, display_name)
+            .map_err(|e| anyhow!("Failed to update spec display name: {e}"))
+    }
+
     pub fn delete_spec(&self, id: &str) -> Result<()> {
         self.db
             .delete_spec(id)
