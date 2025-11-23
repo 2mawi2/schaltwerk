@@ -287,11 +287,9 @@ impl MergeService {
                 }
 
                 if !session.ready_to_merge {
-                    manager
-                        .mark_session_ready(session_name)
-                        .with_context(|| {
-                            format!("Failed to mark session '{session_name}' ready")
-                        })?;
+                    manager.mark_session_ready(session_name).with_context(|| {
+                        format!("Failed to mark session '{session_name}' ready")
+                    })?;
                 }
             }
             MergeMode::Reapply => {
@@ -302,11 +300,9 @@ impl MergeService {
                 }
 
                 if !session.ready_to_merge {
-                    manager
-                        .mark_session_ready(session_name)
-                        .with_context(|| {
-                            format!("Failed to mark session '{session_name}' ready")
-                        })?;
+                    manager.mark_session_ready(session_name).with_context(|| {
+                        format!("Failed to mark session '{session_name}' ready")
+                    })?;
                 }
             }
         }
