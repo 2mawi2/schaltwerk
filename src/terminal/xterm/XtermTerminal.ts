@@ -24,6 +24,7 @@ export interface XtermTerminalConfig {
 export interface XtermTerminalOptions {
   terminalId: string
   config: XtermTerminalConfig
+  onLinkClick?: (uri: string) => boolean | Promise<boolean>
 }
 
 type TerminalTheme = NonNullable<ITerminalOptions['theme']>
@@ -95,10 +96,12 @@ export class XtermTerminal {
   private config: XtermTerminalConfig
   private readonly terminalId: string
   private fileLinkHandler: FileLinkHandler | null = null
+  private linkHandler: ((uri: string) => boolean | Promise<boolean>) | null = null
 
   constructor(options: XtermTerminalOptions) {
     this.terminalId = options.terminalId
     this.config = options.config
+    this.linkHandler = options.onLinkClick ?? null
     const resolvedOptions = buildTerminalOptions(this.config)
 
     this.raw = new XTerm(resolvedOptions)
@@ -110,6 +113,15 @@ export class XtermTerminal {
 
     this.webLinksAddon = new WebLinksAddon((_event: MouseEvent, uri: string) => {
       const openLink = async () => {
+        try {
+          if (this.linkHandler) {
+            const handled = await this.linkHandler(uri)
+            if (handled) return
+          }
+        } catch (error) {
+          logger.debug(`[XtermTerminal ${this.terminalId}] Link handler failed`, error)
+        }
+
         try {
           await invoke<void>(TauriCommands.OpenExternalUrl, { url: uri })
         } catch (error) {
@@ -168,6 +180,10 @@ export class XtermTerminal {
 
   detach(): void {
     this.container.style.display = 'none'
+  }
+
+  setLinkHandler(handler: ((uri: string) => boolean | Promise<boolean>) | null): void {
+    this.linkHandler = handler ?? null
   }
 
   async ensureCoreAddonsLoaded(): Promise<void> {

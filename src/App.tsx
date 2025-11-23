@@ -17,6 +17,7 @@ import { SettingsModal } from './components/modals/SettingsModal'
 import { ProjectSelectorModal } from './components/modals/ProjectSelectorModal'
 import { invoke } from '@tauri-apps/api/core'
 import { useSelection } from './hooks/useSelection'
+import { usePreviewPanelEvents } from './hooks/usePreviewPanelEvents'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import {
   increaseFontSizesActionAtom,
@@ -130,6 +131,7 @@ function AppContent() {
   const [attentionCounts, setAttentionCounts] = useState<Record<string, number>>({})
   const [showCliMissingModal, setShowCliMissingModal] = useState(false)
   const [cliModalEverShown, setCliModalEverShown] = useState(false)
+  usePreviewPanelEvents()
   const {
     loading: agentDetectLoading,
     allMissing: agentAllMissing,
@@ -1720,7 +1722,7 @@ function AppContent() {
                     <div className="flex-1 min-h-0 overflow-y-auto">
                       <SessionErrorBoundary>
                         <Sidebar 
-                          isDiffViewerOpen={isDiffViewerOpen} 
+                          isDiffViewerOpen={isDiffViewerOpen}
                           openTabs={projectTabs}
                           onSelectPrevProject={handleSelectPrevProject}
                           onSelectNextProject={handleSelectNextProject}

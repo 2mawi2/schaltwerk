@@ -1,6 +1,6 @@
- import { TauriCommands } from '../../common/tauriCommands'
- import { useRef } from 'react'
- import { vi, beforeEach } from 'vitest'
+import { TauriCommands } from '../../common/tauriCommands'
+import { useRef } from 'react'
+import { vi, beforeEach } from 'vitest'
 import { render, screen, act, waitFor, fireEvent } from '@testing-library/react'
 import { RunTerminal, type RunTerminalHandle } from './RunTerminal'
 
@@ -492,5 +492,6 @@ describe('RunTerminal', () => {
       expect(await screen.findByText('Ready to run:')).toBeInTheDocument()
       expect(screen.queryByText('No Run Configuration')).toBeNull()
     })
+
   })
 })

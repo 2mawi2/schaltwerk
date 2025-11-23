@@ -9,6 +9,7 @@ export enum UiEvent {
   OpencodeSearchResize = 'schaltwerk:opencode-search-resize',
   FocusTerminal = 'schaltwerk:focus-terminal',
   TerminalReady = 'schaltwerk:terminal-ready',
+  OpenPreviewPanel = 'schaltwerk:open-preview-panel',
   RunScriptUpdated = 'schaltwerk:run-script-updated',
   SessionPreferencesUpdated = 'schaltwerk:session-preferences-updated',
   DevErrorToastPreferenceChanged = 'schaltwerk:dev-error-toast-preference-changed',
@@ -190,6 +191,7 @@ export type UiEventPayloads = {
   [UiEvent.OpencodeSearchResize]: SelectionResizeDetail
   [UiEvent.FocusTerminal]: FocusTerminalDetail | undefined
   [UiEvent.TerminalReady]: { terminalId: string }
+  [UiEvent.OpenPreviewPanel]: { previewKey: string }
   [UiEvent.RunScriptUpdated]: RunScriptUpdatedDetail
   [UiEvent.SessionPreferencesUpdated]: SessionPreferencesDetail
   [UiEvent.DevErrorToastPreferenceChanged]: DevErrorToastPreferenceDetail

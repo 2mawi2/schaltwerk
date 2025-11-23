@@ -22,14 +22,14 @@ import { useKeyboardShortcutsConfig } from '../../contexts/KeyboardShortcutsCont
 import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
 import { detectPlatformSafe, isShortcutForAction } from '../../keyboardShortcuts/helpers'
 import { RightPanelTabsHeader } from './RightPanelTabsHeader'
-import type { TabKey } from './RightPanelTabs.types'
-import { useAtomValue } from 'jotai'
+import { useAtom, useAtomValue } from 'jotai'
 import { projectPathAtom } from '../../store/atoms/project'
 import { WebPreviewPanel } from './WebPreviewPanel'
 import { buildPreviewKey } from '../../store/atoms/preview'
 import { SPLIT_GUTTER_SIZE } from '../../common/splitLayout'
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
+import { rightPanelTabAtom } from '../../store/atoms/rightPanelTab'
 
 interface RightPanelTabsProps {
   onOpenHistoryDiff?: (payload: { repoPath: string; commit: HistoryItem; files: CommitFileChange[]; initialFilePath?: string | null }) => void
@@ -43,7 +43,7 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
   const projectPath = useAtomValue(projectPathAtom)
   const { setFocusForSession, currentFocus } = useFocus()
   const { allSessions } = useSessions()
-  const [userSelectedTab, setUserSelectedTabRaw] = useState<TabKey | null>(null)
+  const [rightPanelTab, setRightPanelTab] = useAtom(rightPanelTabAtom)
   const [localFocus, setLocalFocus] = useState<boolean>(false)
   const [showSpecPicker, setShowSpecPicker] = useState(false)
   const [pendingSpecToOpen, setPendingSpecToOpen] = useState<string | null>(null)
@@ -77,17 +77,6 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
     ? currentSession?.info.session_id ?? (typeof effectiveSelection.payload === 'string' ? effectiveSelection.payload : null)
     : null
 
-  const selectionKey = useMemo(() => {
-    if (effectiveSelection.kind === 'orchestrator') {
-      return 'orchestrator'
-    }
-    if (effectiveSelection.kind === 'session') {
-      const id = typeof effectiveSelection.payload === 'string' ? effectiveSelection.payload : null
-      if (id) return `session:${id}`
-    }
-    return null
-  }, [effectiveSelection])
-
   const previewKey = useMemo(() => {
     if (!projectPath) return null
     if (effectiveSelection.kind === 'orchestrator') {
@@ -101,18 +90,6 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
     }
     return null
   }, [projectPath, effectiveSelection])
-
-  const tabSelectionCacheRef = useRef<Map<string, TabKey>>(new Map())
-
-  const setUserSelectedTab = useCallback((next: TabKey | null) => {
-    setUserSelectedTabRaw(next)
-    if (!selectionKey) return
-    if (next) {
-      tabSelectionCacheRef.current.set(selectionKey, next)
-    } else {
-      tabSelectionCacheRef.current.delete(selectionKey)
-    }
-  }, [selectionKey])
 
   useEffect(() => {
     let cancelled = false
@@ -178,64 +155,10 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
       }
     }, [])
 
-   // Determine active tab based on user selection or smart defaults
-   // For specs, always show info tab regardless of user selection
+   // Determine active tab based on global state
+   // For specs, always show info tab regardless of selection
    const effectiveIsSpec = typeof isSpecOverride === 'boolean' ? isSpecOverride : isSpec
-  const activeTab = (effectiveSelection.kind === 'session' && effectiveIsSpec) ? 'info' : (
-    userSelectedTab || (
-      effectiveSelection.kind === 'orchestrator' ? 'changes' : 'changes'
-    )
-  )
-
-  // Reset cached selections when project changes
-  useEffect(() => {
-    tabSelectionCacheRef.current.clear()
-    setUserSelectedTabRaw(null)
-    setChangesPanelMode('list')
-    setActiveChangesFile(null)
-  }, [projectPath])
-
-  const lastSessionSelectionRef = useRef<{ id: string | null; isSpec: boolean } | null>(null)
-
-  // Reset tab selection when switching between sessions or spec/running states
-  useEffect(() => {
-    if (effectiveSelection.kind !== 'session') {
-      lastSessionSelectionRef.current = null
-      return
-    }
-
-    const sessionId = typeof effectiveSelection.payload === 'string' ? effectiveSelection.payload : null
-    const previous = lastSessionSelectionRef.current
-    const hasSessionChanged = previous?.id !== sessionId
-    const hasSpecStateChanged = previous?.isSpec !== effectiveIsSpec
-
-    if (hasSessionChanged || hasSpecStateChanged) {
-      if (!effectiveIsSpec && sessionId) {
-        const cached = tabSelectionCacheRef.current.get(`session:${sessionId}`)
-        if (cached) {
-          setUserSelectedTabRaw(cached)
-        } else {
-          setUserSelectedTabRaw(null)
-        }
-      } else {
-        setUserSelectedTabRaw(null)
-      }
-    }
-
-    lastSessionSelectionRef.current = { id: sessionId, isSpec: effectiveIsSpec }
-  }, [effectiveSelection, effectiveIsSpec])
-
-  // Restore cached tab for orchestrator when switching back
-  useEffect(() => {
-    if (effectiveSelection.kind === 'orchestrator') {
-      const cached = selectionKey ? tabSelectionCacheRef.current.get(selectionKey) : null
-      if (cached) {
-        setUserSelectedTabRaw(cached)
-      } else {
-        setUserSelectedTabRaw(null)
-      }
-    }
-  }, [effectiveSelection.kind, selectionKey])
+  const activeTab = (effectiveSelection.kind === 'session' && effectiveIsSpec && rightPanelTab !== 'preview') ? 'info' : rightPanelTab
 
   useEffect(() => {
     if (activeTab !== 'changes' && changesPanelMode !== 'list') {
@@ -255,21 +178,21 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
   // Keyboard shortcut for focusing Specs tab
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (isShortcutForAction(e, KeyboardShortcutAction.FocusSpecsTab, keyboardShortcutConfig, { platform })) {
-        if (effectiveSelection.kind === 'orchestrator') {
-          e.preventDefault()
+          if (isShortcutForAction(e, KeyboardShortcutAction.FocusSpecsTab, keyboardShortcutConfig, { platform })) {
+            if (effectiveSelection.kind === 'orchestrator') {
+              e.preventDefault()
           if (activeTab === 'specs') {
-            setUserSelectedTab(null)
+            void setRightPanelTab('changes')
           } else {
-            setUserSelectedTab('specs')
+            void setRightPanelTab('specs')
+          }
+            }
           }
         }
-      }
-    }
 
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [effectiveSelection, activeTab, keyboardShortcutConfig, platform, setUserSelectedTab])
+        window.addEventListener('keydown', handleKeyDown)
+        return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [effectiveSelection, activeTab, keyboardShortcutConfig, platform, setRightPanelTab])
 
   // Track previous specs to detect creation/modification via MCP API
   const previousSpecsRef = useRef<Map<string, string>>(new Map())
@@ -325,22 +248,22 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
   useEffect(() => {
     if (effectiveSelection.kind !== 'orchestrator') return
 
-    const cleanupSpecCreated = listenUiEvent(UiEvent.SpecCreated, (detail) => {
-      if (detail?.name) {
-        if (openTabs.includes(detail.name)) {
-          logger.info('[RightPanelTabs] Spec already open in workspace, skipping auto-switch:', detail.name)
-          return
-        }
-        logger.info('[RightPanelTabs] Spec created by orchestrator:', detail.name, '- auto-opening in workspace')
-        setUserSelectedTab('specs')
-        openSpecInWorkspace(detail.name)
-      }
-    })
+        const cleanupSpecCreated = listenUiEvent(UiEvent.SpecCreated, (detail) => {
+          if (detail?.name) {
+            if (openTabs.includes(detail.name)) {
+              logger.info('[RightPanelTabs] Spec already open in workspace, skipping auto-switch:', detail.name)
+              return
+            }
+            logger.info('[RightPanelTabs] Spec created by orchestrator:', detail.name, '- auto-opening in workspace')
+            void setRightPanelTab('specs')
+            openSpecInWorkspace(detail.name)
+          }
+        })
 
     return () => {
       cleanupSpecCreated()
     }
-  }, [effectiveSelection.kind, openSpecInWorkspace, openTabs, setUserSelectedTab])
+  }, [effectiveSelection.kind, openSpecInWorkspace, openTabs, setRightPanelTab])
 
   // Listen for OpenSpecInOrchestrator events
   useEffect(() => {
@@ -348,12 +271,12 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
       if (detail?.sessionName) {
         logger.info('[RightPanelTabs] Received OpenSpecInOrchestrator event for spec:', detail.sessionName)
         setPendingSpecToOpen(detail.sessionName)
-        setUserSelectedTab('specs')
+        void setRightPanelTab('specs')
       }
     })
 
     return cleanup
-  }, [setUserSelectedTab])
+  }, [setRightPanelTab])
 
   // When selection becomes orchestrator and we have a pending spec, open it
   useEffect(() => {
@@ -378,13 +301,13 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
 
     // When inline diffs are preferred, jump into inline review instead of modal
     if (inlineDiffDefault ?? true) {
-      setUserSelectedTab('changes')
+      void setRightPanelTab('changes')
       setChangesPanelMode('review')
       return
     }
 
     emitUiEvent(UiEvent.OpenDiffView)
-  }, [inlineDiffDefault, setChangesPanelMode, setUserSelectedTab])
+  }, [inlineDiffDefault, setChangesPanelMode, setRightPanelTab])
 
   // Note: removed Cmd+D toggle to reserve shortcut for New Spec
 
@@ -418,7 +341,7 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
           showSpecTab={showSpecTab}
           showSpecsTab={showSpecsTab}
           showPreviewTab={showPreviewTab}
-          onSelectTab={tab => setUserSelectedTab(tab)}
+          onSelectTab={tab => { void setRightPanelTab(tab) }}
         />
       )}
 

@@ -15,11 +15,13 @@ import {
 } from '../../terminal/transport/backend'
 import { terminalOutputManager } from '../../terminal/stream/terminalOutputManager'
 import { useStreamingDecoder } from '../../hooks/useStreamingDecoder'
+import type { AutoPreviewConfig } from '../../utils/runScriptPreviewConfig'
 
 interface RunScript {
   command: string
   workingDirectory?: string
   environmentVariables: Record<string, string>
+  previewLocalhostOnClick?: boolean
 }
 
 const RUN_EXIT_SENTINEL_PREFIX = '__SCHALTWERK_RUN_EXIT__='
@@ -32,6 +34,8 @@ interface RunTerminalProps {
   onTerminalClick?: () => void
   workingDirectory?: string
   onRunningStateChange?: (isRunning: boolean) => void
+  previewKey?: string | null
+  autoPreviewConfig?: AutoPreviewConfig
 }
 
 export interface RunTerminalHandle {
@@ -45,6 +49,8 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
   onTerminalClick,
   workingDirectory,
   onRunningStateChange,
+  previewKey,
+  autoPreviewConfig,
 }, ref) => {
   const [runScript, setRunScript] = useState<RunScript | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -61,7 +67,6 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
   const pendingScrollToBottomRef = useRef(false)
   const startPendingRef = useRef(false)
   const scrollRafRef = useRef<number | null>(null)
-
   const handleRunComplete = useCallback((exitCode: string) => {
     logger.info('[RunTerminal] Detected run command completion with exit code:', exitCode || 'unknown')
 
@@ -221,7 +226,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
         scrollRafRef.current = null
       }
     }
-  }, [runTerminalId, processChunk])
+  }, [runTerminalId, processChunk, previewKey])
 
   const executeRunCommand = useCallback(async (command: string) => {
     try {
@@ -424,6 +429,8 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
             inputFilter={allowRunInput}
             ref={terminalRef}
             workingDirectory={workingDirectory || runScript?.workingDirectory}
+            previewKey={previewKey ?? undefined}
+            autoPreviewConfig={autoPreviewConfig}
           />
         ) : (
           <div className="h-full flex items-center justify-center" style={{ backgroundColor: theme.colors.background.secondary }}>

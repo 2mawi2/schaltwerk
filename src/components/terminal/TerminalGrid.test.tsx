@@ -65,6 +65,16 @@ interface MockRunTerminalRef {
   isRunning: () => boolean
 }
 
+const defaultAutoPreviewConfig = { interceptClicks: false }
+const buildRunConfig = (overrides: Partial<{ hasRunScripts: boolean; shouldActivateRunMode: boolean; savedActiveTab: number | null; autoPreviewConfig: typeof defaultAutoPreviewConfig; rawRunScript: unknown }> = {}) => ({
+  hasRunScripts: false,
+  shouldActivateRunMode: false,
+  savedActiveTab: null as number | null,
+  autoPreviewConfig: { ...defaultAutoPreviewConfig },
+  rawRunScript: null,
+  ...overrides,
+})
+
 // ---- Mocks (must be declared before importing the component) ----
 
 // Mock react-split to capture props and render children
@@ -289,11 +299,7 @@ vi.mock('./RunTerminal', () => {
 })
 
 const loadRunScriptConfigurationMock = vi.hoisted(() =>
-  vi.fn(async () => ({
-    hasRunScripts: false,
-    shouldActivateRunMode: false,
-    savedActiveTab: null,
-  }))
+  vi.fn(async () => buildRunConfig())
 ) as ReturnType<typeof vi.fn>
 
 vi.mock('../../utils/runScriptLoader', () => ({
@@ -413,11 +419,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   localStorage.clear()
   sessionStorage.clear()
-  loadRunScriptConfigurationMock.mockResolvedValue({
-    hasRunScripts: false,
-    shouldActivateRunMode: false,
-    savedActiveTab: null,
-  })
+  loadRunScriptConfigurationMock.mockResolvedValue(buildRunConfig())
 
   mockInvoke.mockImplementation(defaultInvokeImplementation)
 })
@@ -1304,12 +1306,12 @@ describe('TerminalGrid', () => {
 
       expect(screen.queryByRole('button', { name: /Run\s+⌘E/i })).toBeNull()
 
-      loadRunScriptConfigurationMock.mockResolvedValueOnce({
+      loadRunScriptConfigurationMock.mockResolvedValueOnce(buildRunConfig({
         hasRunScripts: true,
         shouldActivateRunMode: true,
         savedActiveTab: null,
-      })
-      loadRunScriptConfigurationMock.mockImplementation(() => ({
+      }))
+      loadRunScriptConfigurationMock.mockImplementation(() => buildRunConfig({
         hasRunScripts: true,
         shouldActivateRunMode: true,
         savedActiveTab: null,
@@ -1381,11 +1383,11 @@ describe('TerminalGrid', () => {
 
   describe('Run Mode Shortcuts and Controls', () => {
     it('activates run mode, toggles the run terminal, and returns focus with Cmd+/', async () => {
-      loadRunScriptConfigurationMock.mockResolvedValue({
+      loadRunScriptConfigurationMock.mockResolvedValue(buildRunConfig({
         hasRunScripts: true,
         shouldActivateRunMode: false,
         savedActiveTab: null,
-      })
+      }))
 
       await renderGrid()
       vi.useRealTimers()
@@ -1483,24 +1485,24 @@ describe('TerminalGrid', () => {
     it('restores bottom terminals when switching to a session without run scripts', async () => {
       loadRunScriptConfigurationMock.mockImplementation((sessionKey: string) => {
         if (sessionKey === 'alpha') {
-          return {
+          return buildRunConfig({
             hasRunScripts: true,
             shouldActivateRunMode: true,
             savedActiveTab: -1,
-          }
+          })
         }
         if (sessionKey === 'beta') {
-          return {
+          return buildRunConfig({
             hasRunScripts: false,
             shouldActivateRunMode: false,
             savedActiveTab: null,
-          }
+          })
         }
-        return {
+        return buildRunConfig({
           hasRunScripts: false,
           shouldActivateRunMode: false,
           savedActiveTab: null,
-        }
+        })
       })
 
       await renderGrid()
@@ -1545,11 +1547,11 @@ describe('TerminalGrid', () => {
 
   describe('Panel interactions and resize events', () => {
     it('expands collapsed panel on terminal click and emits resize notifications', async () => {
-      loadRunScriptConfigurationMock.mockResolvedValue({
+      loadRunScriptConfigurationMock.mockResolvedValue(buildRunConfig({
         hasRunScripts: true,
         shouldActivateRunMode: true,
         savedActiveTab: -1,
-      })
+      }))
 
       await renderGrid()
       vi.useRealTimers()
