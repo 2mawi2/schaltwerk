@@ -309,7 +309,86 @@ function selectionCacheKey(selection: Selection, projectPath?: string | null): s
   if (selection.kind === 'orchestrator') {
     return `orchestrator:${projectPath ?? 'none'}`
   }
-  return `session:${selection.payload ?? 'unknown'}`
+  const scopedProject = projectPath ?? selection.projectPath ?? 'none'
+  return `session:${scopedProject}:${selection.payload ?? 'unknown'}`
+}
+
+function sessionStateCacheKey(sessionId: string, projectPath: string | null): string {
+  return `${projectPath ?? 'none'}::${sessionId}`
+}
+
+type TerminalCreationDecision = { shouldCreateTerminals: boolean; cleanupMissingWorktree: boolean }
+
+async function validateSessionTerminalCreation(selection: Selection, cwd: string | undefined): Promise<TerminalCreationDecision> {
+  if (!cwd) {
+    logger.warn('[selection] Skipping terminal creation for session without worktree', {
+      sessionId: selection.payload,
+    })
+    return { shouldCreateTerminals: false, cleanupMissingWorktree: false }
+  }
+
+  try {
+    const worktreeExists = await invoke<boolean>(TauriCommands.PathExists, { path: cwd })
+    if (!worktreeExists) {
+      logger.warn('[selection] Worktree path does not exist; skipping terminal creation', {
+        sessionId: selection.payload,
+        worktreePath: cwd,
+      })
+      return { shouldCreateTerminals: false, cleanupMissingWorktree: true }
+    }
+
+    const gitDirExists = await invoke<boolean>(TauriCommands.PathExists, { path: `${cwd}/.git` })
+    if (!gitDirExists) {
+      logger.warn('[selection] Worktree missing git metadata; skipping terminal creation', {
+        sessionId: selection.payload,
+        worktreePath: cwd,
+      })
+      return { shouldCreateTerminals: false, cleanupMissingWorktree: true }
+    }
+
+    return { shouldCreateTerminals: true, cleanupMissingWorktree: false }
+  } catch (error) {
+    logger.warn('[selection] Failed to validate session worktree before creating terminals', {
+      sessionId: selection.payload,
+      error,
+    })
+    return { shouldCreateTerminals: false, cleanupMissingWorktree: false }
+  }
+}
+
+async function validateOrchestratorTerminalCreation(cwd: string | undefined): Promise<TerminalCreationDecision> {
+  if (!cwd) {
+    logger.debug('[selection] Skipping orchestrator terminal creation without project path')
+    return { shouldCreateTerminals: false, cleanupMissingWorktree: false }
+  }
+
+  try {
+    const projectExists = await invoke<boolean>(TauriCommands.DirectoryExists, { path: cwd })
+    if (!projectExists) {
+      logger.warn('[selection] Project directory does not exist; skipping orchestrator terminal creation', {
+        projectPath: cwd,
+      })
+      return { shouldCreateTerminals: false, cleanupMissingWorktree: false }
+    }
+    return { shouldCreateTerminals: true, cleanupMissingWorktree: false }
+  } catch (error) {
+    logger.warn('[selection] Failed to validate project directory before creating orchestrator terminals', {
+      projectPath: cwd,
+      error,
+    })
+    return { shouldCreateTerminals: false, cleanupMissingWorktree: false }
+  }
+}
+
+async function evaluateTerminalCreation(selection: Selection, terminals: TerminalSet): Promise<TerminalCreationDecision> {
+  if (selection.kind === 'session') {
+    if (selection.sessionState === 'spec') {
+      return { shouldCreateTerminals: false, cleanupMissingWorktree: false }
+    }
+    return validateSessionTerminalCreation(selection, terminals.workingDirectory)
+  }
+
+  return validateOrchestratorTerminalCreation(terminals.workingDirectory)
 }
 
 
@@ -327,7 +406,22 @@ async function ensureTerminal(
   const currentOwnerKey = terminalToSelectionKey.get(id)
   const previousCwd = terminalWorkingDirectory.get(id)
   const cwdChanged = previousCwd !== undefined && previousCwd !== cwd
-  const mustRecreate = force || cwdChanged
+  const ownerMismatch = currentOwnerKey && currentOwnerKey !== cacheKey
+  let mustRecreate = force || cwdChanged || Boolean(ownerMismatch)
+  let pathMissing = false
+
+  if (!mustRecreate && cwd) {
+    try {
+      const exists = await invoke<boolean>(TauriCommands.PathExists, { path: cwd })
+      pathMissing = !exists
+      mustRecreate = mustRecreate || pathMissing
+      if (pathMissing) {
+        logger.info('[selection] Detected missing worktree for terminal; forcing recreation', { id, cwd, cacheKey })
+      }
+    } catch (error) {
+      logger.warn('[selection] Failed to verify worktree existence before reusing terminal', { id, error })
+    }
+  }
 
   if (!mustRecreate && tracked.has(id) && backendHasInstance) {
     return
@@ -434,91 +528,42 @@ export const setSelectionActionAtom = atom(
       ((trackedTopCwd && trackedTopCwd !== terminals.workingDirectory) ||
         (trackedBottomCwd && trackedBottomCwd !== terminals.workingDirectory))
     )
-    const effectiveForceRecreate = forceRecreate || pendingRecreate || workingDirectoryChanged
+    let effectiveForceRecreate = forceRecreate || pendingRecreate || workingDirectoryChanged
     let tracked = terminalsCache.get(cacheKey)
     if (!tracked) {
       tracked = new Set<string>()
       terminalsCache.set(cacheKey, tracked)
     }
-    const missingTop = !tracked.has(terminals.top)
-    const missingBottom = !tracked.has(terminals.bottomBase)
+    let missingTop = !tracked.has(terminals.top)
+    let missingBottom = !tracked.has(terminals.bottomBase)
 
     const unchanged = !forceRecreate && selectionEquals(current, enrichedSelection)
+
+    let cleanupTerminalsDueToMissingWorktree = false
 
     if (!unchanged) {
       set(selectionAtom, enrichedSelection)
     }
 
-    if (effectiveForceRecreate || missingTop || missingBottom) {
-      let shouldCreateTerminals = true
+    const { shouldCreateTerminals, cleanupMissingWorktree } = await evaluateTerminalCreation(enrichedSelection, terminals)
+    cleanupTerminalsDueToMissingWorktree = cleanupMissingWorktree
 
-      if (enrichedSelection.kind === 'session') {
-        if (enrichedSelection.sessionState === 'spec') {
-          shouldCreateTerminals = false
-        } else {
-          const cwd = terminals.workingDirectory
-          if (!cwd) {
-            logger.warn('[selection] Skipping terminal creation for session without worktree', {
-              sessionId: enrichedSelection.payload,
-            })
-            shouldCreateTerminals = false
-          } else {
-            try {
-              const worktreeExists = await invoke<boolean>(TauriCommands.PathExists, { path: cwd })
-              if (!worktreeExists) {
-                logger.warn('[selection] Worktree path does not exist; skipping terminal creation', {
-                  sessionId: enrichedSelection.payload,
-                  worktreePath: cwd,
-                })
-                shouldCreateTerminals = false
-              } else {
-                const gitDirExists = await invoke<boolean>(TauriCommands.PathExists, { path: `${cwd}/.git` })
-                if (!gitDirExists) {
-                  logger.warn('[selection] Worktree missing git metadata; skipping terminal creation', {
-                    sessionId: enrichedSelection.payload,
-                    worktreePath: cwd,
-                  })
-                  shouldCreateTerminals = false
-                }
-              }
-            } catch (error) {
-              logger.warn('[selection] Failed to validate session worktree before creating terminals', {
-                sessionId: enrichedSelection.payload,
-                error,
-              })
-              shouldCreateTerminals = false
-            }
-          }
-        }
-      } else {
-        const cwd = terminals.workingDirectory
-        if (!cwd) {
-          logger.debug('[selection] Skipping orchestrator terminal creation without project path')
-          shouldCreateTerminals = false
-        } else {
-          try {
-            const projectExists = await invoke<boolean>(TauriCommands.DirectoryExists, { path: cwd })
-            if (!projectExists) {
-              logger.warn('[selection] Project directory does not exist; skipping orchestrator terminal creation', {
-                projectPath: cwd,
-              })
-              shouldCreateTerminals = false
-            }
-          } catch (error) {
-            logger.warn('[selection] Failed to validate project directory before creating orchestrator terminals', {
-              projectPath: cwd,
-              error,
-            })
-            shouldCreateTerminals = false
-          }
-        }
-      }
+    const shouldTouchTerminals = effectiveForceRecreate || missingTop || missingBottom || cleanupTerminalsDueToMissingWorktree
 
+    if (shouldTouchTerminals) {
       if (shouldCreateTerminals) {
         await Promise.all([
           ensureTerminal(terminals.top, terminals.workingDirectory, tracked, effectiveForceRecreate, cacheKey),
           ensureTerminal(terminals.bottomBase, terminals.workingDirectory, tracked, effectiveForceRecreate, cacheKey),
         ])
+      }
+
+      if (cleanupTerminalsDueToMissingWorktree) {
+        await set(clearTerminalTrackingActionAtom, [terminals.top, terminals.bottomBase])
+        selectionsNeedingRecreate.add(cacheKey)
+        effectiveForceRecreate = true
+        missingTop = true
+        missingBottom = true
       }
     }
 
@@ -597,7 +642,8 @@ async function handleSessionStateUpdate(
   nextState: NormalizedSessionState,
   projectPath: string | null,
 ): Promise<void> {
-  const previous = lastKnownSessionState.get(sessionId)
+  const stateKey = sessionStateCacheKey(sessionId, projectPath)
+  const previous = lastKnownSessionState.get(stateKey)
   const cacheKey = selectionCacheKey({ kind: 'session', payload: sessionId, projectPath }, projectPath)
   const tracked = terminalsCache.get(cacheKey)
   const isTracking = Boolean(tracked && tracked.size > 0)
@@ -614,7 +660,7 @@ async function handleSessionStateUpdate(
           projectPath,
         })
         // Force local state to remain running so subsequent correct events are processed normally
-        lastKnownSessionState.set(sessionId, 'running')
+        lastKnownSessionState.set(stateKey, 'running')
         return
       }
       if (snapshot && snapshot.sessionState === 'spec' && snapshot.worktreePath) {
@@ -625,7 +671,7 @@ async function handleSessionStateUpdate(
             projectPath,
             worktreePath: snapshot.worktreePath,
           })
-          lastKnownSessionState.set(sessionId, 'running')
+          lastKnownSessionState.set(stateKey, 'running')
           return
         }
       }
@@ -639,7 +685,7 @@ async function handleSessionStateUpdate(
     })
   }
 
-  lastKnownSessionState.set(sessionId, nextState)
+  lastKnownSessionState.set(stateKey, nextState)
 
   if (nextState === 'spec' && previous !== 'spec') {
     const group = sessionTerminalGroup(sessionId)
@@ -647,6 +693,27 @@ async function handleSessionStateUpdate(
     const cacheKey = selectionCacheKey({ kind: 'session', payload: sessionId, projectPath }, projectPath)
     selectionsNeedingRecreate.add(cacheKey)
   }
+}
+
+function findSpecReplacement(sessionsPayload: unknown[], previousId: string): { id: string; worktreePath?: string } | null {
+  const normalizedPrev = previousId.trim()
+  const candidates = sessionsPayload
+    .map(item => (item as { info?: { session_id?: string; session_state?: string | null; status?: string; worktree_path?: string } })?.info)
+    .filter(info => info && normalizeSessionState(info.session_state, info.status) === 'spec') as Array<{ session_id?: string; worktree_path?: string }>
+
+  if (!candidates.length) return null
+
+  const exact = candidates.find(info => info.session_id === normalizedPrev)
+  if (exact?.session_id) {
+    return { id: exact.session_id, worktreePath: exact.worktree_path ?? undefined }
+  }
+
+  const prefixed = candidates.find(info => info.session_id?.startsWith(`${normalizedPrev}-`))
+  if (prefixed?.session_id) {
+    return { id: prefixed.session_id, worktreePath: prefixed.worktree_path ?? undefined }
+  }
+
+  return null
 }
 
 export const setProjectPathActionAtom = atom(
@@ -863,6 +930,27 @@ export const initializeSelectionEventsActionAtom = atom(
       }
 
       if (!snapshot) {
+        const replacement = Array.isArray(sessionsPayload) ? findSpecReplacement(sessionsPayload, sessionId) : null
+        const terminals = computeTerminals(currentSelection, activeProjectPath)
+        await set(clearTerminalTrackingActionAtom, [terminals.top, terminals.bottomBase])
+
+        const fallbackSelection: Selection = replacement
+          ? {
+              kind: 'session',
+              payload: replacement.id,
+              sessionState: 'spec',
+              worktreePath: replacement.worktreePath,
+              projectPath: activeProjectPath ?? undefined,
+            }
+          : buildOrchestratorSelection(activeProjectPath)
+
+        await set(setSelectionActionAtom, {
+          selection: fallbackSelection,
+          forceRecreate: true,
+          isIntentional: false,
+          remember: Boolean(activeProjectPath),
+          rememberProjectPath: activeProjectPath ?? undefined,
+        })
         return
       }
 
@@ -896,7 +984,19 @@ export const initializeSelectionEventsActionAtom = atom(
 
       const refreshPromise = (async () => {
         const snapshot = await set(getSessionSnapshotActionAtom, { sessionId, refresh: true })
-        if (!snapshot) return
+        if (!snapshot) {
+          const projectPath = get(projectPathAtom)
+          const terminals = computeTerminals(currentSelection, projectPath)
+          await set(clearTerminalTrackingActionAtom, [terminals.top, terminals.bottomBase])
+          await set(setSelectionActionAtom, {
+            selection: buildOrchestratorSelection(projectPath),
+            forceRecreate: true,
+            isIntentional: false,
+            remember: Boolean(projectPath),
+            rememberProjectPath: projectPath ?? undefined,
+          })
+          return
+        }
         if (snapshot.sessionState) {
           await handleSessionStateUpdate(set as SetAtomFunction, sessionId, snapshot.sessionState, get(projectPathAtom))
         }
