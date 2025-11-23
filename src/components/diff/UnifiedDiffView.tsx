@@ -2001,7 +2001,9 @@ export function UnifiedDiffView({
       }
 
       clearReview();
-      if (onClose) onClose();
+      if (viewMode === "modal" && onClose) {
+        onClose();
+      }
     } catch (error) {
       logger.error("Failed to send review to terminal:", error);
     }
@@ -2013,6 +2015,7 @@ export function UnifiedDiffView({
     sessions,
     formatReviewForPrompt,
     clearReview,
+    viewMode,
     onClose,
     setSelection,
     setFocusForSession,
