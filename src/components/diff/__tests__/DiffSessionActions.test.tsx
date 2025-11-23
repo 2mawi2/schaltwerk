@@ -79,7 +79,7 @@ describe('DiffSessionActions', () => {
     await waitFor(() => {
       expect(invokeMock).toHaveBeenCalledWith(
         TauriCommands.SchaltwerkCoreMarkSessionReady,
-        expect.objectContaining({ name: 'demo', autoCommit: false })
+        expect.objectContaining({ name: 'demo' })
       )
     })
 

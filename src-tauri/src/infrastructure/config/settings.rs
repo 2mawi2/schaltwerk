@@ -1,10 +1,23 @@
 use crate::domains::settings::{AgentPreference, Settings, SettingsRepository, SettingsService};
+use serde_json::Value;
 use std::fs;
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 
 pub struct FileSettingsRepository {
     settings_path: PathBuf,
+}
+
+fn strip_legacy_auto_commit_setting(value: &mut Value) {
+    if let Value::Object(obj) = value {
+        obj.remove("autoCommitOnReview");
+        obj.remove("auto_commit_on_review");
+
+        if let Some(Value::Object(session_obj)) = obj.get_mut("session") {
+            session_obj.remove("autoCommitOnReview");
+            session_obj.remove("auto_commit_on_review");
+        }
+    }
 }
 
 impl FileSettingsRepository {
@@ -30,7 +43,14 @@ impl SettingsRepository for FileSettingsRepository {
         if self.settings_path.exists() {
             let contents = fs::read_to_string(&self.settings_path)
                 .map_err(|e| format!("Failed to read settings file: {e}"))?;
-            serde_json::from_str(&contents).or_else(|_| Ok(Settings::default()))
+            let cleaned = serde_json::from_str::<Value>(&contents)
+                .map(|mut value| {
+                    strip_legacy_auto_commit_setting(&mut value);
+                    serde_json::from_value::<Settings>(value).unwrap_or_default()
+                })
+                .unwrap_or_else(|_| Settings::default());
+
+            Ok(cleaned)
         } else {
             Ok(Settings::default())
         }
