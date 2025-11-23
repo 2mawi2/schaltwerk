@@ -53,10 +53,17 @@ fn collect_working_directory_changes(repo: &Repository) -> anyhow::Result<Vec<Ch
 pub async fn get_orchestrator_working_changes() -> Result<Vec<ChangedFile>, String> {
     let repo_path = get_repo_path(None).await?;
 
-    let repo =
-        Repository::open(&repo_path).map_err(|e| format!("Failed to open repository: {e}"))?;
+    let repo = tokio::task::spawn_blocking({
+        let path = repo_path.clone();
+        move || Repository::open(&path)
+    })
+    .await
+    .map_err(|e| format!("Failed to open repository: {e}"))?
+    .map_err(|e| format!("Failed to open repository: {e}"))?;
 
-    collect_working_directory_changes(&repo)
+    tokio::task::spawn_blocking(move || collect_working_directory_changes(&repo))
+        .await
+        .map_err(|e| format!("Failed to compute changed files: {e}"))?
         .map_err(|e| format!("Failed to compute changed files: {e}"))
 }
 

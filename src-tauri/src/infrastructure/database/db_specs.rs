@@ -94,7 +94,6 @@ impl SpecMethods for Database {
         Ok(())
     }
 
-
     fn delete_spec(&self, id: &str) -> Result<()> {
         let conn = self.get_conn()?;
         conn.execute("DELETE FROM specs WHERE id = ?1", params![id])?;

@@ -1,8 +1,15 @@
 use log::info;
+#[cfg(test)]
+use std::sync::atomic::{AtomicBool, Ordering};
+
+#[cfg(test)]
+static TEST_CLEANUP_CALLED: AtomicBool = AtomicBool::new(false);
 
 /// Cleanup all running terminals
 pub async fn cleanup_all_terminals() {
     info!("Emergency cleanup (panic/unexpected exit)");
+    #[cfg(test)]
+    TEST_CLEANUP_CALLED.store(true, Ordering::SeqCst);
 
     // Use force kill for speed even in emergency scenarios
     if let Some(manager) = crate::PROJECT_MANAGER.get() {
@@ -17,10 +24,20 @@ pub struct TerminalCleanupGuard;
 
 impl Drop for TerminalCleanupGuard {
     fn drop(&mut self) {
-        // Block on async cleanup
-        tauri::async_runtime::block_on(async {
-            cleanup_all_terminals().await;
-        });
+        // Prefer a blocking cleanup so terminals are actually killed during shutdown.
+        if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            handle.block_on(async { cleanup_all_terminals().await });
+        } else if let Ok(rt) = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+        {
+            rt.block_on(async { cleanup_all_terminals().await });
+        } else {
+            // Last-resort best effort: fire-and-forget.
+            tauri::async_runtime::spawn(async {
+                cleanup_all_terminals().await;
+            });
+        }
     }
 }
 
@@ -36,11 +53,14 @@ mod tests {
 
     #[test]
     fn test_cleanup_guard_drop() {
-        // Test that the guard can be created and dropped without panic
+        TEST_CLEANUP_CALLED.store(false, Ordering::SeqCst);
         {
             let _guard = TerminalCleanupGuard;
             // Guard will be dropped here
         }
-        // Should complete without panic
+        assert!(
+            TEST_CLEANUP_CALLED.load(Ordering::SeqCst),
+            "cleanup should be invoked when guard drops"
+        );
     }
 }

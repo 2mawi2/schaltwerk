@@ -5,12 +5,16 @@ use chrono::Utc;
 use log::{info, warn};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 use which::which;
-const GIT_STATS_STALE_THRESHOLD_SECS: i64 = 60;
 const AGENT_FALLBACK_ORDER: &[&str] = &[
     "claude", "copilot", "codex", "opencode", "gemini", "droid", "qwen", "amp", "terminal",
 ];
 
+#[cfg(test)]
+const GIT_STATS_STALE_THRESHOLD_SECS: i64 = 60;
+
+#[cfg(test)]
 fn get_or_compute_git_stats(
     session_id: &str,
     worktree_path: &Path,
@@ -128,13 +132,15 @@ pub struct SessionCreationParams<'a> {
 }
 
 const SESSION_READY_COMMIT_MESSAGE: &str = "schaltwerk: mark {} ready";
+#[cfg(test)]
+use crate::domains::sessions::entity::GitStats;
 use crate::{
     domains::git::service as git,
     domains::sessions::cache::SessionCacheManager,
     domains::sessions::entity::ArchivedSpec,
     domains::sessions::entity::{
-        DiffStats, EnrichedSession, FilterMode, GitStats, Session, SessionInfo, SessionState,
-        SessionStatus, SessionStatusType, SessionType, SortMode, Spec,
+        DiffStats, EnrichedSession, FilterMode, Session, SessionInfo, SessionState, SessionStatus,
+        SessionStatusType, SessionType, SortMode, Spec,
     },
     domains::sessions::repository::SessionDbManager,
     domains::sessions::utils::SessionUtils,
@@ -1632,6 +1638,34 @@ mod service_unified_tests {
     }
 
     #[test]
+    fn test_get_or_compute_git_stats_returns_cached_when_refresh_fails() {
+        let temp_dir = TempDir::new().unwrap();
+        let repo = temp_dir.path().join("not-a-repo"); // no git init
+        std::fs::create_dir_all(&repo).unwrap();
+
+        let stale_stats = GitStats {
+            session_id: "s".into(),
+            calculated_at: Utc::now() - chrono::Duration::seconds(120),
+            files_changed: 0,
+            lines_added: 0,
+            lines_removed: 0,
+            has_uncommitted: false,
+            last_diff_change_ts: None,
+        };
+
+        let result =
+            get_or_compute_git_stats("s", &repo, "main", Some(&stale_stats), |_s| Ok(()));
+
+        assert!(result.is_some(), "should return cached stats on refresh failure");
+        let returned = result.unwrap();
+        assert_eq!(returned.session_id, "s");
+        assert_eq!(
+            returned.calculated_at, stale_stats.calculated_at,
+            "timestamp remains when refresh fails"
+        );
+    }
+
+    #[test]
     fn test_get_or_compute_git_stats_computes_when_no_cache() {
         let temp_dir = TempDir::new().unwrap();
         let repo = temp_dir.path().join("repo");
@@ -2229,7 +2263,7 @@ impl SessionManager {
         );
 
         let mut enriched = Vec::new();
-        let mut git_stats_total_time = std::time::Duration::ZERO;
+        let git_stats_total_time = std::time::Duration::ZERO;
         let mut worktree_check_time = std::time::Duration::ZERO;
         let mut session_count = 0;
 
@@ -2274,6 +2308,8 @@ impl SessionManager {
                 terminals: Vec::new(),
             });
         }
+
+        let mut stale_refresh_queue: Vec<(String, PathBuf, String)> = Vec::new();
 
         for session in sessions {
             if session.status == SessionStatus::Cancelled {
@@ -2367,33 +2403,33 @@ impl SessionManager {
             }
 
             let (git_stats, has_conflicts) = if worktree_exists {
-                log::debug!(
-                    "list_enriched_sessions: session={} stage=git_stats:start",
-                    session.name
-                );
-                let git_stats_start = std::time::Instant::now();
-                let cached_stats = stats_by_id.get(&session.id);
-                let git_stats = get_or_compute_git_stats(
-                    &session.id,
-                    &session.worktree_path,
-                    &session.parent_branch,
-                    cached_stats,
-                    |stats| self.db_manager.save_git_stats(stats),
-                );
-                let git_stats_elapsed = git_stats_start.elapsed();
-                git_stats_total_time += git_stats_elapsed;
-                log::debug!(
-                    "list_enriched_sessions: session={} stage=git_stats:done elapsed={}ms",
-                    session.name,
-                    git_stats_elapsed.as_millis()
-                );
-
-                if git_stats_elapsed.as_millis() > 100 {
-                    log::warn!(
-                        "Slow git stats for session '{}': {}ms",
-                        session.name,
-                        git_stats_elapsed.as_millis()
-                    );
+                let mut cached_stats = stats_by_id.get(&session.id).cloned();
+                let stale = cached_stats
+                    .as_ref()
+                    .map(|existing| {
+                        // consider stats stale after 60s
+                        const STALE_SECS: i64 = 60;
+                        (chrono::Utc::now().timestamp() - existing.calculated_at.timestamp())
+                            > STALE_SECS
+                    })
+                    .unwrap_or(true);
+                // Serve cached stats immediately; queue stale ones for background refresh
+                if stale {
+                    if cfg!(test) {
+                        if let Ok(mut fresh) =
+                            git::calculate_git_stats_fast(&session.worktree_path, &session.parent_branch)
+                        {
+                            fresh.session_id = session.id.clone();
+                            let _ = self.db_manager.save_git_stats(&fresh);
+                            cached_stats = Some(fresh);
+                        }
+                    } else {
+                        stale_refresh_queue.push((
+                            session.id.clone(),
+                            session.worktree_path.clone(),
+                            session.parent_branch.clone(),
+                        ));
+                    }
                 }
 
                 let has_conflicts = match git::has_conflicts(&session.worktree_path) {
@@ -2407,7 +2443,7 @@ impl SessionManager {
                     }
                 };
 
-                (git_stats, Some(has_conflicts))
+                (cached_stats, Some(has_conflicts))
             } else {
                 (None, None)
             };
@@ -2484,6 +2520,44 @@ impl SessionManager {
                     session_elapsed.as_millis()
                 );
             }
+        }
+
+        if !stale_refresh_queue.is_empty() {
+            let db = self.db_manager.clone();
+            tauri::async_runtime::spawn(async move {
+                for (session_id, worktree, parent_branch) in stale_refresh_queue {
+                    let refresh_start = Instant::now();
+                    let result = tokio::task::spawn_blocking(move || {
+                        git::calculate_git_stats_fast(&worktree, &parent_branch)
+                    })
+                    .await;
+
+                    match result {
+                        Ok(Ok(mut stats)) => {
+                            stats.session_id = session_id.clone();
+                            let _ = db.save_git_stats(&stats);
+                            let elapsed = refresh_start.elapsed().as_millis();
+                            if elapsed > 250 {
+                                log::warn!(
+                                    "Background git stats refresh for '{session_id}' took {elapsed}ms"
+                                );
+                            } else {
+                                log::debug!(
+                                    "Background git stats refresh for '{session_id}' completed in {elapsed}ms"
+                                );
+                            }
+                        }
+                        Ok(Err(err)) => {
+                            log::warn!(
+                                "Background git stats refresh failed for '{session_id}': {err}"
+                            );
+                        }
+                        Err(join_err) => {
+                            log::warn!("Background git stats task join failed for '{session_id}': {join_err}");
+                        }
+                    }
+                }
+            });
         }
 
         let total_elapsed = start_time.elapsed();

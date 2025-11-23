@@ -3,7 +3,6 @@ use r2d2::{ManageConnection, Pool, PooledConnection};
 use rusqlite::Connection;
 #[cfg(test)]
 use rusqlite::OpenFlags;
-use std::cell::Cell;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -13,39 +12,6 @@ use super::db_schema;
 
 const DEFAULT_POOL_SIZE: u32 = 4;
 const BUSY_TIMEOUT_MS: u64 = 5_000;
-
-thread_local! {
-    static BUSY_START: Cell<Option<Instant>> = const { Cell::new(None) };
-}
-
-fn sqlite_busy_handler(attempts: i32) -> bool {
-    BUSY_START.with(|start_cell| {
-        let start = if attempts == 0 {
-            let now = Instant::now();
-            start_cell.set(Some(now));
-            log::warn!("SQLite busy; waiting for lock (timeout={BUSY_TIMEOUT_MS}ms)");
-            now
-        } else {
-            start_cell.get().unwrap_or_else(|| {
-                let now = Instant::now();
-                start_cell.set(Some(now));
-                now
-            })
-        };
-
-        let elapsed = start.elapsed();
-        if elapsed.as_millis() as u64 >= BUSY_TIMEOUT_MS {
-            let elapsed_ms = elapsed.as_millis();
-            let attempt_count = attempts + 1;
-            log::error!("SQLite busy timeout after {elapsed_ms}ms (attempts={attempt_count})");
-            start_cell.set(None);
-            return false;
-        }
-
-        std::thread::sleep(Duration::from_millis(2));
-        true
-    })
-}
 
 #[derive(Clone)]
 pub struct Database {
@@ -86,14 +52,14 @@ impl SqliteConnectionManager {
     fn configure(&self, conn: &Connection) -> rusqlite::Result<()> {
         conn.pragma_update(None, "foreign_keys", "ON")?;
         conn.pragma_update(None, "synchronous", "NORMAL")?;
+        // Rely on SQLite's built-in busy timeout instead of a custom spin loop.
+        conn.busy_timeout(Duration::from_millis(BUSY_TIMEOUT_MS))?;
 
         if matches!(self.config, SqliteConfig::File(_))
             && let Err(err) = conn.pragma_update(None, "journal_mode", "WAL")
         {
             log::warn!("Failed to enable WAL journal mode: {err}");
         }
-
-        conn.busy_handler(Some(sqlite_busy_handler))?;
         Ok(())
     }
 }
