@@ -95,6 +95,8 @@ import type { SettingsCategory } from './types/settings'
 import { SPLIT_GUTTER_SIZE } from './common/splitLayout'
 import { isNotificationPermissionGranted } from './utils/notificationPermission'
 import { sanitizeSplitSizes, areSizesEqual } from './utils/splitStorage'
+
+const COLLAPSED_LEFT_PANEL_PX = 50
 import { finalizeSplitCommit, selectSplitRenderSizes } from './utils/splitDragState'
 
 
@@ -747,14 +749,6 @@ function AppContent() {
     })
   }, [setIsRightCollapsed, lastExpandedRightPercent, setRightSizes, setRightDragSizes])
 
-  const setRightPanelCollapsedExplicit = useCallback((collapsed: boolean) => {
-    setRightDragSizes(null)
-    if (collapsed) {
-        void setRightSizes([100, 0])
-    }
-    void setIsRightCollapsed(collapsed)
-  }, [setIsRightCollapsed, setRightSizes, setRightDragSizes])
-  
   // Right panel drag state for performance optimization
   const [isDraggingRightSplit, setIsDraggingRightSplit] = useState(false)
   const rightSplitDraggingRef = useRef(false)
@@ -833,9 +827,9 @@ function AppContent() {
     }
   }, [
     selection,
-    setRightPanelCollapsedExplicit,
     setRightSizes,
     setLastExpandedRightPercent,
+    setIsRightCollapsed,
     rightDragSizes,
     rightSizes,
     lastExpandedRightPercent,
@@ -1606,6 +1600,23 @@ function AppContent() {
     attentionCount: attentionCounts[tab.projectPath] ?? 0
   })), [projectTabs, attentionCounts])
 
+  const [windowWidth, setWindowWidth] = useState<number>(() =>
+    typeof window !== 'undefined' ? window.innerWidth : 1440,
+  )
+  useEffect(() => {
+    const onResize = () => {
+      setWindowWidth(window.innerWidth)
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  const collapsedLeftPanelSizes = useMemo(() => {
+    const safeWidth = Math.max(windowWidth, COLLAPSED_LEFT_PANEL_PX + 400)
+    const pct = Math.min(40, (COLLAPSED_LEFT_PANEL_PX / safeWidth) * 100)
+    return [pct, 100 - pct]
+  }, [windowWidth])
+
   const activeTabPath = showHome ? null : (pendingActivePath ?? projectPath)
 
   // Update unified work area ring color when selection changes
@@ -1688,25 +1699,37 @@ function AppContent() {
             <div className="flex-1 min-h-0">
               <Split
                 className="h-full w-full flex"
-                sizes={isLeftPanelCollapsed ? [0, 100] : leftRenderSizes}
-                minSize={[isLeftPanelCollapsed ? 0 : 240, 400]}
+                sizes={isLeftPanelCollapsed ? collapsedLeftPanelSizes : leftRenderSizes}
+                minSize={[isLeftPanelCollapsed ? COLLAPSED_LEFT_PANEL_PX : 240, 400]}
                 gutterSize={isLeftPanelCollapsed ? 0 : SPLIT_GUTTER_SIZE}
                 onDragStart={handleLeftSplitDragStart}
                 onDrag={handleLeftSplitDrag}
                 onDragEnd={handleLeftSplitDragEnd}
               >
-                <div className="h-full border-r overflow-y-auto" style={{ backgroundColor: theme.colors.background.secondary, borderRightColor: theme.colors.border.default }} data-testid="sidebar">
+                <div
+                  className="h-full border-r overflow-y-auto shrink-0"
+                  style={{
+                    backgroundColor: theme.colors.background.secondary,
+                    borderRightColor: theme.colors.border.default,
+                    minWidth: isLeftPanelCollapsed ? `${COLLAPSED_LEFT_PANEL_PX}px` : undefined,
+                    maxWidth: isLeftPanelCollapsed ? `${COLLAPSED_LEFT_PANEL_PX}px` : undefined,
+                  }}
+                  data-testid="sidebar"
+                >
                   <div className="h-full flex flex-col min-h-0">
                     <div className="flex-1 min-h-0 overflow-y-auto">
                       <SessionErrorBoundary>
                         <Sidebar 
-                        isDiffViewerOpen={isDiffViewerOpen} 
-                        openTabs={projectTabs}
-                        onSelectPrevProject={handleSelectPrevProject}
-                        onSelectNextProject={handleSelectNextProject}
-                      />
+                          isDiffViewerOpen={isDiffViewerOpen} 
+                          openTabs={projectTabs}
+                          onSelectPrevProject={handleSelectPrevProject}
+                          onSelectNextProject={handleSelectNextProject}
+                          isCollapsed={isLeftPanelCollapsed}
+                          onExpandRequest={toggleLeftPanelCollapsed}
+                        />
                       </SessionErrorBoundary>
                     </div>
+                    {!isLeftPanelCollapsed && (
                     <div
                       className="p-2 border-t"
                       style={{ borderTopColor: theme.colors.border.default }}
@@ -1786,12 +1809,13 @@ function AppContent() {
                               color: theme.colors.accent.amber.light
                             }}
                           >
-                            {specShortcut}
+                          {specShortcut}
                           </span>
                         </button>
                       </div>
                     </div>
-              </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="relative h-full">
