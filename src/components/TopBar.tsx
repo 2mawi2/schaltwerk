@@ -2,9 +2,7 @@ import {
   VscHome,
   VscSettingsGear,
   VscLayoutSidebarRight,
-  VscLayoutSidebarRightOff,
-  VscLayoutSidebarLeft,
-  VscLayoutSidebarLeftOff
+  VscLayoutSidebarRightOff
 } from 'react-icons/vsc'
 import { TabBar } from './TabBar'
 import { ProjectTab } from '../common/projectTabs'
@@ -41,8 +39,6 @@ interface TopBarProps {
   onOpenProjectSelector?: () => void
   isRightPanelCollapsed?: boolean
   onToggleRightPanel?: () => void
-  isLeftPanelCollapsed?: boolean
-  onToggleLeftPanel?: () => void
   // Optional custom resolver for Open button path (e.g., active session worktree)
   resolveOpenPath?: () => Promise<string | undefined>
   // Counter to trigger open from keyboard shortcut
@@ -57,8 +53,6 @@ export function TopBar({
   onCloseTab,
   onOpenSettings,
   onOpenProjectSelector,
-  isLeftPanelCollapsed = false,
-  onToggleLeftPanel,
   isRightPanelCollapsed = false,
   onToggleRightPanel,
   resolveOpenPath,
@@ -201,22 +195,6 @@ export function TopBar({
         {/* GitHub status/actions */}
         <GithubMenuButton className="mr-2" hasActiveProject={Boolean(activeTabPath)} />
 
-        
-        {/* Left panel collapse button - only show when a tab is active */}
-        {activeTabPath && onToggleLeftPanel && (
-          <button
-            onClick={onToggleLeftPanel}
-            className="h-6 w-6 inline-flex items-center justify-center rounded text-text-tertiary hover:text-text-secondary hover:bg-bg-elevated/50 transition-colors mr-2"
-            title={isLeftPanelCollapsed ? 'Show left panel' : 'Hide left panel'}
-            aria-label={isLeftPanelCollapsed ? 'Show left panel' : 'Hide left panel'}
-          >
-            {isLeftPanelCollapsed ? (
-              <VscLayoutSidebarLeftOff className="text-[14px]" />
-            ) : (
-              <VscLayoutSidebarLeft className="text-[14px]" />
-            )}
-          </button>
-        )}
 
         {/* Right panel collapse button - only show when a tab is active */}
         {activeTabPath && onToggleRightPanel && (

@@ -46,32 +46,30 @@ describe('TopBar', () => {
     onOpenSettings: vi.fn(),
   }
 
-  it('renders a left panel toggle when handler is provided', () => {
-    const onToggleLeftPanel = vi.fn()
+  it('renders a right panel toggle when handler is provided', () => {
+    const onToggleRightPanel = vi.fn()
 
     render(
       <TopBar
         {...baseProps}
-        onToggleLeftPanel={onToggleLeftPanel}
-        onToggleRightPanel={vi.fn()}
+        onToggleRightPanel={onToggleRightPanel}
       />
     )
 
-    const toggle = screen.getByLabelText('Hide left panel')
+    const toggle = screen.getByLabelText('Hide right panel')
     fireEvent.click(toggle)
-    expect(onToggleLeftPanel).toHaveBeenCalledTimes(1)
+    expect(onToggleRightPanel).toHaveBeenCalledTimes(1)
   })
 
-  it('shows the correct aria label when the left panel is collapsed', () => {
+  it('shows the correct aria label when the right panel is collapsed', () => {
     render(
       <TopBar
         {...baseProps}
-        isLeftPanelCollapsed={true}
-        onToggleLeftPanel={vi.fn()}
+        isRightPanelCollapsed={true}
         onToggleRightPanel={vi.fn()}
       />
     )
 
-    expect(screen.getByLabelText('Show left panel')).toBeInTheDocument()
+    expect(screen.getByLabelText('Show right panel')).toBeInTheDocument()
   })
 })

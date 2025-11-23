@@ -5,6 +5,9 @@ import { vi, type MockedFunction } from 'vitest'
 import { UiEvent, emitUiEvent } from './common/uiEvents'
 import { SchaltEvent } from './common/eventSystem'
 import type { RawSession } from './types/session'
+import { useAtomValue } from 'jotai'
+import { useEffect } from 'react'
+import { leftPanelCollapsedAtom } from './store/atoms/layout'
 
 const listenEventHandlers = vi.hoisted(
   () => [] as Array<{ event: unknown; handler: (detail: unknown) => void }>
@@ -255,11 +258,44 @@ vi.mock('./utils/platform', () => ({
   getPlatform: vi.fn().mockResolvedValue('macos'),
 }))
 
+vi.mock('./keyboardShortcuts/helpers', async () => {
+  const actual = await vi.importActual<typeof import('./keyboardShortcuts/helpers')>('./keyboardShortcuts/helpers')
+  return {
+    ...actual,
+    detectPlatformSafe: () => 'mac',
+    detectPlatform: () => 'mac',
+  }
+})
+
 async function renderApp() {
   let utils: ReturnType<typeof render> | undefined
   await act(async () => {
     utils = render(
       <TestProviders>
+        <App />
+      </TestProviders>
+    )
+  })
+  return utils!
+}
+
+const collapseStates: boolean[] = []
+
+function CollapseObserver() {
+  const collapsed = useAtomValue(leftPanelCollapsedAtom)
+  useEffect(() => {
+    collapseStates.push(collapsed)
+  }, [collapsed])
+  return null
+}
+
+async function renderAppWithCollapseObserver() {
+  collapseStates.length = 0
+  let utils: ReturnType<typeof render> | undefined
+  await act(async () => {
+    utils = render(
+      <TestProviders>
+        <CollapseObserver />
         <App />
       </TestProviders>
     )
@@ -288,6 +324,7 @@ describe('App.tsx', () => {
     mockState.isGitRepo = false
     mockState.currentDir = '/Users/me/sample-project'
     mockState.defaultBranch = 'main'
+    Object.defineProperty(navigator, 'userAgent', { value: 'Mozilla/5.0 (Macintosh)', configurable: true })
     const { clearBackgroundStartsByPrefix } = await import('./common/uiEvents')
     clearBackgroundStartsByPrefix('')
   })
@@ -1287,5 +1324,38 @@ describe('Multi-agent comparison logic', () => {
       { versionName: 'test-session', agentType: 'claude' },
       { versionName: 'test-session_v2', agentType: 'claude' }
     ])
+  })
+
+  it('toggles the left sidebar with Cmd+\\ and expands again with the same shortcut', async () => {
+    mockState.isGitRepo = true
+    window.localStorage.removeItem('schaltwerk:layout:leftPanelCollapsed')
+    await renderAppWithCollapseObserver()
+
+    await clickElement(screen.getByTestId('open-project'))
+
+    const sidebar = await screen.findByTestId('sidebar')
+    const getSidebarStyle = () => (sidebar as HTMLElement).getAttribute('style') ?? ''
+
+    expect(getSidebarStyle()).not.toContain('50px')
+    expect(window.localStorage.getItem('schaltwerk:layout:leftPanelCollapsed')).toBeNull()
+    expect(collapseStates.at(-1)).toBe(false)
+
+    await act(async () => {
+      fireEvent.keyDown(window, { key: '\\', code: 'Backslash', metaKey: true })
+    })
+
+    await waitFor(() => {
+      expect(window.localStorage.getItem('schaltwerk:layout:leftPanelCollapsed')).toBe('true')
+      expect(collapseStates.at(-1)).toBe(true)
+    })
+
+    await act(async () => {
+      fireEvent.keyDown(window, { key: '\\', code: 'Backslash', metaKey: true })
+    })
+
+    await waitFor(() => {
+      expect(window.localStorage.getItem('schaltwerk:layout:leftPanelCollapsed')).toBe('false')
+      expect(collapseStates.at(-1)).toBe(false)
+    })
   })
 })

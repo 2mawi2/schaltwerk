@@ -24,7 +24,7 @@ import { SwitchOrchestratorModal } from '../modals/SwitchOrchestratorModal'
 import { MergeSessionModal } from '../modals/MergeSessionModal'
 import { useShortcutDisplay } from '../../keyboardShortcuts/useShortcutDisplay'
 import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
-import { VscRefresh, VscCode } from 'react-icons/vsc'
+import { VscRefresh, VscCode, VscLayoutSidebarLeft, VscLayoutSidebarLeftOff } from 'react-icons/vsc'
 import { IconButton } from '../common/IconButton'
 import { ProgressIndicator } from '../common/ProgressIndicator'
 import { clearTerminalStartedTracking } from '../terminal/Terminal'
@@ -52,6 +52,7 @@ interface SidebarProps {
     onSelectNextProject?: () => void
     isCollapsed?: boolean
     onExpandRequest?: () => void
+    onToggleSidebar?: () => void
 }
 
 const flattenGroupedSessions = (sessionsToFlatten: EnrichedSession[]): EnrichedSession[] => {
@@ -67,7 +68,7 @@ const flattenGroupedSessions = (sessionsToFlatten: EnrichedSession[]): EnrichedS
     return flattenedSessions
 }
 
-export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, onSelectNextProject, isCollapsed = false, onExpandRequest }: SidebarProps) {
+export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, onSelectNextProject, isCollapsed = false, onExpandRequest, onToggleSidebar }: SidebarProps) {
     const { selection, setSelection, terminals, clearTerminalTracking } = useSelection()
     const projectPath = useAtomValue(projectPathAtom)
     const { setFocusForSession, setCurrentFocus } = useFocus()
@@ -169,6 +170,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const [switchModelSessionId, setSwitchModelSessionId] = useState<string | null>(null)
     const orchestratorResetting = resettingSelection?.kind === 'orchestrator'
     const orchestratorRunning = isSessionRunning('orchestrator')
+    const leftSidebarShortcut = useShortcutDisplay(KeyboardShortcutAction.ToggleLeftSidebar)
 
     const [mergeCommitDrafts, setMergeCommitDrafts] = useState<Record<string, string>>({})
     const getCommitDraftForSession = useCallback(
@@ -1045,7 +1047,36 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 }
             }}
         >
-            <div className={clsx('pt-2', isCollapsed ? 'px-1' : 'px-2')}>
+            <div className={clsx('flex items-center shrink-0 h-9', isCollapsed ? 'justify-center px-0' : 'justify-between px-2 pt-2')}>
+                {!isCollapsed && (
+                    <span className="text-xs font-medium text-slate-400 uppercase tracking-wider ml-1">Agents</span>
+                )}
+                {onToggleSidebar && (
+                    <div className="flex items-center gap-2">
+                        {!isCollapsed && leftSidebarShortcut && (
+                            <span className="text-[11px] text-slate-500" aria-hidden="true">
+                                {leftSidebarShortcut}
+                            </span>
+                        )}
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation()
+                                onToggleSidebar()
+                            }}
+                            className={clsx(
+                                "h-6 w-6 flex items-center justify-center rounded text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors",
+                                !isCollapsed && "ml-auto"
+                            )}
+                            title={isCollapsed ? 'Show left sidebar' : 'Hide left sidebar'}
+                            aria-label={isCollapsed ? 'Show left sidebar' : 'Hide left sidebar'}
+                        >
+                            {isCollapsed ? <VscLayoutSidebarLeftOff /> : <VscLayoutSidebarLeft />}
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            <div className={clsx('pt-1', isCollapsed ? 'px-1' : 'px-2')}>
                 <div
                     role="button"
                     tabIndex={0}
