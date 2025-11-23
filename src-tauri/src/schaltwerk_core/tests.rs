@@ -1563,10 +1563,7 @@ fn test_mark_reviewed_when_dirty_keeps_ready_flag_false() {
     std::fs::write(session.worktree_path.join("dirty.txt"), "dirty").unwrap();
 
     let ready = manager.mark_session_ready(&session.name).unwrap();
-    assert!(
-        !ready,
-        "dirty sessions should not be ready_to_merge"
-    );
+    assert!(!ready, "dirty sessions should not be ready_to_merge");
 
     let refreshed = manager
         .db_ref()

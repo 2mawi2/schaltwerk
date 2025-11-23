@@ -1652,10 +1652,12 @@ mod service_unified_tests {
             last_diff_change_ts: None,
         };
 
-        let result =
-            get_or_compute_git_stats("s", &repo, "main", Some(&stale_stats), |_s| Ok(()));
+        let result = get_or_compute_git_stats("s", &repo, "main", Some(&stale_stats), |_s| Ok(()));
 
-        assert!(result.is_some(), "should return cached stats on refresh failure");
+        assert!(
+            result.is_some(),
+            "should return cached stats on refresh failure"
+        );
         let returned = result.unwrap();
         assert_eq!(returned.session_id, "s");
         assert_eq!(
@@ -2415,9 +2417,10 @@ impl SessionManager {
                 // Serve cached stats immediately; queue stale ones for background refresh
                 if stale {
                     if cfg!(test) {
-                        if let Ok(mut fresh) =
-                            git::calculate_git_stats_fast(&session.worktree_path, &session.parent_branch)
-                        {
+                        if let Ok(mut fresh) = git::calculate_git_stats_fast(
+                            &session.worktree_path,
+                            &session.parent_branch,
+                        ) {
                             fresh.session_id = session.id.clone();
                             let _ = self.db_manager.save_git_stats(&fresh);
                             cached_stats = Some(fresh);
@@ -2552,7 +2555,9 @@ impl SessionManager {
                             );
                         }
                         Err(join_err) => {
-                            log::warn!("Background git stats task join failed for '{session_id}': {join_err}");
+                            log::warn!(
+                                "Background git stats task join failed for '{session_id}': {join_err}"
+                            );
                         }
                     }
                 }
