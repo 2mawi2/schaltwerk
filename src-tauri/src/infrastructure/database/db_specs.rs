@@ -11,6 +11,7 @@ pub trait SpecMethods {
     fn get_spec_by_id(&self, id: &str) -> Result<Spec>;
     fn list_specs(&self, repo_path: &Path) -> Result<Vec<Spec>>;
     fn update_spec_content(&self, id: &str, content: &str) -> Result<()>;
+    fn update_spec_display_name(&self, id: &str, display_name: &str) -> Result<()>;
     fn delete_spec(&self, id: &str) -> Result<()>;
 }
 
@@ -90,6 +91,17 @@ impl SpecMethods for Database {
              SET content = ?1, updated_at = ?2
              WHERE id = ?3",
             params![content, Utc::now().timestamp(), id],
+        )?;
+        Ok(())
+    }
+
+    fn update_spec_display_name(&self, id: &str, display_name: &str) -> Result<()> {
+        let conn = self.get_conn()?;
+        conn.execute(
+            "UPDATE specs
+             SET display_name = ?1, updated_at = ?2
+             WHERE id = ?3",
+            params![display_name, Utc::now().timestamp(), id],
         )?;
         Ok(())
     }
