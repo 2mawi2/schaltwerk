@@ -22,6 +22,7 @@ const GENERATED_FILE_PATTERNS = [
 
 const LARGE_DIFF_LINE_THRESHOLD = 500
 const LARGE_DIFF_SIZE_THRESHOLD = 100 * 1024
+const COMPACT_VIEW_SAFE_LINE_THRESHOLD = 200
 
 export interface DiffFilterResult {
   isGenerated: boolean
@@ -55,11 +56,8 @@ export function shouldCollapseDiff(
   const { alwaysShowLargeDiffs, isCompactView = false, changedLinesCount } = options
   const isGenerated = isGeneratedFile(filePath)
   const isLarge = isLargeDiff(lineCount, sizeBytes)
-  const hasSmallChangeInCompactView =
-    isLarge &&
-    isCompactView &&
-    typeof changedLinesCount === 'number' &&
-    changedLinesCount <= 50
+  const hasSmallChangeInCompactView = isSmallCompactChange(isLarge, isCompactView, changedLinesCount)
+  const hasSmallRenderedFootprintInCompactView = isSmallCompactFootprint(isLarge, isCompactView, lineCount)
 
   if (!isGenerated && !isLarge) {
     return {
@@ -69,17 +67,15 @@ export function shouldCollapseDiff(
     }
   }
 
-  const shouldCollapseForSize = isLarge && !alwaysShowLargeDiffs && !hasSmallChangeInCompactView
+  const shouldCollapseForSize = shouldCollapseLargeDiff(
+    isLarge,
+    alwaysShowLargeDiffs,
+    hasSmallChangeInCompactView,
+    hasSmallRenderedFootprintInCompactView
+  )
   const shouldCollapse = isGenerated || shouldCollapseForSize
 
-  let reason: 'generated' | 'large' | 'both' | undefined
-  if (isGenerated && isLarge) {
-    reason = 'both'
-  } else if (isGenerated) {
-    reason = 'generated'
-  } else if (shouldCollapseForSize) {
-    reason = 'large'
-  }
+  const reason = deriveCollapseReason(isGenerated, isLarge, shouldCollapseForSize)
 
   return {
     isGenerated,
@@ -89,6 +85,49 @@ export function shouldCollapseDiff(
     lineCount: isLarge ? lineCount : undefined,
     sizeBytes: isLarge ? sizeBytes : undefined
   }
+}
+
+function isSmallCompactChange(isLarge: boolean, isCompactView: boolean, changedLinesCount?: number) {
+  return (
+    isLarge &&
+    isCompactView &&
+    typeof changedLinesCount === 'number' &&
+    changedLinesCount <= 50
+  )
+}
+
+function isSmallCompactFootprint(isLarge: boolean, isCompactView: boolean, lineCount: number) {
+  return (
+    isLarge &&
+    isCompactView &&
+    lineCount > 0 &&
+    lineCount <= COMPACT_VIEW_SAFE_LINE_THRESHOLD
+  )
+}
+
+function shouldCollapseLargeDiff(
+  isLarge: boolean,
+  alwaysShowLargeDiffs: boolean,
+  hasSmallChangeInCompactView: boolean,
+  hasSmallRenderedFootprintInCompactView: boolean
+) {
+  return (
+    isLarge &&
+    !alwaysShowLargeDiffs &&
+    !hasSmallChangeInCompactView &&
+    !hasSmallRenderedFootprintInCompactView
+  )
+}
+
+function deriveCollapseReason(
+  isGenerated: boolean,
+  isLarge: boolean,
+  shouldCollapseForSize: boolean
+): 'generated' | 'large' | 'both' | undefined {
+  if (isGenerated && isLarge) return 'both'
+  if (isGenerated) return 'generated'
+  if (shouldCollapseForSize) return 'large'
+  return undefined
 }
 
 export function formatDiffSize(sizeBytes: number): string {
