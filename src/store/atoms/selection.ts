@@ -233,6 +233,7 @@ const sessionSnapshotsCache = new Map<string, SessionSnapshot>()
 const sessionFetchPromises = new Map<string, Promise<SessionSnapshot | null>>()
 const terminalsCache = new Map<string, Set<string>>()
 const terminalToSelectionKey = new Map<string, string>()
+const terminalWorkingDirectory = new Map<string, string>()
 const selectionsNeedingRecreate = new Set<string>()
 const lastKnownSessionState = new Map<string, NormalizedSessionState>()
 // const ignoredSpecReverts = new Set<string>() // Removed as part of fix
@@ -321,12 +322,43 @@ async function ensureTerminal(
 ): Promise<void> {
   const isTestEnv = typeof process !== 'undefined' && process.env.NODE_ENV === 'test'
 
-  if (!force && tracked.has(id)) {
+  const registryHasInstance = hasTerminalInstance(id)
+  const backendHasInstance = isTestEnv ? registryHasInstance : await invoke<boolean>(TauriCommands.TerminalExists, { id }).catch(() => false)
+  const currentOwnerKey = terminalToSelectionKey.get(id)
+  const previousCwd = terminalWorkingDirectory.get(id)
+  const cwdChanged = previousCwd !== undefined && previousCwd !== cwd
+  const mustRecreate = force || cwdChanged
+
+  if (!mustRecreate && tracked.has(id) && backendHasInstance) {
     return
   }
 
-  const registryHasInstance = hasTerminalInstance(id)
-  if (!force && registryHasInstance) {
+  if (mustRecreate) {
+    if (registryHasInstance) {
+      logger.info('[selection] Closing existing terminal before recreation', { id, cacheKey, cwd, previousCwd })
+      try {
+        await closeTerminalBackend(id)
+      } catch (error) {
+        logger.warn('[selection] Failed to close terminal during recreation', { id, error })
+      }
+    }
+
+    if (currentOwnerKey && currentOwnerKey !== cacheKey) {
+      const previousTracked = terminalsCache.get(currentOwnerKey)
+      if (previousTracked) {
+        previousTracked.delete(id)
+        if (previousTracked.size === 0) {
+          terminalsCache.delete(currentOwnerKey)
+        }
+      }
+    }
+
+    tracked.delete(id)
+    terminalToSelectionKey.delete(id)
+    terminalWorkingDirectory.delete(id)
+  }
+
+  if (!mustRecreate && registryHasInstance && backendHasInstance) {
     logger.info('[selection] Rebinding existing terminal instance to selection cache', {
       id,
       cacheKey,
@@ -334,37 +366,21 @@ async function ensureTerminal(
     })
     tracked.add(id)
     terminalToSelectionKey.set(id, cacheKey)
+    terminalWorkingDirectory.set(id, cwd)
     return
-  }
-
-  if (force && tracked.has(id)) {
-    try {
-      await closeTerminalBackend(id)
-    } catch (error) {
-      logger.warn('[selection] Failed to close terminal during recreation', { id, error })
-    }
-    tracked.delete(id)
-    terminalToSelectionKey.delete(id)
-  }
-
-  if (force && registryHasInstance) {
-    logger.info('[selection] Closing existing registry terminal before recreation', { id, cacheKey })
-    try {
-      await closeTerminalBackend(id)
-    } catch (error) {
-      logger.warn('[selection] Failed to close registry terminal during force recreate', { id, error })
-    }
   }
 
   if (isTestEnv) {
     tracked.add(id)
     terminalToSelectionKey.set(id, cacheKey)
+    terminalWorkingDirectory.set(id, cwd)
     return
   }
 
   await createTerminalBackend({ id, cwd })
   tracked.add(id)
   terminalToSelectionKey.set(id, cacheKey)
+  terminalWorkingDirectory.set(id, cwd)
 }
 
 export const setSelectionActionAtom = atom(
@@ -411,7 +427,14 @@ export const setSelectionActionAtom = atom(
     const terminals = computeTerminals(enrichedSelection, projectPath)
     const cacheKey = selectionCacheKey(enrichedSelection, projectPath)
     const pendingRecreate = selectionsNeedingRecreate.has(cacheKey)
-    const effectiveForceRecreate = forceRecreate || pendingRecreate
+    const trackedTopCwd = terminalWorkingDirectory.get(terminals.top)
+    const trackedBottomCwd = terminalWorkingDirectory.get(terminals.bottomBase)
+    const workingDirectoryChanged = Boolean(
+      terminals.workingDirectory &&
+      ((trackedTopCwd && trackedTopCwd !== terminals.workingDirectory) ||
+        (trackedBottomCwd && trackedBottomCwd !== terminals.workingDirectory))
+    )
+    const effectiveForceRecreate = forceRecreate || pendingRecreate || workingDirectoryChanged
     let tracked = terminalsCache.get(cacheKey)
     if (!tracked) {
       tracked = new Set<string>()
@@ -532,10 +555,12 @@ export const clearTerminalTrackingActionAtom = atom(
 
       const key = terminalToSelectionKey.get(id)
       if (!key) {
+        terminalWorkingDirectory.delete(id)
         continue
       }
       selectionsNeedingRecreate.add(key)
       terminalToSelectionKey.delete(id)
+      terminalWorkingDirectory.delete(id)
       const tracked = terminalsCache.get(key)
       if (!tracked) {
         continue
@@ -915,6 +940,7 @@ export function resetSelectionAtomsForTest(): void {
   sessionFetchPromises.clear()
   terminalsCache.clear()
   terminalToSelectionKey.clear()
+  terminalWorkingDirectory.clear()
   selectionsNeedingRecreate.clear()
   lastSelectionByProject.clear()
   lastKnownSessionState.clear()

@@ -9,12 +9,18 @@ function toEventSafeTerminalId(terminalId: string): string {
 }
 
 function wrapUnlisten(unlisten: UnlistenFn, label: string): UnlistenFn {
+  let cleaned = false
   return () => {
+    if (cleaned) return
+    cleaned = true
+
     try {
-      const result = unlisten()
-      void Promise.resolve(result).catch(error => {
-        logger.warn(`[eventSystem] Failed to unlisten ${label}`, error)
-      })
+      const result = unlisten() as unknown
+      if (result && typeof (result as { then?: unknown }).then === 'function') {
+        void (result as Promise<unknown>).catch(error => {
+          logger.warn(`[eventSystem] Failed to unlisten ${label}`, error)
+        })
+      }
     } catch (error) {
       logger.warn(`[eventSystem] Failed to unlisten ${label}`, error)
     }
