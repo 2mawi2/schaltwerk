@@ -23,6 +23,7 @@ import {
   VscSend,
   VscListFlat,
   VscListSelection,
+  VscCheck,
 } from "react-icons/vsc";
 import { SearchBox } from "../common/SearchBox";
 import "../../styles/vscode-dark-theme.css";
@@ -2150,6 +2151,18 @@ export function UnifiedDiffView({
   }) => (
     <>
       {headerActions}
+      {isSidebarMode && currentReview && currentReview.comments.length > 0 && (
+        <button
+          onClick={() => {
+            void handleFinishReview();
+          }}
+          className="p-1.5 hover:bg-slate-800 rounded-lg flex items-center gap-2 px-2 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-600/30 text-blue-200"
+          title={`Finish Review (${currentReview.comments.length} comments)`}
+        >
+          <VscCheck />
+          <span className="text-xs font-medium">Finish ({currentReview.comments.length})</span>
+        </button>
+      )}
       <button
         onClick={() => {
           toggleCompactDiffs();

@@ -684,15 +684,15 @@ function AppContent() {
 
   const toggleLeftPanelCollapsed = useCallback(() => {
     setLeftDragSizes(null)
-    if (isLeftPanelCollapsed) {
-      void setLeftPanelSizes(leftPanelLastExpandedSizes as [number, number])
-      void setIsLeftPanelCollapsed(false)
-      return
-    }
-
-    void setLeftPanelLastExpandedSizes(leftPanelSizes)
-    void setIsLeftPanelCollapsed(true)
-  }, [isLeftPanelCollapsed, leftPanelLastExpandedSizes, leftPanelSizes, setIsLeftPanelCollapsed, setLeftPanelLastExpandedSizes, setLeftPanelSizes, setLeftDragSizes])
+    setIsLeftPanelCollapsed(prev => {
+      if (prev) {
+        void setLeftPanelSizes(leftPanelLastExpandedSizes as [number, number])
+        return false
+      }
+      void setLeftPanelLastExpandedSizes(leftPanelSizes)
+      return true
+    })
+  }, [leftPanelLastExpandedSizes, leftPanelSizes, setIsLeftPanelCollapsed, setLeftPanelLastExpandedSizes, setLeftPanelSizes, setLeftDragSizes])
 
   const handleOpenProject = useCallback(async (path: string) => {
     try {
@@ -1035,6 +1035,12 @@ function AppContent() {
       if (isShortcutForAction(e, KeyboardShortcutAction.OpenInApp, keyboardShortcutConfig, { platform })) {
         e.preventDefault()
         handleOpenInApp()
+        return
+      }
+
+      if (isShortcutForAction(e, KeyboardShortcutAction.ToggleLeftSidebar, keyboardShortcutConfig, { platform })) {
+        e.preventDefault()
+        toggleLeftPanelCollapsed()
         return
       }
     }
@@ -1678,8 +1684,6 @@ function AppContent() {
           projectPath,
           invoke
         })}
-        isLeftPanelCollapsed={isLeftPanelCollapsed}
-        onToggleLeftPanel={toggleLeftPanelCollapsed}
         isRightPanelCollapsed={isRightCollapsed}
         onToggleRightPanel={toggleRightPanelCollapsed}
         triggerOpenCounter={triggerOpenInApp}
@@ -1728,6 +1732,7 @@ function AppContent() {
                           onSelectNextProject={handleSelectNextProject}
                           isCollapsed={isLeftPanelCollapsed}
                           onExpandRequest={toggleLeftPanelCollapsed}
+                          onToggleSidebar={toggleLeftPanelCollapsed}
                         />
                       </SessionErrorBoundary>
                     </div>
