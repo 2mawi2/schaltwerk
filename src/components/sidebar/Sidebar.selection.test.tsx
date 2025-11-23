@@ -487,7 +487,6 @@ describe('Merge selection progression', () => {
 
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       const sessions = (globalThis as { __testCurrentSessions?: ReturnType<typeof mockEnrichedSession>[] }).__testCurrentSessions || currentSessions
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
         const mode = (args as { filterMode?: string })?.filterMode || 'all'
         if (mode === 'spec') return sessions.filter(s => s.info.session_state === 'spec')
