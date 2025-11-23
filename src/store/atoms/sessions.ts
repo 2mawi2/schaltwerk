@@ -526,9 +526,20 @@ async function applySessionsSnapshot(
     get: Getter,
     set: Setter,
     sessions: EnrichedSession[],
+    snapshotProjectPath: string | null,
     options: { reason?: string; previousStates?: Map<string, string> } = {},
 ) {
-    const projectPath = get(projectPathAtom)
+    const activeProjectPath = get(projectPathAtom)
+
+    // If this snapshot belongs to a different project than the current active one,
+    // cache it for that project and skip applying it to the active UI state to avoid
+    // cross-project contamination during rapid switches.
+    if (snapshotProjectPath && activeProjectPath && snapshotProjectPath !== activeProjectPath) {
+        cacheProjectSnapshot(snapshotProjectPath, sessions)
+        return
+    }
+
+    const projectPath = snapshotProjectPath ?? activeProjectPath
     const previousMap = new Map(previousSessionsSnapshot.map(session => [session.info.session_id, session]))
     const withSnapshots = sessions.map(session => attachMergeSnapshot(session, previousMap))
     const deduped = dedupeSessions(withSnapshots)
@@ -539,32 +550,41 @@ async function applySessionsSnapshot(
     const now = Date.now()
     const preserved: EnrichedSession[] = []
     const expired: string[] = []
+    const projectKey: ProjectKey = projectPath ?? null
+    const expectedForProject = getExpectedSessionsForProject(projectKey)
 
-    for (const [expectedId, expected] of expectedSessions) {
-        const { expiresAt, session: expectedSession } = expected
-        if (now > expiresAt) {
-            expired.push(expectedId)
-            continue
-        }
-        if (!currentIds.has(expectedId)) {
-            if (expectedSession) {
-                preserved.push(expectedSession)
-            } else {
-                const prev = previousSessionsSnapshot.find(s => s.info.session_id === expectedId)
-                if (prev) {
-                    preserved.push(prev)
-                }
+    if (expectedForProject) {
+        for (const [expectedId, expected] of expectedForProject) {
+            const { expiresAt, session: expectedSession } = expected
+            if (now > expiresAt) {
+                expired.push(expectedId)
+                continue
             }
-        } else {
-            expectedSessions.delete(expectedId)
+            if (!currentIds.has(expectedId)) {
+                if (expectedSession) {
+                    preserved.push(expectedSession)
+                } else {
+                    const prev = previousSessionsSnapshot.find(s => s.info.session_id === expectedId)
+                    if (prev) {
+                        preserved.push(prev)
+                    }
+                }
+            } else {
+                expectedForProject.delete(expectedId)
+            }
         }
     }
 
     if (preserved.length > 0) {
         deduped.push(...preserved)
     }
-    for (const id of expired) {
-        expectedSessions.delete(id)
+    if (expectedForProject) {
+        for (const id of expired) {
+            expectedForProject.delete(id)
+        }
+        if (expectedForProject.size === 0) {
+            expectedSessionsByProject.delete(projectKey)
+        }
     }
 
     if (projectPath) {
@@ -694,7 +714,17 @@ const mergeErrorCache = new Map<string, string>()
 const mergePreviewCache = new Map<string, MergePreviewResponse>()
 const protectedReleaseUntil = new Map<string, number>()
 type ExpectedSession = { expiresAt: number; session?: EnrichedSession }
-const expectedSessions = new Map<string, ExpectedSession>()
+type ProjectKey = string | null
+const expectedSessionsByProject = new Map<ProjectKey, Map<string, ExpectedSession>>()
+
+function getExpectedSessionsForProject(projectPath: ProjectKey, create = false): Map<string, ExpectedSession> | undefined {
+    let bucket = expectedSessionsByProject.get(projectPath)
+    if (!bucket && create) {
+        bucket = new Map<string, ExpectedSession>()
+        expectedSessionsByProject.set(projectPath, bucket)
+    }
+    return bucket
+}
 let sessionsRefreshedReloadPending = false
 const sessionsEventHandlersForTests = new Map<SchaltEvent, (payload: unknown) => void>()
 
@@ -710,13 +740,17 @@ export const expectSessionActionAtom = atom(
     (_get, _set, sessionOrId: string | EnrichedSession) => {
         if (!sessionOrId) return
 
+        const projectPath = _get(projectPathAtom) ?? null
+        const bucket = getExpectedSessionsForProject(projectPath, true)
+        if (!bucket) return
+
         const { id, payload } =
             typeof sessionOrId === 'string'
                 ? { id: sessionOrId, payload: undefined }
                 : { id: sessionOrId.info.session_id, payload: sessionOrId }
 
         logger.debug(`[SessionsAtoms] Expecting session ${id}`)
-        expectedSessions.set(id, { expiresAt: Date.now() + EXPECTED_SESSION_TTL_MS, session: payload })
+        bucket.set(id, { expiresAt: Date.now() + EXPECTED_SESSION_TTL_MS, session: payload })
     },
 )
 
@@ -901,7 +935,7 @@ export const refreshSessionsActionAtom = atom(
             logger.debug(
                 `[SessionsAtoms] loadSessionsSnapshot success in ${(performance.now() - loadStart).toFixed(1)}ms (count=${sessions.length})`,
             )
-            await applySessionsSnapshot(get, set, sessions, { reason: 'refresh' })
+            await applySessionsSnapshot(get, set, sessions, projectPath, { reason: 'refresh' })
         } catch (error) {
             logger.error('[SessionsAtoms] Failed to load sessions (keeping stale state):', error)
             // Keep previous snapshot to avoid tearing down terminals on transient errors
@@ -922,6 +956,7 @@ export const cleanupProjectSessionsCacheActionAtom = atom(
         const snapshot = projectSessionsSnapshotCache.get(projectPath)
         projectSessionsSnapshotCache.delete(projectPath)
         projectSessionStatesCache.delete(projectPath)
+        expectedSessionsByProject.delete(projectPath)
         if (!snapshot || snapshot.length === 0) {
             return
         }
@@ -1098,17 +1133,27 @@ export const initializeSessionsEventsActionAtom = atom(
 
             void (async () => {
                 const previousStatesSnapshot = new Map(previousSessionStates)
-                await applySessionsSnapshot(get, set, normalized.sessions, {
+                await applySessionsSnapshot(get, set, normalized.sessions, normalized.projectPath, {
                     reason: 'sessions-refreshed',
                     previousStates: previousStatesSnapshot,
                 })
             })()
         })
 
+        const hasSessionInActiveProject = (sessionId: string | undefined | null): boolean => {
+            if (!sessionId) return false
+            const currentSessions = get(allSessionsAtom)
+            return currentSessions.some(session => session.info.session_id === sessionId)
+        }
+
         await register(SchaltEvent.GitOperationStarted, (payload) => {
             const event = payload as GitOperationPayload
             const sessionName = event?.session_name
             if (!sessionName) {
+                return
+            }
+
+            if (!hasSessionInActiveProject(sessionName)) {
                 return
             }
 
@@ -1144,6 +1189,10 @@ export const initializeSessionsEventsActionAtom = atom(
             const event = payload as GitOperationPayload
             const sessionName = event?.session_name
             if (!sessionName) {
+                return
+            }
+
+            if (!hasSessionInActiveProject(sessionName)) {
                 return
             }
 
@@ -1212,6 +1261,10 @@ export const initializeSessionsEventsActionAtom = atom(
                 return
             }
 
+            if (!hasSessionInActiveProject(sessionName)) {
+                return
+            }
+
             set(mergeInFlightStateAtom, (prev) => {
                 const next = new Map(prev)
                 next.set(sessionName, false)
@@ -1251,6 +1304,9 @@ export const initializeSessionsEventsActionAtom = atom(
 
         await register(SchaltEvent.SessionActivity, (payload) => {
             const event = payload as { session_name: string; last_activity_ts: number; current_task?: string | null; todo_percentage?: number | null; is_blocked?: boolean | null }
+            if (!hasSessionInActiveProject(event?.session_name)) {
+                return
+            }
             set(allSessionsAtom, (prev) => prev.map(session => {
                 if (session.info.session_id !== event.session_name) {
                     return session
@@ -1274,6 +1330,9 @@ export const initializeSessionsEventsActionAtom = atom(
             const event = payload as { session_id: string; terminal_id: string; needs_attention?: boolean }
             if (!isTopTerminalId(event.terminal_id)) {
                 logger.debug('[SessionsAtoms] Ignoring attention event from non-top terminal', event)
+                return
+            }
+            if (!hasSessionInActiveProject(event.session_id)) {
                 return
             }
             set(allSessionsAtom, (prev) => {
@@ -1311,6 +1370,10 @@ export const initializeSessionsEventsActionAtom = atom(
                 merge_has_conflicts?: boolean
                 merge_is_up_to_date?: boolean
                 merge_conflicting_paths?: string[] | null
+            }
+
+            if (!hasSessionInActiveProject(event.session_name)) {
+                return
             }
 
             set(allSessionsAtom, (prev) => prev.map(session => {
@@ -1535,7 +1598,7 @@ export function __resetSessionsTestingState() {
     mergePreviewCache.clear()
     protectedReleaseUntil.clear()
     sessionsEventHandlersForTests.clear()
-    expectedSessions.clear()
+    expectedSessionsByProject.clear()
 }
 
 export const openMergeDialogActionAtom = atom(
