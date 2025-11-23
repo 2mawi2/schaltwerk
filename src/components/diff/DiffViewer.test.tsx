@@ -89,9 +89,35 @@ describe('DiffViewer', () => {
     }
     
     render(<DiffViewer {...props as DiffViewerProps} />)
-    
+
     expect(screen.getByText('Binary File')).toBeInTheDocument()
     expect(screen.getByText('Binary file')).toBeInTheDocument()
+  })
+
+  it('keeps continuous scroll usable when the first file is binary', () => {
+    const binaryDiff = { ...mockFileDiff, diffResult: [], isBinary: true, unsupportedReason: 'Binary file' }
+    const secondFileDiff = {
+      ...mockFileDiff,
+      file: createChangedFile({ path: 'src/file2.tsx', change_type: 'added', additions: 3 }),
+      diffResult: mockFileDiff.diffResult
+    }
+
+    const props: Partial<DiffViewerProps> = {
+      ...mockProps,
+      isLargeDiffMode: false,
+      selectedFile: 'src/file1.ts',
+      visibleFileSet: new Set(mockFiles.map(f => f.path)),
+      renderedFileSet: new Set(mockFiles.map(f => f.path)),
+      allFileDiffs: new Map([
+        ['src/file1.ts', binaryDiff],
+        ['src/file2.tsx', secondFileDiff]
+      ])
+    }
+
+    render(<DiffViewer {...props as DiffViewerProps} />)
+
+    expect(screen.getByText('Binary file')).toBeInTheDocument()
+    expect(screen.getByText('src/file2.tsx')).toBeInTheDocument()
   })
 
   it('shows branch information', () => {
