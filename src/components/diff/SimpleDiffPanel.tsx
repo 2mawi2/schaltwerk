@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type ChangeEvent } from 'react'
 import { DiffFileList } from './DiffFileList'
 import { UnifiedDiffView } from './UnifiedDiffView'
-import { VscCommentDiscussion, VscScreenFull, VscChevronLeft } from 'react-icons/vsc'
+import { VscScreenFull, VscChevronLeft } from 'react-icons/vsc'
 import { useReview } from '../../contexts/ReviewContext'
 import { useReviewComments } from '../../hooks/useReviewComments'
 import { useSelection } from '../../hooks/useSelection'
@@ -223,14 +223,6 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
             />
             <span>Open diffs inline</span>
           </label>
-          <button
-            onClick={() => onModeChange('review')}
-            className="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-xs font-medium flex items-center gap-1.5 text-slate-300 transition-colors border border-slate-700"
-            title="Start review mode"
-          >
-            <VscCommentDiscussion />
-            <span>Review</span>
-          </button>
           {onOpenDiff && (
             <button
               onClick={() => onOpenDiff(activeFile)}
