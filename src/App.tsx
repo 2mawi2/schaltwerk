@@ -95,6 +95,7 @@ import type { SettingsCategory } from './types/settings'
 import { SPLIT_GUTTER_SIZE } from './common/splitLayout'
 import { isNotificationPermissionGranted } from './utils/notificationPermission'
 import { sanitizeSplitSizes, areSizesEqual } from './utils/splitStorage'
+import { finalizeSplitCommit, selectSplitRenderSizes } from './utils/splitDragState'
 
 
 
@@ -495,6 +496,7 @@ function AppContent() {
   const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useAtom(leftPanelCollapsedAtom)
   const [rawLeftPanelSizes, setLeftPanelSizes] = useAtom(leftPanelSizesAtom)
   const [rawLeftPanelLastExpandedSizes, setLeftPanelLastExpandedSizes] = useAtom(leftPanelLastExpandedSizesAtom)
+  const [leftDragSizes, setLeftDragSizes] = useState<number[] | null>(null)
   const leftPanelSizes = useMemo(
     () => sanitizeSplitSizes(rawLeftPanelSizes, [20, 80]),
     [rawLeftPanelSizes]
@@ -502,6 +504,10 @@ function AppContent() {
   const leftPanelLastExpandedSizes = useMemo(
     () => sanitizeSplitSizes(rawLeftPanelLastExpandedSizes, [20, 80]),
     [rawLeftPanelLastExpandedSizes]
+  )
+  const leftRenderSizes = useMemo(
+    () => selectSplitRenderSizes(leftDragSizes, leftPanelSizes as [number, number], [20, 80]),
+    [leftDragSizes, leftPanelSizes]
   )
   const previousFocusRef = useRef<Element | null>(null)
   const lastAutoUpdateVersionRef = useRef<string | null>(null)
@@ -613,7 +619,6 @@ function AppContent() {
   )
 
   const leftSplitDraggingRef = useRef(false)
-  const leftDragSizesRef = useRef<number[] | null>(null)
 
   const finalizeLeftSplitDrag = useCallback((nextSizes?: number[]) => {
     if (!leftSplitDraggingRef.current) {
@@ -623,20 +628,26 @@ function AppContent() {
     leftSplitDraggingRef.current = false
     endSplitDrag('app-left-panel')
 
-    const sizesToPersist = Array.isArray(nextSizes) && nextSizes.length >= 2
-      ? nextSizes
-      : leftDragSizesRef.current
+    const commit = finalizeSplitCommit({
+      dragSizes: leftDragSizes,
+      nextSizes,
+      defaults: [20, 80],
+      collapsed: isLeftPanelCollapsed,
+    })
 
-    leftDragSizesRef.current = null
+    setLeftDragSizes(null)
 
-    if (!Array.isArray(sizesToPersist) || sizesToPersist.length < 2 || isLeftPanelCollapsed) {
+    if (!commit) {
       return
     }
 
-    const normalized = sanitizeSplitSizes(sizesToPersist, [20, 80])
-    void setLeftPanelLastExpandedSizes(normalized)
-    void setLeftPanelSizes(normalized)
-  }, [isLeftPanelCollapsed, setLeftPanelLastExpandedSizes, setLeftPanelSizes])
+    if (!areSizesEqual(commit as [number, number], leftPanelLastExpandedSizes as [number, number])) {
+      void setLeftPanelLastExpandedSizes(commit)
+    }
+    if (!areSizesEqual(commit as [number, number], leftPanelSizes as [number, number])) {
+      void setLeftPanelSizes(commit)
+    }
+  }, [isLeftPanelCollapsed, leftDragSizes, leftPanelLastExpandedSizes, leftPanelSizes, setLeftPanelLastExpandedSizes, setLeftPanelSizes])
 
   const handleLeftSplitDragStart = useCallback(() => {
     if (isLeftPanelCollapsed) {
@@ -644,11 +655,11 @@ function AppContent() {
     }
     beginSplitDrag('app-left-panel', { orientation: 'col' })
     leftSplitDraggingRef.current = true
-    leftDragSizesRef.current = null
+    setLeftDragSizes(null)
   }, [isLeftPanelCollapsed])
 
   const handleLeftSplitDrag = useCallback((nextSizes: number[]) => {
-    leftDragSizesRef.current = nextSizes
+    setLeftDragSizes(nextSizes)
   }, [])
 
   const handleLeftSplitDragEnd = useCallback((nextSizes: number[]) => {
@@ -668,6 +679,7 @@ function AppContent() {
   }, [finalizeLeftSplitDrag])
 
   const toggleLeftPanelCollapsed = useCallback(() => {
+    setLeftDragSizes(null)
     if (isLeftPanelCollapsed) {
       void setLeftPanelSizes(leftPanelLastExpandedSizes as [number, number])
       void setIsLeftPanelCollapsed(false)
@@ -676,7 +688,7 @@ function AppContent() {
 
     void setLeftPanelLastExpandedSizes(leftPanelSizes)
     void setIsLeftPanelCollapsed(true)
-  }, [isLeftPanelCollapsed, leftPanelLastExpandedSizes, leftPanelSizes, setIsLeftPanelCollapsed, setLeftPanelLastExpandedSizes, setLeftPanelSizes])
+  }, [isLeftPanelCollapsed, leftPanelLastExpandedSizes, leftPanelSizes, setIsLeftPanelCollapsed, setLeftPanelLastExpandedSizes, setLeftPanelSizes, setLeftDragSizes])
 
   const handleOpenProject = useCallback(async (path: string) => {
     try {
@@ -701,9 +713,14 @@ function AppContent() {
 
   // Right panel global state (using atoms for persistence)
   const [rightSizes, setRightSizes] = useAtom(rightPanelSizesAtom)
+  const [rightDragSizes, setRightDragSizes] = useState<number[] | null>(null)
   const safeRightSizes = useMemo(
     () => sanitizeSplitSizes(rightSizes, [70, 30]),
     [rightSizes]
+  )
+  const rightRenderSizes = useMemo(
+    () => selectSplitRenderSizes(rightDragSizes, safeRightSizes as [number, number], [70, 30]),
+    [rightDragSizes, safeRightSizes]
   )
   useEffect(() => {
     if (!areSizesEqual(safeRightSizes as [number, number], rightSizes as [number, number])) {
@@ -714,6 +731,7 @@ function AppContent() {
   const [lastExpandedRightPercent, setLastExpandedRightPercent] = useAtom(rightPanelLastExpandedSizeAtom)
 
   const toggleRightPanelCollapsed = useCallback(() => {
+    setRightDragSizes(null)
     void setIsRightCollapsed(prev => {
         const willCollapse = !prev
         if (willCollapse) {
@@ -727,25 +745,19 @@ function AppContent() {
         }
         return willCollapse
     })
-  }, [setIsRightCollapsed, lastExpandedRightPercent, setRightSizes])
+  }, [setIsRightCollapsed, lastExpandedRightPercent, setRightSizes, setRightDragSizes])
 
   const setRightPanelCollapsedExplicit = useCallback((collapsed: boolean) => {
+    setRightDragSizes(null)
     if (collapsed) {
         void setRightSizes([100, 0])
-    } else {
-        const expanded = validatePanelPercentage(
-          typeof lastExpandedRightPercent === 'number' ? lastExpandedRightPercent.toString() : null,
-          30
-        )
-        void setRightSizes([100 - expanded, expanded])
     }
     void setIsRightCollapsed(collapsed)
-  }, [setIsRightCollapsed, lastExpandedRightPercent, setRightSizes])
+  }, [setIsRightCollapsed, setRightSizes, setRightDragSizes])
   
   // Right panel drag state for performance optimization
   const [isDraggingRightSplit, setIsDraggingRightSplit] = useState(false)
   const rightSplitDraggingRef = useRef(false)
-  const rightDragSizesRef = useRef<number[] | null>(null)
 
   // Keep left sizes sanitized and persisted if storage contained invalid data
   useEffect(() => {
@@ -767,25 +779,34 @@ function AppContent() {
     beginSplitDrag('app-right-panel', { orientation: 'col' })
     rightSplitDraggingRef.current = true
     setIsDraggingRightSplit(true)
-    rightDragSizesRef.current = null
+    setRightDragSizes(null)
   }, [])
 
   const finalizeRightSplitDrag = useCallback((options?: { sizes?: number[] }) => {
     if (!rightSplitDraggingRef.current) return
     rightSplitDraggingRef.current = false
-
+    
     setIsDraggingRightSplit(false)
 
-    const resultSizes = options?.sizes ?? rightDragSizesRef.current
-    rightDragSizesRef.current = null
-    if (Array.isArray(resultSizes) && resultSizes.length === 2) {
-      void setRightSizes((): [number, number] => [resultSizes[0], resultSizes[1]])
-      // Update last expanded size if we have a valid right panel size (and not collapsed)
-      if (resultSizes[1] > 0) {
-          void setLastExpandedRightPercent(resultSizes[1])
+    const commit = finalizeSplitCommit({
+      dragSizes: rightDragSizes,
+      nextSizes: options?.sizes,
+      defaults: [70, 30],
+      collapsed: false,
+    })
+
+    setRightDragSizes(null)
+
+    if (commit) {
+      if (!areSizesEqual(commit as [number, number], rightSizes as [number, number])) {
+        void setRightSizes((): [number, number] => [commit[0], commit[1]])
+      }
+      if (commit[1] > 0 && commit[1] !== lastExpandedRightPercent) {
+          void setLastExpandedRightPercent(commit[1])
       }
     }
-    setRightPanelCollapsedExplicit(false)
+    // Ensure we mark the panel expanded without overwriting the freshly committed sizes
+    void setIsRightCollapsed(false)
 
     endSplitDrag('app-right-panel')
     window.dispatchEvent(new Event('right-panel-split-drag-end'))
@@ -810,13 +831,21 @@ function AppContent() {
     } catch (e) {
       logger.warn('[App] Failed to dispatch generic terminal resize request on right panel drag end', e)
     }
-  }, [selection, setRightPanelCollapsedExplicit, setRightSizes, setLastExpandedRightPercent])
+  }, [
+    selection,
+    setRightPanelCollapsedExplicit,
+    setRightSizes,
+    setLastExpandedRightPercent,
+    rightDragSizes,
+    rightSizes,
+    lastExpandedRightPercent,
+  ])
 
   const handleRightSplitDragEnd = useCallback((nextSizes: number[]) => {
     finalizeRightSplitDrag({ sizes: nextSizes })
   }, [finalizeRightSplitDrag])
   const handleRightSplitDrag = useCallback((nextSizes: number[]) => {
-    rightDragSizesRef.current = nextSizes
+    setRightDragSizes(nextSizes)
   }, [])
 
   useEffect(() => {
@@ -1659,7 +1688,7 @@ function AppContent() {
             <div className="flex-1 min-h-0">
               <Split
                 className="h-full w-full flex"
-                sizes={isLeftPanelCollapsed ? [0, 100] : leftPanelSizes}
+                sizes={isLeftPanelCollapsed ? [0, 100] : leftRenderSizes}
                 minSize={[isLeftPanelCollapsed ? 0 : 240, 400]}
                 gutterSize={isLeftPanelCollapsed ? 0 : SPLIT_GUTTER_SIZE}
                 onDragStart={handleLeftSplitDragStart}
@@ -1779,7 +1808,7 @@ function AppContent() {
                     // When expanded, render the split view
                       <Split 
                       className="h-full w-full flex" 
-                      sizes={safeRightSizes} 
+                      sizes={rightRenderSizes} 
                       minSize={[400, 280]} 
                       gutterSize={SPLIT_GUTTER_SIZE}
                       onDragStart={handleRightSplitDragStart}

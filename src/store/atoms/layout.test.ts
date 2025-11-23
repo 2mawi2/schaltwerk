@@ -1,14 +1,44 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { createStore } from 'jotai'
 
+// Provide minimal storage mocks when the test environment is node (no jsdom)
+const ensureStorage = () => {
+  if (typeof globalThis.localStorage !== 'undefined') return
+  const createStorage = () => {
+    const map = new Map<string, string>()
+    return {
+      get length() { return map.size },
+      clear: () => map.clear(),
+      getItem: (key: string) => map.get(key) ?? null,
+      setItem: (key: string, value: string) => { map.set(key, value) },
+      removeItem: (key: string) => { map.delete(key) },
+      key: (index: number) => Array.from(map.keys())[index] ?? null,
+    }
+  }
+
+  const local = createStorage()
+  const session = createStorage()
+
+  globalThis.localStorage = local
+  globalThis.sessionStorage = session
+  // Provide a minimal window shim that points to the same storages
+  globalThis.window = globalThis as typeof globalThis & Window
+}
+
+ensureStorage()
+
 // JSDOM provides window/localStorage; clear between tests
 beforeEach(() => {
   localStorage.clear()
   sessionStorage.clear()
-  vi.resetModules()
 })
 
-const loadAtoms = async () => import('./layout')
+const loadAtoms = async () => {
+  if (typeof vi.resetModules === 'function') {
+    await vi.resetModules()
+  }
+  return import('./layout')
+}
 
 describe('layout atoms persistence', () => {
   it('loads defaults when storage is empty', async () => {

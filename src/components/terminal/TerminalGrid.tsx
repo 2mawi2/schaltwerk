@@ -34,6 +34,7 @@ import { SPLIT_GUTTER_SIZE } from '../../common/splitLayout'
 import { logger } from '../../utils/logger'
 import { loadRunScriptConfiguration } from '../../utils/runScriptLoader'
 import { validatePanelPercentage } from '../../utils/panel'
+import { finalizeSplitCommit, selectSplitRenderSizes } from '../../utils/splitDragState'
 import { useModal } from '../../contexts/ModalContext'
 import { safeTerminalFocus } from '../../utils/safeFocus'
 import { UiEvent, emitUiEvent, listenUiEvent, TerminalResetDetail } from '../../common/uiEvents'
@@ -122,6 +123,7 @@ const TerminalGridComponent = () => {
     const [isBottomCollapsed, setIsBottomCollapsed] = useAtom(bottomTerminalCollapsedAtom)
     const [sizes, setSizes] = useAtom(bottomTerminalSizesAtom)
     const [lastExpandedBottomPercent, setLastExpandedBottomPercent] = useAtom(bottomTerminalLastExpandedSizeAtom)
+    const [bottomDragSizes, setBottomDragSizes] = useState<number[] | null>(null)
 
     const isBottomCollapsedRef = useRef(isBottomCollapsed)
     const isDraggingRef = useRef(false)
@@ -238,6 +240,7 @@ const TerminalGridComponent = () => {
     }, [terminalTabsState.activeTab, RUN_TAB_INDEX])
 
     const toggleTerminalCollapsed = useCallback(() => {
+        setBottomDragSizes(null)
         if (isBottomCollapsed) {
             // Expand
             const expanded = validatePanelPercentage(
@@ -251,7 +254,7 @@ const TerminalGridComponent = () => {
             void setSizes([100 - collapsedPercent, collapsedPercent])
             void setIsBottomCollapsed(true)
         }
-    }, [isBottomCollapsed, lastExpandedBottomPercent, collapsedPercent, setSizes, setIsBottomCollapsed])
+    }, [isBottomCollapsed, lastExpandedBottomPercent, collapsedPercent, setSizes, setIsBottomCollapsed, setBottomDragSizes])
     
     // Listen for terminal reset events and focus terminal events
     useEffect(() => {
@@ -1013,9 +1016,17 @@ const TerminalGridComponent = () => {
     }, [applyPendingInsert])
 
     // When collapsed, adjust sizes to show just the terminal header
-    const effectiveSizes = isBottomCollapsed 
-        ? [100 - collapsedPercent, collapsedPercent]
-        : sizes
+    const baseBottomSizes = useMemo(() => {
+        if (isBottomCollapsed) {
+            return [100 - collapsedPercent, collapsedPercent] as [number, number]
+        }
+        return (sizes as [number, number]) || [72, 28]
+    }, [collapsedPercent, isBottomCollapsed, sizes])
+
+    const renderBottomSizes = useMemo(
+        () => selectSplitRenderSizes(bottomDragSizes, baseBottomSizes, [72, 28]),
+        [bottomDragSizes, baseBottomSizes]
+    )
 
     // Get all running sessions for background terminals
     const dispatchOpencodeFinalResize = useCallback(() => {
@@ -1063,17 +1074,36 @@ const TerminalGridComponent = () => {
             <Split 
                 className="h-full flex flex-col overflow-hidden" 
                 direction="vertical" 
-                sizes={effectiveSizes || [72, 28]} 
+                sizes={renderBottomSizes} 
                 minSize={[120, isBottomCollapsed ? 44 : 24]} 
                 gutterSize={SPLIT_GUTTER_SIZE}
                 onDragStart={() => {
                     beginSplitDrag('terminal-grid', { orientation: 'row' })
                     setIsDraggingSplit(true)
                     isDraggingRef.current = true
+                    setBottomDragSizes(null)
+                }}
+                onDrag={(nextSizes: number[]) => {
+                    setBottomDragSizes(nextSizes)
                 }}
                 onDragEnd={(nextSizes: number[]) => {
-                    void setSizes(nextSizes)
-                    void setIsBottomCollapsed(false)
+                    const commit = finalizeSplitCommit({
+                        dragSizes: bottomDragSizes,
+                        nextSizes,
+                        defaults: [72, 28],
+                        collapsed: false,
+                    })
+
+                    setBottomDragSizes(null)
+
+                    if (commit) {
+                        void setSizes(commit)
+                        void setIsBottomCollapsed(false)
+                        if (commit[1] > 0) {
+                            void setLastExpandedBottomPercent(commit[1])
+                        }
+                    }
+
                     isDraggingRef.current = false
                     endSplitDrag('terminal-grid')
                     window.dispatchEvent(new Event('terminal-split-drag-end'))
