@@ -85,11 +85,12 @@ vi.mock('../../components/terminal/Terminal', () => ({
 }))
 
 function createRawSession(overrides: Partial<Record<string, unknown>> = {}) {
+  const name = typeof overrides.name === 'string' ? overrides.name : 'session-1'
   const requestedState = typeof overrides.session_state === 'string' ? overrides.session_state : 'running'
   const defaultStatus = requestedState === 'spec' ? 'spec' : 'running'
-  const defaultWorktree = requestedState === 'spec' ? null : '/tmp/worktrees/session-1'
+  const defaultWorktree = requestedState === 'spec' ? null : `/tmp/worktrees/${name}`
   return {
-    name: 'session-1',
+    name,
     session_state: requestedState,
     status: defaultStatus,
     ready_to_merge: false,
@@ -641,6 +642,50 @@ describe('selection atoms', () => {
         ([args]) => (args?.id ?? '').includes('session-')
       )
       expect(sessionCalls).toHaveLength(0)
+    })
+  })
+
+  it('recreates session terminals when the same session id is used in another project with a different worktree', async () => {
+    await withNodeEnv('development', async () => {
+      const backend = await import('../../terminal/transport/backend')
+      const registry = await import('../../terminal/registry/terminalRegistry')
+
+      await store.set(setProjectPathActionAtom, '/projects/alpha')
+      await store.set(setSelectionActionAtom, {
+        selection: {
+          kind: 'session',
+          payload: 'shared-session',
+          sessionState: 'running',
+          worktreePath: '/tmp/worktrees/alpha/shared-session',
+        },
+      })
+
+      const firstCwds = vi.mocked(backend.createTerminalBackend).mock.calls.map(call => call[0]?.cwd)
+      expect(firstCwds).toContain('/tmp/worktrees/alpha/shared-session')
+
+      vi.mocked(backend.createTerminalBackend).mockClear()
+      vi.mocked(backend.closeTerminalBackend).mockClear()
+      vi.mocked(registry.hasTerminalInstance).mockReturnValue(true)
+
+      await store.set(setProjectPathActionAtom, '/projects/beta')
+      await store.set(setSelectionActionAtom, {
+        selection: {
+          kind: 'session',
+          payload: 'shared-session',
+          sessionState: 'running',
+          worktreePath: '/tmp/worktrees/beta/shared-session',
+          projectPath: '/projects/beta',
+        },
+      })
+
+      const recreatedSessionCalls = vi.mocked(backend.createTerminalBackend).mock.calls.filter(
+        ([args]) => (args?.id ?? '').includes('shared-session')
+      )
+      const recreatedCwds = recreatedSessionCalls.map(call => call[0]?.cwd)
+      expect(recreatedCwds).toEqual(['/tmp/worktrees/beta/shared-session', '/tmp/worktrees/beta/shared-session'])
+      expect(vi.mocked(backend.closeTerminalBackend)).toHaveBeenCalled()
+
+      vi.mocked(registry.hasTerminalInstance).mockReset()
     })
   })
 

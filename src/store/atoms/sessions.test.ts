@@ -20,6 +20,8 @@ vi.mock('../../common/eventSystem', () => ({
         GitOperationStarted: 'schaltwerk:git-operation-started',
         GitOperationCompleted: 'schaltwerk:git-operation-completed',
         GitOperationFailed: 'schaltwerk:git-operation-failed',
+        SessionActivity: 'schaltwerk:session-activity',
+        TerminalAttention: 'schaltwerk:terminal-attention',
     },
 }))
 
@@ -1084,6 +1086,134 @@ describe('sessions atoms', () => {
 
         expect(releaseSessionTerminals).not.toHaveBeenCalled()
         expect(store.get(allSessionsAtom).map(session => session.info.session_id)).toEqual(['alpha-session'])
+    })
+
+    it('ignores GitOperationCompleted for unknown sessions', async () => {
+        await store.set(initializeSessionsEventsActionAtom)
+
+        listeners['schaltwerk:git-operation-completed']?.({
+            session_name: 'ghost',
+            parent_branch: 'main',
+            operation: 'merge',
+            status: 'success',
+            commit: 'abcdef1',
+        })
+
+        expect(store.get(mergeStatusSelectorAtom)('ghost')).toBeUndefined()
+    })
+
+    it('ignores SessionGitStats for unknown sessions', async () => {
+        await store.set(initializeSessionsEventsActionAtom)
+        expect(store.get(allSessionsAtom)).toEqual([])
+
+        listeners['schaltwerk:session-git-stats']?.({
+            session_name: 'ghost',
+            files_changed: 1,
+            lines_added: 10,
+            lines_removed: 1,
+        })
+
+        expect(store.get(allSessionsAtom)).toEqual([])
+    })
+
+    it('ignores SessionActivity for unknown sessions', async () => {
+        await store.set(initializeSessionsEventsActionAtom)
+        expect(store.get(allSessionsAtom)).toEqual([])
+
+        listeners['schaltwerk:session-activity']?.({
+            session_name: 'ghost',
+            last_activity_ts: Date.now() / 1000,
+            current_task: 'noop',
+        })
+
+        expect(store.get(allSessionsAtom)).toEqual([])
+    })
+
+    it('ignores TerminalAttention for unknown sessions', async () => {
+        await store.set(initializeSessionsEventsActionAtom)
+        expect(store.get(allSessionsAtom)).toEqual([])
+
+        listeners['schaltwerk:terminal-attention']?.({
+            session_id: 'ghost',
+            terminal_id: 'session-ghost-top',
+            needs_attention: true,
+        })
+
+        expect(store.get(allSessionsAtom)).toEqual([])
+    })
+
+    it('ignores late snapshot from a previous project during rapid switches', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+
+        let resolveAlpha: ((value: EnrichedSession[]) => void) | undefined
+        let callCount = 0
+
+        vi.mocked(invoke).mockImplementation(async (cmd) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
+                callCount += 1
+                if (callCount === 1) {
+                    return new Promise<EnrichedSession[]>(resolve => { resolveAlpha = resolve })
+                }
+                if (callCount === 2) {
+                    return [createSession({ session_id: 'beta-session', worktree_path: '/tmp/beta' })]
+                }
+            }
+            if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) {
+                return []
+            }
+            return undefined
+        })
+
+        store.set(projectPathAtom, '/projects/alpha')
+        const alphaRefreshPromise = store.set(refreshSessionsActionAtom)
+
+        store.set(projectPathAtom, '/projects/beta')
+        await store.set(refreshSessionsActionAtom)
+
+        expect(store.get(allSessionsAtom).map(s => s.info.session_id)).toEqual(['beta-session'])
+
+        resolveAlpha?.([createSession({ session_id: 'alpha-session', worktree_path: '/tmp/alpha' })])
+        await alphaRefreshPromise
+
+        expect(store.get(allSessionsAtom).map(s => s.info.session_id)).toEqual(['beta-session'])
+    })
+
+    it('scopes expected sessions to the active project when reinjecting snapshots', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+
+        vi.mocked(invoke).mockImplementation(async (cmd) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
+                const activeProject = store.get(projectPathAtom)
+                if (activeProject === '/projects/alpha') {
+                    return [createSession({ session_id: 'alpha-session', worktree_path: '/tmp/alpha' })]
+                }
+                if (activeProject === '/projects/beta') {
+                    return [createSession({ session_id: 'beta-session', worktree_path: '/tmp/beta' })]
+                }
+            }
+            if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) {
+                return []
+            }
+            return undefined
+        })
+
+        store.set(projectPathAtom, '/projects/alpha')
+        await store.set(refreshSessionsActionAtom)
+
+        const optimisticAlpha = createSession({ session_id: 'alpha-optimistic', worktree_path: '/tmp/alpha-optimistic' })
+        store.set(expectSessionActionAtom, optimisticAlpha)
+
+        store.set(projectPathAtom, '/projects/beta')
+        await store.set(refreshSessionsActionAtom)
+
+        const betaIds = store.get(allSessionsAtom).map(session => session.info.session_id)
+        expect(betaIds).toEqual(['beta-session'])
+
+        store.set(projectPathAtom, '/projects/alpha')
+        await store.set(refreshSessionsActionAtom)
+
+        const alphaIds = store.get(allSessionsAtom).map(session => session.info.session_id)
+        expect(alphaIds).toEqual(expect.arrayContaining(['alpha-session', 'alpha-optimistic']))
     })
 
     it('REPRO: does not release first session terminals when projectPath cache is stale', async () => {
