@@ -225,6 +225,88 @@ describe('selection atoms', () => {
     })
   })
 
+  it('skips terminal allocation for specs and creates on running transition without recreation', async () => {
+    await withNodeEnv('development', async () => {
+      const backend = await import('../../terminal/transport/backend')
+
+      await setProjectPath('/projects/alpha')
+
+      vi.mocked(backend.createTerminalBackend).mockClear()
+      vi.mocked(backend.closeTerminalBackend).mockClear()
+
+      nextSessionResponse = createRawSession({
+        name: 'spec-1',
+        session_state: 'spec',
+        status: 'spec',
+        worktree_path: null,
+      })
+
+      await store.set(setSelectionActionAtom, {
+        selection: { kind: 'session', payload: 'spec-1', sessionState: 'spec' },
+      })
+
+      expect(store.get(terminalsAtom)).toEqual({ top: '', bottomBase: '', workingDirectory: '' })
+      expect(vi.mocked(backend.createTerminalBackend)).not.toHaveBeenCalled()
+      expect(vi.mocked(backend.closeTerminalBackend)).not.toHaveBeenCalled()
+
+      await store.set(setSelectionActionAtom, {
+        selection: {
+          kind: 'session',
+          payload: 'spec-1',
+          sessionState: 'running',
+          worktreePath: '/tmp/worktrees/spec-1',
+        },
+      })
+
+      const terminals = store.get(terminalsAtom)
+      expect(terminals.workingDirectory).toBe('/tmp/worktrees/spec-1')
+      expect(terminals.top).toMatch(/^session-spec-1~[0-9a-f]{8}-top$/)
+      expect(vi.mocked(backend.createTerminalBackend)).toHaveBeenCalledTimes(2)
+      expect(vi.mocked(backend.closeTerminalBackend)).not.toHaveBeenCalled()
+    })
+  })
+
+  it('does not force-recreate orchestrator terminals when falling back after missing snapshot', async () => {
+    await withNodeEnv('development', async () => {
+      const backend = await import('../../terminal/transport/backend')
+      const core = await import('@tauri-apps/api/core')
+
+      await setProjectPath('/projects/alpha')
+
+      // Prime orchestrator terminals
+      await store.set(setSelectionActionAtom, { selection: { kind: 'orchestrator', projectPath: '/projects/alpha' } })
+
+      vi.mocked(backend.closeTerminalBackend).mockClear()
+
+      // Override invoke to simulate missing session snapshot
+      vi.mocked(core.invoke).mockImplementation(async (cmd, args?: unknown) => {
+        if (cmd === TauriCommands.SchaltwerkCoreGetSession) return null
+        if (cmd === TauriCommands.PathExists || cmd === TauriCommands.DirectoryExists) return true
+        if (cmd === TauriCommands.TerminalExists) return false
+        throw new Error(`Unexpected command ${cmd}`)
+      })
+
+      // Select a running session so fallback will trigger when snapshot is missing
+      await store.set(setSelectionActionAtom, {
+        selection: {
+          kind: 'session',
+          payload: 'session-missing',
+          sessionState: 'running',
+          worktreePath: '/tmp/worktrees/session-missing',
+        },
+      })
+
+      // Emit sessions refreshed with no matching session -> fallback to orchestrator
+      await emitSessionsRefreshed([])
+      await waitForSelectionAsyncEffectsForTest()
+
+      const closeCalls = vi.mocked(backend.closeTerminalBackend).mock.calls
+      const orchestratorClosed = closeCalls.some(([id]) => typeof id === 'string' && id.startsWith('orchestrator-'))
+      expect(orchestratorClosed).toBe(false)
+      // Selection may stay on the session until a later refresh, but orchestrator terminals must not be torn down.
+    })
+  })
+
   it('caches session snapshots to avoid duplicate fetches', async () => {
     await store.set(getSessionSnapshotActionAtom, { sessionId: 'session-1' })
     await store.set(getSessionSnapshotActionAtom, { sessionId: 'session-1' })

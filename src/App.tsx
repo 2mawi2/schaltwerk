@@ -687,7 +687,7 @@ function AppContent() {
 
   const toggleLeftPanelCollapsed = useCallback(() => {
     setLeftDragSizes(null)
-    setIsLeftPanelCollapsed(prev => {
+    void setIsLeftPanelCollapsed(prev => {
       if (prev) {
         void setLeftPanelSizes(leftPanelLastExpandedSizes as [number, number])
         return false
@@ -1086,7 +1086,7 @@ function AppContent() {
       cleanupOpenDiffView()
       cleanupOpenDiffFile()
     }
-  }, [newSessionOpen, cancelModalOpen, increaseFontSizes, decreaseFontSizes, resetFontSizes, keyboardShortcutConfig, platform, shouldBlockSessionModal])
+  }, [newSessionOpen, cancelModalOpen, increaseFontSizes, decreaseFontSizes, resetFontSizes, keyboardShortcutConfig, platform, shouldBlockSessionModal, toggleLeftPanelCollapsed])
 
   // Open NewSessionModal in spec creation mode when requested
   useEffect(() => {
