@@ -18,12 +18,14 @@ import { getActionButtonColorClasses } from '../../constants/actionButtonColors'
 import { ConfirmResetDialog } from '../common/ConfirmResetDialog'
 import { VscDiscard } from 'react-icons/vsc'
 import { useRef, useEffect, useState, useMemo, useCallback, memo } from 'react'
-import { useAtom } from 'jotai'
+import { useAtom, useAtomValue } from 'jotai'
 import {
   bottomTerminalCollapsedAtom,
   bottomTerminalSizesAtom,
   bottomTerminalLastExpandedSizeAtom,
 } from '../../store/atoms/layout'
+import { projectPathAtom } from '../../store/atoms/project'
+import { buildPreviewKey } from '../../store/atoms/preview'
 import { useShortcutDisplay } from '../../keyboardShortcuts/useShortcutDisplay'
 import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
 import { useKeyboardShortcutsConfig } from '../../contexts/KeyboardShortcutsContext'
@@ -42,6 +44,7 @@ import { beginSplitDrag, endSplitDrag } from '../../utils/splitDragCoordinator'
 import { useToast } from '../../common/toast/ToastProvider'
 import { resolveWorkingDirectory } from './resolveWorkingDirectory'
 import type { HeaderActionConfig } from '../../types/actionButton'
+import { mapRunScriptPreviewConfig, type AutoPreviewConfig } from '../../utils/runScriptPreviewConfig'
 
 type TerminalTabDescriptor = { index: number; terminalId: string; label: string }
 type TerminalTabsUiState = {
@@ -74,6 +77,7 @@ const TerminalGridComponent = () => {
     const { sessions } = useSessions()
     const { isAnyModalOpen } = useModal()
     const { pushToast } = useToast()
+    const projectPath = useAtomValue(projectPathAtom)
 
     const effectiveWorkingDirectory = useMemo(
         () => resolveWorkingDirectory(selection, terminals.workingDirectory, sessions),
@@ -149,6 +153,7 @@ const TerminalGridComponent = () => {
     const [isDraggingSplit, setIsDraggingSplit] = useState(false)
     const [confirmResetOpen, setConfirmResetOpen] = useState(false)
     const [isResetting, setIsResetting] = useState(false)
+    const [autoPreviewConfig, setAutoPreviewConfig] = useState<AutoPreviewConfig>(() => mapRunScriptPreviewConfig({}))
     const handleConfirmReset = useCallback(() => {
         if (selection.kind !== 'session' || !selection.payload) return
         const sessionName = selection.payload
@@ -172,6 +177,17 @@ const TerminalGridComponent = () => {
     const [runModeActive, setRunModeActive] = useState(false)
     const [activeRunSessions, setActiveRunSessions] = useState<Set<string>>(new Set())
     const [pendingRunToggle, setPendingRunToggle] = useState(false)
+
+    const previewKey = useMemo(() => {
+        if (!projectPath) return null
+        if (selection.kind === 'orchestrator') {
+            return buildPreviewKey(projectPath, 'orchestrator')
+        }
+        if (selection.kind === 'session' && selection.payload) {
+            return buildPreviewKey(projectPath, 'session', selection.payload)
+        }
+        return null
+    }, [projectPath, selection])
 
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
@@ -390,14 +406,19 @@ const TerminalGridComponent = () => {
     const refreshRunScriptConfiguration = useCallback(async () => {
         const currentSessionKey = getSessionKey()
         try {
-            const config = await loadRunScriptConfiguration(currentSessionKey)
+        const config = await loadRunScriptConfiguration(currentSessionKey)
 
-            setHasRunScripts(config.hasRunScripts)
+        setHasRunScripts(config.hasRunScripts)
+        setAutoPreviewConfig(config.autoPreviewConfig)
+        logger.info('[TerminalGrid] Resolved auto preview config:', {
+            raw: config.rawRunScript,
+            resolved: config.autoPreviewConfig,
+        })
 
-            if (!config.hasRunScripts) {
-                persistRunModeState(currentSessionKey, false)
-                syncActiveTab(0, state => state.activeTab === RUN_TAB_INDEX)
-                return
+        if (!config.hasRunScripts) {
+            persistRunModeState(currentSessionKey, false)
+            syncActiveTab(0, state => state.activeTab === RUN_TAB_INDEX)
+            return
             }
 
             persistRunModeState(currentSessionKey, config.shouldActivateRunMode)
@@ -1197,6 +1218,8 @@ const TerminalGridComponent = () => {
                             isCommander={selection.kind === 'orchestrator'}
                             agentType={agentType}
                             onTerminalClick={handleClaudeSessionClick}
+                            previewKey={previewKey ?? undefined}
+                            autoPreviewConfig={autoPreviewConfig}
                             workingDirectory={effectiveWorkingDirectory}
                         />
                         </TerminalErrorBoundary>
@@ -1313,6 +1336,8 @@ const TerminalGridComponent = () => {
                                             sessionName={undefined}
                                             onTerminalClick={handleTerminalClick}
                                             workingDirectory={effectiveWorkingDirectory}
+                                            previewKey={previewKey ?? undefined}
+                                            autoPreviewConfig={autoPreviewConfig}
                                             onRunningStateChange={(isRunning) => {
                                                 if (isRunning) {
                                                     addRunningSession('orchestrator')
@@ -1344,6 +1369,8 @@ const TerminalGridComponent = () => {
                                                 sessionName={sessionId}
                                                 onTerminalClick={handleTerminalClick}
                                                 workingDirectory={active.info.worktree_path}
+                                                previewKey={previewKey ?? undefined}
+                                                autoPreviewConfig={autoPreviewConfig}
                                                 onRunningStateChange={(isRunning) => {
                                                     if (isRunning) {
                                                         addRunningSession(sessionId)
@@ -1382,6 +1409,8 @@ const TerminalGridComponent = () => {
                                     isCommander={selection.kind === 'orchestrator'}
                                     agentType={agentType}
                                     onTerminalClick={handleTerminalClick}
+                                    previewKey={previewKey ?? undefined}
+                                    autoPreviewConfig={autoPreviewConfig}
                                     headless={true}
                                     bootstrapTopTerminalId={terminals.top}
                                 />

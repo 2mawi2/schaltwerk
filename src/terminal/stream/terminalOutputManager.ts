@@ -208,6 +208,11 @@ class TerminalOutputManager {
       }
     }
   }
+
+  // Test hook for injecting output into a terminal stream without Tauri
+  __emit(id: string, chunk: string): void {
+    this.dispatch(id, chunk)
+  }
 }
 
 export const terminalOutputManager = new TerminalOutputManager()

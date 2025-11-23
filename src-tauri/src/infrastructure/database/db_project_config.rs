@@ -176,6 +176,8 @@ pub struct RunScript {
     pub working_directory: Option<String>,
     #[serde(default)]
     pub environment_variables: HashMap<String, String>,
+    #[serde(default, alias = "preview_localhost_on_click")]
+    pub preview_localhost_on_click: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

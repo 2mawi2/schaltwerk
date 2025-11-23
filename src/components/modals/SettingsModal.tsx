@@ -269,9 +269,10 @@ interface ProjectSettings {
 }
 
 interface RunScript {
-    command: string
-    workingDirectory?: string
-    environmentVariables: Record<string, string>
+  command: string
+  workingDirectory?: string
+  environmentVariables: Record<string, string>
+  previewLocalhostOnClick?: boolean
 }
 
 interface TerminalSettings {
@@ -401,7 +402,8 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
     const [runScript, setRunScript] = useState<RunScript>({
         command: '',
         workingDirectory: '',
-        environmentVariables: {}
+        environmentVariables: {},
+        previewLocalhostOnClick: false,
     })
     const [envVars, setEnvVars] = useState<Record<AgentType, Array<{key: string, value: string}>>>(() =>
         createAgentRecord(_agent => [])
@@ -490,19 +492,26 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
     // Normalize smart dashes some platforms insert automatically (Safari/macOS)
     // so CLI flags like "--model" are preserved as two ASCII hyphens.
     const loadRunScript = useCallback(async (): Promise<RunScript> => {
+        const defaults: RunScript = {
+            command: '',
+            workingDirectory: '',
+            environmentVariables: {},
+            previewLocalhostOnClick: false,
+        }
         try {
             const result = await invoke<RunScript | null>(TauriCommands.GetProjectRunScript)
             if (result) {
-                return result
+                const snakeCase = result as unknown as Record<string, unknown>
+                return {
+                    ...defaults,
+                    ...result,
+                    previewLocalhostOnClick: Boolean(snakeCase.previewLocalhostOnClick ?? snakeCase.preview_localhost_on_click ?? defaults.previewLocalhostOnClick),
+                }
             }
         } catch (error) {
             logger.info('Failed to load run script:', error)
         }
-        return {
-            command: '',
-            workingDirectory: '',
-            environmentVariables: {}
-        }
+        return defaults
     }, [])
 
     const handleAutoUpdateToggle = useCallback(async () => {
@@ -1182,6 +1191,22 @@ fi`}
                                 </svg>
                                 Add Environment Variable
                             </button>
+                            <div className="space-y-2 pt-3">
+                                <div className="text-caption text-slate-400">Preview automation</div>
+                                <div className="flex items-center justify-between bg-slate-800 border border-slate-700 rounded px-3 py-2">
+                                    <div>
+                                        <div className="text-body text-slate-200">Preview localhost on terminal click</div>
+                                        <div className="text-caption text-slate-400">Intercept localhost links in terminals and open them in Preview.</div>
+                                    </div>
+                                    <input
+                                        type="checkbox"
+                                        className="h-4 w-4"
+                                        checked={Boolean(runScript.previewLocalhostOnClick)}
+                                        onChange={(e) => setRunScript(prev => ({ ...prev, previewLocalhostOnClick: e.target.checked }))}
+                                        aria-label="Preview localhost on terminal click"
+                                    />
+                                </div>
+                            </div>
                         </div>
                             </div>
                             <div className="p-3 bg-slate-800/50 border border-slate-700 rounded text-caption text-slate-500">
