@@ -279,7 +279,7 @@ describe('selection atoms', () => {
       vi.mocked(backend.closeTerminalBackend).mockClear()
 
       // Override invoke to simulate missing session snapshot
-      vi.mocked(core.invoke).mockImplementation(async (cmd, args?: unknown) => {
+      vi.mocked(core.invoke).mockImplementation(async (cmd, _args?: unknown) => {
         if (cmd === TauriCommands.SchaltwerkCoreGetSession) return null
         if (cmd === TauriCommands.PathExists || cmd === TauriCommands.DirectoryExists) return true
         if (cmd === TauriCommands.TerminalExists) return false
