@@ -352,6 +352,57 @@ describe('DiffViewer', () => {
     expect(screen.getByText(/Large diff/i)).toBeInTheDocument()
   })
 
+  it('shows compact diffs for very large files when the rendered footprint is small', () => {
+    const largeFile = createChangedFile({ path: 'src/huge-compact.ts', change_type: 'modified', additions: 80, deletions: 0 })
+    const compactLargeDiff = {
+      ...mockFileDiff,
+      file: largeFile,
+      fileInfo: { language: 'typescript', sizeBytes: 2_000_000 },
+      changedLinesCount: 80,
+      totalLineCount: 120
+    }
+
+    render(<DiffViewer
+      {...mockProps as DiffViewerProps}
+      files={[largeFile]}
+      selectedFile="src/huge-compact.ts"
+      allFileDiffs={new Map([["src/huge-compact.ts", compactLargeDiff]])}
+      isLargeDiffMode={true}
+      isCompactView={true}
+      expandedFiles={new Set<string>()}
+      visibleFileSet={new Set(["src/huge-compact.ts"])}
+      renderedFileSet={new Set(["src/huge-compact.ts"])}
+    />)
+
+    expect(screen.queryByText(/Large diff/i)).not.toBeInTheDocument()
+    expect(screen.getByText('added line')).toBeInTheDocument()
+  })
+
+  it('still collapses very large files in compact view when the rendered footprint is big', () => {
+    const largeFile = createChangedFile({ path: 'src/huge-collapsed.ts', change_type: 'modified', additions: 300, deletions: 100 })
+    const bigFootprintDiff = {
+      ...mockFileDiff,
+      file: largeFile,
+      fileInfo: { language: 'typescript', sizeBytes: 2_500_000 },
+      changedLinesCount: 220,
+      totalLineCount: 900
+    }
+
+    render(<DiffViewer
+      {...mockProps as DiffViewerProps}
+      files={[largeFile]}
+      selectedFile="src/huge-collapsed.ts"
+      allFileDiffs={new Map([["src/huge-collapsed.ts", bigFootprintDiff]])}
+      isLargeDiffMode={true}
+      isCompactView={true}
+      expandedFiles={new Set<string>()}
+      visibleFileSet={new Set(["src/huge-collapsed.ts"])}
+      renderedFileSet={new Set(["src/huge-collapsed.ts"])}
+    />)
+
+    expect(screen.getByText(/Large diff/i)).toBeInTheDocument()
+  })
+
   it('applies horizontal scrolling at the file level instead of per line', () => {
     render(<DiffViewer {...mockProps as DiffViewerProps} />)
 
