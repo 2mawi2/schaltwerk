@@ -2,7 +2,7 @@ import React from 'react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { UnifiedDiffModal } from './UnifiedDiffModal'
-import { UnifiedDiffView } from './UnifiedDiffView'
+import { SimpleDiffPanel } from './SimpleDiffPanel'
 import { TestProviders } from '../../tests/test-utils'
 import { useReview } from '../../contexts/ReviewContext'
 import { invoke } from '@tauri-apps/api/core'
@@ -142,16 +142,14 @@ describe('UnifiedDiffView review submission behavior', () => {
   })
 
   it('sidebar mode: keeps diff viewer open after submitting review', async () => {
-    const onCloseMock = vi.fn()
-
     render(
       <TestProviders>
         <SeedSessionReview />
-        <UnifiedDiffView
-          filePath="src/test.ts"
-          isOpen={true}
-          onClose={onCloseMock}
-          viewMode="sidebar"
+        <SimpleDiffPanel
+          mode="review"
+          onModeChange={() => {}}
+          activeFile="src/test.ts"
+          onActiveFileChange={() => {}}
         />
       </TestProviders>
     )
@@ -160,7 +158,7 @@ describe('UnifiedDiffView review submission behavior', () => {
       expect(screen.queryByText(/src\/test\.ts/i)).toBeInTheDocument()
     })
 
-    const finishButton = await screen.findByRole('button', { name: /finish review/i })
+    const finishButton = await screen.findByRole('button', { name: /finish.*review/i })
     fireEvent.click(finishButton)
 
     await waitFor(() => {
@@ -173,9 +171,7 @@ describe('UnifiedDiffView review submission behavior', () => {
     })
 
     await waitFor(() => {
-      expect(onCloseMock).not.toHaveBeenCalled()
+      expect(screen.queryByText(/src\/test\.ts/i)).toBeInTheDocument()
     })
-
-    expect(screen.queryByText(/src\/test\.ts/i)).toBeInTheDocument()
   })
 })

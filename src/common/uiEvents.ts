@@ -25,6 +25,7 @@ export enum UiEvent {
   RetryAgentStart = 'schaltwerk:retry-agent-start',
   OpenNewProjectDialog = 'schaltwerk:open-new-project-dialog',
   OpenDiffView = 'schaltwerk:open-diff-view',
+  OpenInlineDiffView = 'schaltwerk:open-inline-diff-view',
   OpenDiffFile = 'schaltwerk:open-diff-file',
   TerminalFontUpdated = 'schaltwerk:terminal-font-updated',
   TerminalRendererUpdated = 'schaltwerk:terminal-renderer-updated',
@@ -207,6 +208,7 @@ export type UiEventPayloads = {
   [UiEvent.RetryAgentStart]: undefined
   [UiEvent.OpenNewProjectDialog]: undefined
   [UiEvent.OpenDiffView]: undefined
+  [UiEvent.OpenInlineDiffView]: undefined
   [UiEvent.OpenDiffFile]: OpenDiffFileDetail | undefined
   [UiEvent.TerminalFontUpdated]: TerminalFontUpdatedDetail
   [UiEvent.TerminalRendererUpdated]: TerminalRendererUpdatedDetail
