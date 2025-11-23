@@ -98,7 +98,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             src-tauri/target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-cargo-
 
@@ -155,7 +155,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             src-tauri/target/
-          key: ${{ runner.os }}-cargo-ci-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-ci-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-cargo-ci-
             ${{ runner.os }}-cargo-
