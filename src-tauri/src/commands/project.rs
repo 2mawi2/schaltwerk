@@ -115,12 +115,12 @@ pub async fn get_project_default_branch() -> Result<String, String> {
     };
     let elapsed = start.elapsed().as_millis();
     match &result {
-        Ok(branch) => log::info!(
-            "[BRANCHES] get_project_default_branch took {elapsed}ms -> {branch}"
-        ),
-        Err(err) => log::warn!(
-            "[BRANCHES] get_project_default_branch failed after {elapsed}ms: {err}"
-        ),
+        Ok(branch) => {
+            log::info!("[BRANCHES] get_project_default_branch took {elapsed}ms -> {branch}");
+        }
+        Err(err) => {
+            log::warn!("[BRANCHES] get_project_default_branch failed after {elapsed}ms: {err}");
+        }
     }
     result
 }
@@ -144,9 +144,7 @@ pub async fn list_project_branches() -> Result<Vec<String>, String> {
             "[BRANCHES] list_project_branches took {elapsed}ms (count={})",
             list.len()
         ),
-        Err(err) => log::warn!(
-            "[BRANCHES] list_project_branches failed after {elapsed}ms: {err}"
-        ),
+        Err(err) => log::warn!("[BRANCHES] list_project_branches failed after {elapsed}ms: {err}"),
     }
     result
 }

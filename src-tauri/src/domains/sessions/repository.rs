@@ -5,7 +5,7 @@ use crate::{
     domains::sessions::entity::{GitStats, Session, SessionState, SessionStatus, Spec},
     infrastructure::database::{AppConfigMethods, Database, ProjectConfigMethods, SpecMethods},
 };
-use anyhow::{Result, anyhow, Context};
+use anyhow::{Context, Result, anyhow};
 use chrono::Utc;
 use git2::Repository;
 use log::{debug, warn};

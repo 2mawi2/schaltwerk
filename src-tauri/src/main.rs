@@ -1231,7 +1231,15 @@ fn main() {
                 });
             }
 
-            let project_manager = tauri::async_runtime::block_on(get_project_manager());
+            // Initialize project manager (cheap, no IO) synchronously to avoid requiring a Tokio reactor during setup
+            let project_manager: Arc<ProjectManager> = if let Some(existing) = PROJECT_MANAGER.get() {
+                existing.clone()
+            } else {
+                let pm = Arc::new(ProjectManager::new());
+                let _ = PROJECT_MANAGER.set(pm.clone());
+                pm
+            };
+
             let services = ServiceHandles::new(Arc::clone(&project_manager), app.handle().clone());
             app.manage(services);
 
@@ -1406,7 +1414,7 @@ fn main() {
         .on_window_event(|_window, event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event {
                 // Kill all terminal child processes
-                tauri::async_runtime::block_on(async {
+                tauri::async_runtime::spawn(async {
                     let manager = get_project_manager().await;
                     manager.force_kill_all().await;
                 });

@@ -17,7 +17,7 @@ use std::io::{Read, Write};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 use tauri::AppHandle;
-use tokio::sync::{Mutex, RwLock, broadcast};
+use tokio::sync::{Mutex, RwLock, broadcast, mpsc};
 use tokio::time::{Instant as TokioInstant, sleep};
 
 const DEFAULT_MAX_BUFFER_SIZE: usize = 2 * 1024 * 1024;
@@ -161,6 +161,7 @@ pub struct LocalPtyAdapter {
     output_event_sender: Arc<broadcast::Sender<(String, u64)>>, // (terminal_id, new_seq)
 }
 
+#[derive(Clone)]
 struct ReaderState {
     terminals: Arc<RwLock<HashMap<String, TerminalState>>>,
     pty_children: Arc<Mutex<HashMap<String, Box<dyn Child + Send>>>>,
@@ -170,6 +171,12 @@ struct ReaderState {
     pending_control_sequences: Arc<Mutex<HashMap<String, Vec<u8>>>>,
     initial_commands: Arc<Mutex<HashMap<String, InitialCommandState>>>,
     output_event_sender: Arc<broadcast::Sender<(String, u64)>>,
+}
+
+enum ReaderMessage {
+    Data(Vec<u8>),
+    Eof,
+    Error(std::io::Error),
 }
 
 impl Default for LocalPtyAdapter {
@@ -363,258 +370,244 @@ impl LocalPtyAdapter {
         mut reader: Box<dyn Read + Send>,
         reader_state: ReaderState,
     ) -> tokio::task::JoinHandle<()> {
-        tokio::task::spawn_blocking(move || {
-            let runtime = tokio::runtime::Handle::current();
-            let mut buf = [0u8; 8192];
+        tokio::spawn(async move {
+            let (tx, mut rx) = mpsc::unbounded_channel::<ReaderMessage>();
+            let reader_id = id.clone();
 
-            loop {
-                match reader.read(&mut buf) {
-                    Ok(0) => {
-                        info!("Terminal {id} EOF");
-                        // Clean up terminal maps and notify UI about closure
-                        let id_clone_for_cleanup = id.clone();
-                        let coalescing_state_clone = reader_state.coalescing_state.clone();
-                        let deps = lifecycle::LifecycleDeps {
-                            terminals: Arc::clone(&reader_state.terminals),
-                            app_handle: Arc::clone(&reader_state.coalescing_state.app_handle),
-                            pty_children: Arc::clone(&reader_state.pty_children),
-                            pty_masters: Arc::clone(&reader_state.pty_masters),
-                            pty_writers: Arc::clone(&reader_state.pty_writers),
-                        };
-                        runtime.block_on(async move {
-                            if let Some(mut child) =
-                                deps.pty_children.lock().await.remove(&id_clone_for_cleanup)
-                            {
-                                let _ = child.kill();
-                            }
-                            flush_terminal_output(&coalescing_state_clone, &id_clone_for_cleanup)
-                                .await;
-                            lifecycle::cleanup_dead_terminal(id_clone_for_cleanup.clone(), &deps)
-                                .await;
-                            coalescing_state_clone
-                                .clear_for(&id_clone_for_cleanup)
-                                .await;
-                        });
-                        break;
-                    }
-                    Ok(n) => {
-                        let mut data = buf[..n].to_vec();
-                        let mut pending_guard =
-                            runtime.block_on(reader_state.pending_control_sequences.lock());
+            let read_handle = tokio::task::spawn_blocking(move || {
+                let mut buf = [0u8; 8192];
 
-                        if let Some(mut pending) = pending_guard.remove(&id) {
-                            pending.extend_from_slice(&data);
-                            data = pending;
+                loop {
+                    match reader.read(&mut buf) {
+                        Ok(0) => {
+                            let _ = tx.send(ReaderMessage::Eof);
+                            break;
                         }
-
-                        let mut writers = runtime.block_on(reader_state.pty_writers.lock());
-                        let SanitizedOutput {
-                            data: sanitized,
-                            remainder,
-                            cursor_query_offsets,
-                            responses,
-                        } = sanitize_control_sequences(&data);
-
-                        for response in responses {
-                            match response {
-                                SequenceResponse::Immediate(reply) => {
-                                    if let Some(writer) = writers.get_mut(&id) {
-                                        if let Err(e) = writer.write_all(&reply) {
-                                            warn!(
-                                                "Failed to write terminal response for {id}: {e}"
-                                            );
-                                        } else if let Err(e) = writer.flush() {
-                                            warn!(
-                                                "Failed to flush terminal response for {id}: {e}"
-                                            );
-                                        }
-                                    }
-                                }
+                        Ok(n) => {
+                            if tx.send(ReaderMessage::Data(buf[..n].to_vec())).is_err() {
+                                break;
                             }
                         }
-
-                        drop(writers);
-
-                        if let Some(rest) = remainder {
-                            pending_guard.insert(id.clone(), rest);
-                        } else {
-                            pending_guard.remove(&id);
-                        }
-                        drop(pending_guard);
-
-                        if sanitized.is_empty() && cursor_query_offsets.is_empty() {
-                            continue;
-                        }
-
-                        let sanitized_data = sanitized;
-                        let query_offsets = cursor_query_offsets;
-
-                        let id_clone = id.clone();
-                        let terminals_clone = Arc::clone(&reader_state.terminals);
-                        let coalescing_state_output = reader_state.coalescing_state.clone();
-                        let coalescing_state_ready = reader_state.coalescing_state.clone();
-                        let initial_commands_clone = Arc::clone(&reader_state.initial_commands);
-                        let pty_writers_clone_for_ready = Arc::clone(&reader_state.pty_writers);
-                        let output_event_sender_clone =
-                            Arc::clone(&reader_state.output_event_sender);
-
-                        let cursor_responses = runtime.block_on(async move {
-                            let mut responses: Vec<Vec<u8>> = Vec::new();
-                            let mut current_seq: Option<u64> = None;
-
-                            {
-                                let mut terminals = terminals_clone.write().await;
-                                if let Some(state) = terminals.get_mut(&id_clone) {
-                                    let total_len = sanitized_data.len();
-                                    let mut processed = 0usize;
-                                    let max_size = if lifecycle::is_agent_terminal(&id_clone) {
-                                        AGENT_MAX_BUFFER_SIZE
-                                    } else {
-                                        DEFAULT_MAX_BUFFER_SIZE
-                                    };
-
-                                    let apply_segment =
-                                        |state: &mut TerminalState, segment: &[u8]| {
-                                            if segment.is_empty() {
-                                                return;
-                                            }
-
-                                            state.buffer.extend_from_slice(segment);
-                                            state.screen.feed_bytes(segment);
-                                            state.seq =
-                                                state.seq.saturating_add(segment.len() as u64);
-                                            state.last_output = SystemTime::now();
-
-                                            if state.buffer.len() > max_size {
-                                                let excess = state.buffer.len() - max_size;
-                                                state.buffer.drain(0..excess);
-                                                state.start_seq =
-                                                    state.start_seq.saturating_add(excess as u64);
-                                            }
-
-                                            let now_segment = Instant::now();
-                                            state.idle_detector.observe_bytes(now_segment, segment);
-                                        };
-
-                                    for offset in query_offsets.iter().copied() {
-                                        if offset > total_len {
-                                            continue;
-                                        }
-
-                                        if offset > processed {
-                                            let segment = &sanitized_data[processed..offset];
-                                            apply_segment(state, segment);
-                                            processed = offset;
-                                        }
-
-                                        if let Some(response) =
-                                            state.cursor_position_response(&id_clone, 1)
-                                        {
-                                            responses.push(response);
-                                        }
-                                    }
-
-                                    if processed < total_len {
-                                        let segment = &sanitized_data[processed..];
-                                        apply_segment(state, segment);
-                                    }
-
-                                    current_seq = Some(state.seq);
-                                }
+                        Err(e) => {
+                            if e.kind() == std::io::ErrorKind::WouldBlock {
+                                continue;
                             }
-
-                            if !sanitized_data.is_empty() {
-                                if let Some(seq) = current_seq
-                                    && output_event_sender_clone.receiver_count() > 0
-                                        && output_event_sender_clone
-                                            .send((id_clone.clone(), seq))
-                                            .is_err()
-                                    {
-                                        trace!(
-                                            "[Terminal {id_clone}] Output listener closed; skipping notification"
-                                        );
-                                    }
-
-                                handle_coalesced_output(
-                                    &coalescing_state_output,
-                                    CoalescingParams {
-                                        terminal_id: &id_clone,
-                                        data: &sanitized_data,
-                                    },
-                                )
-                                .await;
-
-                                maybe_dispatch_initial_command(
-                                    &initial_commands_clone,
-                                    &pty_writers_clone_for_ready,
-                                    &coalescing_state_ready,
-                                    &id_clone,
-                                    &sanitized_data,
-                                )
-                                .await;
-                            }
-
-                            responses
-                        });
-
-                        if !cursor_responses.is_empty() {
-                            let mut writers = runtime.block_on(reader_state.pty_writers.lock());
-                            if let Some(writer) = writers.get_mut(&id) {
-                                for response in cursor_responses {
-                                    if response.is_empty() {
-                                        continue;
-                                    }
-                                    if let Err(e) = writer.write_all(&response) {
-                                        warn!("Failed to write cursor response for {id}: {e}");
-                                        break;
-                                    }
-                                    if let Err(e) = writer.flush() {
-                                        warn!("Failed to flush cursor response for {id}: {e}");
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        if e.kind() != std::io::ErrorKind::WouldBlock {
-                            error!("Terminal {id} read error: {e}");
-                            // On read error, clean up and notify
-                            let id_clone_for_cleanup = id.clone();
-                            let coalescing_state_clone = reader_state.coalescing_state.clone();
-                            let deps = lifecycle::LifecycleDeps {
-                                terminals: Arc::clone(&reader_state.terminals),
-                                app_handle: Arc::clone(&reader_state.coalescing_state.app_handle),
-                                pty_children: Arc::clone(&reader_state.pty_children),
-                                pty_masters: Arc::clone(&reader_state.pty_masters),
-                                pty_writers: Arc::clone(&reader_state.pty_writers),
-                            };
-                            runtime.block_on(async move {
-                                if let Some(mut child) =
-                                    deps.pty_children.lock().await.remove(&id_clone_for_cleanup)
-                                {
-                                    let _ = child.kill();
-                                }
-                                flush_terminal_output(
-                                    &coalescing_state_clone,
-                                    &id_clone_for_cleanup,
-                                )
-                                .await;
-                                lifecycle::cleanup_dead_terminal(
-                                    id_clone_for_cleanup.clone(),
-                                    &deps,
-                                )
-                                .await;
-                                coalescing_state_clone
-                                    .clear_for(&id_clone_for_cleanup)
-                                    .await;
-                            });
+                            let _ = tx.send(ReaderMessage::Error(e));
                             break;
                         }
                     }
                 }
+            });
+
+            while let Some(message) = rx.recv().await {
+                match message {
+                    ReaderMessage::Data(data) => {
+                        if let Err(e) = Self::handle_reader_data(&id, data, &reader_state).await {
+                            warn!("Failed to handle terminal data for {reader_id}: {e}");
+                        }
+                    }
+                    ReaderMessage::Eof => {
+                        Self::handle_reader_shutdown(&id, &reader_state, "EOF").await;
+                        break;
+                    }
+                    ReaderMessage::Error(err) => {
+                        error!("Terminal {reader_id} read error: {err}");
+                        Self::handle_reader_shutdown(&id, &reader_state, "read error").await;
+                        break;
+                    }
+                }
             }
+
+            let _ = read_handle.await;
         })
+    }
+
+    async fn handle_reader_data(
+        id: &str,
+        mut data: Vec<u8>,
+        reader_state: &ReaderState,
+    ) -> Result<(), String> {
+        {
+            let mut pending_guard = reader_state.pending_control_sequences.lock().await;
+            if let Some(mut pending) = pending_guard.remove(id) {
+                pending.extend_from_slice(&data);
+                data = pending;
+            }
+        }
+
+        let SanitizedOutput {
+            data: sanitized,
+            remainder,
+            cursor_query_offsets,
+            responses,
+        } = sanitize_control_sequences(&data);
+
+        if !responses.is_empty() {
+            let mut writers = reader_state.pty_writers.lock().await;
+            if let Some(writer) = writers.get_mut(id) {
+                for response in responses {
+                    match response {
+                        SequenceResponse::Immediate(reply) => {
+                            if let Err(e) = writer.write_all(&reply) {
+                                warn!("Failed to write terminal response for {id}: {e}");
+                            } else if let Err(e) = writer.flush() {
+                                warn!("Failed to flush terminal response for {id}: {e}");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        {
+            let mut pending_guard = reader_state.pending_control_sequences.lock().await;
+            if let Some(rest) = remainder {
+                pending_guard.insert(id.to_string(), rest);
+            } else {
+                pending_guard.remove(id);
+            }
+        }
+
+        if sanitized.is_empty() && cursor_query_offsets.is_empty() {
+            return Ok(());
+        }
+
+        let mut cursor_responses: Vec<Vec<u8>> = Vec::new();
+        let mut current_seq: Option<u64> = None;
+
+        {
+            let mut terminals = reader_state.terminals.write().await;
+            if let Some(state) = terminals.get_mut(id) {
+                let total_len = sanitized.len();
+                let mut processed = 0usize;
+                let max_size = if lifecycle::is_agent_terminal(id) {
+                    AGENT_MAX_BUFFER_SIZE
+                } else {
+                    DEFAULT_MAX_BUFFER_SIZE
+                };
+
+                let apply_segment = |state: &mut TerminalState, segment: &[u8]| {
+                    if segment.is_empty() {
+                        return;
+                    }
+
+                    state.buffer.extend_from_slice(segment);
+                    state.screen.feed_bytes(segment);
+                    state.seq = state.seq.saturating_add(segment.len() as u64);
+                    state.last_output = SystemTime::now();
+
+                    if state.buffer.len() > max_size {
+                        let excess = state.buffer.len() - max_size;
+                        state.buffer.drain(0..excess);
+                        state.start_seq = state.start_seq.saturating_add(excess as u64);
+                    }
+
+                    let now_segment = Instant::now();
+                    state.idle_detector.observe_bytes(now_segment, segment);
+                };
+
+                for offset in cursor_query_offsets.iter().copied() {
+                    if offset > total_len {
+                        continue;
+                    }
+
+                    if offset > processed {
+                        let segment = &sanitized[processed..offset];
+                        apply_segment(state, segment);
+                        processed = offset;
+                    }
+
+                    if let Some(response) = state.cursor_position_response(id, 1) {
+                        cursor_responses.push(response);
+                    }
+                }
+
+                if processed < total_len {
+                    let segment = &sanitized[processed..];
+                    apply_segment(state, segment);
+                }
+
+                current_seq = Some(state.seq);
+            }
+        }
+
+        if let Some(seq) = current_seq
+            && !sanitized.is_empty()
+            && reader_state.output_event_sender.receiver_count() > 0
+            && reader_state
+                .output_event_sender
+                .send((id.to_string(), seq))
+                .is_err()
+        {
+            trace!("[Terminal {id}] Output listener closed; skipping notification");
+        }
+
+        if !sanitized.is_empty() {
+            handle_coalesced_output(
+                &reader_state.coalescing_state,
+                CoalescingParams {
+                    terminal_id: id,
+                    data: &sanitized,
+                },
+            )
+            .await;
+
+            maybe_dispatch_initial_command(
+                &reader_state.initial_commands,
+                &reader_state.pty_writers,
+                &reader_state.coalescing_state,
+                id,
+                &sanitized,
+            )
+            .await;
+        }
+
+        if !cursor_responses.is_empty() {
+            let mut writers = reader_state.pty_writers.lock().await;
+            if let Some(writer) = writers.get_mut(id) {
+                for response in cursor_responses {
+                    if response.is_empty() {
+                        continue;
+                    }
+                    if let Err(e) = writer.write_all(&response) {
+                        warn!("Failed to write cursor response for {id}: {e}");
+                        break;
+                    }
+                    if let Err(e) = writer.flush() {
+                        warn!("Failed to flush cursor response for {id}: {e}");
+                        break;
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn handle_reader_shutdown(id: &str, reader_state: &ReaderState, reason: &str) {
+        info!("Terminal {id} closing ({reason})");
+
+        reader_state
+            .pending_control_sequences
+            .lock()
+            .await
+            .remove(id);
+
+        let deps = lifecycle::LifecycleDeps {
+            terminals: Arc::clone(&reader_state.terminals),
+            app_handle: Arc::clone(&reader_state.coalescing_state.app_handle),
+            pty_children: Arc::clone(&reader_state.pty_children),
+            pty_masters: Arc::clone(&reader_state.pty_masters),
+            pty_writers: Arc::clone(&reader_state.pty_writers),
+        };
+
+        if let Some(mut child) = deps.pty_children.lock().await.remove(id) {
+            let _ = child.kill();
+        }
+
+        flush_terminal_output(&reader_state.coalescing_state, id).await;
+        lifecycle::cleanup_dead_terminal(id.to_string(), &deps).await;
+        reader_state.coalescing_state.clear_for(id).await;
     }
 
     async fn abort_reader(&self, id: &str) {
