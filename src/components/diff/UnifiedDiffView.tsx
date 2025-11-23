@@ -118,6 +118,7 @@ export function UnifiedDiffView({
 
   const [files, setFiles] = useState<ChangedFile[]>([]);
   const [selectedFile, setSelectedFile] = useState<string | null>(filePath);
+  const selectedFileRef = useRef<string | null>(filePath);
   const lastNotifiedFileRef = useRef<string | null>(filePath);
   const [fileError, setFileError] = useState<string | null>(null);
   const [branchInfo, setBranchInfo] = useState<{
@@ -352,6 +353,10 @@ export function UnifiedDiffView({
   useEffect(() => {
     setSelectedFile(filePath);
   }, [filePath]);
+
+  useEffect(() => {
+    selectedFileRef.current = selectedFile;
+  }, [selectedFile]);
 
   useEffect(() => {
     if (!onSelectedFileChange) return;
@@ -673,22 +678,25 @@ export function UnifiedDiffView({
         : await fetchSessionChangedFiles();
       setFiles(changedFiles);
 
+      const findIndexForPath = (path: string | null | undefined) =>
+        path ? changedFiles.findIndex((f) => f.path === path) : -1;
+
       let nextSelectedPath: string | null = null;
       let nextSelectedIndex = 0;
 
       if (changedFiles.length > 0) {
         const requestedPath = filePath || null;
-        if (requestedPath) {
-          const foundIndex = changedFiles.findIndex(
-            (f) => f.path === requestedPath,
-          );
-          if (foundIndex >= 0) {
-            nextSelectedPath = changedFiles[foundIndex].path;
-            nextSelectedIndex = foundIndex;
-          } else {
-            nextSelectedPath = changedFiles[0].path;
-            nextSelectedIndex = 0;
-          }
+        const previousSelectedPath = selectedFileRef.current;
+
+        const requestedIndex = findIndexForPath(requestedPath);
+        const previousIndex = findIndexForPath(previousSelectedPath);
+
+        if (requestedIndex >= 0) {
+          nextSelectedPath = changedFiles[requestedIndex].path;
+          nextSelectedIndex = requestedIndex;
+        } else if (previousIndex >= 0) {
+          nextSelectedPath = changedFiles[previousIndex].path;
+          nextSelectedIndex = previousIndex;
         } else {
           nextSelectedPath = changedFiles[0].path;
           nextSelectedIndex = 0;
