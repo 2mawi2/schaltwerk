@@ -49,15 +49,31 @@ export function computeSelectionCandidate(input: SelectionCandidateInput): strin
         removalCandidate,
         mergedCandidate,
         shouldAdvanceFromMerged,
-        shouldPreserveForReviewedRemoval,
-        allSessions,
-    } = input
+    shouldPreserveForReviewedRemoval,
+    allSessions,
+  } = input
 
-    if (shouldAdvanceFromMerged && mergedCandidate) {
-        const nextReviewed = pickNextReviewedAfterMerge(mergedCandidate, previousSessions, allSessions)
-        if (nextReviewed) {
-            return nextReviewed
-        }
+  // If we know a session was removed, try to pick the next visible session at the
+  // same position in the previous ordered list (fallback to previous one, then first).
+  // This keeps keyboard focus stable when deleting specs in the filtered list.
+  if (removalCandidate) {
+    const previousIds = getSessionIds(previousSessions)
+    const removedIndex = previousIds.indexOf(removalCandidate)
+    const orderedVisible = getSessionIds(visibleSessions).filter(id => id !== mergedCandidate)
+
+    if (removedIndex !== -1 && orderedVisible.length > 0) {
+      const next = orderedVisible[removedIndex] ?? orderedVisible[removedIndex - 1] ?? orderedVisible[0] ?? null
+      if (next) {
+        return next
+      }
+    }
+  }
+
+  if (shouldAdvanceFromMerged && mergedCandidate) {
+    const nextReviewed = pickNextReviewedAfterMerge(mergedCandidate, previousSessions, allSessions)
+    if (nextReviewed) {
+      return nextReviewed
+    }
     }
 
     if (shouldPreserveForReviewedRemoval) {

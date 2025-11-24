@@ -210,29 +210,16 @@ export const toolOutputSchemas = {
 
   schaltwerk_current_spec_update: {
     $schema: draft2020,
-    anyOf: [
-      {
-        type: 'object',
-        properties: {
-          status: { const: 'no_current_spec' },
-        },
-        required: ['status'],
-        additionalProperties: false,
-      },
-      {
-        type: 'object',
-        properties: {
-          status: { const: 'updated' },
-          session: { type: 'string' },
-          updated: { type: 'boolean' },
-          append: { type: 'boolean' },
-          content_length: nullableNumber,
-          content_preview: nullableString,
-        },
-        required: ['status', 'session', 'updated', 'append'],
-        additionalProperties: false,
-      },
-    ],
+    type: 'object',
+    properties: {
+      status: { type: 'string' },
+      session: { type: 'string' },
+      updated: { type: 'boolean' },
+      append: { type: 'boolean' },
+      content_length: nullableNumber,
+      content_preview: nullableString,
+    },
+    additionalProperties: true,
   },
 
   schaltwerk_spec_list: {
