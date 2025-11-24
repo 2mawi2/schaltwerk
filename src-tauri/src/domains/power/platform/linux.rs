@@ -38,8 +38,8 @@ impl PlatformAdapter for LinuxAdapter {
             cmd.pre_exec(|| {
                 // Ensure inhibitor dies with the parent whenever possible
                 #[cfg(target_os = "linux")]
-                unsafe {
-                    libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM);
+                {
+                    unsafe { libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM) };
                 }
                 Ok(())
             });
