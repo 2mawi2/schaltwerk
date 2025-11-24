@@ -70,8 +70,6 @@ export const SessionRailCard = memo<SessionRailCardProps>(function SessionRailCa
 
   const additions = info.diff_stats?.insertions || info.diff_stats?.additions || 0
   const deletions = info.diff_stats?.deletions || 0
-  const filesChanged = info.diff_stats?.files_changed || 0
-  const filesLabel = filesChanged === 0 ? '•' : `${filesChanged} file${filesChanged === 1 ? '' : 's'}`
 
   const surfaceClasses = getSessionCardSurfaceClasses({
     sessionState,
@@ -87,7 +85,7 @@ export const SessionRailCard = memo<SessionRailCardProps>(function SessionRailCa
       tabIndex={0}
       data-session-id={info.session_id}
       data-session-selected={isSelected ? 'true' : 'false'}
-      title={`${shortcutLabel ? `[${shortcutLabel}] ` : ''}${sessionName} • ${accessibleState} • ${filesLabel} • +${additions} -${deletions}`}
+      title={`${shortcutLabel ? `[${shortcutLabel}] ` : ''}${sessionName} • ${accessibleState} • +${additions} -${deletions}`}
       aria-label={`${sessionName} (${accessibleState})`}
       className={clsx(
         'group relative w-full rounded-md mb-1 border transition-all duration-200',
@@ -159,20 +157,12 @@ export const SessionRailCard = memo<SessionRailCardProps>(function SessionRailCa
         </div>
 
         {/* Diff summary */}
-        <div className="flex flex-col items-center justify-center gap-0.5 w-full">
-          <span
-            className="text-center"
-            style={{ ...typography.caption, fontSize: theme.fontSize.label, color: theme.colors.text.secondary }}
-          >
-            {filesLabel}
-          </span>
-          <div
-            className="flex flex-col items-center leading-tight"
-            style={{ ...typography.caption, fontSize: theme.fontSize.label, color: theme.colors.text.secondary }}
-          >
-            <span style={{ color: theme.colors.accent.green.light }}>+{additions}</span>
-            <span style={{ color: theme.colors.accent.red.light }}>-{deletions}</span>
-          </div>
+        <div
+          className="flex flex-col items-center justify-center gap-0.8 w-full"
+          style={{ ...typography.caption, fontSize: theme.fontSize.label, color: theme.colors.text.secondary }}
+        >
+          <span style={{ color: theme.colors.accent.green.light }}>+{additions}</span>
+          <span style={{ color: theme.colors.accent.red.light }}>-{deletions}</span>
         </div>
 
         {/* No branch/name text in rail */}

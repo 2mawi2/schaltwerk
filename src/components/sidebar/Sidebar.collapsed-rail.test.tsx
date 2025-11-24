@@ -137,8 +137,9 @@ describe('Collapsed sidebar mini rail', () => {
     expect(screen.queryByText('spec-session')).toBeNull()
     expect(screen.queryByText('running-session')).toBeNull()
     expect(screen.queryByText('reviewed-session')).toBeNull()
-    // Default mock has no diff stats; ensure fallback symbol appears
-    expect(screen.getAllByText('•').length).toBeGreaterThan(0)
+    // Diff summary should show additions and deletions even when files are hidden
+    expect(screen.getAllByText('+0').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('-0').length).toBeGreaterThan(0)
   })
 
   it('shows shortcut badge for first session in collapsed rail', async () => {
