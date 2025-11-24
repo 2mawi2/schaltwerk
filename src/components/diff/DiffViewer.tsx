@@ -490,9 +490,10 @@ export function DiffViewer({
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center px-8">
           <div className="text-6xl mb-4 text-slate-500">📄</div>
-          <div className="text-lg font-medium text-slate-300 mb-2">Binary File</div>
+          <div className="text-lg font-medium text-slate-300 mb-2">Binary file</div>
           <div className="text-sm text-slate-400 mb-4">
-            {allFileDiffs.get(selectedFile)?.unsupportedReason || "This file cannot be displayed in the diff viewer"}
+            {(selectedFile ? allFileDiffs.get(selectedFile)?.unsupportedReason : undefined) ||
+              "This file cannot be displayed in the diff viewer"}
           </div>
           <div className="text-xs text-slate-500">
             Binary files are not shown to prevent performance issues.
@@ -851,6 +852,20 @@ export function DiffViewer({
                         filterResult={filterResult}
                         onClick={() => onToggleFileExpanded(file.path)}
                       />
+                    )
+                  }
+
+                  if (fileDiff.isBinary) {
+                    return (
+                      <div className="px-4 py-10 text-center text-slate-400">
+                        <div className="text-lg font-medium text-slate-200">Binary file</div>
+                        <div className="text-sm text-slate-400">
+                          {fileDiff.unsupportedReason || 'This file cannot be displayed in the diff viewer'}
+                        </div>
+                        <div className="text-xs text-slate-500 mt-3">
+                          Binary files stay in the list so you can keep scrolling through other changes.
+                        </div>
+                      </div>
                     )
                   }
 
