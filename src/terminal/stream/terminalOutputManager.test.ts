@@ -107,6 +107,40 @@ describe('terminalOutputManager', () => {
     expect(secondUnlisten).toHaveBeenCalled()
   })
 
+  it('hydrates only new output after restart using last seen seq', async () => {
+    const firstUnlisten = vi.fn()
+    const secondUnlisten = vi.fn()
+
+    listenMock
+      .mockResolvedValueOnce(firstUnlisten)
+      .mockResolvedValueOnce(secondUnlisten)
+
+    invokeMock
+      .mockResolvedValueOnce({ seq: 5, startSeq: 0, data: 'first-snapshot' })
+      .mockResolvedValueOnce({ seq: 9, startSeq: 0, data: 'after-restart' })
+
+    const listener = vi.fn()
+    terminalOutputManager.addListener(TERMINAL_ID, listener)
+    await terminalOutputManager.ensureStarted(TERMINAL_ID)
+
+    const firstCallback = listenMock.mock.calls[0][1] as (chunk: string) => void
+    firstCallback('live') // advances seq by 4 bytes
+
+    await terminalOutputManager.dispose(TERMINAL_ID)
+
+    terminalOutputManager.addListener(TERMINAL_ID, listener)
+    await terminalOutputManager.ensureStarted(TERMINAL_ID)
+
+    expect(invokeMock).toHaveBeenNthCalledWith(2, TauriCommands.GetTerminalBuffer, {
+      id: TERMINAL_ID,
+      from_seq: 9,
+    })
+
+    expect(listener).toHaveBeenCalledWith('first-snapshot')
+    expect(listener).toHaveBeenCalledWith('live')
+    expect(listener).toHaveBeenCalledWith('after-restart')
+  })
+
   it('dispatches chunks to multiple listeners', async () => {
     const unlisten = vi.fn()
     listenMock.mockResolvedValueOnce(unlisten)
