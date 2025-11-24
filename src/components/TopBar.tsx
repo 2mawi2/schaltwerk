@@ -196,12 +196,6 @@ export function TopBar({
         {/* GitHub status/actions */}
         <GithubMenuButton className="mr-2" hasActiveProject={Boolean(activeTabPath)} />
 
-        {/* Global keep-awake toggle */}
-        <div className="mr-2" data-no-drag>
-          <GlobalKeepAwakeButton />
-        </div>
-
-
         {/* Right panel collapse button - only show when a tab is active */}
         {activeTabPath && onToggleRightPanel && (
           <button

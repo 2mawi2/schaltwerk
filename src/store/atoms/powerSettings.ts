@@ -47,6 +47,21 @@ export const toggleKeepAwakeActionAtom = atom(null, async (get, set) => {
     const next = await invoke<KeepAwakeState | { state: KeepAwakeState }>(command)
     const resolved = typeof next === 'string' ? next : next.state
     set(keepAwakeStateAtom, resolved)
+    // Re-fetch authoritative state from backend to stay in sync with any auto-pause transitions
+    try {
+      const fresh = await invoke<KeepAwakeState>(TauriCommands.GetGlobalKeepAwakeState)
+      set(keepAwakeStateAtom, fresh)
+      // Refresh settings too, so the modal and button share one source
+      try {
+        const settings = await invoke<PowerSettings>(TauriCommands.GetPowerSettings)
+        set(powerSettingsAtom, settings)
+      } catch (error) {
+        logger.debug('Failed to refresh power settings after toggle', error)
+      }
+      return fresh
+    } catch (error) {
+      logger.debug('Failed to refresh keep-awake state after toggle', error)
+    }
     return resolved
   } catch (error) {
     logger.error('Failed to toggle keep-awake', error)

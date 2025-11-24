@@ -10,6 +10,7 @@ import { theme } from '../common/theme'
 import { logger } from '../utils/logger'
 import { withOpacity } from '../common/colorUtils'
 import { useOptionalToast } from '../common/toast/ToastProvider'
+import { buildKeepAwakeToast } from '../common/keepAwakeToast'
 
 const CoffeeIcon = ({ state }: { state: KeepAwakeState }) => {
   const stroke = state === 'disabled' ? theme.colors.text.tertiary : theme.colors.text.primary
@@ -75,27 +76,7 @@ export function GlobalKeepAwakeButton() {
       const next = await setToggle()
       setErrorTooltip(null)
       if (toast && next) {
-        const payload = next === 'disabled'
-          ? {
-              tone: 'info' as const,
-              title: 'Keep-awake disabled',
-              description: 'Sleep prevention turned off',
-              durationMs: 2500,
-            }
-          : next === 'auto_paused'
-            ? {
-                tone: 'info' as const,
-                title: 'Keep-awake enabled (idle)',
-                description: 'Auto-paused until sessions become active',
-                durationMs: 3000,
-              }
-            : {
-                tone: 'success' as const,
-                title: 'Keep-awake enabled',
-                description: 'Sleep prevention active while agents run',
-                durationMs: 3000,
-              }
-        toast.pushToast(payload)
+        toast.pushToast(buildKeepAwakeToast(next, settings.autoReleaseIdleMinutes))
       }
     } catch (error) {
       logger.error('Failed to toggle keep-awake', error)
