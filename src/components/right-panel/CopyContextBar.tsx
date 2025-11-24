@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
 import { theme } from '../../common/theme'
@@ -20,7 +20,7 @@ import {
   buildFileSections
 } from './bundleUtils'
 
-interface CopyBundleBarProps {
+interface CopyContextBarProps {
   sessionName: string
 }
 
@@ -74,7 +74,7 @@ function formatSectionSummary(sections: SectionName[], fileCount: number) {
     .join(' + ')
 }
 
-export function CopyBundleBar({ sessionName }: CopyBundleBarProps) {
+export function CopyContextBar({ sessionName }: CopyContextBarProps) {
   const projectPath = useAtomValue(projectPathAtom)
   const { pushToast } = useToast()
 
@@ -105,13 +105,7 @@ export function CopyBundleBar({ sessionName }: CopyBundleBarProps) {
 
 
 
-  const copyButtonStyleVars = useMemo(() => ({
-    '--copy-btn-bg': theme.colors.accent.blue.DEFAULT,
-    '--copy-btn-bg-hover': theme.colors.accent.blue.dark,
-    '--copy-btn-text': theme.colors.background.primary,
-    '--copy-btn-text-hover': theme.colors.background.primary,
-    '--copy-btn-border': theme.colors.accent.blue.DEFAULT,
-  }) as CSSProperties, [])
+
 
   const resetCaches = useCallback(() => {
     specCacheRef.current = null
@@ -162,7 +156,7 @@ export function CopyBundleBar({ sessionName }: CopyBundleBarProps) {
           included.push('Spec')
         }
       } catch (err) {
-        logger.error('[CopyBundleBar] Failed to load spec content for copy', err)
+        logger.error('[CopyContextBar] Failed to load spec content for copy', err)
       }
     }
 
@@ -175,7 +169,7 @@ export function CopyBundleBar({ sessionName }: CopyBundleBarProps) {
           included.push('Diff')
         }
       } catch (err) {
-        logger.error('[CopyBundleBar] Failed to load diff sections', err)
+        logger.error('[CopyContextBar] Failed to load diff sections', err)
       }
     }
 
@@ -188,7 +182,7 @@ export function CopyBundleBar({ sessionName }: CopyBundleBarProps) {
           included.push('Files')
         }
       } catch (err) {
-        logger.error('[CopyBundleBar] Failed to load file sections', err)
+        logger.error('[CopyContextBar] Failed to load file sections', err)
       }
     }
 
@@ -217,9 +211,9 @@ export function CopyBundleBar({ sessionName }: CopyBundleBarProps) {
       setHasLoadedInitial(true)
     } catch (err) {
       if (isSessionMissingError(err)) {
-        logger.debug('[CopyBundleBar] Session missing during initial data load', err)
+        logger.debug('[CopyContextBar] Session missing during initial data load', err)
       } else {
-        logger.error('[CopyBundleBar] Failed to load initial data', err)
+        logger.error('[CopyContextBar] Failed to load initial data', err)
       }
       setAvailability({ spec: false, diff: false, files: false })
       setChangedFiles([])
@@ -250,13 +244,13 @@ export function CopyBundleBar({ sessionName }: CopyBundleBarProps) {
           try {
             await unlisten()
           } catch (err) {
-            logger.warn('[CopyBundleBar] Failed to cleanup file changes listener', err)
+            logger.warn('[CopyContextBar] Failed to cleanup file changes listener', err)
           }
         } else {
           unlistenFileChanges = unlisten
         }
       } catch (err) {
-        logger.warn('[CopyBundleBar] Failed to listen for file changes', err)
+        logger.warn('[CopyContextBar] Failed to listen for file changes', err)
       }
     }
 
@@ -285,10 +279,10 @@ export function CopyBundleBar({ sessionName }: CopyBundleBarProps) {
             setAvailability(prev => ({ ...prev, spec: specText.length > 0 }))
           } catch (err) {
             if (isSessionMissingError(err)) {
-              logger.debug('[CopyBundleBar] Session missing while refreshing spec availability', err)
+              logger.debug('[CopyContextBar] Session missing while refreshing spec availability', err)
               setAvailability(prev => ({ ...prev, spec: false }))
             } else {
-              logger.error('[CopyBundleBar] Failed to refresh spec availability', err)
+              logger.error('[CopyContextBar] Failed to refresh spec availability', err)
             }
           }
         })
@@ -296,13 +290,13 @@ export function CopyBundleBar({ sessionName }: CopyBundleBarProps) {
           try {
             await unlisten()
           } catch (err) {
-            logger.warn('[CopyBundleBar] Failed to cleanup sessions refreshed listener', err)
+            logger.warn('[CopyContextBar] Failed to cleanup sessions refreshed listener', err)
           }
         } else {
           unlistenSessionsRefreshed = unlisten
         }
       } catch (err) {
-        logger.warn('[CopyBundleBar] Failed to listen for session refresh events', err)
+        logger.warn('[CopyContextBar] Failed to listen for session refresh events', err)
       }
     }
 
@@ -318,7 +312,7 @@ export function CopyBundleBar({ sessionName }: CopyBundleBarProps) {
           try {
             await unlisten()
           } catch (err) {
-            logger.warn('[CopyBundleBar] Failed to cleanup file changes listener', err)
+            logger.warn('[CopyContextBar] Failed to cleanup file changes listener', err)
           }
         })()
       }
@@ -329,7 +323,7 @@ export function CopyBundleBar({ sessionName }: CopyBundleBarProps) {
           try {
             await unlisten()
           } catch (err) {
-            logger.warn('[CopyBundleBar] Failed to cleanup sessions refreshed listener', err)
+            logger.warn('[CopyContextBar] Failed to cleanup sessions refreshed listener', err)
           }
         })()
       }
@@ -344,7 +338,7 @@ export function CopyBundleBar({ sessionName }: CopyBundleBarProps) {
       const raw = localStorage.getItem(storageKey)
       if (raw) stored = JSON.parse(raw) as SelectionState
     } catch (err) {
-      logger.warn('[CopyBundleBar] Failed to read persisted selection', err)
+      logger.warn('[CopyContextBar] Failed to read persisted selection', err)
     }
 
     const base = stored ?? deriveDefaultSelection(availabilitySnapshot)
@@ -366,7 +360,7 @@ export function CopyBundleBar({ sessionName }: CopyBundleBarProps) {
     try {
       localStorage.setItem(storageKey, JSON.stringify(selection))
     } catch (err) {
-      logger.warn('[CopyBundleBar] Failed to persist selection', err)
+      logger.warn('[CopyContextBar] Failed to persist selection', err)
     }
   }, [selection, storageKey, hasLoadedInitial])
 
@@ -389,10 +383,10 @@ export function CopyBundleBar({ sessionName }: CopyBundleBarProps) {
       } catch (err) {
         if (!cancelled) {
           if (isSessionMissingError(err)) {
-            logger.debug('[CopyBundleBar] Session missing while assembling bundle for token count', err)
+            logger.debug('[CopyContextBar] Session missing while assembling bundle for token count', err)
             setTokenCount(null)
           } else {
-            logger.error('[CopyBundleBar] Failed to assemble bundle for token count', err)
+            logger.error('[CopyContextBar] Failed to assemble bundle for token count', err)
             setTokenCount(null)
           }
         }
@@ -446,95 +440,189 @@ export function CopyBundleBar({ sessionName }: CopyBundleBarProps) {
         })
       }
     } catch (err) {
-      logger.error('[CopyBundleBar] Clipboard copy failed', err)
+      logger.error('[CopyContextBar] Clipboard copy failed', err)
       pushToast({ tone: 'error', title: 'Copy failed', description: 'Unable to build bundle.' })
     } finally {
       setIsCopying(false)
     }
   }, [assembleBundle, fileCount, nothingSelected, pushToast])
 
+  const pillBaseStyle = "flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer select-none border"
+
+  const getPillStyle = (active: boolean, disabled: boolean) => {
+    if (disabled) {
+      return {
+        borderColor: 'transparent',
+        backgroundColor: 'transparent',
+        color: theme.colors.text.muted,
+        opacity: 0.4,
+        cursor: 'not-allowed',
+      }
+    }
+    if (active) {
+      return {
+        borderColor: theme.colors.accent.blue.border,
+        backgroundColor: theme.colors.accent.blue.bg,
+        color: theme.colors.accent.blue.DEFAULT,
+        boxShadow: `0 0 10px -2px ${theme.colors.accent.blue.bg}`,
+      }
+    }
+    return {
+      borderColor: 'transparent',
+      backgroundColor: 'transparent',
+      color: theme.colors.text.secondary,
+    }
+  }
+
+  const getHoverStyle = (active: boolean, disabled: boolean) => {
+    if (disabled) return {}
+    if (active) return {
+      backgroundColor: `color-mix(in srgb, ${theme.colors.accent.blue.bg}, ${theme.colors.accent.blue.DEFAULT} 5%)`,
+    }
+    return {
+      backgroundColor: theme.colors.background.hover,
+      color: theme.colors.text.primary,
+    }
+  }
+
   return (
     <div
-      className="flex items-center gap-4 px-3 py-2 whitespace-nowrap"
+      className="flex items-center justify-between px-4 py-3 select-none"
       aria-label="copy-bundle-bar"
       style={{
         borderBottom: `1px solid ${theme.colors.border.subtle}`,
-        backgroundColor: theme.colors.background.elevated,
+        backgroundColor: theme.colors.background.secondary, // Slightly darker/different to separate panels
+        backdropFilter: 'blur(8px)',
       }}
     >
-       <div className="flex items-center gap-3">
-        <label className="flex items-center gap-1 text-xs">
-          <input
-            type="checkbox"
-            checked={selection.spec}
-            disabled={!availability.spec}
-            onChange={(event) => handleToggle('spec', event.currentTarget.checked)}
-            title={availability.spec ? 'Include spec content' : 'Spec content unavailable'}
-          />
+      <div className="flex items-center gap-2">
+        {/* Spec Pill */}
+        <div
+          className={pillBaseStyle}
+          onClick={() => !availability.spec ? null : handleToggle('spec', !selection.spec)}
+          style={getPillStyle(selection.spec, !availability.spec)}
+          onMouseEnter={(e) => {
+            const style = getHoverStyle(selection.spec, !availability.spec)
+            Object.assign(e.currentTarget.style, style)
+          }}
+          onMouseLeave={(e) => {
+            const style = getPillStyle(selection.spec, !availability.spec)
+            // Reset to base style, removing hover overrides
+            e.currentTarget.style.backgroundColor = style.backgroundColor as string
+            e.currentTarget.style.color = style.color as string
+            e.currentTarget.style.borderColor = style.borderColor as string
+          }}
+          title={availability.spec ? 'Include spec content' : 'Spec content unavailable'}
+        >
           <span>Spec</span>
-        </label>
-        <label className="flex items-center gap-1 text-xs">
-          <input
-            type="checkbox"
-            checked={selection.diff}
-            disabled={!availability.diff}
-            onChange={(event) => handleToggle('diff', event.currentTarget.checked)}
-            title={availability.diff ? `Include diff (${fileCount})` : 'No diff available'}
-          />
-          <span className="flex items-center gap-1">
-            Diff
-            {availability.diff && (
-              <span
-                className="rounded-sm px-1 text-[10px]"
-                style={{
-                  backgroundColor: theme.colors.background.primary,
-                  color: theme.colors.text.secondary,
-                  border: `1px solid ${theme.colors.border.subtle}`,
-                }}
-              >
-                {fileCount}
-              </span>
-            )}
-          </span>
-        </label>
-        <label className="flex items-center gap-1 text-xs">
-          <input
-            type="checkbox"
-            checked={selection.files}
-            disabled={!availability.files}
-            onChange={(event) => handleToggle('files', event.currentTarget.checked)}
-            title={availability.files ? `Include file contents (${fileCount})` : 'No touched files'}
-          />
-          <span className="flex items-center gap-1">
-            Files
-            {availability.files && (
-              <span
-                className="rounded-sm px-1 text-[10px]"
-                style={{
-                  backgroundColor: theme.colors.background.primary,
-                  color: theme.colors.text.secondary,
-                  border: `1px solid ${theme.colors.border.subtle}`,
-                }}
-              >
-                {fileCount}
-              </span>
-            )}
-          </span>
-        </label>
+        </div>
+
+        {/* Diff Pill */}
+        <div
+          className={pillBaseStyle}
+          onClick={() => !availability.diff ? null : handleToggle('diff', !selection.diff)}
+          style={getPillStyle(selection.diff, !availability.diff)}
+          onMouseEnter={(e) => {
+            const style = getHoverStyle(selection.diff, !availability.diff)
+            Object.assign(e.currentTarget.style, style)
+          }}
+          onMouseLeave={(e) => {
+            const style = getPillStyle(selection.diff, !availability.diff)
+            e.currentTarget.style.backgroundColor = style.backgroundColor as string
+            e.currentTarget.style.color = style.color as string
+            e.currentTarget.style.borderColor = style.borderColor as string
+          }}
+          title={availability.diff ? `Include diff (${fileCount})` : 'No diff available'}
+        >
+          <span>Diff</span>
+          {availability.diff && (
+            <span
+              className="flex items-center justify-center h-4 min-w-[16px] px-1 rounded-sm text-[9px] font-bold"
+              style={{
+                backgroundColor: selection.diff ? theme.colors.accent.blue.DEFAULT : theme.colors.background.elevated,
+                color: selection.diff ? theme.colors.background.primary : theme.colors.text.muted,
+              }}
+            >
+              {fileCount}
+            </span>
+          )}
+        </div>
+
+        {/* Files Pill */}
+        <div
+          className={pillBaseStyle}
+          onClick={() => !availability.files ? null : handleToggle('files', !selection.files)}
+          style={getPillStyle(selection.files, !availability.files)}
+          onMouseEnter={(e) => {
+            const style = getHoverStyle(selection.files, !availability.files)
+            Object.assign(e.currentTarget.style, style)
+          }}
+          onMouseLeave={(e) => {
+            const style = getPillStyle(selection.files, !availability.files)
+            e.currentTarget.style.backgroundColor = style.backgroundColor as string
+            e.currentTarget.style.color = style.color as string
+            e.currentTarget.style.borderColor = style.borderColor as string
+          }}
+          title={availability.files ? `Include file contents (${fileCount})` : 'No touched files'}
+        >
+          <span>Files</span>
+          {availability.files && (
+            <span
+              className="flex items-center justify-center h-4 min-w-[16px] px-1 rounded-sm text-[9px] font-bold"
+              style={{
+                backgroundColor: selection.files ? theme.colors.accent.blue.DEFAULT : theme.colors.background.elevated,
+                color: selection.files ? theme.colors.background.primary : theme.colors.text.muted,
+              }}
+            >
+              {fileCount}
+            </span>
+          )}
+        </div>
       </div>
 
-      <div className="ml-auto flex items-center gap-3">
-        <div className="text-xs" title={tokenCount !== null ? `${tokenCount.toLocaleString()} tokens` : 'Token count unavailable'}>
-          Tokens: {tokenCount !== null ? tokenCount.toLocaleString() : '—'}
+      <div className="flex items-center gap-4">
+        <div
+          className="text-xs font-mono tracking-wide uppercase"
+          style={{ color: theme.colors.text.secondary }}
+          title={tokenCount !== null ? `${tokenCount.toLocaleString()} tokens` : 'Token count unavailable'}
+        >
+          {tokenCount !== null ? `${tokenCount.toLocaleString()} TOKENS` : '—'}
         </div>
+
         <button
           type="button"
           onClick={() => { void handleCopy() }}
           disabled={isCopying || nothingSelected}
-          className="flex items-center px-3 h-[22px] text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed rounded-md border bg-[color:var(--copy-btn-bg)] text-[color:var(--copy-btn-text)] border-[color:var(--copy-btn-border)] hover:bg-[color:var(--copy-btn-bg-hover)] hover:text-[color:var(--copy-btn-text-hover)]"
-          style={copyButtonStyleVars}
+          title="Copy the selected spec, diffs, and files to paste into an external AI"
+          className="flex items-center gap-2 px-4 py-1.5 text-xs font-semibold transition-all rounded-md shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
+          style={{
+            backgroundColor: theme.colors.accent.blue.DEFAULT,
+            color: theme.colors.background.primary,
+            boxShadow: `0 0 15px -3px ${theme.colors.accent.blue.bg}`,
+          }}
+          onMouseEnter={(e) => {
+            if (!isCopying && !nothingSelected) {
+              e.currentTarget.style.backgroundColor = theme.colors.accent.blue.light
+              e.currentTarget.style.boxShadow = `0 0 20px -2px ${theme.colors.accent.blue.bg}`
+            }
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = theme.colors.accent.blue.DEFAULT
+            e.currentTarget.style.boxShadow = `0 0 15px -3px ${theme.colors.accent.blue.bg}`
+          }}
         >
-          <span>Copy to clipboard</span>
+          {isCopying ? (
+            <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          ) : (
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+          )}
+          <span>{isCopying ? 'Copying Context...' : 'Copy Context'}</span>
         </button>
       </div>
     </div>
