@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import * as splitDragCoordinator from '../../utils/splitDragCoordinator'
 import type { ReactNode } from 'react'
 import type { EnrichedSession, SessionInfo } from '../../types/session'
+import { emitUiEvent, UiEvent } from '../../common/uiEvents'
 
 interface MockSplitProps {
   onDragStart?: (sizes: number[], gutterIndex: number, event: MouseEvent) => void
@@ -56,8 +57,10 @@ vi.mock('../../hooks/useSelection', () => ({
   })
 }))
 
+const mockSetFocusForSession = vi.fn()
+
 vi.mock('../../contexts/FocusContext', () => ({
-  useFocus: () => ({ setFocusForSession: vi.fn(), currentFocus: null })
+  useFocus: () => ({ setFocusForSession: mockSetFocusForSession, currentFocus: null })
 }))
 
 vi.mock('../../hooks/useSessions', () => ({
@@ -65,10 +68,20 @@ vi.mock('../../hooks/useSessions', () => ({
 }))
 
 // Mock heavy children to simple markers
+let latestDiffProps: { mode?: string; activeFile?: string | null } = {}
+
 vi.mock('../diff/SimpleDiffPanel', () => ({
-  SimpleDiffPanel: ({ isCommander }: { isCommander?: boolean }) => (
-    <div data-testid="diff-panel" data-commander={String(!!isCommander)} />
-  )
+  SimpleDiffPanel: ({ isCommander, mode, activeFile }: { isCommander?: boolean; mode?: string; activeFile?: string | null }) => {
+    latestDiffProps = { mode, activeFile }
+    return (
+      <div
+        data-testid="diff-panel"
+        data-commander={String(!!isCommander)}
+        data-mode={mode ?? ''}
+        data-active-file={activeFile ?? ''}
+      />
+    )
+  }
 }))
 
 vi.mock('../git-graph/GitGraphPanel', () => ({
@@ -112,6 +125,7 @@ describe('RightPanelTabs split layout', () => {
     vi.clearAllMocks()
     splitPropsStore.current = null
     mockSessions.length = 0
+    mockSetFocusForSession.mockReset()
   })
 
   it('renders Spec above the Copy bar and Diff for running sessions', () => {
@@ -373,5 +387,62 @@ describe('RightPanelTabs split layout', () => {
     expect(historyButton).toBeInTheDocument()
     const order = infoButton.compareDocumentPosition(historyButton)
     expect(order & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('focuses changes tab and diff container when inline diff is opened via shortcut', async () => {
+    mockSessions.push(createRunningSession({
+      session_id: 'test-session',
+      worktree_path: '/tmp/session-worktree',
+      branch: 'feature/test'
+    }))
+
+    renderWithProject(
+      <RightPanelTabs
+        selectionOverride={{ kind: 'session', payload: 'test-session', worktreePath: '/tmp/session-worktree' }}
+        isSpecOverride={false}
+      />
+    )
+
+    act(() => {
+      emitUiEvent(UiEvent.OpenInlineDiffView)
+    })
+
+    await waitFor(() => {
+      expect(mockSetFocusForSession).toHaveBeenCalledWith('test-session', 'diff')
+      expect(screen.getByTestId('right-panel-container')).toHaveFocus()
+      expect(screen.getByTitle('Changes').getAttribute('data-active')).toBe('true')
+    })
+  })
+
+  it('toggles inline review back to list when inline view shortcut is pressed again', async () => {
+    mockSessions.push(createRunningSession({
+      session_id: 'test-session',
+      worktree_path: '/tmp/session-worktree',
+      branch: 'feature/test'
+    }))
+
+    renderWithProject(
+      <RightPanelTabs
+        selectionOverride={{ kind: 'session', payload: 'test-session', worktreePath: '/tmp/session-worktree' }}
+        isSpecOverride={false}
+      />
+    )
+
+    act(() => {
+      emitUiEvent(UiEvent.OpenInlineDiffView)
+    })
+
+    await waitFor(() => {
+      expect(latestDiffProps.mode).toBe('review')
+    })
+
+    act(() => {
+      emitUiEvent(UiEvent.OpenInlineDiffView)
+    })
+
+    await waitFor(() => {
+      expect(latestDiffProps.mode).toBe('list')
+      expect(latestDiffProps.activeFile).toBeNull()
+    })
   })
 })
