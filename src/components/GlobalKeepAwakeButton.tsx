@@ -72,8 +72,31 @@ export function GlobalKeepAwakeButton() {
   const handleClick = async () => {
     setIsLoading(true)
     try {
-      await setToggle()
+      const next = await setToggle()
       setErrorTooltip(null)
+      if (toast && next) {
+        const payload = next === 'disabled'
+          ? {
+              tone: 'info' as const,
+              title: 'Keep-awake disabled',
+              description: 'Sleep prevention turned off',
+              durationMs: 2500,
+            }
+          : next === 'auto_paused'
+            ? {
+                tone: 'info' as const,
+                title: 'Keep-awake enabled (idle)',
+                description: 'Auto-paused until sessions become active',
+                durationMs: 3000,
+              }
+            : {
+                tone: 'success' as const,
+                title: 'Keep-awake enabled',
+                description: 'Sleep prevention active while agents run',
+                durationMs: 3000,
+              }
+        toast.pushToast(payload)
+      }
     } catch (error) {
       logger.error('Failed to toggle keep-awake', error)
       setErrorTooltip('Keep-awake unavailable (see logs for details)')

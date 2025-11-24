@@ -47,8 +47,10 @@ export const toggleKeepAwakeActionAtom = atom(null, async (get, set) => {
     const next = await invoke<KeepAwakeState | { state: KeepAwakeState }>(command)
     const resolved = typeof next === 'string' ? next : next.state
     set(keepAwakeStateAtom, resolved)
+    return resolved
   } catch (error) {
     logger.error('Failed to toggle keep-awake', error)
+    return undefined
   }
 })
 
