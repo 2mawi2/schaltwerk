@@ -635,7 +635,12 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
 
       const fullPath = `${basePath}/${filePath}`
       const defaultAppId = await invoke<string>(TauriCommands.GetDefaultOpenApp)
-      await invoke(TauriCommands.OpenInApp, { appId: defaultAppId, worktreePath: fullPath })
+      await invoke(TauriCommands.OpenInApp, { 
+        appId: defaultAppId, 
+        worktreeRoot: basePath,
+        worktreePath: basePath, // backward compat
+        targetPath: fullPath 
+      })
     } catch (e) {
       logger.error('Failed to open file:', filePath, e)
       const errorMessage = typeof e === 'string' ? e : ((e as Error)?.message || String(e) || 'Unknown error')

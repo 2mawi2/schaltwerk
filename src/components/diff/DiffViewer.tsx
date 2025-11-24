@@ -9,7 +9,7 @@ import { AnimatedText } from '../common/AnimatedText'
 import { ReviewCommentThread } from '../../types/review'
 import { LineSelection } from '../../hooks/useLineSelection'
 import { theme } from '../../common/theme'
-import { OpenInSplitButton, type OpenApp } from '../OpenInSplitButton'
+import { OpenInSplitButton, type OpenApp, type OpenInAppRequest } from '../OpenInSplitButton'
 import { ConfirmDiscardDialog } from '../common/ConfirmDiscardDialog'
 import { shouldCollapseDiff } from '../../domains/diff/diffFilters'
 import { CollapsedDiffBadge } from './CollapsedDiffBadge'
@@ -166,7 +166,7 @@ export interface DiffViewerProps {
   onCopyFilePath?: (filePath: string) => void
   onDiscardFile?: (filePath: string) => void | Promise<void>
   onStartCommentFromContext?: (payload: { filePath: string; lineNumber: number; side: 'old' | 'new' }) => void
-  onOpenFile?: (filePath: string) => Promise<string | undefined>
+  onOpenFile?: (filePath: string) => Promise<OpenInAppRequest | undefined>
 }
 
 export function DiffViewer({

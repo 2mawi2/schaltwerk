@@ -971,10 +971,11 @@ describe('DiffFileList', () => {
       fireEvent.click(openButton)
 
       await waitFor(() => {
-        expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.OpenInApp, {
+        expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.OpenInApp, expect.objectContaining({
           appId: 'vscode',
-          worktreePath: '/tmp/worktree/demo/src/a.ts'
-        })
+          worktreeRoot: '/tmp/worktree/demo',
+          targetPath: '/tmp/worktree/demo/src/a.ts'
+        }))
       })
     })
 
@@ -1010,10 +1011,11 @@ describe('DiffFileList', () => {
       fireEvent.click(openButton)
 
       await waitFor(() => {
-        expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.OpenInApp, {
+        expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.OpenInApp, expect.objectContaining({
           appId: 'cursor',
-          worktreePath: '/test/project/src/test.ts'
-        })
+          worktreeRoot: '/test/project',
+          targetPath: '/test/project/src/test.ts'
+        }))
       })
     })
 

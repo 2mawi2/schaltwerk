@@ -186,7 +186,7 @@ export function TopBar({
             data-onboarding="open-worktree-button"
           >
             <OpenInSplitButton
-              resolvePath={resolveOpenPath ?? (async () => activeTabPath)}
+              resolvePath={resolveOpenPath ?? (async () => ({ worktreeRoot: activeTabPath }))}
               onOpenReady={handleOpenReady}
             />
           </div>
