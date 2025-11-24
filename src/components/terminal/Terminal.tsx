@@ -41,8 +41,6 @@ import { TerminalResizeCoordinator } from './resize/TerminalResizeCoordinator'
 import {
     calculateEffectiveColumns,
     MIN_TERMINAL_COLUMNS,
-    MIN_TERMINAL_MEASURE_WIDTH_PX,
-    MIN_TERMINAL_MEASURE_HEIGHT_PX,
     MIN_PROPOSED_COLUMNS,
     isMeasurementTooSmall,
 } from './terminalSizing'

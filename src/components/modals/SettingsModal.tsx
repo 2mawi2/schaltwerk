@@ -460,7 +460,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
         if (toast) {
             toast.pushToast(buildKeepAwakeToast(state, next.autoReleaseIdleMinutes))
         }
-    }, [refreshKeepAwakeState, setPowerSettings, toast, updatePowerSettings])
+    }, [refreshKeepAwakeState, setKeepAwakeState, setPowerSettings, toast, updatePowerSettings])
 
     useEffect(() => {
         if (open) {
