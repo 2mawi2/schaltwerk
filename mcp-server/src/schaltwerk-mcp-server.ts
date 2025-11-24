@@ -160,7 +160,74 @@ function buildStructuredResponse(
     : { content: contentEntries }
 }
 
-const sanitizeSpecDocument = (payload: any) => ({
+type SpecDocumentPayload = {
+  session_id: string
+  display_name?: string | null
+  content: string
+  content_length: number
+  updated_at: string
+}
+
+type SpecSummaryPayload = {
+  session_id: string
+  display_name?: string | null
+  content_length: number
+  updated_at: string
+}
+
+type SessionSpecPayload = {
+  session_id: string
+  content: string
+  updated_at: string
+}
+
+type DiffBranchInfo = {
+  current_branch: string
+  parent_branch: string
+  merge_base_short: string
+  head_short: string
+}
+
+type DiffFile = {
+  path: string
+  change_type: string
+}
+
+type DiffLine = {
+  content: string
+  line_type: string
+  old_line_number?: number
+  new_line_number?: number
+  is_collapsible?: boolean
+  collapsed_count?: number
+}
+
+type DiffPaging = {
+  cursor?: string | null
+  next_cursor?: string | null
+  returned: number
+  total_files?: number
+}
+
+type DiffSummaryPayload = {
+  scope: string
+  session_id?: string | null
+  branch_info: DiffBranchInfo
+  has_spec: boolean
+  files: DiffFile[]
+  paging: DiffPaging
+}
+
+type DiffChunkPayload = {
+  file: DiffFile
+  branch_info: DiffBranchInfo
+  stats: { additions: number; deletions: number }
+  is_binary: boolean
+  lines: DiffLine[]
+  paging: DiffPaging
+}
+
+const sanitizeSpecDocument = (payload: SpecDocumentPayload) => ({
   session_id: payload.session_id,
   display_name: payload.display_name ?? undefined,
   content: payload.content,
@@ -168,20 +235,20 @@ const sanitizeSpecDocument = (payload: any) => ({
   updated_at: payload.updated_at
 })
 
-const sanitizeSpecSummary = (payload: any) => ({
+const sanitizeSpecSummary = (payload: SpecSummaryPayload) => ({
   session_id: payload.session_id,
   display_name: payload.display_name ?? undefined,
   content_length: payload.content_length,
   updated_at: payload.updated_at
 })
 
-const sanitizeSessionSpec = (payload: any) => ({
+const sanitizeSessionSpec = (payload: SessionSpecPayload) => ({
   session_id: payload.session_id,
   content: payload.content,
   updated_at: payload.updated_at
 })
 
-const sanitizeDiffSummary = (payload: any) => ({
+const sanitizeDiffSummary = (payload: DiffSummaryPayload) => ({
   scope: payload.scope,
   session_id: payload.session_id ?? null,
   branch_info: payload.branch_info,
@@ -190,7 +257,7 @@ const sanitizeDiffSummary = (payload: any) => ({
   paging: payload.paging
 })
 
-const sanitizeDiffChunk = (payload: any) => ({
+const sanitizeDiffChunk = (payload: DiffChunkPayload) => ({
   file: payload.file,
   branch_info: payload.branch_info,
   stats: payload.stats,
