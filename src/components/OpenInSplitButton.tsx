@@ -10,8 +10,15 @@ export type OpenApp = {
   kind: 'editor' | 'terminal' | 'system'
 }
 
+export type OpenInAppRequest = {
+  worktreeRoot: string
+  targetPath?: string
+  line?: number
+  column?: number
+}
+
 interface OpenInSplitButtonProps {
-  resolvePath: () => Promise<string | undefined>
+  resolvePath: () => Promise<OpenInAppRequest | string | undefined>
   onOpenReady?: (openHandler: () => Promise<void>) => void
   filter?: (app: OpenApp) => boolean
 }
@@ -75,12 +82,23 @@ export function OpenInSplitButton({ resolvePath, onOpenReady, filter }: OpenInSp
   }, [apps, filteredApps, effectiveDefaultApp, defaultApp])
 
   const openWithApp = useCallback(async (appId: OpenApp['id'], showError = true) => {
-    const path = await resolvePath()
-    if (!path) return
+    const payload = await resolvePath()
+    if (!payload) return
+
+    const normalized: OpenInAppRequest = typeof payload === 'string'
+      ? { worktreeRoot: payload }
+      : payload
     
     setIsOpening(true)
     try {
-      await invoke(TauriCommands.OpenInApp, { appId, worktreePath: path })
+      await invoke(TauriCommands.OpenInApp, { 
+        appId, 
+        worktreeRoot: normalized.worktreeRoot, 
+        worktreePath: normalized.worktreeRoot, // backward compat for backend
+        targetPath: normalized.targetPath, 
+        line: normalized.line, 
+        column: normalized.column 
+      })
     } catch (e: unknown) {
       logger.error('Failed to open in app', appId, e)
       if (showError) {
@@ -104,12 +122,22 @@ export function OpenInSplitButton({ resolvePath, onOpenReady, filter }: OpenInSp
 
   const handleSelectApp = async (app: OpenApp) => {
     setOpen(false)
-    const path = await resolvePath()
-    if (!path) return
+    const payload = await resolvePath()
+    if (!payload) return
+    const normalized: OpenInAppRequest = typeof payload === 'string'
+      ? { worktreeRoot: payload }
+      : payload
     
     setIsOpening(true)
     try {
-      await invoke(TauriCommands.OpenInApp, { appId: app.id, worktreePath: path })
+      await invoke(TauriCommands.OpenInApp, { 
+        appId: app.id, 
+        worktreeRoot: normalized.worktreeRoot,
+        worktreePath: normalized.worktreeRoot,
+        targetPath: normalized.targetPath,
+        line: normalized.line,
+        column: normalized.column
+      })
       // Only set as default if opening succeeded
       try {
         await invoke(TauriCommands.SetDefaultOpenApp, { appId: app.id })

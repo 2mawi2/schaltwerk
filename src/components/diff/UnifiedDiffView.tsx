@@ -301,7 +301,7 @@ export function UnifiedDiffView({
   }, [targetSession]);
 
   const handleOpenFile = useCallback(
-    async (filePath: string): Promise<string | undefined> => {
+    async (filePath: string): Promise<OpenInAppRequest | undefined> => {
       if (mode === "history") {
         return undefined;
       }
@@ -311,7 +311,9 @@ export function UnifiedDiffView({
           const repoPath = await invoke<string | null>(
             TauriCommands.GetActiveProjectPath,
           );
-          return repoPath ? `${repoPath}/${filePath}` : undefined;
+          return repoPath
+            ? { worktreeRoot: repoPath, targetPath: `${repoPath}/${filePath}` }
+            : undefined;
         } else if (sessionName) {
           const sessionData = await invoke<{ worktree_path?: string }>(
             TauriCommands.SchaltwerkCoreGetSession,
@@ -319,7 +321,10 @@ export function UnifiedDiffView({
           );
           const worktreePath = sessionData?.worktree_path;
           if (worktreePath) {
-            return `${worktreePath}/${filePath}`;
+            return {
+              worktreeRoot: worktreePath,
+              targetPath: `${worktreePath}/${filePath}`,
+            };
           }
         }
       } catch (err) {

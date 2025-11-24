@@ -1,6 +1,5 @@
 use crate::schaltwerk_core::db_app_config::AppConfigMethods;
-use std::env;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[cfg(test)]
 mod tests {
@@ -49,6 +48,69 @@ mod tests {
             get_default_open_app_from_db(&db).expect("failed to read updated default open app");
         assert_eq!(updated, "vscode");
     }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn test_resolve_request_sets_terminal_parent_for_files() {
+        let req = resolve_request("/repo/root", Some("src/main.rs"), Some(10), None)
+            .expect("resolve should succeed");
+        assert_eq!(req.terminal_workdir, PathBuf::from("/repo/root/src"));
+        let target = req.target.expect("target should exist");
+        assert!(target.is_file);
+        assert_eq!(
+            target.absolute_path,
+            PathBuf::from("/repo/root/src/main.rs")
+        );
+        assert_eq!(target.line, Some(10));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn test_build_command_for_vscode_with_goto() {
+        let req = resolve_request("/repo/root", Some("src/main.rs"), Some(12), Some(3))
+            .expect("resolve should succeed");
+        let spec = build_command_macos("code", &req).expect("build should succeed");
+        assert_eq!(spec.program, "code");
+        assert_eq!(spec.working_dir, Some(PathBuf::from("/repo/root")));
+        assert!(spec.args.contains(&"--reuse-window".into()));
+        assert!(spec.args.contains(&"--folder-uri".into()));
+        assert!(
+            spec.args
+                .iter()
+                .any(|arg| arg.starts_with("file:///repo/root"))
+        );
+        assert!(spec.args.contains(&"--goto".into()));
+        assert!(
+            spec.args
+                .iter()
+                .any(|arg| arg.ends_with("src/main.rs:12:3"))
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn test_build_command_for_intellij_root_only() {
+        let req = resolve_request("/repo/root", None, None, None).expect("resolve should succeed");
+        let spec = build_command_macos("idea", &req).expect("build should succeed");
+        assert_eq!(spec.program, "idea");
+        assert_eq!(spec.args, vec!["/repo/root"]);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn test_build_command_for_zed_with_root_and_file() {
+        let req = resolve_request("/repo/root", Some("src/lib.rs"), Some(5), None)
+            .expect("resolve should succeed");
+        let spec = build_command_macos("zed", &req).expect("build should succeed");
+        assert_eq!(spec.program, "zed");
+        assert_eq!(
+            spec.args,
+            vec![
+                "/repo/root".to_string(),
+                "/repo/root/src/lib.rs:5".to_string()
+            ]
+        );
+    }
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -56,6 +118,28 @@ pub struct OpenApp {
     pub id: String,   // e.g., "finder", "cursor", "vscode", "ghostty", "warp", "terminal"
     pub name: String, // Display name
     pub kind: String, // "editor" | "terminal" | "system"
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ResolvedTarget {
+    pub absolute_path: PathBuf,
+    pub is_file: bool,
+    pub line: Option<u32>,
+    pub column: Option<u32>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ResolvedRequest {
+    pub worktree_root: PathBuf,
+    pub target: Option<ResolvedTarget>,
+    pub terminal_workdir: PathBuf,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CommandSpec {
+    pub program: String,
+    pub args: Vec<String>,
+    pub working_dir: Option<PathBuf>,
 }
 
 fn detect_available_apps() -> Vec<OpenApp> {
@@ -189,6 +273,302 @@ fn detect_editors() -> Vec<OpenApp> {
             kind: "editor".to_string(),
         })
         .collect()
+}
+
+fn guess_is_file(path: &Path) -> bool {
+    match std::fs::metadata(path) {
+        Ok(meta) => meta.is_file(),
+        Err(_) => path.extension().map(|ext| !ext.is_empty()).unwrap_or(false),
+    }
+}
+
+fn resolve_request(
+    worktree_root: &str,
+    target_path: Option<&str>,
+    line: Option<u32>,
+    column: Option<u32>,
+) -> Result<ResolvedRequest, String> {
+    let root = PathBuf::from(worktree_root);
+    if !root.is_absolute() {
+        return Err("Worktree root must be an absolute path".into());
+    }
+
+    let mut terminal_workdir = root.clone();
+    let target = target_path.map(|raw| {
+        let mut abs = PathBuf::from(raw);
+        if !abs.is_absolute() {
+            abs = root.join(raw);
+        }
+        let is_file = guess_is_file(&abs);
+        if is_file {
+            if let Some(parent) = abs.parent() {
+                terminal_workdir = parent.to_path_buf();
+            }
+        } else {
+            terminal_workdir = abs.clone();
+        }
+        ResolvedTarget {
+            absolute_path: abs,
+            is_file,
+            line,
+            column,
+        }
+    });
+
+    Ok(ResolvedRequest {
+        worktree_root: root,
+        target,
+        terminal_workdir,
+    })
+}
+
+fn format_path_with_position(path: &Path, line: Option<u32>, column: Option<u32>) -> String {
+    match (line, column) {
+        (Some(l), Some(c)) => format!("{}:{}:{}", path.to_string_lossy(), l, c),
+        (Some(l), None) => format!("{}:{}", path.to_string_lossy(), l),
+        _ => path.to_string_lossy().to_string(),
+    }
+}
+
+fn to_file_uri(path: &Path) -> String {
+    format!("file://{}", path.to_string_lossy())
+}
+
+#[cfg(target_os = "macos")]
+fn build_command_macos(app_id: &str, req: &ResolvedRequest) -> Result<CommandSpec, String> {
+    let root = req.worktree_root.to_string_lossy().to_string();
+    let goto = req
+        .target
+        .as_ref()
+        .map(|t| format_path_with_position(&t.absolute_path, t.line, t.column));
+    let terminal_dir = req.terminal_workdir.to_string_lossy().to_string();
+
+    match app_id {
+        "finder" => Ok(CommandSpec {
+            program: "/usr/bin/open".into(),
+            args: vec![root],
+            working_dir: None,
+        }),
+        "terminal" => Ok(CommandSpec {
+            program: "/usr/bin/open".into(),
+            args: vec!["-a".into(), "Terminal".into(), terminal_dir],
+            working_dir: None,
+        }),
+        "warp" => Ok(CommandSpec {
+            program: "warp".into(),
+            args: vec!["--cwd".into(), terminal_dir],
+            working_dir: None,
+        }),
+        "ghostty" => Ok(CommandSpec {
+            program: "ghostty".into(),
+            args: vec![format!("--working-directory={}", terminal_dir)],
+            working_dir: None,
+        }),
+        "vscode" | "code" => {
+            let mut args = vec![
+                "--reuse-window".into(),
+                "--folder-uri".into(),
+                to_file_uri(&req.worktree_root),
+            ];
+            if let Some(g) = goto {
+                args.push("--goto".into());
+                args.push(g);
+            }
+            Ok(CommandSpec {
+                program: "code".into(),
+                args,
+                working_dir: Some(req.worktree_root.clone()),
+            })
+        }
+        "cursor" => {
+            let mut args = vec![
+                "--reuse-window".into(),
+                "--folder-uri".into(),
+                to_file_uri(&req.worktree_root),
+            ];
+            if let Some(g) = goto {
+                args.push("--goto".into());
+                args.push(g);
+            }
+            Ok(CommandSpec {
+                program: "cursor".into(),
+                args,
+                working_dir: Some(req.worktree_root.clone()),
+            })
+        }
+        "intellij" | "idea" => {
+            let mut args: Vec<String> = Vec::new();
+            if let Some(target) = req.target.as_ref() {
+                if let Some(line) = target.line {
+                    args.push("--line".into());
+                    args.push(line.to_string());
+                }
+                args.push(target.absolute_path.to_string_lossy().to_string());
+            } else {
+                args.push(root);
+            }
+            Ok(CommandSpec {
+                program: "idea".into(),
+                args,
+                working_dir: Some(req.worktree_root.clone()),
+            })
+        }
+        "zed" => {
+            let mut args = vec![root];
+            if let Some(target) = req.target.as_ref() {
+                args.push(format_path_with_position(
+                    &target.absolute_path,
+                    target.line,
+                    target.column,
+                ));
+            }
+            Ok(CommandSpec {
+                program: "zed".into(),
+                args,
+                working_dir: Some(req.worktree_root.clone()),
+            })
+        }
+        other => Err(format!("Unsupported app id: {other}")),
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn build_command_linux(app_id: &str, req: &ResolvedRequest) -> Result<CommandSpec, String> {
+    let root = req.worktree_root.to_string_lossy().to_string();
+    let goto = req
+        .target
+        .as_ref()
+        .map(|t| format_path_with_position(&t.absolute_path, t.line, t.column));
+    let terminal_dir = req.terminal_workdir.to_string_lossy().to_string();
+    let target_or_root = req
+        .target
+        .as_ref()
+        .map(|t| t.absolute_path.to_string_lossy().to_string())
+        .unwrap_or_else(|| root.clone());
+
+    match app_id {
+        // File managers
+        "dolphin" | "nautilus" | "nemo" | "pcmanfm" | "thunar" => Ok(CommandSpec {
+            program: app_id.into(),
+            args: vec![target_or_root],
+            working_dir: None,
+        }),
+
+        // Terminals
+        "alacritty" => Ok(CommandSpec {
+            program: "alacritty".into(),
+            args: vec!["--working-directory".into(), terminal_dir],
+            working_dir: None,
+        }),
+        "gnome-terminal" => Ok(CommandSpec {
+            program: "gnome-terminal".into(),
+            args: vec!["--working-directory".into(), terminal_dir],
+            working_dir: None,
+        }),
+        "konsole" => Ok(CommandSpec {
+            program: "konsole".into(),
+            args: vec!["--workdir".into(), terminal_dir],
+            working_dir: None,
+        }),
+        "kitty" => Ok(CommandSpec {
+            program: "kitty".into(),
+            args: vec!["--directory".into(), terminal_dir],
+            working_dir: None,
+        }),
+        "kgx" => Ok(CommandSpec {
+            program: "kgx".into(),
+            args: vec!["--working-directory".into(), terminal_dir],
+            working_dir: None,
+        }),
+        "ptyxis" => Ok(CommandSpec {
+            program: "ptyxis".into(),
+            args: vec!["--working-directory".into(), terminal_dir],
+            working_dir: None,
+        }),
+        "tilix" => Ok(CommandSpec {
+            program: "tilix".into(),
+            args: vec!["--working-directory".into(), terminal_dir],
+            working_dir: None,
+        }),
+        "xfce4-terminal" => Ok(CommandSpec {
+            program: "xfce4-terminal".into(),
+            args: vec!["--working-directory".into(), terminal_dir],
+            working_dir: None,
+        }),
+        "wezterm" => Ok(CommandSpec {
+            program: "wezterm".into(),
+            args: vec!["start".into(), "--cwd".into(), terminal_dir],
+            working_dir: None,
+        }),
+        "ghostty" => Ok(CommandSpec {
+            program: "ghostty".into(),
+            args: vec![format!("--working-directory={terminal_dir}")],
+            working_dir: None,
+        }),
+        "warp" => Ok(CommandSpec {
+            program: "warp".into(),
+            args: vec!["--cwd".into(), terminal_dir],
+            working_dir: None,
+        }),
+        "tmux" => Ok(CommandSpec {
+            program: "tmux".into(),
+            args: vec!["new-session".into(), "-c".into(), terminal_dir],
+            working_dir: None,
+        }),
+        "zellij" => Ok(CommandSpec {
+            program: "zellij".into(),
+            args: vec!["--cwd".into(), terminal_dir],
+            working_dir: None,
+        }),
+
+        // Editors
+        "cursor" | "code" | "vscode" => {
+            let mut args = vec!["--reuse-window".into(), root.clone()];
+            if let Some(g) = goto {
+                args.push("--goto".into());
+                args.push(g);
+            }
+            Ok(CommandSpec {
+                program: if app_id == "cursor" { "cursor" } else { "code" }.into(),
+                args,
+                working_dir: Some(req.worktree_root.clone()),
+            })
+        }
+        "idea" => {
+            let mut args: Vec<String> = Vec::new();
+            if let Some(target) = req.target.as_ref() {
+                if let Some(line) = target.line {
+                    args.push("--line".into());
+                    args.push(line.to_string());
+                }
+                args.push(target.absolute_path.to_string_lossy().to_string());
+            } else {
+                args.push(root);
+            }
+            Ok(CommandSpec {
+                program: "idea".into(),
+                args,
+                working_dir: Some(req.worktree_root.clone()),
+            })
+        }
+        "zed" => {
+            let mut args = vec![root];
+            if let Some(target) = req.target.as_ref() {
+                args.push(format_path_with_position(
+                    &target.absolute_path,
+                    target.line,
+                    target.column,
+                ));
+            }
+            Ok(CommandSpec {
+                program: "zed".into(),
+                args,
+                working_dir: Some(req.worktree_root.clone()),
+            })
+        }
+
+        other => Err(format!("Unsupported app id: {other}")),
+    }
 }
 
 #[cfg(target_os = "linux")]
@@ -374,105 +754,25 @@ fn open_with_linux(app_id: &str, path: &str) -> Result<(), String> {
     }
 }
 
-fn open_path_in(app_id: &str, path: &str) -> Result<(), String> {
-    let working_dir = resolve_working_directory(path)?;
+fn open_path_in(
+    app_id: &str,
+    worktree_root: &str,
+    target_path: Option<&str>,
+    line: Option<u32>,
+    column: Option<u32>,
+) -> Result<(), String> {
+    let resolved = resolve_request(worktree_root, target_path, line, column)?;
 
     #[cfg(target_os = "macos")]
     {
-        // Existing macOS implementation
-        if app_id == "ghostty" {
-            return open_path_in_ghostty(working_dir.as_str());
-        }
-
-        let result = match app_id {
-            "finder" => std::process::Command::new("/usr/bin/open")
-                .arg(working_dir.as_str())
-                .status(),
-            "cursor" => {
-                // Try CLI first, fall back to open -a
-                if which::which("cursor").is_ok() {
-                    std::process::Command::new("cursor")
-                        .arg(working_dir.as_str())
-                        .status()
-                } else {
-                    std::process::Command::new("/usr/bin/open")
-                        .args(["-a", "Cursor", working_dir.as_str()])
-                        .status()
-                }
-            }
-            // Support both legacy "intellij"/"vscode" ids and new "idea"/"code" ids
-            "intellij" | "idea" => return open_path_in_intellij(working_dir.as_str()),
-            "vscode" | "code" => {
-                // Try CLI first, fall back to open -a
-                if which::which("code").is_ok() {
-                    std::process::Command::new("code")
-                        .arg(working_dir.as_str())
-                        .status()
-                } else {
-                    std::process::Command::new("/usr/bin/open")
-                        .args(["-a", "Visual Studio Code", working_dir.as_str()])
-                        .status()
-                }
-            }
-            "zed" => return open_path_in_zed(working_dir.as_str()),
-            "warp" => {
-                // Try CLI first, fall back to open -a
-                if which::which("warp").is_ok() {
-                    std::process::Command::new("warp")
-                        .arg("--cwd")
-                        .arg(working_dir.as_str())
-                        .status()
-                } else {
-                    std::process::Command::new("/usr/bin/open")
-                        .args(["-a", "Warp", working_dir.as_str()])
-                        .status()
-                }
-            }
-            "terminal" => std::process::Command::new("/usr/bin/open")
-                .args(["-a", "Terminal", working_dir.as_str()])
-                .status(),
-            other => return Err(format!("Unsupported app id: {other}")),
-        };
-
-        match result {
-            Ok(status) if status.success() => Ok(()),
-            Ok(_status) => {
-                // Non-zero exit code likely means app not found
-                let app_name = match app_id {
-                    "cursor" => "Cursor",
-                    "vscode" | "code" => "VS Code",
-                    "warp" => "Warp",
-                    "terminal" => "Terminal",
-                    "ghostty" => "Ghostty",
-                    "intellij" | "idea" => "IntelliJ IDEA",
-                    "zed" => "Zed",
-                    _ => app_id,
-                };
-                Err(format!(
-                    "{app_name} is not installed. Please install it from the official website or choose a different application."
-                ))
-            }
-            Err(e) => {
-                // Command execution failed
-                let app_name = match app_id {
-                    "cursor" => "Cursor",
-                    "vscode" | "code" => "VS Code",
-                    "warp" => "Warp",
-                    "terminal" => "Terminal",
-                    "finder" => "Finder",
-                    "ghostty" => "Ghostty",
-                    "intellij" | "idea" => "IntelliJ IDEA",
-                    "zed" => "Zed",
-                    _ => app_id,
-                };
-                Err(format!("Failed to open in {app_name}: {e}"))
-            }
-        }
+        let spec = build_command_macos(app_id, &resolved)?;
+        return run_command_spec(spec);
     }
 
     #[cfg(target_os = "linux")]
     {
-        open_with_linux(app_id, working_dir.as_str())
+        let spec = build_command_linux(app_id, &resolved)?;
+        return run_command_spec(spec);
     }
 
     #[cfg(not(any(target_os = "macos", target_os = "linux")))]
@@ -481,183 +781,17 @@ fn open_path_in(app_id: &str, path: &str) -> Result<(), String> {
     }
 }
 
-fn resolve_working_directory(path: &str) -> Result<String, String> {
-    let candidate = Path::new(path);
-    if candidate.is_absolute() {
-        return candidate
-            .to_str()
-            .map(|s| s.to_string())
-            .ok_or_else(|| "Working directory path contains invalid UTF-8".to_string());
+fn run_command_spec(spec: CommandSpec) -> Result<(), String> {
+    let mut cmd = std::process::Command::new(&spec.program);
+    if let Some(cwd) = spec.working_dir {
+        cmd.current_dir(cwd);
     }
-
-    let cwd = env::current_dir()
-        .map_err(|e| format!("Failed to resolve current working directory: {e}"))?;
-    let joined = cwd.join(candidate);
-    joined
-        .to_str()
-        .map(|s| s.to_string())
-        .ok_or_else(|| "Working directory path contains invalid UTF-8".to_string())
-}
-
-#[cfg(target_os = "macos")]
-fn open_path_in_ghostty(working_dir: &str) -> Result<(), String> {
-    let working_dir_flag = format!("--working-directory={working_dir}");
-
-    #[cfg(target_os = "macos")]
-    {
-        let open_status = std::process::Command::new("/usr/bin/open")
-            .args(["-na", "Ghostty", "--args", working_dir_flag.as_str()])
-            .status();
-        match open_status {
-            Ok(status) if status.success() => return Ok(()),
-            Ok(_) => {
-                // Fall through to CLI fallback below.
-            }
-            Err(e) => {
-                // If the macOS bundle fails entirely, provide context but still fall back to CLI.
-                log::warn!("failed to launch Ghostty via open: {e}");
-            }
-        }
+    cmd.args(&spec.args);
+    match cmd.status() {
+        Ok(status) if status.success() => Ok(()),
+        Ok(status) => Err(format!("{} exited with status: {status}", spec.program)),
+        Err(e) => Err(format!("Failed to open in {}: {e}", spec.program)),
     }
-
-    if which::which("ghostty").is_ok() {
-        let cli_status = std::process::Command::new("ghostty")
-            .arg(working_dir_flag.as_str())
-            .status();
-        match cli_status {
-            Ok(status) if status.success() => return Ok(()),
-            Ok(_) => {
-                let shim_status = std::process::Command::new("ghostty")
-                    .args(["+open", working_dir_flag.as_str()])
-                    .status();
-                match shim_status {
-                    Ok(status) if status.success() => return Ok(()),
-                    Ok(_) => {}
-                    Err(e) => {
-                        return Err(format!("Failed to launch Ghostty via CLI shim: {e}"));
-                    }
-                }
-            }
-            Err(e) => {
-                return Err(format!("Failed to execute ghostty CLI: {e}"));
-            }
-        }
-        return Err("Ghostty CLI is installed but refused the launch command. Ensure the Ghostty CLI supports --working-directory or use the app bundle launch setting.".into());
-    }
-
-    Err("Ghostty is not installed. Please install Ghostty or choose a different terminal.".into())
-}
-
-#[cfg(target_os = "macos")]
-fn open_path_in_intellij(path: &str) -> Result<(), String> {
-    if which::which("idea").is_ok() {
-        match std::process::Command::new("idea").arg(path).status() {
-            Ok(status) if status.success() => return Ok(()),
-            Ok(_) => {}
-            Err(e) => {
-                return Err(format!("Failed to open in IntelliJ IDEA: {e}"));
-            }
-        }
-    }
-
-    if which::which("idea64").is_ok() {
-        match std::process::Command::new("idea64").arg(path).status() {
-            Ok(status) if status.success() => return Ok(()),
-            Ok(_) => {}
-            Err(e) => {
-                return Err(format!("Failed to open in IntelliJ IDEA: {e}"));
-            }
-        }
-    }
-
-    if let Some(bundle) = find_existing_intellij_bundle() {
-        match std::process::Command::new("/usr/bin/open")
-            .arg("-a")
-            .arg(&bundle)
-            .arg(path)
-            .status()
-        {
-            Ok(status) if status.success() => return Ok(()),
-            Ok(_) => {}
-            Err(e) => {
-                return Err(format!(
-                    "Failed to open in IntelliJ IDEA at {}: {e}",
-                    bundle.display()
-                ));
-            }
-        }
-    }
-
-    for fallback_name in [
-        "IntelliJ IDEA",
-        "IntelliJ IDEA CE",
-        "IntelliJ IDEA Ultimate",
-    ] {
-        match std::process::Command::new("/usr/bin/open")
-            .args(["-a", fallback_name, path])
-            .status()
-        {
-            Ok(status) if status.success() => return Ok(()),
-            Ok(_) => {}
-            Err(e) => {
-                return Err(format!("Failed to open in {fallback_name}: {e}"));
-            }
-        }
-    }
-
-    Err("IntelliJ IDEA is not installed. Please install it from JetBrains Toolbox or jetbrains.com and try again.".into())
-}
-
-#[cfg(target_os = "macos")]
-fn open_path_in_zed(path: &str) -> Result<(), String> {
-    use std::process::Command;
-
-    if which::which("zed").is_ok() {
-        match Command::new("zed").arg(path).status() {
-            Ok(status) if status.success() => return Ok(()),
-            Ok(status) => {
-                log::warn!("zed CLI exited with status code {status}");
-            }
-            Err(err) => {
-                log::warn!("failed to launch zed CLI: {err}");
-            }
-        }
-    }
-
-    let open_bin = macos_open_binary();
-
-    if let Some(bundle) = find_existing_macos_zed_bundle() {
-        match std::process::Command::new(&open_bin)
-            .arg("-a")
-            .arg(bundle.as_os_str())
-            .arg(path)
-            .status()
-        {
-            Ok(status) if status.success() => return Ok(()),
-            Ok(status) => {
-                log::warn!("open -a {bundle:?} exited with status code {status}");
-            }
-            Err(err) => {
-                log::warn!("failed to invoke open for {bundle:?}: {err}");
-            }
-        }
-    }
-
-    // Fallback to using application name if the bundle path did not resolve.
-    match std::process::Command::new(&open_bin)
-        .args(["-a", "Zed", path])
-        .status()
-    {
-        Ok(status) if status.success() => return Ok(()),
-        Ok(status) => {
-            log::warn!("open -a Zed exited with status code {status}");
-        }
-        Err(err) => {
-            log::warn!("failed to invoke open -a Zed: {err}");
-        }
-    }
-
-    Err("Zed is not installed or not in PATH. Install Zed and try again.".into())
 }
 
 #[cfg(target_os = "macos")]
@@ -682,20 +816,42 @@ fn macos_zed_bundle_candidates() -> Vec<std::path::PathBuf> {
 }
 
 #[cfg(target_os = "macos")]
-fn macos_open_binary() -> std::path::PathBuf {
-    #[cfg(test)]
-    if let Ok(custom) = std::env::var("SCHALTWERK_TEST_OPEN_BIN") {
-        return std::path::PathBuf::from(custom);
-    }
-
-    std::path::PathBuf::from("/usr/bin/open")
-}
-
-#[cfg(target_os = "macos")]
 fn find_existing_intellij_bundle() -> Option<std::path::PathBuf> {
     intellij_app_candidates()
         .into_iter()
         .find(|candidate| candidate.exists())
+}
+
+#[cfg(test)]
+mod linux_tests {
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn test_build_command_for_code_with_goto_linux() {
+        let req = resolve_request("/repo/root", Some("src/main.rs"), Some(8), Some(2))
+            .expect("resolve should succeed");
+        let spec = build_command_linux("code", &req).expect("build should succeed");
+        assert_eq!(spec.program, "code");
+        assert_eq!(spec.working_dir, Some(PathBuf::from("/repo/root")));
+        assert!(spec.args.contains(&"--reuse-window".into()));
+        assert!(spec.args.contains(&"--goto".into()));
+        assert!(spec.args.iter().any(|a| a.ends_with("src/main.rs:8:2")));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn test_build_command_for_terminal_sets_parent_dir() {
+        let req = resolve_request("/repo/root", Some("src/main.rs"), None, None)
+            .expect("resolve should succeed");
+        let spec = build_command_linux("alacritty", &req).expect("build should succeed");
+        assert_eq!(spec.program, "alacritty");
+        assert_eq!(
+            spec.args,
+            vec![
+                "--working-directory".to_string(),
+                "/repo/root/src".to_string()
+            ]
+        );
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -802,9 +958,21 @@ pub fn set_default_open_app_in_db(
 }
 
 #[tauri::command]
-pub async fn open_in_app(app_id: String, worktree_path: String) -> Result<(), String> {
+pub async fn open_in_app(
+    app_id: String,
+    worktree_root: Option<String>,
+    worktree_path: Option<String>, // backward compatibility
+    target_path: Option<String>,
+    line: Option<u32>,
+    column: Option<u32>,
+) -> Result<(), String> {
     // Run in a blocking task to avoid UI freezing
-    tokio::task::spawn_blocking(move || open_path_in(&app_id, &worktree_path))
-        .await
-        .map_err(|e| format!("Failed to spawn task: {e}"))?
+    tokio::task::spawn_blocking(move || {
+        let root = worktree_root
+            .or(worktree_path)
+            .ok_or_else(|| "worktree_root is required".to_string())?;
+        open_path_in(&app_id, &root, target_path.as_deref(), line, column)
+    })
+    .await
+    .map_err(|e| format!("Failed to spawn task: {e}"))?
 }

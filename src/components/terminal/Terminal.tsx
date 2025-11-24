@@ -179,7 +179,13 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
         try {
             const appId = await invoke<string>(TauriCommands.GetDefaultOpenApp);
-            await invoke(TauriCommands.OpenInApp, { appId, worktreePath: resolvedPath });
+            await invoke(TauriCommands.OpenInApp, { 
+                appId, 
+                worktreeRoot: workingDirectory,
+                worktreePath: workingDirectory, // backward compat
+                targetPath: resolvedPath,
+                line: parsed.startLine
+            });
             return true;
         } catch (error) {
             logger.error(`[Terminal ${terminalId}] Failed to open file link ${text}`, error);
