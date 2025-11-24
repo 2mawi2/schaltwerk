@@ -269,8 +269,7 @@ const sanitizeDiffChunk = (payload: DiffChunkPayload) => ({
 })
 
 server.setRequestHandler(ListToolsRequestSchema, async () => {
-  return {
-    tools: [
+  const tools = [
       {
         name: "schaltwerk_create",
         description: `Create a new Schaltwerk session and matching git worktree for an AI agent. Provide a unique session name plus a specific, implementation-focused prompt; that prompt seeds the agent. Optional fields let you select agent_type (claude, opencode, gemini, codex, qwen, droid), choose a base_branch, or bypass manual permission prompts when you understand the risk. Use this whenever you need a fresh, isolated development branch.`,
@@ -711,8 +710,23 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
         outputSchema: toolOutputSchemas.schaltwerk_get_current_tasks
       }
-    ]
-  }
+  ]
+
+  // Emit a flat tool definition that works with legacy Codex and modern MCP,
+  // keeping both camelCase and snake_case schema keys.
+  const normalizedTools = tools.map(tool => ({
+    type: "function" as const,
+    name: tool.name,
+    description: tool.description,
+    // camelCase (some clients expect these)
+    inputSchema: tool.inputSchema,
+    outputSchema: tool.outputSchema,
+    // snake_case (others expect these)
+    input_schema: tool.inputSchema,
+    output_schema: tool.outputSchema,
+  }))
+
+  return { tools: normalizedTools }
 })
 
 server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest) => {
@@ -737,7 +751,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
         if (!specArgs.session || specArgs.session.trim().length === 0) {
           throw new McpError(ErrorCode.InvalidParams, "'session' is required when invoking schaltwerk_spec_read.")
         }
-        const payload = sanitizeSpecDocument(await bridge.getSpecDocument(specArgs.session))
+        const specDoc = await bridge.getSpecDocument(specArgs.session)
+        if (!specDoc) {
+          throw new McpError(ErrorCode.InternalError, `Spec document not found for session '${specArgs.session}'.`)
+        }
+        const payload = sanitizeSpecDocument(specDoc)
         response = buildStructuredResponse(payload, {
           summaryText: `Spec '${specArgs.session}' loaded`,
           jsonFirst: true
@@ -747,11 +765,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
 
       case "schaltwerk_diff_summary": {
         const diffArgs = args as { session?: string; cursor?: string; page_size?: number }
-        const payload = sanitizeDiffSummary(await bridge.getDiffSummary({
+        const diffSummary = await bridge.getDiffSummary({
           session: diffArgs.session,
           cursor: diffArgs.cursor,
           pageSize: diffArgs.page_size,
-        }))
+        })
+        if (!diffSummary) {
+          throw new McpError(ErrorCode.InternalError, "Diff summary payload missing from bridge.")
+        }
+        const payload = sanitizeDiffSummary(diffSummary)
         response = buildStructuredResponse(payload, {
           summaryText: `Diff summary ready for ${diffArgs.session ?? 'orchestrator'}`,
           jsonFirst: true
@@ -769,12 +791,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
           ? Math.min(diffArgs.line_limit, 1000)
           : undefined
 
-        const payload = sanitizeDiffChunk(await bridge.getDiffChunk({
+        const diffChunk = await bridge.getDiffChunk({
           session: diffArgs.session,
           path: diffArgs.path,
           cursor: diffArgs.cursor,
           lineLimit: cappedLineLimit,
-        }))
+        })
+        if (!diffChunk) {
+          throw new McpError(ErrorCode.InternalError, "Diff chunk payload missing from bridge.")
+        }
+        const payload = sanitizeDiffChunk(diffChunk)
         response = buildStructuredResponse(payload, {
           summaryText: `Diff chunk for ${diffArgs.path}`,
           jsonFirst: true
@@ -787,7 +813,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
         if (!specArgs.session || specArgs.session.trim().length === 0) {
           throw new McpError(ErrorCode.InvalidParams, "'session' is required when invoking schaltwerk_session_spec.")
         }
-        const payload = sanitizeSessionSpec(await bridge.getSessionSpec(specArgs.session))
+        const specPayload = await bridge.getSessionSpec(specArgs.session)
+        if (!specPayload) {
+          throw new McpError(ErrorCode.InternalError, `Session spec not found for '${specArgs.session}'.`)
+        }
+        const payload = sanitizeSessionSpec(specPayload)
         response = buildStructuredResponse(payload, {
           summaryText: `Session spec '${specArgs.session}' fetched`,
           jsonFirst: true
@@ -1376,6 +1406,18 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => {
         name: "Spec Content",
         description: "Content of a specific spec session",
         mimeType: "text/markdown"
+      },
+      {
+        uri: "schaltwerk://diff/summary",
+        name: "Diff Summary",
+        description: "Diff summary; add query ?session=<name>&cursor=<c>&page_size=<n>",
+        mimeType: "application/json"
+      },
+      {
+        uri: "schaltwerk://diff/file",
+        name: "Diff Chunk",
+        description: "Diff chunk; add query ?path=<file>&session=<name>&cursor=<c>&line_limit=<n>",
+        mimeType: "application/json"
       }
     ]
   }
@@ -1386,6 +1428,14 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request: { params: { 
 
   try {
     let content: string
+    const parseQuery = (raw: string) => {
+      const url = new URL(raw.replace(/^schaltwerk:\/\//, 'https://dummy/'))
+      const get = (key: string) => {
+        const val = url.searchParams.get(key)
+        return val === null ? undefined : val
+      }
+      return { get }
+    }
 
     switch (uri) {
       case "schaltwerk://sessions": {
@@ -1411,6 +1461,40 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request: { params: { 
       case "schaltwerk://specs": {
         const specs = await bridge.listDraftSessions()
         content = JSON.stringify(specs, null, 2)
+        break
+      }
+
+      case "schaltwerk://diff/summary":
+      case uri.match(/^schaltwerk:\/\/diff\/summary\?.*/)?.input: {
+        const { get } = parseQuery(uri)
+        const session = get('session')
+        const cursor = get('cursor')
+        const pageSize = get('page_size') ? Number(get('page_size')) : undefined
+        const summary = await bridge.getDiffSummary({ session, cursor, pageSize })
+        if (!summary) {
+          throw new McpError(ErrorCode.InternalError, 'Diff summary payload missing')
+        }
+        const payload = sanitizeDiffSummary(summary)
+        content = JSON.stringify(payload, null, 2)
+        break
+      }
+
+      case "schaltwerk://diff/file":
+      case uri.match(/^schaltwerk:\/\/diff\/file\?.*/)?.input: {
+        const { get } = parseQuery(uri)
+        const path = get('path')
+        if (!path) {
+          throw new McpError(ErrorCode.InvalidRequest, "Query parameter 'path' is required for diff/file")
+        }
+        const session = get('session')
+        const cursor = get('cursor')
+        const lineLimit = get('line_limit') ? Number(get('line_limit')) : undefined
+        const chunk = await bridge.getDiffChunk({ session, path, cursor, lineLimit })
+        if (!chunk) {
+          throw new McpError(ErrorCode.InternalError, 'Diff chunk payload missing')
+        }
+        const payload = sanitizeDiffChunk(chunk)
+        content = JSON.stringify(payload, null, 2)
         break
       }
 
