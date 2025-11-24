@@ -95,8 +95,6 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         getMergeStatus,
         autoCancelAfterMerge,
         updateAutoCancelAfterMerge,
-        beginSessionMutation,
-        endSessionMutation,
         isSessionMutating,
     } = useSessions()
     const { isResetting, resettingSelection, resetSession, switchModel } = useSessionManagement()

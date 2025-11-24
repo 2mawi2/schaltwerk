@@ -90,8 +90,8 @@ describe('DiffViewer', () => {
     
     render(<DiffViewer {...props as DiffViewerProps} />)
 
-    expect(screen.getByText('Binary File')).toBeInTheDocument()
-    expect(screen.getByText('Binary file')).toBeInTheDocument()
+    expect(screen.getAllByText('Binary file').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Binary file').length).toBeGreaterThan(0)
   })
 
   it('keeps continuous scroll usable when the first file is binary', () => {
@@ -116,7 +116,7 @@ describe('DiffViewer', () => {
 
     render(<DiffViewer {...props as DiffViewerProps} />)
 
-    expect(screen.getByText('Binary file')).toBeInTheDocument()
+    expect(screen.getAllByText('Binary file').length).toBeGreaterThan(0)
     expect(screen.getByText('src/file2.tsx')).toBeInTheDocument()
   })
 

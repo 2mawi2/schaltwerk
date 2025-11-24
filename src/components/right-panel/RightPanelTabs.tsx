@@ -339,7 +339,7 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
     }
 
     emitUiEvent(UiEvent.OpenDiffView)
-  }, [inlineDiffDefault, setChangesPanelMode, setRightPanelTab])
+  }, [focusDiffArea, inlineDiffDefault, setChangesPanelMode, setRightPanelTab])
 
   // Note: removed Cmd+D toggle to reserve shortcut for New Spec
 
