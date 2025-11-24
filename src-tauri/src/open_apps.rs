@@ -640,9 +640,11 @@ fn find_existing_intellij_bundle() -> Option<std::path::PathBuf> {
         .find(|candidate| candidate.exists())
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "linux"))]
 mod linux_tests {
-    #[cfg(target_os = "linux")]
+    use super::{build_command_linux, resolve_request};
+    use std::path::PathBuf;
+
     #[test]
     fn test_build_command_for_code_with_goto_linux() {
         let req = resolve_request("/repo/root", Some("src/main.rs"), Some(8), Some(2))
@@ -655,7 +657,6 @@ mod linux_tests {
         assert!(spec.args.iter().any(|a| a.ends_with("src/main.rs:8:2")));
     }
 
-    #[cfg(target_os = "linux")]
     #[test]
     fn test_build_command_for_terminal_sets_parent_dir() {
         let req = resolve_request("/repo/root", Some("src/main.rs"), None, None)
