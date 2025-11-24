@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
-use std::process::Command;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 
@@ -58,11 +57,13 @@ impl ProcessInspector for SystemProcessInspector {
                 path,
                 message: e.to_string(),
             })?;
-            return Ok(content.replace('\0', " ").trim().to_string());
+            Ok(content.replace('\0', " ").trim().to_string())
         }
 
         #[cfg(target_os = "macos")]
         {
+            use std::process::Command;
+
             let output = Command::new("ps")
                 .args(["-p", &pid.to_string(), "-o", "command="])
                 .output()
@@ -794,6 +795,8 @@ impl Drop for GlobalInhibitorService {
 
 #[cfg(test)]
 mod tests {
+    use std::process::Command;
+
     use super::*;
     use serial_test::serial;
     use std::collections::HashSet;
@@ -928,7 +931,7 @@ mod tests {
             .handle_session_activity("s1".to_string(), false)
             .await
             .unwrap();
-        let state = service
+        service
             .handle_session_activity("s1".to_string(), true)
             .await
             .unwrap();
