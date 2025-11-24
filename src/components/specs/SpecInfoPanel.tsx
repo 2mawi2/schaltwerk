@@ -1,11 +1,11 @@
 import { useState, useCallback } from 'react'
-import { TauriCommands } from '../../common/tauriCommands'
 import { VscPlay, VscRocket, VscTrash } from 'react-icons/vsc'
-import { invoke } from '@tauri-apps/api/core'
 import { IconButton } from '../common/IconButton'
 import { logger } from '../../utils/logger'
 import { useSessions } from '../../hooks/useSessions'
 import { theme } from '../../common/theme'
+import { emitUiEvent, UiEvent } from '../../common/uiEvents'
+import { getSessionDisplayName } from '../../utils/sessionDisplayName'
 
 interface Props {
   sessionName: string
@@ -15,7 +15,7 @@ export function SpecInfoPanel({ sessionName }: Props) {
   const [starting, setStarting] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const { reloadSessions } = useSessions()
+  const { sessions } = useSessions()
 
   const handleRun = useCallback(async () => {
     try {
@@ -32,19 +32,29 @@ export function SpecInfoPanel({ sessionName }: Props) {
     }
   }, [sessionName])
 
-  const handleDelete = useCallback(async () => {
+  const handleDelete = useCallback(() => {
     try {
       setDeleting(true)
       setError(null)
-      await invoke(TauriCommands.SchaltwerkCoreCancelSession, { name: sessionName })
-      await reloadSessions()
+
+      const session = sessions.find(s => s.info.session_id === sessionName)
+      const sessionDisplayName = session ? getSessionDisplayName(session.info) : sessionName
+
+      emitUiEvent(UiEvent.SessionAction, {
+        action: 'delete-spec',
+        sessionId: sessionName,
+        sessionName,
+        sessionDisplayName,
+        branch: session?.info.branch,
+        hasUncommittedChanges: false,
+      })
     } catch (e: unknown) {
       logger.error('[SpecInfoPanel] Failed to delete spec:', e)
       setError(String(e))
     } finally {
       setDeleting(false)
     }
-  }, [sessionName, reloadSessions])
+  }, [sessionName, sessions])
 
   return (
     <div className="h-full flex items-center justify-center p-6">

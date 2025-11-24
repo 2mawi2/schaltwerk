@@ -8,6 +8,8 @@ import { SessionActions } from '../session/SessionActions'
 import { logger } from '../../utils/logger'
 import { formatDateTime } from '../../utils/dateTime'
 import { useSessions } from '../../hooks/useSessions'
+import { emitUiEvent, UiEvent } from '../../common/uiEvents'
+import { getSessionDisplayName } from '../../utils/sessionDisplayName'
 import { isSessionMissingError } from '../../types/errors'
 
 const METADATA_DATE_OPTIONS: Intl.DateTimeFormatOptions = {
@@ -31,7 +33,7 @@ interface Props {
 export function SpecMetadataPanel({ sessionName }: Props) {
   const [metadata, setMetadata] = useState<SpecMetadata>({})
   const [loading, setLoading] = useState(true)
-  const { reloadSessions } = useSessions()
+  const { sessions } = useSessions()
 
   useEffect(() => {
     const loadMetadata = async () => {
@@ -62,14 +64,19 @@ export function SpecMetadataPanel({ sessionName }: Props) {
     window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-spec', { detail: { name: id } }))
   }, [])
 
-  const handleDeleteSpec = useCallback(async (id: string) => {
-    try {
-      await invoke(TauriCommands.SchaltwerkCoreCancelSession, { name: id })
-      await reloadSessions()
-    } catch (error) {
-      logger.error('[SpecMetadataPanel] Failed to delete spec:', error)
-    }
-  }, [reloadSessions])
+  const handleDeleteSpec = useCallback((id: string) => {
+    const session = sessions.find(s => s.info.session_id === id)
+    const sessionDisplayName = session ? getSessionDisplayName(session.info) : id
+
+    emitUiEvent(UiEvent.SessionAction, {
+      action: 'delete-spec',
+      sessionId: id,
+      sessionName: id,
+      sessionDisplayName,
+      branch: session?.info.branch,
+      hasUncommittedChanges: false,
+    })
+  }, [sessions])
 
   if (loading) {
     return (
