@@ -52,6 +52,7 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
   const [changesPanelMode, setChangesPanelMode] = useState<'list' | 'review'>('list')
   const [activeChangesFile, setActiveChangesFile] = useState<string | null>(null)
   const [inlineDiffDefault, setInlineDiffDefault] = useState<boolean | null>(null)
+  const diffContainerRef = useRef<HTMLDivElement>(null)
 
   const specModeHook = useSpecMode({
     projectPath,
@@ -173,6 +174,11 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
   // Update local focus state when global focus changes
   useEffect(() => {
     setLocalFocus(currentFocus === 'diff')
+    if (currentFocus === 'diff') {
+      setTimeout(() => {
+        diffContainerRef.current?.focus()
+      }, 0)
+    }
   }, [currentFocus])
 
   // Keyboard shortcut for focusing Specs tab
@@ -277,14 +283,33 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
     return cleanup
   }, [setRightPanelTab])
 
+  const focusDiffArea = useCallback(() => {
+    const sessionKey = effectiveSelection.kind === 'orchestrator' ? 'orchestrator' : effectiveSelection.payload || 'unknown'
+    setFocusForSession(sessionKey, 'diff')
+    setLocalFocus(true)
+    setTimeout(() => {
+      diffContainerRef.current?.focus()
+    }, 0)
+  }, [effectiveSelection, setFocusForSession])
+
   useEffect(() => {
     const cleanup = listenUiEvent(UiEvent.OpenInlineDiffView, () => {
       void setRightPanelTab('changes')
+
+      // Toggle back to list when review is already open
+      if (activeTab === 'changes' && changesPanelMode === 'review') {
+        setChangesPanelMode('list')
+        setActiveChangesFile(null)
+        focusDiffArea()
+        return
+      }
+
       setChangesPanelMode('review')
+      focusDiffArea()
     })
 
     return cleanup
-  }, [setRightPanelTab])
+  }, [activeTab, changesPanelMode, focusDiffArea, setRightPanelTab])
 
   // When selection becomes orchestrator and we have a pending spec, open it
   useEffect(() => {
@@ -296,9 +321,7 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
   }, [effectiveSelection.kind, pendingSpecToOpen, openSpecInWorkspace])
   
   const handlePanelClick = () => {
-    const sessionKey = effectiveSelection.kind === 'orchestrator' ? 'orchestrator' : effectiveSelection.payload || 'unknown'
-    setFocusForSession(sessionKey, 'diff')
-    setLocalFocus(true)
+    focusDiffArea()
   }
 
   const handleOpenDiff = useCallback((filePath?: string | null) => {
@@ -311,6 +334,7 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
     if (inlineDiffDefault ?? true) {
       void setRightPanelTab('changes')
       setChangesPanelMode('review')
+      focusDiffArea()
       return
     }
 
@@ -335,6 +359,9 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
 
   return (
     <div 
+      ref={diffContainerRef}
+      tabIndex={-1}
+      data-testid="right-panel-container"
       className={`h-full flex flex-col bg-panel border-2 rounded ${localFocus ? 'border-cyan-400/60 shadow-lg shadow-cyan-400/20' : 'border-slate-800/50'}`}
       onClick={handlePanelClick}
     >
