@@ -17,7 +17,6 @@ import { GithubMenuButton } from './github/GithubMenuButton'
 import { WindowControls } from './WindowControls'
 import { getPlatform } from '../utils/platform'
 import { detectPlatformSafe } from '../keyboardShortcuts/helpers'
-import { GlobalKeepAwakeButton } from './GlobalKeepAwakeButton'
 
 type UiPlatform = 'mac' | 'linux' | 'windows'
 
