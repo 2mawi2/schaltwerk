@@ -12,6 +12,7 @@ import {
   CallToolRequest,
 } from "@modelcontextprotocol/sdk/types.js"
 import { SchaltwerkBridge, Session, MergeModeOption } from "./schaltwerk-bridge.js"
+import { toolOutputSchemas } from "./schemas.js"
 
 const DEFAULT_AGENT = 'claude'
 
@@ -120,6 +121,84 @@ const bridge = new SchaltwerkBridge()
   // - Send follow-up messages for merge issues, don't force problematic merges
   // - Git recovery: commits can be recovered from git cat-file, uncommitted changes are lost
 
+type TextContent = { type: "text"; text: string; mimeType?: string }
+const JSON_MIME = "application/json"
+
+const structuredContentEnabled = () => {
+  const flag = process.env.SCHALTWERK_STRUCTURED_CONTENT
+  return flag === undefined || flag.toLowerCase() === 'true' || flag === '1'
+}
+
+const jsonArrayCompatEnabled = () => {
+  const flag = process.env.SCHALTWERK_JSON_ARRAY_COMPAT
+  return flag !== undefined && (flag.toLowerCase() === 'true' || flag === '1')
+}
+
+function buildStructuredResponse(
+  structured: unknown,
+  options?: { summaryText?: string; jsonFirst?: boolean; mimeType?: string; includeStructured?: boolean }
+) {
+  const includeStructured = options?.includeStructured ?? structuredContentEnabled()
+  const mimeType = options?.mimeType ?? JSON_MIME
+  const contentEntries: TextContent[] = []
+  const jsonEntry: TextContent = { type: "text", text: JSON.stringify(structured, null, 2), mimeType }
+
+  if (options?.jsonFirst) {
+    contentEntries.push(jsonEntry)
+  }
+
+  if (options?.summaryText) {
+    contentEntries.push({ type: "text", text: options.summaryText })
+  }
+
+  if (!options?.jsonFirst) {
+    contentEntries.push(jsonEntry)
+  }
+
+  return includeStructured
+    ? { structuredContent: structured, content: contentEntries }
+    : { content: contentEntries }
+}
+
+const sanitizeSpecDocument = (payload: any) => ({
+  session_id: payload.session_id,
+  display_name: payload.display_name ?? undefined,
+  content: payload.content,
+  content_length: payload.content_length,
+  updated_at: payload.updated_at
+})
+
+const sanitizeSpecSummary = (payload: any) => ({
+  session_id: payload.session_id,
+  display_name: payload.display_name ?? undefined,
+  content_length: payload.content_length,
+  updated_at: payload.updated_at
+})
+
+const sanitizeSessionSpec = (payload: any) => ({
+  session_id: payload.session_id,
+  content: payload.content,
+  updated_at: payload.updated_at
+})
+
+const sanitizeDiffSummary = (payload: any) => ({
+  scope: payload.scope,
+  session_id: payload.session_id ?? null,
+  branch_info: payload.branch_info,
+  has_spec: payload.has_spec,
+  files: payload.files,
+  paging: payload.paging
+})
+
+const sanitizeDiffChunk = (payload: any) => ({
+  file: payload.file,
+  branch_info: payload.branch_info,
+  stats: payload.stats,
+  is_binary: payload.is_binary,
+  lines: payload.lines,
+  paging: payload.paging
+})
+
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
     tools: [
@@ -152,7 +231,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             }
           },
           required: ["name", "prompt"]
-        }
+        },
+        outputSchema: toolOutputSchemas.schaltwerk_create
       },
       {
         name: "schaltwerk_list",
@@ -173,7 +253,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             }
           },
           additionalProperties: false
-        }
+        },
+        outputSchema: toolOutputSchemas.schaltwerk_list
       },
       {
         name: "schaltwerk_send_message",
@@ -191,7 +272,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             }
           },
           required: ["session_name", "message"]
-        }
+        },
+        outputSchema: toolOutputSchemas.schaltwerk_send_message
       },
       {
         name: "schaltwerk_cancel",
@@ -210,7 +292,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             }
           },
           required: ["session_name"]
-        }
+        },
+        outputSchema: toolOutputSchemas.schaltwerk_cancel
       },
       {
         name: "schaltwerk_spec_create",
@@ -232,7 +315,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             }
           },
           additionalProperties: false
-        }
+        },
+        outputSchema: toolOutputSchemas.schaltwerk_spec_create
       },
       {
         name: "schaltwerk_draft_update",
@@ -255,7 +339,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             }
           },
           required: ["session_name", "content"]
-        }
+        },
+        outputSchema: toolOutputSchemas.schaltwerk_draft_update
       },
       {
         name: "schaltwerk_current_spec_update",
@@ -274,7 +359,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             }
           },
           required: ["content"]
-        }
+        },
+        outputSchema: toolOutputSchemas.schaltwerk_current_spec_update
       },
       {
         name: "schaltwerk_spec_list",
@@ -282,7 +368,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: {
           type: "object",
           additionalProperties: false
-        }
+        },
+        outputSchema: toolOutputSchemas.schaltwerk_spec_list
       },
       {
         name: "schaltwerk_spec_read",
@@ -297,7 +384,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           },
           required: ["session"],
           additionalProperties: false
-        }
+        },
+        outputSchema: toolOutputSchemas.schaltwerk_spec_read
       },
       {
         name: "schaltwerk_diff_summary",
@@ -320,7 +408,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             }
           },
           additionalProperties: false
-        }
+        },
+        outputSchema: toolOutputSchemas.schaltwerk_diff_summary
       },
       {
         name: "schaltwerk_diff_chunk",
@@ -348,7 +437,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           },
           required: ["path"],
           additionalProperties: false
-        }
+        },
+        outputSchema: toolOutputSchemas.schaltwerk_diff_chunk
       },
       {
         name: "schaltwerk_session_spec",
@@ -363,7 +453,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           },
           required: ["session"],
           additionalProperties: false
-        }
+        },
+        outputSchema: toolOutputSchemas.schaltwerk_session_spec
       },
       {
         name: "schaltwerk_draft_start",
@@ -391,7 +482,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             }
           },
           required: ["session_name"]
-        }
+        },
+        outputSchema: toolOutputSchemas.schaltwerk_draft_start
       },
       {
         name: "schaltwerk_draft_list",
@@ -406,7 +498,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             }
           },
           additionalProperties: false
-        }
+        },
+        outputSchema: toolOutputSchemas.schaltwerk_draft_list
       },
       {
         name: "schaltwerk_draft_delete",
@@ -420,7 +513,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             }
           },
           required: ["session_name"]
-        }
+        },
+        outputSchema: toolOutputSchemas.schaltwerk_draft_delete
       },
       {
         name: "schaltwerk_mark_session_reviewed",
@@ -434,7 +528,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             }
           },
           required: ["session_name"]
-        }
+        },
+        outputSchema: toolOutputSchemas.schaltwerk_mark_session_reviewed
       },
       {
         name: "schaltwerk_convert_to_spec",
@@ -448,7 +543,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             }
           },
           required: ["session_name"]
-        }
+        },
+        outputSchema: toolOutputSchemas.schaltwerk_convert_to_spec
       },
       {
         name: "schaltwerk_merge_session",
@@ -475,7 +571,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             }
           },
           required: ["session_name"]
-        }
+        },
+        outputSchema: toolOutputSchemas.schaltwerk_merge_session
       },
       {
         name: "schaltwerk_create_pr",
@@ -511,7 +608,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             }
           },
           required: ["session_name"]
-        }
+        },
+        outputSchema: toolOutputSchemas.schaltwerk_create_pr
       },
       {
         name: "schaltwerk_get_current_tasks",
@@ -541,7 +639,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             }
           },
           additionalProperties: false
-        }
+        },
+        outputSchema: toolOutputSchemas.schaltwerk_get_current_tasks
       }
     ]
   }
@@ -551,14 +650,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
   const { name, arguments: args } = request.params
 
   try {
-    let result: string
-    let resultMimeType: string | undefined
+    let response: { structuredContent: unknown; content: TextContent[] }
 
     switch (name) {
       case "schaltwerk_spec_list": {
         const payload = await bridge.listSpecSummaries()
-        result = JSON.stringify({ specs: payload }, null, 2)
-        resultMimeType = "application/json"
+        const structured = { specs: payload.map(sanitizeSpecSummary) }
+        response = buildStructuredResponse(structured, {
+          summaryText: `Spec summaries returned (${payload.length})`,
+          jsonFirst: true
+        })
         break
       }
 
@@ -567,21 +668,25 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
         if (!specArgs.session || specArgs.session.trim().length === 0) {
           throw new McpError(ErrorCode.InvalidParams, "'session' is required when invoking schaltwerk_spec_read.")
         }
-        const payload = await bridge.getSpecDocument(specArgs.session)
-        result = JSON.stringify(payload, null, 2)
-        resultMimeType = "application/json"
+        const payload = sanitizeSpecDocument(await bridge.getSpecDocument(specArgs.session))
+        response = buildStructuredResponse(payload, {
+          summaryText: `Spec '${specArgs.session}' loaded`,
+          jsonFirst: true
+        })
         break
       }
 
       case "schaltwerk_diff_summary": {
         const diffArgs = args as { session?: string; cursor?: string; page_size?: number }
-        const payload = await bridge.getDiffSummary({
+        const payload = sanitizeDiffSummary(await bridge.getDiffSummary({
           session: diffArgs.session,
           cursor: diffArgs.cursor,
           pageSize: diffArgs.page_size,
+        }))
+        response = buildStructuredResponse(payload, {
+          summaryText: `Diff summary ready for ${diffArgs.session ?? 'orchestrator'}`,
+          jsonFirst: true
         })
-        result = JSON.stringify(payload, null, 2)
-        resultMimeType = "application/json"
         break
       }
 
@@ -595,14 +700,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
           ? Math.min(diffArgs.line_limit, 1000)
           : undefined
 
-        const payload = await bridge.getDiffChunk({
+        const payload = sanitizeDiffChunk(await bridge.getDiffChunk({
           session: diffArgs.session,
           path: diffArgs.path,
           cursor: diffArgs.cursor,
           lineLimit: cappedLineLimit,
+        }))
+        response = buildStructuredResponse(payload, {
+          summaryText: `Diff chunk for ${diffArgs.path}`,
+          jsonFirst: true
         })
-        result = JSON.stringify(payload, null, 2)
-        resultMimeType = "application/json"
         break
       }
 
@@ -611,28 +718,45 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
         if (!specArgs.session || specArgs.session.trim().length === 0) {
           throw new McpError(ErrorCode.InvalidParams, "'session' is required when invoking schaltwerk_session_spec.")
         }
-        const payload = await bridge.getSessionSpec(specArgs.session)
-        result = JSON.stringify(payload, null, 2)
-        resultMimeType = "application/json"
+        const payload = sanitizeSessionSpec(await bridge.getSessionSpec(specArgs.session))
+        response = buildStructuredResponse(payload, {
+          summaryText: `Session spec '${specArgs.session}' fetched`,
+          jsonFirst: true
+        })
         break
       }
 
       case "schaltwerk_create": {
         const createArgs = args as SchaltwerkStartArgs
-        
+
         if (createArgs.is_draft) {
           const session = await bridge.createSpecSession(
             createArgs.name || `draft_${Date.now()}`,
             createArgs.draft_content || createArgs.prompt,
             createArgs.base_branch
           )
-          
-          result = `Spec session created successfully:
+
+          const contentLength = session.draft_content?.length || session.spec_content?.length || 0
+          const structured = {
+            type: "spec",
+            status: "created",
+            session: {
+              name: session.name,
+              branch: session.branch,
+              parent_branch: session.parent_branch,
+              worktree_path: session.worktree_path || null,
+              content_length: contentLength
+            }
+          }
+
+          const summary = `Spec session created successfully:
 - Name: ${session.name}
 - Branch: ${session.branch} (will be created when started)
 - Base Branch: ${session.parent_branch}
-- Content Length: ${session.draft_content?.length || 0} characters
+- Content Length: ${contentLength} characters
 - Status: Spec (ready for refinement)`
+
+          response = buildStructuredResponse(structured, { summaryText: summary })
         } else {
           const session = await bridge.createSession(
             createArgs.name || `mcp_session_${Date.now()}`,
@@ -642,75 +766,102 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
             createArgs.skip_permissions
           )
 
-          result = `Session created successfully:
+          const structured = {
+            type: "session",
+            status: "created",
+            session: {
+              name: session.name,
+              branch: session.branch,
+              worktree_path: session.worktree_path,
+              parent_branch: session.parent_branch,
+              agent_type: createArgs.agent_type || DEFAULT_AGENT,
+              ready_to_merge: session.ready_to_merge ?? false
+            }
+          }
+
+          const summary = `Session created successfully:
 - Name: ${session.name}
 - Branch: ${session.branch}
 - Worktree: ${session.worktree_path}
 - Agent: ${createArgs.agent_type || DEFAULT_AGENT}
 - Base Branch: ${session.parent_branch}
 ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
+
+          response = buildStructuredResponse(structured, { summaryText: summary })
         }
         break
       }
 
       case "schaltwerk_list": {
         const listArgs = args as SchaltwerkListArgs
-        
+
         const sessions = await bridge.listSessionsByState(listArgs.filter)
-        
-        if (listArgs.json) {
-          // Return only essential fields for LLM session management
-          const essentialSessions = sessions.map(s => ({
-            name: s.name,
-            display_name: s.display_name || s.name,
-            status: s.status === 'spec' ? 'spec' : (s.ready_to_merge ? 'reviewed' : 'new'),
-            session_state: s.session_state,
-            ready_to_merge: s.ready_to_merge || false,
-            created_at: s.created_at && !isNaN(new Date(s.created_at).getTime()) ? new Date(s.created_at).toISOString() : null,
-            last_activity: s.last_activity && !isNaN(new Date(s.last_activity).getTime()) ? new Date(s.last_activity).toISOString() : null,
-            agent_type: s.original_agent_type || DEFAULT_AGENT,
-            branch: s.branch,
-            worktree_path: s.worktree_path,
-            initial_prompt: s.initial_prompt || null,
-            draft_content: s.draft_content || null
-          }))
-          result = JSON.stringify(essentialSessions, null, 2)
+
+        const structuredSessions = sessions.map(s => ({
+          name: s.name,
+          display_name: s.display_name || s.name,
+          status: s.status === 'spec' ? 'spec' : (s.ready_to_merge ? 'reviewed' : 'new'),
+          session_state: s.session_state || null,
+          ready_to_merge: s.ready_to_merge || false,
+          created_at: s.created_at && !isNaN(new Date(s.created_at).getTime()) ? new Date(s.created_at).toISOString() : null,
+          last_activity: s.last_activity && !isNaN(new Date(s.last_activity).getTime()) ? new Date(s.last_activity).toISOString() : null,
+          agent_type: s.original_agent_type || DEFAULT_AGENT,
+          branch: s.branch || null,
+          worktree_path: s.worktree_path || null,
+          initial_prompt: s.initial_prompt || null,
+          draft_content: s.draft_content || null
+        }))
+
+        const jsonPayload = jsonArrayCompatEnabled() ? structuredSessions : { sessions: structuredSessions }
+
+        let summary: string
+        if (sessions.length === 0) {
+          summary = 'No sessions found'
+        } else if (listArgs.json) {
+          summary = `Sessions (${sessions.length}) returned`
         } else {
-          if (sessions.length === 0) {
-            result = 'No sessions found'
-          } else {
-            // Format as human-readable text
-            const lines = sessions.map((s: Session) => {
-              if (s.status === 'spec') {
-                const created = s.created_at && !isNaN(new Date(s.created_at).getTime()) ? new Date(s.created_at).toLocaleDateString() : 'unknown'
-                const contentLength = s.draft_content?.length || 0
-                const name = s.display_name || s.name
-                return `[PLAN] ${name} - Created: ${created}, Content: ${contentLength} chars`
-              } else {
-                const reviewed = s.ready_to_merge ? '[REVIEWED]' : '[NEW]'
-                const agent = s.original_agent_type || 'unknown'
-                const modified = s.last_activity && !isNaN(new Date(s.last_activity).getTime()) ? new Date(s.last_activity).toLocaleString() : 'never'
-                const name = s.display_name || s.name
-                return `${reviewed} ${name} - Agent: ${agent}, Modified: ${modified}`
-              }
-            })
-            
-            const filterLabel = listArgs.filter ? ` (${listArgs.filter})` : ''
-            result = `Sessions${filterLabel} (${sessions.length}):\n${lines.join('\n')}`
-          }
+          const lines = sessions.map((s: Session) => {
+            if (s.status === 'spec') {
+              const created = s.created_at && !isNaN(new Date(s.created_at).getTime()) ? new Date(s.created_at).toLocaleDateString() : 'unknown'
+              const contentLength = s.draft_content?.length || 0
+              const nameLabel = s.display_name || s.name
+              return `[PLAN] ${nameLabel} - Created: ${created}, Content: ${contentLength} chars`
+            } else {
+              const reviewed = s.ready_to_merge ? '[REVIEWED]' : '[NEW]'
+              const agent = s.original_agent_type || 'unknown'
+              const modified = s.last_activity && !isNaN(new Date(s.last_activity).getTime()) ? new Date(s.last_activity).toLocaleString() : 'never'
+              const nameLabel = s.display_name || s.name
+              return `${reviewed} ${nameLabel} - Agent: ${agent}, Modified: ${modified}`
+            }
+          })
+
+          const filterLabel = listArgs.filter ? ` (${listArgs.filter})` : ''
+          summary = `Sessions${filterLabel} (${sessions.length}):\n${lines.join('\n')}`
         }
+
+        response = buildStructuredResponse(jsonPayload, {
+          summaryText: summary,
+          jsonFirst: listArgs.json ?? false
+        })
         break
       }
 
       case "schaltwerk_send_message": {
         const sendMessageArgs = args as unknown as SchaltwerkSendMessageArgs
-        
+
         await bridge.sendFollowUpMessage(
           sendMessageArgs.session_name,
           sendMessageArgs.message
         )
-        
-        result = `Message sent to session '${sendMessageArgs.session_name}': ${sendMessageArgs.message}`
+
+        const structured = {
+          session: sendMessageArgs.session_name,
+          status: "sent",
+          message: sendMessageArgs.message
+        }
+
+        const summary = `Message sent to session '${sendMessageArgs.session_name}': ${sendMessageArgs.message}`
+        response = buildStructuredResponse(structured, { summaryText: summary })
         break
       }
 
@@ -719,7 +870,14 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
 
         await bridge.cancelSession(cancelArgs.session_name, cancelArgs.force)
 
-        result = `Session '${cancelArgs.session_name}' has been cancelled and removed`
+        const structured = {
+          session: cancelArgs.session_name,
+          cancelled: true,
+          force: cancelArgs.force ?? false
+        }
+
+        const summary = `Session '${cancelArgs.session_name}' has been cancelled and removed`
+        response = buildStructuredResponse(structured, { summaryText: summary })
         break
       }
 
@@ -732,122 +890,171 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
           specCreateArgs.base_branch
         )
 
-        result = `Spec session created successfully:
+        const contentLength = session.spec_content?.length || session.draft_content?.length || 0
+        const structured = {
+          type: "spec",
+          status: "created",
+          session: {
+            name: session.name,
+            branch: session.branch,
+            parent_branch: session.parent_branch,
+            content_length: contentLength
+          }
+        }
+
+        const summary = `Spec session created successfully:
 - Name: ${session.name}
 - Branch: ${session.branch} (will be created when started)
 - Base Branch: ${session.parent_branch}
-- Content Length: ${session.spec_content?.length || 0} characters
+- Content Length: ${contentLength} characters
 - Status: Spec (ready for refinement)`
+        response = buildStructuredResponse(structured, { summaryText: summary })
         break
       }
 
       case "schaltwerk_draft_update": {
         const draftUpdateArgs = args as unknown as SchaltwerkDraftUpdateArgs
-        
+
         await bridge.updateDraftContent(
           draftUpdateArgs.session_name,
           draftUpdateArgs.content,
           draftUpdateArgs.append
         )
-        
-        const contentPreview = draftUpdateArgs.content.length > 100 
+
+        const contentPreview = draftUpdateArgs.content.length > 100
           ? draftUpdateArgs.content.substring(0, 100) + '...'
           : draftUpdateArgs.content
-        
-        result = `Spec '${draftUpdateArgs.session_name}' updated successfully.
+
+        const structured = {
+          session: draftUpdateArgs.session_name,
+          updated: true,
+          append: draftUpdateArgs.append ?? false,
+          content_length: draftUpdateArgs.content.length,
+          content_preview: contentPreview
+        }
+
+        const summary = `Spec '${draftUpdateArgs.session_name}' updated successfully.
 - Update Mode: ${draftUpdateArgs.append ? 'Append' : 'Replace'}
 - Content Preview: ${contentPreview}`
+        response = buildStructuredResponse(structured, { summaryText: summary })
         break
       }
 
       case "schaltwerk_current_spec_update": {
         const currentSpecUpdateArgs = args as unknown as SchaltwerkCurrentSpecUpdateArgs
-        
-        // Get the currently active spec in Spec Mode
+
         const currentSpec = await bridge.getCurrentSpecModeSession()
         if (!currentSpec) {
-          result = 'Spec mode session tracking not yet implemented. Please use schaltwerk_draft_update with explicit session name instead.\n\nAlternatively, check available specs with schaltwerk_draft_list first.'
+          const structured = { status: "no_current_spec" }
+          const summary = 'Spec mode session tracking not yet implemented. Please use schaltwerk_draft_update with explicit session name instead.\n\nAlternatively, check available specs with schaltwerk_draft_list first.'
+          response = buildStructuredResponse(structured, { summaryText: summary })
           break
         }
-        
+
         await bridge.updateDraftContent(
           currentSpec,
           currentSpecUpdateArgs.content,
           currentSpecUpdateArgs.append
         )
-        
-        const contentPreview = currentSpecUpdateArgs.content.length > 100 
+
+        const contentPreview = currentSpecUpdateArgs.content.length > 100
           ? currentSpecUpdateArgs.content.substring(0, 100) + '...'
           : currentSpecUpdateArgs.content
-        
-        result = `Current spec '${currentSpec}' updated successfully.
+
+        const structured = {
+          status: "updated",
+          session: currentSpec,
+          updated: true,
+          append: currentSpecUpdateArgs.append ?? false,
+          content_length: currentSpecUpdateArgs.content.length,
+          content_preview: contentPreview
+        }
+
+        const summary = `Current spec '${currentSpec}' updated successfully.
 - Update Mode: ${currentSpecUpdateArgs.append ? 'Append' : 'Replace'}
 - Content Preview: ${contentPreview}`
+        response = buildStructuredResponse(structured, { summaryText: summary })
         break
       }
 
       case "schaltwerk_draft_start": {
         const draftStartArgs = args as unknown as SchaltwerkDraftStartArgs
-        
+
         await bridge.startDraftSession(
           draftStartArgs.session_name,
           draftStartArgs.agent_type,
           draftStartArgs.skip_permissions,
           draftStartArgs.base_branch
         )
-        
-        result = `Spec '${draftStartArgs.session_name}' started successfully:
+
+        const structured = {
+          session: draftStartArgs.session_name,
+          started: true,
+          agent_type: draftStartArgs.agent_type || DEFAULT_AGENT,
+          skip_permissions: draftStartArgs.skip_permissions || false,
+          base_branch: draftStartArgs.base_branch || null
+        }
+
+        const summary = `Spec '${draftStartArgs.session_name}' started successfully:
 - Agent Type: ${draftStartArgs.agent_type || DEFAULT_AGENT}
 - Skip Permissions: ${draftStartArgs.skip_permissions || false}
 - Status: Active (worktree created, agent ready)`
+        response = buildStructuredResponse(structured, { summaryText: summary })
         break
       }
 
       case "schaltwerk_draft_list": {
         const draftListArgs = args as SchaltwerkDraftListArgs
-        
+
         const specs = await bridge.listDraftSessions()
-        
-        if (draftListArgs.json) {
-          const essentialDrafts = specs.map(d => ({
-            name: d.name,
-            display_name: d.display_name || d.name,
-            created_at: d.created_at ? new Date(d.created_at).toISOString() : null,
-            updated_at: d.updated_at ? new Date(d.updated_at).toISOString() : null,
-            base_branch: d.parent_branch,
-            content_length: d.draft_content?.length || 0,
-            content_preview: d.draft_content?.substring(0, 200) || ''
-          }))
-          result = JSON.stringify(essentialDrafts, null, 2)
+
+        const essentialDrafts = specs.map(d => ({
+          name: d.name,
+          display_name: d.display_name || d.name,
+          created_at: d.created_at ? new Date(d.created_at).toISOString() : null,
+          updated_at: d.updated_at ? new Date(d.updated_at).toISOString() : null,
+          base_branch: d.parent_branch || null,
+          content_length: d.draft_content?.length || 0,
+          content_preview: d.draft_content?.substring(0, 200) || ''
+        }))
+
+        let summary: string
+        if (specs.length === 0) {
+          summary = 'No spec sessions found'
+        } else if (draftListArgs.json) {
+          summary = `Spec sessions returned (${specs.length})`
         } else {
-          if (specs.length === 0) {
-            result = 'No spec sessions found'
-          } else {
-            const lines = specs.map((d: Session) => {
-              const name = d.display_name || d.name
-              const created = d.created_at ? new Date(d.created_at).toLocaleDateString() : 'unknown'
-              const updated = d.updated_at ? new Date(d.updated_at).toLocaleDateString() : 'unknown'
-              const contentLength = d.draft_content?.length || 0
-              const preview = d.draft_content?.substring(0, 50)?.replace(/\n/g, ' ') || '(empty)'
-              
-              return `${name}:
+          const lines = specs.map((d: Session) => {
+            const nameLabel = d.display_name || d.name
+            const created = d.created_at ? new Date(d.created_at).toLocaleDateString() : 'unknown'
+            const updated = d.updated_at ? new Date(d.updated_at).toLocaleDateString() : 'unknown'
+            const contentLength = d.draft_content?.length || 0
+            const preview = d.draft_content?.substring(0, 50)?.replace(/\n/g, ' ') || '(empty)'
+
+            return `${nameLabel}:
   - Created: ${created}, Updated: ${updated}
   - Content: ${contentLength} chars
   - Preview: ${preview}${contentLength > 50 ? '...' : ''}`
-            })
-            
-            result = `Spec Sessions (${specs.length}):\n\n${lines.join('\n\n')}`
-          }
+          })
+
+          summary = `Spec Sessions (${specs.length}):\n\n${lines.join('\n\n')}`
         }
+
+        response = buildStructuredResponse({ specs: essentialDrafts }, {
+          summaryText: summary,
+          jsonFirst: draftListArgs.json ?? false
+        })
         break
       }
 
       case "schaltwerk_draft_delete": {
         const draftDeleteArgs = args as unknown as SchaltwerkDraftDeleteArgs
-        
+
         await bridge.deleteDraftSession(draftDeleteArgs.session_name)
-        
-        result = `Spec session '${draftDeleteArgs.session_name}' has been deleted permanently`
+
+        const structured = { session: draftDeleteArgs.session_name, deleted: true }
+        const summary = `Spec session '${draftDeleteArgs.session_name}' has been deleted permanently`
+        response = buildStructuredResponse(structured, { summaryText: summary })
         break
       }
 
@@ -857,14 +1064,12 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
           status_filter?: 'spec' | 'active' | 'reviewed' | 'all',
           content_preview_length?: number
         }
-        
-        // Default to minimal fields if not specified
+
         const requestedFields = taskArgs.fields || ['name', 'status', 'session_state', 'branch']
         const includeAll = requestedFields.includes('all')
-        
+
         let agents = await bridge.getCurrentTasks()
-        
-        // Apply status filter
+
         if (taskArgs.status_filter && taskArgs.status_filter !== 'all') {
           agents = agents.filter(t => {
             switch (taskArgs.status_filter) {
@@ -879,14 +1084,12 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
             }
           })
         }
-        
-        // Build response with only requested fields
+
         const formattedTasks = agents.map(t => {
           const agent: Record<string, unknown> = {
-            name: t.name // Always include name
+            name: t.name
           }
-          
-          // Add requested fields
+
           if (includeAll || requestedFields.includes('display_name')) {
             agent.display_name = t.display_name || t.name
           }
@@ -917,8 +1120,7 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
           if (includeAll || requestedFields.includes('skip_permissions')) {
             agent.skip_permissions = t.original_skip_permissions ?? null
           }
-          
-          // Handle content fields with optional preview
+
           if (includeAll || requestedFields.includes('initial_prompt')) {
             let prompt = t.initial_prompt || null
             if (prompt && taskArgs.content_preview_length && prompt.length > taskArgs.content_preview_length) {
@@ -926,7 +1128,7 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
             }
             agent.initial_prompt = prompt
           }
-          
+
           if (includeAll || requestedFields.includes('draft_content')) {
             let content = t.draft_content || null
             if (content && taskArgs.content_preview_length && content.length > taskArgs.content_preview_length) {
@@ -934,29 +1136,38 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
             }
             agent.draft_content = content
           }
-          
+
           return agent
         })
-        
-        result = JSON.stringify(formattedTasks, null, 2)
+
+        const jsonPayload = jsonArrayCompatEnabled() ? formattedTasks : { tasks: formattedTasks }
+
+        response = buildStructuredResponse(jsonPayload, {
+          summaryText: `Current tasks returned (${formattedTasks.length})`,
+          jsonFirst: true
+        })
         break
        }
 
-       case "schaltwerk_mark_session_reviewed": {
-         const markReviewedArgs = args as unknown as SchaltwerkMarkReviewedArgs
+      case "schaltwerk_mark_session_reviewed": {
+        const markReviewedArgs = args as unknown as SchaltwerkMarkReviewedArgs
 
-         await bridge.markSessionReviewed(markReviewedArgs.session_name)
+        await bridge.markSessionReviewed(markReviewedArgs.session_name)
 
-       result = `Session '${markReviewedArgs.session_name}' has been marked as reviewed and is ready for merge`
+        const structured = { session: markReviewedArgs.session_name, reviewed: true }
+        const summary = `Session '${markReviewedArgs.session_name}' has been marked as reviewed and is ready for merge`
+        response = buildStructuredResponse(structured, { summaryText: summary })
         break
       }
 
-       case "schaltwerk_convert_to_spec": {
+      case "schaltwerk_convert_to_spec": {
         const convertToSpecArgs = args as unknown as SchaltwerkConvertToSpecArgs
 
         await bridge.convertToSpec(convertToSpecArgs.session_name)
 
-        result = `Session '${convertToSpecArgs.session_name}' has been converted back to spec state for rework`
+        const structured = { session: convertToSpecArgs.session_name, converted: true }
+        const summary = `Session '${convertToSpecArgs.session_name}' has been converted back to spec state for rework`
+        response = buildStructuredResponse(structured, { summaryText: summary })
         break
       }
 
@@ -980,18 +1191,32 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
           cancelAfterMerge: mergeArgs.cancel_after_merge
         })
 
+        const structured = {
+          session: mergeArgs.session_name,
+          merged: true,
+          mode: mergeResult.mode,
+          parent_branch: mergeResult.parentBranch,
+          session_branch: mergeResult.sessionBranch,
+          commit: mergeResult.commit,
+          cancel_requested: mergeResult.cancelRequested,
+          cancel_queued: mergeResult.cancelQueued,
+          cancel_error: mergeResult.cancelError ?? null
+        }
+
         const cancelLine = mergeResult.cancelRequested
           ? (mergeResult.cancelQueued
               ? '- Session cancellation queued (cleanup runs asynchronously).'
               : `- Cancellation requested but failed: ${mergeResult.cancelError ?? 'unknown error'}`)
           : '- Session retained (cancel_after_merge=false).'
 
-        result = `Merge completed for '${mergeArgs.session_name}':
+        const summary = `Merge completed for '${mergeArgs.session_name}':
 - Merge mode: ${mergeResult.mode}
 - Parent branch: ${mergeResult.parentBranch}
 - Session branch: ${mergeResult.sessionBranch}
 - Merge commit: ${mergeResult.commit}
 ${cancelLine}`
+
+        response = buildStructuredResponse(structured, { summaryText: summary })
         break
       }
 
@@ -1015,16 +1240,27 @@ ${cancelLine}`
           ? `- Pull request URL: ${prResult.url}`
           : '- GitHub CLI opened the PR form in a browser (no URL returned).'
 
+        const structured = {
+          session: prArgs.session_name,
+          branch: prResult.branch,
+          pr_url: prResult.url || null,
+          cancel_requested: prResult.cancelRequested,
+          cancel_queued: prResult.cancelQueued,
+          cancel_error: prResult.cancelError ?? null
+        }
+
         const cancelLine = prResult.cancelRequested
           ? (prResult.cancelQueued
               ? '- Session cancellation queued (cleanup runs asynchronously).'
               : `- Cancellation requested but failed: ${prResult.cancelError ?? 'unknown error'}`)
           : '- Session retained (cancel_after_pr=false).'
 
-        result = `Pull request workflow completed for '${prArgs.session_name}':
+        const summary = `Pull request workflow completed for '${prArgs.session_name}':
 - Branch pushed: ${prResult.branch}
 ${urlLine}
 ${cancelLine}`
+
+        response = buildStructuredResponse(structured, { summaryText: summary })
         break
       }
 
@@ -1032,17 +1268,7 @@ ${cancelLine}`
         throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`)
     }
 
-    const contentEntry: { type: string; text: string; mimeType?: string } = {
-      type: "text",
-      text: result
-    }
-    if (resultMimeType) {
-      contentEntry.mimeType = resultMimeType
-    }
-
-    return {
-      content: [contentEntry]
-    }
+    return response
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     throw new McpError(ErrorCode.InternalError, `Tool execution failed: ${errorMessage}`)
