@@ -1449,16 +1449,17 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                             runRefineSpecFlow(sessionId, displayName)
                                         }}
                                         onDeleteSpec={(sessionId) => {
-                                            beginSessionMutation(sessionId, 'remove')
-                                            void (async () => {
-                                                try {
-                                                    await invoke(TauriCommands.SchaltwerkCoreCancelSession, { name: sessionId })
-                                                } catch (err) {
-                                                    logger.error('Failed to delete spec:', err)
-                                                } finally {
-                                                    endSessionMutation(sessionId, 'remove')
-                                                }
-                                            })()
+                                            const session = sessions.find(s => s.info.session_id === sessionId)
+                                            const sessionDisplayName = session ? getSessionDisplayName(session.info) : sessionId
+
+                                            emitUiEvent(UiEvent.SessionAction, {
+                                                action: 'delete-spec',
+                                                sessionId,
+                                                sessionName: sessionId,
+                                                sessionDisplayName,
+                                                branch: session?.info.branch,
+                                                hasUncommittedChanges: false,
+                                            })
                                         }}
                                         onSelectBestVersion={handleSelectBestVersion}
                                         onReset={(sessionId) => {

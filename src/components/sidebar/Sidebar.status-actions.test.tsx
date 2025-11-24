@@ -4,6 +4,7 @@ import { render, screen, waitFor, fireEvent, within } from '@testing-library/rea
 import { Sidebar } from './Sidebar'
 import { TestProviders } from '../../tests/test-utils'
 import * as uiEvents from '../../common/uiEvents'
+import { UiEvent, type SessionActionDetail } from '../../common/uiEvents'
 
 // Mock tauri
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
@@ -198,6 +199,74 @@ describe('Sidebar status indicators and actions', () => {
     await waitFor(() => {
       expect(eventSpy).toHaveBeenCalled()
     })
+  })
+
+  it('emits delete-spec session action when clicking delete on a spec', async () => {
+    const specSessions: EnrichedSession[] = [
+      {
+        info: {
+          session_id: 'spec-1',
+          display_name: 'Spec One',
+          branch: 'spec/spec-1',
+          worktree_path: '/spec/spec-1',
+          base_branch: 'main',
+          status: 'spec',
+          session_state: 'spec',
+          is_current: false,
+          session_type: 'worktree',
+          ready_to_merge: false,
+        },
+        terminals: [],
+      },
+    ]
+
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return specSessions
+      if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
+      if (cmd === TauriCommands.GetCurrentDirectory) return '/cwd'
+      if (cmd === TauriCommands.TerminalExists) return false
+      if (cmd === TauriCommands.CreateTerminal) return true
+      if (cmd === TauriCommands.PathExists) return true
+      if (cmd === TauriCommands.DirectoryExists) return true
+      if (cmd === TauriCommands.GetProjectSessionsSettings) {
+        return { filter_mode: 'all', sort_mode: 'name' }
+      }
+      if (cmd === TauriCommands.SetProjectSessionsSettings) {
+        return undefined
+      }
+      return undefined
+    })
+
+    vi.mocked(listen).mockResolvedValue(() => {})
+
+    render(<TestProviders><Sidebar /></TestProviders>)
+
+    await waitFor(() => {
+      expect(screen.getByText('Spec One')).toBeInTheDocument()
+    })
+
+    const eventSpy = vi.fn()
+    const listener = (event: Event) => eventSpy(event)
+    window.addEventListener(String(UiEvent.SessionAction), listener)
+
+    const specButton = screen.getByText('Spec One').closest('[role="button"]') as HTMLElement
+    const deleteButton = within(specButton).getByLabelText(/Delete spec/i)
+    fireEvent.click(deleteButton)
+
+    await waitFor(() => {
+      expect(eventSpy).toHaveBeenCalled()
+    })
+
+    const detail = (eventSpy.mock.calls[0][0] as CustomEvent<SessionActionDetail>).detail
+    expect(detail).toMatchObject({
+      action: 'delete-spec',
+      sessionId: 'spec-1',
+      sessionName: 'spec-1',
+      sessionDisplayName: 'Spec One',
+      branch: 'spec/spec-1',
+    })
+
+    window.removeEventListener(String(UiEvent.SessionAction), listener)
   })
 
   it('moves a running session into spec mode after converting', async () => {
