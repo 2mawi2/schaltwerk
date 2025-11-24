@@ -23,7 +23,7 @@ jobs:
       schaltwerk: ${{ steps.filter.outputs.schaltwerk }}
       workflows: ${{ steps.filter.outputs.workflows }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - id: filter
         uses: dorny/paths-filter@v3
@@ -56,7 +56,7 @@ jobs:
     env:
       SCHALTWERK_PM: bun
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -90,7 +90,7 @@ jobs:
     env:
       SCHALTWERK_PM: bun
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -120,7 +120,7 @@ jobs:
     needs: changed
     if: ${{ needs.changed.outputs.schaltwerk == 'true' || needs.changed.outputs.workflows == 'true' || github.event_name == 'push' }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Cache apt packages
         uses: actions/cache@v4
