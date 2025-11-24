@@ -9,7 +9,7 @@ import { SpecMetadataPanel as SpecMetadataPanel } from '../specs/SpecMetadataPan
 import { GitGraphPanel } from '../git-graph/GitGraphPanel'
 import type { HistoryItem, CommitFileChange } from '../git-graph/types'
 import Split from 'react-split'
-import { CopyBundleBar } from './CopyBundleBar'
+import { CopyContextBar } from './CopyContextBar'
 import { logger } from '../../utils/logger'
 import { emitUiEvent, UiEvent, listenUiEvent } from '../../common/uiEvents'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
@@ -58,7 +58,7 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
     projectPath,
     selection,
     sessions: allSessions,
-    setFilterMode: () => {},
+    setFilterMode: () => { },
     setSelection,
     currentFilterMode: FilterMode.All
   })
@@ -107,58 +107,58 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
     return () => { cancelled = true }
   }, [])
 
-    // Drag handlers for internal split
-    const internalSplitActiveRef = useRef(false)
+  // Drag handlers for internal split
+  const internalSplitActiveRef = useRef(false)
 
-    const finalizeInternalSplitDrag = useCallback(() => {
-      if (!internalSplitActiveRef.current) return
+  const finalizeInternalSplitDrag = useCallback(() => {
+    if (!internalSplitActiveRef.current) return
+    internalSplitActiveRef.current = false
+
+    endSplitDrag('right-panel-internal')
+
+    // Dispatch OpenCode resize event when internal right panel split drag ends
+    try {
+      if (selection.kind === 'session' && selection.payload) {
+        emitUiEvent(UiEvent.OpencodeSelectionResize, { kind: 'session', sessionId: selection.payload })
+      } else {
+        emitUiEvent(UiEvent.OpencodeSelectionResize, { kind: 'orchestrator' })
+      }
+    } catch (e) {
+      logger.warn('[RightPanelTabs] Failed to dispatch OpenCode resize event on internal split drag end', e)
+    }
+  }, [selection])
+
+  const handleInternalSplitDragStart = useCallback(() => {
+    beginSplitDrag('right-panel-internal', { orientation: 'row' })
+    internalSplitActiveRef.current = true
+  }, [])
+
+  const handleInternalSplitDragEnd = useCallback(() => {
+    finalizeInternalSplitDrag()
+  }, [finalizeInternalSplitDrag])
+
+  useEffect(() => {
+    const handlePointerEnd = () => finalizeInternalSplitDrag()
+    window.addEventListener('pointerup', handlePointerEnd)
+    window.addEventListener('pointercancel', handlePointerEnd)
+    window.addEventListener('blur', handlePointerEnd)
+    return () => {
+      window.removeEventListener('pointerup', handlePointerEnd)
+      window.removeEventListener('pointercancel', handlePointerEnd)
+      window.removeEventListener('blur', handlePointerEnd)
+    }
+  }, [finalizeInternalSplitDrag])
+
+  useEffect(() => () => {
+    if (internalSplitActiveRef.current) {
       internalSplitActiveRef.current = false
-
       endSplitDrag('right-panel-internal')
+    }
+  }, [])
 
-      // Dispatch OpenCode resize event when internal right panel split drag ends
-      try {
-        if (selection.kind === 'session' && selection.payload) {
-          emitUiEvent(UiEvent.OpencodeSelectionResize, { kind: 'session', sessionId: selection.payload })
-        } else {
-          emitUiEvent(UiEvent.OpencodeSelectionResize, { kind: 'orchestrator' })
-        }
-      } catch (e) {
-        logger.warn('[RightPanelTabs] Failed to dispatch OpenCode resize event on internal split drag end', e)
-      }
-    }, [selection])
-
-    const handleInternalSplitDragStart = useCallback(() => {
-      beginSplitDrag('right-panel-internal', { orientation: 'row' })
-      internalSplitActiveRef.current = true
-    }, [])
-
-    const handleInternalSplitDragEnd = useCallback(() => {
-      finalizeInternalSplitDrag()
-    }, [finalizeInternalSplitDrag])
-
-    useEffect(() => {
-      const handlePointerEnd = () => finalizeInternalSplitDrag()
-      window.addEventListener('pointerup', handlePointerEnd)
-      window.addEventListener('pointercancel', handlePointerEnd)
-      window.addEventListener('blur', handlePointerEnd)
-      return () => {
-        window.removeEventListener('pointerup', handlePointerEnd)
-        window.removeEventListener('pointercancel', handlePointerEnd)
-        window.removeEventListener('blur', handlePointerEnd)
-      }
-    }, [finalizeInternalSplitDrag])
-
-    useEffect(() => () => {
-      if (internalSplitActiveRef.current) {
-        internalSplitActiveRef.current = false
-        endSplitDrag('right-panel-internal')
-      }
-    }, [])
-
-   // Determine active tab based on global state
-   // For specs, always show info tab regardless of selection
-   const effectiveIsSpec = typeof isSpecOverride === 'boolean' ? isSpecOverride : isSpec
+  // Determine active tab based on global state
+  // For specs, always show info tab regardless of selection
+  const effectiveIsSpec = typeof isSpecOverride === 'boolean' ? isSpecOverride : isSpec
   const activeTab = (effectiveSelection.kind === 'session' && effectiveIsSpec && rightPanelTab !== 'preview') ? 'info' : rightPanelTab
 
   useEffect(() => {
@@ -184,20 +184,20 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
   // Keyboard shortcut for focusing Specs tab
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-          if (isShortcutForAction(e, KeyboardShortcutAction.FocusSpecsTab, keyboardShortcutConfig, { platform })) {
-            if (effectiveSelection.kind === 'orchestrator') {
-              e.preventDefault()
+      if (isShortcutForAction(e, KeyboardShortcutAction.FocusSpecsTab, keyboardShortcutConfig, { platform })) {
+        if (effectiveSelection.kind === 'orchestrator') {
+          e.preventDefault()
           if (activeTab === 'specs') {
             void setRightPanelTab('changes')
           } else {
             void setRightPanelTab('specs')
           }
-            }
-          }
         }
+      }
+    }
 
-        window.addEventListener('keydown', handleKeyDown)
-        return () => window.removeEventListener('keydown', handleKeyDown)
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
   }, [effectiveSelection, activeTab, keyboardShortcutConfig, platform, setRightPanelTab])
 
   // Track previous specs to detect creation/modification via MCP API
@@ -254,17 +254,17 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
   useEffect(() => {
     if (effectiveSelection.kind !== 'orchestrator') return
 
-        const cleanupSpecCreated = listenUiEvent(UiEvent.SpecCreated, (detail) => {
-          if (detail?.name) {
-            if (openTabs.includes(detail.name)) {
-              logger.info('[RightPanelTabs] Spec already open in workspace, skipping auto-switch:', detail.name)
-              return
-            }
-            logger.info('[RightPanelTabs] Spec created by orchestrator:', detail.name, '- auto-opening in workspace')
-            void setRightPanelTab('specs')
-            openSpecInWorkspace(detail.name)
-          }
-        })
+    const cleanupSpecCreated = listenUiEvent(UiEvent.SpecCreated, (detail) => {
+      if (detail?.name) {
+        if (openTabs.includes(detail.name)) {
+          logger.info('[RightPanelTabs] Spec already open in workspace, skipping auto-switch:', detail.name)
+          return
+        }
+        logger.info('[RightPanelTabs] Spec created by orchestrator:', detail.name, '- auto-opening in workspace')
+        void setRightPanelTab('specs')
+        openSpecInWorkspace(detail.name)
+      }
+    })
 
     return () => {
       cleanupSpecCreated()
@@ -319,7 +319,7 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
       setPendingSpecToOpen(null)
     }
   }, [effectiveSelection.kind, pendingSpecToOpen, openSpecInWorkspace])
-  
+
   const handlePanelClick = () => {
     focusDiffArea()
   }
@@ -358,7 +358,7 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
   const isInlineReviewing = useSplitMode && changesPanelMode === 'review'
 
   return (
-    <div 
+    <div
       ref={diffContainerRef}
       tabIndex={-1}
       data-testid="right-panel-container"
@@ -380,17 +380,16 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
         />
       )}
 
-      <div className={`h-[2px] flex-shrink-0 ${
-        localFocus && !isDragging
-          ? 'bg-gradient-to-r from-transparent via-cyan-400/50 to-transparent'
-          : 'bg-gradient-to-r from-transparent via-slate-600/30 to-transparent'
-      }`} />
+      <div className={`h-[2px] flex-shrink-0 ${localFocus && !isDragging
+        ? 'bg-gradient-to-r from-transparent via-cyan-400/50 to-transparent'
+        : 'bg-gradient-to-r from-transparent via-slate-600/30 to-transparent'
+        }`} />
 
       {/* Body: split mode for running sessions; tabbed mode otherwise */}
       <div className="flex-1 overflow-hidden relative">
         {useSplitMode ? (
           isInlineReviewing ? (
-            <SimpleDiffPanel 
+            <SimpleDiffPanel
               mode={changesPanelMode}
               onModeChange={setChangesPanelMode}
               activeFile={activeChangesFile}
@@ -413,7 +412,7 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
             >
               {/* Top: Changes */}
               <div className="min-h-[120px] overflow-hidden">
-                <SimpleDiffPanel 
+                <SimpleDiffPanel
                   mode={changesPanelMode}
                   onModeChange={setChangesPanelMode}
                   activeFile={activeChangesFile}
@@ -428,7 +427,7 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
               <div className="min-h-[120px] overflow-hidden flex flex-col">
                 {effectiveSelection.kind === 'session' && (
                   <>
-                    <CopyBundleBar sessionName={effectiveSelection.payload!} />
+                    <CopyContextBar sessionName={effectiveSelection.payload!} />
                     <SpecContentView
                       sessionName={effectiveSelection.payload!}
                       editable={false}

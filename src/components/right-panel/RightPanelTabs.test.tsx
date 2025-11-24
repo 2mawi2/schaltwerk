@@ -104,8 +104,8 @@ vi.mock('../specs/SpecMetadataPanel', () => ({
   SpecMetadataPanel: () => <div data-testid="spec-metadata" />
 }))
 
-vi.mock('./CopyBundleBar', () => ({
-  CopyBundleBar: () => <div data-testid="copy-bundle-bar" />
+vi.mock('./CopyContextBar', () => ({
+  CopyContextBar: () => <div data-testid="copy-bundle-bar">CopyContextBar</div>
 }))
 
 function renderWithProject(ui: ReactElement, projectPath: string | null = '/tmp/project') {
