@@ -27,6 +27,7 @@ interface TerminalStream {
   pluginUnlisten?: (() => void) | Promise<void> | null
   listeners: Set<TerminalStreamListener>
   decoder?: TextDecoder
+  encoder?: TextEncoder
 }
 
 const TEXT_PRESENTATION_RULES = [
@@ -63,6 +64,7 @@ function createStream(): TerminalStream {
 
 class TerminalOutputManager {
   private streams = new Map<string, TerminalStream>()
+  private lastSeqById = new Map<string, number>()
 
   addListener(id: string, listener: TerminalStreamListener): void {
     const stream = this.ensureStream(id)
@@ -142,21 +144,24 @@ class TerminalOutputManager {
   }
 
   private async hydrate(id: string, stream: TerminalStream): Promise<number | null> {
+    const fallbackSeq = stream.seqCursor ?? this.lastSeqById.get(id) ?? null
     try {
       const snapshot = await invoke<TerminalBufferResponse | null>(TauriCommands.GetTerminalBuffer, {
         id,
-        from_seq: stream.seqCursor ?? null,
+        from_seq: fallbackSeq,
       })
       if (!snapshot || typeof snapshot.seq !== 'number') {
-        return stream.seqCursor
+        return stream.seqCursor ?? fallbackSeq
       }
       if (snapshot.data && snapshot.data.length > 0) {
         this.dispatch(id, snapshot.data)
       }
+      stream.seqCursor = snapshot.seq
+      this.lastSeqById.set(id, snapshot.seq)
       return snapshot.seq
     } catch (error) {
       logger.debug(`[TerminalOutput] hydration failed for ${id}`, error)
-      return stream.seqCursor
+      return stream.seqCursor ?? fallbackSeq
     }
   }
 
@@ -179,6 +184,7 @@ class TerminalOutputManager {
     stream.decoder = decoder
     stream.pluginUnlisten = await subscribeTerminalBackend(id, stream.seqCursor ?? 0, (message: PluginMessage) => {
       stream.seqCursor = message.seq
+      this.lastSeqById.set(id, message.seq)
       if (message.bytes.length === 0) {
         return
       }
@@ -200,6 +206,7 @@ class TerminalOutputManager {
     const stream = this.streams.get(id)
     if (!stream) return
     const normalized = enforceTextPresentation(chunk)
+    this.updateSeqCursor(id, stream, normalized)
     for (const listener of stream.listeners) {
       try {
         listener(normalized)
@@ -212,6 +219,20 @@ class TerminalOutputManager {
   // Test hook for injecting output into a terminal stream without Tauri
   __emit(id: string, chunk: string): void {
     this.dispatch(id, chunk)
+  }
+
+  private updateSeqCursor(id: string, stream: TerminalStream, chunk: string): void {
+    if (isPluginTerminal(id)) {
+      return
+    }
+
+    const encoder = stream.encoder ?? new TextEncoder()
+    stream.encoder = encoder
+    const byteLength = encoder.encode(chunk).length
+    const base = stream.seqCursor ?? this.lastSeqById.get(id) ?? 0
+    const next = base + byteLength
+    stream.seqCursor = next
+    this.lastSeqById.set(id, next)
   }
 }
 
