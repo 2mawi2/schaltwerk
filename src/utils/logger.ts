@@ -5,6 +5,7 @@ import { TauriCommands } from '../common/tauriCommands'
 type LogLevel = 'error' | 'warn' | 'info' | 'debug'
 
 const MAX_SERIALIZED_LENGTH = 8000
+const MAX_STRING_LENGTH = 1500
 const TRUNCATION_SUFFIX = ' [truncated]'
 
 type SerializeContext = {
@@ -13,7 +14,7 @@ type SerializeContext = {
 
 interface Logger {
   error: (message: string, ...args: unknown[]) => void
-  warn: (message: string, ...args: unknown[]) => void  
+  warn: (message: string, ...args: unknown[]) => void
   info: (message: string, ...args: unknown[]) => void
   debug: (message: string, ...args: unknown[]) => void
 }
@@ -23,13 +24,9 @@ function formatArgs(message: string, ...args: unknown[]): [string, ...unknown[]]
   return [message, ...args]
 }
 
-function buildBackendMessage(message: string, args: unknown[]): string {
-  if (args.length === 0) {
-    return message
-  }
-
-  const serialized = serializeArgs(args)
-  return `${message} | data=${serialized}`
+function truncateString(value: string, max: number = MAX_STRING_LENGTH): string {
+  if (value.length <= max) return value
+  return `${value.slice(0, max)}…${TRUNCATION_SUFFIX} (${value.length - max} chars)`
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -39,7 +36,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 function getCircularLabel(path: string): string {
-  return `[Circular: ${path}]`
+  return `[Circular] ${path}`
 }
 
 function stringifyLargePayload(payload: string): string {
@@ -56,11 +53,14 @@ export function serializeArg(
 ): unknown {
   if (
     value === null ||
-    typeof value === 'string' ||
     typeof value === 'number' ||
     typeof value === 'boolean'
   ) {
     return value
+  }
+
+  if (typeof value === 'string') {
+    return truncateString(value)
   }
 
   if (typeof value === 'bigint') {
@@ -96,11 +96,11 @@ export function serializeArg(
     const serializedError: Record<string, unknown> = {
       type: 'Error',
       name: value.name,
-      message: value.message
+      message: truncateString(value.message ?? '')
     }
 
     if (value.stack) {
-      serializedError.stack = value.stack
+      serializedError.stack = truncateString(value.stack, MAX_SERIALIZED_LENGTH)
     }
 
     for (const key of Object.keys(value)) {
@@ -178,12 +178,15 @@ export function serializeArgs(args: unknown[]): string {
   }
 }
 
+export function serializeForBackend(message: string, args: unknown[]): string {
+  return serializeArgs([message, ...args])
+}
+
 async function logToBackend(level: LogLevel, message: string): Promise<void> {
   // Skip backend logging in test environment
   if (import.meta.env.MODE === 'test') {
     return
   }
-  
   try {
     await invoke(TauriCommands.SchaltwerkCoreLogFrontendMessage, {
       level,
@@ -229,8 +232,8 @@ function createLogger(): Logger {
       if (shouldWriteToConsole('error')) {
         console.error(...formattedArgs)
       }
-      const backendMessage = buildBackendMessage(message, args)
-      logToBackend('error', backendMessage).catch(err => {
+      const serialized = serializeForBackend(message, args)
+      logToBackend('error', serialized).catch((err) => {
         console.warn('Failed to send error log to backend:', err)
       })
     },
@@ -240,8 +243,8 @@ function createLogger(): Logger {
       if (shouldWriteToConsole('warn')) {
         console.warn(...formattedArgs)
       }
-      const backendMessage = buildBackendMessage(message, args)
-      logToBackend('warn', backendMessage).catch(err => {
+      const serialized = serializeForBackend(message, args)
+      logToBackend('warn', serialized).catch((err) => {
         console.warn('Failed to send warn log to backend:', err)
       })
     },
@@ -251,8 +254,8 @@ function createLogger(): Logger {
       if (shouldWriteToConsole('info')) {
         console.log(...formattedArgs)
       }
-      const backendMessage = buildBackendMessage(message, args)
-      logToBackend('info', backendMessage).catch(err => {
+      const serialized = serializeForBackend(message, args)
+      logToBackend('info', serialized).catch((err) => {
         console.warn('Failed to send info log to backend:', err)
       })
     },
@@ -262,8 +265,8 @@ function createLogger(): Logger {
       if (shouldWriteToConsole('debug')) {
         console.log(...formattedArgs)
       }
-      const backendMessage = buildBackendMessage(message, args)
-      logToBackend('debug', backendMessage).catch(err => {
+      const serialized = serializeForBackend(message, args)
+      logToBackend('debug', serialized).catch((err) => {
         console.warn('Failed to send debug log to backend:', err)
       })
     }
