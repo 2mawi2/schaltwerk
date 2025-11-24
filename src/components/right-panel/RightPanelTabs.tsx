@@ -158,8 +158,14 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
 
   // Determine active tab based on global state
   // For specs, always show info tab regardless of selection
+  // For running sessions, fall back to 'changes' if stored tab is 'specs' (specs tab only exists for orchestrator)
   const effectiveIsSpec = typeof isSpecOverride === 'boolean' ? isSpecOverride : isSpec
-  const activeTab = (effectiveSelection.kind === 'session' && effectiveIsSpec && rightPanelTab !== 'preview') ? 'info' : rightPanelTab
+  const effectiveIsRunningSession = effectiveSelection.kind === 'session' && !effectiveIsSpec
+  const activeTab = (effectiveSelection.kind === 'session' && effectiveIsSpec && rightPanelTab !== 'preview')
+    ? 'info'
+    : (effectiveIsRunningSession && rightPanelTab === 'specs')
+      ? 'changes'
+      : rightPanelTab
 
   useEffect(() => {
     if (activeTab !== 'changes' && changesPanelMode !== 'list') {

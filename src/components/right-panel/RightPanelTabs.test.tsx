@@ -108,6 +108,12 @@ vi.mock('./CopyContextBar', () => ({
   CopyContextBar: () => <div data-testid="copy-bundle-bar">CopyContextBar</div>
 }))
 
+vi.mock('../specs/SpecWorkspacePanel', () => ({
+  SpecWorkspacePanel: ({ openTabs }: { openTabs: string[] }) => (
+    <div data-testid="spec-workspace-panel" data-open-tabs={openTabs.join(',')} />
+  )
+}))
+
 function renderWithProject(ui: ReactElement, projectPath: string | null = '/tmp/project') {
   const store = createStore()
   store.set(projectPathAtom, projectPath)
@@ -444,5 +450,111 @@ describe('RightPanelTabs split layout', () => {
       expect(latestDiffProps.mode).toBe('list')
       expect(latestDiffProps.activeFile).toBeNull()
     })
+  })
+})
+
+describe('RightPanelTabs spec workspace isolation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockSessions.length = 0
+  })
+
+  it('does NOT show SpecWorkspacePanel when SpecCreated event fires while running session is selected', async () => {
+    mockSessions.push(
+      createRunningSession({
+        session_id: 'running-session',
+        worktree_path: '/tmp/running',
+        branch: 'feature/running'
+      }),
+      createRunningSession({
+        session_id: 'new-spec',
+        session_state: 'spec',
+        status: 'spec',
+        worktree_path: null as unknown as string,
+        branch: 'spec/new-spec'
+      })
+    )
+
+    renderWithProject(
+      <RightPanelTabs
+        selectionOverride={{ kind: 'session', payload: 'running-session', worktreePath: '/tmp/running' }}
+        isSpecOverride={false}
+      />
+    )
+
+    act(() => {
+      emitUiEvent(UiEvent.SpecCreated, { name: 'new-spec' })
+    })
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('spec-workspace-panel')).toBeNull()
+    })
+  })
+
+  it('shows SpecWorkspacePanel when SpecCreated event fires while orchestrator is selected', async () => {
+    mockSessions.push(
+      createRunningSession({
+        session_id: 'new-spec',
+        session_state: 'spec',
+        status: 'spec',
+        worktree_path: null as unknown as string,
+        branch: 'spec/new-spec'
+      })
+    )
+
+    renderWithProject(
+      <RightPanelTabs
+        selectionOverride={{ kind: 'orchestrator' }}
+      />
+    )
+
+    act(() => {
+      emitUiEvent(UiEvent.SpecCreated, { name: 'new-spec' })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-workspace-panel')).toBeInTheDocument()
+    })
+  })
+
+  it('does NOT show SpecWorkspacePanel for running session even if rightPanelTab is specs', async () => {
+    mockSessions.push(
+      createRunningSession({
+        session_id: 'running-session',
+        worktree_path: '/tmp/running',
+        branch: 'feature/running'
+      }),
+      createRunningSession({
+        session_id: 'new-spec',
+        session_state: 'spec',
+        status: 'spec',
+        worktree_path: null as unknown as string,
+        branch: 'spec/new-spec'
+      })
+    )
+
+    const { rerender } = renderWithProject(
+      <RightPanelTabs
+        selectionOverride={{ kind: 'orchestrator' }}
+      />
+    )
+
+    act(() => {
+      emitUiEvent(UiEvent.SpecCreated, { name: 'new-spec' })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-workspace-panel')).toBeInTheDocument()
+    })
+
+    rerender(
+      <RightPanelTabs
+        selectionOverride={{ kind: 'session', payload: 'running-session', worktreePath: '/tmp/running' }}
+        isSpecOverride={false}
+      />
+    )
+
+    expect(screen.queryByTestId('spec-workspace-panel')).toBeNull()
+    expect(screen.getByTestId('diff-panel')).toBeInTheDocument()
   })
 })
