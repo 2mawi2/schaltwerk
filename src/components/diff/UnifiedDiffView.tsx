@@ -52,6 +52,7 @@ import { theme } from "../../common/theme";
 import { ResizableModal } from "../shared/ResizableModal";
 import { computeRenderOrder } from "./virtualization";
 import { HistoryDiffContext } from "../../types/diff";
+import type { OpenInAppRequest } from "../OpenInSplitButton";
 
 interface UnifiedDiffViewProps {
   filePath: string | null;

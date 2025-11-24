@@ -766,13 +766,13 @@ fn open_path_in(
     #[cfg(target_os = "macos")]
     {
         let spec = build_command_macos(app_id, &resolved)?;
-        return run_command_spec(spec);
+        run_command_spec(spec)
     }
 
     #[cfg(target_os = "linux")]
     {
         let spec = build_command_linux(app_id, &resolved)?;
-        return run_command_spec(spec);
+        run_command_spec(spec)
     }
 
     #[cfg(not(any(target_os = "macos", target_os = "linux")))]
