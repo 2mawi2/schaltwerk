@@ -18,6 +18,7 @@ pub enum SchaltEvent {
     TerminalForceScroll,
     TerminalAgentStarted,
     AgentCrashed,
+    GlobalKeepAwakeStateChanged,
     ProjectReady,
     OpenDirectory,
     OpenHome,
@@ -51,6 +52,9 @@ impl SchaltEvent {
             SchaltEvent::TerminalForceScroll => "schaltwerk:terminal-force-scroll",
             SchaltEvent::TerminalAgentStarted => "schaltwerk:terminal-agent-started",
             SchaltEvent::AgentCrashed => "schaltwerk:agent-crashed",
+            SchaltEvent::GlobalKeepAwakeStateChanged => {
+                "schaltwerk:global-keep-awake-state-changed"
+            }
             SchaltEvent::ProjectReady => "schaltwerk:project-ready",
             SchaltEvent::OpenDirectory => "schaltwerk:open-directory",
             SchaltEvent::OpenHome => "schaltwerk:open-home",
@@ -68,8 +72,8 @@ impl SchaltEvent {
     }
 }
 
-pub fn emit_event<T: Serialize + Clone>(
-    app: &tauri::AppHandle,
+pub fn emit_event<R: tauri::Runtime, T: Serialize + Clone>(
+    app: &tauri::AppHandle<R>,
     event: SchaltEvent,
     payload: &T,
 ) -> Result<(), tauri::Error> {
@@ -117,6 +121,10 @@ mod tests {
         assert_eq!(
             SchaltEvent::OrchestratorLaunchFailed.as_str(),
             "schaltwerk:orchestrator-launch-failed"
+        );
+        assert_eq!(
+            SchaltEvent::GlobalKeepAwakeStateChanged.as_str(),
+            "schaltwerk:global-keep-awake-state-changed"
         );
     }
 }

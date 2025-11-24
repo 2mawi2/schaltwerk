@@ -4127,6 +4127,7 @@ dependencies = [
  "libc",
  "log",
  "mimalloc",
+ "nix 0.28.0",
  "notify",
  "notify-debouncer-mini",
  "once_cell",

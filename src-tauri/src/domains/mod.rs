@@ -2,6 +2,7 @@ pub mod agents;
 pub mod attention;
 pub mod git;
 pub mod merge;
+pub mod power;
 pub mod projects;
 pub mod sessions;
 pub mod settings;

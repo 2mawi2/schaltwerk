@@ -2,6 +2,7 @@ use std::sync::LazyLock;
 use std::time::{Duration, Instant};
 
 use anyhow::{Result, anyhow};
+use std::collections::HashSet;
 use tauri::AppHandle;
 use tokio::sync::Mutex;
 
@@ -10,7 +11,8 @@ use crate::{
     get_core_read,
 };
 use schaltwerk::infrastructure::events::{SchaltEvent, emit_event};
-use schaltwerk::services::EnrichedSession;
+use schaltwerk::services::power::sync_running_sessions;
+use schaltwerk::services::{EnrichedSession, SessionState};
 use serde::Serialize;
 
 const DEFAULT_COOLDOWN: Duration = Duration::from_millis(125);
@@ -155,6 +157,21 @@ impl RefreshHub {
             project_path: repo_key.clone(),
             sessions,
         };
+
+        // Keep-awake: sync running sessions globally based on latest snapshot
+        let project_path = payload.project_path.clone();
+        let running: HashSet<String> = payload
+            .sessions
+            .iter()
+            .filter(|s| s.info.session_state == SessionState::Running)
+            .map(|s| s.info.session_id.clone())
+            .collect();
+        tauri::async_runtime::spawn(async move {
+            if let Err(err) = sync_running_sessions(project_path, running).await {
+                log::debug!("Keep-awake sync failed during session refresh: {err}");
+            }
+        });
+
         emit_event(&app, SchaltEvent::SessionsRefreshed, &payload)?;
         let elapsed = started.elapsed().as_millis();
         if elapsed > 500 {

@@ -29,6 +29,9 @@ use crate::commands::sessions_refresh::{SessionsRefreshReason, request_sessions_
 use crate::errors::SchaltError;
 use clap::Parser;
 use once_cell::sync::Lazy;
+use schaltwerk::domains::power::global_service::{
+    GlobalInhibitorService, set_global_keep_awake_service,
+};
 use schaltwerk::domains::{attention::AttentionStateRegistry, git::repository};
 use schaltwerk::infrastructure::config::SettingsManager;
 use schaltwerk::project_manager::ProjectManager;
@@ -1204,6 +1207,12 @@ fn main() {
             set_project_run_script,
             get_tutorial_completed,
             set_tutorial_completed,
+            // Power / keep-awake commands
+            get_global_keep_awake_state,
+            enable_global_keep_awake,
+            disable_global_keep_awake,
+            get_power_settings,
+            set_power_settings,
             // Agent binary commands
             detect_agent_binaries,
             get_agent_binary_config,
@@ -1257,6 +1266,18 @@ fn main() {
 
             let services = ServiceHandles::new(Arc::clone(&project_manager), app.handle().clone());
             app.manage(services);
+
+            // Initialize global keep-awake service
+            match GlobalInhibitorService::initialize(app.handle().clone()) {
+                Ok(service) => {
+                    set_global_keep_awake_service(service.clone());
+                    app.manage(service);
+                    log::info!("Global keep-awake service initialized");
+                }
+                Err(e) => {
+                    log::warn!("Keep-awake service unavailable: {e}");
+                }
+            }
 
             // Get current git branch and update window title asynchronously
             let app_handle = app.handle().clone();

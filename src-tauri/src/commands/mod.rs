@@ -5,6 +5,7 @@ pub mod git;
 pub mod github;
 pub mod mcp;
 pub mod mcp_config;
+pub mod power;
 pub mod project;
 pub mod pty;
 pub mod schaltwerk_core;
@@ -26,6 +27,7 @@ pub use git::*;
 pub use github::*;
 pub use mcp::*;
 pub use mcp_config::*;
+pub use power::*;
 pub use project::*;
 pub use pty::*;
 pub use schaltwerk_core::{

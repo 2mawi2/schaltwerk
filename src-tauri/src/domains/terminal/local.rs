@@ -9,6 +9,7 @@ use super::submission::build_submission_payload;
 use super::visible::VisibleScreen;
 use super::{CreateParams, TerminalBackend, TerminalSnapshot};
 use crate::infrastructure::events::{SchaltEvent, emit_event};
+use crate::infrastructure::keep_awake_bridge::handle_terminal_attention;
 use crate::shared::terminal_id::is_session_top_terminal_id;
 use log::{debug, error, info, trace, warn};
 use portable_pty::{Child, MasterPty, NativePtySystem, PtySize, PtySystem};
@@ -359,6 +360,8 @@ impl LocalPtyAdapter {
                         {
                             error!("Failed to emit TerminalAttention event: {e}");
                         }
+
+                        handle_terminal_attention(session_id.clone(), needs_attention);
                     }
                 }
             }
