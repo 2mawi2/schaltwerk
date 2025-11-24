@@ -13,6 +13,7 @@ export enum SchaltEvent {
   TerminalClosed = 'schaltwerk:terminal-closed',
   TerminalAgentStarted = 'schaltwerk:terminal-agent-started',
   TerminalForceScroll = 'schaltwerk:terminal-force-scroll',
+  GlobalKeepAwakeStateChanged = 'schaltwerk:global-keep-awake-state-changed',
   PtyData = 'schaltwerk:pty-data',
   ProjectReady = 'schaltwerk:project-ready',
   OpenDirectory = 'schaltwerk:open-directory',
@@ -67,6 +68,11 @@ export interface PtyDataPayload {
   term_id: string
   seq: number
   base64: string
+}
+
+export interface GlobalKeepAwakeStatePayload {
+  state: 'disabled' | 'active' | 'auto_paused'
+  activeCount?: number
 }
 
 export interface ChangedFile {
@@ -186,6 +192,7 @@ export type EventPayloadMap = {
   [SchaltEvent.TerminalClosed]: { terminal_id: string }
   [SchaltEvent.TerminalAgentStarted]: { terminal_id: string, session_name?: string }
   [SchaltEvent.TerminalForceScroll]: { terminal_id: string }
+  [SchaltEvent.GlobalKeepAwakeStateChanged]: GlobalKeepAwakeStatePayload
   [SchaltEvent.PtyData]: PtyDataPayload
   [SchaltEvent.ProjectReady]: string
   [SchaltEvent.OpenDirectory]: string

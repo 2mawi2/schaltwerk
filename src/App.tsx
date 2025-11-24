@@ -18,7 +18,7 @@ import { ProjectSelectorModal } from './components/modals/ProjectSelectorModal'
 import { invoke } from '@tauri-apps/api/core'
 import { useSelection } from './hooks/useSelection'
 import { usePreviewPanelEvents } from './hooks/usePreviewPanelEvents'
-import { useAtom, useAtomValue, useSetAtom } from 'jotai'
+import { useAtom, useSetAtom, useAtomValue } from 'jotai'
 import {
   increaseFontSizesActionAtom,
   decreaseFontSizesActionAtom,
@@ -90,6 +90,12 @@ import { beginSplitDrag, endSplitDrag } from './utils/splitDragCoordinator'
 import { useOptionalToast } from './common/toast/ToastProvider'
 import { AppUpdateResultPayload } from './common/events'
 import { RawSession } from './types/session'
+import {
+  type KeepAwakeState,
+  refreshPowerSettingsActionAtom,
+  refreshKeepAwakeStateActionAtom,
+  registerKeepAwakeEventListenerActionAtom,
+} from './store/atoms/powerSettings'
 import { stableSessionTerminalId } from './common/terminalIdentity'
 import { registerDevErrorListeners } from './dev/registerDevErrorListeners'
 import { AgentCliMissingModal } from './components/agentBinary/AgentCliMissingModal'
@@ -122,6 +128,9 @@ function AppContent() {
   const initializeSessionsEvents = useSetAtom(initializeSessionsEventsActionAtom)
   const initializeSessionsSettings = useSetAtom(initializeSessionsSettingsActionAtom)
   const refreshSessions = useSetAtom(refreshSessionsActionAtom)
+  const refreshPowerSettings = useSetAtom(refreshPowerSettingsActionAtom)
+  const refreshKeepAwakeState = useSetAtom(refreshKeepAwakeStateActionAtom)
+  const registerKeepAwakeListener = useSetAtom(registerKeepAwakeEventListenerActionAtom)
   const expectSession = useSetAtom(expectSessionActionAtom)
   const { isOnboardingOpen, completeOnboarding, closeOnboarding, openOnboarding } = useOnboarding()
   const { fetchSessionForPrefill } = useSessionPrefill()
@@ -129,6 +138,7 @@ function AppContent() {
   const toast = useOptionalToast()
   const { beginSessionMutation, endSessionMutation, enqueuePendingStartup, allSessions } = useSessions()
   const agentLifecycleStateRef = useRef(new Map<string, { state: 'spawned' | 'ready'; timestamp: number }>())
+  const keepAwakeLastStateRef = useRef<KeepAwakeState>('disabled')
   const [devErrorToastsEnabled, setDevErrorToastsEnabled] = useState(false)
   const [attentionCounts, setAttentionCounts] = useState<Record<string, number>>({})
   const [showCliMissingModal, setShowCliMissingModal] = useState(false)
@@ -167,8 +177,79 @@ function AppContent() {
   }, [initializeSessionsEvents])
 
   useEffect(() => {
+    let unlisten: (() => void) | undefined
+    void (async () => {
+      await refreshPowerSettings()
+      await refreshKeepAwakeState()
+      try {
+        unlisten = await registerKeepAwakeListener()
+      } catch (error) {
+        logger.debug('Failed to register keep-awake state listener', error)
+      }
+    })()
+
+    return () => {
+      if (unlisten) {
+        unlisten()
+      }
+    }
+  }, [refreshPowerSettings, refreshKeepAwakeState, registerKeepAwakeListener])
+
+  useEffect(() => {
     void initializeSessionsSettings()
   }, [initializeSessionsSettings, projectPath])
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined
+    void (async () => {
+      try {
+        unlisten = await listenEvent(SchaltEvent.GlobalKeepAwakeStateChanged, payload => {
+          const next = (payload as { state?: KeepAwakeState }).state
+          const activeCount = (payload as { activeCount?: number }).activeCount ?? 0
+          if (!next || !toast) return
+
+          const prev = keepAwakeLastStateRef.current
+          if (prev === next) {
+            return
+          }
+          keepAwakeLastStateRef.current = next
+
+          if (next === 'auto_paused') {
+            toast.pushToast({
+              tone: 'info',
+              title: 'Keep-awake auto-paused',
+              description: 'All sessions idle - machine can sleep',
+            })
+          } else if (next === 'active') {
+            const resumedFromActivity = activeCount > 0
+            toast.pushToast({
+              tone: resumedFromActivity ? 'success' : 'info',
+              title: resumedFromActivity ? 'Keep-awake resumed' : 'Keep-awake enabled',
+              description: resumedFromActivity
+                ? 'Session activity detected'
+                : 'Sleep prevention active (awaiting activity/idle timer)',
+              durationMs: 3000,
+            })
+          } else if (next === 'disabled') {
+            toast.pushToast({
+              tone: 'info',
+              title: 'Keep-awake disabled',
+              description: 'Sleep prevention turned off',
+              durationMs: 2500,
+            })
+          }
+        })
+      } catch (error) {
+        logger.debug('Failed to register keep-awake listener', error)
+      }
+    })()
+
+    return () => {
+      if (unlisten) {
+        unlisten()
+      }
+    }
+  }, [toast])
 
   useEffect(() => {
     void refreshSessions()

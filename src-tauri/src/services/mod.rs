@@ -1,4 +1,5 @@
 pub mod mcp;
+pub mod power;
 pub mod projects;
 pub mod sessions;
 pub mod terminals;
@@ -35,6 +36,7 @@ pub use crate::domains::git::{repository, worktrees};
 pub use crate::domains::merge::{
     MergeMode, MergeOutcome, MergePreview, MergeService, types::MergeStateSnapshot,
 };
+pub use crate::domains::power::types::{GlobalState, PowerSettings};
 pub use crate::domains::sessions::db_sessions::SessionMethods;
 pub use crate::domains::sessions::entity::EnrichedSession;
 pub use crate::domains::sessions::entity::{

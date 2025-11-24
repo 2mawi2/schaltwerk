@@ -15,6 +15,7 @@ pub enum SchaltEvent {
     TerminalForceScroll,
     TerminalOutputChanged,
     PtyData,
+    GlobalKeepAwakeStateChanged,
     ProjectReady,
     OpenDirectory,
     OpenHome,
@@ -47,6 +48,9 @@ impl SchaltEvent {
             SchaltEvent::TerminalForceScroll => "schaltwerk:terminal-force-scroll",
             SchaltEvent::TerminalOutputChanged => "schaltwerk:terminal-output-changed",
             SchaltEvent::PtyData => "schaltwerk:pty-data",
+            SchaltEvent::GlobalKeepAwakeStateChanged => {
+                "schaltwerk:global-keep-awake-state-changed"
+            }
             SchaltEvent::ProjectReady => "schaltwerk:project-ready",
             SchaltEvent::OpenDirectory => "schaltwerk:open-directory",
             SchaltEvent::OpenHome => "schaltwerk:open-home",

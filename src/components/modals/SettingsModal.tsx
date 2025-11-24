@@ -2,8 +2,9 @@ import React, { useState, useEffect, useCallback, useMemo, useRef, ReactElement 
 import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
-import { useAtom } from 'jotai'
+import { useAtom, useSetAtom } from 'jotai'
 import { terminalFontSizeAtom, uiFontSizeAtom } from '../../store/atoms/fontSize'
+import { powerSettingsAtom, updatePowerSettingsActionAtom, refreshPowerSettingsActionAtom } from '../../store/atoms/powerSettings'
 import { useSettings } from '../../hooks/useSettings'
 import type { AgentType, ProjectMergePreferences, AttentionNotificationMode, AgentPreferenceConfig } from '../../hooks/useSettings'
 import { useSessions } from '../../hooks/useSessions'
@@ -137,6 +138,16 @@ const CATEGORIES: CategoryConfig[] = [
         icon: (
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+            </svg>
+        )
+    },
+    {
+        id: 'power',
+        label: 'Power & Keep-Awake',
+        scope: 'application',
+        icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
             </svg>
         )
     },
@@ -405,6 +416,9 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
         environmentVariables: {},
         previewLocalhostOnClick: false,
     })
+    const [powerSettings, setPowerSettings] = useAtom(powerSettingsAtom)
+    const updatePowerSettings = useSetAtom(updatePowerSettingsActionAtom)
+    const refreshPowerSettings = useSetAtom(refreshPowerSettingsActionAtom)
     const [envVars, setEnvVars] = useState<Record<AgentType, Array<{key: string, value: string}>>>(() =>
         createAgentRecord(_agent => [])
     )
@@ -432,6 +446,12 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
     const [autoUpdateEnabled, setAutoUpdateEnabled] = useState<boolean>(true)
     const [loadingAutoUpdate, setLoadingAutoUpdate] = useState<boolean>(true)
     const [checkingUpdate, setCheckingUpdate] = useState<boolean>(false)
+
+    useEffect(() => {
+        if (open) {
+            void refreshPowerSettings()
+        }
+    }, [open, refreshPowerSettings])
 
     const [selectedSpec, setSelectedSpec] = useState<{ name: string; content: string } | null>(null)
     const applicationCategories = useMemo(() => CATEGORIES.filter(category => category.scope === 'application'), [])
@@ -487,6 +507,57 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
     const attentionNotificationsEnabled = useMemo(
         () => sessionPreferences.attention_notification_mode !== 'off',
         [sessionPreferences.attention_notification_mode]
+    )
+
+    const renderPowerSettings = () => (
+        <div className="flex flex-col h-full">
+            <div className="flex-1 overflow-y-auto p-6">
+                <div className="space-y-6">
+                    <div>
+                        <h3 className="text-body font-medium text-slate-200 mb-2">Power &amp; Keep-Awake</h3>
+                        <div className="text-body text-slate-400 mb-4">
+                            Control how Schaltwerk prevents your machine from sleeping while agents work.
+                        </div>
+                        <div className="space-y-4">
+                            <label className="flex items-start gap-3 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={powerSettings.autoReleaseEnabled}
+                                    onChange={(e) => {
+                                        const next = { ...powerSettings, autoReleaseEnabled: e.target.checked }
+                                        setPowerSettings(next)
+                                        void updatePowerSettings(next)
+                                    }}
+                                    className="w-4 h-4 rounded border border-slate-600 bg-slate-800"
+                                />
+                                <div>
+                                    <div className="text-body font-medium text-slate-200">Auto-release when idle</div>
+                                    <div className="text-caption text-slate-400">Stop sleep prevention after all sessions are idle.</div>
+                                </div>
+                            </label>
+
+                            <div>
+                                <div className="text-body font-medium text-slate-200 mb-1">Idle timeout (minutes)</div>
+                                <div className="text-caption text-slate-400 mb-2">How long to wait before auto-pausing keep-awake.</div>
+                                <input
+                                    type="number"
+                                    min={1}
+                                    max={60}
+                                    value={powerSettings.autoReleaseIdleMinutes}
+                                    onChange={(e) => {
+                                        const minutes = Math.max(1, Math.min(60, Number(e.target.value) || 1))
+                                        const next = { ...powerSettings, autoReleaseIdleMinutes: minutes }
+                                        setPowerSettings(next)
+                                        void updatePowerSettings(next)
+                                    }}
+                                    className="w-24 px-3 py-2 rounded bg-slate-800 border border-slate-700 text-slate-100"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     )
 
     // Normalize smart dashes some platforms insert automatically (Safari/macOS)
@@ -2408,6 +2479,8 @@ fi`}
                 return renderKeyboardShortcuts()
             case 'environment':
                 return renderEnvironmentSettings()
+            case 'power':
+                return renderPowerSettings()
             case 'terminal':
                 return renderTerminalSettings()
             case 'sessions':
