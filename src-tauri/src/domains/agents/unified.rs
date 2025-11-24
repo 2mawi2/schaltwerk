@@ -726,6 +726,28 @@ mod tests {
             assert!(spec.shell_command.contains("copilot"));
             assert_eq!(spec.initial_command.as_deref(), Some("review the diff"));
         }
+
+        #[test]
+        fn test_copilot_adapter_sets_vscode_term_program() {
+            let adapter = CopilotAdapter;
+            let manifest = AgentManifest::get("copilot").unwrap();
+
+            let ctx = AgentLaunchContext {
+                worktree_path: Path::new("/test/path"),
+                session_id: None,
+                initial_prompt: None,
+                skip_permissions: false,
+                binary_override: Some("copilot"),
+                manifest,
+            };
+
+            let spec = adapter.build_launch_spec(ctx);
+            assert_eq!(
+                spec.env_vars.get("TERM_PROGRAM"),
+                Some(&"vscode".to_string()),
+                "Copilot requires TERM_PROGRAM=vscode for xterm.js detection"
+            );
+        }
     }
 }
 pub struct CopilotAdapter;
@@ -746,7 +768,10 @@ impl AgentAdapter for CopilotAdapter {
             ctx.skip_permissions,
             Some(&config),
         );
+        let mut env = HashMap::new();
+        env.insert("TERM_PROGRAM".to_string(), "vscode".to_string());
         AgentLaunchSpec::new(command, ctx.worktree_path.to_path_buf())
             .with_initial_command(initial_command)
+            .with_env_vars(env)
     }
 }

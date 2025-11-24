@@ -2,7 +2,7 @@ use super::CreateParams;
 use portable_pty::CommandBuilder;
 use std::path::PathBuf;
 
-const TERM_PROGRAM_NAME: &str = "vscode"; // we use vscode here so agents like copilot that hardcode the app assume xterm.js
+const TERM_PROGRAM_NAME: &str = "schaltwerk";
 const TERM_PROGRAM_VERSION: &str = env!("CARGO_PKG_VERSION");
 const COLORTERM_VALUE: &str = "truecolor";
 
@@ -328,7 +328,7 @@ mod tests {
         let env = build_environment(80, 24);
         assert!(
             env.iter()
-                .any(|(key, value)| key == "TERM_PROGRAM" && value == "vscode")
+                .any(|(key, value)| key == "TERM_PROGRAM" && value == "schaltwerk")
         );
         assert!(
             env.iter()
