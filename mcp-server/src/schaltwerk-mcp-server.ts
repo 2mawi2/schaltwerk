@@ -134,10 +134,12 @@ const jsonArrayCompatEnabled = () => {
   return flag !== undefined && (flag.toLowerCase() === 'true' || flag === '1')
 }
 
+type StructuredResponse = { structuredContent?: unknown; content: TextContent[] }
+
 function buildStructuredResponse(
   structured: unknown,
   options?: { summaryText?: string; jsonFirst?: boolean; mimeType?: string; includeStructured?: boolean }
-) {
+): StructuredResponse {
   const includeStructured = options?.includeStructured ?? structuredContentEnabled()
   const mimeType = options?.mimeType ?? JSON_MIME
   const contentEntries: TextContent[] = []
@@ -717,7 +719,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
   const { name, arguments: args } = request.params
 
   try {
-    let response: { structuredContent: unknown; content: TextContent[] }
+    let response: StructuredResponse
 
     switch (name) {
       case "schaltwerk_spec_list": {

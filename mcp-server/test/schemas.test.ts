@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'bun:test'
 import Ajv from 'ajv'
+import addFormats from 'ajv-formats'
 import { toolOutputSchemas } from '../src/schemas'
 
 const ajv = new Ajv({ strict: true, allErrors: true, validateSchema: false })
+addFormats(ajv)
 
 const sampleStructuredOutputs: Record<string, any> = {
   schaltwerk_create: {
