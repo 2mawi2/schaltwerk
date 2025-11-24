@@ -42,6 +42,7 @@ use schaltwerk::utils::env_adapter::EnvAdapter;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex as StdMutex};
 use tokio::sync::{Mutex, OnceCell, OwnedRwLockReadGuard, OwnedRwLockWriteGuard, RwLock};
+use tokio::task_local;
 use tokio::time::timeout;
 use uuid::Uuid;
 
@@ -251,6 +252,13 @@ pub static FILE_WATCHER_MANAGER: OnceCell<Arc<schaltwerk::domains::workspace::Fi
 static LAST_CORE_WRITE: Lazy<StdMutex<Option<(Uuid, std::time::Instant)>>> =
     Lazy::new(|| StdMutex::new(None));
 
+// Task-local project override used to route MCP HTTP requests to the correct
+// project core when multiple projects are open. Set for the lifetime of a
+// single MCP request; falls back to the current project when unset.
+task_local! {
+    pub(crate) static REQUEST_PROJECT_OVERRIDE: std::cell::RefCell<Option<std::path::PathBuf>>;
+}
+
 pub async fn get_project_manager() -> Arc<ProjectManager> {
     PROJECT_MANAGER
         .get_or_init(|| async { Arc::new(ProjectManager::new()) })
@@ -269,6 +277,22 @@ pub async fn get_terminal_manager()
 
 pub async fn get_schaltwerk_core()
 -> Result<Arc<RwLock<schaltwerk::schaltwerk_core::SchaltwerkCore>>, String> {
+    // Respect MCP request context if one is set for this task
+    if let Ok(Some(project_path)) = REQUEST_PROJECT_OVERRIDE.try_with(|cell| cell.borrow().clone())
+    {
+        let manager = get_project_manager().await;
+        match manager.get_schaltwerk_core_for_path(&project_path).await {
+            Ok(core) => return Ok(core),
+            Err(e) => {
+                log::error!(
+                    "Failed to get Schaltwerk core for override path {}: {e}",
+                    project_path.display()
+                );
+                // Fall through to current project fallback
+            }
+        }
+    }
+
     let manager = get_project_manager().await;
     manager.current_schaltwerk_core().await.map_err(|e| {
         let detail = e.to_string();

@@ -1,11 +1,13 @@
 use http_body_util::BodyExt;
 use hyper::{
-    Method, Request, Response, StatusCode,
+    HeaderMap, Method, Request, Response, StatusCode,
     body::Incoming,
     header::{CONTENT_TYPE, HeaderValue},
 };
 use log::{error, info, warn};
 use serde::Serialize;
+use std::cell::RefCell;
+use std::path::PathBuf;
 use url::form_urlencoded;
 
 use crate::commands::github::{CreateReviewedPrArgs, github_create_reviewed_pr};
@@ -14,7 +16,7 @@ use crate::commands::schaltwerk_core::{
 };
 use crate::commands::sessions_refresh::{SessionsRefreshReason, request_sessions_refresh};
 use crate::mcp_api::diff_api::{DiffApiError, DiffChunkRequest, DiffScope, SummaryQuery};
-use crate::{get_core_read, get_core_write};
+use crate::{REQUEST_PROJECT_OVERRIDE, get_core_read, get_core_write};
 use schaltwerk::domains::merge::MergeMode;
 use schaltwerk::domains::sessions::entity::{Session, Spec};
 use schaltwerk::infrastructure::events::{SchaltEvent, emit_event};
@@ -23,6 +25,27 @@ use schaltwerk::schaltwerk_core::{SessionManager, SessionState};
 mod diff_api;
 
 pub async fn handle_mcp_request(
+    req: Request<Incoming>,
+    app: tauri::AppHandle,
+) -> Result<Response<String>, hyper::Error> {
+    // Preserve project affinity from MCP clients (terminals) using the header
+    // injected by the MCP bridge. This prevents requests from being handled by
+    // whichever project is currently active in the UI.
+    let project_override = project_override_from_headers(req.headers());
+
+    if let Some(path) = project_override {
+        // Scope the request so get_core_read/get_core_write use the override
+        return REQUEST_PROJECT_OVERRIDE
+            .scope(RefCell::new(Some(path)), async move {
+                handle_mcp_request_inner(req, app).await
+            })
+            .await;
+    }
+
+    handle_mcp_request_inner(req, app).await
+}
+
+async fn handle_mcp_request_inner(
     req: Request<Incoming>,
     app: tauri::AppHandle,
 ) -> Result<Response<String>, hyper::Error> {
@@ -92,6 +115,13 @@ pub async fn handle_mcp_request(
         }
         _ => Ok(not_found_response()),
     }
+}
+
+fn project_override_from_headers(headers: &HeaderMap) -> Option<PathBuf> {
+    headers
+        .get("X-Project-Path")
+        .and_then(|v| v.to_str().ok())
+        .map(PathBuf::from)
 }
 
 fn extract_draft_name(path: &str, prefix: &str) -> String {
@@ -385,7 +415,9 @@ mod tests {
     use super::*;
     use chrono::Utc;
     use git2::Repository;
+    use hyper::HeaderMap;
     use schaltwerk::schaltwerk_core::Database;
+    use std::cell::RefCell;
     use std::path::Path;
     use std::path::PathBuf;
     use std::sync::{Arc, Mutex};
@@ -502,6 +534,45 @@ mod tests {
         assert_eq!(response.display_name.as_deref(), Some("Display beta"));
         assert_eq!(response.content, "");
         assert_eq!(response.content_length, 0);
+    }
+
+    #[test]
+    fn project_override_header_is_parsed() {
+        let mut headers = HeaderMap::new();
+        headers.insert("X-Project-Path", "/tmp/foo".parse().unwrap());
+
+        let parsed = project_override_from_headers(&headers);
+
+        assert_eq!(parsed, Some(PathBuf::from("/tmp/foo")));
+    }
+
+    #[test]
+    fn project_override_header_absent_returns_none() {
+        let headers = HeaderMap::new();
+
+        let parsed = project_override_from_headers(&headers);
+
+        assert!(parsed.is_none());
+    }
+
+    #[tokio::test]
+    async fn request_project_override_scope_sets_and_clears() {
+        let path = PathBuf::from("/tmp/scoped");
+
+        let observed = REQUEST_PROJECT_OVERRIDE
+            .scope(RefCell::new(Some(path.clone())), async move {
+                REQUEST_PROJECT_OVERRIDE
+                    .try_with(|cell| cell.borrow().clone())
+                    .ok()
+                    .flatten()
+            })
+            .await;
+
+        assert_eq!(observed, Some(path));
+
+        // Outside the scope the task-local should be unset
+        let outside = REQUEST_PROJECT_OVERRIDE.try_with(|cell| cell.borrow().clone());
+        assert!(outside.is_err());
     }
 }
 

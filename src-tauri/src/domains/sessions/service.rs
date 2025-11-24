@@ -135,8 +135,8 @@ pub struct SessionCreationParams<'a> {
 use crate::domains::sessions::entity::GitStats;
 use crate::{
     domains::git::service as git,
-    domains::sessions::db_sessions::SessionMethods,
     domains::sessions::cache::SessionCacheManager,
+    domains::sessions::db_sessions::SessionMethods,
     domains::sessions::entity::ArchivedSpec,
     domains::sessions::entity::{
         DiffStats, EnrichedSession, FilterMode, Session, SessionInfo, SessionState, SessionStatus,
@@ -144,8 +144,8 @@ use crate::{
     },
     domains::sessions::repository::SessionDbManager,
     domains::sessions::utils::SessionUtils,
-    infrastructure::database::{Database, db_archived_specs::ArchivedSpecMethods as _},
     infrastructure::database::db_project_config::{DEFAULT_BRANCH_PREFIX, ProjectConfigMethods},
+    infrastructure::database::{Database, db_archived_specs::ArchivedSpecMethods as _},
 };
 use uuid::Uuid;
 
@@ -1273,8 +1273,8 @@ mod service_unified_tests {
 
     #[test]
     fn start_spec_session_applies_existing_display_name() {
-        use std::process::Command;
         use crate::infrastructure::database::db_project_config::DEFAULT_BRANCH_PREFIX;
+        use std::process::Command;
 
         let (manager, temp_dir) = create_test_session_manager();
 
@@ -3514,12 +3514,8 @@ impl SessionManager {
         skip_permissions: Option<bool>,
     ) -> Result<Session> {
         // Start the draft session first
-        let mut session = self.start_spec_session(
-            session_name,
-            base_branch,
-            version_group_id,
-            version_number,
-        )?;
+        let mut session =
+            self.start_spec_session(session_name, base_branch, version_group_id, version_number)?;
 
         // Apply session-scoped original settings without mutating globals
         if agent_type.is_some() || skip_permissions.is_some() {

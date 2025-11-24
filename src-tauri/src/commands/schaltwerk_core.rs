@@ -911,19 +911,18 @@ pub async fn schaltwerk_core_rename_version_group(
         binary_path: binary_path.as_deref(),
     };
 
-    let generated_name = match schaltwerk::domains::agents::naming::generate_display_name(name_args)
-        .await
-    {
-        Ok(Some(name)) => name,
-        Ok(None) => {
-            log::warn!("Name generation returned None for version group '{base_name}'");
-            return Ok(());
-        }
-        Err(e) => {
-            log::error!("Failed to generate display name for version group '{base_name}': {e}");
-            return Err(format!("Failed to generate name: {e}"));
-        }
-    };
+    let generated_name =
+        match schaltwerk::domains::agents::naming::generate_display_name(name_args).await {
+            Ok(Some(name)) => name,
+            Ok(None) => {
+                log::warn!("Name generation returned None for version group '{base_name}'");
+                return Ok(());
+            }
+            Err(e) => {
+                log::error!("Failed to generate display name for version group '{base_name}': {e}");
+                return Err(format!("Failed to generate name: {e}"));
+            }
+        };
 
     log::info!("Generated name '{generated_name}' for version group '{base_name}'");
 
