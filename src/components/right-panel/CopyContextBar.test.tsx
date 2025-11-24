@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
@@ -187,7 +187,10 @@ describe('CopyContextBar', () => {
     renderComponent('s4')
 
     const button = await screen.findByRole('button', { name: /copy context/i })
-    await user.click(button)
+    await waitFor(() => expect(button).toBeEnabled())
+    await act(async () => {
+      await user.click(button)
+    })
 
     await waitFor(() => {
       expect(pushToastMock).toHaveBeenCalledWith(expect.objectContaining({ title: 'Copied to clipboard' }))
