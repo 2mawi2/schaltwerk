@@ -1,8 +1,8 @@
 use crate::{
     domains::git,
     infrastructure::database::{
-        db_project_config::ProjectConfigMethods, db_specs::SpecMethods, DEFAULT_BRANCH_PREFIX,
-        Database,
+        DEFAULT_BRANCH_PREFIX, Database, db_project_config::ProjectConfigMethods,
+        db_specs::SpecMethods,
     },
     shared::session_metadata_gateway::SessionMetadataGateway,
 };
@@ -146,8 +146,8 @@ pub async fn generate_display_name_and_rename_branch(
                                 "Successfully updated worktree to use branch '{new_branch}'"
                             );
 
-                            if let Err(e) =
-                                SessionMetadataGateway::new(db).update_session_branch(session_id, &new_branch)
+                            if let Err(e) = SessionMetadataGateway::new(db)
+                                .update_session_branch(session_id, &new_branch)
                             {
                                 log::error!("Failed to update branch name in database: {e}");
                             }
@@ -156,7 +156,9 @@ pub async fn generate_display_name_and_rename_branch(
                             log::error!(
                                 "Failed to update worktree to new branch '{new_branch}': {e}"
                             );
-                            if let Err(revert_err) = git::rename_branch(repo_path, &new_branch, current_branch) {
+                            if let Err(revert_err) =
+                                git::rename_branch(repo_path, &new_branch, current_branch)
+                            {
                                 log::error!("Failed to revert branch rename: {revert_err}");
                             }
                         }
@@ -278,14 +280,20 @@ Respond with JSON: {{"name": "short-kebab-case-name"}}"#
         }
 
         let readme_path = unique_temp_dir.join("README.md");
-        if let Err(e) = std::fs::write(&readme_path, "# Temporary workspace for name generation
-") {
+        if let Err(e) = std::fs::write(
+            &readme_path,
+            "# Temporary workspace for name generation
+",
+        ) {
             log::debug!("Failed to create README in temp dir (non-fatal): {e}");
         }
     }
 
     let run_dir = unique_temp_dir.clone();
-    log::info!("Using temp directory for name generation: {}", run_dir.display());
+    log::info!(
+        "Using temp directory for name generation: {}",
+        run_dir.display()
+    );
 
     if agent_type == "codex" {
         log::info!("Attempting to generate name with codex");
@@ -344,9 +352,9 @@ Respond with JSON: {{"name": "short-kebab-case-name"}}"#
                         .find(|line| {
                             !line.is_empty()
                                 && !line.contains(' ')
-                                && line
-                                    .chars()
-                                    .all(|c| c.is_ascii_lowercase() || c == '-' || c.is_ascii_digit())
+                                && line.chars().all(|c| {
+                                    c.is_ascii_lowercase() || c == '-' || c.is_ascii_digit()
+                                })
                                 && line.len() <= 30
                         })
                         .map(|s| s.to_string())
@@ -485,8 +493,7 @@ Respond with JSON: {{"name": "short-kebab-case-name"}}"#
                 .map(|line| line.trim())
                 .filter(|line| !line.is_empty())
                 .filter(|line| {
-                    line
-                        .chars()
+                    line.chars()
                         .all(|c| c.is_ascii_lowercase() || c == '-' || c.is_ascii_digit())
                 })
                 .filter(|line| line.contains('-') || line.len() <= 10)
@@ -623,8 +630,10 @@ pub async fn generate_display_name(args: NameGenerationArgs<'_>) -> Result<Optio
 
 pub async fn generate_spec_display_name(args: NameGenerationArgs<'_>) -> Result<Option<String>> {
     let target_id = args.target_id;
-    generate_display_name_core(args, move |db, name| db.update_spec_display_name(target_id, name))
-        .await
+    generate_display_name_core(args, move |db, name| {
+        db.update_spec_display_name(target_id, name)
+    })
+    .await
 }
 
 fn build_claude_namegen_args(prompt_plain: &str, cli_args: Option<&str>) -> Vec<String> {

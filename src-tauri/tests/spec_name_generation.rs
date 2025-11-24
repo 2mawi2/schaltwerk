@@ -1,5 +1,5 @@
 use chrono::Utc;
-use schaltwerk::domains::agents::naming::{generate_spec_display_name, NameGenerationArgs};
+use schaltwerk::domains::agents::naming::{NameGenerationArgs, generate_spec_display_name};
 use schaltwerk::domains::sessions::entity::Spec;
 use schaltwerk::infrastructure::database::Database;
 use schaltwerk::infrastructure::database::SpecMethods;
