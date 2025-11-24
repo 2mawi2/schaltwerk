@@ -150,6 +150,14 @@ mock.module('@modelcontextprotocol/sdk/types.js', () => ({
   McpError: FakeMcpError,
 }))
 
+const getServer = () => {
+  const server = serverState.instance
+  if (!server) {
+    throw new Error('Server instance not initialized')
+  }
+  return server
+}
+
 let bridgeModule: typeof import('../src/schaltwerk-bridge')
 let originalGetDiffSummary: ((options: any) => Promise<any>) | undefined
 let originalGetDiffChunk: ((options: any) => Promise<any>) | undefined
@@ -194,7 +202,7 @@ describe('MCP diff tools integration', () => {
       return createSpecSessionMock(name, content, baseBranch)
     }
 
-    await import('../src/schaltwerk-mcp-server')
+    await import(`../src/schaltwerk-mcp-server?diff=${Date.now()}`)
   })
 
   beforeEach(() => {
@@ -237,11 +245,7 @@ describe('MCP diff tools integration', () => {
 
   it('registers diff tools in the tool list', async () => {
     const { ListToolsRequestSchema } = await import('@modelcontextprotocol/sdk/types.js')
-    const serverModule = await import('@modelcontextprotocol/sdk/server/index.js')
-    const server = serverModule.__serverState.instance
-    if (!server) {
-      throw new Error('Server instance not initialized')
-    }
+    const server = getServer()
 
     const listHandler = server.handlers.get(ListToolsRequestSchema)
     expect(typeof listHandler).toBe('function')
@@ -250,15 +254,19 @@ describe('MCP diff tools integration', () => {
     expect(toolNames).toContain('schaltwerk_diff_summary')
     expect(toolNames).toContain('schaltwerk_diff_chunk')
     expect(toolNames).toContain('schaltwerk_session_spec')
+
+    const diffSummaryTool = response.tools.find((tool: { name: string }) => tool.name === 'schaltwerk_diff_summary')
+    const diffChunkTool = response.tools.find((tool: { name: string }) => tool.name === 'schaltwerk_diff_chunk')
+    const sessionSpecTool = response.tools.find((tool: { name: string }) => tool.name === 'schaltwerk_session_spec')
+
+    expect(diffSummaryTool?.outputSchema).toBeDefined()
+    expect(diffChunkTool?.outputSchema).toBeDefined()
+    expect(sessionSpecTool?.outputSchema).toBeDefined()
   })
 
   it('invokes bridge for schaltwerk_diff_summary and returns JSON payload', async () => {
     const { CallToolRequestSchema } = await import('@modelcontextprotocol/sdk/types.js')
-    const serverModule = await import('@modelcontextprotocol/sdk/server/index.js')
-    const server = serverModule.__serverState.instance
-    if (!server) {
-      throw new Error('Server instance not initialized')
-    }
+    const server = getServer()
 
     const callHandler = server.handlers.get(CallToolRequestSchema)
     expect(typeof callHandler).toBe('function')
@@ -274,15 +282,14 @@ describe('MCP diff tools integration', () => {
     expect(content?.mimeType || content?.type).toBe('application/json')
     const parsed = JSON.parse(content?.text ?? '{}')
     expect(parsed.scope).toBe('session')
+
+    expect(response.structuredContent?.scope).toBe('session')
+    expect(response.structuredContent?.branch_info?.current_branch).toBe('schaltwerk/fiery_maxwell')
   })
 
   it('caps line_limit on schaltwerk_diff_chunk and forwards cursor', async () => {
     const { CallToolRequestSchema } = await import('@modelcontextprotocol/sdk/types.js')
-    const { __serverState } = await import('@modelcontextprotocol/sdk/server/index.js')
-    const server = __serverState.instance
-    if (!server) {
-      throw new Error('Server instance not initialized')
-    }
+    const server = getServer()
 
     const callHandler = server.handlers.get(CallToolRequestSchema)
     const response = await callHandler({
@@ -302,15 +309,12 @@ describe('MCP diff tools integration', () => {
     expect(content?.mimeType || content?.type).toBe('application/json')
     const parsed = JSON.parse(content?.text ?? '{}')
     expect(parsed.file.path).toBe('src/app.ts')
+    expect(response.structuredContent?.file?.path).toBe('src/app.ts')
   })
 
   it('calls bridge for schaltwerk_session_spec', async () => {
     const { CallToolRequestSchema } = await import('@modelcontextprotocol/sdk/types.js')
-    const { __serverState } = await import('@modelcontextprotocol/sdk/server/index.js')
-    const server = __serverState.instance
-    if (!server) {
-      throw new Error('Server instance not initialized')
-    }
+    const server = getServer()
 
     const callHandler = server.handlers.get(CallToolRequestSchema)
     const response = await callHandler({
@@ -322,15 +326,12 @@ describe('MCP diff tools integration', () => {
     expect(content?.mimeType || content?.type).toBe('application/json')
     const parsed = JSON.parse(content?.text ?? '{}')
     expect(parsed.content).toBe('# Spec')
+    expect(response.structuredContent?.content).toBe('# Spec')
   })
 
   it('returns spec summaries via schaltwerk_spec_list', async () => {
     const { CallToolRequestSchema } = await import('@modelcontextprotocol/sdk/types.js')
-    const { __serverState } = await import('@modelcontextprotocol/sdk/server/index.js')
-    const server = __serverState.instance
-    if (!server) {
-      throw new Error('Server instance not initialized')
-    }
+    const server = getServer()
 
     const callHandler = server.handlers.get(CallToolRequestSchema)
     const response = await callHandler({
@@ -342,15 +343,12 @@ describe('MCP diff tools integration', () => {
     expect(content?.mimeType || content?.type).toBe('application/json')
     const parsed = JSON.parse(content?.text ?? '{}')
     expect(parsed.specs?.[0]?.session_id).toBe('alpha_spec')
+    expect(response.structuredContent?.specs?.[0]?.session_id).toBe('alpha_spec')
   })
 
   it('reads spec content via schaltwerk_spec_read', async () => {
     const { CallToolRequestSchema } = await import('@modelcontextprotocol/sdk/types.js')
-    const { __serverState } = await import('@modelcontextprotocol/sdk/server/index.js')
-    const server = __serverState.instance
-    if (!server) {
-      throw new Error('Server instance not initialized')
-    }
+    const server = getServer()
 
     const callHandler = server.handlers.get(CallToolRequestSchema)
     const response = await callHandler({
@@ -363,15 +361,13 @@ describe('MCP diff tools integration', () => {
     const parsed = JSON.parse(content?.text ?? '{}')
     expect(parsed.session_id).toBe('alpha_spec')
     expect(parsed.content).toBe('# Alpha')
+    expect(response.structuredContent?.session_id).toBe('alpha_spec')
+    expect(response.structuredContent?.content).toBe('# Alpha')
   })
 
   it('reports persisted spec content length when creating spec sessions', async () => {
     const { CallToolRequestSchema } = await import('@modelcontextprotocol/sdk/types.js')
-    const { __serverState } = await import('@modelcontextprotocol/sdk/server/index.js')
-    const server = __serverState.instance
-    if (!server) {
-      throw new Error('Server instance not initialized')
-    }
+    const server = getServer()
 
     const callHandler = server.handlers.get(CallToolRequestSchema)
     const response = await callHandler({
