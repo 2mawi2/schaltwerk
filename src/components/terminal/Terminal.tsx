@@ -38,7 +38,14 @@ import { XtermTerminal } from '../../terminal/xterm/XtermTerminal'
 import { useTerminalGpu } from '../../hooks/useTerminalGpu'
 import { terminalOutputManager } from '../../terminal/stream/terminalOutputManager'
 import { TerminalResizeCoordinator } from './resize/TerminalResizeCoordinator'
-import { calculateEffectiveColumns, MIN_TERMINAL_COLUMNS } from './terminalSizing'
+import {
+    calculateEffectiveColumns,
+    MIN_TERMINAL_COLUMNS,
+    MIN_TERMINAL_MEASURE_WIDTH_PX,
+    MIN_TERMINAL_MEASURE_HEIGHT_PX,
+    MIN_PROPOSED_COLUMNS,
+    isMeasurementTooSmall,
+} from './terminalSizing'
 import { shouldEmitControlPaste, shouldEmitControlNewline } from './terminalKeybindings'
 import { hydrateReusedTerminal } from './hydration'
 import { parseTerminalFileReference, resolveTerminalFileReference } from '../../terminal/xterm/fileLinks/terminalFileLinks'
@@ -555,6 +562,11 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             return;
         }
 
+        if (isMeasurementTooSmall(measured.width, measured.height)) {
+            logger.debug(`[Terminal ${terminalId}] Skipping ${reason} resize - container too small (${measured.width}x${measured.height})`);
+            return;
+        }
+
         if (!options?.force) {
             const prev = lastMeasuredDimensionsRef.current;
             const deltaWidth = Math.abs(measured.width - prev.width);
@@ -571,13 +583,18 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             return;
         }
 
+        if (proposed.cols < MIN_PROPOSED_COLUMNS) {
+            logger.debug(`[Terminal ${terminalId}] Skipping ${reason} resize - proposed columns too small (${proposed.cols})`);
+            return;
+        }
+
         resizeCoordinatorRef.current?.resize({
             cols: proposed.cols,
             rows: proposed.rows,
             reason,
             immediate: options?.immediate ?? false,
         });
-    }, [readDimensions]);
+    }, [readDimensions, terminalId]);
 
     // Selection-aware autoscroll helpers (run terminal: avoid jumping while user selects text)
     const isUserSelectingInTerminal = useCallback((): boolean => {
@@ -1874,6 +1891,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 if (gpuEnabledForTerminal) {
                     void handleFontPreferenceChange();
                 }
+                requestResize('fonts-ready', { immediate: true, force: true });
             }
         };
 
@@ -1929,6 +1947,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         applyLetterSpacing,
         handleFontPreferenceChange,
         webglRendererActive,
+        requestResize,
     ])
 
     useLayoutEffect(() => {

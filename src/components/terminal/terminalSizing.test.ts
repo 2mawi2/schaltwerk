@@ -1,17 +1,19 @@
-import { describe, expect, it } from 'vitest'
+import { describe, it, expect } from 'vitest'
 
-import { calculateEffectiveColumns, MIN_TERMINAL_COLUMNS } from './terminalSizing'
+import {
+  isMeasurementTooSmall,
+  MIN_TERMINAL_MEASURE_WIDTH_PX,
+  MIN_TERMINAL_MEASURE_HEIGHT_PX,
+} from './terminalSizing'
 
-describe('calculateEffectiveColumns', () => {
-  it('never drops below the minimum column count', () => {
-    expect(calculateEffectiveColumns(0)).toBe(MIN_TERMINAL_COLUMNS)
-    expect(calculateEffectiveColumns(1)).toBe(MIN_TERMINAL_COLUMNS)
-    expect(calculateEffectiveColumns(MIN_TERMINAL_COLUMNS)).toBe(MIN_TERMINAL_COLUMNS)
+describe('terminalSizing guards', () => {
+  it('flags measurements that are narrower or shorter than the safe threshold', () => {
+    expect(isMeasurementTooSmall(MIN_TERMINAL_MEASURE_WIDTH_PX - 1, 200)).toBe(true)
+    expect(isMeasurementTooSmall(200, MIN_TERMINAL_MEASURE_HEIGHT_PX - 1)).toBe(true)
   })
 
-  it('returns the floored column count when space is available', () => {
-    expect(calculateEffectiveColumns(6)).toBe(6)
-    expect(calculateEffectiveColumns(6.8)).toBe(6)
-    expect(calculateEffectiveColumns(120)).toBe(120)
+  it('allows measurements that meet or exceed the safe threshold', () => {
+    expect(isMeasurementTooSmall(MIN_TERMINAL_MEASURE_WIDTH_PX, MIN_TERMINAL_MEASURE_HEIGHT_PX)).toBe(false)
+    expect(isMeasurementTooSmall(MIN_TERMINAL_MEASURE_WIDTH_PX + 10, MIN_TERMINAL_MEASURE_HEIGHT_PX + 10)).toBe(false)
   })
 })
