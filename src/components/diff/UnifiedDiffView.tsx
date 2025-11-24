@@ -82,8 +82,11 @@ export const shouldHandleFileChange = (
   return eventSession === targetSession;
 };
 
-const RECENTLY_RENDERED_LIMIT = 8;
+const RECENTLY_RENDERED_LIMIT = 12;
 const LOCKED_RENDER_LIMIT = RECENTLY_RENDERED_LIMIT * 2;
+const USER_SCROLL_RENDER_LIMIT = 20;
+// Upper bound on how many file diffs we keep fully rendered in the sidebar.
+const SIDEBAR_RENDER_CAP = 20;
 
 export function UnifiedDiffView({
   filePath,
@@ -121,6 +124,7 @@ export function UnifiedDiffView({
   const [files, setFiles] = useState<ChangedFile[]>([]);
   const [selectedFile, setSelectedFile] = useState<string | null>(filePath);
   const selectedFileRef = useRef<string | null>(filePath);
+  const filePathPropRef = useRef<string | null>(filePath);
   const lastNotifiedFileRef = useRef<string | null>(filePath);
   const [fileError, setFileError] = useState<string | null>(null);
   const [branchInfo, setBranchInfo] = useState<{
@@ -143,9 +147,26 @@ export function UnifiedDiffView({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const fileRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const suppressAutoSelectRef = useRef(false);
+  const scrollAnchorRef = useRef<{
+    path: string | null;
+    offset: number;
+    scrollTop: number;
+    version: number;
+  } | null>(null);
+  const isRestoringScrollRef = useRef(false);
+  const userScrollingRef = useRef(false);
+  const userScrollIdleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const anchorVersionRef = useRef(0);
+  const lastRestoredVersionRef = useRef<number | null>(null);
+  const anchorRestoreTimeoutRef = useRef<number | NodeJS.Timeout | null>(null);
+  const anchorRestoreObserverRef = useRef<ResizeObserver | null>(null);
+  const anchorRestoreAttemptsRef = useRef<number>(0);
   const leftScrollRafRef = useRef<number | null>(null);
   const didInitialScrollRef = useRef(false);
   const lastInitialFilePathRef = useRef<string | null>(null);
+  const skipAutoscrollForPathRef = useRef<string | null>(null);
+  const scrollLogRafRef = useRef<number | null>(null);
+  const lastLoggedScrollTopRef = useRef<number | null>(null);
 
   const [visibleFilePath, setVisibleFilePath] = useState<string | null>(null);
   const [showCommentForm, setShowCommentForm] = useState(false);
@@ -167,16 +188,47 @@ export function UnifiedDiffView({
   const sidebarDragStartRef = useRef<{ x: number; width: number } | null>(null);
   const resizeFrameRef = useRef<number | null>(null);
   const fileBodyHeightsRef = useRef<Map<string, number>>(new Map());
-  const [, setFileHeightsVersion] = useState(0);
+  const [fileHeightsVersion, setFileHeightsVersion] = useState(0);
   const clampSidebarWidth = useCallback(
     (value: number) => Math.min(600, Math.max(200, value)),
     [],
   );
 
+  const captureScrollAnchor = useCallback(() => {
+    if (mode === "history") return;
+    const container = scrollContainerRef.current;
+    const anchorPath = selectedFileRef.current;
+    if (!container || !anchorPath) return;
+    const anchorEl = fileRefs.current.get(anchorPath);
+    if (!anchorEl) return;
+    const containerRect = container.getBoundingClientRect();
+    const anchorRect = anchorEl.getBoundingClientRect();
+    anchorVersionRef.current += 1;
+    const anchor = {
+      path: anchorPath,
+      offset: anchorRect.top - containerRect.top,
+      scrollTop: container.scrollTop,
+      version: anchorVersionRef.current,
+    };
+    scrollAnchorRef.current = anchor;
+    if (viewMode === "sidebar") {
+      logger.debug("[DiffSidebar] captured scroll anchor", anchor);
+      logger.debug("[DiffSidebar] capture metrics", {
+        version: anchor.version,
+        containerScrollTop: container.scrollTop,
+        containerScrollHeight: container.scrollHeight,
+        containerClientHeight: container.clientHeight,
+        elementHeight: anchorEl.getBoundingClientRect().height,
+      });
+    }
+  }, [mode, viewMode]);
+
   const [visibleFileSet, setVisibleFileSet] = useState<Set<string>>(new Set());
   const [renderedFileSet, setRenderedFileSet] = useState<Set<string>>(
     new Set(),
   );
+  const lastViewportCenterRef = useRef<string | null>(null);
+  const trimTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [loadingFiles, setLoadingFiles] = useState<Set<string>>(new Set());
   const observerRef = useRef<IntersectionObserver | null>(null);
   const pendingVisibilityUpdatesRef = useRef<Map<string, boolean>>(new Map());
@@ -184,6 +236,7 @@ export function UnifiedDiffView({
   const recentlyVisibleRef = useRef<string[]>([]);
   const [isVirtualizationLocked, setIsVirtualizationLocked] = useState(false);
   const virtualizationUnlockTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const previousVisibleSetRef = useRef<Set<string>>(new Set());
   const historyPrefetchQueueRef = useRef<string[]>([]);
   const historyPrefetchActiveRef = useRef<Set<string>>(new Set());
   const activeSelectionFileRef = useRef<string | null>(null);
@@ -191,6 +244,7 @@ export function UnifiedDiffView({
   const [historyPrefetchVersion, setHistoryPrefetchVersion] = useState(0);
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
   const [alwaysShowLargeDiffs, setAlwaysShowLargeDiffs] = useState(false);
+  const deferredHeightPathsRef = useRef<Set<string>>(new Set());
 
   // Force continuous scroll in sidebar mode
   const isSidebarMode = viewMode === "sidebar";
@@ -362,12 +416,23 @@ export function UnifiedDiffView({
   }, [filePath]);
 
   useEffect(() => {
+    filePathPropRef.current = filePath;
+  }, [filePath]);
+
+  useEffect(() => {
     selectedFileRef.current = selectedFile;
   }, [selectedFile]);
 
   useEffect(() => {
     if (!onSelectedFileChange) return;
     if (lastNotifiedFileRef.current === selectedFile) return;
+    const currentPropPath = filePathPropRef.current;
+    const isInternalSelection = selectedFile !== currentPropPath;
+
+    if (isInternalSelection) {
+      skipAutoscrollForPathRef.current = selectedFile ?? null;
+    }
+
     lastNotifiedFileRef.current = selectedFile;
     onSelectedFileChange(selectedFile);
   }, [onSelectedFileChange, selectedFile]);
@@ -607,6 +672,8 @@ export function UnifiedDiffView({
   }, []);
 
   const loadChangedFiles = useCallback(async () => {
+    captureScrollAnchor();
+
     if (mode === "history") {
       if (!historyContext) {
         logger.warn("[UnifiedDiffView] History mode invoked without context");
@@ -772,6 +839,7 @@ export function UnifiedDiffView({
     fetchSessionChangedFiles,
     filePath,
     sessionName,
+    captureScrollAnchor,
   ]);
 
   // Prevent overlapping loads; queue a single follow-up run if an event fires mid-load.
@@ -895,7 +963,14 @@ export function UnifiedDiffView({
   }, [mode, isOpen, historyContext, historyPrefetchVersion]);
 
   const scrollToFile = useCallback(
-    async (path: string, index?: number) => {
+    async (
+      path: string,
+      index?: number,
+      options?: { origin?: "user" | "auto"; allowWhileUserScrolling?: boolean },
+    ) => {
+      const origin = options?.origin ?? "auto";
+      const allowWhileUserScrolling =
+        options?.allowWhileUserScrolling ?? origin === "user";
       suppressAutoSelectRef.current = true;
       setSelectedFile(path);
       setVisibleFilePath(path);
@@ -960,11 +1035,43 @@ export function UnifiedDiffView({
         const fileElement = fileRefs.current.get(path);
         const container = scrollContainerRef.current;
         if (fileElement && container) {
+          if (
+            viewMode === "sidebar" &&
+            origin === "auto"
+          ) {
+            if (viewMode === "sidebar") {
+              logger.debug(
+                "[DiffSidebar] suppressing programmatic scroll (auto origin, sidebar)",
+                { path },
+              );
+            }
+            return;
+          }
+          if (userScrollingRef.current && !allowWhileUserScrolling) {
+            if (viewMode === "sidebar") {
+              logger.debug(
+                "[DiffSidebar] suppressing programmatic scroll (user scrolling)",
+                { path, origin },
+              );
+            }
+            return;
+          }
           const containerRect = container.getBoundingClientRect();
           const elementRect = fileElement.getBoundingClientRect();
           const stickyOffsetPx = 0;
           const delta = elementRect.top - containerRect.top;
           container.scrollTop += delta - stickyOffsetPx;
+          if (viewMode === "sidebar") {
+            logger.debug("[DiffSidebar] programmatic scroll (scrollToFile)", {
+              path,
+              index,
+              delta,
+              targetScrollTop: container.scrollTop,
+              scrollHeight: container.scrollHeight,
+              clientHeight: container.clientHeight,
+              origin,
+            });
+          }
         }
       });
 
@@ -976,15 +1083,16 @@ export function UnifiedDiffView({
       }, 250);
     },
     [
-      mode,
-      historyContext,
-      setHistoryPrefetchVersion,
-      isLargeDiffMode,
-      files,
-      sessionName,
-      allFileDiffs,
-    ],
-  );
+    mode,
+    historyContext,
+    setHistoryPrefetchVersion,
+    isLargeDiffMode,
+    files,
+    sessionName,
+    allFileDiffs,
+    viewMode,
+  ],
+);
 
   useEffect(() => {
     if (!isOpen || isLargeDiffMode) {
@@ -992,6 +1100,10 @@ export function UnifiedDiffView({
       if (virtualizationUnlockTimeoutRef.current) {
         clearTimeout(virtualizationUnlockTimeoutRef.current);
         virtualizationUnlockTimeoutRef.current = null;
+      }
+      if (trimTimeoutRef.current) {
+        clearTimeout(trimTimeoutRef.current);
+        trimTimeoutRef.current = null;
       }
       return;
     }
@@ -1013,9 +1125,38 @@ export function UnifiedDiffView({
       virtualizationUnlockTimeoutRef.current = setTimeout(releaseLock, 180);
     };
 
+    const trimRendered = () => {
+      trimTimeoutRef.current = null;
+      const center = lastViewportCenterRef.current;
+      const MAX_RENDER = SIDEBAR_RENDER_CAP;
+      setRenderedFileSet((prev) => {
+        if (prev.size <= MAX_RENDER) return prev;
+        const paths = Array.from(prev);
+        if (center && paths.includes(center)) {
+          const centerIdx = paths.indexOf(center);
+          const half = Math.floor(MAX_RENDER / 2);
+          const start = Math.max(0, centerIdx - half);
+          const end = Math.min(paths.length, start + MAX_RENDER);
+          const kept = paths.slice(start, end);
+          const next = new Set(kept);
+          return setsEqual(prev, next) ? prev : next;
+        }
+        const next = new Set(paths.slice(0, MAX_RENDER));
+        return setsEqual(prev, next) ? prev : next;
+      });
+    };
+
+    const scheduleTrim = () => {
+      if (trimTimeoutRef.current) {
+        clearTimeout(trimTimeoutRef.current);
+      }
+      trimTimeoutRef.current = setTimeout(trimRendered, 350);
+    };
+
     const handleScroll = () => {
       setIsVirtualizationLocked((prev) => (prev ? prev : true));
       scheduleUnlock();
+      scheduleTrim();
     };
 
     container.addEventListener("scroll", handleScroll, { passive: true });
@@ -1026,8 +1167,103 @@ export function UnifiedDiffView({
         clearTimeout(virtualizationUnlockTimeoutRef.current);
         virtualizationUnlockTimeoutRef.current = null;
       }
+      if (trimTimeoutRef.current) {
+        clearTimeout(trimTimeoutRef.current);
+        trimTimeoutRef.current = null;
+      }
     };
   }, [isOpen, isLargeDiffMode]);
+
+  useEffect(() => {
+    if (!isOpen || viewMode !== "sidebar") return;
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const logScroll = () => {
+      scrollLogRafRef.current = null;
+      const current = container.scrollTop;
+      const previous = lastLoggedScrollTopRef.current ?? current;
+      const delta = current - previous;
+      if (Math.abs(delta) < 1) {
+        lastLoggedScrollTopRef.current = current;
+        return;
+      }
+      lastLoggedScrollTopRef.current = current;
+      userScrollingRef.current = true;
+      if (userScrollIdleTimeoutRef.current) {
+        clearTimeout(userScrollIdleTimeoutRef.current);
+      }
+      userScrollIdleTimeoutRef.current = setTimeout(() => {
+        userScrollingRef.current = false;
+        // Apply deferred height updates after scrolling settles
+        if (deferredHeightPathsRef.current.size > 0) {
+          const paths = Array.from(deferredHeightPathsRef.current);
+          deferredHeightPathsRef.current.clear();
+          paths.forEach((path) => {
+            const element = fileRefs.current.get(path);
+            if (element) {
+              const measured = Math.max(
+                0,
+                Math.round(element.getBoundingClientRect().height),
+              );
+              fileBodyHeightsRef.current.set(path, measured);
+            }
+          });
+          setFileHeightsVersion((version) => version + 1);
+          logger.debug("[DiffSidebar] applied deferred heights", { count: paths.length });
+        }
+      }, 250);
+      logger.debug("[DiffSidebar] scroll", {
+        scrollTop: current,
+        delta,
+        scrollHeight: container.scrollHeight,
+        clientHeight: container.clientHeight,
+        renderedFiles: renderedFileSet.size,
+        visibleFiles: visibleFileSet.size,
+        anchorVersion: scrollAnchorRef.current?.version ?? null,
+        lastRestoredVersion: lastRestoredVersionRef.current,
+        isRestoring: isRestoringScrollRef.current,
+      });
+    };
+
+    const handleScroll = () => {
+      if (scrollLogRafRef.current != null) return;
+      if (
+        typeof window !== "undefined" &&
+        typeof window.requestAnimationFrame === "function"
+      ) {
+        scrollLogRafRef.current = window.requestAnimationFrame(logScroll);
+      } else {
+        scrollLogRafRef.current = setTimeout(logScroll, 16) as unknown as number;
+      }
+    };
+
+    lastLoggedScrollTopRef.current = container.scrollTop;
+    container.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      container.removeEventListener("scroll", handleScroll);
+      if (scrollLogRafRef.current != null) {
+        if (
+          typeof window !== "undefined" &&
+          typeof window.cancelAnimationFrame === "function"
+        ) {
+          window.cancelAnimationFrame(scrollLogRafRef.current);
+        } else {
+          clearTimeout(scrollLogRafRef.current as unknown as NodeJS.Timeout);
+        }
+        scrollLogRafRef.current = null;
+      }
+    };
+  }, [
+    isOpen,
+    viewMode,
+    renderedFileSet,
+    visibleFileSet,
+    isRestoringScrollRef,
+    scrollAnchorRef,
+    lastRestoredVersionRef,
+  ]);
 
   useEffect(() => {
     const pendingUpdates = pendingVisibilityUpdatesRef.current;
@@ -1075,7 +1311,7 @@ export function UnifiedDiffView({
               next.add(path);
               mutated = true;
             }
-          } else if (next.delete(path)) {
+          } else if (!userScrollingRef.current && next.delete(path)) {
             mutated = true;
           }
         });
@@ -1144,10 +1380,15 @@ export function UnifiedDiffView({
       previousSet.has(path),
     );
     const prioritizedVisible = [...newEntries, ...existingEntries];
-    const baseLimit = isVirtualizationLocked
-      ? LOCKED_RENDER_LIMIT
-      : RECENTLY_RENDERED_LIMIT;
-    const effectiveLimit = Math.max(visibleArray.length, baseLimit);
+    const baseLimit = userScrollingRef.current
+      ? USER_SCROLL_RENDER_LIMIT
+      : isVirtualizationLocked
+        ? LOCKED_RENDER_LIMIT
+        : RECENTLY_RENDERED_LIMIT;
+    const effectiveLimit = Math.min(
+      Math.max(visibleArray.length, baseLimit),
+      SIDEBAR_RENDER_CAP,
+    );
     const nextList = computeRenderOrder(
       previousList,
       prioritizedVisible,
@@ -1156,13 +1397,64 @@ export function UnifiedDiffView({
 
     recentlyVisibleRef.current = nextList;
 
-    if (isVirtualizationLocked) {
-      return;
-    }
-
     const nextSet = new Set(nextList);
-    setRenderedFileSet((prev) => (setsEqual(prev, nextSet) ? prev : nextSet));
+    setRenderedFileSet((prev) => {
+      let target = nextSet;
+      if (userScrollingRef.current || isVirtualizationLocked) {
+        // While scrolling/locked only add, never remove.
+        target = new Set(prev);
+        nextSet.forEach((p) => target.add(p));
+      }
+      // Record current center for future trims.
+      const center = prioritizedVisible[Math.floor(prioritizedVisible.length / 2)] ?? null;
+      lastViewportCenterRef.current = center;
+      return setsEqual(prev, target) ? prev : target;
+    });
   }, [visibleFileSet, isVirtualizationLocked, isLargeDiffMode, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || viewMode !== "sidebar") return;
+    const visiblePreview = Array.from(visibleFileSet).slice(0, 6);
+    const renderedPreview = Array.from(renderedFileSet).slice(0, 6);
+    logger.debug("[DiffSidebar] visibility/render window", {
+      visibleCount: visibleFileSet.size,
+      renderedCount: renderedFileSet.size,
+      locked: isVirtualizationLocked,
+      largeDiffMode: isLargeDiffMode,
+      visiblePreview,
+      renderedPreview,
+    });
+  }, [
+    isOpen,
+    viewMode,
+    visibleFileSet,
+    renderedFileSet,
+    isVirtualizationLocked,
+    isLargeDiffMode,
+  ]);
+
+  useEffect(() => {
+    if (!isOpen || viewMode !== "sidebar") return;
+    const prev = previousVisibleSetRef.current;
+    const added: string[] = [];
+    const removed: string[] = [];
+    visibleFileSet.forEach((path) => {
+      if (!prev.has(path)) added.push(path);
+    });
+    prev.forEach((path) => {
+      if (!visibleFileSet.has(path)) removed.push(path);
+    });
+    if (added.length || removed.length) {
+      logger.debug("[DiffSidebar] visibility delta", {
+        added: added.slice(0, 8),
+        removed: removed.slice(0, 8),
+        addedCount: added.length,
+        removedCount: removed.length,
+        totalVisible: visibleFileSet.size,
+      });
+    }
+    previousVisibleSetRef.current = new Set(visibleFileSet);
+  }, [visibleFileSet, isOpen, viewMode]);
 
   useEffect(() => {
     if (isLargeDiffMode || !isOpen) {
@@ -1310,6 +1602,18 @@ export function UnifiedDiffView({
   ]);
 
   useEffect(() => {
+    if (!isOpen || viewMode !== "sidebar") return;
+    if (loadingFiles.size === 0) {
+      logger.debug("[DiffSidebar] loading files cleared");
+      return;
+    }
+    logger.debug("[DiffSidebar] loading files update", {
+      loadingCount: loadingFiles.size,
+      loadingSample: Array.from(loadingFiles).slice(0, 8),
+    });
+  }, [isOpen, viewMode, loadingFiles]);
+
+  useEffect(() => {
     if (isLargeDiffMode || !isOpen) return;
 
     const cleanupTimer = setTimeout(() => {
@@ -1363,7 +1667,11 @@ export function UnifiedDiffView({
       rootEl: HTMLElement,
       rafRef: React.MutableRefObject<number | null>,
     ) => {
+      if (userScrollingRef.current) {
+        return;
+      }
       if (suppressAutoSelectRef.current) return;
+      if (isRestoringScrollRef.current) return;
       if (files.length === 0) return;
       if (rafRef.current !== null) return;
       rafRef.current = window.requestAnimationFrame(() => {
@@ -1410,6 +1718,148 @@ export function UnifiedDiffView({
       }
     };
   }, [isOpen, files, visibleFilePath, isLargeDiffMode]);
+
+  useEffect(() => {
+    const anchor = scrollAnchorRef.current;
+    if (!anchor) return;
+    if (lastRestoredVersionRef.current === anchor.version) {
+      return;
+    }
+    const container = scrollContainerRef.current;
+    if (!container) {
+      scrollAnchorRef.current = null;
+      suppressAutoSelectRef.current = false;
+      return;
+    }
+
+    suppressAutoSelectRef.current = true;
+
+    const restore = () => {
+      const element = anchor.path ? fileRefs.current.get(anchor.path) : null;
+      const beforeScrollTop = container.scrollTop;
+      const beforeHeight = element?.getBoundingClientRect().height ?? null;
+      if (element) {
+        const containerRect = container.getBoundingClientRect();
+        const elementRect = element.getBoundingClientRect();
+        const delta = elementRect.top - containerRect.top - anchor.offset;
+        const largeJumpThreshold = container.clientHeight * 0.75;
+        if (Math.abs(delta) > largeJumpThreshold) {
+          container.scrollTop = anchor.scrollTop;
+          if (viewMode === "sidebar") {
+            logger.debug("[DiffSidebar] restore fallback to saved scrollTop", {
+              path: anchor.path,
+              version: anchor.version,
+              delta,
+              savedScrollTop: anchor.scrollTop,
+              containerScrollHeight: container.scrollHeight,
+              containerClientHeight: container.clientHeight,
+              anchorAttempts: anchorRestoreAttemptsRef.current,
+            });
+          }
+        } else if (Math.abs(delta) >= 2) {
+          container.scrollTop += delta;
+        }
+      } else {
+        container.scrollTop = anchor.scrollTop;
+      }
+      if (viewMode === "sidebar") {
+        logger.debug("[DiffSidebar] restored scroll anchor", {
+          path: anchor.path,
+          offset: anchor.offset,
+          targetScrollTop: container.scrollTop,
+          beforeScrollTop,
+          version: anchor.version,
+          beforeHeight,
+          afterHeight: element?.getBoundingClientRect().height ?? null,
+          containerScrollHeight: container.scrollHeight,
+          containerClientHeight: container.clientHeight,
+          attempts: anchorRestoreAttemptsRef.current,
+        });
+      }
+      scrollAnchorRef.current = null;
+      suppressAutoSelectRef.current = false;
+      isRestoringScrollRef.current = false;
+      lastRestoredVersionRef.current = anchor.version;
+      if (anchorRestoreObserverRef.current) {
+        anchorRestoreObserverRef.current.disconnect();
+        anchorRestoreObserverRef.current = null;
+      }
+      if (anchorRestoreTimeoutRef.current) {
+        if (typeof anchorRestoreTimeoutRef.current === "number") {
+          clearTimeout(anchorRestoreTimeoutRef.current);
+        } else {
+          clearTimeout(anchorRestoreTimeoutRef.current as NodeJS.Timeout);
+        }
+        anchorRestoreTimeoutRef.current = null;
+      }
+    };
+
+    isRestoringScrollRef.current = true;
+
+    const element = anchor.path ? fileRefs.current.get(anchor.path) : null;
+    let lastHeight = element?.getBoundingClientRect().height ?? 0;
+    anchorRestoreAttemptsRef.current = 0;
+    const deadline = performance.now() + 600;
+
+    const scheduleAttempt = (delay: number) => {
+      if (anchorRestoreTimeoutRef.current) {
+        if (typeof anchorRestoreTimeoutRef.current === "number") {
+          clearTimeout(anchorRestoreTimeoutRef.current);
+        } else {
+          clearTimeout(anchorRestoreTimeoutRef.current as NodeJS.Timeout);
+        }
+      }
+      anchorRestoreTimeoutRef.current = setTimeout(attemptRestore, delay);
+    };
+
+    const attemptRestore = () => {
+      const now = performance.now();
+      const currentHeight = element?.getBoundingClientRect().height ?? lastHeight;
+      const heightChanged = Math.abs(currentHeight - lastHeight) > 0.5;
+      lastHeight = currentHeight;
+      anchorRestoreAttemptsRef.current += 1;
+
+      if (heightChanged && now < deadline) {
+        if (viewMode === "sidebar") {
+          logger.debug("[DiffSidebar] restore deferred; height changing", {
+            path: anchor.path,
+            version: anchor.version,
+            currentHeight,
+            attempts: anchorRestoreAttemptsRef.current,
+          });
+        }
+        scheduleAttempt(50);
+        return;
+      }
+
+      restore();
+    };
+
+    if (element && typeof ResizeObserver !== "undefined") {
+      anchorRestoreObserverRef.current = new ResizeObserver(() => {
+        scheduleAttempt(30);
+      });
+      anchorRestoreObserverRef.current.observe(element);
+    }
+
+    scheduleAttempt(16);
+
+    return () => {
+      isRestoringScrollRef.current = false;
+      if (anchorRestoreObserverRef.current) {
+        anchorRestoreObserverRef.current.disconnect();
+        anchorRestoreObserverRef.current = null;
+      }
+      if (anchorRestoreTimeoutRef.current) {
+        if (typeof anchorRestoreTimeoutRef.current === "number") {
+          clearTimeout(anchorRestoreTimeoutRef.current);
+        } else {
+          clearTimeout(anchorRestoreTimeoutRef.current as NodeJS.Timeout);
+        }
+        anchorRestoreTimeoutRef.current = null;
+      }
+    };
+  }, [files, allFileDiffs, viewMode]);
 
   useEffect(() => {
     if (isOpen) {
@@ -1513,7 +1963,18 @@ export function UnifiedDiffView({
     if (filePath !== lastInitialFilePathRef.current) {
       didInitialScrollRef.current = false;
     }
-    if (isOpen && filePath && !didInitialScrollRef.current) {
+
+    const shouldSkipAutoScroll =
+      filePath && skipAutoscrollForPathRef.current === filePath;
+
+    if (shouldSkipAutoScroll) {
+      skipAutoscrollForPathRef.current = null;
+      didInitialScrollRef.current = true;
+      lastInitialFilePathRef.current = filePath;
+      return;
+    }
+
+    if (isOpen && filePath && !didInitialScrollRef.current && viewMode !== "sidebar") {
       const targetPath = filePath;
       suppressAutoSelectRef.current = true;
 
@@ -1522,11 +1983,20 @@ export function UnifiedDiffView({
         const fileElement = fileRefs.current.get(targetPath);
         const container = scrollContainerRef.current;
         if (fileElement && container) {
-          const containerRect = container.getBoundingClientRect();
-          const elementRect = fileElement.getBoundingClientRect();
-          const stickyOffsetPx = 0;
-          const delta = elementRect.top - containerRect.top;
-          container.scrollTop += delta - stickyOffsetPx;
+          if (!userScrollingRef.current) {
+            const containerRect = container.getBoundingClientRect();
+            const elementRect = fileElement.getBoundingClientRect();
+            const stickyOffsetPx = 0;
+            const delta = elementRect.top - containerRect.top;
+            container.scrollTop += delta - stickyOffsetPx;
+            logger.debug("[DiffSidebar] programmatic scroll (initial open)", {
+              path: targetPath,
+              delta,
+              targetScrollTop: container.scrollTop,
+              scrollHeight: container.scrollHeight,
+              clientHeight: container.clientHeight,
+            });
+          }
         }
         suppressTimeoutId = setTimeout(() => {
           suppressAutoSelectRef.current = false;
@@ -1541,7 +2011,7 @@ export function UnifiedDiffView({
         if (suppressTimeoutId) clearTimeout(suppressTimeoutId);
       };
     }
-  }, [isOpen, filePath]);
+  }, [isOpen, filePath, viewMode]);
 
   const HIGHLIGHT_LINE_CAP = 3000;
   const HIGHLIGHT_BLOCK_SIZE = 200;
@@ -1623,8 +2093,12 @@ export function UnifiedDiffView({
     if (!isOpen) return;
     performance.mark("udm-open");
     return () => {
-      performance.mark("udm-close");
-      performance.measure("udm-open-duration", "udm-open", "udm-close");
+      try {
+        performance.mark("udm-close");
+        performance.measure("udm-open-duration", "udm-open", "udm-close");
+      } catch (error) {
+        logger.debug("[UnifiedDiffView] Skipping diff timing measure", error);
+      }
     };
   }, [isOpen]);
 
@@ -1779,15 +2253,70 @@ export function UnifiedDiffView({
 
   const registerFileBodyHeight = useCallback(
     (filePath: string, height: number) => {
+      if (userScrollingRef.current) {
+        deferredHeightPathsRef.current.add(filePath);
+        return;
+      }
       const normalizedHeight = Math.max(0, Math.round(height));
       const previous = fileBodyHeightsRef.current.get(filePath);
       if (previous !== undefined && Math.abs(previous - normalizedHeight) < 2) {
         return;
       }
+      const delta = previous === undefined ? 0 : normalizedHeight - previous;
       fileBodyHeightsRef.current.set(filePath, normalizedHeight);
+      if (
+        viewMode === "sidebar" &&
+        previous !== undefined &&
+        delta !== 0 &&
+        scrollContainerRef.current
+      ) {
+        const container = scrollContainerRef.current;
+        const element = fileRefs.current.get(filePath);
+        if (element) {
+          const containerRect = container.getBoundingClientRect();
+          const elementRect = element.getBoundingClientRect();
+          const elementTop =
+            elementRect.top - containerRect.top + container.scrollTop;
+          const elementBottom = elementTop + elementRect.height;
+          const viewportTop = container.scrollTop;
+          const fullyAboveViewport = elementBottom <= viewportTop + 4;
+          if (fullyAboveViewport) {
+            container.scrollTop += delta;
+            logger.debug(
+              "[DiffSidebar] compensated scroll for height delta",
+              {
+                path: filePath,
+                delta,
+                newScrollTop: container.scrollTop,
+                scrollHeight: container.scrollHeight,
+              },
+            );
+            lastLoggedScrollTopRef.current = container.scrollTop;
+          } else if (elementTop < viewportTop - 4) {
+            container.scrollTop += delta;
+            logger.debug(
+              "[DiffSidebar] adjusted scroll for partially visible height delta",
+              {
+                path: filePath,
+                delta,
+                newScrollTop: container.scrollTop,
+                scrollHeight: container.scrollHeight,
+              },
+            );
+            lastLoggedScrollTopRef.current = container.scrollTop;
+          }
+        }
+      }
+      if (viewMode === "sidebar") {
+        logger.debug("[DiffSidebar] file body height updated", {
+          path: filePath,
+          height: normalizedHeight,
+          previous,
+        });
+      }
       setFileHeightsVersion((version) => version + 1);
     },
-    [],
+    [viewMode],
   );
 
   useEffect(() => {
@@ -1828,6 +2357,28 @@ export function UnifiedDiffView({
       return mutated ? next : prev;
     });
   }, [files]);
+
+  useEffect(() => {
+    if (!isOpen || viewMode !== "sidebar") return;
+    const heights = Array.from(fileBodyHeightsRef.current.entries());
+    if (heights.length === 0) return;
+    const maxEntry = heights.reduce(
+      (acc, entry) => (entry[1] > acc[1] ? entry : acc),
+      heights[0],
+    );
+    const totalHeight = heights.reduce((sum, [, h]) => sum + h, 0);
+    const container = scrollContainerRef.current;
+    logger.debug("[DiffSidebar] height metrics", {
+      knownFiles: heights.length,
+      maxHeight: maxEntry[1],
+      maxPath: maxEntry[0],
+      totalKnownHeight: totalHeight,
+      scrollHeight: container?.scrollHeight ?? null,
+      clientHeight: container?.clientHeight ?? null,
+      renderedFiles: renderedFileSet.size,
+      visibleFiles: visibleFileSet.size,
+    });
+  }, [isOpen, viewMode, fileHeightsVersion, renderedFileSet, visibleFileSet]);
 
   useEffect(() => {
     setExpandedSections((prev) => {
@@ -2113,14 +2664,20 @@ export function UnifiedDiffView({
           e.stopPropagation();
           if (selectedFileIndex > 0) {
             const newIndex = selectedFileIndex - 1;
-            void scrollToFile(files[newIndex].path, newIndex);
+            void scrollToFile(files[newIndex].path, newIndex, {
+              origin: "user",
+              allowWhileUserScrolling: true,
+            });
           }
         } else if (e.key === "ArrowDown") {
           e.preventDefault();
           e.stopPropagation();
           if (selectedFileIndex < files.length - 1) {
             const newIndex = selectedFileIndex + 1;
-            void scrollToFile(files[newIndex].path, newIndex);
+            void scrollToFile(files[newIndex].path, newIndex, {
+              origin: "user",
+              allowWhileUserScrolling: true,
+            });
           }
         }
       }
@@ -2366,7 +2923,10 @@ export function UnifiedDiffView({
               selectedFile={selectedFile}
               visibleFilePath={visibleFilePath}
               onFileSelect={(path, index) => {
-                void scrollToFile(path, index);
+                void scrollToFile(path, index, {
+                  origin: "user",
+                  allowWhileUserScrolling: true,
+                });
               }}
               getCommentsForFile={emptyReviewCommentsForFile}
               currentReview={null}
@@ -2518,8 +3078,11 @@ export function UnifiedDiffView({
                   selectedFile={selectedFile}
                   visibleFilePath={visibleFilePath}
                   onFileSelect={(path, index) => {
-                    void scrollToFile(path, index);
-                  }}
+                  void scrollToFile(path, index, {
+                    origin: "user",
+                    allowWhileUserScrolling: true,
+                  });
+                }}
                   getCommentsForFile={getCommentsForFile}
                   currentReview={currentReview}
                   onFinishReview={() => {

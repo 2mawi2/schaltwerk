@@ -516,7 +516,11 @@ export function DiffViewer({
         <div className="p-4 text-slate-600">Preparing preview…</div>
       )}
 
-      <div className="flex-1 overflow-auto min-h-0 w-full font-mono text-sm" ref={scrollContainerRef}>
+      <div
+        className="flex-1 overflow-auto min-h-0 w-full font-mono text-sm"
+        ref={scrollContainerRef}
+        data-testid="diff-scroll-container"
+      >
         {/* In large diff mode, only render the selected file */}
         {isLargeDiffMode ? (
           files.filter(f => f.path === selectedFile).map((file) => {
@@ -739,6 +743,8 @@ export function DiffViewer({
             const isVisible = visibleFileSet.has(file.path)
             const isRendered = isVisible || renderedFileSet.has(file.path)
             const shouldRenderContent = !!fileDiff && (isCurrentFile || isRendered)
+            const cachedHeight = fileBodyHeights.get(file.path)
+            const placeholderHeight = Math.max(cachedHeight ?? storedHeight ?? 0, 160)
             return (
               <div
                 key={file.path}
@@ -752,6 +758,10 @@ export function DiffViewer({
                   }
                 }}
                 className="border-b border-slate-800 last:border-b-0"
+                style={{
+                  contentVisibility: 'auto',
+                  contain: 'layout style paint',
+                }}
               >
                 {/* File header */}
                 <div
@@ -810,7 +820,10 @@ export function DiffViewer({
 
                  {/* File diff content with virtualization */}
                 {!fileDiff ? (
-                  <div className="px-4 py-8 text-center text-slate-500">
+                  <div
+                    className="px-4 py-8 text-center text-slate-500"
+                    style={{ minHeight: placeholderHeight }}
+                  >
                     {isLoading ? (
                       <AnimatedText text="loading" size="sm" />
                     ) : (
@@ -949,7 +962,10 @@ export function DiffViewer({
                   </HorizontalScrollRegion>
                   )
                 })() : (
-                  <div className="px-4 py-8 text-sm text-slate-600">
+                  <div
+                    className="px-4 py-8 text-sm text-slate-600"
+                    style={{ minHeight: placeholderHeight }}
+                  >
                     <div
                       data-testid="diff-placeholder"
                       className="flex items-center justify-center rounded border border-dashed border-slate-700 bg-slate-900/40 text-xs text-slate-500"
