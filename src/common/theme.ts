@@ -156,6 +156,34 @@ export const theme = {
       },
     },
     
+    tabs: {
+      inactive: {
+        bg: 'transparent',
+        text: '#94a3b8',           // slate-400
+        hoverBg: 'rgba(51, 65, 85, 0.5)',  // slate-700 @ 50%
+        hoverText: '#cbd5e1',      // slate-300
+      },
+      active: {
+        bg: '#0f172a',             // slate-900 (slightly lighter than primary)
+        text: '#f1f5f9',           // slate-100
+        indicator: '#22d3ee',      // cyan-400 (brand color)
+      },
+      close: {
+        bg: 'transparent',
+        hoverBg: 'rgba(71, 85, 105, 0.6)',  // slate-600 @ 60%
+        color: '#64748b',          // slate-500
+        hoverColor: '#f1f5f9',     // slate-100
+      },
+      badge: {
+        bg: '#f59e0b',             // amber-500
+        text: '#020617',           // slate-950
+      },
+      running: {
+        indicator: '#06b6d4',      // cyan-500
+        glow: 'rgba(6, 182, 212, 0.3)',
+      },
+    },
+
     scrollbar: {
       track: 'rgba(30, 41, 59, 0.5)',
       thumb: 'rgba(71, 85, 105, 0.8)',

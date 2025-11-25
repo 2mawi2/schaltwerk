@@ -1,7 +1,6 @@
 import { Tab } from './Tab'
 import { ProjectTab } from '../common/projectTabs'
-import { VscAdd } from 'react-icons/vsc'
-import { theme } from '../common/theme'
+import { AddTabButton } from './AddTabButton'
 
 interface TabBarProps {
   tabs: ProjectTab[]
@@ -28,27 +27,12 @@ export function TabBar({ tabs, activeTabPath, onSelectTab, onCloseTab, onOpenPro
         />
       ))}
       {onOpenProjectSelector && (
-        <button
+        <AddTabButton
           onClick={onOpenProjectSelector}
-          className="h-6 w-6 inline-flex items-center justify-center rounded ml-1 transition-colors"
-          style={{
-            color: theme.colors.text.tertiary,
-            backgroundColor: 'transparent'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = theme.colors.text.secondary
-            e.currentTarget.style.backgroundColor = `${theme.colors.background.elevated}80`
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = theme.colors.text.tertiary
-            e.currentTarget.style.backgroundColor = 'transparent'
-          }}
           title="Open another project"
-          aria-label="Open another project"
-          data-no-drag
-        >
-          <VscAdd className="text-[14px]" />
-        </button>
+          ariaLabel="Open another project"
+          className="ml-1"
+        />
       )}
     </div>
   )

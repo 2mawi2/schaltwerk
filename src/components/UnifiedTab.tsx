@@ -1,6 +1,5 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { theme } from '../common/theme'
-import { typography } from '../common/typography'
 
 export interface UnifiedTabProps {
   id: string | number
@@ -36,6 +35,9 @@ export function UnifiedTab({
   isRunning = false,
   statusIndicator,
 }: UnifiedTabProps) {
+  const [isHovered, setIsHovered] = useState(false)
+  const [isCloseHovered, setIsCloseHovered] = useState(false)
+
   const handleClick = (e: React.MouseEvent) => {
     if (disabled) return
     e.stopPropagation()
@@ -59,82 +61,97 @@ export function UnifiedTab({
     }
   }
 
+  const getBackgroundColor = () => {
+    if (isActive) return theme.colors.tabs.active.bg
+    if (isHovered && !disabled) return theme.colors.tabs.inactive.hoverBg
+    return theme.colors.tabs.inactive.bg
+  }
+
+  const getTextColor = () => {
+    if (isActive) return theme.colors.tabs.active.text
+    if (isHovered && !disabled) return theme.colors.tabs.inactive.hoverText
+    return theme.colors.tabs.inactive.text
+  }
+
   return (
     <div
       className={`
-        relative h-full flex items-center cursor-pointer group min-w-0 ${className}
+        relative h-full flex items-center cursor-pointer group min-w-0 select-none
         ${disabled ? 'cursor-not-allowed opacity-50' : ''}
-        ${isActive
-          ? 'text-white'
-          : 'text-slate-300 hover:text-white'
-        }
+        ${className}
       `}
       style={{
-        backgroundColor: isActive
-          ? theme.colors.background.elevated
-          : 'transparent',
+        backgroundColor: getBackgroundColor(),
+        color: getTextColor(),
         borderRight: `1px solid ${theme.colors.border.subtle}`,
-        borderTop: isActive
-          ? isRunTab && isRunning
-            ? `3px solid ${theme.colors.accent.cyan.DEFAULT}`
-            : `3px solid ${theme.colors.accent.blue.DEFAULT}`
-          : `3px solid transparent`,
-        borderTopLeftRadius: isActive ? theme.borderRadius.md : '0',
-        borderTopRightRadius: isActive ? theme.borderRadius.md : '0',
-        paddingLeft: '16px',
-        paddingRight: '16px',
-        paddingTop: '6px',
-        paddingBottom: '6px',
-        ...typography.body,
-        fontWeight: isActive ? '600' : '500',
+        paddingLeft: '12px',
+        paddingRight: '8px',
         minWidth: style?.minWidth || '80px',
         maxWidth: style?.maxWidth || '150px',
-        boxShadow: isActive
-          ? isRunTab && isRunning
-            ? `0 2px 8px ${theme.colors.accent.cyan.bg}`
-            : `0 2px 8px ${theme.colors.accent.blue.bg}`
-          : 'none',
-        backdropFilter: isActive ? 'blur(4px)' : 'none',
-        transform: 'translateY(0)',
         height: '100%',
         display: 'flex',
         alignItems: 'center',
+        transition: 'background-color 150ms ease-out, color 150ms ease-out',
         ...style,
       }}
       onClick={handleClick}
       onMouseDown={handleMouseDown}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       title={title || label}
     >
-      {/* Active tab background gradient */}
-      {isActive && (
+      {/* Bottom active indicator */}
+      <div
+        className="absolute left-0 right-0 bottom-0 h-[2px]"
+        style={{
+          backgroundColor: isRunTab && isRunning
+            ? theme.colors.tabs.running.indicator
+            : theme.colors.tabs.active.indicator,
+          opacity: isActive ? 1 : 0,
+          transform: isActive ? 'scaleX(1)' : 'scaleX(0)',
+          transition: 'opacity 150ms ease-out, transform 150ms ease-out',
+        }}
+      />
+
+      {/* Running glow effect */}
+      {isRunTab && isRunning && isActive && (
         <div
-            className="absolute inset-0 rounded-t-md opacity-20"
+          className="absolute inset-0 pointer-events-none"
           style={{
-            background: isRunTab && isRunning
-              ? `linear-gradient(135deg, ${theme.colors.accent.cyan.bg} 0%, ${theme.colors.accent.cyan.border} 100%)`
-              : `linear-gradient(135deg, ${theme.colors.accent.blue.bg} 0%, ${theme.colors.accent.blue.border} 100%)`,
+            background: `linear-gradient(to top, ${theme.colors.tabs.running.glow} 0%, transparent 50%)`,
           }}
         />
       )}
 
-      {/* Tab content */}
-      <div className="relative z-10 flex items-center w-full gap-2">
+      {/* Tab Content */}
+      <div className="relative z-10 flex items-center w-full gap-2 overflow-hidden">
         {statusIndicator && (
-          <span className="flex items-center justify-center" aria-hidden="true">
+          <span className="flex items-center justify-center shrink-0" aria-hidden="true">
             {statusIndicator}
           </span>
         )}
-        <span className="truncate flex-1 font-medium" style={typography.body}>
+
+        <span
+          className="truncate flex-1"
+          style={{
+            fontSize: theme.fontSize.terminal,
+            fontWeight: isActive ? 500 : 400,
+            lineHeight: '1.5',
+            fontFamily: theme.fontFamily.sans,
+          }}
+        >
           {label}
         </span>
 
         {badgeContent && (
           <span
-            className="inline-flex items-center justify-center px-2 py-0.5 rounded-full font-semibold"
+            className="inline-flex items-center justify-center px-1.5 rounded-full font-medium shrink-0"
             style={{
-              ...typography.caption,
-              backgroundColor: theme.colors.accent.yellow.bg,
-              color: theme.colors.accent.yellow.DEFAULT,
+              fontSize: theme.fontSize.caption,
+              height: '16px',
+              minWidth: '16px',
+              backgroundColor: theme.colors.tabs.badge.bg,
+              color: theme.colors.tabs.badge.text,
             }}
           >
             {badgeContent}
@@ -144,18 +161,20 @@ export function UnifiedTab({
         {showCloseButton && onClose && (
           <button
             onClick={handleClose}
-            className={`
-              ml-2 w-4 h-4 flex items-center justify-center rounded-full
-              ${isActive
-                ? 'text-slate-300 hover:text-white hover:bg-white/20'
-                : 'opacity-0 group-hover:opacity-100 text-slate-400 hover:text-white hover:bg-slate-600/60'
-              }
-            `}
+            onMouseEnter={() => setIsCloseHovered(true)}
+            onMouseLeave={() => setIsCloseHovered(false)}
+            className="shrink-0 flex items-center justify-center w-5 h-5 rounded"
             style={{
-              ...typography.caption,
-              backgroundColor: 'transparent',
-              fontWeight: 'bold',
+              fontSize: theme.fontSize.body,
               lineHeight: 1,
+              backgroundColor: isCloseHovered
+                ? theme.colors.tabs.close.hoverBg
+                : theme.colors.tabs.close.bg,
+              color: isCloseHovered
+                ? theme.colors.tabs.close.hoverColor
+                : theme.colors.tabs.close.color,
+              opacity: isActive || isHovered ? 1 : 0,
+              transition: 'opacity 150ms ease-out, background-color 100ms ease-out, color 100ms ease-out',
             }}
             title={`Close ${label}`}
             disabled={disabled}
@@ -164,19 +183,6 @@ export function UnifiedTab({
           </button>
         )}
       </div>
-
-      {/* Hover effect overlay */}
-      <div
-        className={`
-          absolute inset-0 rounded-t-md transition-opacity duration-200 pointer-events-none
-          ${isActive ? 'opacity-0' : 'opacity-0 group-hover:opacity-10'}
-        `}
-        style={{
-          backgroundColor: isRunTab && isRunning
-            ? theme.colors.accent.cyan.DEFAULT
-            : theme.colors.accent.blue.DEFAULT,
-        }}
-      />
     </div>
   )
 }

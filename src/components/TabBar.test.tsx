@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { TabBar } from './TabBar'
 import { ProjectTab } from '../common/projectTabs'
+import { theme } from '../common/theme'
 
 describe('TabBar', () => {
   const mockTabs: ProjectTab[] = [
@@ -34,36 +35,36 @@ describe('TabBar', () => {
 
     const tabs = screen.getAllByTitle(/\/Users\/test\/project/)
 
-    expect(tabs[0].className).toContain('text-slate-300')
-    expect(tabs[1].className).toContain('text-white')
-    expect(tabs[2].className).toContain('text-slate-300')
+    expect(tabs[0]).toHaveStyle({ color: theme.colors.tabs.inactive.text })
+    expect(tabs[1]).toHaveStyle({ color: theme.colors.tabs.active.text })
+    expect(tabs[2]).toHaveStyle({ color: theme.colors.tabs.inactive.text })
   })
 
   it('calls onSelectTab with correct path when tab clicked', () => {
     const onSelectTab = vi.fn()
     render(<TabBar {...mockProps} onSelectTab={onSelectTab} />)
-    
+
     const tabs = screen.getAllByTitle(/\/Users\/test\/project/)
     fireEvent.click(tabs[1])
-    
+
     expect(onSelectTab).toHaveBeenCalledWith('/Users/test/project2')
   })
 
   it('calls onCloseTab with correct path when close button clicked', () => {
     const onCloseTab = vi.fn()
     render(<TabBar {...mockProps} onCloseTab={onCloseTab} />)
-    
+
     const closeButton = screen.getByTitle('Close project2')
     fireEvent.click(closeButton)
-    
+
     expect(onCloseTab).toHaveBeenCalledWith('/Users/test/project2')
   })
 
   it('renders tabs in provided order', () => {
     render(<TabBar {...mockProps} />)
-    
+
     const tabs = screen.getAllByTitle(/\/Users\/test\/project/)
-    
+
     expect(tabs[0].title).toBe('/Users/test/project1')
     expect(tabs[1].title).toBe('/Users/test/project2')
     expect(tabs[2].title).toBe('/Users/test/project3')
@@ -71,11 +72,11 @@ describe('TabBar', () => {
 
   it('handles no active tab gracefully', () => {
     render(<TabBar {...mockProps} activeTabPath={null} />)
-    
+
     const tabs = screen.getAllByTitle(/\/Users\/test\/project/)
-    
+
     tabs.forEach(tab => {
-      expect(tab.className).toContain('text-slate-300')
+      expect(tab).toHaveStyle({ color: theme.colors.tabs.inactive.text })
     })
   })
 
