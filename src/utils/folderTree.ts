@@ -191,3 +191,17 @@ export function getAllFolderPaths(node: FolderNode): Set<string> {
 
   return paths
 }
+
+export function getVisualFileOrder(node: FolderNode): string[] {
+  const result: string[] = []
+
+  for (const child of node.children) {
+    if (child.type === 'file') {
+      result.push(child.path)
+    } else {
+      result.push(...getVisualFileOrder(child))
+    }
+  }
+
+  return result
+}

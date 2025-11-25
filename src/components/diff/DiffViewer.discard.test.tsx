@@ -24,6 +24,7 @@ const mockFiles = [
 
 const createMockProps = (overrides?: Partial<DiffViewerProps>): DiffViewerProps => ({
   files: mockFiles,
+  visualFileOrder: ['src/file1.ts', 'src/file2.tsx'],
   selectedFile: 'src/file1.ts',
   allFileDiffs: new Map([['src/file1.ts', mockFileDiff]]),
   fileError: null,

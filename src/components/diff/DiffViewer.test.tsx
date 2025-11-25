@@ -24,6 +24,7 @@ const mockFiles = [
 
 const mockProps: Partial<DiffViewerProps> = {
   files: mockFiles,
+  visualFileOrder: ['src/file1.ts', 'src/file2.tsx'],
   selectedFile: 'src/file1.ts',
   allFileDiffs: new Map([['src/file1.ts', mockFileDiff]]),
   fileError: null,
@@ -178,23 +179,62 @@ describe('DiffViewer', () => {
     const { unmount } = render(<DiffViewer {...mockProps as DiffViewerProps} isLargeDiffMode={true} />)
     expect(screen.getByText('src/file1.ts')).toBeInTheDocument()
     unmount()
-    
+
     // Test continuous scroll mode (multiple files) - clean render
-    const continuousProps = { 
-      ...mockProps, 
+    const continuousProps = {
+      ...mockProps,
       isLargeDiffMode: false,
       allFileDiffs: new Map([
         ['src/file1.ts', mockFileDiff],
         ['src/file2.tsx', mockFileDiff]
       ])
     }
-    
+
     render(<DiffViewer {...continuousProps as DiffViewerProps} />)
     // Both files should be present in continuous mode - use getAllByText since multiple instances
     const file1Elements = screen.getAllByText('src/file1.ts')
     const file2Elements = screen.getAllByText('src/file2.tsx')
     expect(file1Elements.length).toBeGreaterThan(0)
     expect(file2Elements.length).toBeGreaterThan(0)
+  })
+
+  it('renders files in visualFileOrder in continuous scroll mode', () => {
+    const filesInFlatOrder = [
+      createChangedFile({ path: 'zebra.ts', change_type: 'modified', additions: 1, deletions: 0 }),
+      createChangedFile({ path: 'src/utils/helper.ts', change_type: 'added', additions: 5, deletions: 0 }),
+      createChangedFile({ path: 'src/components/Button.tsx', change_type: 'modified', additions: 2, deletions: 1 }),
+      createChangedFile({ path: 'apple.ts', change_type: 'added', additions: 3, deletions: 0 }),
+    ]
+
+    const visualOrder = [
+      'src/components/Button.tsx',
+      'src/utils/helper.ts',
+      'apple.ts',
+      'zebra.ts',
+    ]
+
+    const fileDiffs = new Map(
+      filesInFlatOrder.map(f => [f.path, { ...mockFileDiff, file: f }])
+    )
+
+    const props: DiffViewerProps = {
+      ...mockProps as DiffViewerProps,
+      files: filesInFlatOrder,
+      visualFileOrder: visualOrder,
+      isLargeDiffMode: false,
+      allFileDiffs: fileDiffs,
+      visibleFileSet: new Set(filesInFlatOrder.map(f => f.path)),
+      renderedFileSet: new Set(filesInFlatOrder.map(f => f.path)),
+    }
+
+    render(<DiffViewer {...props} />)
+
+    const fileHeaders = screen.getAllByText(/\.(ts|tsx)$/)
+    const renderedPaths = fileHeaders
+      .filter(el => el.classList.contains('truncate'))
+      .map(el => el.textContent)
+
+    expect(renderedPaths).toEqual(visualOrder)
   })
 
   it('shows preparing preview when no diffs loaded', () => {

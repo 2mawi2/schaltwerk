@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { VscComment, VscDiscard } from 'react-icons/vsc'
 import { getFileIcon } from '../../utils/fileIcons'
@@ -127,6 +127,7 @@ function HorizontalScrollRegion({ children, bodyRef, onActivate }: HorizontalScr
 
 export interface DiffViewerProps {
   files: ChangedFile[]
+  visualFileOrder: string[]
   selectedFile: string | null
   allFileDiffs: Map<string, FileDiffData>
   fileError: string | null
@@ -171,6 +172,7 @@ export interface DiffViewerProps {
 
 export function DiffViewer({
   files,
+  visualFileOrder,
   selectedFile,
   allFileDiffs,
   fileError,
@@ -220,6 +222,13 @@ export function DiffViewer({
       callbacks.clear()
     }
   }, [])
+
+  const sortedFiles = useMemo(() => {
+    const fileMap = new Map(files.map(f => [f.path, f]))
+    return visualFileOrder
+      .map(path => fileMap.get(path))
+      .filter((f): f is ChangedFile => f !== undefined)
+  }, [files, visualFileOrder])
 
   const attachDiffBodyRef = useCallback((filePath: string, node: HTMLDivElement | null) => {
     const observers = resizeObserversRef.current
@@ -732,7 +741,7 @@ export function DiffViewer({
           })
         ) : (
           /* For continuous scroll mode, render all files with virtualization */
-          files.map((file) => {
+          sortedFiles.map((file) => {
             const fileDiff = allFileDiffs.get(file.path)
             const commentThreads = getCommentsForFile(file.path)
             const commentCount = commentThreads.reduce((sum, thread) => sum + thread.comments.length, 0)
