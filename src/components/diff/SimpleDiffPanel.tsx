@@ -22,7 +22,7 @@ interface SimpleDiffPanelProps {
   onActiveFileChange: (filePath: string | null) => void
   sessionNameOverride?: string
   isCommander?: boolean
-  onOpenDiff?: (filePath?: string | null) => void
+  onOpenDiff?: (filePath?: string | null, forceModal?: boolean) => void
   onInlinePreferenceChange?: (value: boolean) => void
 }
 
@@ -143,7 +143,7 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
       <div className="flex items-center gap-2">
         {onOpenDiff && (
           <button
-            onClick={() => onOpenDiff(activeFile)}
+            onClick={() => onOpenDiff(activeFile, true)}
             className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-slate-200 transition-colors"
             title="Open in Modal"
           >
@@ -225,7 +225,7 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
           </label>
           {onOpenDiff && (
             <button
-              onClick={() => onOpenDiff(activeFile)}
+              onClick={() => onOpenDiff(activeFile, true)}
               className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-slate-200 transition-colors"
               title="Open in Modal"
             >

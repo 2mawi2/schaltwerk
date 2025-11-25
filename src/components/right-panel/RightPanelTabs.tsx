@@ -330,7 +330,16 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
     focusDiffArea()
   }
 
-  const handleOpenDiff = useCallback((filePath?: string | null) => {
+  const handleOpenDiff = useCallback((filePath?: string | null, forceModal?: boolean) => {
+    if (forceModal) {
+      if (filePath) {
+        emitUiEvent(UiEvent.OpenDiffFile, { filePath })
+      } else {
+        emitUiEvent(UiEvent.OpenDiffView)
+      }
+      return
+    }
+
     if (filePath) {
       emitUiEvent(UiEvent.OpenDiffFile, { filePath })
       return
