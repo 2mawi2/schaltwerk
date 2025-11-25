@@ -290,45 +290,6 @@ describe('SettingsModal loading indicators', () => {
   })
 })
 
-describe('Power settings feedback', () => {
-  beforeEach(() => {
-    useSettingsMock.mockReset()
-    useSettingsMock.mockReturnValue(createDefaultUseSettingsValue())
-    useSessionsMock.mockReset()
-    useSessionsMock.mockReturnValue(createDefaultUseSessionsValue())
-    pushToastMock.mockReset()
-    invokeMock.mockClear()
-    invokeMock.mockImplementation(async (command: string, args?: unknown) => {
-      if (command === TauriCommands.SetPowerSettings) {
-        return { auto_release_enabled: false, auto_release_idle_minutes: 5 }
-      }
-      if (command === TauriCommands.GetPowerSettings) {
-        return { auto_release_enabled: true, auto_release_idle_minutes: 2 }
-      }
-      if (command === TauriCommands.GetGlobalKeepAwakeState) {
-        return 'active'
-      }
-      return baseInvokeImplementation(command, args)
-    })
-  })
-
-  it('refreshes keep-awake state and shows a toast when auto-release is toggled', async () => {
-    const user = userEvent.setup()
-
-    render(<SettingsModal open={true} onClose={() => {}} />)
-
-    await user.click(await screen.findByRole('button', { name: 'System' }))
-
-    const autoReleaseCheckbox = await screen.findByLabelText(/Auto-release when idle/i)
-    await user.click(autoReleaseCheckbox)
-
-    await waitFor(() => {
-      expect(invokeMock).toHaveBeenCalledWith(TauriCommands.GetGlobalKeepAwakeState)
-      expect(pushToastMock).toHaveBeenCalled()
-    })
-  })
-})
-
 describe('SettingsModal initial tab handling', () => {
   beforeEach(() => {
     useSettingsMock.mockReset()

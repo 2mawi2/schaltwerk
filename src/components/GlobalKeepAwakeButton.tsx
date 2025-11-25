@@ -2,7 +2,6 @@ import { useMemo, useState, CSSProperties } from 'react'
 import { useAtom, useSetAtom } from 'jotai'
 import {
   keepAwakeStateAtom,
-  powerSettingsAtom,
   toggleKeepAwakeActionAtom,
   KeepAwakeState,
 } from '../store/atoms/powerSettings'
@@ -10,7 +9,6 @@ import { theme } from '../common/theme'
 import { logger } from '../utils/logger'
 import { withOpacity } from '../common/colorUtils'
 import { useOptionalToast } from '../common/toast/ToastProvider'
-import { buildKeepAwakeToast } from '../common/keepAwakeToast'
 
 const CoffeeIcon = ({ state }: { state: KeepAwakeState }) => {
   const stroke = state === 'disabled' ? theme.colors.text.tertiary : theme.colors.text.primary
@@ -30,7 +28,6 @@ export function GlobalKeepAwakeButton() {
   const [isLoading, setIsLoading] = useState(false)
   const [errorTooltip, setErrorTooltip] = useState<string | null>(null)
   const setToggle = useSetAtom(toggleKeepAwakeActionAtom)
-  const [settings] = useAtom(powerSettingsAtom)
   const toast = useOptionalToast()
 
   const style = useMemo(() => {
@@ -65,10 +62,10 @@ export function GlobalKeepAwakeButton() {
       return 'Keep machine awake while agents work — click to enable'
     }
     if (state === 'auto_paused') {
-      return `Auto-paused (${settings.autoReleaseIdleMinutes}m idle) — click to disable`
+      return 'Auto-paused (all sessions idle) — click to disable'
     }
     return 'Preventing sleep (sessions active) — click to disable'
-  }, [state, settings.autoReleaseIdleMinutes, errorTooltip])
+  }, [state, errorTooltip])
 
   const handleClick = async () => {
     setIsLoading(true)
@@ -76,7 +73,11 @@ export function GlobalKeepAwakeButton() {
       const next = await setToggle()
       setErrorTooltip(null)
       if (toast && next) {
-        toast.pushToast(buildKeepAwakeToast(next, settings.autoReleaseIdleMinutes))
+        const title = next === 'disabled' ? 'Keep-awake disabled' : 'Keep-awake enabled'
+        const description = next === 'disabled'
+          ? 'Machine can sleep normally'
+          : 'Machine will stay awake while sessions are active'
+        toast.pushToast({ tone: next === 'disabled' ? 'info' : 'success', title, description })
       }
     } catch (error) {
       logger.error('Failed to toggle keep-awake', error)

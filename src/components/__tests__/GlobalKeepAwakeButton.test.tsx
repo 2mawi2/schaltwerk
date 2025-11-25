@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { Provider, createStore } from 'jotai'
 import { render, screen, act } from '@testing-library/react'
 import { GlobalKeepAwakeButton } from '../GlobalKeepAwakeButton'
-import { keepAwakeStateAtom, powerSettingsAtom } from '../../store/atoms/powerSettings'
+import { keepAwakeStateAtom } from '../../store/atoms/powerSettings'
 import { invoke } from '@tauri-apps/api/core'
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
@@ -23,7 +23,6 @@ vi.mock('../../utils/logger', () => ({
 async function renderWithState(state: 'disabled' | 'active' | 'auto_paused') {
   const store = createStore()
   store.set(keepAwakeStateAtom, state)
-  store.set(powerSettingsAtom, { autoReleaseEnabled: true, autoReleaseIdleMinutes: 2 })
   vi.mocked(invoke).mockResolvedValue(state)
 
   let utils: ReturnType<typeof render> | undefined

@@ -6,7 +6,6 @@ export type SettingsCategory =
   | 'appearance'
   | 'keyboard'
   | 'environment'
-  | 'power'
   | 'terminal'
   | 'sessions'
   | 'version'

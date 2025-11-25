@@ -91,7 +91,6 @@ import { useOptionalToast } from './common/toast/ToastProvider'
 import { AppUpdateResultPayload } from './common/events'
 import { RawSession } from './types/session'
 import {
-  refreshPowerSettingsActionAtom,
   refreshKeepAwakeStateActionAtom,
   registerKeepAwakeEventListenerActionAtom,
 } from './store/atoms/powerSettings'
@@ -127,7 +126,6 @@ function AppContent() {
   const initializeSessionsEvents = useSetAtom(initializeSessionsEventsActionAtom)
   const initializeSessionsSettings = useSetAtom(initializeSessionsSettingsActionAtom)
   const refreshSessions = useSetAtom(refreshSessionsActionAtom)
-  const refreshPowerSettings = useSetAtom(refreshPowerSettingsActionAtom)
   const refreshKeepAwakeState = useSetAtom(refreshKeepAwakeStateActionAtom)
   const registerKeepAwakeListener = useSetAtom(registerKeepAwakeEventListenerActionAtom)
   const expectSession = useSetAtom(expectSessionActionAtom)
@@ -177,7 +175,6 @@ function AppContent() {
   useEffect(() => {
     let unlisten: (() => void) | undefined
     void (async () => {
-      await refreshPowerSettings()
       await refreshKeepAwakeState()
       try {
         unlisten = await registerKeepAwakeListener()
@@ -191,7 +188,7 @@ function AppContent() {
         unlisten()
       }
     }
-  }, [refreshPowerSettings, refreshKeepAwakeState, registerKeepAwakeListener])
+  }, [refreshKeepAwakeState, registerKeepAwakeListener])
 
   useEffect(() => {
     void initializeSessionsSettings()

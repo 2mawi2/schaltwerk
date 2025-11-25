@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use crate::domains::power::global_service::GlobalInhibitorService;
 use crate::domains::power::global_service::get_global_keep_awake_service;
-use crate::domains::power::types::{GlobalState, PowerSettings};
+use crate::domains::power::types::GlobalState;
 
 pub type DynPowerService = Arc<GlobalInhibitorService>;
 
@@ -27,21 +27,6 @@ pub async fn get_global_keep_awake_state() -> Result<GlobalState, String> {
     let service =
         get_power_service().ok_or_else(|| "Keep-awake service not initialized".to_string())?;
     Ok(service.broadcast_state().await)
-}
-
-pub async fn get_power_settings() -> Result<PowerSettings, String> {
-    let service =
-        get_power_service().ok_or_else(|| "Keep-awake service not initialized".to_string())?;
-    Ok(service.get_settings().await)
-}
-
-pub async fn set_power_settings(settings: PowerSettings) -> Result<PowerSettings, String> {
-    let service =
-        get_power_service().ok_or_else(|| "Keep-awake service not initialized".to_string())?;
-    service
-        .set_settings(settings)
-        .await
-        .map_err(|e| e.to_string())
 }
 
 pub async fn handle_terminal_attention(
