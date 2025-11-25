@@ -4,7 +4,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, act, waitFor, fireEvent } from '@testing-library/react'
 import { theme } from '../../common/theme'
 import { SPLIT_GUTTER_SIZE } from '../../common/splitLayout'
-import { withOpacity } from '../../common/colorUtils'
 import { MockTauriInvokeArgs } from '../../types/testing'
 import { UiEvent, emitUiEvent } from '../../common/uiEvents'
 import { sessionTerminalGroup } from '../../common/terminalIdentity'
@@ -761,26 +760,22 @@ describe('TerminalGrid', () => {
       const addButton = screen.getByTitle('Add new terminal')
 
       // Ensure the add button uses the unified styling tokens
-      expect(addButton).toHaveClass(
-        'bg-bg-tertiary',
-        'text-text-secondary',
-        'rounded-md'
-      )
+      expect(addButton).toHaveClass('rounded')
       expect(addButton).toHaveStyle({
-        backgroundColor: theme.colors.background.tertiary,
-        color: theme.colors.text.secondary,
+        backgroundColor: 'transparent',
+        color: theme.colors.text.muted,
       })
 
       fireEvent.mouseEnter(addButton)
       expect(addButton).toHaveStyle({
-        backgroundColor: withOpacity(theme.colors.background.elevated, 0.65),
-        color: theme.colors.text.primary,
+        backgroundColor: theme.colors.tabs.inactive.hoverBg,
+        color: theme.colors.text.secondary,
       })
 
       fireEvent.mouseLeave(addButton)
       expect(addButton).toHaveStyle({
-        backgroundColor: theme.colors.background.tertiary,
-        color: theme.colors.text.secondary,
+        backgroundColor: 'transparent',
+        color: theme.colors.text.muted,
       })
       
       // Add 5 more tabs to reach the maximum of 6

@@ -12,7 +12,7 @@ import {
 } from './UnifiedBottomBar.logic'
 import { useMultipleShortcutDisplays } from '../../keyboardShortcuts/useShortcutDisplay'
 import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
-import { AddTerminalButton } from './AddTerminalButton'
+import { AddTabButton } from '../AddTabButton'
 
 export interface UnifiedBottomBarProps {
   isCollapsed: boolean
@@ -108,14 +108,14 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
             })}
             
             {canAddTab && (
-              <AddTerminalButton
+              <AddTabButton
                 onClick={(event) => {
                   event.stopPropagation()
                   onTabAdd()
                 }}
                 title="Add new terminal"
                 ariaLabel="Add new terminal"
-                className="self-center ml-2 h-7 w-7"
+                className="self-center ml-2"
               />
             )}
           </div>

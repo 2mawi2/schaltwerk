@@ -128,7 +128,7 @@ export function TopBar({
   return (
     <div 
       ref={topBarRef}
-      className="fixed top-0 left-0 right-0 h-[32px] bg-bg-primary z-50 select-none"
+      className="fixed top-0 left-0 right-0 h-[32px] bg-bg-tertiary z-50 select-none"
       style={{ 
         borderBottom: `1px solid ${withOpacity(theme.colors.background.elevated, 0.5)}`
       } as React.CSSProperties}

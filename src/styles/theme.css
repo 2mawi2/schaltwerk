@@ -448,4 +448,21 @@
   --line-height-heading: 1.25;
   --line-height-compact: 1.15;
   --line-height-badge: 1.2;
+
+  /* Tab Colors */
+  --color-tab-inactive-bg: transparent;
+  --color-tab-inactive-text: #94a3b8;
+  --color-tab-inactive-hover-bg: rgba(51, 65, 85, 0.5);
+  --color-tab-inactive-hover-text: #cbd5e1;
+  --color-tab-active-bg: #0f172a;
+  --color-tab-active-text: #f1f5f9;
+  --color-tab-active-indicator: #22d3ee;
+  --color-tab-close-bg: transparent;
+  --color-tab-close-hover-bg: rgba(71, 85, 105, 0.6);
+  --color-tab-close-color: #64748b;
+  --color-tab-close-hover-color: #f1f5f9;
+  --color-tab-badge-bg: #f59e0b;
+  --color-tab-badge-text: #020617;
+  --color-tab-running-indicator: #06b6d4;
+  --color-tab-running-glow: rgba(6, 182, 212, 0.3);
 }

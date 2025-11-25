@@ -6,7 +6,7 @@ import { theme } from '../../common/theme'
 import { useModal } from '../../contexts/ModalContext'
 import { safeTerminalFocus, safeTerminalFocusImmediate } from '../../utils/safeFocus'
 import { TabInfo } from '../../types/terminalTabs'
-import { AddTerminalButton } from './AddTerminalButton'
+import { AddTabButton } from '../AddTabButton'
 import type { AutoPreviewConfig } from '../../utils/runScriptPreviewConfig'
 
 interface TerminalTabsProps {
@@ -144,7 +144,7 @@ const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(
       <div
         className="h-8 flex-shrink-0 flex items-center overflow-x-auto scrollbar-hide"
         style={{
-          backgroundColor: theme.colors.background.primary,
+          backgroundColor: theme.colors.background.tertiary,
           borderBottom: `1px solid ${theme.colors.border.subtle}`,
           boxShadow: `inset 0 -1px 0 ${theme.colors.border.default}`,
         }}
@@ -176,11 +176,11 @@ const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(
         ))}
         
         {canAddTab && (
-          <AddTerminalButton
+          <AddTabButton
             onClick={() => { void addTab() }}
             title="Add new terminal"
             ariaLabel="Add new terminal"
-            className="ml-2 h-7 w-7"
+            className="ml-2"
           />
         )}
       </div>

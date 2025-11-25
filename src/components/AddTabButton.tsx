@@ -1,21 +1,20 @@
 import { useState, type MouseEvent } from 'react'
 import { VscAdd } from 'react-icons/vsc'
-import { theme } from '../../common/theme'
-import { withOpacity } from '../../common/colorUtils'
+import { theme } from '../common/theme'
 
-interface AddTerminalButtonProps {
+interface AddTabButtonProps {
   onClick: (event: MouseEvent<HTMLButtonElement>) => void
   title: string
   ariaLabel?: string
   className?: string
 }
 
-export function AddTerminalButton({
+export function AddTabButton({
   onClick,
   title,
   ariaLabel,
   className = ''
-}: AddTerminalButtonProps) {
+}: AddTabButtonProps) {
   const [isHovered, setIsHovered] = useState(false)
 
   return (
@@ -29,21 +28,25 @@ export function AddTerminalButton({
       title={title}
       aria-label={ariaLabel}
       className={`
-        inline-flex items-center justify-center rounded-md
-        bg-bg-tertiary text-text-secondary
-        transition-[background-color,color] duration-150 ease-out
+        flex items-center justify-center rounded
         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus/80
-        focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary
+        focus-visible:ring-offset-1 focus-visible:ring-offset-bg-primary
         ${className}
       `}
       style={{
+        width: '24px',
+        height: '24px',
         backgroundColor: isHovered
-          ? withOpacity(theme.colors.background.elevated, 0.65)
-          : theme.colors.background.tertiary,
-        color: isHovered ? theme.colors.text.primary : theme.colors.text.secondary,
+          ? theme.colors.tabs.inactive.hoverBg
+          : 'transparent',
+        color: isHovered
+          ? theme.colors.text.secondary
+          : theme.colors.text.muted,
+        transition: 'background-color 150ms ease-out, color 150ms ease-out, transform 100ms ease-out',
+        transform: isHovered ? 'scale(1.05)' : 'scale(1)',
       }}
     >
-      <VscAdd className="block text-[15px] leading-none" />
+      <VscAdd style={{ fontSize: theme.fontSize.body }} />
     </button>
   )
 }
