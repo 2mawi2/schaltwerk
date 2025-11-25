@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildFolderTree, type FolderNode, type FileNode } from './folderTree'
+import { buildFolderTree, getVisualFileOrder, type FolderNode, type FileNode } from './folderTree'
 import type { ChangedFile } from '../common/events'
 
 describe('buildFolderTree', () => {
@@ -138,5 +138,66 @@ describe('buildFolderTree', () => {
     expect(rootFolder.isCompressed).toBe(true)
     expect(rootFolder.fileCount).toBe(2)
     expect(rootFolder.children).toHaveLength(2)
+  })
+})
+
+describe('getVisualFileOrder', () => {
+  it('should return files in visual tree order (folders first, alphabetically sorted)', () => {
+    const files: ChangedFile[] = [
+      { path: 'tests/button.test.tsx', change_type: 'modified', additions: 10, deletions: 5, changes: 15 },
+      { path: 'src/components/Button.tsx', change_type: 'modified', additions: 5, deletions: 2, changes: 7 },
+      { path: 'src/components/Input.tsx', change_type: 'added', additions: 20, deletions: 0, changes: 20 },
+      { path: 'src/utils/helpers.ts', change_type: 'modified', additions: 3, deletions: 1, changes: 4 },
+    ]
+
+    const tree = buildFolderTree(files)
+    const order = getVisualFileOrder(tree)
+
+    expect(order).toEqual([
+      'src/components/Button.tsx',
+      'src/components/Input.tsx',
+      'src/utils/helpers.ts',
+      'tests/button.test.tsx',
+    ])
+  })
+
+  it('should handle root-level files after folders', () => {
+    const files: ChangedFile[] = [
+      { path: 'README.md', change_type: 'modified', additions: 1, deletions: 0, changes: 1 },
+      { path: 'src/index.ts', change_type: 'modified', additions: 5, deletions: 2, changes: 7 },
+      { path: 'package.json', change_type: 'modified', additions: 2, deletions: 1, changes: 3 },
+    ]
+
+    const tree = buildFolderTree(files)
+    const order = getVisualFileOrder(tree)
+
+    expect(order).toEqual([
+      'src/index.ts',
+      'package.json',
+      'README.md',
+    ])
+  })
+
+  it('should handle empty tree', () => {
+    const tree = buildFolderTree([])
+    const order = getVisualFileOrder(tree)
+    expect(order).toEqual([])
+  })
+
+  it('should preserve alphabetical order within same folder', () => {
+    const files: ChangedFile[] = [
+      { path: 'src/zebra.ts', change_type: 'modified', additions: 1, deletions: 0, changes: 1 },
+      { path: 'src/apple.ts', change_type: 'modified', additions: 1, deletions: 0, changes: 1 },
+      { path: 'src/banana.ts', change_type: 'modified', additions: 1, deletions: 0, changes: 1 },
+    ]
+
+    const tree = buildFolderTree(files)
+    const order = getVisualFileOrder(tree)
+
+    expect(order).toEqual([
+      'src/apple.ts',
+      'src/banana.ts',
+      'src/zebra.ts',
+    ])
   })
 })

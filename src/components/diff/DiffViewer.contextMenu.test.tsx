@@ -17,6 +17,7 @@ const mockFileDiff = {
 
 const baseProps: Partial<DiffViewerProps> = {
   files: [createChangedFile({ path: 'src/file.ts', change_type: 'modified', additions: 1, deletions: 0 })],
+  visualFileOrder: ['src/file.ts'],
   selectedFile: 'src/file.ts',
   allFileDiffs: new Map([['src/file.ts', mockFileDiff]]),
   fileError: null,

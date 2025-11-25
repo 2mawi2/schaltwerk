@@ -53,6 +53,7 @@ import { ResizableModal } from "../shared/ResizableModal";
 import { computeRenderOrder } from "./virtualization";
 import { HistoryDiffContext } from "../../types/diff";
 import type { OpenInAppRequest } from "../OpenInSplitButton";
+import { buildFolderTree, getVisualFileOrder } from "../../utils/folderTree";
 
 interface UnifiedDiffViewProps {
   filePath: string | null;
@@ -139,7 +140,7 @@ export function UnifiedDiffView({
     hash: string;
     committedAt?: string;
   } | null>(null);
-  const [selectedFileIndex, setSelectedFileIndex] = useState<number>(0);
+  const [_selectedFileIndex, setSelectedFileIndex] = useState<number>(0);
   const [allFileDiffs, setAllFileDiffs] = useState<Map<string, FileDiffData>>(
     new Map(),
   );
@@ -277,6 +278,19 @@ export function UnifiedDiffView({
     }
     return historyFiles[0]?.path ?? null;
   }, [mode, filePath, historyFiles]);
+
+  const visualFileOrder = useMemo(() => {
+    const tree = buildFolderTree(files);
+    return getVisualFileOrder(tree);
+  }, [files]);
+
+  const filePathToIndex = useMemo(() => {
+    const map = new Map<string, number>();
+    files.forEach((file, index) => {
+      map.set(file.path, index);
+    });
+    return map;
+  }, [files]);
 
   useEffect(() => {
     if (!isOpen || mode !== "history") {
@@ -772,8 +786,12 @@ export function UnifiedDiffView({
           nextSelectedPath = changedFiles[previousIndex].path;
           nextSelectedIndex = previousIndex;
         } else {
-          nextSelectedPath = changedFiles[0].path;
-          nextSelectedIndex = 0;
+          const tree = buildFolderTree(changedFiles);
+          const visualOrder = getVisualFileOrder(tree);
+          const firstVisualPath = visualOrder[0] ?? changedFiles[0].path;
+          nextSelectedPath = firstVisualPath;
+          nextSelectedIndex = findIndexForPath(firstVisualPath);
+          if (nextSelectedIndex < 0) nextSelectedIndex = 0;
         }
       } else {
         setSelectedFile(null);
@@ -2659,12 +2677,17 @@ export function UnifiedDiffView({
         !isSearchVisible &&
         !isSidebarMode
       ) {
+        const currentVisualIndex = selectedFile
+          ? visualFileOrder.indexOf(selectedFile)
+          : -1;
+
         if (e.key === "ArrowUp") {
           e.preventDefault();
           e.stopPropagation();
-          if (selectedFileIndex > 0) {
-            const newIndex = selectedFileIndex - 1;
-            void scrollToFile(files[newIndex].path, newIndex, {
+          if (currentVisualIndex > 0) {
+            const newPath = visualFileOrder[currentVisualIndex - 1];
+            const newIndex = filePathToIndex.get(newPath) ?? 0;
+            void scrollToFile(newPath, newIndex, {
               origin: "user",
               allowWhileUserScrolling: true,
             });
@@ -2672,9 +2695,10 @@ export function UnifiedDiffView({
         } else if (e.key === "ArrowDown") {
           e.preventDefault();
           e.stopPropagation();
-          if (selectedFileIndex < files.length - 1) {
-            const newIndex = selectedFileIndex + 1;
-            void scrollToFile(files[newIndex].path, newIndex, {
+          if (currentVisualIndex < visualFileOrder.length - 1) {
+            const newPath = visualFileOrder[currentVisualIndex + 1];
+            const newIndex = filePathToIndex.get(newPath) ?? 0;
+            void scrollToFile(newPath, newIndex, {
               origin: "user",
               allowWhileUserScrolling: true,
             });
@@ -2692,8 +2716,9 @@ export function UnifiedDiffView({
     isSearchVisible,
     onClose,
     lineSelection,
-    selectedFileIndex,
-    files,
+    selectedFile,
+    visualFileOrder,
+    filePathToIndex,
     scrollToFile,
     handleFinishReview,
     setIsSearchVisible,
@@ -2764,6 +2789,7 @@ export function UnifiedDiffView({
     >
       <DiffViewer
         files={files}
+        visualFileOrder={visualFileOrder}
         selectedFile={selectedFile}
         allFileDiffs={allFileDiffs}
         fileError={fileError}
@@ -2966,6 +2992,7 @@ export function UnifiedDiffView({
           >
             <DiffViewer
               files={files}
+              visualFileOrder={visualFileOrder}
               selectedFile={selectedFile}
               allFileDiffs={allFileDiffs}
               fileError={fileError}
