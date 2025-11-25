@@ -115,6 +115,12 @@ jobs:
       - name: Install dependencies
         run: node scripts/package-manager.mjs install --frozen-lockfile
 
+      - name: Install MCP server dependencies
+        run: |
+          if [ -d "mcp-server" ]; then
+            cd mcp-server && node ../scripts/package-manager.mjs install --frozen-lockfile && cd ..
+          fi
+
       - name: Run full test suite
         run: node scripts/package-manager.mjs run test
 
