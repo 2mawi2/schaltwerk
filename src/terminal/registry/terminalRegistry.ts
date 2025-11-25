@@ -16,7 +16,7 @@ export interface TerminalInstanceRecord {
   pendingChunks?: string[];
   rafScheduled?: boolean;
   rafHandle?: number;
-  perf?: TerminalPerfStats;
+  lastChunkTime?: number;
 }
 
 export interface AcquireTerminalResult {
@@ -26,23 +26,8 @@ export interface AcquireTerminalResult {
 
 type TerminalInstanceFactory = () => XtermTerminal;
 
-interface TerminalPerfStats {
-  firstFlushAt: number | null;
-  lastLogAt: number | null;
-  lastFlushAt: number | null;
-  flushes: number;
-  bytes: number;
-  sinceLogFlushes: number;
-  sinceLogBytes: number;
-}
-
 class TerminalInstanceRegistry {
   private instances = new Map<string, TerminalInstanceRecord>();
-  private static readonly PERF_LOG_INTERVAL_MS = 10_000;
-  private static readonly PERF_LOW_FPS_THRESHOLD = 45;
-  private static readonly FLUSH_BYTE_BUDGET = 4_096;
-  private static readonly BACKPRESSURE_HIGH_WATERMARK = 64_000;
-  private static readonly BACKPRESSURE_TIGHT_BUDGET = 2_048;
 
   acquire(id: string, factory: TerminalInstanceFactory): AcquireTerminalResult {
     const existing = this.instances.get(id);
@@ -63,15 +48,6 @@ class TerminalInstanceRegistry {
       initialized: false,
       attached: true,
       streamRegistered: false,
-      perf: {
-        firstFlushAt: null,
-        lastLogAt: null,
-        lastFlushAt: null,
-        flushes: 0,
-        bytes: 0,
-        sinceLogFlushes: 0,
-        sinceLogBytes: 0,
-      },
     };
 
     this.instances.set(id, record);
@@ -198,8 +174,17 @@ class TerminalInstanceRegistry {
 
     record.pendingChunks = [];
     record.rafScheduled = false;
+    record.lastChunkTime = 0;
 
     const flushChunks = () => {
+      const now = performance.now();
+      const timeSinceLastChunk = now - (record.lastChunkTime || 0);
+
+      if (timeSinceLastChunk < 16 && record.pendingChunks && record.pendingChunks.length > 0) {
+        record.rafHandle = requestAnimationFrame(flushChunks);
+        return;
+      }
+
       record.rafScheduled = false;
       record.rafHandle = undefined;
 
@@ -210,87 +195,10 @@ class TerminalInstanceRegistry {
       const combined = record.pendingChunks.join('');
       record.pendingChunks = [];
 
-      const now = performance.now();
-
-      // Soft-flow-control: only flush up to a byte budget per frame to avoid single
-      // large bursts tanking perceived FPS for TUIs (e.g., OpenCode).
-      const backlogBytes = combined.length + (record.pendingChunks?.reduce((acc, c) => acc + c.length, 0) ?? 0);
-      const budget = backlogBytes > TerminalInstanceRegistry.BACKPRESSURE_HIGH_WATERMARK
-        ? TerminalInstanceRegistry.BACKPRESSURE_TIGHT_BUDGET
-        : TerminalInstanceRegistry.FLUSH_BYTE_BUDGET;
-      const batch = combined.length > budget ? combined.slice(0, budget) : combined;
-      const remainder = combined.length > budget ? combined.slice(budget) : '';
-
-      if (remainder.length > 0) {
-        record.pendingChunks.push(remainder);
-        record.rafScheduled = true;
-        record.rafHandle = requestAnimationFrame(flushChunks);
-      }
-
-      const pendingBytes = batch.length;
-
       try {
-        record.xterm.raw.write(batch);
+        record.xterm.raw.write(combined);
       } catch (error) {
         logger.debug(`[Registry] Failed to write batch for ${record.id}`, error);
-      }
-
-      // Lightweight per-frame throughput instrumentation (once every 10s or on low FPS)
-      if (!record.perf) {
-        record.perf = {
-          firstFlushAt: now,
-          lastLogAt: now,
-          lastFlushAt: now,
-          flushes: 0,
-          bytes: 0,
-          sinceLogFlushes: 0,
-          sinceLogBytes: 0,
-        };
-      }
-
-      const perf = record.perf;
-      const gapMs = perf.lastFlushAt !== null ? now - perf.lastFlushAt : 0;
-
-      // Reset the active window after long idle gaps so FPS reflects active bursts
-      if (gapMs > 2_000) {
-        perf.firstFlushAt = now;
-        perf.flushes = 0;
-        perf.bytes = 0;
-        perf.sinceLogFlushes = 0;
-        perf.sinceLogBytes = 0;
-      }
-
-      perf.lastFlushAt = now;
-      perf.flushes += 1;
-      perf.bytes += pendingBytes;
-      perf.sinceLogFlushes += 1;
-      perf.sinceLogBytes += pendingBytes;
-
-      const elapsedMs = perf.firstFlushAt !== null ? now - perf.firstFlushAt : 0;
-      const windowMs = perf.lastLogAt !== null ? now - perf.lastLogAt : Number.POSITIVE_INFINITY;
-
-      if (elapsedMs >= 500 && windowMs >= TerminalInstanceRegistry.PERF_LOG_INTERVAL_MS && perf.sinceLogFlushes > 0) {
-        const windowFps = perf.sinceLogFlushes / (windowMs / 1000);
-        const windowKbPerSec = (perf.sinceLogBytes / 1024) / (windowMs / 1000);
-        const avgChunk = perf.sinceLogBytes / perf.sinceLogFlushes;
-
-        const logworthy = windowFps < TerminalInstanceRegistry.PERF_LOW_FPS_THRESHOLD || windowKbPerSec >= 4;
-
-        if (logworthy) {
-          logger.info('[Registry] Terminal stream perf', {
-            id: record.id,
-            windowFps: Number(windowFps.toFixed(1)),
-            windowThroughputKBps: Number(windowKbPerSec.toFixed(1)),
-            windowAvgChunk: Math.round(avgChunk),
-            windowElapsedMs: Math.round(windowMs),
-            flushes: perf.flushes,
-            totalElapsedMs: Math.round(elapsedMs),
-          });
-        }
-
-        perf.lastLogAt = now;
-        perf.sinceLogFlushes = 0;
-        perf.sinceLogBytes = 0;
       }
     };
 
@@ -300,6 +208,7 @@ class TerminalInstanceRegistry {
       }
 
       record.pendingChunks.push(chunk);
+      record.lastChunkTime = performance.now();
 
       if (!record.rafScheduled) {
         record.rafScheduled = true;
@@ -347,6 +256,7 @@ class TerminalInstanceRegistry {
     record.streamRegistered = false;
     record.rafScheduled = false;
     record.pendingChunks = undefined;
+    record.lastChunkTime = undefined;
 
     void terminalOutputManager.dispose(record.id).catch(error => {
       logger.debug(`[Registry] dispose stream failed for ${record.id}`, error);
