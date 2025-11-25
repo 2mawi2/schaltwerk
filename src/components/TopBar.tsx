@@ -17,6 +17,7 @@ import { GithubMenuButton } from './github/GithubMenuButton'
 import { WindowControls } from './WindowControls'
 import { getPlatform } from '../utils/platform'
 import { detectPlatformSafe } from '../keyboardShortcuts/helpers'
+import { GlobalKeepAwakeButton } from './GlobalKeepAwakeButton'
 
 type UiPlatform = 'mac' | 'linux' | 'windows'
 
@@ -194,6 +195,11 @@ export function TopBar({
 
         {/* GitHub status/actions */}
         <GithubMenuButton className="mr-2" hasActiveProject={Boolean(activeTabPath)} />
+
+        {/* Global keep-awake toggle */}
+        <div className="mr-2" data-no-drag>
+          <GlobalKeepAwakeButton />
+        </div>
 
         {/* Right panel collapse button - only show when a tab is active */}
         {activeTabPath && onToggleRightPanel && (

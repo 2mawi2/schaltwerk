@@ -11,22 +11,6 @@ pub enum GlobalState {
     AutoPaused,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct PowerSettings {
-    pub auto_release_enabled: bool,
-    pub auto_release_idle_minutes: u64,
-}
-
-impl Default for PowerSettings {
-    fn default() -> Self {
-        Self {
-            auto_release_enabled: true,
-            auto_release_idle_minutes: 2,
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct ProcessInfo {
     pub pid: u32,
@@ -42,7 +26,6 @@ pub struct InhibitorState {
     pub running_by_project: std::collections::HashMap<String, HashSet<String>>,
     pub process_info: Option<ProcessInfo>,
     pub child: Option<Child>,
-    pub settings: PowerSettings,
     pub last_watchdog_check: Instant,
     pub idle_deadline: Option<Instant>,
     pub last_emitted_state: Option<GlobalState>,
@@ -57,7 +40,6 @@ impl Default for InhibitorState {
             running_by_project: std::collections::HashMap::new(),
             process_info: None,
             child: None,
-            settings: PowerSettings::default(),
             last_watchdog_check: Instant::now(),
             idle_deadline: None,
             last_emitted_state: None,

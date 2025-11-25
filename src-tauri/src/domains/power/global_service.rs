@@ -13,7 +13,7 @@ use tokio::sync::Mutex;
 
 use super::platform::{PlatformAdapter, default_adapter};
 use super::security::{ProcessInspector, SecurityConfig, SecurityContext};
-use super::types::{GlobalState, InhibitorState, PowerSettings, ProcessInfo};
+use super::types::{GlobalState, InhibitorState, ProcessInfo};
 
 #[cfg(test)]
 type AppRuntime = tauri::test::MockRuntime;
@@ -110,44 +110,20 @@ impl ProcessInspector for SystemProcessInspector {
 #[serde(rename_all = "camelCase")]
 struct PersistedSettings {
     enabled: bool,
-    auto_release_enabled: bool,
-    auto_release_idle_minutes: u64,
 }
 
-impl From<(bool, PowerSettings)> for PersistedSettings {
-    fn from(value: (bool, PowerSettings)) -> Self {
-        Self {
-            enabled: value.0,
-            auto_release_enabled: value.1.auto_release_enabled,
-            auto_release_idle_minutes: value.1.auto_release_idle_minutes,
-        }
-    }
-}
-
-impl PersistedSettings {
-    fn into_parts(self) -> (bool, PowerSettings) {
-        (
-            self.enabled,
-            PowerSettings {
-                auto_release_enabled: self.auto_release_enabled,
-                auto_release_idle_minutes: self.auto_release_idle_minutes,
-            },
-        )
-    }
-}
-
-struct PowerSettingsStore {
+struct KeepAwakeStore {
     path: PathBuf,
 }
 
-impl PowerSettingsStore {
+impl KeepAwakeStore {
     fn new(path: PathBuf) -> Self {
         Self { path }
     }
 
-    fn load(&self) -> Result<(bool, PowerSettings), SchaltError> {
+    fn load(&self) -> Result<bool, SchaltError> {
         if !self.path.exists() {
-            return Ok((false, PowerSettings::default()));
+            return Ok(false);
         }
 
         let raw = fs::read_to_string(&self.path).map_err(|e| SchaltError::IoError {
@@ -157,15 +133,15 @@ impl PowerSettingsStore {
         })?;
 
         match serde_json::from_str::<PersistedSettings>(&raw) {
-            Ok(parsed) => Ok(parsed.into_parts()),
+            Ok(parsed) => Ok(parsed.enabled),
             Err(e) => {
                 warn!("Failed to parse power settings, using defaults: {e}");
-                Ok((false, PowerSettings::default()))
+                Ok(false)
             }
         }
     }
 
-    fn save(&self, enabled: bool, settings: &PowerSettings) -> Result<(), SchaltError> {
+    fn save(&self, enabled: bool) -> Result<(), SchaltError> {
         if let Some(parent) = self.path.parent() {
             fs::create_dir_all(parent).map_err(|e| SchaltError::IoError {
                 operation: "create_power_settings_dir".into(),
@@ -174,7 +150,7 @@ impl PowerSettingsStore {
             })?;
         }
 
-        let payload = PersistedSettings::from((enabled, settings.clone()));
+        let payload = PersistedSettings { enabled };
         let body = serde_json::to_string_pretty(&payload).map_err(|e| SchaltError::IoError {
             operation: "serialize_power_settings".into(),
             path: self.path.display().to_string(),
@@ -194,7 +170,7 @@ pub struct GlobalInhibitorService {
     security: SecurityContext,
     platform: Box<dyn PlatformAdapter>,
     app_handle: tauri::AppHandle<AppRuntime>,
-    settings_store: PowerSettingsStore,
+    store: KeepAwakeStore,
     process_inspector: Arc<dyn ProcessInspector>,
 }
 
@@ -204,7 +180,7 @@ impl GlobalInhibitorService {
         app_handle: tauri::AppHandle<AppRuntime>,
         security: SecurityContext,
         platform: Box<dyn PlatformAdapter>,
-        settings_path: PathBuf,
+        store_path: PathBuf,
         process_inspector: Arc<dyn ProcessInspector>,
     ) -> Arc<Self> {
         Arc::new(Self {
@@ -212,7 +188,7 @@ impl GlobalInhibitorService {
             security,
             platform,
             app_handle,
-            settings_store: PowerSettingsStore::new(settings_path),
+            store: KeepAwakeStore::new(store_path),
             process_inspector,
         })
     }
@@ -249,8 +225,8 @@ impl GlobalInhibitorService {
             message: e.to_string(),
         })?;
 
-        let settings_path = config_dir.join("power_settings.json");
-        let settings_store = PowerSettingsStore::new(settings_path);
+        let store_path = config_dir.join("power_settings.json");
+        let store = KeepAwakeStore::new(store_path);
 
         let process_inspector: Arc<dyn ProcessInspector> = Arc::new(SystemProcessInspector);
         let security = SecurityContext::new(
@@ -266,7 +242,7 @@ impl GlobalInhibitorService {
             e
         })?;
 
-        let (enabled, settings) = settings_store.load()?;
+        let enabled = store.load()?;
 
         let state = InhibitorState {
             user_enabled: enabled,
@@ -275,7 +251,6 @@ impl GlobalInhibitorService {
             running_by_project: std::collections::HashMap::new(),
             process_info: None,
             child: None,
-            settings,
             last_watchdog_check: Instant::now(),
             idle_deadline: None,
             last_emitted_state: None,
@@ -286,7 +261,7 @@ impl GlobalInhibitorService {
             security,
             platform: Box::new(platform),
             app_handle,
-            settings_store,
+            store,
             process_inspector,
         });
 
@@ -322,8 +297,7 @@ impl GlobalInhibitorService {
         if guard.running_sessions.contains(&session_id) {
             if is_idle {
                 guard.active_sessions.remove(&session_id);
-                if guard.active_sessions.is_empty() && guard.settings.auto_release_enabled {
-                    // Idle detector has already applied its own inactivity threshold; treat this as elapsed.
+                if guard.active_sessions.is_empty() {
                     guard.idle_deadline = Some(Instant::now());
                 }
             } else {
@@ -331,7 +305,6 @@ impl GlobalInhibitorService {
                 guard.idle_deadline = None;
             }
         } else {
-            // Ignore idle/active noise from sessions that are not running anymore
             guard.active_sessions.remove(&session_id);
         }
 
@@ -352,7 +325,7 @@ impl GlobalInhibitorService {
             return Ok(state);
         }
         guard.user_enabled = true;
-        self.settings_store.save(true, &guard.settings)?;
+        self.store.save(true)?;
         let next = self.evaluate_state(&mut guard).await?;
         let active_count = guard.active_sessions.len();
         let should_emit = self.mark_state_if_changed(&mut guard, &next);
@@ -368,13 +341,12 @@ impl GlobalInhibitorService {
         guard.user_enabled = false;
         guard.idle_deadline = None;
         self.stop_inhibitor_locked(&mut guard).await?;
-        // Final sweep: kill any stray inhibitor the platform can detect
         if let Ok(Some(pid)) = self.platform.find_existing_inhibitor() {
             warn!("Disabling keep-awake: terminating stray inhibitor pid={pid}");
             let _ = self.security.kill_process_gracefully(pid);
             let _ = self.security.delete_pid_file();
         }
-        self.settings_store.save(false, &guard.settings)?;
+        self.store.save(false)?;
         let next = GlobalState::Disabled;
         let active_count = guard.active_sessions.len();
         let should_emit = self.mark_state_if_changed(&mut guard, &next);
@@ -400,27 +372,6 @@ impl GlobalInhibitorService {
             self.emit_state(state.clone(), active);
         }
         state
-    }
-
-    pub async fn get_settings(&self) -> PowerSettings {
-        self.state.lock().await.settings.clone()
-    }
-
-    pub async fn set_settings(
-        &self,
-        settings: PowerSettings,
-    ) -> Result<PowerSettings, SchaltError> {
-        let mut guard = self.state.lock().await;
-        guard.settings = settings.clone();
-        self.settings_store.save(guard.user_enabled, &settings)?;
-        let next = self.evaluate_state(&mut guard).await?;
-        let active_count = guard.active_sessions.len();
-        let should_emit = self.mark_state_if_changed(&mut guard, &next);
-        drop(guard);
-        if should_emit {
-            self.emit_state(next, active_count);
-        }
-        Ok(settings)
     }
 
     /// Sync the service with the latest set of running sessions across all projects.
@@ -504,29 +455,6 @@ impl GlobalInhibitorService {
             return Ok(GlobalState::Active);
         }
 
-        // No active sessions
-        if !state.settings.auto_release_enabled {
-            state.idle_deadline = None;
-            if state.process_info.is_some() {
-                debug!(
-                    "[keep-awake] decision=active reason=auto_release_disabled running={} active={}",
-                    state.running_sessions.len(),
-                    state.active_sessions.len()
-                );
-                return Ok(GlobalState::Active);
-            }
-            // Enabled but waiting for first activity
-            debug!(
-                "[keep-awake] decision=auto_paused reason=enabled_no_active_auto_release_off running={} active={}",
-                state.running_sessions.len(),
-                state.active_sessions.len()
-            );
-            return Ok(GlobalState::AutoPaused);
-        }
-
-        // Auto release enabled
-        let idle_timeout = Duration::from_secs(state.settings.auto_release_idle_minutes * 60);
-
         if let Some(deadline) = state.idle_deadline {
             if now >= deadline {
                 self.stop_inhibitor_locked(state).await?;
@@ -538,17 +466,7 @@ impl GlobalInhibitorService {
                 );
                 return Ok(GlobalState::AutoPaused);
             }
-        } else if state.process_info.is_some() {
-            // First idle transition while inhibitor running; start countdown
-            state.idle_deadline = Some(now + idle_timeout);
-            debug!(
-                "[keep-awake] countdown_started idle_timeout_secs={} running={} active={}",
-                idle_timeout.as_secs(),
-                state.running_sessions.len(),
-                state.active_sessions.len()
-            );
         } else {
-            // No process running and no active sessions; remain paused
             debug!(
                 "[keep-awake] decision=auto_paused reason=no_active_no_process running={} active={}",
                 state.running_sessions.len(),
@@ -627,7 +545,7 @@ impl GlobalInhibitorService {
             return GlobalState::AutoPaused;
         }
         if state.process_info.is_some() {
-            if state.active_sessions.is_empty() && state.settings.auto_release_enabled {
+            if state.active_sessions.is_empty() {
                 return GlobalState::AutoPaused;
             }
             return GlobalState::Active;
@@ -675,7 +593,6 @@ impl GlobalInhibitorService {
 
         if guard.process_info.is_some()
             && guard.active_sessions.is_empty()
-            && guard.settings.auto_release_enabled
             && guard
                 .idle_deadline
                 .is_some_and(|deadline| now >= deadline)
@@ -918,15 +835,7 @@ mod tests {
         let service = build_service(&tmp, inspector.clone(), platform.clone());
 
         service.enable_global().await.unwrap();
-        service
-            .set_settings(PowerSettings {
-                auto_release_enabled: true,
-                auto_release_idle_minutes: 0,
-            })
-            .await
-            .unwrap();
 
-        // Session becomes active then idle long enough to hit the deadline (0 minutes)
         service
             .handle_session_activity("s1".to_string(), false)
             .await

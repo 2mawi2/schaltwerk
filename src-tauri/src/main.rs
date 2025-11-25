@@ -1211,8 +1211,6 @@ fn main() {
             get_global_keep_awake_state,
             enable_global_keep_awake,
             disable_global_keep_awake,
-            get_power_settings,
-            set_power_settings,
             // Agent binary commands
             detect_agent_binaries,
             get_agent_binary_config,
