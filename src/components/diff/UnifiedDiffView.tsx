@@ -125,6 +125,8 @@ export function UnifiedDiffView({
   const [files, setFiles] = useState<ChangedFile[]>([]);
   const [selectedFile, setSelectedFile] = useState<string | null>(filePath);
   const selectedFileRef = useRef<string | null>(filePath);
+  const visualFileOrderRef = useRef<string[]>([]);
+  const filePathToIndexRef = useRef<Map<string, number>>(new Map());
   const filePathPropRef = useRef<string | null>(filePath);
   const lastNotifiedFileRef = useRef<string | null>(filePath);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -284,6 +286,10 @@ export function UnifiedDiffView({
     return getVisualFileOrder(tree);
   }, [files]);
 
+  useEffect(() => {
+    visualFileOrderRef.current = visualFileOrder;
+  }, [visualFileOrder]);
+
   const filePathToIndex = useMemo(() => {
     const map = new Map<string, number>();
     files.forEach((file, index) => {
@@ -291,6 +297,10 @@ export function UnifiedDiffView({
     });
     return map;
   }, [files]);
+
+  useEffect(() => {
+    filePathToIndexRef.current = filePathToIndex;
+  }, [filePathToIndex]);
 
   useEffect(() => {
     if (!isOpen || mode !== "history") {
@@ -2677,16 +2687,18 @@ export function UnifiedDiffView({
         !isSearchVisible &&
         !isSidebarMode
       ) {
-        const currentVisualIndex = selectedFile
-          ? visualFileOrder.indexOf(selectedFile)
+        const visualOrder = visualFileOrderRef.current;
+        const fileIndexMap = filePathToIndexRef.current;
+        const currentVisualIndex = selectedFileRef.current
+          ? visualOrder.indexOf(selectedFileRef.current)
           : -1;
 
         if (e.key === "ArrowUp") {
           e.preventDefault();
           e.stopPropagation();
           if (currentVisualIndex > 0) {
-            const newPath = visualFileOrder[currentVisualIndex - 1];
-            const newIndex = filePathToIndex.get(newPath) ?? 0;
+            const newPath = visualOrder[currentVisualIndex - 1];
+            const newIndex = fileIndexMap.get(newPath) ?? 0;
             void scrollToFile(newPath, newIndex, {
               origin: "user",
               allowWhileUserScrolling: true,
@@ -2695,9 +2707,10 @@ export function UnifiedDiffView({
         } else if (e.key === "ArrowDown") {
           e.preventDefault();
           e.stopPropagation();
-          if (currentVisualIndex < visualFileOrder.length - 1) {
-            const newPath = visualFileOrder[currentVisualIndex + 1];
-            const newIndex = filePathToIndex.get(newPath) ?? 0;
+          if (visualOrder.length === 0) return;
+          if (currentVisualIndex < visualOrder.length - 1) {
+            const newPath = visualOrder[currentVisualIndex + 1];
+            const newIndex = fileIndexMap.get(newPath) ?? 0;
             void scrollToFile(newPath, newIndex, {
               origin: "user",
               allowWhileUserScrolling: true,
@@ -2716,9 +2729,6 @@ export function UnifiedDiffView({
     isSearchVisible,
     onClose,
     lineSelection,
-    selectedFile,
-    visualFileOrder,
-    filePathToIndex,
     scrollToFile,
     handleFinishReview,
     setIsSearchVisible,
