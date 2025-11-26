@@ -121,6 +121,8 @@ export const getAgentColorKey = (
       return "red";
     case "amp":
       return "yellow";
+    case "kilocode":
+      return "yellow";
     default:
       return "red";
   }

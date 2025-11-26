@@ -104,6 +104,32 @@ impl AgentAdapter for GeminiAdapter {
     }
 }
 
+pub struct KilocodeAdapter;
+
+impl AgentAdapter for KilocodeAdapter {
+    fn find_session(&self, path: &Path) -> Option<String> {
+        super::kilocode::find_kilocode_session(path)
+    }
+
+    fn build_launch_spec(&self, ctx: AgentLaunchContext) -> AgentLaunchSpec {
+        let config = super::kilocode::KilocodeConfig {
+            binary_path: Some(
+                ctx.binary_override
+                    .unwrap_or(&ctx.manifest.default_binary_path)
+                    .to_string(),
+            ),
+        };
+        let command = super::kilocode::build_kilocode_command_with_config(
+            ctx.worktree_path,
+            ctx.session_id,
+            ctx.initial_prompt,
+            ctx.skip_permissions,
+            Some(&config),
+        );
+        AgentLaunchSpec::new(command, ctx.worktree_path.to_path_buf())
+    }
+}
+
 pub struct OpenCodeAdapter;
 
 fn build_droid_prompt_arg(prompt: &str) -> String {
@@ -268,6 +294,7 @@ impl AgentRegistry {
         adapters.insert("droid".to_string(), Box::new(DroidAdapter));
         adapters.insert("qwen".to_string(), Box::new(QwenAdapter));
         adapters.insert("amp".to_string(), Box::new(AmpAdapter));
+        adapters.insert("kilocode".to_string(), Box::new(KilocodeAdapter));
         adapters.insert("copilot".to_string(), Box::new(CopilotAdapter));
         adapters.insert("terminal".to_string(), Box::new(TerminalAdapter));
 
@@ -335,6 +362,7 @@ mod tests {
         assert!(registry.get("droid").is_some());
         assert!(registry.get("qwen").is_some());
         assert!(registry.get("amp").is_some());
+        assert!(registry.get("kilocode").is_some());
         assert!(registry.get("copilot").is_some());
         assert!(registry.get("terminal").is_some());
     }
@@ -343,7 +371,7 @@ mod tests {
     fn test_registry_supported_agents() {
         let registry = AgentRegistry::new();
         let supported = registry.supported_agents();
-        assert!(supported.len() >= 8);
+        assert!(supported.len() >= 9);
         assert!(supported.contains(&"claude".to_string()));
         assert!(supported.contains(&"codex".to_string()));
         assert!(supported.contains(&"copilot".to_string()));
@@ -352,6 +380,7 @@ mod tests {
         assert!(supported.contains(&"opencode".to_string()));
         assert!(supported.contains(&"qwen".to_string()));
         assert!(supported.contains(&"amp".to_string()));
+        assert!(supported.contains(&"kilocode".to_string()));
         assert!(supported.contains(&"terminal".to_string()));
     }
 
@@ -436,6 +465,29 @@ mod tests {
 
             let spec = adapter.build_launch_spec(ctx);
             assert!(spec.shell_command.contains("gemini"));
+        }
+    }
+
+    mod kilocode_tests {
+        use super::*;
+
+        #[test]
+        fn test_kilocode_adapter_basic() {
+            let adapter = KilocodeAdapter;
+            let manifest = AgentManifest::get("kilocode").unwrap();
+
+            let ctx = AgentLaunchContext {
+                worktree_path: Path::new("/test/path"),
+                session_id: None,
+                initial_prompt: Some("test prompt"),
+                skip_permissions: true,
+                binary_override: Some("kilocode"),
+                manifest,
+            };
+
+            let spec = adapter.build_launch_spec(ctx);
+            assert!(spec.shell_command.contains("kilocode"));
+            assert!(spec.shell_command.contains("test prompt"));
         }
     }
 

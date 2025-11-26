@@ -61,7 +61,19 @@ mod tests {
         assert!(AgentManifest::get("opencode").is_some());
         assert!(AgentManifest::get("droid").is_some());
         assert!(AgentManifest::get("copilot").is_some());
+        assert!(AgentManifest::get("kilocode").is_some());
         assert!(AgentManifest::get("terminal").is_some());
+    }
+
+    #[test]
+    fn test_kilocode_definition() {
+        let kilocode = AgentManifest::get("kilocode").expect("Kilo Code manifest entry missing");
+        assert_eq!(kilocode.id, "kilocode");
+        assert_eq!(kilocode.display_name, "Kilo Code");
+        assert_eq!(kilocode.binary_name, "kilocode");
+        assert_eq!(kilocode.default_binary_path, "kilocode");
+        assert!(!kilocode.auto_send_initial_command);
+        assert!(!kilocode.supports_resume);
     }
 
     #[test]
@@ -78,10 +90,11 @@ mod tests {
     #[test]
     fn test_supported_agents_sorted() {
         let agents = AgentManifest::supported_agents();
-        assert!(agents.len() >= 6);
+        assert!(agents.len() >= 10);
 
         let expected = vec![
-            "claude", "codex", "copilot", "droid", "gemini", "opencode", "terminal",
+            "amp", "claude", "codex", "copilot", "droid", "gemini", "kilocode", "opencode", "qwen",
+            "terminal",
         ];
         for agent in expected {
             assert!(agents.contains(&agent.to_string()));

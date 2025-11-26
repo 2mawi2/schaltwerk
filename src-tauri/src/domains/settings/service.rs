@@ -58,6 +58,7 @@ impl SettingsService {
             "droid" => self.settings.agent_env_vars.droid.clone(),
             "qwen" => self.settings.agent_env_vars.qwen.clone(),
             "amp" => self.settings.agent_env_vars.amp.clone(),
+            "kilocode" => self.settings.agent_env_vars.kilocode.clone(),
             "terminal" => self.settings.agent_env_vars.terminal.clone(),
             _ => HashMap::new(),
         }
@@ -77,6 +78,7 @@ impl SettingsService {
             "droid" => self.settings.agent_env_vars.droid = env_vars,
             "qwen" => self.settings.agent_env_vars.qwen = env_vars,
             "amp" => self.settings.agent_env_vars.amp = env_vars,
+            "kilocode" => self.settings.agent_env_vars.kilocode = env_vars,
             "terminal" => self.settings.agent_env_vars.terminal = env_vars,
             _ => {
                 return Err(SettingsServiceError::UnknownAgentType(
@@ -133,6 +135,7 @@ impl SettingsService {
             "droid" => self.settings.agent_cli_args.droid.clone(),
             "qwen" => self.settings.agent_cli_args.qwen.clone(),
             "amp" => self.settings.agent_cli_args.amp.clone(),
+            "kilocode" => self.settings.agent_cli_args.kilocode.clone(),
             _ => String::new(),
         }
     }
@@ -160,6 +163,7 @@ impl SettingsService {
             "droid" => self.settings.agent_cli_args.droid = cli_args.clone(),
             "qwen" => self.settings.agent_cli_args.qwen = cli_args.clone(),
             "amp" => self.settings.agent_cli_args.amp = cli_args.clone(),
+            "kilocode" => self.settings.agent_cli_args.kilocode = cli_args.clone(),
             _ => {
                 let error = format!("Unknown agent type: {agent_type}");
                 log::error!("Invalid agent type in set_agent_cli_args: {error}");
@@ -193,6 +197,7 @@ impl SettingsService {
             "droid" => self.settings.agent_initial_commands.droid.clone(),
             "qwen" => self.settings.agent_initial_commands.qwen.clone(),
             "amp" => self.settings.agent_initial_commands.amp.clone(),
+            "kilocode" => self.settings.agent_initial_commands.kilocode.clone(),
             "terminal" => String::new(),
             _ => String::new(),
         }
@@ -208,6 +213,7 @@ impl SettingsService {
             "droid" => Some(&self.settings.agent_preferences.droid),
             "qwen" => Some(&self.settings.agent_preferences.qwen),
             "amp" => Some(&self.settings.agent_preferences.amp),
+            "kilocode" => Some(&self.settings.agent_preferences.kilocode),
             "terminal" => Some(&self.settings.agent_preferences.terminal),
             _ => None,
         }
@@ -226,6 +232,7 @@ impl SettingsService {
             "droid" => Ok(&mut self.settings.agent_preferences.droid),
             "qwen" => Ok(&mut self.settings.agent_preferences.qwen),
             "amp" => Ok(&mut self.settings.agent_preferences.amp),
+            "kilocode" => Ok(&mut self.settings.agent_preferences.kilocode),
             "terminal" => Ok(&mut self.settings.agent_preferences.terminal),
             _ => Err(SettingsServiceError::UnknownAgentType(
                 agent_type.to_string(),
@@ -268,6 +275,7 @@ impl SettingsService {
             "droid" => self.settings.agent_initial_commands.droid = initial_command.clone(),
             "qwen" => self.settings.agent_initial_commands.qwen = initial_command.clone(),
             "amp" => self.settings.agent_initial_commands.amp = initial_command.clone(),
+            "kilocode" => self.settings.agent_initial_commands.kilocode = initial_command.clone(),
             "terminal" => {}
             _ => {
                 let error = format!("Unknown agent type: {agent_type}");
@@ -394,6 +402,7 @@ impl SettingsService {
             "droid" => self.settings.agent_binaries.droid.clone(),
             "qwen" => self.settings.agent_binaries.qwen.clone(),
             "amp" => self.settings.agent_binaries.amp.clone(),
+            "kilocode" => self.settings.agent_binaries.kilocode.clone(),
             "terminal" => None,
             _ => None,
         }
@@ -417,6 +426,7 @@ impl SettingsService {
             "droid" => self.settings.agent_binaries.droid = Some(config),
             "qwen" => self.settings.agent_binaries.qwen = Some(config),
             "amp" => self.settings.agent_binaries.amp = Some(config),
+            "kilocode" => self.settings.agent_binaries.kilocode = Some(config),
             _ => return Err(SettingsServiceError::UnknownAgentType(config.agent_name)),
         }
         self.save()
@@ -446,6 +456,9 @@ impl SettingsService {
             configs.push(config.clone());
         }
         if let Some(config) = &self.settings.agent_binaries.amp {
+            configs.push(config.clone());
+        }
+        if let Some(config) = &self.settings.agent_binaries.kilocode {
             configs.push(config.clone());
         }
         configs
@@ -581,6 +594,22 @@ mod tests {
     }
 
     #[test]
+    fn set_agent_cli_args_supports_kilocode() {
+        let repo = InMemoryRepository::default();
+        let repo_handle = repo.clone();
+        let mut service = SettingsService::new(Box::new(repo));
+
+        service
+            .set_agent_cli_args("kilocode", "--mode architect".to_string())
+            .expect("should accept kilocode CLI args");
+
+        assert_eq!(
+            repo_handle.snapshot().agent_cli_args.kilocode,
+            "--mode architect"
+        );
+    }
+
+    #[test]
     fn set_agent_initial_command_supports_droid() {
         let repo = InMemoryRepository::default();
         let repo_handle = repo.clone();
@@ -607,6 +636,22 @@ mod tests {
             .expect("should accept copilot initial command");
 
         assert_eq!(repo_handle.snapshot().agent_initial_commands.copilot, "hi");
+    }
+
+    #[test]
+    fn set_agent_initial_command_supports_kilocode() {
+        let repo = InMemoryRepository::default();
+        let repo_handle = repo.clone();
+        let mut service = SettingsService::new(Box::new(repo));
+
+        service
+            .set_agent_initial_command("kilocode", "/mode architect".to_string())
+            .expect("should accept kilocode initial command");
+
+        assert_eq!(
+            repo_handle.snapshot().agent_initial_commands.kilocode,
+            "/mode architect"
+        );
     }
 
     #[test]
@@ -715,6 +760,23 @@ mod tests {
     }
 
     #[test]
+    fn set_agent_env_vars_supports_kilocode() {
+        let repo = InMemoryRepository::default();
+        let repo_handle = repo.clone();
+        let mut service = SettingsService::new(Box::new(repo));
+
+        let mut vars = HashMap::new();
+        vars.insert("KILO_API_KEY".to_string(), "secret".to_string());
+        vars.insert("KILO_PROVIDER".to_string(), "openrouter".to_string());
+
+        service
+            .set_agent_env_vars("kilocode", vars.clone())
+            .expect("should accept kilocode env vars");
+
+        assert_eq!(repo_handle.snapshot().agent_env_vars.kilocode, vars);
+    }
+
+    #[test]
     fn set_agent_binary_config_supports_droid() {
         let repo = InMemoryRepository::default();
         let repo_handle = repo.clone();
@@ -772,5 +834,25 @@ mod tests {
             .expect("should accept copilot binary config");
 
         assert_eq!(repo_handle.snapshot().agent_binaries.copilot, Some(config));
+    }
+
+    #[test]
+    fn set_agent_binary_config_supports_kilocode() {
+        let repo = InMemoryRepository::default();
+        let repo_handle = repo.clone();
+        let mut service = SettingsService::new(Box::new(repo));
+
+        let config = AgentBinaryConfig {
+            agent_name: "kilocode".to_string(),
+            custom_path: Some("/custom/kilocode".to_string()),
+            auto_detect: false,
+            detected_binaries: vec![],
+        };
+
+        service
+            .set_agent_binary_config(config.clone())
+            .expect("should accept kilocode binary config");
+
+        assert_eq!(repo_handle.snapshot().agent_binaries.kilocode, Some(config));
     }
 }

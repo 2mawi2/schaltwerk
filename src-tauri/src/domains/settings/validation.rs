@@ -53,4 +53,5 @@ pub fn clean_invalid_binary_paths(settings: &mut Settings) {
     fix_config(&mut settings.agent_binaries.droid);
     fix_config(&mut settings.agent_binaries.qwen);
     fix_config(&mut settings.agent_binaries.amp);
+    fix_config(&mut settings.agent_binaries.kilocode);
 }

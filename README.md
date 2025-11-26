@@ -4,7 +4,7 @@
 
 **Native terminal AI agents with git worktree isolation. Spec-driven development for parallel workflows.**
 
-Run GitHub Copilot CLI, Claude Code, OpenCode, Codex, Gemini, Qwen, Factory Droid, and Amp natively—no wrappers, no limitations. Or use Terminal Only mode for manual work. Each session gets its own worktree.
+Run GitHub Copilot CLI, Claude Code, Kilo Code, OpenCode, Codex, Gemini, Qwen, Factory Droid, and Amp natively—no wrappers, no limitations. Or use Terminal Only mode for manual work. Each session gets its own worktree.
 
 [![Test](https://github.com/2mawi2/schaltwerk/actions/workflows/test.yml/badge.svg)](https://github.com/2mawi2/schaltwerk/actions/workflows/test.yml)
 
