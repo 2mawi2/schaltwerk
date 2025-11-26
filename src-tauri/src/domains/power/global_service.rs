@@ -593,9 +593,7 @@ impl GlobalInhibitorService {
 
         if guard.process_info.is_some()
             && guard.active_sessions.is_empty()
-            && guard
-                .idle_deadline
-                .is_some_and(|deadline| now >= deadline)
+            && guard.idle_deadline.is_some_and(|deadline| now >= deadline)
         {
             self.stop_inhibitor_locked(&mut guard).await?;
             let next = GlobalState::AutoPaused;
@@ -926,7 +924,9 @@ mod tests {
     #[serial]
     async fn sync_running_sessions_prunes_and_stops_when_none_running() {
         let tmp = TempDir::new().unwrap();
-        let inspector = Arc::new(FakeInspector::new("systemd-inhibit --what=sleep:idle --who=Schaltwerk-KeepAwake --why=\"AI agent sessions active (schaltwerk-keep-awake)\" sleep infinity"));
+        let inspector = Arc::new(FakeInspector::new(
+            "systemd-inhibit --what=sleep:idle --who=Schaltwerk-KeepAwake --why=\"AI agent sessions active (schaltwerk-keep-awake)\" sleep infinity",
+        ));
         let platform = Arc::new(FakePlatform::new(inspector.clone()));
         let service = build_service(&tmp, inspector.clone(), platform.clone());
 

@@ -259,6 +259,7 @@ const AGENT_PREFERENCE_METADATA: Record<AgentType, AgentPreferenceMetadata> = {
     droid: {},
     qwen: {},
     amp: {},
+    kilocode: {},
     terminal: {},
 }
 
@@ -1887,6 +1888,23 @@ fi`}
                                     <li>OPENAI_API_KEY - Your OpenAI API key (if using OpenAI models)</li>
                                     <li>CODEX_MODEL - Model to use (e.g., o3, gpt-4)</li>
                                     <li>CODEX_PROFILE - Configuration profile to use</li>
+                                </ul>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeAgentTab === 'kilocode' && (
+                        <div className="mt-6 p-3 bg-slate-800/50 border border-slate-700 rounded">
+                            <div className="text-caption text-slate-400">
+                                <strong>Common Kilo Code CLI arguments:</strong>
+                                <ul className="mt-2 space-y-1 list-disc list-inside">
+                                    <li><code>--auto "Prompt"</code> - Run in autonomous mode</li>
+                                    <li><code>--mode architect</code> - Start in Architect mode</li>
+                                </ul>
+                                <strong className="block mt-3">Common environment variables:</strong>
+                                <ul className="mt-2 space-y-1 list-disc list-inside">
+                                    <li>KILO_API_KEY - Your Kilo Code API key</li>
+                                    <li>KILO_PROVIDER - Provider override</li>
                                 </ul>
                             </div>
                         </div>

@@ -1,9 +1,9 @@
+use schaltwerk::services::GlobalState;
 use schaltwerk::services::power::{
     disable_global_keep_awake as disable_global_keep_awake_service,
     enable_global_keep_awake as enable_global_keep_awake_service,
     get_global_keep_awake_state as get_global_keep_awake_state_service,
 };
-use schaltwerk::services::GlobalState;
 
 #[tauri::command]
 pub async fn get_global_keep_awake_state() -> Result<GlobalState, String> {

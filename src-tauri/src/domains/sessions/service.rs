@@ -8,7 +8,8 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 use which::which;
 const AGENT_FALLBACK_ORDER: &[&str] = &[
-    "claude", "copilot", "codex", "opencode", "gemini", "droid", "qwen", "amp", "terminal",
+    "claude", "copilot", "codex", "opencode", "gemini", "droid", "qwen", "amp", "kilocode",
+    "terminal",
 ];
 
 #[cfg(test)]
@@ -358,7 +359,10 @@ mod service_unified_tests {
         let _registry = crate::domains::agents::unified::AgentRegistry::new();
 
         // Test each supported agent type
-        for (i, agent_type) in ["claude", "codex", "gemini", "opencode"].iter().enumerate() {
+        for (i, agent_type) in ["claude", "codex", "gemini", "opencode", "kilocode"]
+            .iter()
+            .enumerate()
+        {
             let session = create_test_session(&temp_dir, agent_type, &i.to_string());
 
             // Create session in database

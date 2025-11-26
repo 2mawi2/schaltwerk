@@ -1,7 +1,7 @@
 # CLAUDE.md - Schaltwerk Development Guidelines
 
 ## Project Overview
-Tauri-based desktop app for managing AI coding sessions using git worktrees. Each session gets an isolated branch/worktree where AI agents (Claude, GitHub Copilot CLI, Gemini, OpenCode, Codex, Factory Droid, etc.) can work without affecting the main codebase.
+Tauri-based desktop app for managing AI coding sessions using git worktrees. Each session gets an isolated branch/worktree where AI agents (Claude, GitHub Copilot CLI, Kilo Code, Gemini, OpenCode, Codex, Factory Droid, etc.) can work without affecting the main codebase.
 
 ## Platform Support
 - macOS 11+ supported; Linux beta builds ship via releases. Windows unsupported.

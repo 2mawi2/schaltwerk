@@ -15,6 +15,7 @@ const MODEL_METADATA: Record<AgentType, { label: string; color: ModelColor }> = 
     droid: { label: 'Droid', color: 'violet' },
     qwen: { label: 'Qwen', color: 'cyan' },
     amp: { label: 'Amp', color: 'yellow' },
+    kilocode: { label: 'Kilo Code', color: 'yellow' },
     terminal: { label: 'Terminal Only', color: 'green' }
 }
 

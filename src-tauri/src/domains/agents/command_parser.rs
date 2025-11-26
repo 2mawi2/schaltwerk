@@ -43,7 +43,7 @@ pub fn parse_agent_command(command: &str) -> Result<(String, String, Vec<String>
 
     if tokens.is_empty() {
         return Err(format!(
-            "Second part doesn't start with 'claude', 'opencode', 'gemini', 'codex', or 'amp': {command}"
+            "Second part doesn't start with 'claude', 'opencode', 'gemini', 'codex', 'amp' or 'kilocode': {command}"
         ));
     }
 

@@ -1303,7 +1303,7 @@ pub async fn schaltwerk_core_start_claude_with_restart(
 
         // Get resolved binary paths for all agents
         for agent in [
-            "claude", "copilot", "codex", "opencode", "gemini", "droid", "qwen", "amp",
+            "claude", "copilot", "codex", "opencode", "gemini", "droid", "qwen", "amp", "kilocode",
         ] {
             match settings.get_effective_binary_path(agent) {
                 Ok(path) => {
@@ -1379,7 +1379,7 @@ pub async fn schaltwerk_core_start_claude_with_restart(
     if auto_send_initial_command
         && let Some(initial) = initial_command.clone().filter(|v| !v.trim().is_empty())
     {
-        let dispatch_delay = if agent_type == "copilot" {
+        let dispatch_delay = if agent_type == "copilot" || agent_type == "kilocode" {
             Some(Duration::from_millis(1500))
         } else {
             None
@@ -1510,6 +1510,7 @@ pub async fn schaltwerk_core_start_claude_with_restart(
         agent_ctx::AgentKind::Amp => "amp",
         agent_ctx::AgentKind::Droid => "droid",
         agent_ctx::AgentKind::Qwen => "qwen",
+        agent_ctx::AgentKind::Kilocode => "kilocode",
         agent_ctx::AgentKind::Fallback => "claude",
     };
     log::info!(
@@ -1654,7 +1655,7 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
         let mut paths = std::collections::HashMap::new();
 
         for agent in [
-            "claude", "copilot", "codex", "opencode", "gemini", "droid", "qwen", "amp",
+            "claude", "copilot", "codex", "opencode", "gemini", "droid", "qwen", "amp", "kilocode",
         ] {
             match settings.get_effective_binary_path(agent) {
                 Ok(path) => {

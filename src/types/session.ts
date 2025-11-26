@@ -7,6 +7,7 @@ export const AGENT_TYPES = [
     'droid',
     'qwen',
     'amp',
+    'kilocode',
     'terminal'
 ] as const
 export type AgentType = (typeof AGENT_TYPES)[number]
@@ -20,6 +21,7 @@ export const AGENT_SUPPORTS_SKIP_PERMISSIONS: Record<AgentType, boolean> = {
     droid: true,
     qwen: true,
     amp: true,
+    kilocode: false,
     terminal: false
 }
 
