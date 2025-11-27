@@ -36,13 +36,14 @@ This guide walks through the daily workflow of creating specs, running agents, r
     - Tabs for each open project
     - Gear icon for Settings
     - **Open** button (`⌘⇧O`) to launch the active worktree or orchestrator branch in your editor/terminal
+    - **Keep-awake** button (coffee icon) to prevent sleep during long sessions—gray (disabled), green (active), amber (auto-paused when idle)
   </Card>
 
   <Card title="Sidebar" icon="sidebar">
     - Orchestrator entry
     - Session filters (All/Specs/Running/Reviewed)
     - Quick actions for starting agents or creating specs
-    - Collapse/expand: click the chevron in the sidebar header or press `⌘\\` / `Ctrl+\\`
+    - Collapse/expand: click the toggle button or press `⌘\` / `Ctrl+\`
   </Card>
 
   <Card title="Center" icon="window">
@@ -50,6 +51,10 @@ This guide walks through the daily workflow of creating specs, running agents, r
     - Grouped per session
   </Card>
 </CardGroup>
+
+Collapse the sidebar to a compact rail for more terminal space or when using the inline diff viewer. Click the toggle button or press `⌘\`.
+
+The **keep-awake** button (coffee icon in top bar) prevents your machine from sleeping during long-running agent tasks. It shows amber when auto-paused because all sessions are idle.
 
 ## Create a Spec
 
@@ -136,28 +141,13 @@ This guide walks through the daily workflow of creating specs, running agents, r
 
 ### Run Mode
 
-Configure Run Mode via **Settings → Run & Environment → Run Script** to map `⌘E` to a common command:
+Configure a run script via **Settings → Run & Environment → Run Script** (e.g., `bun run dev` or `npm run dev`). Then press `⌘E` to launch it—no retyping needed. This lets you quickly verify each agent's changes: `⌘E` → manually test → `⌘E` to stop → switch sessions → repeat.
 
-> Use `npm run …` if you prefer npm instead of `bun run …` shown below.
+![Run tab showing command execution with Stop button](/images/run-terminal-view.png)
 
-<CodeGroup>
-```bash Example: Tests
-bun run test
-# or: npm run test
-```
-
-```bash Example: Dev Server
-bun run dev
-# or: npm run dev
-```
-
-```bash Example: Build
-bun run build
-# or: npm run build
-```
-</CodeGroup>
-
-The bottom terminal shows a status header while the command runs.
+<Tip>
+  If your app uses fixed ports, consider dynamic port allocation (e.g., `PORT=0`) so multiple sessions can run dev servers simultaneously without conflicts.
+</Tip>
 
 ## Review the Work
 
@@ -169,9 +159,9 @@ The bottom terminal shows a status header while the command runs.
   </Card>
 
   <Card title="Inspect Changes" icon="code-compare">
-    - View diffs in the right panel
-    - Leave notes in the spec
-    - Send instructions through agent terminal
+    - Press `⌘G` to open the diff viewer
+    - Toggle **Open diffs inline** to review in sidebar
+    - Add comments and send to agent with `⌘Enter`
   </Card>
 
   <Card title="Run Tests" icon="flask">
@@ -187,11 +177,31 @@ The bottom terminal shows a status header while the command runs.
   </Card>
 </CardGroup>
 
-<Warning>
-  Always run tests before marking a session as reviewed!
-</Warning>
+### Inline Diff Review
 
-## Mark as Reviewed
+Enable **Open diffs inline** in the Changes tab to review without leaving your terminals:
+
+![Changes tab showing file list with inline checkbox and line counts](/images/inline-sidebar-diff.png)
+
+Click a file to view its diff inline. Select lines to add review comments, then click **Finish Review** to send all feedback to the agent:
+
+![Inline diff with review comment form](/images/inline-sidebar-comment.png)
+
+## Copy Context for External AI
+
+Use the **Copy Context** bar to bundle session content for pasting into external AI tools—useful for code reviews, debugging tricky problems with web-based research agents, or leveraging models not available via CLI.
+
+![Copy Context bar showing Spec and Diff toggles, file count, token estimate, and Copy Context button](/images/copy-content-split-bar.png)
+
+- **Spec** — include the session's spec/prompt
+- **Diff** — include unified diffs of changed files
+- **Files** — include full file contents
+
+Select what to include, check the token estimate, and click **Copy Context** to copy to clipboard.
+
+## Mark as Reviewed (Optional)
+
+Marking as reviewed is optional—you can merge or create PRs directly from running sessions.
 
 <Steps>
   <Step title="Verify tests pass">
@@ -208,9 +218,8 @@ The bottom terminal shows a status header while the command runs.
 
   <Step title="Choose next action">
     From session header actions:
-    - Create GitHub pull request
-    - Merge directly
-    - Export branch
+    - Create GitHub pull request (`⌘⇧P`)
+    - Merge directly (`⌘⇧M`)
     - Continue editing in external editor
   </Step>
 </Steps>
@@ -244,13 +253,11 @@ Need to scrap a run but keep the notes?
 
 <Steps>
   <Step title="Merge the branch">
-    After merging or cherry-picking the reviewed branch:
-    - Use GitHub PR flow
-    - Or merge directly from command line
+    Press `⌘⇧M` to merge directly or `⌘⇧P` to create a PR. Works from both running and reviewed sessions.
   </Step>
 
   <Step title="Cancel session">
-    Press `⌘D` or click **Cancel Session**
+    Press `⌘D` or click **Cancel Session** (or enable **Auto-cancel after merge**)
   </Step>
 
   <Step title="Cleanup happens">

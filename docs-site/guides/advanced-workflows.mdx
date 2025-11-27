@@ -74,6 +74,56 @@ After integrating the first wave of feature sessions into main, you can immediat
   </Step>
 </Steps>
 
+## Multi-Agent Sessions
+
+Run multiple agents on the same task to compare approaches or pick the best result.
+
+<Tabs>
+  <Tab title="Same Agent, Multiple Versions">
+    Run 2–4 instances of the same agent in parallel. Each version works independently on the same prompt.
+
+    ![Version selector dropdown showing 1-4 versions and Use Multiple Agents option](/images/versions.png)
+
+    <Steps>
+      <Step title="Select version count">
+        In the New Session dialog, click the version dropdown and choose **2 versions**, **3 versions**, or **4 versions**
+      </Step>
+
+      <Step title="All versions start together">
+        Schaltwerk creates linked sessions (e.g., `my_task`, `my_task_v2`) each running the same agent in its own worktree
+      </Step>
+
+      <Step title="Compare and choose">
+        Review each version's output, pick the best result, and merge. Cancel the others with `⌘D`.
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="Different Agents">
+    Run different agents (e.g., Claude + Codex) on the same task to compare their approaches.
+
+    ![Multi-agent setup showing agent selection with checkboxes and instance count selectors](/images/multiple-agent-versions.png)
+
+    <Steps>
+      <Step title="Open multi-agent mode">
+        In the New Session dialog, click the version dropdown and select **Use Multiple Agents**
+      </Step>
+
+      <Step title="Configure agents">
+        Check the agents you want and set instance counts (up to 4 total). For example: 1x Claude, 1x Codex, 2x OpenCode.
+      </Step>
+
+      <Step title="All agents start together">
+        Schaltwerk creates linked sessions each running its configured agent in its own worktree with the same prompt
+      </Step>
+
+      <Step title="Compare and choose">
+        Review each agent's output, pick the best result, and merge. Cancel the others with `⌘D`.
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
 ## Parallel Development Tips
 
 <Steps>
