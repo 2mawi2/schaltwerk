@@ -142,7 +142,7 @@ const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(
   return (
     <div className={`h-full flex flex-col ${className}`}>
       <div
-        className="h-8 flex-shrink-0 flex items-center overflow-x-auto scrollbar-hide"
+        className="h-8 max-h-8 flex-shrink-0 flex items-center overflow-x-auto overflow-y-hidden scrollbar-hide"
         style={{
           backgroundColor: theme.colors.background.tertiary,
           borderBottom: `1px solid ${theme.colors.border.subtle}`,
@@ -167,7 +167,7 @@ const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(
             onClose={tabs.length > 1 ? () => { void closeTab(tab.index) } : undefined}
             onMiddleClick={tabs.length > 1 ? () => { void closeTab(tab.index) } : undefined}
             showCloseButton={tabs.length > 1}
-            className="h-full"
+            className="h-full flex-shrink-0"
             style={{
               maxWidth: '150px',
               minWidth: '100px'
@@ -180,7 +180,7 @@ const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(
             onClick={() => { void addTab() }}
             title="Add new terminal"
             ariaLabel="Add new terminal"
-            className="ml-2"
+            className="ml-2 flex-shrink-0"
           />
         )}
       </div>

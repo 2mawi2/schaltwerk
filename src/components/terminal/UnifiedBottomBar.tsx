@@ -80,8 +80,8 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
     >
       {/* Left: Terminal tabs - only show when not collapsed */}
       {!isCollapsed && (
-        <div className="flex items-stretch flex-1 min-w-0">
-          <div className="flex items-stretch overflow-x-auto scrollbar-hide">
+        <div className="flex items-center flex-1 min-w-0 h-full">
+          <div className="flex items-center h-full overflow-x-auto overflow-y-hidden scrollbar-hide">
             {tabs.map((tab) => {
               const runTab = isRunTab(tab)
               const canClose = canCloseTab(tab, tabs)
@@ -96,7 +96,7 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
                   onClose={canClose ? () => onTabClose(tab.index) : undefined}
                   onMiddleClick={canClose ? () => onTabClose(tab.index) : undefined}
                   showCloseButton={canClose}
-                  className="h-full"
+                  className="h-full flex-shrink-0"
                   style={{
                     maxWidth: runTab ? '70px' : '150px',
                     minWidth: runTab ? '60px' : '100px'
@@ -115,7 +115,7 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
                 }}
                 title="Add new terminal"
                 ariaLabel="Add new terminal"
-                className="self-center ml-2"
+                className="self-center ml-2 flex-shrink-0"
               />
             )}
           </div>
