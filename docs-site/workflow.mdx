@@ -85,6 +85,14 @@ For each feature or task:
   </Step>
 </Steps>
 
+<Tip>
+  **Working on a complex feature?** Sessions branch from the orchestrator's current branch by default. To have multiple sessions branch from a feature branch instead of `main`:
+  - Switch the orchestrator to your feature branch (e.g., `git checkout feature/auth`), or
+  - Select the base branch in the New Session dialog
+
+  All sessions then merge back to that feature branch, keeping your work organized.
+</Tip>
+
 ### 3. Monitor Progress
 
 <Tabs>
@@ -115,17 +123,26 @@ For each feature or task:
 
 ### 4. Review Changes
 
-Before marking as reviewed:
-
 <Steps>
   <Step title="Open the diff (⌘G)">
-    Review every change the agent made:
-    - Check for unintended modifications
-    - Look for commented-out code
-    - Verify no secrets were added
+    Review every change the agent made. Choose your view:
+    - **Inline** — Toggle "Open diffs inline" to review in the sidebar without leaving terminals
+    - **Modal** — Full-screen diff for detailed inspection
+
+    Check for unintended modifications, commented-out code, or secrets.
   </Step>
 
-<Step title="Run tests">
+  <Step title="Add comments (optional)">
+    Select lines in the diff to add review comments, then click **Finish Review** (`⌘Enter`) to send them to the agent. The agent receives formatted feedback and can address each issue.
+  </Step>
+
+  <Step title="Check commit history">
+    Use the **History** tab to see the commit graph and navigate between commits:
+
+    ![History tab showing git graph with commits, branches, and version tags](/images/history-git-graph.png)
+  </Step>
+
+  <Step title="Run tests">
     In the bottom terminal or with `⌘E`:
     > Swap `bun` for `npm` if you're using npm scripts.
     ```bash
@@ -144,9 +161,7 @@ Before marking as reviewed:
   </Step>
 </Steps>
 
-### 5. Mark as Reviewed
-
-When you're confident:
+### 5. Mark as Reviewed (Optional)
 
 <Steps>
   <Step title="Press ⌘R">
@@ -160,14 +175,20 @@ When you're confident:
 
 ### 6. Merge or PR
 
+You can merge from both **Running** and **Reviewed** sessions.
+
 <Tabs>
   <Tab title="Solo Developer">
-    Press **`⌘⇧M`** to merge directly to main:
-    - Fast and simple
-    - No PR overhead
-    - Good for personal projects
+    Press **`⌘⇧M`** to merge back to the parent branch. Choose your merge strategy:
 
-    <Warning>Make sure you reviewed and tested first!</Warning>
+    ![Merge Session modal with Squash & fast-forward selected and commit message field](/images/merge-session-modal-squash.png)
+
+    - **Squash & fast-forward** — combines all commits into one with your message
+    - **Reapply commits** — preserves individual commit history
+
+    ![Merge Session modal with Reapply commits selected](/images/merge-modal-reapply-commits.png)
+
+    Enable **Auto-cancel after merge** to automatically clean up the session.
   </Tab>
 
   <Tab title="Team Environment">
@@ -207,24 +228,24 @@ After successful merge:
 ## Navigation Tips
 
 <AccordionGroup>
-  <Accordion title="Quick Session Switching">
+  <Accordion title="Quick Session Switching" defaultOpen>
     - `⌘1` - Orchestrator
     - `⌘2-9` - Sessions 1-8
     - `⌘↑/↓` - Cycle through sessions in current filter
   </Accordion>
 
-  <Accordion title="Filter Views">
+  <Accordion title="Filter Views" defaultOpen>
     - `⌘←/→` - Switch between All/Specs/Running/Reviewed
     - See exactly what you need when you need it
   </Accordion>
 
-  <Accordion title="Multi-Project Workflows">
+  <Accordion title="Multi-Project Workflows" defaultOpen>
     - `⌘⇧←/→` - Switch between project tabs
     - Perfect for frontend ↔ backend workflows
     - See the [multi-project guide](/guides/multi-project) for full tips
   </Accordion>
 
-  <Accordion title="Terminal Focus">
+  <Accordion title="Terminal Focus" defaultOpen>
     - `⌘T` - Focus agent terminal
     - `⌘/` - Focus your shell
     - `⌘E` - Run configured script
@@ -284,7 +305,6 @@ After successful merge:
   - Create vague prompts like "fix it"
   - Forget to run tests before marking reviewed
   - Let sessions pile up—clean up after merging
-  - Work directly in the orchestrator for features (create sessions instead)
 </Warning>
 
 ## Next Steps

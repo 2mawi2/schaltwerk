@@ -40,16 +40,20 @@ Sessions are where AI agents work. Each session runs in its own isolated [git wo
   <Step title="Press ⌘N">
     This opens the **New Session** dialog
 
-    ![Start new agent dialog showing agent name field, initial prompt, base branch selection, agent dropdown (Codex), and permission settings](/images/starting-agents.png)
+    ![Start new agent dialog showing agent name field, initial prompt tabs, base branch selection, agent dropdown, model selector, and permission settings](/images/new-agent-modal.png)
   </Step>
 
   <Step title="Enter a task description">
-    Describe what you want the agent to build:
-    - "Add user authentication"
-    - "Fix TypeScript errors"
-    - "Refactor the database layer"
+    Choose your prompt source:
+    - **Custom prompt** — Write your own task description
+    - **GitHub issue** — Import an issue with its description, labels, and comments
+    - **GitHub PR** — Import a PR with its context and discussion
 
-    This becomes the initial prompt for your agent
+    ![GitHub issue search showing issue list with title, status, and labels](/images/start-from-github-issue-or-pr.png)
+
+    <Tip>
+      GitHub import requires the `gh` CLI to be installed and authenticated. The issue/PR content becomes the agent's initial prompt.
+    </Tip>
   </Step>
 
   <Step title="Select your agent">
@@ -122,17 +126,27 @@ The agent appears in the sidebar and starts working immediately.
 Once the agent is done (or you want to check progress):
 
 <Steps>
-  <Step title="Press ⌘G">
-    Opens the **Diff Viewer** showing all changes the agent made
+  <Step title="Open the diff">
+    Press `⌘G` to view all changes the agent made. The **Changes** tab shows all modified files with line counts:
 
-    ![Diff viewer showing file changes with inline comments and review interface](/images/review-comment.png)
+    ![Changes tab showing file list with Open diffs inline checkbox and line counts](/images/inline-sidebar-diff.png)
+
+    Toggle **Open diffs inline** to review directly in the sidebar, or leave it off to open a full-screen modal.
   </Step>
 
-  <Step title="Review the diff">
-    - See which files were modified
-    - Review line-by-line changes
-    - Add comments if needed
-    - Press `⌘F` to search within the diff
+  <Step title="Review inline">
+    Click a file to open its diff. With inline mode enabled, the diff opens right in the sidebar—no context switching. Click **Back to List** to return to the file list.
+
+    ![Inline diff view showing code changes with Add Review Comment form](/images/inline-sidebar-comment.png)
+  </Step>
+
+  <Step title="Add review comments">
+    Select lines in the diff (click the + icons on the left) to add comments:
+    - Type your feedback in the comment form
+    - Click **Submit** to add the comment
+    - Click **Finish Review** (or `⌘Enter`) to send all comments to the agent terminal
+
+    The agent receives your formatted feedback and can address each issue.
   </Step>
 
   <Step title="Test the changes">
