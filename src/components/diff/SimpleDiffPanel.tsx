@@ -14,6 +14,8 @@ import { logger } from '../../utils/logger'
 import { theme } from '../../common/theme'
 import { useAtom } from 'jotai'
 import { inlineSidebarDefaultPreferenceAtom } from '../../store/atoms/diffPreferences'
+import { useShortcutDisplay } from '../../keyboardShortcuts/useShortcutDisplay'
+import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
 
 interface SimpleDiffPanelProps {
   mode: 'list' | 'review'
@@ -44,6 +46,7 @@ export function SimpleDiffPanel({
   const { setFocusForSession, setCurrentFocus } = useFocus()
   const { sessions } = useSessions()
   const testProps: { 'data-testid': string } = { 'data-testid': 'diff-panel' }
+  const openDiffViewerShortcut = useShortcutDisplay(KeyboardShortcutAction.OpenDiffViewer)
 
   const handleSelectFile = useCallback((filePath: string) => {
     onActiveFileChange(filePath)
@@ -138,11 +141,14 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
     <div className="flex items-center justify-between px-3 py-2 border-b border-slate-800 bg-slate-950 shrink-0 gap-2">
       <button
         onClick={handleBackToList}
-        className="group pl-3 pr-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-md text-sm font-medium flex items-center gap-2 text-slate-100 transition-all border border-slate-700 hover:border-slate-500 shadow-sm hover:shadow-md"
-        title="Back to file list"
+        className="group pl-2 pr-3 py-1 rounded text-xs font-medium flex items-center gap-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-colors"
+        title={`Back to file list (${openDiffViewerShortcut || '⌘G'})`}
       >
-        <VscChevronLeft className="w-5 h-5 text-slate-400 group-hover:text-white transition-colors" />
+        <VscChevronLeft className="w-4 h-4" />
         <span>Back to List</span>
+        <span className="ml-1 text-[10px] opacity-50 group-hover:opacity-100 border border-slate-700/50 rounded px-1 bg-slate-800/50">
+          {openDiffViewerShortcut || '⌘G'}
+        </span>
       </button>
       <div className="flex items-center gap-2">
         {onOpenDiff && (
