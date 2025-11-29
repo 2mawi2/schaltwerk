@@ -364,7 +364,7 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
   const showChangesTab = isCommander || isRunningSession
   const showInfoTab = effectiveSelection.kind === 'session' && effectiveIsSpec
   const showSpecTab = isRunningSession
-  const showHistoryTab = isCommander || isRunningSession || (effectiveSelection.kind === 'session' && effectiveIsSpec)
+  const showHistoryTab = isCommander || isRunningSession
   const showSpecsTab = isCommander
   const showPreviewTab = isCommander || isRunningSession
   const tabsPresent = showChangesTab || showInfoTab || showSpecTab || showHistoryTab || showSpecsTab || showPreviewTab

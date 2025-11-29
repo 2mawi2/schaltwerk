@@ -369,7 +369,7 @@ describe('RightPanelTabs split layout', () => {
     expect(screen.getByTitle('Changes').getAttribute('data-active')).not.toBe('true')
   })
 
-  it('shows info and history tabs for spec session with history positioned after info', () => {
+  it('shows info tab for spec session but NOT history tab', () => {
     mockSessions.push(
       createRunningSession({
         session_id: 'spec-session',
@@ -388,11 +388,8 @@ describe('RightPanelTabs split layout', () => {
     )
 
     const infoButton = screen.getByTitle('Spec Info')
-    const historyButton = screen.getByTitle('Git History')
     expect(infoButton).toBeInTheDocument()
-    expect(historyButton).toBeInTheDocument()
-    const order = infoButton.compareDocumentPosition(historyButton)
-    expect(order & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByTitle('Git History')).toBeNull()
   })
 
   it('focuses changes tab and diff container when inline diff is opened via shortcut', async () => {
