@@ -54,6 +54,7 @@ type TerminalTabsUiState = {
 }
 
 const shouldUseBracketedPaste = (agent?: string | null) => agent !== 'claude' && agent !== 'droid'
+const needsDelayedSubmitForAgent = (agent?: string | null) => agent === 'claude' || agent === 'droid'
 
 const createInitialTabsState = (baseTerminalId: string): TerminalTabsUiState => ({
     tabs: [{ index: 0, terminalId: baseTerminalId, label: 'Terminal 1' }],
@@ -922,6 +923,7 @@ const TerminalGridComponent = () => {
                     id: terminals.top,
                     data: action.prompt,
                     useBracketedPaste: shouldUseBracketedPaste(agentType),
+                    needsDelayedSubmit: needsDelayedSubmitForAgent(agentType),
                 })
 
                 safeTerminalFocus(() => {
