@@ -9,15 +9,15 @@ When orchestrating multiple agents you get the best results by laying a shared c
 
 ![Diagram showing layered scaffolding for an email-report application: top layer (frontend/controller), middle layer (VehicleQueryService) coordinating downstream services, and bottom layer composed of repositories, parsers, and generators feeding the service.](/images/scaffold.png)
 
-The dashed bands illustrate how the scaffolding phase isolates concerns: first establish the orchestration layer (green) that defines the API contract, then set up infrastructure primitives such as repositories and parsers (blue). Once this skeleton is in place, feature-specific surfaces like the frontend (red) can be delegated to independent agents without tripping over one another.
+The dashed bands illustrate how the scaffolding phase isolates concerns: first establish the orchestration layer (green) that defines the API contract, then set up infrastructure primitives such as repositories and parsers (blue). Once this walking skeleton is in place, feature-specific surfaces like the frontend (red) can be delegated to independent agents without tripping over one another. For a concise primer, see Matt Blodgett’s summary of Cockburn’s walking skeleton pattern (September 28, 2020) at [mattblodgett.com](https://www.mattblodgett.com/2020/09/start-with-walking-skeleton.html).
 
 <Steps>
   <Step title="Scaffold in the orchestrator">
     Use a spec (often owned by the orchestrator session) to define project inputs/outputs and CLI affordances. Document how to run tests, builds, lint, and seed data; verify each command headlessly in the orchestrator terminals; and capture everything in an `AGENTS.md` so every future agent starts with the same contract.
   </Step>
 
-  <Step title="Bootstrap the skeleton">
-    Launch an initial agent session to commit the scaffolding: repository layout, shared config, domain models, controller/service shells, and automation hooks. The goal is to make every downstream spec depend on clear interfaces instead of volatile files.
+  <Step title="Bootstrap the walking skeleton">
+    Launch an initial agent session to commit the scaffolding: repository layout, shared config, domain models, controller/service shells, and automation hooks. This follows the walking skeleton approach: ship a minimal end-to-end slice that proves the pipeline works so every downstream spec depends on clear interfaces instead of volatile files.
   </Step>
 
   <Step title="Swarm on features">
@@ -35,7 +35,7 @@ The dashed bands illustrate how the scaffolding phase isolates concerns: first e
 
 ![Diagram showing the swarm phase: orchestrator/main branches into separate agent sessions (Email Generation, PDF Generation, Frontend) that each work in isolated worktrees.](/images/swarm.png)
 
-As soon as the skeleton lands, branch from that commit (whether it lives on `main` or a feature branch) and launch agents for each missing capability. Every session owns its worktree, so it can install dependencies, run tests, and iterate on its feature without stepping on the others. Once a slice is green and reviewed, merge it back, recycle any unfinished specs, and keep the swarm moving.
+As soon as the walking skeleton lands, branch from that commit (whether it lives on `main` or a feature branch) and launch agents for each missing capability. Every session owns its worktree, so it can install dependencies, run tests, and iterate on its feature without stepping on the others. Once a slice is green and reviewed, merge it back, recycle any unfinished specs, and keep the swarm moving.
 
 ## Integrate, Review, Repeat
 
