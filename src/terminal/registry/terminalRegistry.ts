@@ -174,17 +174,8 @@ class TerminalInstanceRegistry {
 
     record.pendingChunks = [];
     record.rafScheduled = false;
-    record.lastChunkTime = 0;
 
     const flushChunks = () => {
-      const now = performance.now();
-      const timeSinceLastChunk = now - (record.lastChunkTime || 0);
-
-      if (timeSinceLastChunk < 16 && record.pendingChunks && record.pendingChunks.length > 0) {
-        record.rafHandle = requestAnimationFrame(flushChunks);
-        return;
-      }
-
       record.rafScheduled = false;
       record.rafHandle = undefined;
 
@@ -208,7 +199,6 @@ class TerminalInstanceRegistry {
       }
 
       record.pendingChunks.push(chunk);
-      record.lastChunkTime = performance.now();
 
       if (!record.rafScheduled) {
         record.rafScheduled = true;
