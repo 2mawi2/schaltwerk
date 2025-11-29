@@ -2495,35 +2495,38 @@ export function UnifiedDiffView({
 
   const handleSubmitComment = useCallback(
     async (text: string) => {
-      if (!lineSelection.selection || !selectedFile) return;
+      if (!lineSelection.selection) return;
+
+      // Snapshot selection to avoid races if state changes while awaiting file reads
+      const selection = lineSelection.selection;
+      const targetFilePath = selection.filePath;
+      if (!targetFilePath) return;
 
       const [mainText, worktreeText] = await invoke<[string, string]>(
         TauriCommands.GetFileDiffFromMain,
         {
           sessionName,
-          filePath: selectedFile,
+          filePath: targetFilePath,
         },
       );
 
       const lines =
-        lineSelection.selection.side === "old"
-          ? mainText.split("\n")
-          : worktreeText.split("\n");
+        selection.side === "old" ? mainText.split("\n") : worktreeText.split("\n");
 
       const selectedText = lines
         .slice(
-          lineSelection.selection.startLine - 1,
-          lineSelection.selection.endLine,
+          selection.startLine - 1,
+          selection.endLine,
         )
         .join("\n");
 
       addComment({
-        filePath: selectedFile,
+        filePath: targetFilePath,
         lineRange: {
-          start: lineSelection.selection.startLine,
-          end: lineSelection.selection.endLine,
+          start: selection.startLine,
+          end: selection.endLine,
         },
-        side: lineSelection.selection.side,
+        side: selection.side,
         selectedText,
         comment: text,
       });
@@ -2534,7 +2537,6 @@ export function UnifiedDiffView({
     },
     [
       lineSelection,
-      selectedFile,
       addComment,
       sessionName,
       clearActiveSelection,
