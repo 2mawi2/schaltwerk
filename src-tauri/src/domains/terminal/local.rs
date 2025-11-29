@@ -121,7 +121,7 @@ async fn maybe_dispatch_initial_command(
 
         let mut writers_guard = pty_writers.lock().await;
         if let Some(writer) = writers_guard.get_mut(terminal_id) {
-            let payload = build_submission_payload(command.as_bytes(), true);
+            let payload = build_submission_payload(command.as_bytes(), true, false);
 
             if let Err(e) = writer.write_all(&payload) {
                 warn!("Failed to write initial command for terminal {terminal_id}: {e}");

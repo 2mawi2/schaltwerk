@@ -58,7 +58,7 @@ mod tests {
 
         let test_data = b"echo 'test with special chars: $VAR'";
         manager
-            .paste_and_submit_terminal(id.clone(), test_data.to_vec(), true)
+            .paste_and_submit_terminal(id.clone(), test_data.to_vec(), true, false)
             .await
             .unwrap();
 
@@ -80,7 +80,7 @@ mod tests {
 
         let test_data = b"multi\nline\ntext";
         manager
-            .paste_and_submit_terminal(id.clone(), test_data.to_vec(), true)
+            .paste_and_submit_terminal(id.clone(), test_data.to_vec(), true, false)
             .await
             .unwrap();
 
@@ -97,7 +97,7 @@ mod tests {
 
         // Paste operations silently succeed for non-existent terminals since write operations do
         let result = manager
-            .paste_and_submit_terminal(closed_id, b"test".to_vec(), true)
+            .paste_and_submit_terminal(closed_id, b"test".to_vec(), true, false)
             .await;
 
         assert!(
@@ -113,7 +113,7 @@ mod tests {
             .unwrap();
 
         let result2 = manager
-            .paste_and_submit_terminal(existing_id.clone(), b"echo test".to_vec(), true)
+            .paste_and_submit_terminal(existing_id.clone(), b"echo test".to_vec(), true, false)
             .await;
 
         assert!(result2.is_ok(), "Paste should work for existing terminals");
@@ -690,7 +690,7 @@ mod tests {
             b"#!/bin/bash\necho \"Hello $USER\"\nfor i in {1..3}; do\n  echo \"Count: $i\"\ndone";
 
         manager
-            .paste_and_submit_terminal(multiline_id.clone(), complex_data.to_vec(), true)
+            .paste_and_submit_terminal(multiline_id.clone(), complex_data.to_vec(), true, false)
             .await
             .unwrap();
 
@@ -713,7 +713,7 @@ mod tests {
             .unwrap();
 
         manager
-            .paste_and_submit_terminal(terminal_id.clone(), b"echo hi".to_vec(), true)
+            .paste_and_submit_terminal(terminal_id.clone(), b"echo hi".to_vec(), true, false)
             .await
             .unwrap();
 
@@ -841,7 +841,7 @@ mod tests {
             .unwrap();
 
         let result = manager
-            .paste_and_submit_terminal(empty_id.clone(), vec![], true)
+            .paste_and_submit_terminal(empty_id.clone(), vec![], true, false)
             .await;
         assert!(result.is_ok(), "Should handle empty paste data gracefully");
 

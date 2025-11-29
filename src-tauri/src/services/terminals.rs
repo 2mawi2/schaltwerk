@@ -50,6 +50,7 @@ pub trait TerminalsBackend: Send + Sync {
         id: String,
         data: Vec<u8>,
         bracketed: bool,
+        needs_delayed_submit: bool,
     ) -> Result<(), String>;
     async fn resize_terminal(&self, id: String, cols: u16, rows: u16) -> Result<(), String>;
     async fn close_terminal(&self, id: String) -> Result<(), String>;
@@ -97,6 +98,7 @@ pub trait TerminalsService: Send + Sync {
         id: String,
         data: Vec<u8>,
         bracketed: bool,
+        needs_delayed_submit: bool,
     ) -> Result<(), String>;
     async fn resize_terminal(&self, id: String, cols: u16, rows: u16) -> Result<(), String>;
     async fn close_terminal(&self, id: String) -> Result<(), String>;
@@ -180,9 +182,10 @@ impl<B: TerminalsBackend> TerminalsServiceImpl<B> {
         id: String,
         data: Vec<u8>,
         bracketed: bool,
+        needs_delayed_submit: bool,
     ) -> Result<(), String> {
         self.backend
-            .paste_and_submit_terminal(id.clone(), data, bracketed)
+            .paste_and_submit_terminal(id.clone(), data, bracketed, needs_delayed_submit)
             .await
             .map_err(|err| Self::map_err(&format!("Failed to paste into terminal {id}"), err))
     }
@@ -324,8 +327,9 @@ where
         id: String,
         data: Vec<u8>,
         bracketed: bool,
+        needs_delayed_submit: bool,
     ) -> Result<(), String> {
-        TerminalsServiceImpl::paste_and_submit_terminal(self, id, data, bracketed).await
+        TerminalsServiceImpl::paste_and_submit_terminal(self, id, data, bracketed, needs_delayed_submit).await
     }
 
     async fn resize_terminal(&self, id: String, cols: u16, rows: u16) -> Result<(), String> {
@@ -555,9 +559,10 @@ impl TerminalsBackend for TerminalManagerBackend {
         id: String,
         data: Vec<u8>,
         bracketed: bool,
+        needs_delayed_submit: bool,
     ) -> Result<(), String> {
         let manager = self.terminal_manager().await?;
-        manager.paste_and_submit_terminal(id, data, bracketed).await
+        manager.paste_and_submit_terminal(id, data, bracketed, needs_delayed_submit).await
     }
 
     async fn resize_terminal(&self, id: String, cols: u16, rows: u16) -> Result<(), String> {
@@ -685,6 +690,7 @@ mod tests {
             _id: String,
             _data: Vec<u8>,
             _bracketed: bool,
+            _needs_delayed_submit: bool,
         ) -> Result<(), String> {
             panic!("unused in test backend");
         }
@@ -781,6 +787,7 @@ mod tests {
             _id: String,
             _data: Vec<u8>,
             _bracketed: bool,
+            _needs_delayed_submit: bool,
         ) -> Result<(), String> {
             panic!("unused in test backend");
         }
@@ -880,6 +887,7 @@ mod tests {
             _id: String,
             _data: Vec<u8>,
             _bracketed: bool,
+            _needs_delayed_submit: bool,
         ) -> Result<(), String> {
             panic!("unused in test backend");
         }
@@ -976,6 +984,7 @@ mod tests {
             _id: String,
             _data: Vec<u8>,
             _bracketed: bool,
+            _needs_delayed_submit: bool,
         ) -> Result<(), String> {
             panic!("unused in test backend");
         }

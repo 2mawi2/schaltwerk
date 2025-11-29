@@ -439,10 +439,16 @@ impl TerminalManager {
         id: String,
         data: Vec<u8>,
         use_bracketed_paste: bool,
+        needs_delayed_submit: bool,
     ) -> Result<(), String> {
-        let payload = build_submission_payload(&data, use_bracketed_paste);
+        let payload = build_submission_payload(&data, use_bracketed_paste, needs_delayed_submit);
 
         self.backend.write_immediate(&id, &payload).await?;
+
+        if needs_delayed_submit {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            self.backend.write_immediate(&id, b"\r").await?;
+        }
 
         if let Some(app_handle) = self.app_handle.read().await.as_ref() {
             let event_payload = serde_json::json!({ "terminal_id": id });

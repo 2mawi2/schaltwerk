@@ -79,12 +79,14 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
 
     const reviewText = formatReviewForPrompt(currentReview.comments)
     let useBracketedPaste = true
+    let needsDelayedSubmit = false
 
     if (selection.kind === 'session') {
       const session = sessions.find(s => s.info.session_id === selection.payload)
       const agentType = session?.info?.original_agent_type as string | undefined
       if (agentType === 'claude' || agentType === 'droid') {
         useBracketedPaste = false
+        needsDelayedSubmit = true
       }
     }
 
@@ -94,7 +96,8 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
         await invoke(TauriCommands.PasteAndSubmitTerminal, {
           id: terminalId,
           data: reviewText,
-          useBracketedPaste
+          useBracketedPaste,
+          needsDelayedSubmit
         })
         await setSelection({ kind: 'orchestrator' })
         setCurrentFocus('claude')
@@ -103,7 +106,8 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
         await invoke(TauriCommands.PasteAndSubmitTerminal, {
           id: terminalId,
           data: reviewText,
-          useBracketedPaste
+          useBracketedPaste,
+          needsDelayedSubmit
         })
         await setSelection({ kind: 'session', payload: selection.payload })
         setFocusForSession(selection.payload, 'claude')

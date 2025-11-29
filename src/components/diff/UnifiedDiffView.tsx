@@ -2549,6 +2549,7 @@ export function UnifiedDiffView({
     const reviewText = formatReviewForPrompt(currentReview.comments);
 
     let useBracketedPaste = true;
+    let needsDelayedSubmit = false;
     if (sessionName) {
       const session = sessions.find((s) => s.info.session_id === sessionName);
       const agentType = session?.info?.original_agent_type as
@@ -2556,6 +2557,7 @@ export function UnifiedDiffView({
         | undefined;
       if (agentType === "claude" || agentType === "droid") {
         useBracketedPaste = false;
+        needsDelayedSubmit = true;
       }
     }
 
@@ -2566,6 +2568,7 @@ export function UnifiedDiffView({
           id: terminalId,
           data: reviewText,
           useBracketedPaste,
+          needsDelayedSubmit,
         });
         await setSelection({ kind: "orchestrator" });
         setCurrentFocus("claude");
@@ -2575,6 +2578,7 @@ export function UnifiedDiffView({
           id: terminalId,
           data: reviewText,
           useBracketedPaste,
+          needsDelayedSubmit,
         });
         await setSelection({ kind: "session", payload: sessionName });
         setFocusForSession(sessionName, "claude");

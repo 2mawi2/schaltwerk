@@ -83,10 +83,16 @@ pub async fn paste_and_submit_terminal(
     id: String,
     data: String,
     use_bracketed_paste: Option<bool>,
+    needs_delayed_submit: Option<bool>,
 ) -> Result<(), String> {
     services
         .terminals
-        .paste_and_submit_terminal(id, data.into_bytes(), use_bracketed_paste.unwrap_or(false))
+        .paste_and_submit_terminal(
+            id,
+            data.into_bytes(),
+            use_bracketed_paste.unwrap_or(false),
+            needs_delayed_submit.unwrap_or(false),
+        )
         .await
 }
 
@@ -209,7 +215,7 @@ mod tests {
         create_run_calls: Arc<Mutex<Vec<CreateRunTerminalRequest>>>,
         create_sized_calls: Arc<Mutex<Vec<CreateTerminalWithSizeRequest>>>,
         write_calls: Arc<Mutex<Vec<(String, Vec<u8>)>>>,
-        paste_calls: Arc<Mutex<Vec<(String, Vec<u8>, bool)>>>,
+        paste_calls: Arc<Mutex<Vec<(String, Vec<u8>, bool, bool)>>>,
         resize_calls: Arc<Mutex<Vec<(String, u16, u16)>>>,
         close_calls: Arc<Mutex<Vec<String>>>,
         exists_calls: Arc<Mutex<Vec<String>>>,
@@ -303,8 +309,9 @@ mod tests {
             id: String,
             data: Vec<u8>,
             bracketed: bool,
+            needs_delayed_submit: bool,
         ) -> Result<(), String> {
-            self.paste_calls.lock().unwrap().push((id, data, bracketed));
+            self.paste_calls.lock().unwrap().push((id, data, bracketed, needs_delayed_submit));
             if self.should_error {
                 Err("paste failed".to_string())
             } else {
@@ -598,7 +605,7 @@ mod tests {
         let service = TerminalsServiceImpl::new(backend);
 
         let result = service
-            .paste_and_submit_terminal("term-paste".to_string(), b"data".to_vec(), false)
+            .paste_and_submit_terminal("term-paste".to_string(), b"data".to_vec(), false, false)
             .await;
 
         assert!(result.is_ok());
@@ -607,6 +614,7 @@ mod tests {
         assert_eq!(calls[0].0, "term-paste");
         assert_eq!(calls[0].1, b"data".to_vec());
         assert_eq!(calls[0].2, false);
+        assert_eq!(calls[0].3, false);
     }
 
     #[tokio::test]
@@ -616,13 +624,31 @@ mod tests {
         let service = TerminalsServiceImpl::new(backend);
 
         let result = service
-            .paste_and_submit_terminal("term-paste-bracketed".to_string(), b"code".to_vec(), true)
+            .paste_and_submit_terminal("term-paste-bracketed".to_string(), b"code".to_vec(), true, false)
             .await;
 
         assert!(result.is_ok());
         let calls = backend_calls.lock().unwrap();
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].2, true);
+    }
+
+    #[tokio::test]
+    async fn paste_and_submit_terminal_respects_delayed_submit_true() {
+        let backend = MockTerminalsBackend::new();
+        let backend_calls = Arc::clone(&backend.paste_calls);
+        let service = TerminalsServiceImpl::new(backend);
+
+        let result = service
+            .paste_and_submit_terminal("term-paste-delayed".to_string(), b"claude-review".to_vec(), false, true)
+            .await;
+
+        assert!(result.is_ok());
+        let calls = backend_calls.lock().unwrap();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].0, "term-paste-delayed");
+        assert_eq!(calls[0].2, false);
+        assert_eq!(calls[0].3, true);
     }
 
     #[tokio::test]
@@ -829,7 +855,7 @@ mod tests {
         let service = error_service();
 
         let result = service
-            .paste_and_submit_terminal("error-paste".to_string(), b"data".to_vec(), false)
+            .paste_and_submit_terminal("error-paste".to_string(), b"data".to_vec(), false, false)
             .await;
 
         assert!(result.is_err());
