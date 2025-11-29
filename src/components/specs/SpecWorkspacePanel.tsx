@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { theme } from '../../common/theme'
 import { typography } from '../../common/typography'
 import { EnrichedSession } from '../../types/session'
-import { VscFiles, VscClose } from 'react-icons/vsc'
+import { VscFiles } from 'react-icons/vsc'
 import { SpecEditor } from './SpecEditor'
 import { SpecPickerOverlay } from './SpecPickerOverlay'
+import { UnifiedTab } from '../UnifiedTab'
 
 interface Props {
   specs: EnrichedSession[]
@@ -36,87 +37,67 @@ export function SpecWorkspacePanel({
   return (
     <div className="h-full flex flex-col" style={{ backgroundColor: theme.colors.background.secondary }}>
       <div
-        className="flex items-center border-b overflow-hidden"
-        style={{ borderColor: theme.colors.border.default }}
+        className="h-8 max-h-8 flex-shrink-0 flex items-center overflow-x-auto overflow-y-hidden scrollbar-hide"
+        style={{
+          backgroundColor: theme.colors.background.tertiary,
+          borderBottom: `1px solid ${theme.colors.border.subtle}`,
+          boxShadow: `inset 0 -1px 0 ${theme.colors.border.default}`,
+        }}
       >
         <button
           onClick={onOpenPicker}
-          className="flex items-center justify-center p-1.5 rounded-none transition-colors shrink-0 cursor-pointer sticky left-0 z-10"
+          className="flex items-center justify-center shrink-0 cursor-pointer h-full"
           style={{
+            width: '32px',
             color: theme.colors.text.tertiary,
-            backgroundColor: theme.colors.background.secondary,
-            borderRight: `1px solid ${theme.colors.border.default}`
+            backgroundColor: 'transparent',
+            borderRight: `1px solid ${theme.colors.border.subtle}`
           }}
           title="Open spec"
         >
           <VscFiles size={16} />
         </button>
 
-        <div
-          className="flex items-center gap-1 px-2 py-1 overflow-x-auto flex-1"
-          style={{}}
-        >
-          {openTabs.map(specId => {
-            const spec = specs.find(s => s.info.session_id === specId)
-            if (!spec) return null
+        {openTabs.map(specId => {
+          const spec = specs.find(s => s.info.session_id === specId)
+          if (!spec) return null
 
-            const displayName = spec.info.display_name || spec.info.session_id
-            const isActive = specId === activeTab
-            const hasUnsaved = unsavedTabs.has(specId)
+          const displayName = spec.info.display_name || spec.info.session_id
+          const isActive = specId === activeTab
+          const hasUnsaved = unsavedTabs.has(specId)
 
-            return (
-              <div
-                key={specId}
-                className="flex items-center gap-1 px-3 py-1.5 rounded transition-colors cursor-pointer group"
-                style={{
-                  backgroundColor: isActive
-                    ? theme.colors.background.elevated
-                    : 'transparent',
-                  borderColor: isActive ? theme.colors.border.subtle : 'transparent',
-                  color: isActive ? theme.colors.text.primary : theme.colors.text.secondary,
-                  fontSize: theme.fontSize.label
-                }}
-                onClick={() => onTabChange(specId)}
-                onMouseDown={event => {
-                  if (event.button === 1) {
-                    event.stopPropagation()
-                    event.preventDefault()
-                    onTabClose(specId)
-                  }
-                }}
-              >
-                <span className="max-w-[120px] truncate">{displayName}</span>
-                {hasUnsaved && (
-                  <span
-                    className="px-1.5 py-0.5 rounded"
-                    style={{
-                      ...typography.caption,
-                      lineHeight: theme.lineHeight.compact,
-                      backgroundColor: theme.colors.accent.amber.bg,
-                      color: theme.colors.accent.amber.DEFAULT
-                    }}
-                  >
-                    Edited
-                  </span>
-                )}
-                <button
-                  onClick={e => {
-                    e.stopPropagation()
-                    onTabClose(specId)
-                  }}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-opacity-80"
+          return (
+            <UnifiedTab
+              key={specId}
+              id={specId}
+              label={displayName}
+              isActive={isActive}
+              onSelect={() => onTabChange(specId)}
+              onClose={() => onTabClose(specId)}
+              onMiddleClick={() => onTabClose(specId)}
+              showCloseButton={true}
+              className="h-full flex-shrink-0"
+              style={{
+                maxWidth: '150px',
+                minWidth: '100px'
+              }}
+              badgeContent={hasUnsaved ? (
+                <span
                   style={{
-                    color: theme.colors.text.tertiary,
-                    backgroundColor: 'transparent'
+                    ...typography.caption,
+                    lineHeight: theme.lineHeight.compact,
+                    backgroundColor: theme.colors.accent.amber.bg,
+                    color: theme.colors.accent.amber.DEFAULT,
+                    padding: '0 4px',
+                    borderRadius: '4px'
                   }}
-                  title="Close tab"
                 >
-                  <VscClose size={14} />
-                </button>
-              </div>
-            )
-          })}
-        </div>
+                  Edited
+                </span>
+              ) : undefined}
+            />
+          )
+        })}
       </div>
 
       <div className="flex-1 overflow-hidden">
