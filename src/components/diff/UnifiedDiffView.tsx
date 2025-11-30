@@ -1,4 +1,11 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+  useLayoutEffect,
+} from "react";
 import { TauriCommands } from "../../common/tauriCommands";
 import { invoke } from "@tauri-apps/api/core";
 import { useSelection } from "../../hooks/useSelection";
@@ -55,6 +62,12 @@ import { HistoryDiffContext } from "../../types/diff";
 import type { OpenInAppRequest } from "../OpenInSplitButton";
 import { buildFolderTree, getVisualFileOrder } from "../../utils/folderTree";
 import { useClaudeSession } from "../../hooks/useClaudeSession";
+import {
+  captureSidebarScroll,
+  restoreSidebarScroll,
+  type SidebarScrollSnapshot,
+} from "./sidebarScroll";
+import type { BranchInfo } from "../../common/events";
 
 interface UnifiedDiffViewProps {
   filePath: string | null;
@@ -166,6 +179,7 @@ export function UnifiedDiffView({
   const anchorRestoreTimeoutRef = useRef<number | NodeJS.Timeout | null>(null);
   const anchorRestoreObserverRef = useRef<ResizeObserver | null>(null);
   const anchorRestoreAttemptsRef = useRef<number>(0);
+  const sidebarScrollSnapshotRef = useRef<SidebarScrollSnapshot | null>(null);
   const leftScrollRafRef = useRef<number | null>(null);
   const didInitialScrollRef = useRef(false);
   const lastInitialFilePathRef = useRef<string | null>(null);
@@ -200,6 +214,11 @@ export function UnifiedDiffView({
   );
 
   const captureScrollAnchor = useCallback(() => {
+    if (viewMode === "sidebar") {
+      sidebarScrollSnapshotRef.current = captureSidebarScroll(
+        scrollContainerRef.current,
+      );
+    }
     if (mode === "history") return;
     const container = scrollContainerRef.current;
     const anchorPath = selectedFileRef.current;
@@ -1891,6 +1910,15 @@ export function UnifiedDiffView({
     };
   }, [files, allFileDiffs, viewMode]);
 
+  useLayoutEffect(() => {
+    if (viewMode !== "sidebar") return;
+    const snapshot = sidebarScrollSnapshotRef.current;
+    if (!snapshot) return;
+    const container = scrollContainerRef.current;
+    restoreSidebarScroll(container, snapshot);
+    sidebarScrollSnapshotRef.current = null;
+  }, [files, fileHeightsVersion, viewMode]);
+
   useEffect(() => {
     if (isOpen) {
       void loadChangedFilesGuarded();
@@ -1936,6 +1964,22 @@ export function UnifiedDiffView({
         )
       )
         return;
+      if (viewMode === "sidebar") {
+        sidebarScrollSnapshotRef.current = captureSidebarScroll(
+          scrollContainerRef.current,
+        );
+      }
+      captureScrollAnchor();
+
+      const branchPayload: BranchInfo = event.branch_info;
+      setBranchInfo({
+        currentBranch: branchPayload.current_branch,
+        baseBranch: branchPayload.base_branch,
+        baseCommit: branchPayload.base_commit,
+        headCommit: branchPayload.head_commit,
+      });
+      setFiles(event.changed_files);
+
       void loadChangedFilesGuarded();
     })
       .then((remove) => {
@@ -1968,7 +2012,15 @@ export function UnifiedDiffView({
         }
       }
     };
-  }, [isOpen, mode, sessionName, isCommanderView, loadChangedFilesGuarded]);
+  }, [
+    isOpen,
+    mode,
+    sessionName,
+    isCommanderView,
+    loadChangedFilesGuarded,
+    viewMode,
+    captureScrollAnchor,
+  ]);
 
   useEffect(() => {
     if (!isOpen) {
