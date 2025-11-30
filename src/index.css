@@ -107,14 +107,25 @@ button:disabled {
   flex: 0 0 auto;
   z-index: 5;
   touch-action: none;
+  box-sizing: content-box;
+  pointer-events: auto;
 }
 
 .gutter.gutter-horizontal {
-  cursor: col-resize;
+  cursor: ew-resize !important;
+  /* Enlarge the interactive hitbox without changing layout */
+  padding-left: 8px;
+  padding-right: 8px;
+  margin-left: -8px;
+  margin-right: -8px;
 }
 
 .gutter.gutter-vertical {
-  cursor: row-resize;
+  cursor: ns-resize !important;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  margin-top: -8px;
+  margin-bottom: -8px;
 }
 
 /* Animated highlight spans the full drag hitbox */
@@ -170,6 +181,10 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+.gutter:hover,
+.gutter:focus-visible {
+  cursor: inherit;
 }
 
 .gutter:hover::before {
@@ -320,11 +335,11 @@ body {
 body.is-split-dragging {
   user-select: none;
   /* Fallback cursor so resize intent stays visible even if orientation attr is missing */
-  cursor: row-resize;
+  cursor: ns-resize;
 }
 
 body.is-split-dragging[data-split-orientation="col"] {
-  cursor: col-resize;
+  cursor: ew-resize;
 }
 
 body.is-split-dragging[data-split-orientation="mixed"] {
