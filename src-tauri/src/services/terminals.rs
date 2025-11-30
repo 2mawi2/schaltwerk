@@ -329,7 +329,14 @@ where
         bracketed: bool,
         needs_delayed_submit: bool,
     ) -> Result<(), String> {
-        TerminalsServiceImpl::paste_and_submit_terminal(self, id, data, bracketed, needs_delayed_submit).await
+        TerminalsServiceImpl::paste_and_submit_terminal(
+            self,
+            id,
+            data,
+            bracketed,
+            needs_delayed_submit,
+        )
+        .await
     }
 
     async fn resize_terminal(&self, id: String, cols: u16, rows: u16) -> Result<(), String> {
@@ -562,7 +569,9 @@ impl TerminalsBackend for TerminalManagerBackend {
         needs_delayed_submit: bool,
     ) -> Result<(), String> {
         let manager = self.terminal_manager().await?;
-        manager.paste_and_submit_terminal(id, data, bracketed, needs_delayed_submit).await
+        manager
+            .paste_and_submit_terminal(id, data, bracketed, needs_delayed_submit)
+            .await
     }
 
     async fn resize_terminal(&self, id: String, cols: u16, rows: u16) -> Result<(), String> {

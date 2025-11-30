@@ -19,6 +19,7 @@ use crate::mcp_api::diff_api::{DiffApiError, DiffChunkRequest, DiffScope, Summar
 use crate::{REQUEST_PROJECT_OVERRIDE, get_core_read, get_core_write};
 use schaltwerk::domains::merge::MergeMode;
 use schaltwerk::domains::sessions::entity::{Session, Spec};
+use schaltwerk::domains::settings::setup_script::SetupScriptService;
 use schaltwerk::infrastructure::events::{SchaltEvent, emit_event};
 use schaltwerk::schaltwerk_core::{SessionManager, SessionState};
 
@@ -110,6 +111,8 @@ async fn handle_mcp_request_inner(
             let name = extract_session_name_for_action(path, "/convert-to-spec");
             convert_session_to_spec(&name, app).await
         }
+        (&Method::GET, "/api/project/setup-script") => get_project_setup_script(app).await,
+        (&Method::PUT, "/api/project/setup-script") => set_project_setup_script(req, app).await,
         (&Method::GET, "/api/current-spec-mode-session") => {
             get_current_spec_mode_session(app).await
         }
@@ -410,6 +413,34 @@ fn internal_diff_error(message: String) -> DiffApiError {
     DiffApiError::new(StatusCode::INTERNAL_SERVER_ERROR, message)
 }
 
+fn setup_script_payload(setup_script: &str) -> serde_json::Value {
+    let has_setup_script = !setup_script.trim().is_empty();
+    let normalized_script = if has_setup_script {
+        setup_script.to_string()
+    } else {
+        String::new()
+    };
+
+    serde_json::json!({
+        "setup_script": normalized_script,
+        "has_setup_script": has_setup_script
+    })
+}
+
+fn parse_setup_script_request(body: &[u8]) -> Result<String, (StatusCode, String)> {
+    let payload: serde_json::Value = serde_json::from_slice(body)
+        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid JSON: {e}")))?;
+
+    let Some(script) = payload.get("setup_script").and_then(|v| v.as_str()) else {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Missing 'setup_script' field".to_string(),
+        ));
+    };
+
+    Ok(script.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -573,6 +604,34 @@ mod tests {
         // Outside the scope the task-local should be unset
         let outside = REQUEST_PROJECT_OVERRIDE.try_with(|cell| cell.borrow().clone());
         assert!(outside.is_err());
+    }
+
+    #[test]
+    fn setup_script_payload_marks_presence() {
+        let payload = setup_script_payload("#!/bin/bash\necho hello");
+        assert_eq!(payload["has_setup_script"], serde_json::json!(true));
+        assert_eq!(
+            payload["setup_script"],
+            serde_json::json!("#!/bin/bash\necho hello")
+        );
+
+        let empty = setup_script_payload("   \n ");
+        assert_eq!(empty["has_setup_script"], serde_json::json!(false));
+        assert_eq!(empty["setup_script"], serde_json::json!(""));
+    }
+
+    #[test]
+    fn parse_setup_script_request_requires_field() {
+        let err = parse_setup_script_request(b"{}").expect_err("missing setup_script should error");
+        assert_eq!(err.0, StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn parse_setup_script_request_accepts_string() {
+        let value = parse_setup_script_request(br#"{ "setup_script": "echo hi" }"#)
+            .expect("valid script")
+            .to_string();
+        assert_eq!(value, "echo hi");
     }
 }
 
@@ -1474,6 +1533,81 @@ async fn convert_session_to_spec(
             Ok(error_response(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("Failed to convert session '{name}' to spec: {e}"),
+            ))
+        }
+    }
+}
+
+async fn get_project_setup_script(
+    _app: tauri::AppHandle,
+) -> Result<Response<String>, hyper::Error> {
+    let core = match get_core_read().await {
+        Ok(core) => core,
+        Err(e) => {
+            error!("Failed to get core for setup script: {e}");
+            return Ok(json_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Internal error: {e}"),
+            ));
+        }
+    };
+
+    let db = core.database().clone();
+    let repo_path = core.repo_path.clone();
+    let setup_scripts = SetupScriptService::new(db, repo_path);
+
+    match setup_scripts.get() {
+        Ok(script) => {
+            let payload = setup_script_payload(script.as_deref().unwrap_or_default());
+            Ok(json_response(StatusCode::OK, payload.to_string()))
+        }
+        Err(e) => {
+            error!("Failed to get project setup script: {e}");
+            Ok(json_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to get project setup script: {e}"),
+            ))
+        }
+    }
+}
+
+async fn set_project_setup_script(
+    req: Request<Incoming>,
+    _app: tauri::AppHandle,
+) -> Result<Response<String>, hyper::Error> {
+    let body = req.into_body();
+    let body_bytes = body.collect().await?.to_bytes();
+
+    let setup_script = match parse_setup_script_request(&body_bytes) {
+        Ok(script) => script,
+        Err((status, message)) => return Ok(json_error_response(status, message)),
+    };
+
+    let core = match get_core_write().await {
+        Ok(core) => core,
+        Err(e) => {
+            error!("Failed to get core for setup script update: {e}");
+            return Ok(json_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Internal error: {e}"),
+            ));
+        }
+    };
+
+    let db = core.database().clone();
+    let repo_path = core.repo_path.clone();
+    let setup_scripts = SetupScriptService::new(db, repo_path);
+
+    match setup_scripts.set(&setup_script) {
+        Ok(()) => {
+            let payload = setup_script_payload(&setup_script);
+            Ok(json_response(StatusCode::OK, payload.to_string()))
+        }
+        Err(e) => {
+            error!("Failed to set project setup script: {e}");
+            Ok(json_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to set project setup script: {e}"),
             ))
         }
     }

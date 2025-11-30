@@ -475,6 +475,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
     
     const [editableActionButtons, setEditableActionButtons] = useState<HeaderActionConfig[]>([])
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+    const initialSetupScriptRef = useRef<string>('')
     
     const hideNotification = useCallback(() => {
         setNotification(prev => ({ ...prev, visible: false }))
@@ -700,6 +701,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
         setEnvVars(loadedEnvVars)
         setCliArgs(loadedCliArgs)
         setProjectSettings(loadedProjectSettings)
+        initialSetupScriptRef.current = loadedProjectSettings.setupScript || ''
         setTerminalSettings(loadedTerminalSettings)
         setSessionPreferences(loadedSessionPreferences)
         setMergePreferences(loadedMergePreferences)
@@ -940,6 +942,19 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
     }
 
     const handleSave = async () => {
+        // Enforce an explicit confirmation when changing the setup script so users opt‑in
+        if (
+            projectAvailable &&
+            projectSettings.setupScript !== initialSetupScriptRef.current
+        ) {
+            const confirmed = window.confirm(
+                'Replace the worktree setup script? This script runs automatically for every new session worktree.'
+            )
+            if (!confirmed) {
+                return
+            }
+        }
+
         const result = await saveAllSettings(envVars, cliArgs, agentPreferences, projectSettings, terminalSettings, sessionPreferences, mergePreferences)
 
         if (devErrorToastsEnabled !== initialDevErrorToastsEnabled) {
@@ -960,6 +975,8 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
             result.savedSettings.push('run script')
             const hasRunCommand = Boolean(runScript.command?.trim())
             emitUiEvent(UiEvent.RunScriptUpdated, { hasRunScript: hasRunCommand })
+            // Update baseline after successful save so future edits prompt again
+            initialSetupScriptRef.current = projectSettings.setupScript || ''
         } catch (error) {
             logger.info('Run script not saved - requires active project', error)
         }
@@ -1100,7 +1117,8 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
 
                         <div
                             className="relative h-64 border border-slate-700 rounded overflow-hidden"
-                            style={{ backgroundColor: theme.colors.background.primary }}
+                            style={{ backgroundColor: theme.colors.background.secondary }}
+                            data-testid="setup-script-editor"
                         >
                             <MarkdownEditor
                                 value={projectSettings.setupScript}

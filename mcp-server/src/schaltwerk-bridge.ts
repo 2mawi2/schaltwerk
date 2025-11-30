@@ -155,6 +155,11 @@ export type SessionSpecPayload = {
   updated_at: string
 }
 
+type SetupScriptPayload = {
+  setup_script: string
+  has_setup_script?: boolean
+}
+
 interface ProjectContext {
   path: string
   canonicalPath: string
@@ -582,6 +587,47 @@ export class SchaltwerkBridge {
     })
 
     return this.parseJsonResponse<SessionSpecPayload>(response, 'session spec')
+  }
+
+  async getProjectSetupScript(): Promise<SetupScriptPayload> {
+    const response = await this.fetchWithAutoPort('/api/project/setup-script', {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        ...this.getProjectHeaders()
+      }
+    })
+
+    const payload = await this.parseJsonResponse<SetupScriptPayload>(response, 'project setup script')
+    if (!payload) {
+      throw new Error('Project setup script payload missing')
+    }
+
+    return {
+      setup_script: payload.setup_script ?? '',
+      has_setup_script: payload.has_setup_script ?? (payload.setup_script?.trim().length ?? 0) > 0
+    }
+  }
+
+  async setProjectSetupScript(setupScript: string): Promise<SetupScriptPayload> {
+    const response = await this.fetchWithAutoPort('/api/project/setup-script', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...this.getProjectHeaders()
+      },
+      body: JSON.stringify({ setup_script: setupScript })
+    })
+
+    const payload = await this.parseJsonResponse<SetupScriptPayload>(response, 'set project setup script')
+    if (!payload) {
+      throw new Error('Set project setup script payload missing')
+    }
+
+    return {
+      setup_script: payload.setup_script ?? '',
+      has_setup_script: payload.has_setup_script ?? (payload.setup_script?.trim().length ?? 0) > 0
+    }
   }
 
   async sendFollowUpMessage(sessionName: string, message: string): Promise<void> {
