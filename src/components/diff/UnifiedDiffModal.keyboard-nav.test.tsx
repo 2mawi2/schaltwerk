@@ -107,6 +107,8 @@ describe('UnifiedDiffModal keyboard navigation', () => {
       expect(modal.dataset.selectedFile).toBe('src/components/Button.tsx')
     })
 
+    await screen.findByText('Input.tsx')
+
     await act(async () => {
       fireEvent.keyDown(window, { key: 'ArrowDown' })
     })
@@ -152,6 +154,8 @@ describe('UnifiedDiffModal keyboard navigation', () => {
       const modal = screen.getByTestId('diff-modal')
       expect(modal.dataset.selectedFile).toBe('tests/Button.test.tsx')
     })
+
+    await screen.findByText('Input.tsx')
 
     await act(async () => {
       fireEvent.keyDown(window, { key: 'ArrowUp' })
@@ -284,4 +288,3 @@ describe('UnifiedDiffModal keyboard navigation', () => {
     })
   })
 })
-

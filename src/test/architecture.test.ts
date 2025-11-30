@@ -107,6 +107,11 @@ describe('Tauri Command Architecture', () => {
           return true;
         }
 
+        // Fast guard: skip files that clearly never call invoke.
+        if (!file.content.includes('invoke(')) {
+          return true;
+        }
+
         const lines = file.content.split('\n');
         const matches: FailureDetail[] = [];
         lines.forEach((line, index) => {
