@@ -731,8 +731,9 @@ mod tests {
             // We can't create a file in a directory without permissions, so just test the directory itself
             let result = is_file_diffable(&subdir);
             assert!(
-                result.is_err(),
-                "Should return error for directory without access"
+                matches!(result, Ok(false)),
+                "Should treat inaccessible directory as non-diffable, got: {:?}",
+                result
             );
 
             // Restore permissions for cleanup
