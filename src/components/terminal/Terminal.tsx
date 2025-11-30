@@ -49,6 +49,7 @@ import { hydrateReusedTerminal } from './hydration'
 import { parseTerminalFileReference, resolveTerminalFileReference } from '../../terminal/xterm/fileLinks/terminalFileLinks'
 
 import { TerminalViewportController } from './viewport/TerminalViewportController'
+import { TERMINAL_FILE_DRAG_TYPE, type TerminalFileDragPayload } from '../../common/dragTypes'
 
 const DEFAULT_SCROLLBACK_LINES = 10000
 const BACKGROUND_SCROLLBACK_LINES = 5000
@@ -2011,6 +2012,46 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         || (!terminalEverStartedRef.current && agentLoading)
         || (restartInFlight && agentLoading);
 
+    const isTerminalDrag = useCallback((event: React.DragEvent) => {
+        const types = Array.from(event.dataTransfer?.types ?? []);
+        return types.includes(TERMINAL_FILE_DRAG_TYPE);
+    }, []);
+
+    const handleDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+        if (!isTerminalDrag(event)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.dataTransfer) {
+            event.dataTransfer.dropEffect = 'copy';
+        }
+    }, [isTerminalDrag]);
+
+    const handleDrop = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+        if (!isTerminalDrag(event) || readOnly) return;
+        event.preventDefault();
+        event.stopPropagation();
+
+        const transfer = event.dataTransfer;
+        if (!transfer) return;
+
+        void (async () => {
+            try {
+                const raw = transfer.getData(TERMINAL_FILE_DRAG_TYPE);
+                const parsed: TerminalFileDragPayload | null = raw ? JSON.parse(raw) : null;
+                const filePath = parsed?.filePath?.trim();
+                if (!filePath) return;
+
+                const text = filePath.startsWith('./') ? filePath : `./${filePath}`;
+                await writeTerminalBackend(terminalId, `${text} `);
+                safeTerminalFocus(() => {
+                    terminal.current?.focus?.();
+                }, isAnyModalOpen);
+            } catch (error) {
+                logger.debug(`[Terminal ${terminalId}] Failed to handle file drop`, error);
+            }
+        })();
+    }, [isTerminalDrag, readOnly, terminalId, isAnyModalOpen]);
+
     return (
         <div
             ref={containerRef}
@@ -2019,6 +2060,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             onMouseDown={onMouseDown}
             onMouseMove={onMouseMove}
             onMouseUp={onMouseUp}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
             data-smartdash-exempt="true"
         >
              <div

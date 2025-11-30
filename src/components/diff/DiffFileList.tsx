@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, type DragEvent } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
@@ -20,6 +20,7 @@ import { projectPathAtom } from '../../store/atoms/project'
 import { isSessionMissingError } from '../../types/errors'
 import { FileTree } from './FileTree'
 import type { FileNode } from '../../utils/folderTree'
+import { TERMINAL_FILE_DRAG_TYPE, type TerminalFileDragPayload } from '../../common/dragTypes'
 
 interface DiffFileListProps {
   onFileSelect: (filePath: string) => void
@@ -648,6 +649,24 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
     }
   }, [sessionName, isCommander])
 
+  const handleFileDragStart = useCallback((filePath: string) => (event: DragEvent<HTMLElement>) => {
+    if (!event.dataTransfer) {
+      return
+    }
+
+    const payload: TerminalFileDragPayload = { filePath }
+    const normalizedPath = filePath.startsWith('./') ? filePath : `./${filePath}`
+
+    try {
+      event.dataTransfer.setData(TERMINAL_FILE_DRAG_TYPE, JSON.stringify(payload))
+    } catch (error) {
+      logger.debug('[DiffFileList] Failed to attach drag payload', error)
+    }
+
+    event.dataTransfer.setData('text/plain', normalizedPath)
+    event.dataTransfer.effectAllowed = 'copy'
+  }, [])
+
   const renderFileNode = (node: FileNode, depth: number) => {
     const additions = node.file.additions ?? 0
     const deletions = node.file.deletions ?? 0
@@ -667,6 +686,8 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
         onClick={() => handleFileClick(node.file)}
         data-selected={selectedFile === node.file.path}
         data-file-path={node.file.path}
+        draggable
+        onDragStart={handleFileDragStart(node.file.path)}
       >
         {getFileIcon(node.file.change_type, node.file.path)}
         <div className="flex-1 min-w-0">

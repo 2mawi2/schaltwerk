@@ -11,6 +11,7 @@ import { TauriCommands } from '../../common/tauriCommands'
 import * as loggerModule from '../../utils/logger'
 import { useSetAtom } from 'jotai'
 import { projectPathAtom } from '../../store/atoms/project'
+import { TERMINAL_FILE_DRAG_TYPE } from '../../common/dragTypes'
 
 type MockChangedFile = {
   path: string
@@ -166,6 +167,29 @@ describe('DiffFileList', () => {
       expect(row).toBeTruthy()
       expect(row?.dataset.selected).toBe('true')
     })
+  })
+
+  it('adds a terminal file payload when dragging a file item', async () => {
+    render(
+      <Wrapper sessionName="demo">
+        <DiffFileList onFileSelect={() => {}} />
+      </Wrapper>
+    )
+
+    const fileLabel = await screen.findByText('a.ts')
+    const row = fileLabel.closest('[data-file-path]')
+    expect(row).toBeTruthy()
+
+    const setData = vi.fn()
+    const dataTransfer = { setData, effectAllowed: '' }
+
+    fireEvent.dragStart(row as Element, { dataTransfer })
+
+    expect(setData).toHaveBeenCalledWith(
+      TERMINAL_FILE_DRAG_TYPE,
+      JSON.stringify({ filePath: 'src/a.ts' })
+    )
+    expect(setData).toHaveBeenCalledWith('text/plain', './src/a.ts')
   })
 
   it('shows empty state when no changes', async () => {
