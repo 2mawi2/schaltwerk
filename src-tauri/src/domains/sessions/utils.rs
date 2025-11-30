@@ -255,10 +255,14 @@ impl SessionUtils {
         let mut cmd = Command::new(&shell_invocation.program);
         cmd.args(&shell_invocation.args);
 
+        // Ensure environment variables contain absolute paths
+        let repo_path_abs = self.repo_path.canonicalize().unwrap_or_else(|_| self.repo_path.clone());
+        let worktree_path_abs = worktree_path.canonicalize().unwrap_or_else(|_| worktree_path.to_path_buf());
+
         let output = cmd
             .current_dir(worktree_path)
-            .env("WORKTREE_PATH", worktree_path)
-            .env("REPO_PATH", &self.repo_path)
+            .env("WORKTREE_PATH", worktree_path_abs)
+            .env("REPO_PATH", repo_path_abs)
             .env("SESSION_NAME", session_name)
             .env("BRANCH_NAME", branch_name)
             .output()?;

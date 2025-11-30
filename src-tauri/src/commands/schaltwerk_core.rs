@@ -1417,6 +1417,12 @@ pub async fn schaltwerk_core_start_claude_with_restart(
         env_vars.push(("SCHALTWERK_SESSION".to_string(), session_name.clone()));
     }
 
+    // Inject session-specific environment variables for the setup script and agent
+    env_vars.push(("REPO_PATH".to_string(), repo_path.to_string_lossy().to_string()));
+    env_vars.push(("WORKTREE_PATH".to_string(), session.worktree_path.to_string_lossy().to_string()));
+    env_vars.push(("SESSION_NAME".to_string(), session_name.clone()));
+    env_vars.push(("BRANCH_NAME".to_string(), session.branch.clone()));
+
     // If a project setup script exists, run it ONCE inside this terminal before exec'ing the agent.
     // This streams all setup output to the agent terminal and avoids blocking session creation.
     // We gate with a marker file in the worktree: .schaltwerk/setup.done
