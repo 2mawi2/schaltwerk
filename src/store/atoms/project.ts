@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
 import type { ProjectTab, ProjectLifecycleStatus } from '../../common/projectTabs'
 import { determineNextActiveTab } from '../../common/projectTabs'
+import { emitUiEvent, UiEvent } from '../../common/uiEvents'
 import { logger } from '../../utils/logger'
 import { cleanupOrchestratorTerminalsActionAtom, setProjectPathActionAtom } from './selection'
 import { cleanupProjectSessionsCacheActionAtom } from './sessions'
@@ -82,6 +83,17 @@ function normalizePath(rawPath: string): string {
   return trimmed.replace(/[/\\]+$/, '')
 }
 
+function parsePermissionError(error: unknown): { message: string; isPermission: boolean } {
+  const message = error instanceof Error ? error.message : String(error)
+  const lower = message.toLowerCase()
+  const isPermission =
+    message.includes('Permission required for folder:') ||
+    lower.includes('permission denied') ||
+    lower.includes('operation not permitted')
+
+  return { message, isPermission }
+}
+
 function updateTabStatus(
   get: GetAtomFunction,
   set: SetAtomFunction,
@@ -122,7 +134,11 @@ async function runProjectSwitch(set: SetAtomFunction, path: string): Promise<boo
       await set(setProjectPathActionAtom, path)
       return true
     } catch (error) {
+      const { message, isPermission } = parsePermissionError(error)
       logger.error('[projects] Failed to initialize project', { path, error })
+      if (isPermission) {
+        emitUiEvent(UiEvent.PermissionError, { error: message, path, source: 'project' })
+      }
       return false
     }
   }

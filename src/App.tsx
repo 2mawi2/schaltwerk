@@ -79,6 +79,7 @@ import {
   SessionActionDetail,
   StartAgentFromSpecDetail,
   AgentLifecycleDetail,
+  type PermissionErrorDetail,
   clearBackgroundStarts,
 } from './common/uiEvents'
 import { logger } from './utils/logger'
@@ -523,6 +524,7 @@ function AppContent() {
   const [startFromDraftName, setStartFromSpecName] = useState<string | null>(null)
   const [showPermissionPrompt, setShowPermissionPrompt] = useState(false)
   const [permissionDeniedPath, setPermissionDeniedPath] = useState<string | null>(null)
+  const [permissionContext, setPermissionContext] = useState<'project' | 'session' | 'unknown'>('unknown')
   const [openAsDraft, setOpenAsSpec] = useState(false)
   const [cachedPrompt, setCachedPrompt] = useState('')
   const [triggerOpenInApp, setTriggerOpenInApp] = useState<number>(0)
@@ -1078,16 +1080,28 @@ function AppContent() {
   }, [])
 
   useEffect(() => {
-    const handlePermissionError = (detail: { error: string }) => {
-      const error = detail?.error
-      if (error?.includes('Permission required for folder:')) {
-        // Extract the folder path from the error message
-        const match = error.match(/Permission required for folder: ([^.]+)/)
-        if (match && match[1]) {
-          setPermissionDeniedPath(match[1])
-        }
-        setShowPermissionPrompt(true)
+    const handlePermissionError = (detail: PermissionErrorDetail) => {
+      const errorMessage = detail?.error ?? ''
+      const match = errorMessage.match(/Permission required for folder: ([^.]+)/)
+      const matchedPath = match && match[1] ? match[1].trim() : null
+      const providedPath = detail?.path ?? matchedPath ?? null
+
+      if (providedPath) {
+        setPermissionDeniedPath(providedPath)
+      } else {
+        setPermissionDeniedPath(null)
       }
+
+      const source = detail?.source
+      const origin: 'project' | 'session' | 'unknown' =
+        source === 'project'
+          ? 'project'
+          : source === 'session' || source === 'terminal' || source === undefined
+            ? 'session'
+            : 'unknown'
+
+      setPermissionContext(origin)
+      setShowPermissionPrompt(true)
     }
 
     const cleanup = listenUiEvent(UiEvent.PermissionError, handlePermissionError)
@@ -2138,15 +2152,24 @@ function AppContent() {
               showOnlyIfNeeded={true}
               folderPath={permissionDeniedPath || undefined}
               onPermissionGranted={() => {
-                logger.info(`Folder permission granted for: ${permissionDeniedPath}`)
+                const targetPath = permissionDeniedPath
+                const origin = permissionContext
+                logger.info(`Folder permission granted for: ${targetPath ?? 'unknown path'}`)
                 setShowPermissionPrompt(false)
                 setPermissionDeniedPath(null)
+                setPermissionContext('unknown')
+                if (origin === 'project' && targetPath) {
+                  void handleOpenProject(targetPath)
+                }
               }}
-              onRetryAgent={() => {
-                emitUiEvent(UiEvent.RetryAgentStart)
-                setShowPermissionPrompt(false)
-                setPermissionDeniedPath(null)
-              }}
+              onRetryAgent={permissionContext === 'session'
+                ? () => {
+                    emitUiEvent(UiEvent.RetryAgentStart)
+                    setShowPermissionPrompt(false)
+                    setPermissionDeniedPath(null)
+                    setPermissionContext('unknown')
+                  }
+                : undefined}
             />
           )}
         </>
