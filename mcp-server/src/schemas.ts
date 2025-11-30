@@ -222,6 +222,28 @@ export const toolOutputSchemas = {
     additionalProperties: true,
   },
 
+  schaltwerk_get_setup_script: {
+    $schema: draft2020,
+    type: 'object',
+    properties: {
+      setup_script: { type: 'string' },
+      has_setup_script: { type: 'boolean' },
+    },
+    required: ['setup_script', 'has_setup_script'],
+    additionalProperties: false,
+  },
+
+  schaltwerk_set_setup_script: {
+    $schema: draft2020,
+    type: 'object',
+    properties: {
+      setup_script: { type: 'string' },
+      has_setup_script: { type: 'boolean' },
+    },
+    required: ['setup_script', 'has_setup_script'],
+    additionalProperties: false,
+  },
+
   schaltwerk_spec_list: {
     $schema: draft2020,
     type: 'object',

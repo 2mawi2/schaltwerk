@@ -256,8 +256,13 @@ impl SessionUtils {
         cmd.args(&shell_invocation.args);
 
         // Ensure environment variables contain absolute paths
-        let repo_path_abs = self.repo_path.canonicalize().unwrap_or_else(|_| self.repo_path.clone());
-        let worktree_path_abs = worktree_path.canonicalize().unwrap_or_else(|_| worktree_path.to_path_buf());
+        let repo_path_abs = self
+            .repo_path
+            .canonicalize()
+            .unwrap_or_else(|_| self.repo_path.clone());
+        let worktree_path_abs = worktree_path
+            .canonicalize()
+            .unwrap_or_else(|_| worktree_path.to_path_buf());
 
         let output = cmd
             .current_dir(worktree_path)

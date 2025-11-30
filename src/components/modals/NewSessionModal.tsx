@@ -111,6 +111,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
     const nameInputRef = useRef<HTMLInputElement>(null)
     const markdownEditorRef = useRef<MarkdownEditorRef>(null)
     const hasFocusedDuringOpenRef = useRef(false)
+    const focusTimeoutRef = useRef<number | undefined>(undefined)
     const projectFileIndex = useProjectFileIndex()
     const wasEditedRef = useRef(false)
     const createRef = useRef<() => void>(() => {})
@@ -872,9 +873,13 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                     setRepositoryIsEmpty(false)
                 })
 
+            if (focusTimeoutRef.current !== undefined) {
+                clearTimeout(focusTimeoutRef.current)
+                focusTimeoutRef.current = undefined
+            }
             if (!hasFocusedDuringOpenRef.current) {
                 hasFocusedDuringOpenRef.current = true
-                setTimeout(() => {
+                focusTimeoutRef.current = window.setTimeout(() => {
                     if (cachedPrompt) {
                         markdownEditorRef.current?.focusEnd()
                     } else {
@@ -914,6 +919,10 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
             wasOpenRef.current = false
             lastInitialIsDraftRef.current = undefined
             hasFocusedDuringOpenRef.current = false
+            if (focusTimeoutRef.current !== undefined) {
+                clearTimeout(focusTimeoutRef.current)
+                focusTimeoutRef.current = undefined
+            }
         }
     }, [open, initialIsDraft, isPrefillPending, hasPrefillData, createAsDraft, cachedPrompt])
 

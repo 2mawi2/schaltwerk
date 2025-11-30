@@ -310,6 +310,10 @@ Define a command to execute with `⌘E` in the bottom terminal.
 
 ## Recommended Setup Flow
 
+<Tip>
+  Using an MCP-capable agent? Have it call `schaltwerk_get_setup_script` first, inspect which untracked config (e.g., `.env`, `.npmrc`) should be copied into worktrees, confirm with you, then send the full script via `schaltwerk_set_setup_script`. In the UI, Schaltwerk will still prompt before saving.
+</Tip>
+
 <Steps>
   <Step title="Configure project settings">
     1. Open **Settings → Run & Environment**

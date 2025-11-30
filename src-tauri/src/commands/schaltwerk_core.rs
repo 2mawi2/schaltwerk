@@ -1418,8 +1418,14 @@ pub async fn schaltwerk_core_start_claude_with_restart(
     }
 
     // Inject session-specific environment variables for the setup script and agent
-    env_vars.push(("REPO_PATH".to_string(), repo_path.to_string_lossy().to_string()));
-    env_vars.push(("WORKTREE_PATH".to_string(), session.worktree_path.to_string_lossy().to_string()));
+    env_vars.push((
+        "REPO_PATH".to_string(),
+        repo_path.to_string_lossy().to_string(),
+    ));
+    env_vars.push((
+        "WORKTREE_PATH".to_string(),
+        session.worktree_path.to_string_lossy().to_string(),
+    ));
     env_vars.push(("SESSION_NAME".to_string(), session_name.clone()));
     env_vars.push(("BRANCH_NAME".to_string(), session.branch.clone()));
 

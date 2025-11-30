@@ -14,5 +14,8 @@ describe('MCP tool registry', () => {
     expect(content).toContain('name: "schaltwerk_diff_summary"')
     expect(content).toContain('name: "schaltwerk_diff_chunk"')
     expect(content).toContain('name: "schaltwerk_session_spec"')
+    expect(content).toContain('name: "schaltwerk_get_setup_script"')
+    expect(content).toContain('name: "schaltwerk_set_setup_script"')
+    expect(content).toContain('inspect the repo for untracked config (e.g., .env*, .npmrc) that should be copied into worktrees; (3) confirm the exact files to copy with the user')
   })
 })

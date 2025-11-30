@@ -231,6 +231,13 @@ When acting as an orchestrator managing multiple AI agents:
    schaltwerk_cancel(session_name: "completed-agent")
    ```
 
+### Worktree Setup Script (bootstrap new worktrees)
+- Always fetch the current script first with `schaltwerk_get_setup_script` before making any changes.
+- Inspect the repo for untracked config/secrets that need to be present in worktrees (e.g., `.env`, `.env.local`, `.npmrc`, tool auth files), then confirm with the user which ones to copy.
+- Edit locally, then replace it via `schaltwerk_set_setup_script` (include the shebang). It runs once per worktree with `WORKTREE_PATH`, `REPO_PATH`, `SESSION_NAME`, `BRANCH_NAME` env vars.
+- Keep it short and idempotent: copy `.env` files, install local deps, create needed folders—avoid global installs or interactive prompts.
+- **Safety:** The Schaltwerk UI will prompt the user to confirm before saving changes to the setup script.
+
 ## Error Handling
 
 Common errors and solutions:

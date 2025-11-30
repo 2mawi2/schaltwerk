@@ -109,7 +109,17 @@ Once set up, your AI agent can use these MCP tools to automate session managemen
   <Card title="Check Status" icon="list">
     Query all sessions and their current state
   </Card>
+  <Card title="Setup Scripts" icon="bolt">
+    Read the current worktree setup script, then propose and apply updates after confirming which untracked config (e.g., .env) should be copied.
+  </Card>
 </CardGroup>
+
+## Worktree Setup Scripts via MCP
+
+- **Read first:** Call `schaltwerk_get_setup_script` to load the existing script.
+- **Inspect & confirm:** Check the repo for untracked config (e.g., `.env`, `.env.local`, `.npmrc`) and confirm with the user which files should be copied into new worktrees.
+- **Write full script:** Send the complete updated script (with shebang) via `schaltwerk_set_setup_script`. The script runs once per new worktree with `WORKTREE_PATH`, `REPO_PATH`, `SESSION_NAME`, and `BRANCH_NAME` env vars.
+- **UI safeguard:** When edited in the app, Schaltwerk prompts before saving. MCP changes rely on the agent following the read/confirm/write flow above.
 
 ## Spec Discovery API
 

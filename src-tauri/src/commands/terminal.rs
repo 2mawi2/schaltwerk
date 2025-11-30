@@ -311,7 +311,10 @@ mod tests {
             bracketed: bool,
             needs_delayed_submit: bool,
         ) -> Result<(), String> {
-            self.paste_calls.lock().unwrap().push((id, data, bracketed, needs_delayed_submit));
+            self.paste_calls
+                .lock()
+                .unwrap()
+                .push((id, data, bracketed, needs_delayed_submit));
             if self.should_error {
                 Err("paste failed".to_string())
             } else {
@@ -624,7 +627,12 @@ mod tests {
         let service = TerminalsServiceImpl::new(backend);
 
         let result = service
-            .paste_and_submit_terminal("term-paste-bracketed".to_string(), b"code".to_vec(), true, false)
+            .paste_and_submit_terminal(
+                "term-paste-bracketed".to_string(),
+                b"code".to_vec(),
+                true,
+                false,
+            )
             .await;
 
         assert!(result.is_ok());
@@ -640,7 +648,12 @@ mod tests {
         let service = TerminalsServiceImpl::new(backend);
 
         let result = service
-            .paste_and_submit_terminal("term-paste-delayed".to_string(), b"claude-review".to_vec(), false, true)
+            .paste_and_submit_terminal(
+                "term-paste-delayed".to_string(),
+                b"claude-review".to_vec(),
+                false,
+                true,
+            )
             .await;
 
         assert!(result.is_ok());

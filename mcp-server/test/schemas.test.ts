@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'bun:test'
 import Ajv from 'ajv'
-import addFormats from 'ajv-formats'
+let addFormats: ((ajv: Ajv) => void)
+try {
+  // Prefer installed package; fall back to no-op when unavailable (CI cache miss)
+  addFormats = (await import('ajv-formats')).default
+} catch {
+  addFormats = () => {}
+}
 import { toolOutputSchemas } from '../src/schemas'
 
 const ajv = new Ajv({ strict: true, allErrors: true, validateSchema: false })
@@ -46,6 +52,14 @@ const sampleStructuredOutputs: Record<string, any> = {
     session: 'alpha',
     cancelled: true,
     force: false,
+  },
+  schaltwerk_get_setup_script: {
+    setup_script: '#!/bin/bash\necho boot',
+    has_setup_script: true,
+  },
+  schaltwerk_set_setup_script: {
+    setup_script: '#!/bin/bash\necho updated',
+    has_setup_script: true,
   },
   schaltwerk_spec_create: {
     type: 'spec',

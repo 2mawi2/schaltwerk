@@ -1,4 +1,5 @@
 pub mod service;
+pub mod setup_script;
 pub mod types;
 pub mod validation;
 

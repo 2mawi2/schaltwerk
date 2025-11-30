@@ -98,6 +98,10 @@ interface SchaltwerkCreatePrArgs {
   }
 }
 
+interface SchaltwerkSetSetupScriptArgs {
+  setup_script: string
+}
+
 const bridge = new SchaltwerkBridge()
 
  const server = new Server({
@@ -301,6 +305,32 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["name", "prompt"]
         },
         outputSchema: toolOutputSchemas.schaltwerk_create
+      },
+      {
+        name: "schaltwerk_get_setup_script",
+        description: `Fetch the project worktree setup script that runs once per new worktree before any agent starts. Always call this before modifying the script so you merge with the current contents (env copies, installs, etc.).`,
+        inputSchema: {
+          type: "object",
+          properties: {},
+          additionalProperties: false
+        },
+        outputSchema: toolOutputSchemas.schaltwerk_get_setup_script
+      },
+      {
+        name: "schaltwerk_set_setup_script",
+        description: `Replace the project worktree setup script. Workflow: (1) call schaltwerk_get_setup_script; (2) inspect the repo for untracked config (e.g., .env*, .npmrc) that should be copied into worktrees; (3) confirm the exact files to copy with the user; (4) send back the full updated script (include shebang). The script runs once in the worktree root with env vars WORKTREE_PATH, REPO_PATH, SESSION_NAME, BRANCH_NAME—ideal for copying env files or installing local deps.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            setup_script: {
+              type: "string",
+              description: "Full setup script content (include shebang). Runs once per worktree before the agent launches."
+            }
+          },
+          required: ["setup_script"],
+          additionalProperties: false
+        },
+        outputSchema: toolOutputSchemas.schaltwerk_set_setup_script
       },
       {
         name: "schaltwerk_list",
@@ -888,6 +918,38 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
 
           response = buildStructuredResponse(structured, { summaryText: summary })
         }
+        break
+      }
+
+      case "schaltwerk_get_setup_script": {
+        const payload = await bridge.getProjectSetupScript()
+        const summary = payload.has_setup_script
+          ? `Setup script present (${payload.setup_script.length} chars)`
+          : 'No setup script configured'
+
+        response = buildStructuredResponse(payload, {
+          summaryText: summary,
+          jsonFirst: true
+        })
+        break
+      }
+
+      case "schaltwerk_set_setup_script": {
+        const setupArgs = args as SchaltwerkSetSetupScriptArgs | undefined
+        const script = setupArgs?.setup_script
+        if (script === undefined || script === null) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            "'setup_script' is required when invoking schaltwerk_set_setup_script (empty string clears it)."
+          )
+        }
+
+        const payload = await bridge.setProjectSetupScript(script)
+        const summary = `Setup script updated (${payload.setup_script.length} chars)`
+        response = buildStructuredResponse(payload, {
+          summaryText: summary,
+          jsonFirst: true
+        })
         break
       }
 

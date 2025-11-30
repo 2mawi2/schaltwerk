@@ -1,7 +1,7 @@
 import React from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { vi } from 'vitest'
+import { vi, type Mock } from 'vitest'
 import { SettingsModal } from './SettingsModal'
 import { defaultShortcutConfig } from '../../keyboardShortcuts/config'
 import { TauriCommands } from '../../common/tauriCommands'
@@ -205,6 +205,8 @@ describe('SettingsModal loading indicators', () => {
     invokeMock.mockClear()
     invokeMock.mockImplementation(baseInvokeImplementation)
     requestDockBounceMock.mockReset()
+    // jsdom doesn't provide confirm by default; provide a stub for tests
+    window.confirm = vi.fn() as unknown as typeof window.confirm
   })
 
   it('renders textual loader when settings are loading', async () => {
@@ -535,5 +537,91 @@ describe('SettingsModal project settings navigation', () => {
     expect(screen.queryByRole('button', { name: 'Project Settings' })).not.toBeInTheDocument()
     expect(screen.queryByText('Project')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Archives' })).not.toBeInTheDocument()
+  })
+
+  it('prompts before saving a changed setup script and blocks on cancel', async () => {
+    const saveAllSettings = vi.fn().mockResolvedValue({ success: true, savedSettings: [], failedSettings: [] })
+    useSettingsMock.mockReturnValue({
+      ...createDefaultUseSettingsValue(),
+      saveAllSettings,
+      loadProjectSettings: vi.fn().mockResolvedValue({
+        setupScript: '#!/bin/bash\necho original',
+        branchPrefix: 'schaltwerk',
+        environmentVariables: [],
+      }),
+    })
+
+    invokeMock.mockImplementation((command: string, args?: unknown) => {
+      if (command === TauriCommands.GetActiveProjectPath) return Promise.resolve('/tmp/project')
+      return baseInvokeImplementation(command, args)
+    })
+
+    const confirmSpy = (window.confirm as unknown as Mock).mockReturnValue(false)
+
+    render(<SettingsModal open={true} onClose={() => {}} />)
+    const user = userEvent.setup()
+
+    const projectNavButton = await screen.findByRole('button', { name: 'Project Settings' })
+    await user.click(projectNavButton)
+    await user.click(await screen.findByRole('button', { name: 'Run & Environment' }))
+
+    const setupEditor = await screen.findByTestId('setup-script-editor')
+    const setupScriptInput = setupEditor.querySelector('.cm-content') as HTMLElement
+    expect(setupScriptInput).toBeTruthy()
+    await user.click(setupScriptInput)
+    await user.keyboard('{Control>}a{/Control}')
+    await user.type(setupScriptInput, '#!/bin/bash\necho changed')
+
+    await user.click(await screen.findByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(confirmSpy).toHaveBeenCalledTimes(1)
+      expect(saveAllSettings).not.toHaveBeenCalled()
+    })
+
+    confirmSpy.mockRestore()
+  })
+
+  it('saves when setup script changes and user confirms', async () => {
+    const saveAllSettings = vi.fn().mockResolvedValue({ success: true, savedSettings: [], failedSettings: [] })
+    useSettingsMock.mockReturnValue({
+      ...createDefaultUseSettingsValue(),
+      saveAllSettings,
+      loadProjectSettings: vi.fn().mockResolvedValue({
+        setupScript: '#!/bin/bash\necho original',
+        branchPrefix: 'schaltwerk',
+        environmentVariables: [],
+      }),
+    })
+
+    invokeMock.mockImplementation((command: string, args?: unknown) => {
+      if (command === TauriCommands.GetActiveProjectPath) return Promise.resolve('/tmp/project')
+      return baseInvokeImplementation(command, args)
+    })
+
+    const confirmSpy = (window.confirm as unknown as Mock).mockReturnValue(true)
+
+    render(<SettingsModal open={true} onClose={() => {}} />)
+    const user = userEvent.setup()
+
+    const projectNavButton = await screen.findByRole('button', { name: 'Project Settings' })
+    await user.click(projectNavButton)
+    await user.click(await screen.findByRole('button', { name: 'Run & Environment' }))
+
+    const setupEditor = await screen.findByTestId('setup-script-editor')
+    const setupScriptInput = setupEditor.querySelector('.cm-content') as HTMLElement
+    expect(setupScriptInput).toBeTruthy()
+    await user.click(setupScriptInput)
+    await user.keyboard('{Control>}a{/Control}')
+    await user.type(setupScriptInput, '#!/bin/bash\necho changed')
+
+    await user.click(await screen.findByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(confirmSpy).toHaveBeenCalledTimes(1)
+      expect(saveAllSettings).toHaveBeenCalledTimes(1)
+    })
+
+    confirmSpy.mockRestore()
   })
 })
