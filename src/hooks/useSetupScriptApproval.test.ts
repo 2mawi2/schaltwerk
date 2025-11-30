@@ -3,8 +3,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { TauriCommands } from '../common/tauriCommands'
 import { useSetupScriptApproval } from './useSetupScriptApproval'
 
-const listenEventMock = vi.fn()
-const invokeMock = vi.fn()
+const listenEventMock = vi.hoisted(() => vi.fn())
+const invokeMock = vi.hoisted(() => vi.fn())
 
 vi.mock('../common/eventSystem', () => ({
   listenEvent: listenEventMock,

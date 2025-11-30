@@ -31,6 +31,7 @@ pub enum SchaltEvent {
     ProjectFilesUpdated,
     GitHubStatusChanged,
     DevBackendError,
+    SetupScriptRequested,
     OrchestratorLaunchFailed,
 }
 
@@ -67,6 +68,7 @@ impl SchaltEvent {
             SchaltEvent::ProjectFilesUpdated => "schaltwerk:project-files-updated",
             SchaltEvent::GitHubStatusChanged => "schaltwerk:github-status-changed",
             SchaltEvent::DevBackendError => "schaltwerk:dev-backend-error",
+            SchaltEvent::SetupScriptRequested => "schaltwerk:setup-script-request",
             SchaltEvent::OrchestratorLaunchFailed => "schaltwerk:orchestrator-launch-failed",
         }
     }

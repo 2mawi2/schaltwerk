@@ -58,7 +58,7 @@ impl Project {
     }
 
     /// Get the database path for a project in the global app data directory
-    fn get_project_db_path(project_path: &PathBuf) -> Result<PathBuf> {
+    fn get_project_db_path(project_path: &Path) -> Result<PathBuf> {
         // Get the app data directory (same location as settings)
         let data_dir =
             dirs::data_dir().ok_or_else(|| anyhow!("Failed to get app data directory"))?;

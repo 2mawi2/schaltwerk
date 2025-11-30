@@ -490,6 +490,35 @@ describe('RightPanelTabs split layout', () => {
     })
   })
 
+  it('notifies consumers when inline review toggles for orchestrator view', async () => {
+    const onInlineReviewModeChange = vi.fn()
+
+    renderWithProject(
+      <RightPanelTabs
+        selectionOverride={{ kind: 'orchestrator' }}
+        onInlineReviewModeChange={onInlineReviewModeChange}
+      />
+    )
+
+    act(() => {
+      emitUiEvent(UiEvent.OpenInlineDiffView)
+    })
+
+    await waitFor(() => {
+      expect(onInlineReviewModeChange).toHaveBeenLastCalledWith(true, { reformatSidebar: true, hasFiles: true })
+    })
+
+    onInlineReviewModeChange.mockClear()
+
+    act(() => {
+      emitUiEvent(UiEvent.OpenInlineDiffView)
+    })
+
+    await waitFor(() => {
+      expect(onInlineReviewModeChange).toHaveBeenLastCalledWith(false, { reformatSidebar: true, hasFiles: true })
+    })
+  })
+
   it('notifies consumers when exiting inline review via Back to List', async () => {
     mockSessions.push(createRunningSession({
       session_id: 'test-session',
