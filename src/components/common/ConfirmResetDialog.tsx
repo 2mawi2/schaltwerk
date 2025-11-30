@@ -18,7 +18,7 @@ export function ConfirmResetDialog({ open, onConfirm, onCancel, isBusy }: Confir
           This will discard ALL uncommitted changes and reset this session branch to its base branch. This action cannot be undone.
         </div>
         {isBusy ? (
-          <div className="py-2 text-slate-300"><AnimatedText text="resetting" size="md" /></div>
+          <div className="py-2 text-slate-300"><AnimatedText text="resetting" size="xs" /></div>
         ) : (
           <div className="flex justify-end gap-2">
             <button onClick={onCancel} className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-sm">Cancel</button>
