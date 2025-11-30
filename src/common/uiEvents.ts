@@ -49,6 +49,12 @@ export enum UiEvent {
   AgentBinariesUpdated = 'schaltwerk:agent-binaries-updated',
 }
 
+export interface PermissionErrorDetail {
+  error: string
+  path?: string
+  source?: 'project' | 'session' | 'terminal' | 'unknown'
+}
+
 export interface TerminalResizeRequestDetail {
   target: 'session' | 'orchestrator' | 'all'
   sessionId?: string
@@ -184,7 +190,7 @@ export interface InsertTerminalTextDetail {
 }
 
 export type UiEventPayloads = {
-  [UiEvent.PermissionError]: { error: string }
+  [UiEvent.PermissionError]: PermissionErrorDetail
   [UiEvent.BackgroundStartMarked]: { terminalId: string }
   [UiEvent.TerminalResizeRequest]: TerminalResizeRequestDetail
   [UiEvent.TerminalReset]: TerminalResetDetail

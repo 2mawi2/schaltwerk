@@ -2,12 +2,24 @@ use anyhow::{Result, anyhow};
 use log::{debug, info, warn};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::domains::terminal::TerminalManager;
 use crate::schaltwerk_core::SchaltwerkCore;
+
+fn canonicalize_project_path(path: &Path) -> Result<PathBuf> {
+    match std::fs::canonicalize(path) {
+        Ok(canonical) => Ok(canonical),
+        Err(e) if e.kind() == ErrorKind::PermissionDenied => Err(anyhow!(
+            "Permission required for folder: {}. Please grant access when prompted and retry opening the project.",
+            path.display()
+        )),
+        Err(e) => Err(e.into()),
+    }
+}
 
 /// Represents a single project with its own terminals and sessions
 pub struct Project {
@@ -53,7 +65,7 @@ impl Project {
 
         // Create a unique folder name for this project using a hash
         // This ensures uniqueness even for projects with the same name in different locations
-        let canonical_path = std::fs::canonicalize(project_path)?;
+        let canonical_path = canonicalize_project_path(project_path)?;
         let path_str = canonical_path.to_string_lossy();
 
         // Create a hash of the full path
@@ -138,14 +150,14 @@ impl ProjectManager {
         );
 
         // Normalize the path
-        let path = match std::fs::canonicalize(&path) {
+        let path = match canonicalize_project_path(&path) {
             Ok(p) => {
                 log::info!("  Canonicalized path: {}", p.display());
                 p
             }
             Err(e) => {
                 log::error!("  ❌ Failed to canonicalize path {}: {e}", path.display());
-                return Err(e.into());
+                return Err(e);
             }
         };
 
@@ -487,10 +499,7 @@ impl ProjectManager {
     #[cfg(test)]
     pub async fn switch_to_project_in_memory(&self, path: PathBuf) -> Result<Arc<Project>> {
         // Normalize the path
-        let path = match std::fs::canonicalize(&path) {
-            Ok(p) => p,
-            Err(e) => return Err(e.into()),
-        };
+        let path = canonicalize_project_path(&path)?;
 
         // Check if project already exists
         let mut projects = self.projects.write().await;
