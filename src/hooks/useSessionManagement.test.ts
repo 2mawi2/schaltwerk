@@ -291,7 +291,8 @@ describe('useSessionManagement', () => {
             const { result } = renderHook(() => useSessionManagement())
             const selection = { kind: 'session' as const, payload: 'test-session' }
 
-            backendMocks.closeTerminalBackend.mockImplementationOnce(async () => {
+            const closeSpy = vi.spyOn(backend, 'closeTerminalBackend')
+            closeSpy.mockImplementationOnce(async () => {
                 const tev = TauriEvent as unknown as { __emit: (event: string, payload: unknown) => void }
                 tev.__emit('schaltwerk:terminal-closed', { terminal_id: 'test-terminal-top' })
                 return undefined
@@ -322,6 +323,7 @@ describe('useSessionManagement', () => {
 
             markSpy.mockRestore()
             clearSpy.mockRestore()
+            closeSpy.mockRestore()
         })
 
         it('should handle terminal not existing during model switch', async () => {

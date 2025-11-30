@@ -54,6 +54,7 @@ import { computeRenderOrder } from "./virtualization";
 import { HistoryDiffContext } from "../../types/diff";
 import type { OpenInAppRequest } from "../OpenInSplitButton";
 import { buildFolderTree, getVisualFileOrder } from "../../utils/folderTree";
+import { useClaudeSession } from "../../hooks/useClaudeSession";
 
 interface UnifiedDiffViewProps {
   filePath: string | null;
@@ -113,6 +114,7 @@ export function UnifiedDiffView({
   } = useReview();
   const { setFocusForSession, setCurrentFocus } = useFocus();
   const { sessions, reloadSessions } = useSessions();
+  const { getOrchestratorAgentType } = useClaudeSession();
   const { config: keyboardShortcutConfig } = useKeyboardShortcutsConfig();
   const platform = useMemo(() => detectPlatformSafe(), []);
   const lineSelection = useLineSelection();
@@ -2552,15 +2554,22 @@ export function UnifiedDiffView({
 
     let useBracketedPaste = true;
     let needsDelayedSubmit = false;
+    let agentType: string | undefined;
+
     if (sessionName) {
       const session = sessions.find((s) => s.info.session_id === sessionName);
-      const agentType = session?.info?.original_agent_type as
-        | string
-        | undefined;
-      if (agentType === "claude" || agentType === "droid") {
-        useBracketedPaste = false;
-        needsDelayedSubmit = true;
+      agentType = session?.info?.original_agent_type as string | undefined;
+    } else if (selectedKind === "orchestrator") {
+      try {
+        agentType = await getOrchestratorAgentType();
+      } catch (error) {
+        logger.error("[UnifiedDiffView] Failed to fetch orchestrator agent type", error);
       }
+    }
+
+    if (agentType === "claude" || agentType === "droid") {
+      useBracketedPaste = false;
+      needsDelayedSubmit = true;
     }
 
     try {
@@ -2613,6 +2622,7 @@ export function UnifiedDiffView({
     setFocusForSession,
     setCurrentFocus,
     selection,
+    getOrchestratorAgentType,
   ]);
 
   useEffect(() => {

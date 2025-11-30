@@ -16,6 +16,7 @@ import { useAtom } from 'jotai'
 import { inlineSidebarDefaultPreferenceAtom } from '../../store/atoms/diffPreferences'
 import { useShortcutDisplay } from '../../keyboardShortcuts/useShortcutDisplay'
 import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
+import { useClaudeSession } from '../../hooks/useClaudeSession'
 
 interface SimpleDiffPanelProps {
   mode: 'list' | 'review'
@@ -26,6 +27,9 @@ interface SimpleDiffPanelProps {
   isCommander?: boolean
   onOpenDiff?: (filePath?: string | null, forceModal?: boolean) => void
   onInlinePreferenceChange?: (value: boolean) => void
+  reformatSidebarEnabled?: boolean
+  onInlineLayoutPreferenceChange?: (value: boolean) => void
+  onHasFilesChange?: (hasFiles: boolean) => void
 }
 
 export function SimpleDiffPanel({
@@ -36,7 +40,10 @@ export function SimpleDiffPanel({
   sessionNameOverride,
   isCommander,
   onOpenDiff,
-  onInlinePreferenceChange
+  onInlinePreferenceChange,
+  reformatSidebarEnabled,
+  onInlineLayoutPreferenceChange,
+  onHasFilesChange,
 }: SimpleDiffPanelProps) {
   const [hasFiles, setHasFiles] = useState(true)
   const [preferInline, setPreferInline] = useAtom(inlineSidebarDefaultPreferenceAtom)
@@ -45,6 +52,7 @@ export function SimpleDiffPanel({
   const { selection, setSelection, terminals } = useSelection()
   const { setFocusForSession, setCurrentFocus } = useFocus()
   const { sessions } = useSessions()
+  const { getOrchestratorAgentType } = useClaudeSession()
   const testProps: { 'data-testid': string } = { 'data-testid': 'diff-panel' }
   const openDiffViewerShortcut = useShortcutDisplay(KeyboardShortcutAction.OpenDiffViewer)
 
@@ -69,8 +77,17 @@ export function SimpleDiffPanel({
   }, [mode, hasFiles, handleBackToList])
 
   useEffect(() => {
+    onHasFilesChange?.(hasFiles)
+  }, [hasFiles, onHasFilesChange])
+
+  useEffect(() => {
     onInlinePreferenceChange?.(preferInline)
   }, [preferInline, onInlinePreferenceChange])
+
+  const handleToggleLayoutPreference = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    const next = event.target.checked
+    onInlineLayoutPreferenceChange?.(next)
+  }, [onInlineLayoutPreferenceChange])
 
 const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     const next = event.target.checked
@@ -83,14 +100,22 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
     const reviewText = formatReviewForPrompt(currentReview.comments)
     let useBracketedPaste = true
     let needsDelayedSubmit = false
+    let agentType: string | undefined
 
     if (selection.kind === 'session') {
       const session = sessions.find(s => s.info.session_id === selection.payload)
-      const agentType = session?.info?.original_agent_type as string | undefined
-      if (agentType === 'claude' || agentType === 'droid') {
-        useBracketedPaste = false
-        needsDelayedSubmit = true
+      agentType = session?.info?.original_agent_type as string | undefined
+    } else if (selection.kind === 'orchestrator') {
+      try {
+        agentType = await getOrchestratorAgentType()
+      } catch (error) {
+        logger.error('Failed to get orchestrator agent type for review submit:', error)
       }
+    }
+
+    if (agentType === 'claude' || agentType === 'droid') {
+      useBracketedPaste = false
+      needsDelayedSubmit = true
     }
 
     try {
@@ -124,7 +149,7 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
     } catch (error) {
       logger.error('Failed to send review to terminal from sidebar:', error)
     }
-  }, [clearReview, currentReview, formatReviewForPrompt, selection, sessions, setCurrentFocus, setFocusForSession, setSelection, terminals])
+  }, [clearReview, currentReview, formatReviewForPrompt, selection, sessions, setCurrentFocus, setFocusForSession, setSelection, terminals, getOrchestratorAgentType])
 
   const handleCancelReview = useCallback(() => {
     clearReview()
@@ -232,6 +257,16 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
               onChange={handleToggleInlinePreference}
             />
             <span>Open diffs inline</span>
+          </label>
+          <label className="flex items-center gap-2 text-xs" style={{ color: theme.colors.text.secondary }}>
+            <input
+              type="checkbox"
+              className="rounded border-slate-600 bg-slate-900"
+              checked={reformatSidebarEnabled ?? true}
+              onChange={handleToggleLayoutPreference}
+              disabled={!preferInline}
+            />
+            <span>Auto-collapse sidebar</span>
           </label>
           {onOpenDiff && (
             <button
