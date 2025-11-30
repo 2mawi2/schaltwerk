@@ -283,10 +283,16 @@ run:
     
     # Set trap to cleanup on exit
     trap cleanup EXIT
-    
+
     # Start with dev profile (Tauri doesn't support custom profiles in dev mode)
     # The dev profile already has reasonable optimization settings
     TAURI_SKIP_DEVSERVER_CHECK=true {{pm}} run tauri -- dev --config "$temp_config"
+
+# Run dev server with explicit logging levels
+run-logs log_level="debug" rust_log="trace":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    RUST_LOG="{{rust_log}}" LOG_LEVEL="{{log_level}}" just run
 
 # Run only the frontend (Vite dev server) on auto-detected port
 run-frontend:
