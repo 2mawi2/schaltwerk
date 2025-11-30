@@ -5,6 +5,7 @@ import { useSessionManagement } from './useSessionManagement'
 import { invoke } from '@tauri-apps/api/core'
 import * as TauriEvent from '@tauri-apps/api/event'
 import { UiEvent } from '../common/uiEvents'
+import * as uiEvents from '../common/uiEvents'
 
 // Mock Tauri invoke
 vi.mock('@tauri-apps/api/core', () => ({
@@ -277,6 +278,46 @@ describe('useSessionManagement', () => {
             })
             expect(mockClearTerminalTracking).toHaveBeenCalledWith(['test-terminal-top'])
             expect(mockClearTerminalStartedTracking).toHaveBeenCalledWith(['test-terminal-top'])
+        })
+
+        it('marks background start while switching models to avoid duplicate launches', async () => {
+            const markSpy = vi.spyOn(uiEvents, 'markBackgroundStart')
+            const clearSpy = vi.spyOn(uiEvents, 'clearBackgroundStarts')
+
+            const { result } = renderHook(() => useSessionManagement())
+            const selection = { kind: 'session' as const, payload: 'test-session' }
+
+            backendMocks.closeTerminalBackend.mockImplementationOnce(async () => {
+                const tev = TauriEvent as unknown as { __emit: (event: string, payload: unknown) => void }
+                tev.__emit('schaltwerk:terminal-closed', { terminal_id: 'test-terminal-top' })
+                return undefined
+            })
+
+            mockInvoke
+                .mockResolvedValueOnce(undefined) // schaltwerk_core_set_skip_permissions
+                .mockResolvedValueOnce(undefined) // schaltwerk_core_set_session_agent_type
+                .mockImplementationOnce(async () => { // schaltwerk_core_start_session_agent_with_restart
+                    const tev = TauriEvent as unknown as { __emit: (event: string, payload: unknown) => void }
+                    tev.__emit('schaltwerk:terminal-agent-started', { terminal_id: 'test-terminal-top' })
+                    return undefined
+                })
+
+            await act(async () => {
+                await result.current!.switchModel(
+                    'opencode',
+                    false,
+                    selection,
+                    mockTerminals,
+                    mockClearTerminalTracking,
+                    mockClearTerminalStartedTracking
+                )
+            })
+
+            expect(markSpy).toHaveBeenCalledWith('test-terminal-top')
+            expect(clearSpy).toHaveBeenCalledWith(['test-terminal-top'])
+
+            markSpy.mockRestore()
+            clearSpy.mockRestore()
         })
 
         it('should handle terminal not existing during model switch', async () => {
