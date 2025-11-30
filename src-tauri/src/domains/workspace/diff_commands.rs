@@ -952,7 +952,25 @@ pub async fn compute_unified_diff_backend(
     
     // Profile file content loading
     let start_load = Instant::now();
-    let (old_content, new_content) = get_file_diff_from_main(session_name, file_path.clone()).await?;
+    let (old_content, new_content) = match get_file_diff_from_main(session_name, file_path.clone()).await {
+        Ok(contents) => contents,
+        Err(err) => {
+            if let Some(reason) = err.strip_prefix("Cannot diff file: ") {
+                return Ok(DiffResponse {
+                    lines: vec![],
+                    stats: calculate_diff_stats(&[]),
+                    file_info: FileInfo {
+                        language: get_file_language(&file_path),
+                        size_bytes: 0,
+                    },
+                    is_large_file: false,
+                    is_binary: None,
+                    unsupported_reason: Some(reason.to_string()),
+                });
+            }
+            return Err(err);
+        }
+    };
     let load_duration = start_load.elapsed();
     
     // Check for binary content after loading
@@ -1054,7 +1072,26 @@ pub async fn compute_split_diff_backend(
     
     // Profile file content loading
     let start_load = Instant::now();
-    let (old_content, new_content) = get_file_diff_from_main(session_name, file_path.clone()).await?;
+    let (old_content, new_content) = match get_file_diff_from_main(session_name, file_path.clone()).await {
+        Ok(contents) => contents,
+        Err(err) => {
+            if let Some(reason) = err.strip_prefix("Cannot diff file: ") {
+                let empty_split = compute_split_diff("", "");
+                return Ok(SplitDiffResponse {
+                    split_result: empty_split.clone(),
+                    stats: calculate_split_diff_stats(&empty_split),
+                    file_info: FileInfo {
+                        language: get_file_language(&file_path),
+                        size_bytes: 0,
+                    },
+                    is_large_file: false,
+                    is_binary: None,
+                    unsupported_reason: Some(reason.to_string()),
+                });
+            }
+            return Err(err);
+        }
+    };
     let load_duration = start_load.elapsed();
     
     // Check for binary content after loading

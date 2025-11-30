@@ -121,6 +121,10 @@ mod tests {
             "schaltwerk:dev-backend-error"
         );
         assert_eq!(
+            SchaltEvent::SetupScriptRequested.as_str(),
+            "schaltwerk:setup-script-request"
+        );
+        assert_eq!(
             SchaltEvent::OrchestratorLaunchFailed.as_str(),
             "schaltwerk:orchestrator-launch-failed"
         );

@@ -47,8 +47,13 @@ pub fn is_file_diffable(path: &Path) -> Result<bool, String> {
         }
     }
 
-    // Check file size
+    // Check file metadata early to short-circuit unsupported paths
     let metadata = fs::metadata(path).map_err(|e| format!("Failed to get file metadata: {e}"))?;
+
+    // Directories cannot be diffed
+    if metadata.is_dir() {
+        return Ok(false);
+    }
 
     if metadata.len() > MAX_FILE_SIZE {
         return Ok(false);
@@ -133,15 +138,19 @@ fn determine_non_diffable_reason(path: &Path) -> String {
         }
     }
 
-    if let Ok(metadata) = fs::metadata(path)
-        && metadata.len() > MAX_FILE_SIZE
-    {
-        let size_mb = metadata.len() as f64 / (1024.0 * 1024.0);
-        return format!(
-            "File too large: {:.1} MB (max: {} MB)",
-            size_mb,
-            MAX_FILE_SIZE / (1024 * 1024)
-        );
+    if let Ok(metadata) = fs::metadata(path) {
+        if metadata.is_dir() {
+            return "Path is a directory".to_string();
+        }
+
+        if metadata.len() > MAX_FILE_SIZE {
+            let size_mb = metadata.len() as f64 / (1024.0 * 1024.0);
+            return format!(
+                "File too large: {:.1} MB (max: {} MB)",
+                size_mb,
+                MAX_FILE_SIZE / (1024 * 1024)
+            );
+        }
     }
 
     if let Ok(true) = is_binary_file_impl(path) {
@@ -821,9 +830,9 @@ mod tests {
         {
             std::os::unix::fs::symlink(&target_dir, &dir_link).unwrap();
 
-            // Symlink to directory should return error (we expect regular files)
-            let result = is_file_diffable(&dir_link);
-            assert!(result.is_err(), "Symlink to directory should return error");
+            // Symlink to directory should be treated as non-diffable without error
+            let result = is_file_diffable(&dir_link).unwrap();
+            assert!(!result, "Symlink to directory should not be diffable");
         }
 
         #[cfg(not(unix))]
@@ -839,19 +848,9 @@ mod tests {
     fn test_directory_path() {
         let temp_dir = TempDir::new().unwrap();
 
-        // Test with directory path - should return error
-        let result = is_file_diffable(temp_dir.path());
-        assert!(result.is_err(), "Directory path should return error");
-        let err_msg = result.unwrap_err();
-        // The error message varies by platform, so just check that it's some kind of file access error
-        assert!(
-            err_msg.contains("Failed to read file")
-                || err_msg.contains("Failed to get file metadata")
-                || err_msg.contains("Is a directory")
-                || err_msg.contains("os error"),
-            "Error should indicate file access issue: {}",
-            err_msg
-        );
+        // Test with directory path - should return non-diffable without error
+        let result = is_file_diffable(temp_dir.path()).unwrap();
+        assert!(!result, "Directory path should not be diffable");
 
         // Test is_binary_file with directory
         let result = is_binary_file(temp_dir.path());
@@ -1039,12 +1038,16 @@ mod tests {
         let info = check_file_diffability(temp_dir.path());
         assert!(!info.is_diffable);
         assert!(info.reason.is_some());
-        assert!(info.reason.unwrap().contains("Error checking file"));
+        assert!(info.reason.unwrap().contains("directory"));
     }
 
     #[test]
     fn test_determine_non_diffable_reason_edge_cases() {
         let temp_dir = TempDir::new().unwrap();
+
+        // Directories should return a clear, non-error reason
+        let dir_reason = determine_non_diffable_reason(temp_dir.path());
+        assert!(dir_reason.contains("directory"));
 
         // Test with file that has extension but isn't in NON_DIFFABLE_EXTENSIONS
         let unknown_ext_path = temp_dir.path().join("test.unknown");

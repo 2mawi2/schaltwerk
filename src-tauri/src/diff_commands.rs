@@ -1216,8 +1216,23 @@ pub async fn compute_unified_diff_backend(
 
     // Profile file content loading
     let start_load = Instant::now();
-    let (old_content, new_content) =
-        get_file_diff_from_main(session_name, file_path.clone()).await?;
+    let (old_content, new_content) = match get_file_diff_from_main(session_name, file_path.clone()).await {
+        Ok(contents) => contents,
+        Err(SchaltError::InvalidInput { field, message }) if field == "file_path" => {
+            return Ok(DiffResponse {
+                lines: vec![],
+                stats: calculate_diff_stats(&[]),
+                file_info: FileInfo {
+                    language: get_file_language(&file_path),
+                    size_bytes: 0,
+                },
+                is_large_file: false,
+                is_binary: None,
+                unsupported_reason: Some(message),
+            });
+        }
+        Err(e) => return Err(e),
+    };
     let load_duration = start_load.elapsed();
 
     // Check for binary content after loading
@@ -1310,8 +1325,23 @@ pub async fn compute_split_diff_backend(
 
     // Profile file content loading
     let start_load = Instant::now();
-    let (old_content, new_content) =
-        get_file_diff_from_main(session_name, file_path.clone()).await?;
+    let (old_content, new_content) = match get_file_diff_from_main(session_name, file_path.clone()).await {
+        Ok(contents) => contents,
+        Err(SchaltError::InvalidInput { field, message }) if field == "file_path" => {
+            return Ok(SplitDiffResponse {
+                split_result: compute_split_diff("", ""),
+                stats: calculate_split_diff_stats(&compute_split_diff("", "")),
+                file_info: FileInfo {
+                    language: get_file_language(&file_path),
+                    size_bytes: 0,
+                },
+                is_large_file: false,
+                is_binary: None,
+                unsupported_reason: Some(message),
+            });
+        }
+        Err(e) => return Err(e),
+    };
     let load_duration = start_load.elapsed();
 
     // Check for binary content after loading
