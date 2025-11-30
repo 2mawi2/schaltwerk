@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react'
 import { TauriCommands } from '../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { SchaltEvent, listenEvent } from '../common/eventSystem'
-import { UiEvent, emitUiEvent, TerminalResetDetail } from '../common/uiEvents'
+import { UiEvent, emitUiEvent, TerminalResetDetail, markBackgroundStart, clearBackgroundStarts } from '../common/uiEvents'
 import { closeTerminalBackend, terminalExistsBackend } from '../terminal/transport/backend'
 
 export interface SessionSelection {
