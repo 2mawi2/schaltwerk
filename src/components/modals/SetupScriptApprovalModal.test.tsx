@@ -17,7 +17,7 @@ describe('SetupScriptApprovalModal', () => {
     )
 
     expect(screen.getByText(/Approve worktree setup script/i)).toBeInTheDocument()
-    expect(screen.getByText(/runs for every new worktree/i)).toBeInTheDocument()
+    expect(screen.getByText(/runs automatically for every new session worktree/i)).toBeInTheDocument()
     expect(screen.getByTestId('setup-script-preview')).toHaveTextContent('echo "hi"')
   })
 

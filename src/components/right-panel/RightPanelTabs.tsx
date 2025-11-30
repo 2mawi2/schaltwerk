@@ -378,7 +378,10 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
   const tabsPresent = showChangesTab || showInfoTab || showSpecTab || showHistoryTab || showSpecsTab || showPreviewTab
   // Enable split mode when viewing Changes for normal running sessions
   const useSplitMode = isRunningSession && activeTab === 'changes'
-  const isInlineReviewing = useSplitMode && changesPanelMode === 'review' && inlineHasFiles
+  const isInlineReviewing = (isCommander || isRunningSession)
+    && activeTab === 'changes'
+    && changesPanelMode === 'review'
+    && inlineHasFiles
 
   const handleReformatToggle = useCallback((value: boolean) => {
     setReformatSidebarEnabled(value)
