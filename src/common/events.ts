@@ -28,6 +28,7 @@ export enum SchaltEvent {
   GitHubStatusChanged = 'schaltwerk:github-status-changed',
   AppUpdateResult = 'schaltwerk:app-update-result',
   DevBackendError = 'schaltwerk:dev-backend-error',
+  SetupScriptRequested = 'schaltwerk:setup-script-request',
   CloneProgress = 'schaltwerk:clone-progress',
   OrchestratorLaunchFailed = 'schaltwerk:orchestrator-launch-failed',
 }
@@ -151,6 +152,13 @@ export interface CloneProgressPayload {
   kind: CloneProgressKind
 }
 
+export interface SetupScriptRequestPayload {
+  setup_script: string
+  has_setup_script: boolean
+  project_path?: string
+  pending_confirmation?: boolean
+}
+
 export interface OrchestratorLaunchFailedPayload {
   terminal_id: string
   error: string
@@ -211,6 +219,7 @@ export type EventPayloadMap = {
   [SchaltEvent.GitHubStatusChanged]: GitHubStatusPayload
   [SchaltEvent.AppUpdateResult]: AppUpdateResultPayload
   [SchaltEvent.DevBackendError]: DevBackendErrorPayload
+  [SchaltEvent.SetupScriptRequested]: SetupScriptRequestPayload
   [SchaltEvent.CloneProgress]: CloneProgressPayload
   [SchaltEvent.OrchestratorLaunchFailed]: OrchestratorLaunchFailedPayload
 }

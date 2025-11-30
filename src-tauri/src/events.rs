@@ -29,6 +29,7 @@ pub enum SchaltEvent {
     GitHubStatusChanged,
     AppUpdateResult,
     DevBackendError,
+    SetupScriptRequested,
     CloneProgress,
     OrchestratorLaunchFailed,
 }
@@ -64,6 +65,7 @@ impl SchaltEvent {
             SchaltEvent::GitHubStatusChanged => "schaltwerk:github-status-changed",
             SchaltEvent::AppUpdateResult => "schaltwerk:app-update-result",
             SchaltEvent::DevBackendError => "schaltwerk:dev-backend-error",
+            SchaltEvent::SetupScriptRequested => "schaltwerk:setup-script-request",
             SchaltEvent::CloneProgress => "schaltwerk:clone-progress",
             SchaltEvent::OrchestratorLaunchFailed => "schaltwerk:orchestrator-launch-failed",
         }

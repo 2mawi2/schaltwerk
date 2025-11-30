@@ -14,10 +14,12 @@ import { NewSessionModal } from './components/modals/NewSessionModal'
 import { CancelConfirmation } from './components/modals/CancelConfirmation'
 import { DeleteSpecConfirmation } from './components/modals/DeleteSpecConfirmation'
 import { SettingsModal } from './components/modals/SettingsModal'
+import { SetupScriptApprovalModal } from './components/modals/SetupScriptApprovalModal'
 import { ProjectSelectorModal } from './components/modals/ProjectSelectorModal'
 import { invoke } from '@tauri-apps/api/core'
 import { useSelection } from './hooks/useSelection'
 import { usePreviewPanelEvents } from './hooks/usePreviewPanelEvents'
+import { useSetupScriptApproval } from './hooks/useSetupScriptApproval'
 import { useAtom, useSetAtom, useAtomValue } from 'jotai'
 import {
   increaseFontSizesActionAtom,
@@ -524,6 +526,12 @@ function AppContent() {
   const [openAsDraft, setOpenAsSpec] = useState(false)
   const [cachedPrompt, setCachedPrompt] = useState('')
   const [triggerOpenInApp, setTriggerOpenInApp] = useState<number>(0)
+  const {
+    proposal: setupScriptProposal,
+    approve: approveSetupScript,
+    reject: rejectSetupScript,
+    isApplying: isApplyingSetupScript,
+  } = useSetupScriptApproval()
   const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useAtom(leftPanelCollapsedAtom)
   const [rawLeftPanelSizes, setLeftPanelSizes] = useAtom(leftPanelSizesAtom)
   const [rawLeftPanelLastExpandedSizes, setLeftPanelLastExpandedSizes] = useAtom(leftPanelLastExpandedSizesAtom)
@@ -1804,6 +1812,13 @@ function AppContent() {
         <div className="pt-[32px] h-full">
           <HomeScreen onOpenProject={(path) => { void handleOpenProject(path) }} />
         </div>
+        <SetupScriptApprovalModal
+          open={Boolean(setupScriptProposal)}
+          script={setupScriptProposal?.setupScript ?? ''}
+          isApplying={isApplyingSetupScript}
+          onConfirm={() => { void approveSetupScript() }}
+          onCancel={rejectSetupScript}
+        />
         <SettingsModal
           open={settingsOpen}
           initialTab={settingsInitialTab}
@@ -2082,6 +2097,14 @@ function AppContent() {
             onRefresh={() => { void refreshAgentDetection() }}
             onOpenSettings={() => emitUiEvent(UiEvent.OpenSettings, { tab: 'environment' })}
             onClose={() => setShowCliMissingModal(false)}
+          />
+
+          <SetupScriptApprovalModal
+            open={Boolean(setupScriptProposal)}
+            script={setupScriptProposal?.setupScript ?? ''}
+            isApplying={isApplyingSetupScript}
+            onConfirm={() => { void approveSetupScript() }}
+            onCancel={rejectSetupScript}
           />
 
           {/* Settings Modal */}

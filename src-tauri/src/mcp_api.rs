@@ -10,6 +10,7 @@ use std::cell::RefCell;
 use std::path::PathBuf;
 use url::form_urlencoded;
 
+use schaltwerk::domains::settings::setup_script::SetupScriptService;
 use crate::commands::github::{CreateReviewedPrArgs, github_create_reviewed_pr};
 use crate::commands::schaltwerk_core::{
     MergeCommandError, merge_session_with_events, schaltwerk_core_cancel_session,
@@ -19,7 +20,6 @@ use crate::mcp_api::diff_api::{DiffApiError, DiffChunkRequest, DiffScope, Summar
 use crate::{REQUEST_PROJECT_OVERRIDE, get_core_read, get_core_write};
 use schaltwerk::domains::merge::MergeMode;
 use schaltwerk::domains::sessions::entity::{Session, Spec};
-use schaltwerk::domains::settings::setup_script::SetupScriptService;
 use schaltwerk::infrastructure::events::{SchaltEvent, emit_event};
 use schaltwerk::schaltwerk_core::{SessionManager, SessionState};
 
@@ -425,6 +425,14 @@ fn setup_script_payload(setup_script: &str) -> serde_json::Value {
         "setup_script": normalized_script,
         "has_setup_script": has_setup_script
     })
+}
+
+#[derive(Debug, Serialize, Clone)]
+struct SetupScriptRequestPayload {
+    setup_script: String,
+    has_setup_script: bool,
+    pending_confirmation: bool,
+    project_path: String,
 }
 
 fn parse_setup_script_request(body: &[u8]) -> Result<String, (StatusCode, String)> {
@@ -1573,7 +1581,7 @@ async fn get_project_setup_script(
 
 async fn set_project_setup_script(
     req: Request<Incoming>,
-    _app: tauri::AppHandle,
+    app: tauri::AppHandle,
 ) -> Result<Response<String>, hyper::Error> {
     let body = req.into_body();
     let body_bytes = body.collect().await?.to_bytes();
@@ -1583,7 +1591,7 @@ async fn set_project_setup_script(
         Err((status, message)) => return Ok(json_error_response(status, message)),
     };
 
-    let core = match get_core_write().await {
+    let core = match get_core_read().await {
         Ok(core) => core,
         Err(e) => {
             error!("Failed to get core for setup script update: {e}");
@@ -1594,23 +1602,24 @@ async fn set_project_setup_script(
         }
     };
 
-    let db = core.database().clone();
     let repo_path = core.repo_path.clone();
-    let setup_scripts = SetupScriptService::new(db, repo_path);
+    let payload = SetupScriptRequestPayload {
+        setup_script: setup_script.clone(),
+        has_setup_script: !setup_script.trim().is_empty(),
+        pending_confirmation: true,
+        project_path: repo_path.to_string_lossy().to_string(),
+    };
 
-    match setup_scripts.set(&setup_script) {
-        Ok(()) => {
-            let payload = setup_script_payload(&setup_script);
-            Ok(json_response(StatusCode::OK, payload.to_string()))
-        }
-        Err(e) => {
-            error!("Failed to set project setup script: {e}");
-            Ok(json_error_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to set project setup script: {e}"),
-            ))
-        }
+    if let Err(e) = emit_event(&app, SchaltEvent::SetupScriptRequested, &payload) {
+        error!("Failed to emit setup script request event: {e}");
+        return Ok(json_error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to notify UI for setup script confirmation".to_string(),
+        ));
     }
+
+    let response_payload = setup_script_payload(&setup_script);
+    Ok(json_response(StatusCode::ACCEPTED, response_payload.to_string()))
 }
 
 async fn get_current_spec_mode_session(
