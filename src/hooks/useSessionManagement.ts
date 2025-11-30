@@ -248,8 +248,16 @@ export function useSessionManagement(): SessionManagementHookReturn {
             await clearTerminalTracking([claudeTerminalId])
             clearTerminalStartedTracking([claudeTerminalId])
         }
-        await restartWithNewModel(selection, claudeTerminalId)
-        
+        // Mark this terminal as background-started so the auto-start effect in the
+        // Terminal component doesn't immediately re-spawn the old agent while the
+        // model-switch restart is in flight.
+        markBackgroundStart(claudeTerminalId)
+        try {
+            await restartWithNewModel(selection, claudeTerminalId)
+        } finally {
+            clearBackgroundStarts([claudeTerminalId])
+        }
+
         const resetDetail: TerminalResetDetail = selection.kind === 'session' && selection.payload
             ? { kind: 'session', sessionId: selection.payload }
             : { kind: 'orchestrator' }
