@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, waitFor, cleanup, act } from '@testing-library/react'
+import { render, waitFor, cleanup, act, fireEvent } from '@testing-library/react'
 import { Terminal } from './Terminal'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import { startSessionTop } from '../../common/agentSpawn'
+import { writeTerminalBackend } from '../../terminal/transport/backend'
+import { TERMINAL_FILE_DRAG_TYPE } from '../../common/dragTypes'
 
 const ATLAS_CONTRAST_BASE = 1.1
 
@@ -641,5 +643,31 @@ describe('Terminal', () => {
     } finally {
       vi.mocked(listenEvent).mockImplementation(originalImplementation ?? (async () => () => {}))
     }
+  })
+
+  it('pastes dropped file paths into the terminal input', async () => {
+    const { container } = render(<Terminal terminalId="session-drop-bottom" workingDirectory="/repo" />)
+
+    await waitFor(() => {
+      expect(terminalHarness.acquireMock).toHaveBeenCalled()
+    })
+
+    const terminalContainer = container.querySelector('[data-smartdash-exempt="true"]') as HTMLDivElement | null
+    expect(terminalContainer).toBeTruthy()
+
+    const payload = { filePath: 'src/example.ts' }
+    const dataTransfer = {
+      types: [TERMINAL_FILE_DRAG_TYPE],
+      getData: vi.fn((type: string) => type === TERMINAL_FILE_DRAG_TYPE ? JSON.stringify(payload) : ''),
+      dropEffect: 'none',
+      effectAllowed: '',
+    }
+
+    fireEvent.dragOver(terminalContainer as Element, { dataTransfer })
+    fireEvent.drop(terminalContainer as Element, { dataTransfer })
+
+    await waitFor(() => {
+      expect(writeTerminalBackend).toHaveBeenCalledWith('session-drop-bottom', './src/example.ts ')
+    })
   })
 })
