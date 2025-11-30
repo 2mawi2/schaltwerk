@@ -35,6 +35,7 @@ import { useOptionalToast } from '../../common/toast/ToastProvider'
 import { AppUpdateResultPayload } from '../../common/events'
 import type { SettingsCategory } from '../../types/settings'
 import { requestDockBounce } from '../../utils/attentionBridge'
+import { MarkdownEditor } from '../specs/MarkdownEditor'
 
 const shortcutArraysEqual = (a: string[] = [], b: string[] = []) => {
     if (a.length !== b.length) return false
@@ -1097,22 +1098,17 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
                             </ul>
                         </div>
 
-                        <div className="relative">
-                            <textarea
+                        <div className="relative h-64 border border-slate-700 rounded overflow-hidden bg-[#0b1220]">
+                            <MarkdownEditor
                                 value={projectSettings.setupScript}
-                                onChange={(e) => setProjectSettings({ ...projectSettings, setupScript: e.target.value })}
+                                onChange={(val) => setProjectSettings({ ...projectSettings, setupScript: val })}
                                 placeholder={`#!/bin/bash
 # Example: Copy .env file from main repo
 if [ -f "$REPO_PATH/.env" ]; then
     cp "$REPO_PATH/.env" "$WORKTREE_PATH/.env"
     echo "✓ Copied .env file to worktree"
 fi`}
-                                className={`w-full h-48 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-body resize-none overflow-auto focus:outline-none focus:${theme.colors.border.focus} transition-colors scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800`}
-                                spellCheck={false}
-                                style={{
-                                    scrollbarWidth: 'thin',
-                                    scrollbarColor: `${theme.colors.border.strong} ${theme.colors.background.elevated}`
-                                }}
+                                className="h-full"
                             />
                         </div>
 
