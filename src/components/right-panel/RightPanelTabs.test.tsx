@@ -71,15 +71,18 @@ vi.mock('../../hooks/useSessions', () => ({
 let latestDiffProps: { mode?: string; activeFile?: string | null } = {}
 
 vi.mock('../diff/SimpleDiffPanel', () => ({
-  SimpleDiffPanel: ({ isCommander, mode, activeFile }: { isCommander?: boolean; mode?: string; activeFile?: string | null }) => {
+  SimpleDiffPanel: ({ isCommander, mode, activeFile, onModeChange }: { isCommander?: boolean; mode?: string; activeFile?: string | null; onModeChange?: (mode: 'list' | 'review') => void }) => {
     latestDiffProps = { mode, activeFile }
     return (
-      <div
-        data-testid="diff-panel"
-        data-commander={String(!!isCommander)}
-        data-mode={mode ?? ''}
-        data-active-file={activeFile ?? ''}
-      />
+      <>
+        <div
+          data-testid="diff-panel"
+          data-commander={String(!!isCommander)}
+          data-mode={mode ?? ''}
+          data-active-file={activeFile ?? ''}
+        />
+        <button onClick={() => onModeChange?.('list')}>Back to List</button>
+      </>
     )
   }
 }))
@@ -446,6 +449,80 @@ describe('RightPanelTabs split layout', () => {
     await waitFor(() => {
       expect(latestDiffProps.mode).toBe('list')
       expect(latestDiffProps.activeFile).toBeNull()
+    })
+  })
+
+  it('notifies consumers when inline review mode toggles', async () => {
+    mockSessions.push(createRunningSession({
+      session_id: 'test-session',
+      worktree_path: '/tmp/session-worktree',
+      branch: 'feature/test'
+    }))
+
+    const onInlineReviewModeChange = vi.fn()
+
+    renderWithProject(
+      <RightPanelTabs
+        selectionOverride={{ kind: 'session', payload: 'test-session', worktreePath: '/tmp/session-worktree' }}
+        isSpecOverride={false}
+        onInlineReviewModeChange={onInlineReviewModeChange}
+      />
+    )
+
+    // Open inline diff view
+    act(() => {
+      emitUiEvent(UiEvent.OpenInlineDiffView)
+    })
+
+    await waitFor(() => {
+      expect(onInlineReviewModeChange).toHaveBeenLastCalledWith(true, { reformatSidebar: true, hasFiles: true })
+    })
+
+    onInlineReviewModeChange.mockClear()
+
+    // Toggle back to list
+    act(() => {
+      emitUiEvent(UiEvent.OpenInlineDiffView)
+    })
+
+    await waitFor(() => {
+      expect(onInlineReviewModeChange).toHaveBeenLastCalledWith(false, { reformatSidebar: true, hasFiles: true })
+    })
+  })
+
+  it('notifies consumers when exiting inline review via Back to List', async () => {
+    mockSessions.push(createRunningSession({
+      session_id: 'test-session',
+      worktree_path: '/tmp/session-worktree',
+      branch: 'feature/test'
+    }))
+
+    const onInlineReviewModeChange = vi.fn()
+
+    renderWithProject(
+      <RightPanelTabs
+        selectionOverride={{ kind: 'session', payload: 'test-session', worktreePath: '/tmp/session-worktree' }}
+        isSpecOverride={false}
+        onInlineReviewModeChange={onInlineReviewModeChange}
+      />
+    )
+
+    // Enter inline review
+    act(() => {
+      emitUiEvent(UiEvent.OpenInlineDiffView)
+    })
+
+    await waitFor(() => {
+      expect(onInlineReviewModeChange).toHaveBeenLastCalledWith(true, { reformatSidebar: true, hasFiles: true })
+    })
+
+    onInlineReviewModeChange.mockClear()
+
+    // Click "Back to List" inside the inline diff panel header
+    await userEvent.click(screen.getByText('Back to List'))
+
+    await waitFor(() => {
+      expect(onInlineReviewModeChange).toHaveBeenLastCalledWith(false, { reformatSidebar: true, hasFiles: true })
     })
   })
 })

@@ -42,7 +42,10 @@ vi.mock('./components/terminal/TerminalGrid', () => ({
   TerminalGrid: () => <div data-testid="terminal-grid-mock" />,
 }))
 vi.mock('./components/right-panel/RightPanelTabs', () => ({
-  RightPanelTabs: () => <div data-testid="right-panel-tabs" />,
+  RightPanelTabs: (props: unknown) => {
+    latestRightPanelTabsProps = props
+    return <div data-testid="right-panel-tabs" />
+  },
 }))
 const newSessionModalMock = vi.fn((props: unknown) => props)
 const settingsModalMock = vi.fn((props: unknown) => props)
@@ -68,6 +71,7 @@ vi.mock('./components/diff/DiffViewerWithReview', () => ({
 vi.mock('./components/OpenInSplitButton', () => ({
   OpenInSplitButton: () => <button data-testid="open-in-split" />,
 }))
+let latestRightPanelTabsProps: unknown = null
 vi.mock('./components/TabBar', () => ({
   TabBar: () => <div data-testid="tab-bar" />,
 }))
@@ -1355,6 +1359,297 @@ describe('Multi-agent comparison logic', () => {
 
     await waitFor(() => {
       expect(window.localStorage.getItem('schaltwerk:layout:leftPanelCollapsed')).toBe('false')
+      expect(collapseStates.at(-1)).toBe(false)
+    })
+  })
+
+  it('auto-collapses for inline review and restores afterwards when user does not touch it', async () => {
+    mockState.isGitRepo = true
+    window.localStorage.removeItem('schaltwerk:layout:leftPanelCollapsed')
+    await renderAppWithCollapseObserver()
+
+    await clickElement(screen.getByTestId('open-project'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('sidebar-mock')).toBeInTheDocument()
+      expect(latestRightPanelTabsProps).toBeTruthy()
+    })
+
+    expect(window.localStorage.getItem('schaltwerk:layout:leftPanelCollapsed')).toBeNull()
+
+    act(() => {
+      (latestRightPanelTabsProps as { onInlineReviewModeChange?: (value: boolean, opts?: { reformatSidebar: boolean }) => void })?.onInlineReviewModeChange?.(true, { reformatSidebar: true })
+    })
+
+    await waitFor(() => {
+      expect(window.localStorage.getItem('schaltwerk:layout:leftPanelCollapsed')).toBe('true')
+      expect(collapseStates.at(-1)).toBe(true)
+    })
+
+    act(() => {
+      (latestRightPanelTabsProps as { onInlineReviewModeChange?: (value: boolean, opts?: { reformatSidebar: boolean }) => void })?.onInlineReviewModeChange?.(false, { reformatSidebar: true })
+    })
+
+    await waitFor(() => {
+      expect(window.localStorage.getItem('schaltwerk:layout:leftPanelCollapsed')).toBe('false')
+      expect(collapseStates.at(-1)).toBe(false)
+    })
+  })
+
+  it('respects user collapse/expand changes made during inline review', async () => {
+    mockState.isGitRepo = true
+    window.localStorage.removeItem('schaltwerk:layout:leftPanelCollapsed')
+    await renderAppWithCollapseObserver()
+
+    await clickElement(screen.getByTestId('open-project'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('sidebar-mock')).toBeInTheDocument()
+      expect(latestRightPanelTabsProps).toBeTruthy()
+    })
+
+    act(() => {
+      (latestRightPanelTabsProps as { onInlineReviewModeChange?: (value: boolean, opts?: { reformatSidebar: boolean }) => void })?.onInlineReviewModeChange?.(true, { reformatSidebar: true })
+    })
+
+    await waitFor(() => {
+      expect(window.localStorage.getItem('schaltwerk:layout:leftPanelCollapsed')).toBe('true')
+    })
+
+    // User manually expands while inline review is open
+    await act(async () => {
+      fireEvent.keyDown(window, { key: '\\', code: 'Backslash', metaKey: true })
+    })
+
+    await waitFor(() => {
+      expect(window.localStorage.getItem('schaltwerk:layout:leftPanelCollapsed')).toBe('false')
+      expect(collapseStates.at(-1)).toBe(false)
+    })
+
+    act(() => {
+      (latestRightPanelTabsProps as { onInlineReviewModeChange?: (value: boolean, opts?: { reformatSidebar: boolean }) => void })?.onInlineReviewModeChange?.(false, { reformatSidebar: true })
+    })
+
+    await waitFor(() => {
+      // Should stay as the user set it
+      expect(window.localStorage.getItem('schaltwerk:layout:leftPanelCollapsed')).toBe('false')
+      expect(collapseStates.at(-1)).toBe(false)
+    })
+  })
+
+  it('leaves sidebar collapsed if it was already collapsed before inline review', async () => {
+    mockState.isGitRepo = true
+    window.localStorage.setItem('schaltwerk:layout:leftPanelCollapsed', 'true')
+    await renderAppWithCollapseObserver()
+
+    await clickElement(screen.getByTestId('open-project'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('sidebar-mock')).toBeInTheDocument()
+      expect(latestRightPanelTabsProps).toBeTruthy()
+    })
+
+    expect(collapseStates.at(-1)).toBe(true)
+
+    act(() => {
+      (latestRightPanelTabsProps as { onInlineReviewModeChange?: (value: boolean, opts?: { reformatSidebar: boolean }) => void })?.onInlineReviewModeChange?.(true, { reformatSidebar: true })
+    })
+
+    await waitFor(() => {
+      expect(collapseStates.at(-1)).toBe(true)
+    })
+
+    act(() => {
+      (latestRightPanelTabsProps as { onInlineReviewModeChange?: (value: boolean, opts?: { reformatSidebar: boolean }) => void })?.onInlineReviewModeChange?.(false, { reformatSidebar: true })
+    })
+
+    await waitFor(() => {
+      // Should stay collapsed because it started collapsed
+      expect(collapseStates.at(-1)).toBe(true)
+      expect(window.localStorage.getItem('schaltwerk:layout:leftPanelCollapsed')).toBe('true')
+    })
+  })
+  it('auto-collapses the left sidebar when inline review opens and restores when it closes', async () => {
+    mockState.isGitRepo = true
+    window.localStorage.removeItem('schaltwerk:layout:leftPanelCollapsed')
+    await renderAppWithCollapseObserver()
+
+    await clickElement(screen.getByTestId('open-project'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('sidebar-mock')).toBeInTheDocument()
+      expect(latestRightPanelTabsProps).toBeTruthy()
+    })
+
+    act(() => {
+      (latestRightPanelTabsProps as { onInlineReviewModeChange?: (value: boolean) => void })?.onInlineReviewModeChange?.(true)
+    })
+
+    await waitFor(() => {
+      expect(window.localStorage.getItem('schaltwerk:layout:leftPanelCollapsed')).toBe('true')
+      expect(collapseStates.at(-1)).toBe(true)
+    })
+
+    act(() => {
+      (latestRightPanelTabsProps as { onInlineReviewModeChange?: (value: boolean) => void })?.onInlineReviewModeChange?.(false)
+    })
+
+    await waitFor(() => {
+      expect(window.localStorage.getItem('schaltwerk:layout:leftPanelCollapsed')).toBe('false')
+      expect(collapseStates.at(-1)).toBe(false)
+    })
+  })
+
+  it('does not auto collapse when inline review opens with reformat disabled', async () => {
+    mockState.isGitRepo = true
+    window.localStorage.removeItem('schaltwerk:layout:leftPanelCollapsed')
+    await renderAppWithCollapseObserver()
+
+    await clickElement(screen.getByTestId('open-project'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('sidebar-mock')).toBeInTheDocument()
+      expect(latestRightPanelTabsProps).toBeTruthy()
+    })
+
+    expect(collapseStates.at(-1)).toBe(false)
+
+    const props = latestRightPanelTabsProps as {
+      onInlineReviewModeChange?: (value: boolean, opts?: { reformatSidebar: boolean }) => void
+    }
+
+    act(() => {
+      props.onInlineReviewModeChange?.(true, { reformatSidebar: false })
+    })
+
+    await waitFor(() => {
+      expect(collapseStates.at(-1)).toBe(false)
+    })
+
+    act(() => {
+      props.onInlineReviewModeChange?.(false, { reformatSidebar: false })
+    })
+
+    await waitFor(() => {
+      expect(collapseStates.at(-1)).toBe(false)
+    })
+  })
+
+  it('turning on reformat while inline auto collapses and still restores on exit', async () => {
+    mockState.isGitRepo = true
+    window.localStorage.removeItem('schaltwerk:layout:leftPanelCollapsed')
+    await renderAppWithCollapseObserver()
+
+    await clickElement(screen.getByTestId('open-project'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('sidebar-mock')).toBeInTheDocument()
+      expect(latestRightPanelTabsProps).toBeTruthy()
+    })
+
+    expect(collapseStates.at(-1)).toBe(false)
+
+    const props = latestRightPanelTabsProps as {
+      onInlineReviewModeChange?: (value: boolean, opts?: { reformatSidebar: boolean }) => void
+    }
+
+    act(() => {
+      props.onInlineReviewModeChange?.(true, { reformatSidebar: false })
+    })
+
+    await waitFor(() => {
+      expect(collapseStates.at(-1)).toBe(false)
+    })
+
+    act(() => {
+      props.onInlineReviewModeChange?.(true, { reformatSidebar: true })
+    })
+
+    await waitFor(() => {
+      expect(collapseStates.at(-1)).toBe(true)
+    })
+
+    act(() => {
+      props.onInlineReviewModeChange?.(false, { reformatSidebar: true })
+    })
+
+    await waitFor(() => {
+      expect(collapseStates.at(-1)).toBe(false)
+    })
+  })
+
+  it('skips auto-collapse when inline review is opened with no diffs available', async () => {
+    mockState.isGitRepo = true
+    window.localStorage.removeItem('schaltwerk:layout:leftPanelCollapsed')
+    await renderAppWithCollapseObserver()
+
+    await clickElement(screen.getByTestId('open-project'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('sidebar-mock')).toBeInTheDocument()
+      expect(latestRightPanelTabsProps).toBeTruthy()
+    })
+
+    expect(collapseStates.at(-1)).toBe(false)
+
+    const props = latestRightPanelTabsProps as {
+      onInlineReviewModeChange?: (value: boolean, opts?: { reformatSidebar: boolean, hasFiles?: boolean }) => void
+    }
+
+    act(() => {
+      props.onInlineReviewModeChange?.(true, { reformatSidebar: true, hasFiles: false })
+    })
+
+    await waitFor(() => {
+      expect(collapseStates.at(-1)).toBe(false)
+    })
+
+    act(() => {
+      props.onInlineReviewModeChange?.(false, { reformatSidebar: true, hasFiles: false })
+    })
+
+    await waitFor(() => {
+      expect(collapseStates.at(-1)).toBe(false)
+    })
+  })
+
+  it('turning off reformat while inline restores immediately and stays restored on exit', async () => {
+    mockState.isGitRepo = true
+    window.localStorage.removeItem('schaltwerk:layout:leftPanelCollapsed')
+    await renderAppWithCollapseObserver()
+
+    await clickElement(screen.getByTestId('open-project'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('sidebar-mock')).toBeInTheDocument()
+      expect(latestRightPanelTabsProps).toBeTruthy()
+    })
+
+    const props = latestRightPanelTabsProps as {
+      onInlineReviewModeChange?: (value: boolean, opts?: { reformatSidebar: boolean }) => void
+    }
+
+    act(() => {
+      props.onInlineReviewModeChange?.(true, { reformatSidebar: true })
+    })
+
+    await waitFor(() => {
+      expect(collapseStates.at(-1)).toBe(true)
+    })
+
+    act(() => {
+      props.onInlineReviewModeChange?.(true, { reformatSidebar: false })
+    })
+
+    await waitFor(() => {
+      expect(collapseStates.at(-1)).toBe(false)
+    })
+
+    act(() => {
+      props.onInlineReviewModeChange?.(false, { reformatSidebar: false })
+    })
+
+    await waitFor(() => {
       expect(collapseStates.at(-1)).toBe(false)
     })
   })

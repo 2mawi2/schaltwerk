@@ -36,9 +36,10 @@ interface RightPanelTabsProps {
   selectionOverride?: Selection
   isSpecOverride?: boolean
   isDragging?: boolean
+  onInlineReviewModeChange?: (isInlineReviewing: boolean, opts?: { reformatSidebar: boolean, hasFiles?: boolean }) => void
 }
 
-const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecOverride, isDragging = false }: RightPanelTabsProps) => {
+const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecOverride, isDragging = false, onInlineReviewModeChange }: RightPanelTabsProps) => {
   const { selection, isSpec, setSelection } = useSelection()
   const projectPath = useAtomValue(projectPathAtom)
   const { setFocusForSession, currentFocus } = useFocus()
@@ -52,7 +53,14 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
   const [changesPanelMode, setChangesPanelMode] = useState<'list' | 'review'>('list')
   const [activeChangesFile, setActiveChangesFile] = useState<string | null>(null)
   const [inlineDiffDefault, setInlineDiffDefault] = useState<boolean | null>(null)
+  const [inlineHasFiles, setInlineHasFiles] = useState(true)
   const diffContainerRef = useRef<HTMLDivElement>(null)
+  const [reformatSidebarEnabled, setReformatSidebarEnabled] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true
+    const stored = window.localStorage.getItem('schaltwerk:inlineReformatSidebar')
+    if (stored === 'false') return false
+    return true
+  })
 
   const specModeHook = useSpecMode({
     projectPath,
@@ -370,7 +378,24 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
   const tabsPresent = showChangesTab || showInfoTab || showSpecTab || showHistoryTab || showSpecsTab || showPreviewTab
   // Enable split mode when viewing Changes for normal running sessions
   const useSplitMode = isRunningSession && activeTab === 'changes'
-  const isInlineReviewing = useSplitMode && changesPanelMode === 'review'
+  const isInlineReviewing = useSplitMode && changesPanelMode === 'review' && inlineHasFiles
+
+  const handleReformatToggle = useCallback((value: boolean) => {
+    setReformatSidebarEnabled(value)
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('schaltwerk:inlineReformatSidebar', value ? 'true' : 'false')
+    }
+    if (isInlineReviewing) {
+      onInlineReviewModeChange?.(true, { reformatSidebar: value })
+    }
+  }, [isInlineReviewing, onInlineReviewModeChange])
+
+  useEffect(() => {
+    onInlineReviewModeChange?.(
+      isInlineReviewing,
+      { reformatSidebar: reformatSidebarEnabled, hasFiles: inlineHasFiles },
+    )
+  }, [isInlineReviewing, onInlineReviewModeChange, reformatSidebarEnabled, inlineHasFiles])
 
   return (
     <div
@@ -413,6 +438,9 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
               isCommander={effectiveSelection.kind === 'orchestrator'}
               onOpenDiff={handleOpenDiff}
               onInlinePreferenceChange={setInlineDiffDefault}
+              reformatSidebarEnabled={reformatSidebarEnabled}
+              onInlineLayoutPreferenceChange={handleReformatToggle}
+              onHasFilesChange={setInlineHasFiles}
             />
           ) : (
             <Split
@@ -436,6 +464,9 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
                   isCommander={effectiveSelection.kind === 'orchestrator'}
                   onOpenDiff={handleOpenDiff}
                   onInlinePreferenceChange={setInlineDiffDefault}
+                  reformatSidebarEnabled={reformatSidebarEnabled}
+                  onInlineLayoutPreferenceChange={handleReformatToggle}
+                  onHasFilesChange={setInlineHasFiles}
                 />
               </div>
               {/* Bottom: Spec content with copy bar */}
@@ -470,6 +501,9 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
                 isCommander={effectiveSelection.kind === 'orchestrator'}
                 onOpenDiff={handleOpenDiff}
                 onInlinePreferenceChange={setInlineDiffDefault}
+                reformatSidebarEnabled={reformatSidebarEnabled}
+                onInlineLayoutPreferenceChange={handleReformatToggle}
+                onHasFilesChange={setInlineHasFiles}
               />
             ) : activeTab === 'info' ? (
               effectiveSelection.kind === 'session' && effectiveIsSpec ? (
@@ -528,6 +562,8 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
                   isCommander={true}
                   onOpenDiff={handleOpenDiff}
                   onInlinePreferenceChange={setInlineDiffDefault}
+                  reformatSidebarEnabled={reformatSidebarEnabled}
+                  onInlineLayoutPreferenceChange={handleReformatToggle}
                 />
               )
             )}

@@ -540,6 +540,14 @@ function AppContent() {
     () => selectSplitRenderSizes(leftDragSizes, leftPanelSizes as [number, number], [20, 80]),
     [leftDragSizes, leftPanelSizes]
   )
+  const autoCollapsedLeftForInlineRef = useRef(false)
+  const inlineReviewActiveRef = useRef(false)
+  const prevCollapsedBeforeInlineRef = useRef<boolean | null>(null)
+  const userTouchedLeftDuringInlineRef = useRef(false)
+  const skipMarkUserChangeRef = useRef(false)
+  const rightSizesBeforeLeftCollapseRef = useRef<number[] | null>(null)
+  const prevLeftCollapsedRef = useRef<boolean | null>(null)
+  const inlineReformatEnabledRef = useRef<boolean | null>(null)
   const previousFocusRef = useRef<Element | null>(null)
   const lastAutoUpdateVersionRef = useRef<string | null>(null)
   const { config: keyboardShortcutConfig } = useKeyboardShortcutsConfig()
@@ -587,6 +595,25 @@ function AppContent() {
         })
     }
   }, [clearPendingPath])
+
+  useEffect(() => {
+    const prev = prevLeftCollapsedRef.current
+    const changed = prev !== null && prev !== isLeftPanelCollapsed
+
+    // React strict/dev may re-run effects without state change; ignore duplicates
+    if (!changed && prev !== null) {
+      prevLeftCollapsedRef.current = isLeftPanelCollapsed
+      skipMarkUserChangeRef.current = false
+      return
+    }
+
+    if (changed && inlineReviewActiveRef.current && !skipMarkUserChangeRef.current) {
+      userTouchedLeftDuringInlineRef.current = true
+    }
+
+    skipMarkUserChangeRef.current = false
+    prevLeftCollapsedRef.current = isLeftPanelCollapsed
+  }, [isLeftPanelCollapsed])
 
   const handleAttentionSummaryChange = useCallback(
     ({ perProjectCounts }: { perProjectCounts: Record<string, number>; totalCount: number }) => {
@@ -720,6 +747,80 @@ function AppContent() {
       return true
     })
   }, [leftPanelLastExpandedSizes, leftPanelSizes, setIsLeftPanelCollapsed, setLeftPanelLastExpandedSizes, setLeftPanelSizes, setLeftDragSizes])
+
+  const handleInlineReviewModeChange = useCallback((isInlineReviewing: boolean, opts?: { reformatSidebar: boolean, hasFiles?: boolean }) => {
+    setLeftDragSizes(null)
+
+    const reformatEnabled = opts?.reformatSidebar ?? true
+    const hasFiles = opts?.hasFiles ?? true
+    const wasInline = inlineReviewActiveRef.current
+    const previousReformat = inlineReformatEnabledRef.current
+
+    inlineReviewActiveRef.current = isInlineReviewing
+    inlineReformatEnabledRef.current = reformatEnabled
+
+    if (isInlineReviewing) {
+      // Transition into inline review
+      if (!wasInline) {
+        prevCollapsedBeforeInlineRef.current = isLeftPanelCollapsed
+        userTouchedLeftDuringInlineRef.current = false
+
+        if (reformatEnabled && hasFiles && !isLeftPanelCollapsed) {
+          autoCollapsedLeftForInlineRef.current = true
+          void setLeftPanelLastExpandedSizes(leftPanelSizes)
+          skipMarkUserChangeRef.current = true
+          void setIsLeftPanelCollapsed(true)
+        } else {
+          autoCollapsedLeftForInlineRef.current = false
+        }
+        return
+      }
+
+      // Already inline: only layout preference may have changed
+      if (previousReformat !== reformatEnabled) {
+        if (reformatEnabled) {
+          if (hasFiles && !isLeftPanelCollapsed) {
+            autoCollapsedLeftForInlineRef.current = true
+            void setLeftPanelLastExpandedSizes(leftPanelSizes)
+            skipMarkUserChangeRef.current = true
+            void setIsLeftPanelCollapsed(true)
+          }
+        } else {
+          // Reformat turned off while inline: undo auto collapse if we triggered it
+          if (autoCollapsedLeftForInlineRef.current && prevCollapsedBeforeInlineRef.current !== null) {
+            skipMarkUserChangeRef.current = true
+            const targetCollapsed = prevCollapsedBeforeInlineRef.current
+            void setIsLeftPanelCollapsed(targetCollapsed)
+            if (!targetCollapsed) {
+              void setLeftPanelSizes(leftPanelLastExpandedSizes as [number, number])
+            }
+            autoCollapsedLeftForInlineRef.current = false
+          }
+        }
+      }
+      return
+    }
+
+    // Exiting inline review
+    if (!wasInline) {
+      return
+    }
+
+    const canRestore = !userTouchedLeftDuringInlineRef.current && prevCollapsedBeforeInlineRef.current !== null
+    if (autoCollapsedLeftForInlineRef.current && canRestore) {
+      skipMarkUserChangeRef.current = true
+      const targetCollapsed = prevCollapsedBeforeInlineRef.current as boolean
+      void setIsLeftPanelCollapsed(targetCollapsed)
+      if (!targetCollapsed) {
+        void setLeftPanelSizes(leftPanelLastExpandedSizes as [number, number])
+      }
+    }
+
+    autoCollapsedLeftForInlineRef.current = false
+    prevCollapsedBeforeInlineRef.current = null
+    userTouchedLeftDuringInlineRef.current = false
+    inlineReformatEnabledRef.current = null
+  }, [isLeftPanelCollapsed, leftPanelLastExpandedSizes, leftPanelSizes, setIsLeftPanelCollapsed, setLeftDragSizes, setLeftPanelLastExpandedSizes, setLeftPanelSizes, inlineReformatEnabledRef])
 
   const handleOpenProject = useCallback(async (path: string) => {
     try {
@@ -1652,6 +1753,30 @@ function AppContent() {
     return [pct, 100 - pct]
   }, [windowWidth])
 
+  useEffect(() => {
+    // When the left sidebar collapses, share the newly freed space evenly between terminal and right panel.
+    // When it re-expands, restore the previous user-defined split.
+    if (isLeftPanelCollapsed) {
+      if (rightSizesBeforeLeftCollapseRef.current === null) {
+        rightSizesBeforeLeftCollapseRef.current = safeRightSizes as number[]
+        const expandedMainPct = leftPanelSizes[1]
+        const collapsedMainPct = collapsedLeftPanelSizes[1]
+        const deltaTotalPct = collapsedMainPct - expandedMainPct
+        if (deltaTotalPct > 0) {
+          const terminalTotal = (safeRightSizes[0] / 100) * expandedMainPct
+        const terminalTotalNew = terminalTotal + deltaTotalPct * 0.4
+        const collapsedMainSafe = collapsedMainPct || 1
+        const terminalPctNew = Math.min(100, Math.max(0, (terminalTotalNew / collapsedMainSafe) * 100))
+        const rightPctNew = 100 - terminalPctNew
+        void setRightSizes([terminalPctNew, rightPctNew])
+      }
+      }
+    } else if (rightSizesBeforeLeftCollapseRef.current) {
+      void setRightSizes(rightSizesBeforeLeftCollapseRef.current as [number, number])
+      rightSizesBeforeLeftCollapseRef.current = null
+    }
+  }, [isLeftPanelCollapsed, collapsedLeftPanelSizes, leftPanelSizes, safeRightSizes, setRightSizes])
+
   const activeTabPath = showHome ? null : (pendingActivePath ?? projectPath)
 
   // Update unified work area ring color when selection changes
@@ -1883,6 +2008,7 @@ function AppContent() {
                           <RightPanelTabs 
                             onOpenHistoryDiff={handleOpenHistoryDiff}
                             isDragging={isDraggingRightSplit}
+                            onInlineReviewModeChange={handleInlineReviewModeChange}
                           />
                         </ErrorBoundary>
                       </section>

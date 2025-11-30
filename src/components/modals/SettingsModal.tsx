@@ -1100,7 +1100,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
 
                         <div
                             className="relative h-64 border border-slate-700 rounded overflow-hidden"
-                            style={{ backgroundColor: theme.colors.background.secondary }}
+                            style={{ backgroundColor: theme.colors.background.primary }}
                         >
                             <MarkdownEditor
                                 value={projectSettings.setupScript}
