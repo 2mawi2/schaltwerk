@@ -5,7 +5,6 @@ import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import { startSessionTop } from '../../common/agentSpawn'
 import { writeTerminalBackend } from '../../terminal/transport/backend'
 import { TERMINAL_FILE_DRAG_TYPE } from '../../common/dragTypes'
-import { UiEvent } from '../../common/uiEvents'
 import { proposeDimensionsWithDpr } from './terminalSizing'
 
 const ATLAS_CONTRAST_BASE = 1.1
@@ -601,7 +600,9 @@ describe('Terminal', () => {
     const addEventListenerSpy = vi
       .spyOn(window, 'addEventListener')
       .mockImplementation((...args: AddEventListenerArgs) => {
-        const [type, listener] = args
+        // Force event type to a string for comparison to avoid worker overload narrowing in TS
+        const [rawType, listener] = args
+        const type = String(rawType)
         if (type === 'resize' && typeof listener === 'function') {
           resizeHandlers.push(listener as (evt?: Event) => void)
         }
