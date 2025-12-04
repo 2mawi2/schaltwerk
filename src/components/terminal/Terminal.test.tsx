@@ -5,6 +5,8 @@ import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import { startSessionTop } from '../../common/agentSpawn'
 import { writeTerminalBackend } from '../../terminal/transport/backend'
 import { TERMINAL_FILE_DRAG_TYPE } from '../../common/dragTypes'
+import { UiEvent } from '../../common/uiEvents'
+import { proposeDimensionsWithDpr } from './terminalSizing'
 
 const ATLAS_CONTRAST_BASE = 1.1
 
@@ -83,6 +85,7 @@ type HarnessConfig = {
 type HarnessInstance = {
   config: HarnessConfig
   applyConfig: ReturnType<typeof vi.fn>
+  attach: ReturnType<typeof vi.fn>
   fitAddon: { fit: ReturnType<typeof vi.fn>; proposeDimensions?: () => { cols: number; rows: number } }
   searchAddon: { findNext: ReturnType<typeof vi.fn>; findPrevious: ReturnType<typeof vi.fn> }
   setFileLinkHandler: ReturnType<typeof vi.fn>
@@ -130,6 +133,14 @@ const terminalHarness = vi.hoisted(() => {
       options: { fontFamily: 'Menlo, Monaco, ui-monospace, SFMono-Regular, monospace', minimumContrastRatio: ATLAS_CONTRAST_BASE },
       cols: 80,
       rows: 24,
+      _core: {
+        _renderService: {
+          dimensions: {
+            actualCellWidth: 0,
+            actualCellHeight: 0,
+          },
+        },
+      },
       buffer: {
         active: {
           viewportY: 0,
@@ -327,6 +338,12 @@ vi.mock('../../common/agentSpawn', () => ({
   AGENT_START_TIMEOUT_MESSAGE: 'timeout',
 }))
 
+const ptyResizeMock = vi.hoisted(() => ({
+  schedulePtyResize: vi.fn(),
+}))
+
+vi.mock('../../common/ptyResizeScheduler', () => ptyResizeMock)
+
 vi.mock('../../utils/singleflight', () => ({
   clearInflights: vi.fn(),
 }))
@@ -394,6 +411,18 @@ beforeEach(() => {
   }))
   registryMocks.hasTerminalInstance.mockReturnValue(false)
   vi.mocked(startSessionTop).mockClear()
+})
+
+describe('proposeDimensionsWithDpr', () => {
+  it('scales measured dimensions by DPR and cell size', () => {
+    const result = proposeDimensionsWithDpr({ width: 800, height: 600 }, 10, 20, 2)
+    expect(result).toEqual({ cols: 160, rows: 60 })
+  })
+
+  it('returns undefined when cell metrics are missing', () => {
+    expect(proposeDimensionsWithDpr({ width: 800, height: 600 }, Number.NaN, 20, 2)).toBeUndefined()
+    expect(proposeDimensionsWithDpr({ width: 800, height: 600 }, 10, Number.NaN, 2)).toBeUndefined()
+  })
 })
 
 describe('Terminal', () => {
@@ -549,6 +578,77 @@ describe('Terminal', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('forces a fit when devicePixelRatio changes', async () => {
+    const originalMatchMedia = globalThis.matchMedia
+    const originalDpr = globalThis.devicePixelRatio
+
+    const matchMediaMock = vi.fn((query: string) => {
+      return {
+        media: query,
+        matches: true,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+      } as unknown as MediaQueryList
+    })
+
+    const originalAddEventListener = window.addEventListener
+    const resizeHandlers: Array<(evt?: Event) => void> = []
+    type AddEventListenerArgs = Parameters<typeof window.addEventListener>
+    const addEventListenerSpy = vi
+      .spyOn(window, 'addEventListener')
+      .mockImplementation((...args: AddEventListenerArgs) => {
+        const [type, listener] = args
+        if (type === 'resize' && typeof listener === 'function') {
+          resizeHandlers.push(listener as (evt?: Event) => void)
+        }
+        return originalAddEventListener.apply(window, args)
+      })
+
+    vi.stubGlobal('matchMedia', matchMediaMock)
+    // Ensure jsdom window sees the mock
+    ;(window as unknown as { matchMedia: typeof matchMediaMock }).matchMedia = matchMediaMock
+    Object.defineProperty(globalThis, 'devicePixelRatio', { value: 1, configurable: true })
+
+    render(<Terminal terminalId="session-dpr-top" sessionName="dpr" />)
+
+    await waitFor(() => {
+      expect(terminalHarness.acquireMock).toHaveBeenCalled()
+      expect(terminalHarness.instances.length).toBeGreaterThan(0)
+    })
+
+    const instance = terminalHarness.instances[0] as HarnessInstance
+    await waitFor(() => {
+      expect(instance.attach).toHaveBeenCalled()
+    })
+
+    expect(matchMediaMock).toHaveBeenCalled()
+    expect(resizeHandlers.length).toBeGreaterThan(0)
+
+    const terminalContainer = document.querySelector('[data-smartdash-exempt="true"]') as HTMLDivElement | null
+    const inner = terminalContainer?.firstElementChild as HTMLDivElement | null
+    expect(inner).toBeTruthy()
+    vi.spyOn(inner!, 'clientWidth', 'get').mockReturnValue(800)
+    vi.spyOn(inner!, 'clientHeight', 'get').mockReturnValue(600)
+
+    Object.defineProperty(globalThis, 'devicePixelRatio', { value: 2, configurable: true })
+    await act(async () => {
+      window.dispatchEvent(new Event('resize'))
+      resizeHandlers.forEach(handler => handler(new Event('resize')))
+    })
+
+    // Restore globals
+    addEventListenerSpy.mockRestore()
+    if (originalMatchMedia) {
+      vi.stubGlobal('matchMedia', originalMatchMedia)
+    } else {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(globalThis as any).matchMedia = undefined
+    }
+    Object.defineProperty(globalThis, 'devicePixelRatio', { value: originalDpr ?? 1, configurable: true })
   })
 
   it('does not render the loading overlay when the terminal is already hydrated', async () => {

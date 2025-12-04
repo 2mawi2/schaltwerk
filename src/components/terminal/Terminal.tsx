@@ -43,6 +43,7 @@ import {
     MIN_TERMINAL_COLUMNS,
     MIN_PROPOSED_COLUMNS,
     isMeasurementTooSmall,
+    proposeDimensionsWithDpr,
 } from './terminalSizing'
 import { shouldEmitControlPaste, shouldEmitControlNewline } from './terminalKeybindings'
 import { hydrateReusedTerminal } from './hydration'
@@ -286,6 +287,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const lastSigintAtRef = useRef<number | null>(null);
     const [isSearchVisible, setIsSearchVisible] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [maskDuringFit, setMaskDuringFit] = useState(false);
     const handleSearchTermChange = useCallback((value: string) => {
         setSearchTerm(value);
     }, []);
@@ -577,7 +579,13 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         lastMeasuredDimensionsRef.current = measured;
 
         const proposer = fitAddon.current as unknown as { proposeDimensions?: () => { cols: number; rows: number } | undefined };
-        const proposed = proposer.proposeDimensions?.();
+        const core = terminal.current as unknown as { _core?: { _renderService?: { dimensions?: { actualCellWidth?: number; actualCellHeight?: number } } } };
+        const proposed = proposer.proposeDimensions?.() ?? proposeDimensionsWithDpr(
+            measured,
+            core?._core?._renderService?.dimensions?.actualCellWidth ?? NaN,
+            core?._core?._renderService?.dimensions?.actualCellHeight ?? NaN,
+            Number.isFinite(window.devicePixelRatio) ? window.devicePixelRatio : 1,
+        );
         if (!proposed || !Number.isFinite(proposed.cols) || !Number.isFinite(proposed.rows) || proposed.cols <= 0 || proposed.rows <= 0) {
             return;
         }
@@ -721,6 +729,88 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         }
         xtermWrapperRef.current.setSmoothScrolling(smoothScrollingEnabled && isPhysicalWheelRef.current);
     }, [smoothScrollingEnabled]);
+
+    // Re-fit and realign the viewport when devicePixelRatio changes (e.g., moving between displays)
+    useEffect(() => {
+        if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+            return;
+        }
+
+        let disposed = false;
+        let currentDpr = Number.isFinite(window.devicePixelRatio) ? window.devicePixelRatio : 1;
+        let mediaQuery: MediaQueryList | null = null;
+
+        const refreshForDpr = () => {
+            if (disposed) return;
+            if (!fitAddon.current && xtermWrapperRef.current) {
+                fitAddon.current = xtermWrapperRef.current.fitAddon;
+            }
+            try {
+                fitAddon.current?.fit();
+            } catch (error) {
+                logger.debug(`[Terminal ${terminalId}] DPR change fit failed`, error);
+            }
+            try {
+                requestResize('dpr-change', { immediate: true, force: true });
+            } catch (error) {
+                logger.debug(`[Terminal ${terminalId}] DPR change resize failed`, error);
+            }
+            try {
+                viewportControllerRef.current?.onResize();
+            } catch (error) {
+                logger.debug(`[Terminal ${terminalId}] DPR change viewport snap failed`, error);
+            }
+        };
+
+        const handleChange = () => {
+            const nextDpr = Number.isFinite(window.devicePixelRatio) ? window.devicePixelRatio : currentDpr;
+            if (Math.abs(nextDpr - currentDpr) < 0.001) {
+                // Even if DPR is unchanged, force a refresh to keep metrics in sync
+                refreshForDpr();
+                return;
+            }
+            currentDpr = nextDpr;
+            refreshForDpr();
+            register();
+        };
+
+        const cleanupMedia = () => {
+            if (mediaQuery) {
+                try {
+                    mediaQuery.removeEventListener?.('change', handleChange);
+                    // Fallback for older browsers
+                    mediaQuery.removeListener?.(handleChange as unknown as EventListener);
+                } catch (error) {
+                    logger.debug(`[Terminal ${terminalId}] DPR listener cleanup failed`, error);
+                }
+            }
+            mediaQuery = null;
+        };
+
+        const register = () => {
+            cleanupMedia();
+            mediaQuery = window.matchMedia(`(resolution: ${currentDpr}dppx)`);
+            try {
+                mediaQuery.addEventListener?.('change', handleChange);
+                // Fallback for older browsers
+                mediaQuery.addListener?.(handleChange as unknown as EventListener);
+            } catch (error) {
+                logger.debug(`[Terminal ${terminalId}] DPR listener registration failed`, error);
+            }
+        };
+
+        register();
+        refreshForDpr();
+
+        const handleWindowResize = () => handleChange();
+        window.addEventListener('resize', handleWindowResize, { passive: true });
+
+        return () => {
+            disposed = true;
+            cleanupMedia();
+            window.removeEventListener('resize', handleWindowResize);
+        };
+    }, [requestResize, terminalId]);
 
 
     useEffect(() => {
@@ -1148,6 +1238,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
         const atlasContrast = ATLAS_CONTRAST_BASE;
 
+        setMaskDuringFit(true);
+
         const { record, isNew } = acquireTerminalInstance(terminalId, () => new XtermTerminal({
             terminalId,
             config: {
@@ -1222,6 +1314,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 requestResize('initial-fit', { immediate: true, force: true });
                 const { cols, rows } = terminal.current;
                 logger.info(`[Terminal ${terminalId}] Initial fit: ${cols}x${rows} (container: ${containerWidth}x${containerHeight})`);
+                setMaskDuringFit(false);
             } catch (e) {
                 logger.warn(`[Terminal ${terminalId}] Initial fit failed:`, e);
             }
@@ -1245,6 +1338,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                         } catch (e) {
                             logger.warn(`[Terminal ${terminalId}] Early initial resize failed:`, e);
                         }
+                        setMaskDuringFit(false);
                     }
 
                     if (gpuEnabledForTerminal) {
@@ -1258,6 +1352,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                             try {
                                 fitAddon.current.fit();
                                 requestResize('post-init', { immediate: true, force: true });
+                                setMaskDuringFit(false);
                             } catch (e) {
                                 logger.warn(`[Terminal ${terminalId}] Post-init fit failed:`, e);
                             }
@@ -2067,6 +2162,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
              <div
                  ref={termRef}
                  className={`h-full w-full overflow-hidden transition-opacity duration-150 ${!hydrated ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+                 style={maskDuringFit ? { visibility: 'hidden' } : undefined}
              />
              {isAgentTopTerminal && agentStopped && hydrated && terminalEverStartedRef.current && (
                  <div className="absolute inset-0 flex items-center justify-center z-30">
