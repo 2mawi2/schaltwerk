@@ -878,12 +878,13 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                 focusTimeoutRef.current = undefined
             }
             if (!hasFocusedDuringOpenRef.current) {
-                hasFocusedDuringOpenRef.current = true
                 focusTimeoutRef.current = window.setTimeout(() => {
-                    if (cachedPrompt) {
-                        markdownEditorRef.current?.focusEnd()
-                    } else {
-                        markdownEditorRef.current?.focus()
+                    hasFocusedDuringOpenRef.current = true
+                    if (initialIsDraft && markdownEditorRef.current) {
+                        markdownEditorRef.current.focusEnd()
+                    } else if (nameInputRef.current) {
+                        nameInputRef.current.focus()
+                        nameInputRef.current.select()
                     }
                 }, 100)
             }
