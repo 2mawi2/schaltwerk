@@ -18,7 +18,7 @@ interface SessionVersionGroupProps {
   startIndex: number  // The starting index of this group in the overall sessions list
 
   hasFollowUpMessage: (sessionId: string) => boolean
-  onSelect: (index: number) => void
+  onSelect: (sessionId: string) => void
   onMarkReady: (sessionId: string) => void
   onUnmarkReady: (sessionId: string) => void
   onCancel: (sessionId: string, hasUncommitted: boolean) => void

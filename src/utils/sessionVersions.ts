@@ -11,6 +11,7 @@ export interface SessionVersion {
 }
 
 export interface SessionVersionGroup {
+  id: string
   baseName: string
   versions: SessionVersion[]
   isVersionGroup: boolean // true if multiple versions exist
@@ -107,6 +108,7 @@ export function groupSessionsByVersion(sessions: EnrichedSession[]): SessionVers
     const displayBaseName = displayNameMap.get(groupKey) || defaultBaseName
     
     result.push({
+      id: groupKey,
       baseName: displayBaseName,
       versions,
       isVersionGroup: versions.length > 1

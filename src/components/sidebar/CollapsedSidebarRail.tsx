@@ -8,7 +8,7 @@ interface CollapsedSidebarRailProps {
   selection: Selection
   hasFollowUpMessage: (sessionId: string) => boolean
   isSessionRunning?: (sessionId: string) => boolean
-  onSelect: (index: number) => void
+  onSelect: (sessionOrIndex: string | number) => void
   onExpandRequest?: () => void
 }
 

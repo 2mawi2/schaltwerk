@@ -470,8 +470,11 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const handleSelectOrchestrator = useCallback(async () => {
         await setSelection({ kind: 'orchestrator' }, false, true) // User clicked - intentional
     }, [setSelection])
-    const handleSelectSession = async (index: number) => {
-        const session = flattenedSessions[index]
+    const handleSelectSession = async (sessionOrIndex: string | number) => {
+        const session = typeof sessionOrIndex === 'number'
+            ? flattenedSessions[sessionOrIndex]
+            : flattenedSessions.find(s => s.info.session_id === sessionOrIndex)
+
         if (session) {
             const s = session.info
             
@@ -1357,7 +1360,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                             selection={selection}
                             hasFollowUpMessage={(sessionId: string) => sessionsWithNotifications.has(sessionId)}
                             isSessionRunning={isSessionRunning}
-                            onSelect={(index) => { void handleSelectSession(index) }}
+                            onSelect={(sessionOrIndex) => { void handleSelectSession(sessionOrIndex) }}
                             onExpandRequest={onExpandRequest}
                         />
                     ) : (
@@ -1371,14 +1374,14 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                 
                                 return (
                                     <SessionVersionGroup
-                                        key={group.baseName}
+                                        key={group.id}
                                         group={group}
                                         selection={selection}
                                         startIndex={groupStartIndex}
 
                                         hasFollowUpMessage={(sessionId: string) => sessionsWithNotifications.has(sessionId)}
-                                        onSelect={(index) => {
-                                            void handleSelectSession(index)
+                                        onSelect={(sessionOrIndex) => {
+                                            void handleSelectSession(sessionOrIndex)
                                         }}
                                         onMarkReady={(sessionId) => {
                                             if (markReadyCooldownRef.current) {

@@ -27,7 +27,7 @@ interface SessionCardProps {
   showPromoteIcon?: boolean;
   willBeDeleted?: boolean;
   isPromotionPreview?: boolean;
-  onSelect: (index: number) => void;
+  onSelect: (sessionId: string) => void;
   onMarkReady: (sessionId: string) => void;
   onUnmarkReady: (sessionId: string) => void;
   onCancel: (sessionId: string, hasUncommitted: boolean) => void;
@@ -270,13 +270,13 @@ export const SessionCard = memo<SessionCardProps>(
         aria-busy={isBusy}
         onClick={() => {
           if (isBusy) return;
-          onSelect(index);
+          onSelect(session.info.session_id);
         }}
         onKeyDown={(e) => {
           if (isBusy) return;
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
-            onSelect(index);
+            onSelect(session.info.session_id);
           }
         }}
         data-session-id={session.info.session_id}
