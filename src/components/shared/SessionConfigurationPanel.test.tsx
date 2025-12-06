@@ -461,14 +461,14 @@ describe('useSessionConfiguration', () => {
     test('returns initial configuration and update function', () => {
         const TestComponent = () => {
             const [config, updateConfig] = useSessionConfiguration()
-            
+
             return (
                 <div>
                     <div data-testid="base-branch">{config.baseBranch}</div>
                     <div data-testid="agent-type">{config.agentType}</div>
                     <div data-testid="skip-permissions">{config.skipPermissions.toString()}</div>
                     <div data-testid="is-valid">{config.isValid.toString()}</div>
-                    <button 
+                    <button
                         onClick={() => updateConfig({ baseBranch: 'develop', isValid: true })}
                         data-testid="update-config"
                     >
@@ -479,7 +479,7 @@ describe('useSessionConfiguration', () => {
         }
 
         render(<TestComponent />)
-        
+
         expect(screen.getByTestId('base-branch')).toHaveTextContent('')
         expect(screen.getByTestId('agent-type')).toHaveTextContent('claude')
         expect(screen.getByTestId('skip-permissions')).toHaveTextContent('false')
@@ -494,12 +494,12 @@ describe('useSessionConfiguration', () => {
     test('preserves existing config when updating partial values', () => {
         const TestComponent = () => {
             const [config, updateConfig] = useSessionConfiguration()
-            
+
             return (
                 <div>
                     <div data-testid="agent-type">{config.agentType}</div>
                     <div data-testid="skip-permissions">{config.skipPermissions.toString()}</div>
-                    <button 
+                    <button
                         onClick={() => updateConfig({ skipPermissions: true })}
                         data-testid="update-skip-permissions"
                     >
@@ -510,7 +510,7 @@ describe('useSessionConfiguration', () => {
         }
 
         render(<TestComponent />)
-        
+
         expect(screen.getByTestId('agent-type')).toHaveTextContent('claude')
         expect(screen.getByTestId('skip-permissions')).toHaveTextContent('false')
 
@@ -518,5 +518,68 @@ describe('useSessionConfiguration', () => {
 
         expect(screen.getByTestId('agent-type')).toHaveTextContent('claude') // Preserved
         expect(screen.getByTestId('skip-permissions')).toHaveTextContent('true') // Updated
+    })
+})
+
+describe('SessionConfigurationPanel with empty branch prefix', () => {
+    beforeEach(() => {
+        vi.clearAllMocks()
+        mockInvoke.mockImplementation((command: string) => {
+            switch (command) {
+                case TauriCommands.ListProjectBranches:
+                    return Promise.resolve(['main', 'develop'])
+                case TauriCommands.GetProjectDefaultBaseBranch:
+                    return Promise.resolve('main')
+                case TauriCommands.GetProjectDefaultBranch:
+                    return Promise.resolve('main')
+                case TauriCommands.GetProjectSettings:
+                    return Promise.resolve({ setup_script: '', branch_prefix: '' })
+                case TauriCommands.RepositoryIsEmpty:
+                    return Promise.resolve(false)
+                case TauriCommands.SetProjectDefaultBaseBranch:
+                    return Promise.resolve()
+                default:
+                    return Promise.resolve()
+            }
+        })
+    })
+
+    test('shows session name only in placeholder when branch prefix is empty', async () => {
+        render(
+            <SessionConfigurationPanel
+                variant="modal"
+                sessionName="my-feature"
+                onBaseBranchChange={vi.fn()}
+                onAgentTypeChange={vi.fn()}
+                onSkipPermissionsChange={vi.fn()}
+            />
+        )
+
+        await waitFor(() => {
+            expect(screen.getByTestId('branch-autocomplete')).toBeInTheDocument()
+        })
+
+        const branchInput = screen.getByPlaceholderText('my-feature')
+        expect(branchInput).toBeInTheDocument()
+    })
+
+    test('shows placeholder without leading slash when branch prefix is empty', async () => {
+        render(
+            <SessionConfigurationPanel
+                variant="modal"
+                sessionName="test-session"
+                onBaseBranchChange={vi.fn()}
+                onAgentTypeChange={vi.fn()}
+                onSkipPermissionsChange={vi.fn()}
+            />
+        )
+
+        await waitFor(() => {
+            expect(screen.getByTestId('branch-autocomplete')).toBeInTheDocument()
+        })
+
+        const helpText = screen.getByText(/New branch name for this session/)
+        expect(helpText).toHaveTextContent('test-session')
+        expect(helpText.textContent).not.toContain('/test-session')
     })
 })

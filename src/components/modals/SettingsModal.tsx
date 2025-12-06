@@ -301,7 +301,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
     const [projectAvailable, setProjectAvailable] = useState<boolean>(false)
     const [projectSettings, setProjectSettings] = useState<ProjectSettings>({
         setupScript: '',
-        branchPrefix: 'schaltwerk',
+        branchPrefix: '',
         environmentVariables: []
     })
     const [terminalSettings, setTerminalSettings] = useState<TerminalSettings>({
@@ -660,7 +660,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
         ])
         
         // Load project-specific settings (may fail if no project is open)
-        let loadedProjectSettings: ProjectSettings = { setupScript: '', branchPrefix: 'schaltwerk', environmentVariables: [] }
+        let loadedProjectSettings: ProjectSettings = { setupScript: '', branchPrefix: '', environmentVariables: [] }
         let loadedTerminalSettings: TerminalSettings = { shell: null, shellArgs: [], fontFamily: null, webglEnabled: true }
         let loadedRunScript: RunScript = { command: '', workingDirectory: '', environmentVariables: {} }
         let loadedMergePreferences: ProjectMergePreferences = { autoCancelAfterMerge: true }
@@ -1047,7 +1047,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
                     <div>
                         <h3 className="text-body font-medium text-slate-200 mb-2">Branch Prefix</h3>
                         <div className="text-body text-slate-400 mb-3">
-                            Configure the default Git branch prefix used when creating new Schaltwerk sessions. Use slashes to nest groups (for example <code className={theme.colors.accent.blue.DEFAULT}>team/frontend</code>). Spaces will be converted to hyphens automatically.
+                            Configure the default Git branch prefix used when creating new Schaltwerk sessions. Leave empty to use session names directly as branch names. Use slashes to nest groups (for example <code className={theme.colors.accent.blue.DEFAULT}>team/frontend</code>). Spaces will be converted to hyphens automatically.
                         </div>
                         <input
                             type="text"
@@ -1057,7 +1057,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
                                 setProjectSettings(prev => ({ ...prev, branchPrefix: sanitized }))
                                 setHasUnsavedChanges(true)
                             }}
-                            placeholder="schaltwerk"
+                            placeholder=""
                             className={`w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 text-body focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
                             spellCheck={false}
                         />

@@ -6,17 +6,12 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
-pub const DEFAULT_BRANCH_PREFIX: &str = "schaltwerk";
+pub const DEFAULT_BRANCH_PREFIX: &str = "";
 
 fn normalize_branch_prefix(input: &str) -> String {
     let trimmed = input.trim();
     let trimmed = trimmed.trim_matches('/');
-    let normalized = trimmed.trim();
-    if normalized.is_empty() {
-        DEFAULT_BRANCH_PREFIX.to_string()
-    } else {
-        normalized.to_string()
-    }
+    trimmed.trim().to_string()
 }
 
 const SQUASH_MERGE_MAIN_PROMPT: &str = r#"Task: Squash-merge all reviewed Schaltwerk sessions
@@ -893,5 +888,74 @@ mod tests {
             preferences.auto_cancel_after_merge,
             "expected auto-cancel-after-merge to default to true for new projects"
         );
+    }
+
+    #[test]
+    fn normalize_branch_prefix_allows_empty_string() {
+        assert_eq!(normalize_branch_prefix(""), "");
+    }
+
+    #[test]
+    fn normalize_branch_prefix_trims_whitespace() {
+        assert_eq!(normalize_branch_prefix("  prefix  "), "prefix");
+    }
+
+    #[test]
+    fn normalize_branch_prefix_removes_slashes() {
+        assert_eq!(normalize_branch_prefix("/prefix/"), "prefix");
+        assert_eq!(normalize_branch_prefix("///prefix///"), "prefix");
+    }
+
+    #[test]
+    fn normalize_branch_prefix_preserves_internal_slashes() {
+        assert_eq!(normalize_branch_prefix("team/feature"), "team/feature");
+    }
+
+    #[test]
+    fn normalize_branch_prefix_handles_whitespace_only_as_empty() {
+        assert_eq!(normalize_branch_prefix("   "), "");
+    }
+
+    #[test]
+    fn branch_prefix_round_trip_with_empty_string() {
+        let db = Database::new_in_memory().expect("db");
+        let (_tmp, repo_path) = create_temp_repo_path();
+
+        db.set_project_branch_prefix(&repo_path, "")
+            .expect("store empty branch prefix");
+
+        let loaded = db
+            .get_project_branch_prefix(&repo_path)
+            .expect("load branch prefix");
+
+        assert_eq!(loaded, "");
+    }
+
+    #[test]
+    fn branch_prefix_defaults_to_empty_when_not_set() {
+        let db = Database::new_in_memory().expect("db");
+        let (_tmp, repo_path) = create_temp_repo_path();
+
+        let loaded = db
+            .get_project_branch_prefix(&repo_path)
+            .expect("load branch prefix");
+
+        assert_eq!(loaded, DEFAULT_BRANCH_PREFIX);
+        assert!(loaded.is_empty());
+    }
+
+    #[test]
+    fn branch_prefix_round_trip_with_custom_value() {
+        let db = Database::new_in_memory().expect("db");
+        let (_tmp, repo_path) = create_temp_repo_path();
+
+        db.set_project_branch_prefix(&repo_path, "custom-prefix")
+            .expect("store custom branch prefix");
+
+        let loaded = db
+            .get_project_branch_prefix(&repo_path)
+            .expect("load branch prefix");
+
+        assert_eq!(loaded, "custom-prefix");
     }
 }

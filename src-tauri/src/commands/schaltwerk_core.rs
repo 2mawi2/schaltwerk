@@ -7,6 +7,7 @@ use schaltwerk::infrastructure::events::{SchaltEvent, emit_event};
 use schaltwerk::schaltwerk_core::SessionManager;
 use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
 use schaltwerk::schaltwerk_core::db_project_config::{DEFAULT_BRANCH_PREFIX, ProjectConfigMethods};
+use schaltwerk::services::format_branch_name;
 use schaltwerk::services::MergeStateSnapshot;
 use schaltwerk::services::ServiceHandles;
 use schaltwerk::services::SessionMethods;
@@ -941,7 +942,7 @@ pub async fn schaltwerk_core_rename_version_group(
         // Extract version suffix
         let version_suffix = session.name.strip_prefix(&base_name).unwrap_or("");
         let new_session_name = format!("{generated_name}{version_suffix}");
-        let new_branch_name = format!("{branch_prefix}/{new_session_name}");
+        let new_branch_name = format_branch_name(&branch_prefix, &new_session_name);
 
         log::info!(
             "Renaming session '{}' to '{new_session_name}'",

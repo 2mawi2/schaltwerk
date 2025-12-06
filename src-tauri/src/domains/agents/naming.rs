@@ -4,6 +4,7 @@ use crate::{
         DEFAULT_BRANCH_PREFIX, Database, db_project_config::ProjectConfigMethods,
         db_specs::SpecMethods,
     },
+    shared::format_branch_name,
     shared::session_metadata_gateway::SessionMetadataGateway,
 };
 
@@ -131,7 +132,7 @@ pub async fn generate_display_name_and_rename_branch(
                 log::warn!("Falling back to default branch prefix during agent rename: {err}");
                 DEFAULT_BRANCH_PREFIX.to_string()
             });
-        let new_branch = format!("{branch_prefix}/{new_name}");
+        let new_branch = format_branch_name(&branch_prefix, new_name);
 
         if current_branch != new_branch {
             log::info!("Renaming branch from '{current_branch}' to '{new_branch}'");
