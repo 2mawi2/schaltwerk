@@ -481,7 +481,7 @@ export class SchaltwerkBridge {
     }
   }
 
-  async createSession(name: string, prompt?: string, baseBranch?: string, agentType?: string, skipPermissions?: boolean): Promise<Session> {
+  async createSession(name: string, prompt?: string, baseBranch?: string, useExistingBranch?: boolean, agentType?: string, skipPermissions?: boolean): Promise<Session> {
     try {
       const response = await this.fetchWithAutoPort('/api/sessions', {
         method: 'POST',
@@ -493,6 +493,8 @@ export class SchaltwerkBridge {
           name,
           prompt,
           base_branch: baseBranch,
+          custom_branch: useExistingBranch ? baseBranch : undefined,
+          use_existing_branch: useExistingBranch,
           agent_type: agentType,
           skip_permissions: skipPermissions,
           user_edited_name: false

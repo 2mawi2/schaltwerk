@@ -361,6 +361,7 @@ mod tests {
                     prompt: None,
                     base_branch: None,
                     custom_branch: None,
+                    use_existing_branch: false,
                     was_auto_generated: false,
                     version_group_id: None,
                     version_number: None,
