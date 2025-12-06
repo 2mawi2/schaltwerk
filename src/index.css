@@ -113,11 +113,17 @@ button:disabled {
 
 .gutter.gutter-horizontal {
   cursor: ew-resize !important;
-  /* Enlarge the interactive hitbox without changing layout */
-  padding-left: 8px;
-  padding-right: 8px;
-  margin-left: -8px;
-  margin-right: -8px;
+  /* Enlarge the interactive hitbox without changing layout.
+     Extend only to the left to avoid overlapping terminal scrollbars on the right. */
+  padding-left: 4px;
+  padding-right: 0;
+  margin-left: -4px;
+  margin-right: 0;
+}
+
+.gutter.gutter-horizontal::before {
+  left: 0;
+  right: 0;
 }
 
 .gutter.gutter-vertical {
@@ -220,7 +226,7 @@ body.is-split-dragging [class*="transition-"] {
 
 /* Allow xterm terminals to show scrollbars */
 .xterm-viewport::-webkit-scrollbar {
-  width: 4px;
+  width: 8px;
   background-color: transparent;
 }
 
