@@ -34,7 +34,7 @@ interface ProjectSettings {
     environmentVariables: Array<{key: string, value: string}>
 }
 
-const DEFAULT_BRANCH_PREFIX = 'schaltwerk'
+const DEFAULT_BRANCH_PREFIX = ''
 
 const extractErrorMessage = (error: unknown): string => {
     if (error instanceof Error && error.message) return error.message
@@ -129,8 +129,7 @@ export const useSettings = () => {
     const saveProjectSettings = useCallback(async (projectSettings: ProjectSettings): Promise<void> => {
         const trimmed = projectSettings.branchPrefix.trim()
         const withoutWhitespace = trimmed.replace(/\s+/g, '-')
-        const normalized = withoutWhitespace.replace(/^\/+|\/+$/g, '')
-        const branchPrefix = normalized || DEFAULT_BRANCH_PREFIX
+        const branchPrefix = withoutWhitespace.replace(/^\/+|\/+$/g, '')
         await invoke(TauriCommands.SetProjectSettings, {
             settings: {
                 setupScript: projectSettings.setupScript,
@@ -302,10 +301,10 @@ export const useSettings = () => {
             const settings = await invoke<ProjectSettings>(TauriCommands.GetProjectSettings)
             const envVars = await invoke<Record<string, string>>(TauriCommands.GetProjectEnvironmentVariables)
             const envVarArray = Object.entries(envVars || {}).map(([key, value]) => ({ key, value }))
-            
+
             return {
                 setupScript: settings?.setupScript || '',
-                branchPrefix: settings?.branchPrefix || DEFAULT_BRANCH_PREFIX,
+                branchPrefix: settings?.branchPrefix ?? DEFAULT_BRANCH_PREFIX,
                 environmentVariables: envVarArray,
             }
         } catch (error) {

@@ -814,7 +814,7 @@ describe('useSettings', () => {
 
       expect(settings).toEqual({
         setupScript: '',
-        branchPrefix: 'schaltwerk',
+        branchPrefix: '',
         environmentVariables: []
       })
     })
@@ -831,14 +831,14 @@ describe('useSettings', () => {
       })
 
       const { result } = renderHook(() => useSettings())
-      
+
       const settings = await act(async () => {
         return await result.current.loadProjectSettings()
       })
 
       expect(settings).toEqual({
         setupScript: '',
-        branchPrefix: 'schaltwerk',
+        branchPrefix: '',
         environmentVariables: []
       })
     })
@@ -928,6 +928,70 @@ describe('useSettings', () => {
 
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.GetKeyboardShortcuts)
       expect(shortcuts[KeyboardShortcutAction.CancelSession]).toEqual(['Mod+D'])
+    })
+  })
+
+  describe('empty branch prefix', () => {
+    it('saves empty string branch prefix without fallback to default', async () => {
+      const { result } = renderHook(() => useSettings())
+
+      const projectSettings = {
+        setupScript: '',
+        branchPrefix: '',
+        environmentVariables: []
+      }
+
+      await act(async () => {
+        await result.current.saveProjectSettings(projectSettings)
+      })
+
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetProjectSettings, {
+        settings: {
+          setupScript: '',
+          branchPrefix: '',
+        }
+      })
+    })
+
+    it('saves whitespace-only branch prefix as empty string', async () => {
+      const { result } = renderHook(() => useSettings())
+
+      const projectSettings = {
+        setupScript: '',
+        branchPrefix: '   ',
+        environmentVariables: []
+      }
+
+      await act(async () => {
+        await result.current.saveProjectSettings(projectSettings)
+      })
+
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetProjectSettings, {
+        settings: {
+          setupScript: '',
+          branchPrefix: '',
+        }
+      })
+    })
+
+    it('loads empty branch prefix from backend without replacing with default', async () => {
+      mockInvoke.mockImplementation((command: string) => {
+        if (command === TauriCommands.GetProjectSettings) {
+          return Promise.resolve({ setupScript: '', branchPrefix: '' })
+        }
+        if (command === TauriCommands.GetProjectEnvironmentVariables) {
+          return Promise.resolve({})
+        }
+        return Promise.resolve()
+      })
+
+      const { result } = renderHook(() => useSettings())
+
+      const settings = await act(async () => {
+        return await result.current.loadProjectSettings()
+      })
+
+      expect(settings.branchPrefix).toBe('')
     })
   })
 })

@@ -114,10 +114,10 @@ export function SessionConfigurationPanel({
                 invoke<string>(TauriCommands.GetProjectDefaultBranch),
                 getSkipPermissionsRef.current(),
                 getAgentTypeRef.current(),
-                invoke<{ branch_prefix: string }>(TauriCommands.GetProjectSettings).catch(() => ({ branch_prefix: 'schaltwerk' }))
+                invoke<{ branch_prefix: string }>(TauriCommands.GetProjectSettings).catch(() => ({ branch_prefix: '' }))
             ])
 
-            const storedBranchPrefix = projectSettings.branch_prefix || 'schaltwerk'
+            const storedBranchPrefix = projectSettings.branch_prefix ?? ''
 
             setBranches(branchList)
             setBranchPrefix(storedBranchPrefix)
@@ -332,9 +332,9 @@ export function SessionConfigurationPanel({
     }
 
     const normalizedSessionName = sessionName.replace(/ /g, '_')
-    const branchPlaceholder = normalizedSessionName
-        ? `${branchPrefix}/${normalizedSessionName}`
-        : `${branchPrefix}/your-session-name`
+    const branchPlaceholder = branchPrefix
+        ? (normalizedSessionName ? `${branchPrefix}/${normalizedSessionName}` : `${branchPrefix}/your-session-name`)
+        : (normalizedSessionName || 'your-session-name')
 
     return (
         <div className="grid grid-cols-2 gap-3">

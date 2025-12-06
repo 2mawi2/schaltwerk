@@ -5,6 +5,7 @@ use crate::{
     domains::sessions::repository::SessionDbManager,
     domains::terminal::{build_login_shell_invocation, sh_quote_string},
     infrastructure::database::{DEFAULT_BRANCH_PREFIX, ProjectConfigMethods},
+    shared::format_branch_name,
 };
 use anyhow::{Result, anyhow};
 use std::path::{Path, PathBuf};
@@ -28,7 +29,7 @@ impl SessionUtils {
     }
 
     fn check_name_availability_with_prefix(&self, name: &str, branch_prefix: &str) -> Result<bool> {
-        let branch = format!("{branch_prefix}/{name}");
+        let branch = format_branch_name(branch_prefix, name);
         let worktree_path = self
             .repo_path
             .join(".schaltwerk")
@@ -84,7 +85,7 @@ impl SessionUtils {
         let branch_prefix = self.branch_prefix();
 
         if self.check_name_availability_with_prefix(base_name, &branch_prefix)? {
-            let branch = format!("{branch_prefix}/{base_name}");
+            let branch = format_branch_name(&branch_prefix, base_name);
             let worktree_path = self
                 .repo_path
                 .join(".schaltwerk")
@@ -100,7 +101,7 @@ impl SessionUtils {
             let candidate = format!("{base_name}-{suffix}");
 
             if self.check_name_availability_with_prefix(&candidate, &branch_prefix)? {
-                let branch = format!("{branch_prefix}/{candidate}");
+                let branch = format_branch_name(&branch_prefix, &candidate);
                 let worktree_path = self
                     .repo_path
                     .join(".schaltwerk")
@@ -116,7 +117,7 @@ impl SessionUtils {
             let candidate = format!("{base_name}-{i}");
 
             if self.check_name_availability_with_prefix(&candidate, &branch_prefix)? {
-                let branch = format!("{branch_prefix}/{candidate}");
+                let branch = format_branch_name(&branch_prefix, &candidate);
                 let worktree_path = self
                     .repo_path
                     .join(".schaltwerk")

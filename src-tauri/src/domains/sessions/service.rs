@@ -146,6 +146,7 @@ use crate::{
     },
     domains::sessions::repository::SessionDbManager,
     domains::sessions::utils::SessionUtils,
+    shared::format_branch_name,
     infrastructure::database::db_project_config::{DEFAULT_BRANCH_PREFIX, ProjectConfigMethods},
     infrastructure::database::{Database, db_archived_specs::ArchivedSpecMethods as _},
 };
@@ -1278,6 +1279,7 @@ mod service_unified_tests {
 
     #[test]
     fn start_spec_session_applies_existing_display_name() {
+        use crate::shared::format_branch_name;
         use crate::infrastructure::database::db_project_config::DEFAULT_BRANCH_PREFIX;
         use std::process::Command;
 
@@ -1328,7 +1330,7 @@ mod service_unified_tests {
         assert!(!session.pending_name_generation);
         assert_eq!(
             session.branch,
-            format!("{}/friendly-name", DEFAULT_BRANCH_PREFIX)
+            format_branch_name(DEFAULT_BRANCH_PREFIX, "friendly-name")
         );
     }
 
@@ -2037,7 +2039,7 @@ impl SessionManager {
                 DEFAULT_BRANCH_PREFIX.to_string()
             });
 
-        let target_branch = format!("{branch_prefix}/{sanitized}");
+        let target_branch = format_branch_name(&branch_prefix, &sanitized);
         if target_branch == session.branch {
             return Ok(true);
         }

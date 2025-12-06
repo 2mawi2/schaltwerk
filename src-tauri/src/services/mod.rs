@@ -42,6 +42,7 @@ pub use crate::domains::sessions::entity::EnrichedSession;
 pub use crate::domains::sessions::entity::{
     EnrichedSession as EnrichedSessionEntity, FilterMode, Session, SessionState, SortMode,
 };
+pub use crate::shared::format_branch_name;
 pub use crate::domains::settings::{
     AgentBinaryConfig, AgentPreference, DiffViewPreferences, McpServerConfig, SessionPreferences,
     TerminalSettings, TerminalUIPreferences,

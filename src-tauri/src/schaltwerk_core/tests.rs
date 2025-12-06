@@ -117,7 +117,7 @@ fn test_create_session() {
 
     // Verify session properties
     assert_eq!(session.name, "test-feature");
-    assert_eq!(session.branch, "schaltwerk/test-feature");
+    assert_eq!(session.branch, "test-feature");
     assert_eq!(session.initial_prompt, Some("Test prompt".to_string()));
     assert_eq!(session.status, SessionStatus::Active);
 
@@ -135,13 +135,13 @@ fn test_create_session() {
 
     // Verify branch exists
     let branches_output = Command::new("git")
-        .args(["branch", "--list", "schaltwerk/test-feature"])
+        .args(["branch", "--list", "test-feature"])
         .current_dir(&env.repo_path)
         .output()
         .unwrap();
 
     let branches = String::from_utf8_lossy(&branches_output.stdout);
-    assert!(branches.contains("schaltwerk/test-feature"));
+    assert!(branches.contains("test-feature"));
 
     // Verify session is in database
     let sessions = manager.list_sessions().unwrap();
@@ -198,17 +198,17 @@ fn test_create_multiple_sessions() {
     assert_ne!(session1.worktree_path, session2.worktree_path);
     assert_ne!(session2.worktree_path, session3.worktree_path);
 
-    // Verify all branches exist
+    // Verify all branches exist (with empty default prefix, branches are just the session names)
     let branches_output = Command::new("git")
-        .args(["branch", "--list", "schaltwerk/*"])
+        .args(["branch", "--list"])
         .current_dir(&env.repo_path)
         .output()
         .unwrap();
 
     let branches = String::from_utf8_lossy(&branches_output.stdout);
-    assert!(branches.contains("schaltwerk/feature-1"));
-    assert!(branches.contains("schaltwerk/feature-2"));
-    assert!(branches.contains("schaltwerk/bugfix-1"));
+    assert!(branches.contains("feature-1"));
+    assert!(branches.contains("feature-2"));
+    assert!(branches.contains("bugfix-1"));
 }
 
 #[test]
@@ -494,7 +494,7 @@ fn test_list_enriched_sessions() {
         .iter()
         .find(|s| s.info.session_id == "session-1")
         .unwrap();
-    assert_eq!(session1.info.branch, "schaltwerk/session-1");
+    assert_eq!(session1.info.branch, "session-1");
     assert_eq!(
         session1.info.current_task,
         Some("First session".to_string())
@@ -556,13 +556,13 @@ fn test_session_name_conflict_resolution() {
     // Create first session
     let session1 = manager.create_session("test-conflict", None, None).unwrap();
     assert_eq!(session1.name, "test-conflict");
-    assert_eq!(session1.branch, "schaltwerk/test-conflict");
+    assert_eq!(session1.branch, "test-conflict");
 
     // Try to create another session with same name - should get unique suffix
     let session2 = manager.create_session("test-conflict", None, None).unwrap();
     assert_ne!(session2.name, "test-conflict");
     assert!(session2.name.starts_with("test-conflict-"));
-    assert_eq!(session2.branch, format!("schaltwerk/{}", session2.name));
+    assert_eq!(session2.branch, session2.name);
     let suffix = session2.name.strip_prefix("test-conflict-").unwrap();
     let is_random_suffix = suffix.len() == 2 && suffix.chars().all(|c| c.is_ascii_lowercase());
     let is_incremental = suffix.parse::<u32>().is_ok();
@@ -577,7 +577,7 @@ fn test_session_name_conflict_resolution() {
     assert_ne!(session3.name, "test-conflict");
     assert!(session3.name.starts_with("test-conflict-"));
     assert_ne!(session3.name, session2.name); // Should be different from session2
-    assert_eq!(session3.branch, format!("schaltwerk/{}", session3.name));
+    assert_eq!(session3.branch, session3.name);
 
     // Verify all worktrees exist
     assert!(session1.worktree_path.exists());
@@ -638,9 +638,9 @@ fn test_corrupted_worktree_recovery() {
     std::fs::create_dir_all(&worktree_path).unwrap();
     std::fs::write(worktree_path.join("leftover.txt"), "corrupt data").unwrap();
 
-    // Create a dangling branch
+    // Create a dangling branch (with empty default prefix, branch name equals session name)
     Command::new("git")
-        .args(["branch", "schaltwerk/corrupted"])
+        .args(["branch", "corrupted"])
         .current_dir(&env.repo_path)
         .output()
         .unwrap();
@@ -734,7 +734,7 @@ fn test_cleanup_orphaned_worktrees() {
             "add",
             orphan_path.to_str().unwrap(),
             "-b",
-            "schaltwerk/orphan",
+            "orphan",
         ])
         .current_dir(&env.repo_path)
         .output()
@@ -1739,4 +1739,83 @@ fn test_orchestrator_codex_prefers_explicit_resume_path() {
     } else {
         EnvAdapter::remove_var("HOME");
     }
+}
+
+#[test]
+fn test_create_session_with_empty_branch_prefix() {
+    let env = TestEnvironment::new().unwrap();
+    let db = env.get_database().unwrap();
+
+    db.set_project_branch_prefix(&env.repo_path, "").unwrap();
+
+    let manager = SessionManager::new(db.clone(), env.repo_path.clone());
+
+    let session = manager
+        .create_session("no-prefix-feature", Some("Test prompt"), None)
+        .unwrap();
+
+    assert_eq!(
+        session.branch, "no-prefix-feature",
+        "Branch should be just the session name without any prefix"
+    );
+
+    let branches_output = Command::new("git")
+        .args(["branch", "--list", "no-prefix-feature"])
+        .current_dir(&env.repo_path)
+        .output()
+        .unwrap();
+
+    let branches = String::from_utf8_lossy(&branches_output.stdout);
+    assert!(
+        branches.contains("no-prefix-feature"),
+        "Git branch should exist without prefix"
+    );
+}
+
+#[test]
+fn test_create_multiple_sessions_with_empty_branch_prefix() {
+    let env = TestEnvironment::new().unwrap();
+    let db = env.get_database().unwrap();
+
+    db.set_project_branch_prefix(&env.repo_path, "").unwrap();
+
+    let manager = SessionManager::new(db.clone(), env.repo_path.clone());
+
+    let session1 = manager.create_session("feature-a", None, None).unwrap();
+    let session2 = manager.create_session("feature-b", None, None).unwrap();
+
+    assert_eq!(session1.branch, "feature-a");
+    assert_eq!(session2.branch, "feature-b");
+
+    let branches_output = Command::new("git")
+        .args(["branch", "--list"])
+        .current_dir(&env.repo_path)
+        .output()
+        .unwrap();
+
+    let branches = String::from_utf8_lossy(&branches_output.stdout);
+    assert!(branches.contains("feature-a"));
+    assert!(branches.contains("feature-b"));
+}
+
+#[test]
+fn test_session_name_conflict_with_empty_branch_prefix() {
+    let env = TestEnvironment::new().unwrap();
+    let db = env.get_database().unwrap();
+
+    db.set_project_branch_prefix(&env.repo_path, "").unwrap();
+
+    let manager = SessionManager::new(db.clone(), env.repo_path.clone());
+
+    let session1 = manager.create_session("conflict-test", None, None).unwrap();
+    assert_eq!(session1.name, "conflict-test");
+    assert_eq!(session1.branch, "conflict-test");
+
+    let session2 = manager.create_session("conflict-test", None, None).unwrap();
+    assert_ne!(session2.name, "conflict-test");
+    assert!(session2.name.starts_with("conflict-test-"));
+    assert_eq!(
+        session2.branch, session2.name,
+        "Branch should match session name when prefix is empty"
+    );
 }
