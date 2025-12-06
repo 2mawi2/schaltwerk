@@ -223,7 +223,13 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
             <VscTools className="text-lg" />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="flex-1 flex items-center gap-2">
+        <form
+          onSubmit={handleSubmit}
+          className="flex-1 flex items-center gap-2"
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
           <label htmlFor="preview-url-input" className="sr-only">
             Preview URL
           </label>
