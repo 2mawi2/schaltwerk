@@ -296,8 +296,8 @@ describe('NewSessionModal', () => {
         expect(textarea.value).toBe('Updated cached prompt')
       })
 
-      // We no longer focus the markdown editor automatically on open
-      expect(markdownFocus.focusEnd).not.toHaveBeenCalled()
+      // We focus the markdown editor automatically on open
+      expect(markdownFocus.focusEnd).toHaveBeenCalled()
     } finally {
       timeoutSpy.mockRestore()
     }

@@ -880,7 +880,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
             if (!hasFocusedDuringOpenRef.current) {
                 focusTimeoutRef.current = window.setTimeout(() => {
                     hasFocusedDuringOpenRef.current = true
-                    if (initialIsDraft && markdownEditorRef.current) {
+                    if (markdownEditorRef.current) {
                         markdownEditorRef.current.focusEnd()
                     } else if (nameInputRef.current) {
                         nameInputRef.current.focus()
