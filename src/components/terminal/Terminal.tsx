@@ -33,6 +33,8 @@ import {
     acquireTerminalInstance,
     detachTerminalInstance,
     hasTerminalInstance,
+    addTerminalOutputCallback,
+    removeTerminalOutputCallback,
 } from '../../terminal/registry/terminalRegistry'
 import { XtermTerminal } from '../../terminal/xterm/XtermTerminal'
 import { useTerminalGpu } from '../../hooks/useTerminalGpu'
@@ -334,6 +336,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             logger: termDebug() ? (msg) => logger.debug(`[Terminal ${terminalId}] ${msg}`) : undefined,
         });
     }, [terminalId]);
+    const outputCallbackRef = useRef<(() => void) | null>(null);
     const mountedRef = useRef<boolean>(false);
     const startingTerminals = useRef<Map<string, boolean>>(new Map());
     const previousTerminalId = useRef<string>(terminalId);
@@ -1189,6 +1192,13 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         instance.setSmoothScrolling(smoothScrollingEnabled && isPhysicalWheelRef.current);
         xtermWrapperRef.current = instance;
         setupViewportController(instance);
+
+        const outputCallback = () => {
+            viewportControllerRef.current?.onOutput();
+        };
+        outputCallbackRef.current = outputCallback;
+        addTerminalOutputCallback(terminalId, outputCallback);
+
         if (fileLinkHandlerRef.current) {
             instance.setFileLinkHandler(fileLinkHandlerRef.current);
         }
@@ -1636,6 +1646,11 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                     logger.debug(`[Terminal ${terminalId}] onData listener cleanup error:`, error);
                 }
                 onDataDisposableRef.current = null;
+            }
+
+            if (outputCallbackRef.current) {
+                removeTerminalOutputCallback(terminalId, outputCallbackRef.current);
+                outputCallbackRef.current = null;
             }
 
             setupViewportController(null);

@@ -39,6 +39,7 @@ const viewportControllerMocks = vi.hoisted(() => {
       onResize: ReturnType<typeof vi.fn>
       onFocusOrClick: ReturnType<typeof vi.fn>
       onVisibilityChange: ReturnType<typeof vi.fn>
+      onOutput: ReturnType<typeof vi.fn>
       dispose: ReturnType<typeof vi.fn>
     }
   }> = []
@@ -61,6 +62,7 @@ const viewportControllerMocks = vi.hoisted(() => {
       }),
       onFocusOrClick: vi.fn(),
       onVisibilityChange: vi.fn(),
+      onOutput: vi.fn(),
       dispose: vi.fn(),
     }
     instances.push({ options, api })
@@ -271,6 +273,8 @@ vi.mock('../../terminal/registry/terminalRegistry', () => {
     removeTerminalInstance: vi.fn(),
     detachTerminalInstance: vi.fn(),
     hasTerminalInstance: registryMocks.hasTerminalInstance,
+    addTerminalOutputCallback: vi.fn(),
+    removeTerminalOutputCallback: vi.fn(),
   }
 })
 

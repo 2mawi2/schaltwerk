@@ -4,6 +4,18 @@ import { disposeGpuRenderer } from '../gpu/gpuRendererRegistry';
 import { sessionTerminalBaseVariants, sanitizeSessionName } from '../../common/terminalIdentity';
 import { terminalOutputManager } from '../stream/terminalOutputManager';
 
+// Filter out ESC[3J (clear scrollback buffer) to prevent scroll position issues.
+// This sequence is used by some CLIs (like Kilocode's Ink-based UI) to clear history,
+// which causes scroll jumping when the buffer length changes during streaming.
+// We keep ESC[2J (clear screen) and ESC[H (cursor home) but strip the scrollback clear.
+const ESC = '\x1b';
+const CLEAR_SCROLLBACK_SEQ = `${ESC}[3J`;
+
+function filterScrollbackClear(output: string): string {
+  if (!output.includes(CLEAR_SCROLLBACK_SEQ)) return output;
+  return output.split(CLEAR_SCROLLBACK_SEQ).join('');
+}
+
 export interface TerminalInstanceRecord {
   id: string;
   xterm: XtermTerminal;
@@ -17,6 +29,7 @@ export interface TerminalInstanceRecord {
   rafScheduled?: boolean;
   rafHandle?: number;
   lastChunkTime?: number;
+  outputCallbacks?: Set<() => void>;
 }
 
 export interface AcquireTerminalResult {
@@ -167,6 +180,32 @@ class TerminalInstanceRegistry {
     }
   }
 
+  addOutputCallback(id: string, callback: () => void): void {
+    const record = this.instances.get(id);
+    if (!record) return;
+    if (!record.outputCallbacks) {
+      record.outputCallbacks = new Set();
+    }
+    record.outputCallbacks.add(callback);
+  }
+
+  removeOutputCallback(id: string, callback: () => void): void {
+    const record = this.instances.get(id);
+    if (!record?.outputCallbacks) return;
+    record.outputCallbacks.delete(callback);
+  }
+
+  private notifyOutputCallbacks(record: TerminalInstanceRecord): void {
+    if (!record.outputCallbacks) return;
+    for (const cb of record.outputCallbacks) {
+      try {
+        cb();
+      } catch (error) {
+        logger.debug(`[Registry] Output callback error for ${record.id}`, error);
+      }
+    }
+  }
+
   private ensureStream(record: TerminalInstanceRecord): void {
     if (record.streamRegistered) {
       return;
@@ -186,8 +225,13 @@ class TerminalInstanceRegistry {
       const combined = record.pendingChunks.join('');
       record.pendingChunks = [];
 
+      // Filter out scrollback clear sequence to prevent scroll jumping
+      const filtered = filterScrollbackClear(combined);
+
+      this.notifyOutputCallbacks(record);
+
       try {
-        record.xterm.raw.write(combined);
+        record.xterm.raw.write(filtered);
       } catch (error) {
         logger.debug(`[Registry] Failed to write batch for ${record.id}`, error);
       }
@@ -295,4 +339,12 @@ export function releaseSessionTerminals(sessionName: string): void {
 
 export function hasTerminalInstance(id: string): boolean {
   return registry.has(id);
+}
+
+export function addTerminalOutputCallback(id: string, callback: () => void): void {
+  registry.addOutputCallback(id, callback);
+}
+
+export function removeTerminalOutputCallback(id: string, callback: () => void): void {
+  registry.removeOutputCallback(id, callback);
 }
