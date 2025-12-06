@@ -1403,3 +1403,73 @@ pub async fn compute_split_diff_backend(
         unsupported_reason: None,
     })
 }
+
+#[tauri::command]
+pub async fn set_session_diff_base_branch(
+    app: tauri::AppHandle,
+    session_name: String,
+    new_base_branch: String,
+) -> Result<(), String> {
+    use schaltwerk::domains::sessions::db_sessions::SessionMethods;
+    use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
+
+    let project_manager = get_project_manager().await;
+    let project = project_manager
+        .current_project()
+        .await
+        .map_err(|e| format!("Failed to get project context: {e}"))?;
+
+    let session_id = {
+        let core = project.schaltwerk_core.read().await;
+        let session = core
+            .db
+            .get_session_by_name(&core.repo_path, &session_name)
+            .map_err(|e| format!("Session '{session_name}' not found: {e}"))?;
+        session.id.clone()
+    };
+
+    let available_branches = git::list_branches(&project.path)
+        .map_err(|e| format!("Failed to list branches: {e}"))?;
+
+    if !available_branches.contains(&new_base_branch) {
+        return Err(format!(
+            "Branch '{new_base_branch}' not found. Available branches: {}",
+            available_branches.iter().take(5).cloned().collect::<Vec<_>>().join(", ")
+        ));
+    }
+
+    {
+        let core = project.schaltwerk_core.read().await;
+        core.db
+            .update_session_parent_branch(&session_id, &new_base_branch)
+            .map_err(|e| format!("Failed to update diff base branch: {e}"))?;
+    }
+
+    let repo_key = current_repo_cache_key().await?;
+    global_session_lookup_cache()
+        .evict_repo_session(&repo_key, &session_name)
+        .await;
+
+    log::info!(
+        "Updated diff base branch for session '{session_name}' to '{new_base_branch}'"
+    );
+
+    #[derive(serde::Serialize, Clone)]
+    struct DiffBaseBranchChangedPayload {
+        session_name: String,
+        new_base_branch: String,
+    }
+
+    if let Err(e) = emit_event(
+        &app,
+        SchaltEvent::DiffBaseBranchChanged,
+        &DiffBaseBranchChangedPayload {
+            session_name: session_name.clone(),
+            new_base_branch: new_base_branch.clone(),
+        },
+    ) {
+        log::warn!("Failed to emit DiffBaseBranchChanged event: {e}");
+    }
+
+    Ok(())
+}

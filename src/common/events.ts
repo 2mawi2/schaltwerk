@@ -31,6 +31,7 @@ export enum SchaltEvent {
   SetupScriptRequested = 'schaltwerk:setup-script-request',
   CloneProgress = 'schaltwerk:clone-progress',
   OrchestratorLaunchFailed = 'schaltwerk:orchestrator-launch-failed',
+  DiffBaseBranchChanged = 'schaltwerk:diff-base-branch-changed',
 }
 
 
@@ -164,6 +165,11 @@ export interface OrchestratorLaunchFailedPayload {
   error: string
 }
 
+export interface DiffBaseBranchChangedPayload {
+  session_name: string
+  new_base_branch: string
+}
+
 import { EnrichedSession } from '../types/session'
 
 export interface SessionsRefreshedEventPayload {
@@ -222,4 +228,5 @@ export type EventPayloadMap = {
   [SchaltEvent.SetupScriptRequested]: SetupScriptRequestPayload
   [SchaltEvent.CloneProgress]: CloneProgressPayload
   [SchaltEvent.OrchestratorLaunchFailed]: OrchestratorLaunchFailedPayload
+  [SchaltEvent.DiffBaseBranchChanged]: DiffBaseBranchChangedPayload
 }

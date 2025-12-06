@@ -1145,6 +1145,7 @@ fn main() {
             diff_commands::get_git_history,
             diff_commands::get_commit_files,
             diff_commands::get_commit_file_contents,
+            diff_commands::set_session_diff_base_branch,
             // Project commands
             get_recent_projects,
             add_recent_project,

@@ -33,6 +33,7 @@ pub enum SchaltEvent {
     DevBackendError,
     SetupScriptRequested,
     OrchestratorLaunchFailed,
+    DiffBaseBranchChanged,
 }
 
 impl SchaltEvent {
@@ -70,6 +71,7 @@ impl SchaltEvent {
             SchaltEvent::DevBackendError => "schaltwerk:dev-backend-error",
             SchaltEvent::SetupScriptRequested => "schaltwerk:setup-script-request",
             SchaltEvent::OrchestratorLaunchFailed => "schaltwerk:orchestrator-launch-failed",
+            SchaltEvent::DiffBaseBranchChanged => "schaltwerk:diff-base-branch-changed",
         }
     }
 }
