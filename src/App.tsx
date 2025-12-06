@@ -69,7 +69,6 @@ import { theme } from './common/theme'
 import { withOpacity } from './common/colorUtils'
 import { GithubIntegrationProvider, useGithubIntegrationContext } from './contexts/GithubIntegrationContext'
 import { resolveOpenPathForOpenButton } from './utils/resolveOpenPath'
-import { waitForSessionsRefreshed } from './utils/waitForSessionsRefreshed'
 import { TauriCommands } from './common/tauriCommands'
 import { validatePanelPercentage } from './utils/panel'
 import {
@@ -88,7 +87,6 @@ import { useKeyboardShortcutsConfig } from './contexts/KeyboardShortcutsContext'
 import { detectPlatformSafe, isShortcutForAction } from './keyboardShortcuts/helpers'
 import { useSelectionPreserver } from './hooks/useSelectionPreserver'
 import { AGENT_START_TIMEOUT_MESSAGE } from './common/agentSpawn'
-import { createTerminalBackend } from './terminal/transport/backend'
 import { beginSplitDrag, endSplitDrag } from './utils/splitDragCoordinator'
 import { useOptionalToast } from './common/toast/ToastProvider'
 import { AppUpdateResultPayload } from './common/events'
@@ -97,7 +95,6 @@ import {
   refreshKeepAwakeStateActionAtom,
   registerKeepAwakeEventListenerActionAtom,
 } from './store/atoms/powerSettings'
-import { stableSessionTerminalId } from './common/terminalIdentity'
 import { registerDevErrorListeners } from './dev/registerDevErrorListeners'
 import { AgentCliMissingModal } from './components/agentBinary/AgentCliMissingModal'
 import type { SettingsCategory } from './types/settings'
@@ -1366,24 +1363,6 @@ function AppContent() {
     setDiffViewerState(null)
   }
 
-  // Helper function to create terminals for a session (avoids code duplication)
-  const createTerminalsForSession = async (sessionName: string) => {
-    try {
-      // Get session data to get correct worktree path
-      const sessionData = await invoke<{ worktree_path: string }>(TauriCommands.SchaltwerkCoreGetSession, { name: sessionName })
-      const worktreePath = sessionData.worktree_path
-      
-      // Create terminals for this session using consistent naming pattern
-      const topTerminalId = stableSessionTerminalId(sessionName, 'top')
-      
-      // Create only the top terminal. Bottom terminals are tabbed and created by TerminalTabs as needed (-bottom-0)
-      await createTerminalBackend({ id: topTerminalId, cwd: worktreePath })
-    } catch (_e) {
-      logger.warn(`[App] Failed to create terminals for session ${sessionName}:`, _e)
-    }
-  }
-
-
   const handleCreateSession = async (data: {
     name: string
     prompt?: string
@@ -1399,137 +1378,6 @@ function AppContent() {
   }) => {
     try {
       await preserveSelection(async () => {
-        // If starting from an existing spec via the modal, convert that spec to active
-        if (!data.isSpec && startFromDraftName && startFromDraftName === data.name) {
-          // Ensure the spec content reflects latest prompt before starting
-          const contentToUse = data.prompt || ''
-          if (contentToUse.trim().length > 0) {
-            await invoke(TauriCommands.SchaltwerkCoreUpdateSpecContent, {
-              name: data.name,
-              content: contentToUse,
-            })
-          }
-
-          // Handle multiple versions like new session creation
-          const useAgentTypes = Boolean(data.agentTypes && data.agentTypes.length > 0)
-          const count = useAgentTypes ? (data.agentTypes?.length ?? 1) : Math.max(1, Math.min(4, data.versionCount ?? 1))
-          let firstSessionName = data.name
-
-          const overallSpecStart = performance.now()
-          logger.info('[SpecStart] Starting agent promotion from spec', {
-            specName: data.name,
-            count,
-            baseBranch: data.baseBranch,
-            agentType: data.agentType,
-            agentTypes: data.agentTypes,
-          })
-
-          // Create array of desired session names and process them
-          const desiredSessionNames = Array.from({ length: count }, (_, i) =>
-            i === 0 ? data.name : `${data.name}_v${i + 1}`
-          )
-
-          // Generate a stable group id for these versions
-          const versionGroupId = (globalThis.crypto && 'randomUUID' in globalThis.crypto)
-            ? (globalThis.crypto as Crypto & { randomUUID(): string }).randomUUID()
-            : `${data.name}-${Date.now()}`
-          const sessionPromotionStartTimes = new Map<string, number>()
-          const realizedSessionNames: string[] = []
-
-          for (const [index, desiredName] of desiredSessionNames.entries()) {
-            const agentTypeForVersion = useAgentTypes ? (data.agentTypes?.[index] ?? null) : (data.agentType || null)
-            const promotionStart = performance.now()
-            sessionPromotionStartTimes.set(desiredName, promotionStart)
-            logger.info('[SpecStart] Enqueue pending startup', {
-              sessionName: desiredName,
-              agentType: agentTypeForVersion ?? 'default',
-              versionIndex: index + 1,
-            })
-
-            const createdSessionName = await waitForSessionsRefreshed(async () => {
-              if (index === 0) {
-                const created = await invoke<RawSession>(TauriCommands.SchaltwerkCoreStartSpecSession, {
-                  name: desiredName,
-                  baseBranch: data.baseBranch || null,
-                  versionGroupId,
-                  versionNumber: index + 1,
-                  agentType: agentTypeForVersion,
-                  skipPermissions: data.skipPermissions ?? null,
-                })
-                return created.name
-              }
-
-              const created = await invoke<RawSession>(TauriCommands.SchaltwerkCoreCreateAndStartSpecSession, {
-                name: desiredName,
-                specContent: contentToUse,
-                baseBranch: data.baseBranch || null,
-                versionGroupId,
-                versionNumber: index + 1,
-                agentType: agentTypeForVersion,
-                skipPermissions: data.skipPermissions ?? null,
-              })
-              return created.name
-            })
-
-            realizedSessionNames.push(createdSessionName)
-            sessionPromotionStartTimes.delete(desiredName)
-            sessionPromotionStartTimes.set(createdSessionName, promotionStart)
-            expectSession(createdSessionName)
-
-            await enqueuePendingStartup(createdSessionName, agentTypeForVersion ?? undefined)
-
-            if (index === 0) {
-              logger.info('[SpecStart] StartSpecSession completed', {
-                sessionName: createdSessionName,
-                elapsedMs: Math.round(performance.now() - promotionStart),
-              })
-            } else {
-              logger.info('[SpecStart] CreateAndStartSpecSession completed', {
-                sessionName: createdSessionName,
-                elapsedMs: Math.round(performance.now() - promotionStart),
-              })
-            }
-          }
-
-          setNewSessionOpen(false)
-          setStartFromSpecName(null)
-          setCachedPrompt('')
-
-          // Dispatch event for other components to know a session was created from spec
-          const primarySessionName = realizedSessionNames[0] || firstSessionName
-          emitUiEvent(UiEvent.SessionCreated, { name: primarySessionName })
-
-          const ensureTerminalStart = performance.now()
-          // Agents are already running because StartSpecSession/CreateAndStartSpecSession start them.
-          // Only ensure terminals exist, do not start again to avoid duplicate agent processes.
-          try {
-            for (const sessionName of realizedSessionNames) {
-              await createTerminalsForSession(sessionName)
-            }
-            logger.info('[SpecStart] Terminal ensure completed', {
-              sessionNames: realizedSessionNames,
-              elapsedMs: Math.round(performance.now() - ensureTerminalStart),
-            })
-          } catch (e) {
-            logger.warn('[App] Failed to ensure terminals for spec-derived sessions:', e)
-          }
-
-          const totalElapsedMs = Math.round(performance.now() - overallSpecStart)
-          logger.info('[SpecStart] Completed spec agent promotion', {
-            sessions: realizedSessionNames,
-            totalElapsedMs,
-            durations: realizedSessionNames.reduce<Record<string, number | undefined>>((acc, name) => {
-              const start = sessionPromotionStartTimes.get(name)
-              acc[name] = start ? Math.round(ensureTerminalStart - start) : undefined
-              return acc
-            }, {}),
-          })
-
-          // Don't automatically switch focus when starting spec sessions
-          // The user should remain focused on their current session
-          return
-        }
-
         if (data.isSpec) {
           // Create spec session
           await invoke(TauriCommands.SchaltwerkCoreCreateSpecSession, {
@@ -1642,11 +1490,21 @@ function AppContent() {
 
           // Don't automatically switch focus when creating new sessions
           // The user should remain focused on their current session
-          
+
           // Dispatch event for other components to know a session was created
           const firstCreatedName = createdSessions[0]?.name ?? data.name
           emitUiEvent(UiEvent.SessionCreated, { name: firstCreatedName })
 
+          // If starting from a spec, delete the spec now that sessions are created
+          if (startFromDraftName) {
+            try {
+              await invoke(TauriCommands.SchaltwerkCoreArchiveSpecSession, { name: startFromDraftName })
+              logger.info('[App] Deleted spec after session creation:', startFromDraftName)
+            } catch (e) {
+              logger.warn('[App] Failed to delete spec after session creation:', e)
+            }
+            setStartFromSpecName(null)
+          }
         }
       })
     } catch (error) {

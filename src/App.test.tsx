@@ -216,11 +216,6 @@ async function defaultInvokeImpl(cmd: string, _args?: unknown) {
       return []
     case TauriCommands.GetAllAgentBinaryConfigs:
       return []
-    case TauriCommands.SchaltwerkCoreStartSpecSession:
-    case TauriCommands.SchaltwerkCoreCreateAndStartSpecSession: {
-      const name = getNameArgOrDefault(_args, 'draft')
-      return buildRawSession(name)
-    }
     case TauriCommands.InitializeProject:
     case TauriCommands.AddRecentProject:
     case TauriCommands.SchaltwerkCoreCreateSession:
@@ -235,16 +230,6 @@ async function defaultInvokeImpl(cmd: string, _args?: unknown) {
 }
 
 type InvokeMock = MockedFunction<(cmd: string, args?: Record<string, unknown>) => Promise<unknown>>
-
-function getNameArgOrDefault(args: unknown, fallback: string): string {
-  if (typeof args === 'object' && args && 'name' in (args as Record<string, unknown>)) {
-    const val = (args as Record<string, unknown>).name
-    if (val !== undefined && val !== null) {
-      return String(val)
-    }
-  }
-  return fallback
-}
 
 async function getInvokeMock(): Promise<InvokeMock> {
   const { invoke } = await import('@tauri-apps/api/core')
@@ -1077,13 +1062,10 @@ describe('validatePanelPercentage', () => {
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
         return [specSession]
       }
-      if (cmd === TauriCommands.SchaltwerkCoreStartSpecSession) {
+      if (cmd === TauriCommands.SchaltwerkCoreCreateSession) {
         return buildRawSession(args?.name as string ?? 'draft-one')
       }
-      if (cmd === TauriCommands.SchaltwerkCoreCreateAndStartSpecSession) {
-        return buildRawSession(args?.name as string ?? 'draft-one_v2')
-      }
-      if (cmd === TauriCommands.SchaltwerkCoreUpdateSpecContent) {
+      if (cmd === TauriCommands.SchaltwerkCoreArchiveSpecSession) {
         return null
       }
       return defaultInvokeImpl(cmd, args)

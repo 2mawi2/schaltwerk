@@ -5,7 +5,7 @@ import type { EnrichedSession, AgentType } from '../../types/session'
 import { FilterMode, getDefaultFilterMode, isValidFilterMode } from '../../types/sessionFilters'
 import { TauriCommands } from '../../common/tauriCommands'
 import { mapSessionUiState, searchSessions as searchSessionsUtil } from '../../utils/sessionFilters'
-import { SessionState, type RawSession, type SessionInfo } from '../../types/session'
+import { SessionState, type SessionInfo } from '../../types/session'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import { projectPathAtom } from './project'
 import { setSelectionFilterModeActionAtom, clearTerminalTrackingActionAtom } from './selection'
@@ -1816,9 +1816,7 @@ export const updateSessionStatusActionAtom = atom(
                     set(currentSelectionStateAtom, createdSpecName ?? null)
                 }
             } else if (input.status === 'active') {
-                if (session.info.status === 'spec') {
-                    await invoke<RawSession>(TauriCommands.SchaltwerkCoreStartSpecSession, { name: input.sessionId })
-                } else if (session.info.ready_to_merge) {
+                if (session.info.ready_to_merge) {
                     await invoke(TauriCommands.SchaltwerkCoreUnmarkReady, { name: input.sessionId })
                 }
             } else if (input.status === 'dirty') {
