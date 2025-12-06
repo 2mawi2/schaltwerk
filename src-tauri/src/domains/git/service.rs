@@ -5,14 +5,14 @@ pub use super::repository::{
 };
 
 pub use super::branches::{
-    branch_exists, delete_branch, ensure_branch_at_head, list_branches, normalize_branch_to_local,
-    rename_branch,
+    branch_exists, delete_branch, ensure_branch_at_head, fetch_and_sync_branch, list_branches,
+    normalize_branch_to_local, rename_branch,
 };
 #[cfg(test)]
 pub use super::repository::{get_commit_hash, get_current_branch};
 pub use super::worktrees::{
-    create_worktree_from_base, list_worktrees, prune_worktrees, remove_worktree,
-    update_worktree_branch,
+    create_worktree_for_existing_branch, create_worktree_from_base, get_worktree_for_branch,
+    list_worktrees, prune_worktrees, remove_worktree, update_worktree_branch,
 };
 
 pub use super::history::{

@@ -336,6 +336,83 @@ pub fn prune_worktrees(repo_path: &Path) -> Result<()> {
     Ok(())
 }
 
+pub fn get_worktree_for_branch(repo_path: &Path, branch_name: &str) -> Result<Option<PathBuf>> {
+    let repo = Repository::open(repo_path)?;
+
+    if let Some(workdir) = repo.workdir()
+        && let Ok(current_branch) = super::repository::get_current_branch(repo_path)
+        && current_branch == branch_name
+    {
+        return Ok(Some(workdir.to_path_buf()));
+    }
+
+    let worktrees = repo.worktrees()?;
+    for wt_name in worktrees.iter().flatten() {
+        if let Ok(wt) = repo.find_worktree(wt_name) {
+            let wt_path = wt.path();
+            if let Ok(wt_repo) = Repository::open(wt_path)
+                && let Ok(head) = wt_repo.head()
+                && let Some(name) = head.shorthand()
+                && name == branch_name
+            {
+                return Ok(Some(wt_path.to_path_buf()));
+            }
+        }
+    }
+
+    Ok(None)
+}
+
+pub fn create_worktree_for_existing_branch(
+    repo_path: &Path,
+    branch_name: &str,
+    worktree_path: &Path,
+) -> Result<()> {
+    log::info!(
+        "Creating worktree for existing branch '{}' at {}",
+        branch_name,
+        worktree_path.display()
+    );
+
+    if let Some(existing_wt) = get_worktree_for_branch(repo_path, branch_name)? {
+        return Err(anyhow!(
+            "Branch '{}' is already checked out in worktree: {}",
+            branch_name,
+            existing_wt.display()
+        ));
+    }
+
+    if let Some(parent) = worktree_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    let repo = Repository::open(repo_path)?;
+
+    let branch = repo
+        .find_branch(branch_name, BranchType::Local)
+        .map_err(|e| anyhow!("Branch '{branch_name}' not found: {e}"))?;
+
+    let branch_ref = branch.into_reference();
+
+    let mut opts = WorktreeAddOptions::new();
+    opts.reference(Some(&branch_ref));
+
+    let _worktree = repo.worktree(
+        worktree_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or(branch_name),
+        worktree_path,
+        Some(&opts),
+    )?;
+
+    log::info!(
+        "Successfully created worktree for existing branch at: {}",
+        worktree_path.display()
+    );
+    Ok(())
+}
+
 #[cfg(test)]
 pub fn is_worktree_registered(repo_path: &Path, worktree_path: &Path) -> Result<bool> {
     let repo = Repository::open(repo_path)?;

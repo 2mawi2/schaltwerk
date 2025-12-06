@@ -21,6 +21,7 @@ interface SchaltwerkStartArgs {
   prompt?: string
   agent_type?: 'claude' | 'opencode' | 'gemini' | 'codex' | 'qwen' | 'droid' | 'amp' | 'kilocode'
   base_branch?: string
+  use_existing_branch?: boolean
   skip_permissions?: boolean
   is_draft?: boolean
   draft_content?: string
@@ -296,6 +297,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             base_branch: {
               type: "string",
               description: "Base branch to create session from (default: main/master)"
+            },
+            use_existing_branch: {
+              type: "boolean",
+              description: "When true, use the base_branch directly instead of creating a new branch from it. The branch must exist and not be checked out in another worktree. Useful for continuing work on an existing PR branch."
             },
             skip_permissions: {
               type: "boolean",
@@ -891,6 +896,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
             createArgs.name || `mcp_session_${Date.now()}`,
             createArgs.prompt,
             createArgs.base_branch,
+            createArgs.use_existing_branch,
             createArgs.agent_type,
             createArgs.skip_permissions
           )

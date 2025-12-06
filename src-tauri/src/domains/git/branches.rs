@@ -286,6 +286,52 @@ fn materialize_from_remote(repo: &Repository, local: &str, remote: &str) -> Resu
     Ok(())
 }
 
+pub fn fetch_and_sync_branch(repo_path: &Path, branch_name: &str) -> Result<()> {
+    log::info!("Fetching and syncing branch '{branch_name}' from origin");
+
+    std::process::Command::new("git")
+        .args(["fetch", "origin", branch_name])
+        .current_dir(repo_path)
+        .output()
+        .with_context(|| format!("Failed to run git fetch for branch '{branch_name}'"))?;
+
+    let repo = Repository::open(repo_path)?;
+    let remote_ref = format!("refs/remotes/origin/{branch_name}");
+
+    let remote_commit = repo
+        .find_reference(&remote_ref)
+        .ok()
+        .and_then(|r| r.target())
+        .and_then(|oid| repo.find_commit(oid).ok());
+
+    let local_branch = repo.find_branch(branch_name, BranchType::Local).ok();
+
+    match (local_branch, remote_commit) {
+        (None, Some(commit)) => {
+            log::info!("Creating local branch '{branch_name}' from origin/{branch_name}");
+            repo.branch(branch_name, &commit, false)?;
+        }
+        (Some(branch), Some(commit)) => {
+            log::info!("Updating local branch '{branch_name}' to match origin/{branch_name}");
+            let refname = branch
+                .get()
+                .name()
+                .ok_or_else(|| anyhow!("Branch has no ref name"))?;
+            repo.reference(refname, commit.id(), true, "sync with origin")?;
+        }
+        (Some(_), None) => {
+            log::info!("Local branch '{branch_name}' exists, no remote to sync from");
+        }
+        (None, None) => {
+            return Err(anyhow!(
+                "Branch '{branch_name}' does not exist locally or on origin"
+            ));
+        }
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -62,6 +62,7 @@ interface Props {
         prompt?: string
         baseBranch: string
         customBranch?: string
+        useExistingBranch?: boolean
         userEditedName?: boolean
         isSpec?: boolean
         draftContent?: string
@@ -549,6 +550,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                 prompt: createAsDraft ? undefined : (currentPrompt || undefined),
                 baseBranch: createAsDraft ? '' : baseBranch,
                 customBranch: prHeadBranch || customBranch.trim() || undefined,
+                useExistingBranch: !!prHeadBranch,
                 userEditedName: !!userEdited,
                 isSpec: createAsDraft,
                 draftContent: createAsDraft ? currentPrompt : undefined,

@@ -15,9 +15,11 @@ pub struct BootstrapConfig<'a> {
     pub worktree_path: &'a Path,
     pub parent_branch: &'a str,
     pub custom_branch: Option<&'a str>,
+    pub use_existing_branch: bool,
     pub should_copy_claude_locals: bool,
 }
 
+#[derive(Debug)]
 pub struct BootstrapResult {
     pub branch: String,
     pub worktree_path: PathBuf,
@@ -37,13 +39,26 @@ impl<'a> WorktreeBootstrapper<'a> {
 
         self.utils.cleanup_existing_worktree(config.worktree_path)?;
 
-        let final_branch = if let Some(custom) = config.custom_branch {
+        let final_branch = if config.use_existing_branch {
+            if let Some(custom) = config.custom_branch {
+                self.validate_existing_branch(custom)?;
+                custom.to_string()
+            } else {
+                return Err(anyhow!(
+                    "use_existing_branch requires custom_branch to be specified"
+                ));
+            }
+        } else if let Some(custom) = config.custom_branch {
             self.resolve_custom_branch(custom)?
         } else {
             config.branch_name.to_string()
         };
 
-        self.create_worktree_directory(&config, &final_branch)?;
+        if config.use_existing_branch {
+            self.create_worktree_for_existing(&config, &final_branch)?;
+        } else {
+            self.create_worktree_directory(&config, &final_branch)?;
+        }
 
         self.verify_worktree(config.worktree_path)?;
 
@@ -124,6 +139,51 @@ impl<'a> WorktreeBootstrapper<'a> {
                 final_branch
             )
         })
+    }
+
+    fn validate_existing_branch(&self, branch_name: &str) -> Result<()> {
+        if !git::is_valid_branch_name(branch_name) {
+            return Err(anyhow!(
+                "Invalid branch name: branch names must be valid git references"
+            ));
+        }
+
+        if let Err(e) = git::fetch_and_sync_branch(self.repo_path, branch_name) {
+            info!(
+                "Could not sync branch '{branch_name}' with origin (may be local-only): {e}"
+            );
+        }
+
+        if !git::branch_exists(self.repo_path, branch_name)? {
+            return Err(anyhow!(
+                "Branch '{branch_name}' does not exist. Cannot use use_existing_branch with a non-existent branch."
+            ));
+        }
+
+        if let Some(existing_wt) = git::get_worktree_for_branch(self.repo_path, branch_name)? {
+            return Err(anyhow!(
+                "Branch '{}' is already checked out in worktree: {}",
+                branch_name,
+                existing_wt.display()
+            ));
+        }
+
+        Ok(())
+    }
+
+    fn create_worktree_for_existing(
+        &self,
+        config: &BootstrapConfig,
+        branch_name: &str,
+    ) -> Result<()> {
+        git::create_worktree_for_existing_branch(self.repo_path, branch_name, config.worktree_path)
+            .with_context(|| {
+                format!(
+                    "Failed to create worktree for existing branch '{}' at {}",
+                    branch_name,
+                    config.worktree_path.display()
+                )
+            })
     }
 
     fn verify_worktree(&self, worktree_path: &Path) -> Result<()> {
@@ -269,6 +329,7 @@ mod tests {
             worktree_path: &worktree_path,
             parent_branch: "master",
             custom_branch: None,
+            use_existing_branch: false,
             should_copy_claude_locals: false,
         };
 
@@ -302,6 +363,7 @@ mod tests {
             worktree_path: &worktree_path,
             parent_branch: "master",
             custom_branch: Some("custom-branch"),
+            use_existing_branch: false,
             should_copy_claude_locals: false,
         };
 
@@ -369,6 +431,7 @@ mod tests {
             worktree_path: &worktree_path,
             parent_branch: "master",
             custom_branch: None,
+            use_existing_branch: false,
             should_copy_claude_locals: true,
         };
 
@@ -398,5 +461,95 @@ mod tests {
         let nonexistent = repo_path.join("nonexistent");
         let result = bootstrapper.verify_worktree(&nonexistent);
         assert!(result.is_err());
+    }
+
+    #[test]
+    #[serial]
+    fn test_use_existing_branch_creates_worktree_for_existing() {
+        let (_temp, repo_path) = setup_test_repo();
+
+        Command::new("git")
+            .args(["branch", "feature/existing-branch"])
+            .current_dir(&repo_path)
+            .output()
+            .unwrap();
+
+        let db = Database::new(Some(repo_path.join("test.db"))).unwrap();
+        let db_manager = SessionDbManager::new(db.clone(), repo_path.clone());
+        let cache_manager = SessionCacheManager::new(repo_path.clone());
+        let utils = SessionUtils::new(repo_path.clone(), cache_manager, db_manager);
+        let bootstrapper = WorktreeBootstrapper::new(&repo_path, &utils);
+
+        let worktree_path = repo_path.join(".schaltwerk/worktrees/existing-session");
+        let config = BootstrapConfig {
+            session_name: "existing-session",
+            branch_name: "schaltwerk/existing-session",
+            worktree_path: &worktree_path,
+            parent_branch: "master",
+            custom_branch: Some("feature/existing-branch"),
+            use_existing_branch: true,
+            should_copy_claude_locals: false,
+        };
+
+        let result = bootstrapper.bootstrap_worktree(config).unwrap();
+        assert_eq!(result.branch, "feature/existing-branch");
+        assert!(worktree_path.exists());
+        assert!(worktree_path.join(".git").exists());
+    }
+
+    #[test]
+    #[serial]
+    fn test_use_existing_branch_fails_if_branch_not_exists() {
+        let (_temp, repo_path) = setup_test_repo();
+
+        let db = Database::new(Some(repo_path.join("test.db"))).unwrap();
+        let db_manager = SessionDbManager::new(db.clone(), repo_path.clone());
+        let cache_manager = SessionCacheManager::new(repo_path.clone());
+        let utils = SessionUtils::new(repo_path.clone(), cache_manager, db_manager);
+        let bootstrapper = WorktreeBootstrapper::new(&repo_path, &utils);
+
+        let worktree_path = repo_path.join(".schaltwerk/worktrees/missing-session");
+        let config = BootstrapConfig {
+            session_name: "missing-session",
+            branch_name: "schaltwerk/missing-session",
+            worktree_path: &worktree_path,
+            parent_branch: "master",
+            custom_branch: Some("feature/nonexistent"),
+            use_existing_branch: true,
+            should_copy_claude_locals: false,
+        };
+
+        let result = bootstrapper.bootstrap_worktree(config);
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("does not exist"));
+    }
+
+    #[test]
+    #[serial]
+    fn test_use_existing_branch_fails_without_custom_branch() {
+        let (_temp, repo_path) = setup_test_repo();
+
+        let db = Database::new(Some(repo_path.join("test.db"))).unwrap();
+        let db_manager = SessionDbManager::new(db.clone(), repo_path.clone());
+        let cache_manager = SessionCacheManager::new(repo_path.clone());
+        let utils = SessionUtils::new(repo_path.clone(), cache_manager, db_manager);
+        let bootstrapper = WorktreeBootstrapper::new(&repo_path, &utils);
+
+        let worktree_path = repo_path.join(".schaltwerk/worktrees/no-custom-session");
+        let config = BootstrapConfig {
+            session_name: "no-custom-session",
+            branch_name: "schaltwerk/no-custom-session",
+            worktree_path: &worktree_path,
+            parent_branch: "master",
+            custom_branch: None,
+            use_existing_branch: true,
+            should_copy_claude_locals: false,
+        };
+
+        let result = bootstrapper.bootstrap_worktree(config);
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("requires custom_branch"));
     }
 }
