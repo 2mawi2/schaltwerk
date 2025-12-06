@@ -2163,11 +2163,24 @@ impl SessionManager {
         let session_id = SessionUtils::generate_session_id();
         self.utils.cleanup_existing_worktree(&worktree_path)?;
 
-        let parent_branch = match self.resolve_parent_branch(params.base_branch) {
-            Ok(branch) => branch,
-            Err(err) => {
-                self.cache_manager.unreserve_name(&unique_name);
-                return Err(err);
+        // When using an existing branch, the parent_branch should be the default branch
+        // (e.g., main), not the PR branch itself. Otherwise diffs would compare the branch
+        // against itself.
+        let parent_branch = if params.use_existing_branch {
+            match self.resolve_parent_branch(None) {
+                Ok(branch) => branch,
+                Err(err) => {
+                    self.cache_manager.unreserve_name(&unique_name);
+                    return Err(err);
+                }
+            }
+        } else {
+            match self.resolve_parent_branch(params.base_branch) {
+                Ok(branch) => branch,
+                Err(err) => {
+                    self.cache_manager.unreserve_name(&unique_name);
+                    return Err(err);
+                }
             }
         };
 

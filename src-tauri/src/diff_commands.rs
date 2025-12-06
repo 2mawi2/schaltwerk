@@ -24,8 +24,13 @@ pub async fn get_changed_files_from_main(
     let session_ref = session_name.as_deref();
     let repo_path = resolve_repo_path_structured(session_ref).await?;
     let base_branch = resolve_base_branch_structured(session_ref).await?;
-    git::get_changed_files(std::path::Path::new(&repo_path), &base_branch)
-        .map_err(|e| SchaltError::git("get_changed_files_from_main", e))
+    let result = git::get_changed_files(std::path::Path::new(&repo_path), &base_branch)
+        .map_err(|e| SchaltError::git("get_changed_files_from_main", e))?;
+    log::info!(
+        "get_changed_files_from_main: session={session_name:?} -> repo_path='{repo_path}', base_branch='{base_branch}', files_count={}",
+        result.len()
+    );
+    Ok(result)
 }
 
 fn collect_working_directory_changes(repo: &Repository) -> anyhow::Result<Vec<ChangedFile>> {
@@ -639,13 +644,19 @@ pub async fn get_commit_comparison_info(
 
     // Only get base branch if HEAD is not unborn
     let base_branch = resolve_base_branch_structured(session_name.as_deref()).await?;
-    let base_commit = repo
+    let base_branch_commit = repo
         .revparse_single(&base_branch)
         .map_err(|e| SchaltError::git("resolve_base_branch", e))?
         .peel_to_commit()
         .map_err(|e| SchaltError::git("peel_base_commit", e))?;
+
+    // Use merge-base to find the common ancestor, matching what get_changed_files does
+    let base_oid = repo
+        .merge_base(head_oid, base_branch_commit.id())
+        .unwrap_or(base_branch_commit.id());
+
     let head_short = short_id_str(&repo, head_oid);
-    let base_short = short_id_str(&repo, base_commit.id());
+    let base_short = short_id_str(&repo, base_oid);
     Ok((base_short, head_short))
 }
 
@@ -948,8 +959,12 @@ async fn resolve_session_info(session_name: &str) -> Result<(String, String), St
     let repo_key = current_repo_cache_key().await?;
     let cache = global_session_lookup_cache();
     if let Some((worktree_path, base_branch)) = cache.get(&repo_key, session_name).await {
+        log::debug!(
+            "resolve_session_info: cache hit for session='{session_name}' -> worktree='{worktree_path}', base_branch='{base_branch}'"
+        );
         return Ok((worktree_path, base_branch));
     }
+    log::debug!("resolve_session_info: cache miss for session='{session_name}'");
 
     let (worktree_path, base_branch) = {
         let manager = {
