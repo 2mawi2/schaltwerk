@@ -2,6 +2,8 @@ import type { XtermTerminal } from '../../../terminal/xterm/XtermTerminal'
 import { logger } from '../../../utils/logger'
 
 const SCROLL_LOCK_THRESHOLD_LINES = 5
+const STREAMING_COOLDOWN_MS = 150
+const SCROLL_DEBUG = typeof localStorage !== 'undefined' && localStorage.getItem('SCROLL_DEBUG') === '1'
 
 export interface TerminalViewportControllerOptions {
   /**
@@ -18,10 +20,85 @@ export class TerminalViewportController {
   private readonly _terminal: XtermTerminal
   private readonly _logger?: (msg: string) => void
   private _disposed = false
+  private _lastOutputTime = 0
+  private _userScrolledAway = false
+  private _lastKnownViewportY: number | null = null
+  private _lastKnownBaseY: number | null = null
+  private _lastKnownBufferLength: number | null = null
 
   constructor(options: TerminalViewportControllerOptions) {
     this._terminal = options.terminal
     this._logger = options.logger
+    this._setupScrollTracking()
+  }
+
+  private _logScrollState(source: string): void {
+    if (!SCROLL_DEBUG) return
+    try {
+      const raw = this._terminal.raw
+      const buf = raw?.buffer?.active
+      if (!buf) return
+
+      const viewportY = buf.viewportY
+      const baseY = buf.baseY
+      const bufferLength = buf.length
+      const distance = baseY - viewportY
+
+      const viewportDelta = this._lastKnownViewportY !== null ? viewportY - this._lastKnownViewportY : 0
+      const baseDelta = this._lastKnownBaseY !== null ? baseY - this._lastKnownBaseY : 0
+      const lengthDelta = this._lastKnownBufferLength !== null ? bufferLength - this._lastKnownBufferLength : 0
+
+      logger.info(`[Scroll:${source}] viewportY=${viewportY}(${viewportDelta >= 0 ? '+' : ''}${viewportDelta}) baseY=${baseY}(${baseDelta >= 0 ? '+' : ''}${baseDelta}) bufLen=${bufferLength}(${lengthDelta >= 0 ? '+' : ''}${lengthDelta}) dist=${distance} userAway=${this._userScrolledAway}`)
+
+      this._lastKnownBaseY = baseY
+      this._lastKnownBufferLength = bufferLength
+    } catch {
+      // ignore
+    }
+  }
+
+  private _setupScrollTracking(): void {
+    const raw = this._terminal.raw
+    if (!raw) return
+
+    raw.onScroll(() => {
+      if (this._disposed) return
+      const buf = raw.buffer?.active
+      if (!buf) return
+
+      const distance = buf.baseY - buf.viewportY
+      const isAtBottom = distance === 0
+
+      if (this._lastKnownViewportY !== null) {
+        const scrolledUp = buf.viewportY < this._lastKnownViewportY
+        if (scrolledUp && !isAtBottom) {
+          this._userScrolledAway = true
+        }
+      }
+
+      if (isAtBottom) {
+        this._userScrolledAway = false
+      }
+
+      this._logScrollState('scroll')
+      this._lastKnownViewportY = buf.viewportY
+    })
+  }
+
+  /**
+   * Notify the controller that output was written to the terminal.
+   * This helps track streaming activity to avoid scroll jumps during active output.
+   */
+  onOutput(): void {
+    if (this._disposed) return
+    this._lastOutputTime = Date.now()
+  }
+
+  /**
+   * Check if the terminal is actively receiving output (streaming).
+   */
+  private _isStreaming(): boolean {
+    return Date.now() - this._lastOutputTime < STREAMING_COOLDOWN_MS
   }
 
   /**
@@ -31,6 +108,7 @@ export class TerminalViewportController {
    */
   onFocusOrClick(): void {
     if (this._disposed) return
+    this._userScrolledAway = false
     this._refreshAndSnap('focus')
   }
 
@@ -40,12 +118,13 @@ export class TerminalViewportController {
    */
   onResize(): void {
     if (this._disposed) return
-    // Resizing already triggers a lot of internal xterm logic.
-    // We just ensure we snap if we should.
-    // Note: xterm's own resize often forces scroll to bottom if it was at bottom.
-    // We add a safeguard here.
-    
-    // Check if we should snap before blindly forcing it, to avoid fighting the user's scroll
+
+    if (this._isStreaming() && this._userScrolledAway) {
+      this._logger?.(`[TerminalViewportController] Skipping snap during streaming (user scrolled away)`)
+      this._terminal.refresh()
+      return
+    }
+
     this._refreshAndSnap('resize')
   }
 
@@ -62,27 +141,29 @@ export class TerminalViewportController {
    */
   private _refreshAndSnap(source: string): void {
     try {
-      // Force a renderer refresh to fix potential "blank" or "stuck" rendering states
       this._terminal.refresh()
 
       const raw = this._terminal.raw
       if (!raw?.buffer?.active) return
 
       const buf = raw.buffer.active
-      // Check if we are close enough to the bottom to assume the user wants to be "locked" there.
-      // If we are reading history far up, we do NOT want to snap.
       const distance = buf.baseY - buf.viewportY
+
+      if (this._isStreaming() && this._userScrolledAway && source === 'resize') {
+        this._logger?.(`[TerminalViewportController] Skip snap: streaming + user scrolled away (source=${source}, distance=${distance})`)
+        return
+      }
+
       if (distance < SCROLL_LOCK_THRESHOLD_LINES) {
         if (distance > 0) {
           this._logger?.(`[TerminalViewportController] Snapping to bottom (source=${source}, distance=${distance})`)
         }
         this._terminal.raw.scrollToBottom()
+        this._userScrolledAway = false
       }
     } catch (e) {
       const msg = `[TerminalViewportController] Error during refresh/snap: ${String(e)}`
-      // Always log errors to global logger to ensure visibility and satisfy architecture requirements
       logger.error(msg)
-      // Also invoke the instance logger if provided (e.g. for debug tracing)
       this._logger?.(msg)
     }
   }
