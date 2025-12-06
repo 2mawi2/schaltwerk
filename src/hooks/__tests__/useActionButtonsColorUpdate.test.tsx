@@ -108,17 +108,18 @@ describe('useActionButtons color updates', () => {
     expect(mockInvoke).toHaveBeenCalledTimes(3)
   })
 
-  it('resetToDefaults seeds Squash Merge Main default action via backend', async () => {
-    const backendDefaults = [
+  it('resetToDefaults clears action buttons via backend', async () => {
+    const initialButtons = [
       {
-        id: 'squash-merge-main',
-        label: 'Squash Merge Main',
-        prompt: 'Task: Squash-merge all reviewed Schaltwerk sessions',
-        color: 'green'
+        id: 'custom-button',
+        label: 'Custom',
+        prompt: 'Custom action',
+        color: 'blue'
       }
     ]
+    const emptyDefaults: never[] = []
 
-    const getResponses = [[], backendDefaults]
+    const getResponses = [initialButtons, emptyDefaults]
 
     ;(mockInvoke as Mock).mockImplementation((command: string, args?: unknown) => {
       switch (command) {
@@ -129,35 +130,36 @@ describe('useActionButtons color updates', () => {
         }
         case TauriCommands.ResetProjectActionButtonsToDefaults: {
           expect(args).toBeUndefined()
-          return Promise.resolve(backendDefaults)
+          return Promise.resolve(emptyDefaults)
         }
         default:
           throw new Error(`Unexpected command invoked: ${command}`)
       }
     })
 
-    const { getByText } = render(
+    const { getByText, getByTestId } = render(
       <TestWrapper>
         <TestComponent />
       </TestWrapper>
     )
+
+    await waitFor(() => {
+      expect(getByTestId('btn-label')).toHaveTextContent('Custom')
+    })
 
     fireEvent.click(getByText('reset-defaults'))
 
     await waitFor(() => {
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.ResetProjectActionButtonsToDefaults)
     })
+
+    await waitFor(() => {
+      expect(getByTestId('btn-label')).toHaveTextContent('')
+    })
   })
 
   it('resetToDefaults retries load for the active project after a failed fetch', async () => {
-    const backendDefaults = [
-      {
-        id: 'squash-merge-main',
-        label: 'Squash Merge Main',
-        prompt: 'Task: Squash-merge all reviewed Schaltwerk sessions',
-        color: 'green'
-      }
-    ]
+    const emptyDefaults: never[] = []
 
     let getCalls = 0
 
@@ -168,11 +170,11 @@ describe('useActionButtons color updates', () => {
           if (getCalls === 1) {
             return Promise.reject(new Error('backend unavailable'))
           }
-          return Promise.resolve(backendDefaults)
+          return Promise.resolve(emptyDefaults)
         }
         case TauriCommands.ResetProjectActionButtonsToDefaults: {
           expect(args).toBeUndefined()
-          return Promise.resolve(backendDefaults)
+          return Promise.resolve(emptyDefaults)
         }
         default:
           throw new Error(`Unexpected command invoked: ${command}`)
@@ -198,7 +200,7 @@ describe('useActionButtons color updates', () => {
 
     await waitFor(() => {
       expect(mockInvoke).toHaveBeenNthCalledWith(3, TauriCommands.GetProjectActionButtons)
-      expect(getByTestId('btn-label')).toHaveTextContent('Squash Merge Main')
+      expect(getByTestId('btn-label')).toHaveTextContent('')
     })
   })
 })
