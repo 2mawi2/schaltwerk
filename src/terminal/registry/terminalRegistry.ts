@@ -4,6 +4,14 @@ import { disposeGpuRenderer } from '../gpu/gpuRendererRegistry';
 import { sessionTerminalBaseVariants, sanitizeSessionName } from '../../common/terminalIdentity';
 import { terminalOutputManager } from '../stream/terminalOutputManager';
 
+const ESC = '\x1b';
+const CLEAR_SCROLLBACK_SEQ = `${ESC}[3J`;
+
+function filterScrollbackClear(output: string): string {
+  if (!output.includes(CLEAR_SCROLLBACK_SEQ)) return output;
+  return output.split(CLEAR_SCROLLBACK_SEQ).join('');
+}
+
 export interface TerminalInstanceRecord {
   id: string;
   xterm: XtermTerminal;
@@ -227,7 +235,10 @@ class TerminalInstanceRegistry {
         record.pendingChunks = [];
       }
 
-      record.pendingChunks.push(chunk);
+      const filtered = filterScrollbackClear(chunk);
+      if (!filtered) return;
+
+      record.pendingChunks.push(filtered);
 
       if (!record.rafScheduled) {
         record.rafScheduled = true;
