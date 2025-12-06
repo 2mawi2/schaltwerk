@@ -23,8 +23,6 @@ export class TerminalViewportController {
   private _lastOutputTime = 0
   private _userScrolledAway = false
   private _lastKnownViewportY: number | null = null
-  private _lastKnownBaseY: number | null = null
-  private _lastKnownBufferLength: number | null = null
 
   constructor(options: TerminalViewportControllerOptions) {
     this._terminal = options.terminal
@@ -40,18 +38,9 @@ export class TerminalViewportController {
       if (!buf) return
 
       const viewportY = buf.viewportY
-      const baseY = buf.baseY
-      const bufferLength = buf.length
-      const distance = baseY - viewportY
+      const distance = buf.baseY - viewportY
 
-      const viewportDelta = this._lastKnownViewportY !== null ? viewportY - this._lastKnownViewportY : 0
-      const baseDelta = this._lastKnownBaseY !== null ? baseY - this._lastKnownBaseY : 0
-      const lengthDelta = this._lastKnownBufferLength !== null ? bufferLength - this._lastKnownBufferLength : 0
-
-      logger.info(`[Scroll:${source}] viewportY=${viewportY}(${viewportDelta >= 0 ? '+' : ''}${viewportDelta}) baseY=${baseY}(${baseDelta >= 0 ? '+' : ''}${baseDelta}) bufLen=${bufferLength}(${lengthDelta >= 0 ? '+' : ''}${lengthDelta}) dist=${distance} userAway=${this._userScrolledAway}`)
-
-      this._lastKnownBaseY = baseY
-      this._lastKnownBufferLength = bufferLength
+      logger.info(`[Scroll:${source}] viewportY=${viewportY} dist=${distance} userAway=${this._userScrolledAway}`)
     } catch {
       // ignore
     }

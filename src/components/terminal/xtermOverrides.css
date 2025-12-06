@@ -4,6 +4,7 @@
   box-sizing: border-box;
   position: relative;
   overflow: hidden;
+  background-color: #0b1220;
 }
 
 .schaltwerk-terminal-wrapper .xterm {
@@ -14,4 +15,24 @@
 .schaltwerk-terminal-wrapper .xterm-viewport {
   top: 0;
   bottom: 0;
+  background-color: #0b1220 !important;
+}
+
+.schaltwerk-terminal-wrapper .xterm-viewport::-webkit-scrollbar {
+  width: 10px;
+}
+
+.schaltwerk-terminal-wrapper .xterm-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.schaltwerk-terminal-wrapper .xterm-viewport::-webkit-scrollbar-thumb {
+  background-color: #334155;
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.schaltwerk-terminal-wrapper .xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background-color: #475569;
 }
