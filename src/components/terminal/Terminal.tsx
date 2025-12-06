@@ -412,42 +412,13 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             return false;
         }
 
-        const dragging = document.body.classList.contains('is-split-dragging');
-
         const effectiveCols = calculateEffectiveColumns(cols);
-
-        const measuredChanged = (cols !== lastSize.current.cols) || (rows !== lastSize.current.rows);
         lastSize.current = { cols, rows };
 
-        let bufferLinesBefore = 0;
-        let wasAtBottom = false;
-        try {
-            const buf = terminal.current.buffer.active;
-            bufferLinesBefore = buf.length;
-            wasAtBottom = buf.viewportY === buf.baseY;
-            if (termDebug()) {
-                logger.debug(`[Terminal ${terminalId}] BEFORE resize: buffer.length=${buf.length}, viewportY=${buf.viewportY}, baseY=${buf.baseY}, wasAtBottom=${wasAtBottom}`);
-            }
-        } catch (e) {
-            logger.debug(`[Terminal ${terminalId}] Failed to read buffer state before resize`, e);
-        }
-
-        // Align frontend grid to effective size first, then repaint
         try {
             terminal.current.resize(effectiveCols, rows);
             (terminal.current as unknown as { refresh?: (start: number, end: number) => void })?.refresh?.(0, Math.max(0, rows - 1));
 
-            if (termDebug()) {
-                try {
-                    const buf = terminal.current.buffer.active;
-                    logger.debug(`[Terminal ${terminalId}] AFTER resize: buffer.length=${buf.length}, viewportY=${buf.viewportY}, baseY=${buf.baseY}, linesLost=${bufferLinesBefore - buf.length}`);
-                } catch (_e) {
-                    logger.debug(`[Terminal ${terminalId}] Could not read buffer after resize`);
-                }
-            }
-
-            // After any size change, force-align the viewport to the bottom.
-            // This mirrors VS Code's behavior of keeping the prompt visible through rapid height changes.
             requestAnimationFrame(() => {
                 requestAnimationFrame(() => {
                     try {
@@ -461,38 +432,12 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             logger.debug(`[Terminal ${terminalId}] Failed to apply frontend resize to ${effectiveCols}x${rows}`, e);
         }
 
-        // If the container changed but the effective cols stayed the same, TUIs may not reflow (no SIGWINCH).
-        const sameEffective = (effectiveCols === lastEffectiveRef.current.cols) && (rows === lastEffectiveRef.current.rows);
-        // Nudge top agent terminals when not dragging to guarantee reflow
-        if (!dragging && isAgentTopTerminal && measuredChanged && sameEffective) {
-            const nudgeCols = Math.max(effectiveCols - 1, MIN_DIMENSION);
-            try {
-                terminal.current.resize(nudgeCols, rows);
-                (terminal.current as unknown as { refresh?: (start: number, end: number) => void })?.refresh?.(0, Math.max(0, rows - 1));
-            } catch (e) {
-                logger.debug(`[Terminal ${terminalId}] frontend nudge resize failed`, e);
-            }
-            recordTerminalSize(terminalId, nudgeCols, rows);
-            schedulePtyResize(terminalId, { cols: nudgeCols, rows }, { force: true });
-            try {
-                terminal.current?.resize(effectiveCols, rows);
-                (terminal.current as unknown as { refresh?: (start: number, end: number) => void })?.refresh?.(0, Math.max(0, rows - 1));
-            } catch (e) {
-                logger.debug(`[Terminal ${terminalId}] final resize after nudge failed`, e);
-            }
-            recordTerminalSize(terminalId, effectiveCols, rows);
-            schedulePtyResize(terminalId, { cols: effectiveCols, rows }, { force: true });
-            lastEffectiveRef.current = { cols: effectiveCols, rows };
-            rememberDimensions();
-            return true;
-        }
-
         recordTerminalSize(terminalId, effectiveCols, rows);
         schedulePtyResize(terminalId, { cols: effectiveCols, rows });
         lastEffectiveRef.current = { cols: effectiveCols, rows };
         rememberDimensions();
         return true;
-    }, [terminalId, isAgentTopTerminal, rememberDimensions]);
+    }, [terminalId, rememberDimensions]);
 
     useEffect(() => {
         const coordinator = new TerminalResizeCoordinator({
