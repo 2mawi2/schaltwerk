@@ -64,7 +64,7 @@ vi.mock('../../utils/logger', () => ({
 
 import { createStore } from 'jotai'
 import { FilterMode } from '../../types/sessionFilters'
-import { SessionState, type EnrichedSession, type RawSession } from '../../types/session'
+import { SessionState, type EnrichedSession } from '../../types/session'
 import { TauriCommands } from '../../common/tauriCommands'
 import {
     allSessionsAtom,
@@ -139,28 +139,6 @@ const createSession = (overrides: Partial<EnrichedSession['info']>): EnrichedSes
     },
     terminals: [],
 })
-
-const createRawSession = (name: string, overrides: Partial<RawSession> = {}): RawSession => {
-    const timestamp = new Date().toISOString()
-    return {
-        id: `${name}-id`,
-        name,
-        display_name: name,
-        repository_path: '/tmp/repo',
-        repository_name: 'project',
-        branch: `schaltwerk/${name}`,
-        parent_branch: 'main',
-        worktree_path: `/tmp/${name}`,
-        status: 'active',
-        created_at: timestamp,
-        updated_at: timestamp,
-        ready_to_merge: false,
-        pending_name_generation: false,
-        was_auto_generated: false,
-        session_state: SessionState.Running,
-        ...overrides,
-    }
-}
 
 describe('sessions atoms', () => {
     let store: ReturnType<typeof createStore>
@@ -657,7 +635,6 @@ describe('sessions atoms', () => {
         const { invoke } = await import('@tauri-apps/api/core')
         store.set(projectPathAtom, '/project')
         const sessionSnapshot = [
-            createSession({ session_id: 'draft', status: 'spec', session_state: 'spec' }),
             createSession({ session_id: 'running', status: 'active', session_state: 'running' }),
             createSession({ session_id: 'review', status: 'dirty', session_state: 'reviewed', ready_to_merge: true }),
         ]
@@ -670,17 +647,11 @@ describe('sessions atoms', () => {
             if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) {
                 return []
             }
-            if (cmd === TauriCommands.SchaltwerkCoreStartSpecSession) {
-                return createRawSession('draft')
-            }
             if (cmd === TauriCommands.SchaltwerkCoreConvertSessionToDraft) {
                 return 'running-draft'
             }
             return undefined
         })
-
-        await store.set(updateSessionStatusActionAtom, { sessionId: 'draft', status: 'active' })
-        expect(invoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartSpecSession, { name: 'draft' })
 
         await store.set(updateSessionStatusActionAtom, { sessionId: 'running', status: 'spec' })
         expect(invoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreConvertSessionToDraft, { name: 'running' })

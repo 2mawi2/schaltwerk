@@ -271,7 +271,7 @@ emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions)?;
 ### Tauri Commands (MANDATORY)
 - NEVER call `invoke('some_command')` with raw strings in TS/TSX.
 - ALWAYS use the centralized enum in `src/common/tauriCommands.ts`.
-- Example: `invoke(TauriCommands.SchaltwerkCoreCreateAndStartSpecSession, { name, specContent })`.
+- Example: `invoke(TauriCommands.SchaltwerkCoreCreateSession, { name, prompt })`.
 - When adding a new backend command/event:
   - Add the entry to `src/common/tauriCommands.ts` (PascalCase key → exact command string).
   - Use that enum entry everywhere (including tests) instead of string literals.
