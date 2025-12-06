@@ -21,6 +21,7 @@ import { isSessionMissingError } from '../../types/errors'
 import { FileTree } from './FileTree'
 import type { FileNode } from '../../utils/folderTree'
 import { TERMINAL_FILE_DRAG_TYPE, type TerminalFileDragPayload } from '../../common/dragTypes'
+import { BranchSelectorPopover } from './BranchSelectorPopover'
 
 interface DiffFileListProps {
   onFileSelect: (filePath: string) => void
@@ -767,10 +768,17 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
                   ? `Changes from ${branchInfo.baseBranch || 'base'} (${branchInfo.baseCommit})`
                   : `Changes from ${branchInfo?.baseBranch || 'base'}`}
             </span>
-            {branchInfo && !isCommander && (
-              <span className="text-xs text-slate-500">
-                ({branchInfo.headCommit} → {branchInfo.baseCommit})
-              </span>
+            {branchInfo && !isCommander && sessionName && (
+              <>
+                <span className="text-xs text-slate-500">
+                  ({branchInfo.headCommit} → {branchInfo.baseCommit})
+                </span>
+                <BranchSelectorPopover
+                  sessionName={sessionName}
+                  currentBaseBranch={branchInfo.baseBranch}
+                  onBranchChange={() => void loadChangedFiles()}
+                />
+              </>
             )}
             {branchInfo && isCommander && (
               <span className="text-xs text-slate-500">

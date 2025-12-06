@@ -12,6 +12,8 @@ interface BranchAutocompleteProps {
     placeholder?: string
     className?: string
     onValidationChange?: (isValid: boolean) => void
+    onConfirm?: (value: string) => void
+    autoFocus?: boolean
 }
 
 export function BranchAutocomplete({
@@ -21,7 +23,9 @@ export function BranchAutocomplete({
     disabled = false,
     placeholder = "Type to search branches...",
     className = "",
-    onValidationChange
+    onValidationChange,
+    onConfirm,
+    autoFocus = false
 }: BranchAutocompleteProps) {
     const [isOpen, setIsOpen] = useState(false)
     const [filteredBranches, setFilteredBranches] = useState<string[]>([])
@@ -123,13 +127,19 @@ export function BranchAutocomplete({
         } else if (e.key === 'Enter') {
             e.preventDefault()
             if (highlightedIndex >= 0 && highlightedIndex < filteredBranches.length) {
-                onChange(filteredBranches[highlightedIndex])
+                const selected = filteredBranches[highlightedIndex]
+                onChange(selected)
                 setIsOpen(false)
                 setHighlightedIndex(-1)
+                onConfirm?.(selected)
             } else if (filteredBranches.length === 1) {
-                onChange(filteredBranches[0])
+                const selected = filteredBranches[0]
+                onChange(selected)
                 setIsOpen(false)
                 setHighlightedIndex(-1)
+                onConfirm?.(selected)
+            } else if (branches.includes(value)) {
+                onConfirm?.(value)
             }
         } else if (e.key === 'Escape') {
             setIsOpen(false)
@@ -169,7 +179,7 @@ export function BranchAutocomplete({
             setFilteredBranches(branches.slice(0, 20))
             setHighlightedIndex(0)
         }
-    }, [filteredBranches, highlightedIndex, onChange, branches, value])
+    }, [filteredBranches, highlightedIndex, onChange, branches, value, onConfirm])
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         onChange(e.target.value)
@@ -276,30 +286,29 @@ export function BranchAutocomplete({
                 autoCapitalize="off"
                 autoCorrect="off"
                 spellCheck={false}
+                autoFocus={autoFocus}
             />
             
             {isOpen && filteredBranches.length > 0 && menuGeometry && createPortal(
-                <>
-                    <div
-                        className="fixed inset-0"
-                        style={{ zIndex: theme.layers.dropdownOverlay }}
-                        onMouseDown={() => setIsOpen(false)}
-                    />
-                    <div
-                        ref={dropdownRef}
-                        data-testid="branch-autocomplete-menu"
-                        className="bg-slate-800 border border-slate-700 rounded-md shadow-lg overflow-auto"
-                        style={{
-                            position: 'fixed',
-                            ...(menuGeometry.placement === 'above'
-                                ? { bottom: menuGeometry.bottom }
-                                : { top: menuGeometry.top }),
-                            left: menuGeometry.left,
-                            width: menuGeometry.width,
-                            maxHeight: menuGeometry.maxHeight,
-                            zIndex: theme.layers.dropdownMenu
-                        }}
-                    >
+                <div
+                    ref={dropdownRef}
+                    data-testid="branch-autocomplete-menu"
+                    data-branch-selector
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
+                    className="bg-slate-800 border border-slate-700 rounded-md shadow-lg overflow-auto"
+                    style={{
+                        position: 'fixed',
+                        ...(menuGeometry.placement === 'above'
+                            ? { bottom: menuGeometry.bottom }
+                            : { top: menuGeometry.top }),
+                        left: menuGeometry.left,
+                        width: menuGeometry.width,
+                        maxHeight: menuGeometry.maxHeight,
+                        zIndex: theme.layers.dropdownMenu
+                    }}
+                >
                         {filteredBranches.map((branch, index) => (
                             <div
                                 key={branch}
@@ -327,8 +336,7 @@ export function BranchAutocomplete({
                                 No branches found matching "{value}"
                             </div>
                         )}
-                    </div>
-                </>,
+                </div>,
                 document.body
             )}
             

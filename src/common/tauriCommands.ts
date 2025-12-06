@@ -35,6 +35,7 @@ export const TauriCommands = {
   GetDevErrorToastsEnabled: 'get_dev_error_toasts_enabled',
   GetBaseBranchName: 'get_base_branch_name',
   GetChangedFilesFromMain: 'get_changed_files_from_main',
+  SetSessionDiffBaseBranch: 'set_session_diff_base_branch',
   GetCommitComparisonInfo: 'get_commit_comparison_info',
   GetCurrentBranchName: 'get_current_branch_name',
   GetCurrentDirectory: 'get_current_directory',
