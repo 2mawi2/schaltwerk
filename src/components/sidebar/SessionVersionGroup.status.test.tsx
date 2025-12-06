@@ -44,6 +44,7 @@ function createVersion({
 }
 
 const baseGroup: SessionVersionGroupType = {
+  id: 'feature-A-group-id',
   baseName: 'feature-A',
   isVersionGroup: true,
   versions: [

@@ -3,7 +3,6 @@ use portable_pty::CommandBuilder;
 use std::path::PathBuf;
 
 const TERM_PROGRAM_NAME: &str = "schaltwerk";
-const TERM_PROGRAM_VERSION: &str = env!("CARGO_PKG_VERSION");
 const COLORTERM_VALUE: &str = "truecolor";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -164,10 +163,6 @@ fn build_environment(cols: u16, rows: u16) -> Vec<(String, String)> {
     envs.push(("CLICOLOR_FORCE".to_string(), "1".to_string()));
     envs.push(("COLORTERM".to_string(), COLORTERM_VALUE.to_string()));
     envs.push(("TERM_PROGRAM".to_string(), TERM_PROGRAM_NAME.to_string()));
-    envs.push((
-        "TERM_PROGRAM_VERSION".to_string(),
-        TERM_PROGRAM_VERSION.to_string(),
-    ));
 
     envs
 }
@@ -330,9 +325,10 @@ mod tests {
             env.iter()
                 .any(|(key, value)| key == "TERM_PROGRAM" && value == "schaltwerk")
         );
+        // TERM_PROGRAM_VERSION removed for compatibility
         assert!(
-            env.iter()
-                .any(|(key, value)| { key == "TERM_PROGRAM_VERSION" && !value.trim().is_empty() })
+            !env.iter()
+                .any(|(key, _)| key == "TERM_PROGRAM_VERSION")
         );
         assert!(
             env.iter()

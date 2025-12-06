@@ -21,7 +21,7 @@ interface SessionRailCardProps {
   isSelected: boolean
   hasFollowUpMessage: boolean
   isRunning: boolean
-  onSelect: (index: number) => void
+  onSelect: (sessionId: string) => void
 }
 
 export const SessionRailCard = memo<SessionRailCardProps>(function SessionRailCard({
@@ -93,11 +93,11 @@ export const SessionRailCard = memo<SessionRailCardProps>(function SessionRailCa
         surfaceClasses,
         'cursor-pointer'
       )}
-      onClick={() => onSelect(index)}
+      onClick={() => onSelect(info.session_id)}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault()
-          onSelect(index)
+          onSelect(info.session_id)
         }
       }}
     >
