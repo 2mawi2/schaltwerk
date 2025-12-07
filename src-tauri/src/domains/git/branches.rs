@@ -286,8 +286,18 @@ fn materialize_from_remote(repo: &Repository, local: &str, remote: &str) -> Resu
     Ok(())
 }
 
-pub fn fetch_and_sync_branch(repo_path: &Path, branch_name: &str) -> Result<()> {
-    log::info!("Fetching and syncing branch '{branch_name}' from origin");
+/// Safely sync a local branch with its remote counterpart using fast-forward only.
+///
+/// IMPORTANT: This function should only be used for branches where the remote is the
+/// authoritative source of truth (e.g., PR branches from GitHub). It will:
+/// - Fast-forward local if behind remote (safe)
+/// - Skip sync with warning if local is ahead (preserves local commits)
+/// - Skip sync with warning if branches have diverged (preserves local commits)
+///
+/// This function NEVER performs force updates or resets that could lose commits.
+/// For local development branches where users may have unpushed work, do NOT call this.
+pub fn safe_sync_branch_with_origin(repo_path: &Path, branch_name: &str) -> Result<()> {
+    log::info!("Safely syncing branch '{branch_name}' with origin (fast-forward only)");
 
     std::process::Command::new("git")
         .args(["fetch", "origin", branch_name])
@@ -298,29 +308,52 @@ pub fn fetch_and_sync_branch(repo_path: &Path, branch_name: &str) -> Result<()> 
     let repo = Repository::open(repo_path)?;
     let remote_ref = format!("refs/remotes/origin/{branch_name}");
 
-    let remote_commit = repo
+    let remote_oid = repo
         .find_reference(&remote_ref)
         .ok()
-        .and_then(|r| r.target())
-        .and_then(|oid| repo.find_commit(oid).ok());
+        .and_then(|r| r.target());
 
     let local_branch = repo.find_branch(branch_name, BranchType::Local).ok();
 
-    match (local_branch, remote_commit) {
-        (None, Some(commit)) => {
+    match (local_branch, remote_oid) {
+        (None, Some(remote_oid)) => {
+            let commit = repo.find_commit(remote_oid)?;
             log::info!("Creating local branch '{branch_name}' from origin/{branch_name}");
             repo.branch(branch_name, &commit, false)?;
         }
-        (Some(branch), Some(commit)) => {
-            log::info!("Updating local branch '{branch_name}' to match origin/{branch_name}");
-            let refname = branch
+        (Some(branch), Some(remote_oid)) => {
+            let local_oid = branch
                 .get()
-                .name()
-                .ok_or_else(|| anyhow!("Branch has no ref name"))?;
-            repo.reference(refname, commit.id(), true, "sync with origin")?;
+                .target()
+                .ok_or_else(|| anyhow!("Local branch has no target"))?;
+
+            if local_oid == remote_oid {
+                log::info!("Branch '{branch_name}' is already up-to-date with origin");
+                return Ok(());
+            }
+
+            let local_is_ancestor = repo.graph_descendant_of(remote_oid, local_oid)?;
+            let remote_is_ancestor = repo.graph_descendant_of(local_oid, remote_oid)?;
+
+            if local_is_ancestor && !remote_is_ancestor {
+                log::info!("Fast-forwarding '{branch_name}' to origin/{branch_name}");
+                let refname = branch
+                    .get()
+                    .name()
+                    .ok_or_else(|| anyhow!("Branch has no ref name"))?;
+                repo.reference(refname, remote_oid, true, "safe sync with origin (fast-forward)")?;
+            } else if remote_is_ancestor && !local_is_ancestor {
+                log::warn!(
+                    "Branch '{branch_name}' is ahead of origin - skipping sync to preserve local commits"
+                );
+            } else {
+                log::warn!(
+                    "Branch '{branch_name}' has diverged from origin - skipping sync to preserve local commits"
+                );
+            }
         }
         (Some(_), None) => {
-            log::info!("Local branch '{branch_name}' exists, no remote to sync from");
+            log::info!("Local branch '{branch_name}' exists but no remote tracking branch found");
         }
         (None, None) => {
             return Err(anyhow!(

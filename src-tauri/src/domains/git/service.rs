@@ -5,8 +5,8 @@ pub use super::repository::{
 };
 
 pub use super::branches::{
-    branch_exists, delete_branch, ensure_branch_at_head, fetch_and_sync_branch, list_branches,
-    normalize_branch_to_local, rename_branch,
+    branch_exists, delete_branch, ensure_branch_at_head, list_branches, normalize_branch_to_local,
+    rename_branch, safe_sync_branch_with_origin,
 };
 #[cfg(test)]
 pub use super::repository::{get_commit_hash, get_current_branch};

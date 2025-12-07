@@ -1086,6 +1086,7 @@ async fn create_session(
         base_branch: base_branch.as_deref(),
         custom_branch: custom_branch.as_deref(),
         use_existing_branch,
+        sync_with_origin: use_existing_branch,
         was_auto_generated,
         version_group_id: None,
         version_number: None,
