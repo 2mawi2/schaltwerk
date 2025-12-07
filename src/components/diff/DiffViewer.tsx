@@ -169,6 +169,7 @@ export interface DiffViewerProps {
   onStartCommentFromContext?: (payload: { filePath: string; lineNumber: number; side: 'old' | 'new' }) => void
   onOpenFile?: (filePath: string) => Promise<OpenInAppRequest | undefined>
   keyboardFocus?: { filePath: string; lineNum: number; side: 'old' | 'new' } | null
+  hoveredLine?: { filePath: string; lineNum: number; side: 'old' | 'new' } | null
 }
 
 export function DiffViewer({
@@ -207,6 +208,7 @@ export function DiffViewer({
   onStartCommentFromContext,
   onOpenFile,
   keyboardFocus = null,
+  hoveredLine = null,
 }: DiffViewerProps) {
   const resizeObserversRef = useRef<Map<string, ResizeObserver>>(new Map())
   const bodyRefCallbacksRef = useRef<Map<string, (node: HTMLDivElement | null) => void>>(new Map())
@@ -691,7 +693,7 @@ export function DiffViewer({
                             highlightedContent={undefined}
                           />
                         )
-                        
+
                         if (isExpanded && line.collapsedLines) {
                           line.collapsedLines.forEach((collapsedLine, collapsedIdx) => {
                             const { lineNum: collapsedLineNum, side: collapsedSide } = getSelectableLineIdentity(collapsedLine)
@@ -710,6 +712,7 @@ export function DiffViewer({
                                 onLineNumberContextMenu={(payload) => handleLineNumberContextMenu(file.path, payload)}
                                 onCodeContextMenu={(payload) => handleCodeContextMenu(file.path, payload)}
                                 isKeyboardFocused={keyboardFocus?.filePath === file.path && keyboardFocus.lineNum === collapsedLineNum && keyboardFocus.side === collapsedSide}
+                                isHovered={hoveredLine?.filePath === file.path && hoveredLine.lineNum === collapsedLineNum && hoveredLine.side === collapsedSide}
                               />
                             )
                           })
@@ -733,6 +736,7 @@ export function DiffViewer({
                           onLineNumberContextMenu={(payload) => handleLineNumberContextMenu(file.path, payload)}
                           onCodeContextMenu={(payload) => handleCodeContextMenu(file.path, payload)}
                           isKeyboardFocused={keyboardFocus?.filePath === file.path && keyboardFocus.lineNum === lineNum && keyboardFocus.side === side}
+                          isHovered={hoveredLine?.filePath === file.path && hoveredLine.lineNum === lineNum && hoveredLine.side === side}
                         />
                       )
                     })}
@@ -947,6 +951,7 @@ export function DiffViewer({
                                     onLineNumberContextMenu={(payload) => handleLineNumberContextMenu(file.path, payload)}
                                     onCodeContextMenu={(payload) => handleCodeContextMenu(file.path, payload)}
                                     isKeyboardFocused={keyboardFocus?.filePath === file.path && keyboardFocus.lineNum === collapsedLineNum && keyboardFocus.side === collapsedSide}
+                                    isHovered={hoveredLine?.filePath === file.path && hoveredLine.lineNum === collapsedLineNum && hoveredLine.side === collapsedSide}
                                   />
                                 )
                               })
@@ -970,6 +975,7 @@ export function DiffViewer({
                               onLineNumberContextMenu={(payload) => handleLineNumberContextMenu(file.path, payload)}
                               onCodeContextMenu={(payload) => handleCodeContextMenu(file.path, payload)}
                               isKeyboardFocused={keyboardFocus?.filePath === file.path && keyboardFocus.lineNum === lineNum && keyboardFocus.side === side}
+                              isHovered={hoveredLine?.filePath === file.path && hoveredLine.lineNum === lineNum && hoveredLine.side === side}
                             />
                           )
                         })}

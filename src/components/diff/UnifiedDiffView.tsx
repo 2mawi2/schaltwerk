@@ -135,7 +135,7 @@ export function UnifiedDiffView({
   const lineSelectionRef = useRef(lineSelection);
   lineSelectionRef.current = lineSelection;
 
-  const { setHoveredLineInfo, clearHoveredLine, useHoverKeyboardShortcuts } =
+  const { hoveredLine, setHoveredLineInfo, clearHoveredLine, useHoverKeyboardShortcuts } =
     useDiffHover();
 
   const [files, setFiles] = useState<ChangedFile[]>([]);
@@ -3090,6 +3090,7 @@ export function UnifiedDiffView({
         onStartCommentFromContext={handleStartCommentFromContext}
         onOpenFile={openFileHandler}
         keyboardFocus={keyboardFocus}
+        hoveredLine={hoveredLine}
       />
 
       <SearchBox
@@ -3293,6 +3294,7 @@ export function UnifiedDiffView({
               onStartCommentFromContext={handleStartCommentFromContext}
               onOpenFile={openFileHandler}
               keyboardFocus={keyboardFocus}
+              hoveredLine={hoveredLine}
             />
             <SearchBox
               targetRef={scrollContainerRef}
