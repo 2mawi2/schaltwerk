@@ -19,6 +19,7 @@ interface DiffLineRowProps {
   highlightedContent?: string
   onLineNumberContextMenu?: (payload: { event: React.MouseEvent<HTMLTableCellElement>, lineNumber: number, side: 'old' | 'new' }) => void
   onCodeContextMenu?: (payload: { event: React.MouseEvent<HTMLTableCellElement>, lineNumber: number, side: 'old' | 'new', content: string }) => void
+  isKeyboardFocused?: boolean
 }
 
 function DiffLineRowComponent({
@@ -33,9 +34,11 @@ function DiffLineRowComponent({
   isCollapsed,
   highlightedContent,
   onLineNumberContextMenu,
-  onCodeContextMenu
+  onCodeContextMenu,
+  isKeyboardFocused = false,
 }: DiffLineRowProps) {
   const [isHovered, setIsHovered] = useState(false)
+  const showFocusIndicator = isHovered || isKeyboardFocused
   if (line.isCollapsible) {
     return (
       <tr className="hover:bg-slate-900/50 group">
@@ -122,7 +125,8 @@ function DiffLineRowComponent({
         line.type === 'removed' && "bg-red-900/30 hover:bg-red-900/40",
         line.type === 'unchanged' && "hover:bg-slate-800/50",
         isSelected && "!bg-cyan-400/30 hover:!bg-cyan-400/40",
-        isHovered && "ring-1 ring-cyan-300/50",
+        showFocusIndicator && "ring-1 ring-cyan-300/50",
+        isKeyboardFocused && "bg-slate-800/70",
         lineNum && onLineMouseDown ? 'cursor-pointer' : 'cursor-default'
       )}
       data-line-num={lineNum}
@@ -139,13 +143,16 @@ function DiffLineRowComponent({
             onMouseDown={(e) => onLineMouseDown({ lineNum, side, filePath, event: e })}
             onMouseEnter={() => onLineMouseEnter?.({ lineNum, side, filePath })}
             onMouseUp={(e) => onLineMouseUp?.({ event: e, filePath })}
-            className={`p-1 rounded text-white opacity-0 group-hover:opacity-100 ${isSelected ? '!opacity-100' : ''}`}
+            className={clsx(
+              "p-1 rounded text-white",
+              showFocusIndicator || isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+            )}
             style={{
               backgroundColor: theme.colors.accent.blue.DEFAULT,
               color: theme.colors.text.primary,
             }}
             aria-label={`Select line ${lineNum}`}
-            title="Click to select line, drag to select range"
+            title="Click to select line, drag to select range, or press Enter to comment"
           >
             <VscAdd className="text-sm" />
           </button>
@@ -202,13 +209,13 @@ function DiffLineRowComponent({
 }
 
 function areEqual(prev: DiffLineRowProps, next: DiffLineRowProps) {
-  // Avoid re-rendering unless relevant props actually change
   return (
     prev.line === next.line &&
     prev.index === next.index &&
     prev.isSelected === next.isSelected &&
     prev.isCollapsed === next.isCollapsed &&
     prev.highlightedContent === next.highlightedContent &&
+    prev.isKeyboardFocused === next.isKeyboardFocused &&
     prev.onLineMouseDown === next.onLineMouseDown &&
     prev.onLineMouseEnter === next.onLineMouseEnter &&
     prev.onLineMouseLeave === next.onLineMouseLeave &&
