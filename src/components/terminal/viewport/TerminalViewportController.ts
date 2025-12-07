@@ -23,6 +23,7 @@ export class TerminalViewportController {
   private _lastOutputTime = 0
   private _userScrolledAway = false
   private _lastKnownViewportY: number | null = null
+  private _isResizing = false
 
   constructor(options: TerminalViewportControllerOptions) {
     this._terminal = options.terminal
@@ -51,7 +52,7 @@ export class TerminalViewportController {
     if (!raw) return
 
     raw.onScroll(() => {
-      if (this._disposed) return
+      if (this._disposed || this._isResizing) return
       const buf = raw.buffer?.active
       if (!buf) return
 
@@ -102,11 +103,22 @@ export class TerminalViewportController {
   }
 
   /**
+   * Notify the controller that a resize is about to happen.
+   * This prevents scroll events triggered by reflow from being interpreted as user interaction.
+   */
+  beforeResize(): void {
+    this._isResizing = true
+  }
+
+  /**
    * Call this when the terminal is resized.
    * Resizing naturally fixes many scroll issues, but we enforce the snap here to be sure.
    */
   onResize(): void {
     if (this._disposed) return
+
+    this._isResizing = false
+    this._lastKnownViewportY = null
 
     if (this._isStreaming() && this._userScrolledAway) {
       this._logger?.(`[TerminalViewportController] Skipping snap during streaming (user scrolled away)`)
