@@ -832,6 +832,23 @@ impl TerminalBackend for LocalPtyAdapter {
             .insert(id.clone(), pair.master);
         self.pty_writers.lock().await.insert(id.clone(), writer);
 
+        {
+            let mut guard = self.pty_children.lock().await;
+            if let Some(child) = guard.get_mut(&id) {
+                if let Ok(Some(status)) = child.try_wait() {
+                    drop(guard);
+                    self.pty_children.lock().await.remove(&id);
+                    self.pty_masters.lock().await.remove(&id);
+                    self.pty_writers.lock().await.remove(&id);
+                    self.creating.lock().await.remove(&id);
+                    return Err(format!(
+                        "Agent process exited immediately after launch with status: {:?}",
+                        status.exit_code()
+                    ));
+                }
+            }
+        }
+
         lifecycle::start_process_monitor(id.clone(), self.lifecycle_deps()).await;
 
         let session_id = session_id_from_terminal_id(&id);
@@ -1055,25 +1072,6 @@ impl TerminalBackend for LocalPtyAdapter {
 
     async fn exists(&self, id: &str) -> Result<bool, String> {
         Ok(self.terminals.read().await.contains_key(id))
-    }
-
-    async fn is_process_alive(&self, id: &str) -> Result<bool, String> {
-        let mut guard = self.pty_children.lock().await;
-        if let Some(child) = guard.get_mut(id) {
-            match child.try_wait() {
-                Ok(None) => Ok(true),
-                Ok(Some(status)) => {
-                    info!("Terminal {id} process exited with status {status:?}");
-                    Ok(false)
-                }
-                Err(err) => {
-                    warn!("Failed to check child status for {id}: {err}");
-                    Ok(false)
-                }
-            }
-        } else {
-            Ok(false)
-        }
     }
 
     async fn snapshot(&self, id: &str, from_seq: Option<u64>) -> Result<TerminalSnapshot, String> {

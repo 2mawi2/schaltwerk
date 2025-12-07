@@ -1603,19 +1603,6 @@ pub async fn schaltwerk_core_start_claude_with_restart(
 
     log::info!("Successfully started agent in terminal: {terminal_id}");
 
-    // Verify the agent process is alive; if it exited immediately, return an error
-    let alive = match terminal_manager.is_process_alive(&terminal_id).await {
-        Ok(v) => v,
-        Err(e) => {
-            log::warn!("is_process_alive failed for {terminal_id}: {e}; assuming alive");
-            true
-        }
-    };
-    if !alive {
-        log::error!("Agent process for {terminal_id} exited immediately after launch");
-        return Err("Agent process exited immediately after launch".to_string());
-    }
-
     emit_terminal_agent_started(&app, &terminal_id, Some(&session_name));
 
     Ok(command)
@@ -1714,46 +1701,6 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
 
     match launch_result {
         Ok(_) => {
-            let alive = if let Ok(mgr) = get_terminal_manager().await {
-                match mgr.is_process_alive(&terminal_id).await {
-                    Ok(v) => v,
-                    Err(e) => {
-                        log::warn!(
-                            "[AGENT_LAUNCH_TRACE] is_process_alive failed for {terminal_id}: {e}; assuming alive"
-                        );
-                        true
-                    }
-                }
-            } else {
-                true
-            };
-
-            if !alive {
-                let message = "Orchestrator process exited immediately after launch".to_string();
-                log::warn!("{message} for {terminal_id}");
-                #[derive(serde::Serialize, Clone)]
-                struct OrchestratorLaunchFailedPayload<'a> {
-                    terminal_id: &'a str,
-                    error: &'a str,
-                }
-                let _ = emit_event(
-                    &app,
-                    SchaltEvent::OrchestratorLaunchFailed,
-                    &OrchestratorLaunchFailedPayload {
-                        terminal_id: &terminal_id,
-                        error: &message,
-                    },
-                );
-                if let Ok(manager) = get_terminal_manager().await
-                    && let Err(close_err) = manager.close_terminal(terminal_id.clone()).await
-                {
-                    log::warn!(
-                        "[AGENT_LAUNCH_TRACE] Failed to close terminal {terminal_id} after early exit: {close_err}"
-                    );
-                }
-                return Err(message);
-            }
-
             emit_terminal_agent_started(&app, &terminal_id, None);
 
             let base_branch = configured_default_branch.unwrap_or_else(|| {
