@@ -52,6 +52,10 @@ interface AgentPreferenceState {
 const createEmptyPreferenceState = () =>
     createAgentRecord<AgentPreferenceState>(() => ({ model: '', reasoningEffort: '' }))
 
+function isBranchValidationError(errorMessage: string): boolean {
+    return errorMessage.includes('Branch') || errorMessage.includes('worktree')
+}
+
 interface Props {
     open: boolean
     initialIsDraft?: boolean
@@ -85,6 +89,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
     const [taskContent, setTaskContent] = useState('')
     const [baseBranch, setBaseBranch] = useState('')
     const [customBranch, setCustomBranch] = useState('')
+    const [useExistingBranch, setUseExistingBranch] = useState(false)
     const [agentType, setAgentType] = useState<AgentType>('claude')
     const [skipPermissions, setSkipPermissions] = useState(false)
     const [validationError, setValidationError] = useState('')
@@ -150,6 +155,10 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
         setMultiAgentMode(false)
         setMultiAgentAllocations({})
     }, [])
+
+    const isBranchError = isBranchValidationError(validationError)
+    const branchError = isBranchError ? validationError : undefined
+    const nameError = isBranchError ? '' : validationError
 
     const updateManualPrompt = useCallback(
         (value: string) => {
@@ -531,8 +540,8 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
         try {
             setCreating(true)
 
-            const prHeadBranch = promptSource === 'github_pull_request' && githubPrSelection 
-                ? githubPrSelection.details.headRefName 
+            const prHeadBranch = promptSource === 'github_pull_request' && githubPrSelection
+                ? githubPrSelection.details.headRefName
                 : undefined
 
             const useMultiAgentTypes = !createAsDraft && multiAgentMode && normalizedAgentTypes.length > 0
@@ -545,13 +554,16 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
             const primaryAgentType = useMultiAgentTypes
                 ? (normalizedAgentTypes[0] ?? agentType)
                 : agentType
-            
+
+            const effectiveUseExistingBranch = !!prHeadBranch || useExistingBranch
+            const effectiveCustomBranch = prHeadBranch || (useExistingBranch ? baseBranch : customBranch.trim()) || undefined
+
             const createData: CreateSessionPayload = {
                 name: finalName,
                 prompt: createAsDraft ? undefined : (currentPrompt || undefined),
                 baseBranch: createAsDraft ? '' : baseBranch,
-                customBranch: prHeadBranch || customBranch.trim() || undefined,
-                useExistingBranch: !!prHeadBranch,
+                customBranch: effectiveCustomBranch,
+                useExistingBranch: effectiveUseExistingBranch,
                 userEditedName: !!userEdited,
                 isSpec: createAsDraft,
                 draftContent: createAsDraft ? currentPrompt : undefined,
@@ -571,10 +583,24 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
             })
             await Promise.resolve(onCreate(createData))
         } catch (e) {
-            logger.error(`Failed to create session: ${name}`, e)
+            let errorMessage = 'Unknown error occurred'
+            if (e instanceof Error) {
+                errorMessage = e.message
+            } else if (typeof e === 'string') {
+                errorMessage = e
+            } else if (e && typeof e === 'object') {
+                const err = e as { data?: { message?: string }; message?: string }
+                errorMessage = err.data?.message ?? err.message ?? errorMessage
+            }
+            if (isBranchValidationError(errorMessage)) {
+                logger.warn(`Failed to create session (validation): ${name}`, e)
+            } else {
+                logger.error(`Failed to create session: ${name}`, e)
+            }
+            setValidationError(errorMessage)
             setCreating(false)
         }
-    }, [creating, name, taskContent, baseBranch, customBranch, onCreate, validateSessionName, createAsDraft, versionCount, agentType, skipPermissions, promptSource, githubIssueSelection, githubPrSelection, multiAgentMode, normalizedAgentTypes])
+    }, [creating, name, taskContent, baseBranch, customBranch, useExistingBranch, onCreate, validateSessionName, createAsDraft, versionCount, agentType, skipPermissions, promptSource, githubIssueSelection, githubPrSelection, multiAgentMode, normalizedAgentTypes])
 
     // Keep ref in sync immediately on render to avoid stale closures in tests
     createRef.current = () => { void handleCreate() }
@@ -817,6 +843,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                 setValidationError('')
                 setCreateAsDraft(initialIsDraft)
                 setCustomBranch('')
+                setUseExistingBranch(false)
                 setNameLocked(false)
                 setOriginalSpecName('')
                 setShowVersionMenu(false)
@@ -903,6 +930,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
             setHasPrefillData(false)
             setCreateAsDraft(false)
             setCustomBranch('')
+            setUseExistingBranch(false)
             setNameLocked(false)
             setOriginalSpecName('')
             setName('')
@@ -1251,17 +1279,17 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                             onKeyDown={() => { setWasEdited(true); wasEditedRef.current = true }}
                             onInput={() => { setWasEdited(true); wasEditedRef.current = true }}
                             className={`w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border ${
-                                validationError ? 'border-red-500' : 'border-slate-700'
-                            }`} 
-                            placeholder="eager_cosmos" 
+                                nameError ? 'border-red-500' : 'border-slate-700'
+                            }`}
+                            placeholder="eager_cosmos"
                             disabled={nameLocked}
                         />
-                        {validationError && (
+                        {nameError && (
                             <div className="flex items-start gap-2 mt-1">
                                 <svg className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
-                                <p className="text-xs text-red-400">{validationError}</p>
+                                <p className="text-xs text-red-400">{nameError}</p>
                             </div>
                         )}
                         {originalSpecName && (
@@ -1529,10 +1557,17 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                         setValidationError('')
                                     }
                                 }}
+                                onUseExistingBranchChange={(useExisting) => {
+                                    setUseExistingBranch(useExisting)
+                                    if (validationError) {
+                                        setValidationError('')
+                                    }
+                                }}
                                 initialBaseBranch={baseBranch}
                                 initialAgentType={agentType}
                                 initialSkipPermissions={skipPermissions}
                                 initialCustomBranch={customBranch}
+                                initialUseExistingBranch={useExistingBranch}
                                 codexModel={agentPreferences.codex?.model}
                                 codexModelOptions={codexModelIds}
                                 codexModels={codexCatalog.models}
@@ -1542,6 +1577,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                 sessionName={name}
                                 ignorePersistedAgentType={ignorePersistedAgentType}
                                 agentControlsDisabled={multiAgentMode}
+                                branchError={branchError}
                             />
                             <AgentDefaultsSection
                                 agentType={agentType}

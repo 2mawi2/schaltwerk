@@ -1510,8 +1510,14 @@ function AppContent() {
         }
       })
     } catch (error) {
-      logger.error('Failed to create session:', error)
-      alert(`Failed to create session: ${error}`)
+      const errorStr = JSON.stringify(error)
+      const isBranchValidation = errorStr.includes('Branch') || errorStr.includes('worktree')
+      if (isBranchValidation) {
+        logger.warn('Failed to create session (validation):', error)
+      } else {
+        logger.error('Failed to create session:', error)
+      }
+      throw error
     }
   }
 
