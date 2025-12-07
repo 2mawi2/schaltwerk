@@ -2800,9 +2800,39 @@ export function UnifiedDiffView({
           ? visualOrder.indexOf(selectedFileRef.current)
           : -1;
 
+        if (
+          e.key === "j" &&
+          !e.metaKey &&
+          !e.ctrlKey &&
+          !e.altKey
+        ) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (!e.repeat) {
+            moveKeyboardFocus(1);
+            scheduleHoldScroll(1);
+          }
+          return;
+        }
+
+        if (
+          e.key === "k" &&
+          !e.metaKey &&
+          !e.ctrlKey &&
+          !e.altKey
+        ) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (!e.repeat) {
+            moveKeyboardFocus(-1);
+            scheduleHoldScroll(-1);
+          }
+          return;
+        }
+
         if (isSidebarMode) {
           if (
-            (e.key === "j" || e.key === "ArrowDown") &&
+            (e.key === "ArrowDown") &&
             !e.metaKey &&
             !e.ctrlKey &&
             !e.altKey
@@ -2817,7 +2847,7 @@ export function UnifiedDiffView({
           }
 
           if (
-            (e.key === "k" || e.key === "ArrowUp") &&
+            (e.key === "ArrowUp") &&
             !e.metaKey &&
             !e.ctrlKey &&
             !e.altKey
@@ -2918,12 +2948,12 @@ export function UnifiedDiffView({
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === "j" || e.key === "k") {
+        stopSmoothScroll();
+      }
       if (
         isSidebarMode &&
-        (e.key === "j" ||
-          e.key === "k" ||
-          e.key === "ArrowDown" ||
-          e.key === "ArrowUp")
+        (e.key === "ArrowDown" || e.key === "ArrowUp")
       ) {
         stopSmoothScroll();
       }
