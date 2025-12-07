@@ -24,6 +24,7 @@ export class TerminalViewportController {
   private _userScrolledAway = false
   private _lastKnownViewportY: number | null = null
   private _isResizing = false
+  private _outputRaf: number | null = null
 
   constructor(options: TerminalViewportControllerOptions) {
     this._terminal = options.terminal
@@ -82,6 +83,17 @@ export class TerminalViewportController {
   onOutput(): void {
     if (this._disposed) return
     this._lastOutputTime = Date.now()
+
+    // Schedule a viewport sync on the next frame when tracking the bottom.
+    // xterm.js can desync its virtual scroll area height from its internal buffer
+    // during heavy output bursts; explicitly refreshing forces the DOM scrollbar
+    // to match the buffer length immediately.
+    if (!this._userScrolledAway && this._outputRaf === null) {
+      this._outputRaf = requestAnimationFrame(() => {
+        this._outputRaf = null
+        this._refreshAndSnap('output')
+      })
+    }
   }
 
   /**
@@ -178,5 +190,9 @@ export class TerminalViewportController {
 
   dispose(): void {
     this._disposed = true
+    if (this._outputRaf !== null) {
+      cancelAnimationFrame(this._outputRaf)
+      this._outputRaf = null
+    }
   }
 }
