@@ -7,10 +7,6 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 use which::which;
-const AGENT_FALLBACK_ORDER: &[&str] = &[
-    "claude", "copilot", "codex", "opencode", "gemini", "droid", "qwen", "amp", "kilocode",
-    "terminal",
-];
 
 #[cfg(test)]
 const GIT_STATS_STALE_THRESHOLD_SECS: i64 = 60;
@@ -95,7 +91,10 @@ fn agent_binary_available(agent: &str, binary_paths: &HashMap<String, String>) -
         .unwrap_or(false)
 }
 
-fn resolve_launch_agent(preferred: &str, binary_paths: &HashMap<String, String>) -> (String, bool) {
+fn resolve_launch_agent(
+    preferred: &str,
+    binary_paths: &HashMap<String, String>,
+) -> Result<String> {
     let preferred_normalized = preferred.trim();
     let desired = if preferred_normalized.is_empty() {
         "claude".to_string()
@@ -104,20 +103,17 @@ fn resolve_launch_agent(preferred: &str, binary_paths: &HashMap<String, String>)
     };
 
     if agent_binary_available(&desired, binary_paths) {
-        return (desired, false);
+        return Ok(desired);
     }
 
-    for &candidate in AGENT_FALLBACK_ORDER {
-        if candidate == desired {
-            continue;
-        }
+    let configured_path = binary_paths
+        .get(&desired)
+        .map(|p| format!(" (configured path: {p})"))
+        .unwrap_or_default();
 
-        if agent_binary_available(candidate, binary_paths) {
-            return (candidate.to_string(), true);
-        }
-    }
-
-    (desired, false)
+    Err(anyhow!(
+        "Agent '{desired}' is not available{configured_path}. Please install it or select a different agent in Settings."
+    ))
 }
 
 pub struct SessionCreationParams<'a> {
@@ -189,22 +185,23 @@ mod service_unified_tests {
         let mut binaries = HashMap::new();
         binaries.insert("claude".to_string(), custom_path);
 
-        let (agent, used_fallback) = super::resolve_launch_agent("claude", &binaries);
+        let agent = super::resolve_launch_agent("claude", &binaries).unwrap();
         assert_eq!(agent, "claude");
-        assert!(!used_fallback);
     }
 
     #[test]
-    fn resolve_launch_agent_falls_back_when_preferred_missing() {
+    fn resolve_launch_agent_returns_error_when_agent_unavailable() {
         let temp_dir = TempDir::new().unwrap();
         let codex_path = create_temp_executable(&temp_dir, "codex");
         let mut binaries = HashMap::new();
         binaries.insert("claude".to_string(), "/nonexistent/claude".to_string());
         binaries.insert("codex".to_string(), codex_path);
 
-        let (agent, used_fallback) = super::resolve_launch_agent("claude", &binaries);
-        assert_eq!(agent, "codex");
-        assert!(used_fallback);
+        let result = super::resolve_launch_agent("claude", &binaries);
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("claude"));
+        assert!(err_msg.contains("not available"));
     }
     use uuid::Uuid;
 
@@ -2951,13 +2948,7 @@ impl SessionManager {
             .original_agent_type
             .clone()
             .unwrap_or(self.db_manager.get_agent_type()?);
-        let (agent_type, used_fallback) = resolve_launch_agent(&requested_agent_type, binary_paths);
-
-        if used_fallback {
-            log::warn!(
-                "Session manager: Agent '{requested_agent_type}' is unavailable; falling back to '{agent_type}' for session '{session_name}'"
-            );
-        }
+        let agent_type = resolve_launch_agent(&requested_agent_type, binary_paths)?;
 
         let registry = crate::domains::agents::unified::AgentRegistry::new();
 
@@ -3359,45 +3350,7 @@ impl SessionManager {
         &self,
         binary_paths: &HashMap<String, String>,
     ) -> Result<AgentLaunchSpec> {
-        log::info!(
-            "Building FRESH orchestrator command (no session resume) for repo: {}",
-            self.repo_path.display()
-        );
-
-        if !self.repo_path.exists() {
-            log::error!(
-                "Repository path does not exist: {}",
-                self.repo_path.display()
-            );
-            return Err(anyhow!(
-                "Repository path does not exist: {}. Please open a valid project folder.",
-                self.repo_path.display()
-            ));
-        }
-
-        if !self.repo_path.join(".git").exists() {
-            log::error!("Not a git repository: {}", self.repo_path.display());
-            return Err(anyhow!(
-                "The folder '{}' is not a git repository. The orchestrator requires a git repository to function.",
-                self.repo_path.display()
-            ));
-        }
-
-        let skip_permissions = self.db_manager.get_orchestrator_skip_permissions()?;
-        let requested_agent_type = self.db_manager.get_orchestrator_agent_type()?;
-        let (agent_type, used_fallback) = resolve_launch_agent(&requested_agent_type, binary_paths);
-
-        if used_fallback {
-            log::warn!(
-                "Orchestrator: Agent '{requested_agent_type}' unavailable; falling back to '{agent_type}'"
-            );
-        }
-
-        log::info!(
-            "Fresh orchestrator agent type: {agent_type}, skip_permissions: {skip_permissions}"
-        );
-
-        self.build_orchestrator_command(&agent_type, skip_permissions, binary_paths, false)
+        self.start_orchestrator_internal(binary_paths, false)
     }
 
     pub fn start_claude_in_orchestrator_with_binary(
@@ -3419,38 +3372,41 @@ impl SessionManager {
         _cli_args: Option<&str>,
         binary_paths: &HashMap<String, String>,
     ) -> Result<AgentLaunchSpec> {
+        self.start_orchestrator_internal(binary_paths, true)
+    }
+
+    fn start_orchestrator_internal(
+        &self,
+        binary_paths: &HashMap<String, String>,
+        resume_session: bool,
+    ) -> Result<AgentLaunchSpec> {
+        let mode = if resume_session { "resumable" } else { "fresh" };
         log::info!(
-            "Building orchestrator command for repo: {}",
+            "Building {mode} orchestrator command for repo: {}",
             self.repo_path.display()
         );
 
         if !self.repo_path.exists() {
             return Err(anyhow!(
-                "Repository path does not exist: {}",
+                "Repository path does not exist: {}. Please open a valid project folder.",
                 self.repo_path.display()
             ));
         }
 
         if !self.repo_path.join(".git").exists() {
             return Err(anyhow!(
-                "Not a git repository: {}",
+                "The folder '{}' is not a git repository. The orchestrator requires a git repository to function.",
                 self.repo_path.display()
             ));
         }
 
         let skip_permissions = self.db_manager.get_orchestrator_skip_permissions()?;
         let requested_agent_type = self.db_manager.get_orchestrator_agent_type()?;
-        let (agent_type, used_fallback) = resolve_launch_agent(&requested_agent_type, binary_paths);
+        let agent_type = resolve_launch_agent(&requested_agent_type, binary_paths)?;
 
-        if used_fallback {
-            log::warn!(
-                "Orchestrator: Agent '{requested_agent_type}' unavailable; falling back to '{agent_type}'"
-            );
-        }
+        log::info!("Orchestrator agent type: {agent_type}, skip_permissions: {skip_permissions}, resume: {resume_session}");
 
-        log::info!("Orchestrator agent type: {agent_type}, skip_permissions: {skip_permissions}");
-
-        self.build_orchestrator_command(&agent_type, skip_permissions, binary_paths, true)
+        self.build_orchestrator_command(&agent_type, skip_permissions, binary_paths, resume_session)
     }
 
     fn build_orchestrator_command(
