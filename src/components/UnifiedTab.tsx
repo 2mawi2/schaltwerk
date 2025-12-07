@@ -4,6 +4,7 @@ import { theme } from '../common/theme'
 export interface UnifiedTabProps {
   id: string | number
   label: string
+  labelContent?: React.ReactNode
   isActive: boolean
   onSelect: () => void
   onClose?: () => void
@@ -21,6 +22,7 @@ export interface UnifiedTabProps {
 
 export function UnifiedTab({
   label,
+  labelContent,
   isActive,
   onSelect,
   onClose,
@@ -132,7 +134,7 @@ export function UnifiedTab({
         )}
 
         <span
-          className="truncate flex-1"
+          className="truncate flex-1 min-w-0"
           style={{
             fontSize: theme.fontSize.terminal,
             fontWeight: isActive ? 500 : 400,
@@ -140,7 +142,7 @@ export function UnifiedTab({
             fontFamily: theme.fontFamily.sans,
           }}
         >
-          {label}
+          {labelContent ?? label}
         </span>
 
         {badgeContent && (

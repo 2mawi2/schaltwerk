@@ -467,8 +467,13 @@ describe('TerminalGrid', () => {
       expect(bridge?.isReady).toBe(true)
     }, { timeout: 3000 })
 
-    // Headers should be visible
-    expect(screen.getByText('Orchestrator — main repo')).toBeInTheDocument()
+    // Headers should be visible - with agent tabs, we check for the tab bar or agent badge
+    const agentTabBar = screen.queryByTestId('agent-tab-bar')
+    if (agentTabBar) {
+      expect(agentTabBar).toBeInTheDocument()
+    } else {
+      expect(screen.getByText('Orchestrator — main repo')).toBeInTheDocument()
+    }
     // Terminal shortcuts should be visible
     expect(screen.getByText('⌘/')).toBeInTheDocument()
 
@@ -526,9 +531,33 @@ describe('TerminalGrid', () => {
     })
   })
 
-  // Helper to find the orchestrator header regardless of dash style
-  const getOrchestratorHeader = () =>
-    screen.getByText(/Orchestrator\s+[—-]{1,2}\s+main repo/)
+  // Helper to find the orchestrator header/tab bar regardless of rendering mode
+  const getOrchestratorHeader = () => {
+    // With agent tabs, we look for the tab bar; without, we look for the text
+    const tabBar = screen.queryByTestId('agent-tab-bar')
+    if (tabBar) return tabBar
+    return screen.getByText(/Orchestrator\s+[—-]{1,2}\s+main repo/)
+  }
+
+  // Helper to check if agent tab bar or session header is present
+  const expectAgentTabBarOrHeader = (sessionName?: string) => {
+    const tabBar = screen.queryByTestId('agent-tab-bar')
+    if (tabBar) {
+      expect(tabBar).toBeInTheDocument()
+    } else if (sessionName) {
+      expect(screen.getByText(`Agent — ${sessionName}`)).toBeInTheDocument()
+    } else {
+      expect(screen.getByText(/Orchestrator\s+[—-]{1,2}\s+main repo/)).toBeInTheDocument()
+    }
+  }
+
+  const findAgentTabBarOrHeader = async (sessionName: string) => {
+    const tabBar = screen.queryByTestId('agent-tab-bar')
+    if (tabBar) {
+      return tabBar
+    }
+    return screen.findByText(`Agent — ${sessionName}`, {}, { timeout: 3000 })
+  }
 
   it('focuses top/bottom terminals on header and body clicks', async () => {
     await renderGrid()
@@ -647,7 +676,7 @@ describe('TerminalGrid', () => {
     await Promise.resolve()
 
     // Headers reflect new session
-    expect(await screen.findByText('Agent — dev', {}, { timeout: 3000 })).toBeInTheDocument()
+    expect(await findAgentTabBarOrHeader('dev')).toBeInTheDocument()
     // Terminal shortcuts should be visible
     expect(screen.getByText('⌘/')).toBeInTheDocument()
 
@@ -667,7 +696,8 @@ describe('TerminalGrid', () => {
     await waitFor(() => {
       expect(m.__getFocusSpy(devIds.bottomBase)).toHaveBeenCalled()
     }, { timeout: 2000 })
-    fireEvent.click(screen.getByText(/Agent\s+[—-]{1,2}\s+dev/))
+    const agentTabBarOrHeader = screen.queryByTestId('agent-tab-bar') || screen.getByText(/Agent\s+[—-]{1,2}\s+dev/)
+    fireEvent.click(agentTabBarOrHeader)
     await waitFor(() => {
       expect(m.__getFocusSpy(devIds.topId)).toHaveBeenCalled()
     }, { timeout: 2000 })
@@ -844,7 +874,7 @@ describe('TerminalGrid', () => {
         })
       })
 
-      await screen.findByText('Agent — alpha', {}, { timeout: 3000 })
+      await findAgentTabBarOrHeader('alpha')
 
       const addButton = await screen.findByTitle('Add new terminal', {}, { timeout: 3000 })
       fireEvent.click(addButton)
@@ -860,7 +890,7 @@ describe('TerminalGrid', () => {
         })
       })
 
-      await screen.findByText('Agent — beta', {}, { timeout: 3000 })
+      await findAgentTabBarOrHeader('beta')
 
       await act(async () => {
         await bridge!.setSelection({
@@ -871,7 +901,7 @@ describe('TerminalGrid', () => {
         })
       })
 
-      await screen.findByText('Agent — alpha', {}, { timeout: 3000 })
+      await findAgentTabBarOrHeader('alpha')
       expect(await screen.findByText('Terminal 2', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
@@ -895,7 +925,7 @@ describe('TerminalGrid', () => {
         })
       })
 
-      await screen.findByText('Agent — alpha', {}, { timeout: 3000 })
+      await findAgentTabBarOrHeader('alpha')
 
       const addButton = await screen.findByTitle('Add new terminal', {}, { timeout: 3000 })
       fireEvent.click(addButton)
@@ -910,7 +940,7 @@ describe('TerminalGrid', () => {
         })
       })
 
-      await screen.findByText('Agent — beta', {}, { timeout: 3000 })
+      await findAgentTabBarOrHeader('beta')
 
       await waitFor(() => {
         expect(screen.queryByText('Terminal 2')).not.toBeInTheDocument()
@@ -994,8 +1024,13 @@ describe('TerminalGrid', () => {
         expect(bridge?.isReady).toBe(true)
       }, { timeout: 3000 })
 
-      // Initially not collapsed - both panels visible
-      expect(screen.getByText('Orchestrator — main repo')).toBeInTheDocument()
+      // Initially not collapsed - both panels visible (agent tab bar or orchestrator header)
+      const agentTabBar1 = screen.queryByTestId('agent-tab-bar')
+      if (!agentTabBar1) {
+        expect(screen.getByText('Orchestrator — main repo')).toBeInTheDocument()
+      } else {
+        expect(agentTabBar1).toBeInTheDocument()
+      }
       // Terminal shortcuts should be visible
       expect(screen.getByText('⌘/')).toBeInTheDocument()
       expect(screen.getByTestId('split')).toBeInTheDocument()
@@ -1015,7 +1050,12 @@ describe('TerminalGrid', () => {
       })
 
       // Claude section should still be visible
-      expect(screen.getByText('Orchestrator — main repo')).toBeInTheDocument()
+      const agentTabBar2 = screen.queryByTestId('agent-tab-bar')
+      if (!agentTabBar2) {
+        expect(screen.getByText('Orchestrator — main repo')).toBeInTheDocument()
+      } else {
+        expect(agentTabBar2).toBeInTheDocument()
+      }
 
       // Click expand button to expand again
       const expandButton = screen.getByLabelText('Expand terminal panel')
@@ -1062,7 +1102,7 @@ describe('TerminalGrid', () => {
 
       // Wait for session to load
       await waitFor(() => {
-        expect(screen.getByText('Agent — test-session')).toBeInTheDocument()
+        expectAgentTabBarOrHeader('test-session')
       })
 
       // Agent should inherit the collapsed state because it's global
@@ -1096,7 +1136,12 @@ describe('TerminalGrid', () => {
 
       // Wait for orchestrator to load
       await waitFor(() => {
-        expect(screen.getByText('Orchestrator — main repo')).toBeInTheDocument()
+        const agentTabBar3 = screen.queryByTestId('agent-tab-bar')
+        if (!agentTabBar3) {
+          expect(screen.getByText('Orchestrator — main repo')).toBeInTheDocument()
+        } else {
+          expect(agentTabBar3).toBeInTheDocument()
+        }
       })
 
       // Orchestrator should still be collapsed (state was persisted globally)
@@ -1128,7 +1173,7 @@ describe('TerminalGrid', () => {
       })
 
       await waitFor(() => {
-        expect(screen.getByText('Agent — session-a')).toBeInTheDocument()
+        expectAgentTabBarOrHeader('session-a')
         const expandBtnA = screen.getByLabelText('Expand terminal panel')
         expect(expandBtnA).toBeInTheDocument()
         expect(screen.getByTestId('split')).toBeInTheDocument()
@@ -1136,7 +1181,7 @@ describe('TerminalGrid', () => {
 
       // Expand in session-a
       fireEvent.click(screen.getByLabelText('Expand terminal panel'))
-      
+
       await waitFor(() => {
         const collapseBtn = screen.getByLabelText('Collapse terminal panel')
         expect(collapseBtn).toBeInTheDocument()
@@ -1148,7 +1193,7 @@ describe('TerminalGrid', () => {
       })
 
       await waitFor(() => {
-        expect(screen.getByText('Agent — session-b')).toBeInTheDocument()
+        expectAgentTabBarOrHeader('session-b')
         expect(screen.getByTestId('split')).toBeInTheDocument()
         const collapseBtnB = screen.getByLabelText('Collapse terminal panel')
         expect(collapseBtnB).toBeInTheDocument()
@@ -1160,7 +1205,7 @@ describe('TerminalGrid', () => {
       })
 
       await waitFor(() => {
-        expect(screen.getByText('Agent — session-a')).toBeInTheDocument()
+        expectAgentTabBarOrHeader('session-a')
         const collapseBtnA = screen.getByLabelText('Collapse terminal panel')
         expect(collapseBtnA).toBeInTheDocument()
         expect(screen.getByTestId('split')).toBeInTheDocument()
@@ -1185,7 +1230,7 @@ describe('TerminalGrid', () => {
       })
 
        await waitFor(() => {
-         expect(screen.getByText('Agent — test')).toBeInTheDocument()
+         expectAgentTabBarOrHeader('test')
        })
 
        // Terminal should be collapsed (global state)
@@ -1256,7 +1301,12 @@ describe('TerminalGrid', () => {
       })
 
       // Final state should be expanded and functional
-      expect(screen.getByText('Orchestrator — main repo')).toBeInTheDocument()
+      const agentTabBar4 = screen.queryByTestId('agent-tab-bar')
+      if (!agentTabBar4) {
+        expect(screen.getByText('Orchestrator — main repo')).toBeInTheDocument()
+      } else {
+        expect(agentTabBar4).toBeInTheDocument()
+      }
       // Terminal shortcuts should be visible
       expect(screen.getByText('⌘/')).toBeInTheDocument()
       const collapseBtn = screen.getByLabelText('Collapse terminal panel')

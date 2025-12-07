@@ -14,7 +14,7 @@ pub mod agents {
 mod tests;
 
 pub use crate::domains::sessions::entity::{EnrichedSession, SessionState};
-pub use crate::domains::sessions::service::SessionManager;
+pub use crate::domains::sessions::service::{AgentLaunchParams, SessionManager};
 pub use database::Database;
 
 use crate::domains::git;
