@@ -34,8 +34,8 @@ interface UseDiffKeyboardNavigationResult {
   isSmoothScrolling: () => boolean;
 }
 
-const SCROLL_ACCEL = 1200;
-const SCROLL_MAX_VELOCITY = 1400;
+const SCROLL_STEP_PX = 150;
+const SCROLL_INTERVAL_MS = 50;
 const FOCUS_UPDATE_INTERVAL_MS = 80;
 const HOLD_DELAY_MS = 250;
 
@@ -188,7 +188,7 @@ export function useDiffKeyboardNavigation({
     }
     const loop = smoothScrollRef.current;
     if (loop && loop.raf !== null) {
-      cancelAnimationFrame(loop.raf);
+      clearInterval(loop.raf);
     }
     smoothScrollRef.current = null;
     userScrollingRef.current = false;
@@ -202,35 +202,31 @@ export function useDiffKeyboardNavigation({
       }
       stopSmoothScroll();
       userScrollingRef.current = true;
-      let lastFocusUpdate = 0;
-      const step = (ts: number) => {
+      let lastFocusUpdate = performance.now();
+
+      const doScroll = () => {
         const container = scrollContainerRef.current;
         if (!container) {
           stopSmoothScroll();
           return;
         }
-        const state = smoothScrollRef.current;
-        const lastTs = state?.lastTs ?? ts;
-        const dt = Math.max(0, ts - lastTs) / 1000;
-        const prevV = state?.velocity ?? 0;
-        const nextV = Math.min(SCROLL_MAX_VELOCITY, prevV + SCROLL_ACCEL * dt);
-        const delta = nextV * dt;
-        container.scrollTop += direction * delta;
-        if (ts - lastFocusUpdate > FOCUS_UPDATE_INTERVAL_MS) {
-          lastFocusUpdate = ts;
+        container.scrollBy({
+          top: direction * SCROLL_STEP_PX,
+          behavior: "smooth",
+        });
+        const now = performance.now();
+        if (now - lastFocusUpdate > FOCUS_UPDATE_INTERVAL_MS) {
+          lastFocusUpdate = now;
           snapKeyboardFocusToCenter();
         }
-        smoothScrollRef.current = {
-          raf: requestAnimationFrame(step),
-          direction,
-          velocity: nextV,
-          lastTs: ts,
-        };
       };
+
+      doScroll();
+      const intervalId = window.setInterval(doScroll, SCROLL_INTERVAL_MS);
       smoothScrollRef.current = {
-        raf: requestAnimationFrame(step),
+        raf: intervalId as unknown as number,
         direction,
-        velocity: 0,
+        velocity: SCROLL_STEP_PX,
         lastTs: null,
       };
     },
