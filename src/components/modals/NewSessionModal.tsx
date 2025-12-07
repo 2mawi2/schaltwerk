@@ -68,6 +68,7 @@ interface Props {
         baseBranch: string
         customBranch?: string
         useExistingBranch?: boolean
+        syncWithOrigin?: boolean
         userEditedName?: boolean
         isSpec?: boolean
         draftContent?: string
@@ -564,6 +565,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                 baseBranch: createAsDraft ? '' : baseBranch,
                 customBranch: effectiveCustomBranch,
                 useExistingBranch: effectiveUseExistingBranch,
+                syncWithOrigin: !!prHeadBranch,
                 userEditedName: !!userEdited,
                 isSpec: createAsDraft,
                 draftContent: createAsDraft ? currentPrompt : undefined,

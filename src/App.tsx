@@ -1371,6 +1371,7 @@ function AppContent() {
     baseBranch: string
     customBranch?: string
     useExistingBranch?: boolean
+    syncWithOrigin?: boolean
     userEditedName?: boolean
     isSpec?: boolean
     draftContent?: string
@@ -1445,6 +1446,7 @@ function AppContent() {
               baseBranch: data.baseBranch || null,
               customBranch: data.customBranch || null,
               useExistingBranch: data.useExistingBranch || null,
+              syncWithOrigin: data.syncWithOrigin || null,
               userEditedName: count > 1 ? false : (data.userEditedName ?? false),
               versionGroupId,
               versionNumber: i,
