@@ -280,6 +280,17 @@ fn apply_sessions_migrations(conn: &rusqlite::Connection) -> anyhow::Result<()> 
     );
     // Store Amp thread ID for resuming threads across sessions
     let _ = conn.execute("ALTER TABLE sessions ADD COLUMN amp_thread_id TEXT", []);
+    // Store original parent branch (set once at creation, never changes)
+    // This allows resetting the compare branch back to the original
+    let _ = conn.execute(
+        "ALTER TABLE sessions ADD COLUMN original_parent_branch TEXT",
+        [],
+    );
+    // Backfill original_parent_branch from parent_branch for existing sessions
+    let _ = conn.execute(
+        "UPDATE sessions SET original_parent_branch = parent_branch WHERE original_parent_branch IS NULL",
+        [],
+    );
     Ok(())
 }
 

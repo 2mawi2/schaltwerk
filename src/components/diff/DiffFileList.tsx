@@ -65,7 +65,8 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
     currentBranch: string,
     baseBranch: string,
     baseCommit: string,
-    headCommit: string
+    headCommit: string,
+    originalBaseBranch?: string | null
   } | null>(null)
   const [hasLoadedInitialResult, setHasLoadedInitialResult] = useState(false)
 
@@ -84,6 +85,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
       baseBranch: string
       baseCommit: string
       headCommit: string
+      originalBaseBranch?: string | null
     } | null
     signature: string
   }>>(new Map())
@@ -193,11 +195,12 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
           return
         }
         
-        const [changedFiles, currentBranch, baseBranch, [baseCommit, headCommit]] = await Promise.all([
+        const [changedFiles, currentBranch, baseBranch, [baseCommit, headCommit], sessionData] = await Promise.all([
           invoke<ChangedFile[]>(TauriCommands.GetChangedFilesFromMain, { sessionName: currentSession }),
           invoke<string>(TauriCommands.GetCurrentBranchName, { sessionName: currentSession }),
           invoke<string>(TauriCommands.GetBaseBranchName, { sessionName: currentSession }),
-          invoke<[string, string]>(TauriCommands.GetCommitComparisonInfo, { sessionName: currentSession })
+          invoke<[string, string]>(TauriCommands.GetCommitComparisonInfo, { sessionName: currentSession }),
+          invoke<{ original_parent_branch?: string | null }>(TauriCommands.SchaltwerkCoreGetSession, { name: currentSession })
         ])
         
         // Check if results actually changed to avoid unnecessary re-renders
@@ -210,7 +213,8 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
             currentBranch,
             baseBranch,
             baseCommit,
-            headCommit
+            headCommit,
+            originalBaseBranch: sessionData.original_parent_branch
           },
           signature: resultSignature
         }
@@ -776,6 +780,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
                 <BranchSelectorPopover
                   sessionName={sessionName}
                   currentBaseBranch={branchInfo.baseBranch}
+                  originalBaseBranch={branchInfo.originalBaseBranch}
                   onBranchChange={() => void loadChangedFiles()}
                 />
               </>

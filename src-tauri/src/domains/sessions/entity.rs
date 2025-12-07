@@ -81,6 +81,7 @@ pub struct Session {
     pub repository_name: String,
     pub branch: String,
     pub parent_branch: String,
+    pub original_parent_branch: Option<String>,
     pub worktree_path: PathBuf,
     pub status: SessionStatus,
     pub created_at: DateTime<Utc>,
@@ -258,6 +259,8 @@ pub struct SessionInfo {
     pub branch: String,
     pub worktree_path: String,
     pub base_branch: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub original_base_branch: Option<String>,
     pub status: SessionStatusType,
     pub created_at: Option<DateTime<Utc>>,
     pub last_modified: Option<DateTime<Utc>>,

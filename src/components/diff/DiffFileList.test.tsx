@@ -37,7 +37,7 @@ const createMockChangedFile = (file: Partial<MockChangedFile> & { path: string }
 
 async function defaultInvokeImplementation(cmd: string, args?: Record<string, unknown>) {
   if (cmd === TauriCommands.SchaltwerkCoreGetSession) {
-    return { worktree_path: '/tmp/worktree/' + (args?.name || 'default') }
+    return { worktree_path: '/tmp/worktree/' + (args?.name || 'default'), original_parent_branch: 'main' }
   }
   if (cmd === TauriCommands.GetChangedFilesFromMain) {
     return [
@@ -584,8 +584,9 @@ describe('DiffFileList', () => {
           return []
         }
         if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
-        if (cmd === TauriCommands.GetBaseBranchName) return 'main'  
+        if (cmd === TauriCommands.GetBaseBranchName) return 'main'
         if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc123', 'def456']
+        if (cmd === TauriCommands.SchaltwerkCoreGetSession) return { original_parent_branch: 'main' }
         return undefined
       })
 
@@ -623,7 +624,7 @@ describe('DiffFileList', () => {
           const sessionName = args?.sessionName
           // Add delay to simulate async loading
           await new Promise(resolve => setTimeout(resolve, 10))
-          
+
           if (sessionName === 'clear-session1') {
             return [createMockChangedFile({ path: 'clear-file1.ts', change_type: 'modified' })]
           } else if (sessionName === 'clear-session2') {
@@ -632,8 +633,9 @@ describe('DiffFileList', () => {
           return []
         }
         if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
-        if (cmd === TauriCommands.GetBaseBranchName) return 'main'  
+        if (cmd === TauriCommands.GetBaseBranchName) return 'main'
         if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc123', 'def456']
+        if (cmd === TauriCommands.SchaltwerkCoreGetSession) return { original_parent_branch: 'main' }
         return undefined
       })
 
@@ -673,8 +675,9 @@ describe('DiffFileList', () => {
           return [createMockChangedFile({ path: 'identical-file.ts', change_type: 'modified' })]
         }
         if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
-        if (cmd === TauriCommands.GetBaseBranchName) return 'main'  
+        if (cmd === TauriCommands.GetBaseBranchName) return 'main'
         if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc123', 'def456']
+        if (cmd === TauriCommands.SchaltwerkCoreGetSession) return { original_parent_branch: 'main' }
         return undefined
       })
 
@@ -717,6 +720,7 @@ describe('DiffFileList', () => {
         if (cmd === TauriCommands.GetCurrentBranchName) return 'feature/x'
         if (cmd === TauriCommands.GetBaseBranchName) return 'main'
         if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc', 'def']
+        if (cmd === TauriCommands.SchaltwerkCoreGetSession) return { original_parent_branch: 'main' }
         return undefined
       })
 
@@ -777,6 +781,9 @@ describe('DiffFileList', () => {
         if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
         if (cmd === TauriCommands.GetBaseBranchName) return 'main'
         if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc123', 'def456']
+        if (cmd === TauriCommands.SchaltwerkCoreGetSession) return { original_parent_branch: 'main' }
+        if (cmd === TauriCommands.StartFileWatcher) return undefined
+        if (cmd === TauriCommands.StopFileWatcher) return undefined
         return defaultInvokeImplementation(cmd, args)
       })
 
@@ -832,6 +839,7 @@ describe('DiffFileList', () => {
         if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
         if (cmd === TauriCommands.GetBaseBranchName) return 'main'
         if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc123', 'def456']
+        if (cmd === TauriCommands.SchaltwerkCoreGetSession) return { original_parent_branch: 'main' }
         return undefined
       })
 
@@ -881,6 +889,7 @@ describe('DiffFileList', () => {
         if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
         if (cmd === TauriCommands.GetBaseBranchName) return 'main'
         if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc123', 'def456']
+        if (cmd === TauriCommands.SchaltwerkCoreGetSession) return { original_parent_branch: 'main' }
         return undefined
       })
 

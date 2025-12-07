@@ -46,6 +46,7 @@ export interface SessionInfo {
     branch: string
     worktree_path: string
     base_branch: string
+    original_base_branch?: string | null
     parent_branch?: string | null
     status: 'active' | 'dirty' | 'missing' | 'archived' | 'spec'
     created_at?: string

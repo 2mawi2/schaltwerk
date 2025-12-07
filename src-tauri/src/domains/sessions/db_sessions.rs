@@ -68,6 +68,7 @@ struct SessionSummaryRow {
     repository_name: String,
     branch: String,
     parent_branch: String,
+    original_parent_branch: Option<String>,
     worktree_path: PathBuf,
     status: SessionStatus,
     created_at: chrono::DateTime<Utc>,
@@ -121,6 +122,7 @@ impl Database {
                     repository_name: summary.repository_name,
                     branch: summary.branch,
                     parent_branch: summary.parent_branch,
+                    original_parent_branch: summary.original_parent_branch,
                     worktree_path: summary.worktree_path,
                     status: summary.status,
                     created_at: summary.created_at,
@@ -182,11 +184,11 @@ impl SessionMethods for Database {
             "INSERT INTO sessions (
                 id, name, display_name, version_group_id, version_number,
                 repository_path, repository_name,
-                branch, parent_branch, worktree_path,
+                branch, parent_branch, original_parent_branch, worktree_path,
                 status, created_at, updated_at, last_activity, initial_prompt, ready_to_merge,
                 original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
                 spec_content, session_state, resume_allowed, amp_thread_id
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24)",
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25)",
             params![
                 session.id,
                 session.name,
@@ -197,6 +199,7 @@ impl SessionMethods for Database {
                 session.repository_name,
                 session.branch,
                 session.parent_branch,
+                session.original_parent_branch,
                 session.worktree_path.to_string_lossy(),
                 session.status.as_str(),
                 session.created_at.timestamp(),
@@ -223,7 +226,7 @@ impl SessionMethods for Database {
 
         let mut stmt = conn.prepare(
             "SELECT id, name, display_name, version_group_id, version_number, repository_path, repository_name,
-                    branch, parent_branch, worktree_path,
+                    branch, parent_branch, original_parent_branch, worktree_path,
                     status, created_at, updated_at, last_activity, initial_prompt, ready_to_merge,
                     original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
                     spec_content, session_state, resume_allowed, amp_thread_id
@@ -242,30 +245,31 @@ impl SessionMethods for Database {
                 repository_name: row.get(6)?,
                 branch: row.get(7)?,
                 parent_branch: row.get(8)?,
-                worktree_path: PathBuf::from(row.get::<_, String>(9)?),
+                original_parent_branch: row.get(9).ok(),
+                worktree_path: PathBuf::from(row.get::<_, String>(10)?),
                 status: row
-                    .get::<_, String>(10)?
+                    .get::<_, String>(11)?
                     .parse()
                     .unwrap_or(SessionStatus::Active),
-                created_at: Utc.timestamp_opt(row.get(11)?, 0).unwrap(),
-                updated_at: Utc.timestamp_opt(row.get(12)?, 0).unwrap(),
+                created_at: Utc.timestamp_opt(row.get(12)?, 0).unwrap(),
+                updated_at: Utc.timestamp_opt(row.get(13)?, 0).unwrap(),
                 last_activity: row
-                    .get::<_, Option<i64>>(13)?
+                    .get::<_, Option<i64>>(14)?
                     .and_then(|ts| Utc.timestamp_opt(ts, 0).single()),
-                initial_prompt: row.get(14)?,
-                ready_to_merge: row.get(15).unwrap_or(false),
-                original_agent_type: row.get(16).ok(),
-                original_skip_permissions: row.get(17).ok(),
-                pending_name_generation: row.get(18).unwrap_or(false),
-                was_auto_generated: row.get(19).unwrap_or(false),
-                spec_content: row.get(20).ok(),
+                initial_prompt: row.get(15)?,
+                ready_to_merge: row.get(16).unwrap_or(false),
+                original_agent_type: row.get(17).ok(),
+                original_skip_permissions: row.get(18).ok(),
+                pending_name_generation: row.get(19).unwrap_or(false),
+                was_auto_generated: row.get(20).unwrap_or(false),
+                spec_content: row.get(21).ok(),
                 session_state: row
-                    .get::<_, String>(21)
+                    .get::<_, String>(22)
                     .ok()
                     .and_then(|s| s.parse().ok())
                     .unwrap_or(SessionState::Running),
-                resume_allowed: row.get(22).unwrap_or(true),
-                amp_thread_id: row.get(23).ok(),
+                resume_allowed: row.get(23).unwrap_or(true),
+                amp_thread_id: row.get(24).ok(),
             })
         })?;
 
@@ -277,7 +281,7 @@ impl SessionMethods for Database {
 
         let mut stmt = conn.prepare(
             "SELECT id, name, display_name, version_group_id, version_number, repository_path, repository_name,
-                    branch, parent_branch, worktree_path,
+                    branch, parent_branch, original_parent_branch, worktree_path,
                     status, created_at, updated_at, last_activity, initial_prompt, ready_to_merge,
                     original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
                     spec_content, session_state, resume_allowed, amp_thread_id
@@ -296,30 +300,31 @@ impl SessionMethods for Database {
                 repository_name: row.get(6)?,
                 branch: row.get(7)?,
                 parent_branch: row.get(8)?,
-                worktree_path: PathBuf::from(row.get::<_, String>(9)?),
+                original_parent_branch: row.get(9).ok(),
+                worktree_path: PathBuf::from(row.get::<_, String>(10)?),
                 status: row
-                    .get::<_, String>(10)?
+                    .get::<_, String>(11)?
                     .parse()
                     .unwrap_or(SessionStatus::Active),
-                created_at: Utc.timestamp_opt(row.get(11)?, 0).unwrap(),
-                updated_at: Utc.timestamp_opt(row.get(12)?, 0).unwrap(),
+                created_at: Utc.timestamp_opt(row.get(12)?, 0).unwrap(),
+                updated_at: Utc.timestamp_opt(row.get(13)?, 0).unwrap(),
                 last_activity: row
-                    .get::<_, Option<i64>>(13)?
+                    .get::<_, Option<i64>>(14)?
                     .and_then(|ts| Utc.timestamp_opt(ts, 0).single()),
-                initial_prompt: row.get(14)?,
-                ready_to_merge: row.get(15).unwrap_or(false),
-                original_agent_type: row.get(16).ok(),
-                original_skip_permissions: row.get(17).ok(),
-                pending_name_generation: row.get(18).unwrap_or(false),
-                was_auto_generated: row.get(19).unwrap_or(false),
-                spec_content: row.get(20).ok(),
+                initial_prompt: row.get(15)?,
+                ready_to_merge: row.get(16).unwrap_or(false),
+                original_agent_type: row.get(17).ok(),
+                original_skip_permissions: row.get(18).ok(),
+                pending_name_generation: row.get(19).unwrap_or(false),
+                was_auto_generated: row.get(20).unwrap_or(false),
+                spec_content: row.get(21).ok(),
                 session_state: row
-                    .get::<_, String>(21)
+                    .get::<_, String>(22)
                     .ok()
                     .and_then(|s| s.parse().ok())
                     .unwrap_or(SessionState::Running),
-                resume_allowed: row.get(22).unwrap_or(true),
-                amp_thread_id: row.get(23).ok(),
+                resume_allowed: row.get(23).unwrap_or(true),
+                amp_thread_id: row.get(24).ok(),
             })
         })?;
 
@@ -358,7 +363,7 @@ impl SessionMethods for Database {
         let summaries = {
             let mut stmt = conn.prepare(
                 "SELECT id, name, display_name, version_group_id, version_number, repository_path, repository_name,
-                        branch, parent_branch, worktree_path,
+                        branch, parent_branch, original_parent_branch, worktree_path,
                         status, created_at, updated_at, last_activity, ready_to_merge,
                         original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
                         session_state, resume_allowed, amp_thread_id
@@ -378,28 +383,29 @@ impl SessionMethods for Database {
                     repository_name: row.get(6)?,
                     branch: row.get(7)?,
                     parent_branch: row.get(8)?,
-                    worktree_path: PathBuf::from(row.get::<_, String>(9)?),
+                    original_parent_branch: row.get(9).ok(),
+                    worktree_path: PathBuf::from(row.get::<_, String>(10)?),
                     status: row
-                        .get::<_, String>(10)?
+                        .get::<_, String>(11)?
                         .parse()
                         .unwrap_or(SessionStatus::Active),
-                    created_at: Utc.timestamp_opt(row.get(11)?, 0).unwrap(),
-                    updated_at: Utc.timestamp_opt(row.get(12)?, 0).unwrap(),
+                    created_at: Utc.timestamp_opt(row.get(12)?, 0).unwrap(),
+                    updated_at: Utc.timestamp_opt(row.get(13)?, 0).unwrap(),
                     last_activity: row
-                        .get::<_, Option<i64>>(13)?
+                        .get::<_, Option<i64>>(14)?
                         .and_then(|ts| Utc.timestamp_opt(ts, 0).single()),
-                    ready_to_merge: row.get(14).unwrap_or(false),
-                    original_agent_type: row.get(15).ok(),
-                    original_skip_permissions: row.get(16).ok(),
-                    pending_name_generation: row.get(17).unwrap_or(false),
-                    was_auto_generated: row.get(18).unwrap_or(false),
+                    ready_to_merge: row.get(15).unwrap_or(false),
+                    original_agent_type: row.get(16).ok(),
+                    original_skip_permissions: row.get(17).ok(),
+                    pending_name_generation: row.get(18).unwrap_or(false),
+                    was_auto_generated: row.get(19).unwrap_or(false),
                     session_state: row
-                        .get::<_, String>(19)
+                        .get::<_, String>(20)
                         .ok()
                         .and_then(|s| s.parse().ok())
                         .unwrap_or(SessionState::Running),
-                    resume_allowed: row.get(20).unwrap_or(true),
-                    amp_thread_id: row.get(21).ok(),
+                    resume_allowed: row.get(21).unwrap_or(true),
+                    amp_thread_id: row.get(22).ok(),
                 })
             })?;
             rows.collect::<SqlResult<Vec<_>>>()?
@@ -426,7 +432,7 @@ impl SessionMethods for Database {
         let summaries = {
             let mut stmt = conn.prepare(
                 "SELECT id, name, display_name, version_group_id, version_number, repository_path, repository_name,
-                        branch, parent_branch, worktree_path,
+                        branch, parent_branch, original_parent_branch, worktree_path,
                         status, created_at, updated_at, last_activity, ready_to_merge,
                         original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
                         session_state, resume_allowed, amp_thread_id
@@ -446,28 +452,29 @@ impl SessionMethods for Database {
                     repository_name: row.get(6)?,
                     branch: row.get(7)?,
                     parent_branch: row.get(8)?,
-                    worktree_path: PathBuf::from(row.get::<_, String>(9)?),
+                    original_parent_branch: row.get(9).ok(),
+                    worktree_path: PathBuf::from(row.get::<_, String>(10)?),
                     status: row
-                        .get::<_, String>(10)?
+                        .get::<_, String>(11)?
                         .parse()
                         .unwrap_or(SessionStatus::Active),
-                    created_at: Utc.timestamp_opt(row.get(11)?, 0).unwrap(),
-                    updated_at: Utc.timestamp_opt(row.get(12)?, 0).unwrap(),
+                    created_at: Utc.timestamp_opt(row.get(12)?, 0).unwrap(),
+                    updated_at: Utc.timestamp_opt(row.get(13)?, 0).unwrap(),
                     last_activity: row
-                        .get::<_, Option<i64>>(13)?
+                        .get::<_, Option<i64>>(14)?
                         .and_then(|ts| Utc.timestamp_opt(ts, 0).single()),
-                    ready_to_merge: row.get(14).unwrap_or(false),
-                    original_agent_type: row.get(15).ok(),
-                    original_skip_permissions: row.get(16).ok(),
-                    pending_name_generation: row.get(17).unwrap_or(false),
-                    was_auto_generated: row.get(18).unwrap_or(false),
+                    ready_to_merge: row.get(15).unwrap_or(false),
+                    original_agent_type: row.get(16).ok(),
+                    original_skip_permissions: row.get(17).ok(),
+                    pending_name_generation: row.get(18).unwrap_or(false),
+                    was_auto_generated: row.get(19).unwrap_or(false),
                     session_state: row
-                        .get::<_, String>(19)
+                        .get::<_, String>(20)
                         .ok()
                         .and_then(|s| s.parse().ok())
                         .unwrap_or(SessionState::Running),
-                    resume_allowed: row.get(20).unwrap_or(true),
-                    amp_thread_id: row.get(21).ok(),
+                    resume_allowed: row.get(21).unwrap_or(true),
+                    amp_thread_id: row.get(22).ok(),
                 })
             })?;
             rows.collect::<SqlResult<Vec<_>>>()?
@@ -578,7 +585,7 @@ impl SessionMethods for Database {
         let summaries = {
             let mut stmt = conn.prepare(
                 "SELECT id, name, display_name, version_group_id, version_number, repository_path, repository_name,
-                        branch, parent_branch, worktree_path,
+                        branch, parent_branch, original_parent_branch, worktree_path,
                         status, created_at, updated_at, last_activity, ready_to_merge,
                         original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
                         session_state, resume_allowed, amp_thread_id
@@ -600,28 +607,29 @@ impl SessionMethods for Database {
                         repository_name: row.get(6)?,
                         branch: row.get(7)?,
                         parent_branch: row.get(8)?,
-                        worktree_path: PathBuf::from(row.get::<_, String>(9)?),
+                        original_parent_branch: row.get(9).ok(),
+                        worktree_path: PathBuf::from(row.get::<_, String>(10)?),
                         status: row
-                            .get::<_, String>(10)?
+                            .get::<_, String>(11)?
                             .parse()
                             .unwrap_or(SessionStatus::Active),
-                        created_at: Utc.timestamp_opt(row.get(11)?, 0).unwrap(),
-                        updated_at: Utc.timestamp_opt(row.get(12)?, 0).unwrap(),
+                        created_at: Utc.timestamp_opt(row.get(12)?, 0).unwrap(),
+                        updated_at: Utc.timestamp_opt(row.get(13)?, 0).unwrap(),
                         last_activity: row
-                            .get::<_, Option<i64>>(13)?
+                            .get::<_, Option<i64>>(14)?
                             .and_then(|ts| Utc.timestamp_opt(ts, 0).single()),
-                        ready_to_merge: row.get(14).unwrap_or(false),
-                        original_agent_type: row.get(15).ok(),
-                        original_skip_permissions: row.get(16).ok(),
-                        pending_name_generation: row.get(17).unwrap_or(false),
-                        was_auto_generated: row.get(18).unwrap_or(false),
+                        ready_to_merge: row.get(15).unwrap_or(false),
+                        original_agent_type: row.get(16).ok(),
+                        original_skip_permissions: row.get(17).ok(),
+                        pending_name_generation: row.get(18).unwrap_or(false),
+                        was_auto_generated: row.get(19).unwrap_or(false),
                         session_state: row
-                            .get::<_, String>(19)
+                            .get::<_, String>(20)
                             .ok()
                             .and_then(|s| s.parse().ok())
                             .unwrap_or(SessionState::Running),
-                        resume_allowed: row.get(20).unwrap_or(true),
-                        amp_thread_id: row.get(21).ok(),
+                        resume_allowed: row.get(21).unwrap_or(true),
+                        amp_thread_id: row.get(22).ok(),
                     })
                 },
             )?;

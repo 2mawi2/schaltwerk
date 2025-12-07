@@ -117,6 +117,7 @@ describe('SimpleDiffPanel', () => {
       if (cmd === TauriCommands.GetBaseBranchName) return 'main'
       if (cmd === TauriCommands.GetCommitComparisonInfo) return ['a', 'b']
       if (cmd === TauriCommands.GetDiffViewPreferences) return defaultDiffPrefs
+      if (cmd === TauriCommands.SchaltwerkCoreGetSession) return { original_parent_branch: 'main' }
       return null
     })
     const { SimpleDiffPanel } = await import('./SimpleDiffPanel')
@@ -133,10 +134,6 @@ describe('SimpleDiffPanel', () => {
 
     // No prompt toggle button is present anymore
     await waitFor(() => expect(screen.queryByRole('button', { name: /show prompt/i })).not.toBeInTheDocument())
-
-    // And we never fetch the session prompt
-    const calls = invoke.mock.calls
-    expect(calls.find((c: unknown[]) => (c as [string, ...unknown[]])[0] === TauriCommands.SchaltwerkCoreGetSession)).toBeUndefined()
   })
 
   it('returns to list mode when files disappear during review', async () => {

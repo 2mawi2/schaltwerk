@@ -62,6 +62,7 @@ mod tests {
             repository_name: "test-repo".into(),
             branch: "schaltwerk/test-session".into(),
             parent_branch: "main".into(),
+            original_parent_branch: Some("main".into()),
             worktree_path: repo.join("worktrees").join("test-session"),
             status: SessionStatus::Active,
             created_at: Utc::now(),

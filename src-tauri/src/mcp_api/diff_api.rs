@@ -743,6 +743,7 @@ mod tests {
             repository_name: repo_name,
             branch: branch.to_string(),
             parent_branch: parent_branch.to_string(),
+            original_parent_branch: Some(parent_branch.to_string()),
             worktree_path: repo_path.to_path_buf(),
             status: SessionStatus::Active,
             created_at: Utc::now(),

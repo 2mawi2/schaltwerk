@@ -210,6 +210,7 @@ mod tests {
             repository_name: "test-repo".to_string(),
             branch: "schaltwerk/test-session".to_string(),
             parent_branch: "main".to_string(),
+            original_parent_branch: Some("main".to_string()),
             worktree_path,
             status: SessionStatus::Active,
             created_at: Utc::now(),
