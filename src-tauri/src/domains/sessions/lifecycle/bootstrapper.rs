@@ -149,6 +149,17 @@ impl<'a> WorktreeBootstrapper<'a> {
             ));
         }
 
+        // Check worktree FIRST before any sync - if branch is already in use, fail fast
+        // without modifying any state
+        if let Some(existing_wt) = git::get_worktree_for_branch(self.repo_path, branch_name)? {
+            return Err(anyhow!(
+                "Branch '{}' is already checked out in worktree: {}",
+                branch_name,
+                existing_wt.display()
+            ));
+        }
+
+        // Only sync after we've confirmed the branch is available
         if sync_with_origin
             && let Err(e) = git::safe_sync_branch_with_origin(self.repo_path, branch_name)
         {
@@ -160,14 +171,6 @@ impl<'a> WorktreeBootstrapper<'a> {
         if !git::branch_exists(self.repo_path, branch_name)? {
             return Err(anyhow!(
                 "Branch '{branch_name}' does not exist. Cannot use use_existing_branch with a non-existent branch."
-            ));
-        }
-
-        if let Some(existing_wt) = git::get_worktree_for_branch(self.repo_path, branch_name)? {
-            return Err(anyhow!(
-                "Branch '{}' is already checked out in worktree: {}",
-                branch_name,
-                existing_wt.display()
             ));
         }
 
