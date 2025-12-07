@@ -1613,7 +1613,7 @@ fn test_codex_spec_start_respects_resume_gate() {
     // Create a spec session with Codex as agent
     let spec_content = "Implement feature X via Codex";
     let _spec = manager
-        .create_spec_session_with_agent("codex_spec", spec_content, Some("codex"), None, None)
+        .create_spec_session_with_agent("codex_spec", spec_content, Some("codex"), None, None, None)
         .unwrap();
 
     // Ensure global agent is Codex so start uses Codex (start_spec_session stores original settings from globals)

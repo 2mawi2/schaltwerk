@@ -183,6 +183,7 @@ where
         agent_type,
         skip_permissions,
         None,
+        None,
     )?;
     if let Err(e) = emit_sessions() {
         warn!("Failed to emit SessionsRefreshed after creating spec '{name}': {e}");

@@ -118,6 +118,7 @@ export const TauriCommands = {
   SchaltwerkCoreLogFrontendMessage: 'schaltwerk_core_log_frontend_message',
   SchaltwerkCoreMarkReady: 'schaltwerk_core_mark_ready',
   SchaltwerkCoreMarkSessionReady: 'schaltwerk_core_mark_session_ready',
+  SchaltwerkCoreRenameSessionDisplayName: 'schaltwerk_core_rename_session_display_name',
   SchaltwerkCoreRenameVersionGroup: 'schaltwerk_core_rename_version_group',
   SchaltwerkCoreResetOrchestrator: 'schaltwerk_core_reset_orchestrator',
   SchaltwerkCoreResetSessionWorktree: 'schaltwerk_core_reset_session_worktree',
