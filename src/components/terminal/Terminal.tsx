@@ -1579,6 +1579,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             // All terminals are cleaned up when the app exits via the backend cleanup handler
             // useCleanupRegistry handles other cleanup automatically
         };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refs are stable; isBackground/isAgentTopTerminal are read at call-time and shouldn't trigger re-init
     }, [
         terminalId,
         addEventListener,
