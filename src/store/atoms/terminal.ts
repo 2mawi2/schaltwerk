@@ -145,9 +145,6 @@ export const setTerminalFocusActionAtom = atom(
   }
 )
 
-export const getTerminalFocusAtom = (sessionKey: string) =>
-  atom(get => get(terminalFocusAtom).get(sessionKey) ?? null)
-
 export const runModeActiveAtomFamily = atomFamily(
   (_sessionKey: string) => atom<boolean>(false),
   (a, b) => a === b
@@ -168,16 +165,6 @@ export const setAgentTypeCacheActionAtom = atom(
 
 export const getAgentTypeFromCacheAtom = (sessionId: string) =>
   atom(get => get(agentTypeCacheAtom).get(sessionId))
-
-export const clearAgentTypeCacheActionAtom = atom(
-  null,
-  (get, set, sessionId: string) => {
-    const current = get(agentTypeCacheAtom)
-    const next = new Map(current)
-    next.delete(sessionId)
-    set(agentTypeCacheAtom, next)
-  }
-)
 
 // Terminal settings atoms for centralized, deterministic config management
 export interface TerminalSettings {

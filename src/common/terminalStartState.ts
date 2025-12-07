@@ -5,16 +5,8 @@ export type TerminalStartState = 'starting' | 'started'
 
 const terminalStates = new Map<string, TerminalStartState>()
 
-export function getTerminalStartState(terminalId: string): TerminalStartState | null {
-  return terminalStates.get(terminalId) ?? null
-}
-
 export function isTerminalStartingOrStarted(terminalId: string): boolean {
   return terminalStates.has(terminalId)
-}
-
-export function isTerminalStarted(terminalId: string): boolean {
-  return terminalStates.get(terminalId) === 'started'
 }
 
 export function markTerminalStarting(terminalId: string): void {
@@ -45,12 +37,4 @@ export function clearTerminalStartStateByPrefix(prefix: string): void {
     }
   }
   clearTerminalStartState(toDelete)
-}
-
-export function __getTerminalStatesForTest(): Map<string, TerminalStartState> {
-  return terminalStates
-}
-
-export function __resetTerminalStartStateForTest(): void {
-  terminalStates.clear()
 }
