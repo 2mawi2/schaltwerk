@@ -168,6 +168,7 @@ export interface DiffViewerProps {
   onDiscardFile?: (filePath: string) => void | Promise<void>
   onStartCommentFromContext?: (payload: { filePath: string; lineNumber: number; side: 'old' | 'new' }) => void
   onOpenFile?: (filePath: string) => Promise<OpenInAppRequest | undefined>
+  keyboardFocus?: { filePath: string; lineNum: number; side: 'old' | 'new' } | null
 }
 
 export function DiffViewer({
@@ -204,7 +205,8 @@ export function DiffViewer({
   onCopyFilePath,
   onDiscardFile,
   onStartCommentFromContext,
-  onOpenFile
+  onOpenFile,
+  keyboardFocus = null,
 }: DiffViewerProps) {
   const resizeObserversRef = useRef<Map<string, ResizeObserver>>(new Map())
   const bodyRefCallbacksRef = useRef<Map<string, (node: HTMLDivElement | null) => void>>(new Map())
@@ -544,6 +546,7 @@ export function DiffViewer({
                 ref={(el) => {
                   if (el) fileRefs.current.set(file.path, el)
                 }}
+                data-file-path={file.path}
                 className="border-b border-slate-800 last:border-b-0"
               >
                 {/* File header */}
@@ -706,14 +709,15 @@ export function DiffViewer({
                                 highlightedContent={collapsedLine.content !== undefined ? highlightCode(file.path, `${globalIdx}-expanded-${collapsedIdx}`, collapsedLine.content) : undefined}
                                 onLineNumberContextMenu={(payload) => handleLineNumberContextMenu(file.path, payload)}
                                 onCodeContextMenu={(payload) => handleCodeContextMenu(file.path, payload)}
+                                isKeyboardFocused={keyboardFocus?.filePath === file.path && keyboardFocus.lineNum === collapsedLineNum && keyboardFocus.side === collapsedSide}
                               />
                             )
                           })
                         }
-                        
+
                         return rows
                       }
-                      
+
                       return (
                         <DiffLineRow
                           key={globalIdx}
@@ -728,6 +732,7 @@ export function DiffViewer({
                           highlightedContent={line.content !== undefined ? highlightCode(file.path, globalIdx, line.content) : undefined}
                           onLineNumberContextMenu={(payload) => handleLineNumberContextMenu(file.path, payload)}
                           onCodeContextMenu={(payload) => handleCodeContextMenu(file.path, payload)}
+                          isKeyboardFocused={keyboardFocus?.filePath === file.path && keyboardFocus.lineNum === lineNum && keyboardFocus.side === side}
                         />
                       )
                     })}
@@ -941,6 +946,7 @@ export function DiffViewer({
                                     highlightedContent={collapsedLine.content !== undefined ? highlightCode(file.path, `${globalIdx}-expanded-${collapsedIdx}`, collapsedLine.content) : undefined}
                                     onLineNumberContextMenu={(payload) => handleLineNumberContextMenu(file.path, payload)}
                                     onCodeContextMenu={(payload) => handleCodeContextMenu(file.path, payload)}
+                                    isKeyboardFocused={keyboardFocus?.filePath === file.path && keyboardFocus.lineNum === collapsedLineNum && keyboardFocus.side === collapsedSide}
                                   />
                                 )
                               })
@@ -963,6 +969,7 @@ export function DiffViewer({
                               highlightedContent={line.content !== undefined ? highlightCode(file.path, globalIdx, line.content) : undefined}
                               onLineNumberContextMenu={(payload) => handleLineNumberContextMenu(file.path, payload)}
                               onCodeContextMenu={(payload) => handleCodeContextMenu(file.path, payload)}
+                              isKeyboardFocused={keyboardFocus?.filePath === file.path && keyboardFocus.lineNum === lineNum && keyboardFocus.side === side}
                             />
                           )
                         })}

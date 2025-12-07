@@ -16,6 +16,7 @@ import {
   type LineSelection,
 } from "../../hooks/useLineSelection";
 import { useDiffHover } from "../../hooks/useDiffHover";
+import { useDiffKeyboardNavigation } from "../../hooks/useDiffKeyboardNavigation";
 import {
   loadFileDiff,
   loadCommitFileDiff,
@@ -277,6 +278,36 @@ export function UnifiedDiffView({
   const isLargeDiffMode = useMemo(() => {
     return !effectiveContinuousScroll;
   }, [effectiveContinuousScroll]);
+
+  const {
+    keyboardFocus,
+    keyboardFocusRef,
+    setKeyboardFocus,
+    moveKeyboardFocus,
+    scheduleHoldScroll,
+    stopSmoothScroll,
+  } = useDiffKeyboardNavigation({
+    scrollContainerRef,
+    selectedFileRef,
+    filePathToIndexRef,
+    userScrollingRef,
+    onFocusChange: useCallback(
+      (focus) => {
+        setHoveredLineInfo(focus.lineNum, focus.side, focus.filePath);
+        setShowCommentForm(false);
+        setCommentFormPosition(null);
+      },
+      [setHoveredLineInfo]
+    ),
+    onFileChange: useCallback(
+      (filePath: string, index: number) => {
+        setSelectedFile(filePath);
+        setVisibleFilePath(filePath);
+        setSelectedFileIndex(index);
+      },
+      []
+    ),
+  });
 
   const historyFiles = useMemo<ChangedFile[]>(() => {
     if (mode !== "history" || !historyContext) {
@@ -2262,6 +2293,18 @@ export function UnifiedDiffView({
 
   useHoverKeyboardShortcuts(startCommentOnLine, isOpen && mode !== "history");
 
+  useEffect(() => {
+    if (!isOpen) {
+      setKeyboardFocus(null);
+    }
+  }, [isOpen, setKeyboardFocus]);
+
+  useEffect(() => {
+    if (!isOpen || showCommentForm || isSearchVisible) {
+      stopSmoothScroll();
+    }
+  }, [isOpen, showCommentForm, isSearchVisible, stopSmoothScroll]);
+
   const handleLineMouseUp = useCallback(
     ({
       event,
@@ -2743,47 +2786,155 @@ export function UnifiedDiffView({
         } else if (mode === "session" && !isSidebarMode) {
           onClose();
         }
-      } else if (
-        isOpen &&
-        !showCommentForm &&
-        !isSearchVisible &&
-        !isSidebarMode
-      ) {
+      } else if (isOpen && !showCommentForm && !isSearchVisible) {
+        const target = e.target as HTMLElement | null;
+        const tag = target?.tagName?.toLowerCase();
+        const isEditable = (target as HTMLElement)?.isContentEditable;
+        if (tag === "textarea" || tag === "input" || isEditable) {
+          return;
+        }
+
         const visualOrder = visualFileOrderRef.current;
         const fileIndexMap = filePathToIndexRef.current;
         const currentVisualIndex = selectedFileRef.current
           ? visualOrder.indexOf(selectedFileRef.current)
           : -1;
 
-        if (e.key === "ArrowUp") {
-          e.preventDefault();
-          e.stopPropagation();
-          if (currentVisualIndex > 0) {
-            const newPath = visualOrder[currentVisualIndex - 1];
-            const newIndex = fileIndexMap.get(newPath) ?? 0;
-            void scrollToFile(newPath, newIndex, {
-              origin: "user",
-              allowWhileUserScrolling: true,
-            });
+        if (isSidebarMode) {
+          if (
+            (e.key === "j" || e.key === "ArrowDown") &&
+            !e.metaKey &&
+            !e.ctrlKey &&
+            !e.altKey
+          ) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!e.repeat) {
+              moveKeyboardFocus(1);
+              scheduleHoldScroll(1);
+            }
+            return;
           }
-        } else if (e.key === "ArrowDown") {
-          e.preventDefault();
-          e.stopPropagation();
-          if (visualOrder.length === 0) return;
-          if (currentVisualIndex < visualOrder.length - 1) {
-            const newPath = visualOrder[currentVisualIndex + 1];
-            const newIndex = fileIndexMap.get(newPath) ?? 0;
-            void scrollToFile(newPath, newIndex, {
-              origin: "user",
-              allowWhileUserScrolling: true,
+
+          if (
+            (e.key === "k" || e.key === "ArrowUp") &&
+            !e.metaKey &&
+            !e.ctrlKey &&
+            !e.altKey
+          ) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!e.repeat) {
+              moveKeyboardFocus(-1);
+              scheduleHoldScroll(-1);
+            }
+            return;
+          }
+
+          if (
+            (e.key === "h" || e.key === "[") &&
+            !e.metaKey &&
+            !e.ctrlKey &&
+            !e.altKey
+          ) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (currentVisualIndex > 0) {
+              const newPath = visualOrder[currentVisualIndex - 1];
+              const newIndex = fileIndexMap.get(newPath) ?? 0;
+              setKeyboardFocus(null);
+              void scrollToFile(newPath, newIndex, {
+                origin: "user",
+                allowWhileUserScrolling: true,
+              });
+            }
+            return;
+          }
+
+          if (
+            (e.key === "l" || e.key === "]") &&
+            !e.metaKey &&
+            !e.ctrlKey &&
+            !e.altKey
+          ) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (visualOrder.length > 0 && currentVisualIndex < visualOrder.length - 1) {
+              const newPath = visualOrder[currentVisualIndex + 1];
+              const newIndex = fileIndexMap.get(newPath) ?? 0;
+              setKeyboardFocus(null);
+              void scrollToFile(newPath, newIndex, {
+                origin: "user",
+                allowWhileUserScrolling: true,
+              });
+            }
+            return;
+          }
+
+          if (
+            e.key === "Enter" &&
+            !e.shiftKey &&
+            !e.ctrlKey &&
+            !e.metaKey &&
+            keyboardFocusRef.current
+          ) {
+            e.preventDefault();
+            e.stopPropagation();
+            const focus = keyboardFocusRef.current;
+            handleStartCommentFromContext({
+              filePath: focus.filePath,
+              lineNumber: focus.lineNum,
+              side: focus.side,
             });
+            return;
+          }
+        } else {
+          if (e.key === "ArrowUp") {
+            e.preventDefault();
+            e.stopPropagation();
+            if (currentVisualIndex > 0) {
+              const newPath = visualOrder[currentVisualIndex - 1];
+              const newIndex = fileIndexMap.get(newPath) ?? 0;
+              void scrollToFile(newPath, newIndex, {
+                origin: "user",
+                allowWhileUserScrolling: true,
+              });
+            }
+          } else if (e.key === "ArrowDown") {
+            e.preventDefault();
+            e.stopPropagation();
+            if (visualOrder.length === 0) return;
+            if (currentVisualIndex < visualOrder.length - 1) {
+              const newPath = visualOrder[currentVisualIndex + 1];
+              const newIndex = fileIndexMap.get(newPath) ?? 0;
+              void scrollToFile(newPath, newIndex, {
+                origin: "user",
+                allowWhileUserScrolling: true,
+              });
+            }
           }
         }
       }
     };
 
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (
+        isSidebarMode &&
+        (e.key === "j" ||
+          e.key === "k" ||
+          e.key === "ArrowDown" ||
+          e.key === "ArrowUp")
+      ) {
+        stopSmoothScroll();
+      }
+    };
+
     window.addEventListener("keydown", handleKeyDown, true);
-    return () => window.removeEventListener("keydown", handleKeyDown, true);
+    window.addEventListener("keyup", handleKeyUp, true);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown, true);
+      window.removeEventListener("keyup", handleKeyUp, true);
+    };
   }, [
     mode,
     isOpen,
@@ -2800,6 +2951,12 @@ export function UnifiedDiffView({
     platform,
     clearActiveSelection,
     isSidebarMode,
+    moveKeyboardFocus,
+    scheduleHoldScroll,
+    stopSmoothScroll,
+    handleStartCommentFromContext,
+    keyboardFocusRef,
+    setKeyboardFocus,
   ]);
 
   if (!isOpen) return null;
@@ -2902,6 +3059,7 @@ export function UnifiedDiffView({
         onDiscardFile={handleDiscardFile}
         onStartCommentFromContext={handleStartCommentFromContext}
         onOpenFile={openFileHandler}
+        keyboardFocus={keyboardFocus}
       />
 
       <SearchBox
@@ -3104,6 +3262,7 @@ export function UnifiedDiffView({
               }}
               onStartCommentFromContext={handleStartCommentFromContext}
               onOpenFile={openFileHandler}
+              keyboardFocus={keyboardFocus}
             />
             <SearchBox
               targetRef={scrollContainerRef}
