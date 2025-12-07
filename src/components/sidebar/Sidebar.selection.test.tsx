@@ -326,10 +326,6 @@ describe('Reviewed session cancellation focus preservation', () => {
     })
 
     await emitEvent(SchaltEvent.SessionRemoved, { session_name: 'spec-2' })
-    currentSessions = [spec1, spec3]
-    ;(globalThis as { __testCurrentSessions?: TestSession[] }).__testCurrentSessions = currentSessions
-
-    await emitEvent(SchaltEvent.SessionsRefreshed, currentSessions)
 
     await waitFor(() => {
       expect(screen.queryByText('spec-2')).toBeNull()
