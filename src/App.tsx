@@ -107,6 +107,8 @@ import { finalizeSplitCommit, selectSplitRenderSizes } from './utils/splitDragSt
 
 
 
+import { FocusSync } from './components/FocusSync'
+
 function AppContent() {
   const { selection } = useSelection()
   const projectPath = useAtomValue(projectPathAtom)
@@ -1713,6 +1715,7 @@ function AppContent() {
 
   return (
     <ErrorBoundary name="App">
+      <FocusSync />
       {/* Show TopBar always */}
       <TopBar
         tabs={tabsWithAttention}
