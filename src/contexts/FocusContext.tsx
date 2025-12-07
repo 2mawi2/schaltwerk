@@ -24,8 +24,13 @@ export function FocusProvider({ children }: { children: ReactNode }) {
   })
 
   const getFocusForSession = useCallback((sessionKey: string): FocusArea => {
-    return focusState.sessionFocus.get(sessionKey) ?? (DEFAULT_AGENT as FocusArea)
-  }, [focusState.sessionFocus])
+    const stored = focusState.sessionFocus.get(sessionKey)
+    if (stored) return stored
+    if (focusState.currentFocus === 'diff' || focusState.currentFocus === 'sidebar') {
+      return focusState.currentFocus
+    }
+    return DEFAULT_AGENT as FocusArea
+  }, [focusState.sessionFocus, focusState.currentFocus])
 
   const setFocusForSession = useCallback((sessionKey: string, focus: FocusArea) => {
     setFocusState(prev => ({
