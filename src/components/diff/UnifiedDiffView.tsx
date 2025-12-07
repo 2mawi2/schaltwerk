@@ -3044,7 +3044,7 @@ export function UnifiedDiffView({
 
   const diffContent = (
     <div
-      className={`flex-1 flex flex-col overflow-hidden min-h-0 w-full relative ${className || ""}`}
+      className={`flex-1 flex flex-col overflow-hidden min-h-0 w-full relative bg-slate-900/30 ${className || ""}`}
     >
       <DiffViewer
         files={files}
@@ -3248,7 +3248,7 @@ export function UnifiedDiffView({
             />
           </div>
           <div
-            className={`flex-1 flex flex-col overflow-hidden relative ${className || ""}`}
+            className={`flex-1 flex flex-col overflow-hidden relative bg-slate-900/30 ${className || ""}`}
           >
             <DiffViewer
               files={files}

@@ -528,7 +528,7 @@ export function DiffViewer({
       )}
 
       <div
-        className="flex-1 overflow-auto min-h-0 w-full font-mono text-sm"
+        className="flex-1 overflow-auto min-h-0 w-full font-mono text-sm bg-slate-900/30"
         ref={scrollContainerRef}
         data-testid="diff-scroll-container"
       >
