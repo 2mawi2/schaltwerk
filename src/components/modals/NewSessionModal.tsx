@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
 import { generateDockerStyleName } from '../../utils/dockerNames'
+import { titleToSessionName } from '../../utils/titleToSessionName'
 import { invoke } from '@tauri-apps/api/core'
 import { SessionConfigurationPanel } from '../shared/SessionConfigurationPanel'
 import { theme } from '../../common/theme'
@@ -1430,6 +1431,15 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                         setGithubIssueSelection(selection)
                                         setTaskContent(selection.prompt)
                                         onPromptChange?.(selection.prompt)
+                                        if (!wasEditedRef.current) {
+                                            const derivedName = titleToSessionName(
+                                                selection.details.title,
+                                                selection.details.number
+                                            )
+                                            if (derivedName) {
+                                                setName(derivedName)
+                                            }
+                                        }
                                         if (validationError) {
                                             setValidationError('')
                                         }
@@ -1448,6 +1458,15 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                         setGithubPrSelection(selection)
                                         setTaskContent(selection.prompt)
                                         onPromptChange?.(selection.prompt)
+                                        if (!wasEditedRef.current) {
+                                            const derivedName = titleToSessionName(
+                                                selection.details.title,
+                                                selection.details.number
+                                            )
+                                            if (derivedName) {
+                                                setName(derivedName)
+                                            }
+                                        }
                                         if (validationError) {
                                             setValidationError('')
                                         }
