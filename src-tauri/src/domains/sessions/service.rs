@@ -135,6 +135,16 @@ pub struct SessionCreationParams<'a> {
     pub skip_permissions: Option<bool>,
 }
 
+pub struct AgentLaunchParams<'a> {
+    pub session_name: &'a str,
+    pub force_restart: bool,
+    pub binary_paths: &'a HashMap<String, String>,
+    pub amp_mcp_servers: Option<&'a HashMap<String, crate::domains::settings::McpServerConfig>>,
+    pub agent_type_override: Option<&'a str>,
+    pub skip_prompt: bool,
+    pub skip_permissions_override: Option<bool>,
+}
+
 #[cfg(test)]
 use crate::domains::sessions::entity::GitStats;
 use crate::{
@@ -320,12 +330,15 @@ mod service_unified_tests {
 
         // First start should be FRESH (no --continue / no -r)
         let cmd1 = manager
-            .start_claude_in_session_with_restart_and_binary(
-                &session.name,
-                false,
-                &HashMap::new(),
-                None,
-            )
+            .start_claude_in_session_with_restart_and_binary(AgentLaunchParams {
+                session_name: &session.name,
+                force_restart: false,
+                binary_paths: &HashMap::new(),
+                amp_mcp_servers: None,
+                agent_type_override: None,
+                skip_prompt: false,
+                skip_permissions_override: None,
+            })
             .unwrap();
         let shell1 = &cmd1.shell_command;
         assert!(shell1.contains(" claude"));
@@ -334,12 +347,15 @@ mod service_unified_tests {
 
         // Second start should allow resume now (resume_allowed flipped true)
         let cmd2 = manager
-            .start_claude_in_session_with_restart_and_binary(
-                &session.name,
-                false,
-                &HashMap::new(),
-                None,
-            )
+            .start_claude_in_session_with_restart_and_binary(AgentLaunchParams {
+                session_name: &session.name,
+                force_restart: false,
+                binary_paths: &HashMap::new(),
+                amp_mcp_servers: None,
+                agent_type_override: None,
+                skip_prompt: false,
+                skip_permissions_override: None,
+            })
             .unwrap();
         let shell2 = &cmd2.shell_command;
         assert!(
@@ -376,12 +392,15 @@ mod service_unified_tests {
 
             // Get the unified command using the new registry approach
             let binary_paths = HashMap::new();
-            let result = manager.start_claude_in_session_with_restart_and_binary(
-                &session.name,
-                false,
-                &binary_paths,
-                None,
-            );
+            let result = manager.start_claude_in_session_with_restart_and_binary(AgentLaunchParams {
+                session_name: &session.name,
+                force_restart: false,
+                binary_paths: &binary_paths,
+                amp_mcp_servers: None,
+                agent_type_override: None,
+                skip_prompt: false,
+                skip_permissions_override: None,
+            });
 
             // Should succeed for all supported agents
             assert!(result.is_ok(), "Agent {} should be supported", agent_type);
@@ -410,12 +429,15 @@ mod service_unified_tests {
         manager.db_manager.create_session(&session).unwrap();
 
         let binary_paths = HashMap::new();
-        let result = manager.start_claude_in_session_with_restart_and_binary(
-            &session.name,
-            false,
-            &binary_paths,
-            None,
-        );
+        let result = manager.start_claude_in_session_with_restart_and_binary(AgentLaunchParams {
+            session_name: &session.name,
+            force_restart: false,
+            binary_paths: &binary_paths,
+            amp_mcp_servers: None,
+            agent_type_override: None,
+            skip_prompt: false,
+            skip_permissions_override: None,
+        });
 
         assert!(result.is_ok());
         let command = result.unwrap();
@@ -431,12 +453,15 @@ mod service_unified_tests {
         session.original_skip_permissions = Some(false);
         manager.db_manager.create_session(&session).unwrap();
 
-        let result = manager.start_claude_in_session_with_restart_and_binary(
-            &session.name,
-            false,
-            &binary_paths,
-            None,
-        );
+        let result = manager.start_claude_in_session_with_restart_and_binary(AgentLaunchParams {
+            session_name: &session.name,
+            force_restart: false,
+            binary_paths: &binary_paths,
+            amp_mcp_servers: None,
+            agent_type_override: None,
+            skip_prompt: false,
+            skip_permissions_override: None,
+        });
 
         assert!(result.is_ok());
         let command = result.unwrap();
@@ -452,12 +477,15 @@ mod service_unified_tests {
         manager.db_manager.create_session(&session).unwrap();
 
         let spec = manager
-            .start_claude_in_session_with_restart_and_binary(
-                &session.name,
-                false,
-                &HashMap::new(),
-                None,
-            )
+            .start_claude_in_session_with_restart_and_binary(AgentLaunchParams {
+                session_name: &session.name,
+                force_restart: false,
+                binary_paths: &HashMap::new(),
+                amp_mcp_servers: None,
+                agent_type_override: None,
+                skip_prompt: false,
+                skip_permissions_override: None,
+            })
             .expect("Amp launch spec should build");
 
         assert!(
@@ -534,12 +562,15 @@ mod service_unified_tests {
         setup_opencode_session_history(home_dir.path(), &session.worktree_path, "oc-session", 3);
 
         let cmd = manager
-            .start_claude_in_session_with_restart_and_binary(
-                &session.name,
-                false,
-                &HashMap::new(),
-                None,
-            )
+            .start_claude_in_session_with_restart_and_binary(AgentLaunchParams {
+                session_name: &session.name,
+                force_restart: false,
+                binary_paths: &HashMap::new(),
+                amp_mcp_servers: None,
+                agent_type_override: None,
+                skip_prompt: false,
+                skip_permissions_override: None,
+            })
             .expect("expected OpenCode command");
         let shell_command = &cmd.shell_command;
 
@@ -583,12 +614,15 @@ mod service_unified_tests {
         setup_opencode_session_history(home_dir.path(), &session.worktree_path, "oc-gate", 4);
 
         let cmd_first = manager
-            .start_claude_in_session_with_restart_and_binary(
-                &session.name,
-                false,
-                &HashMap::new(),
-                None,
-            )
+            .start_claude_in_session_with_restart_and_binary(AgentLaunchParams {
+                session_name: &session.name,
+                force_restart: false,
+                binary_paths: &HashMap::new(),
+                amp_mcp_servers: None,
+                agent_type_override: None,
+                skip_prompt: false,
+                skip_permissions_override: None,
+            })
             .expect("expected OpenCode command");
         let first_shell = &cmd_first.shell_command;
 
@@ -611,12 +645,15 @@ mod service_unified_tests {
         );
 
         let cmd_second = manager
-            .start_claude_in_session_with_restart_and_binary(
-                &session.name,
-                false,
-                &HashMap::new(),
-                None,
-            )
+            .start_claude_in_session_with_restart_and_binary(AgentLaunchParams {
+                session_name: &session.name,
+                force_restart: false,
+                binary_paths: &HashMap::new(),
+                amp_mcp_servers: None,
+                agent_type_override: None,
+                skip_prompt: false,
+                skip_permissions_override: None,
+            })
             .expect("expected OpenCode command");
         let second_shell = &cmd_second.shell_command;
 
@@ -1346,12 +1383,15 @@ mod service_unified_tests {
         manager.db_manager.create_session(&session).unwrap();
 
         let binary_paths = HashMap::new();
-        let result = manager.start_claude_in_session_with_restart_and_binary(
-            &session.name,
-            false,
-            &binary_paths,
-            None,
-        );
+        let result = manager.start_claude_in_session_with_restart_and_binary(AgentLaunchParams {
+            session_name: &session.name,
+            force_restart: false,
+            binary_paths: &binary_paths,
+            amp_mcp_servers: None,
+            agent_type_override: None,
+            skip_prompt: false,
+            skip_permissions_override: None,
+        });
 
         // Should return an error with supported agent types listed
         assert!(result.is_err());
@@ -2900,12 +2940,15 @@ impl SessionManager {
         session_name: &str,
         force_restart: bool,
     ) -> Result<AgentLaunchSpec> {
-        self.start_claude_in_session_with_restart_and_binary(
+        self.start_claude_in_session_with_restart_and_binary(AgentLaunchParams {
             session_name,
             force_restart,
-            &HashMap::new(),
-            None,
-        )
+            binary_paths: &HashMap::new(),
+            amp_mcp_servers: None,
+            agent_type_override: None,
+            skip_prompt: false,
+            skip_permissions_override: None,
+        })
     }
 
     pub fn start_claude_in_session_with_binary(
@@ -2913,12 +2956,15 @@ impl SessionManager {
         session_name: &str,
         binary_paths: &HashMap<String, String>,
     ) -> Result<AgentLaunchSpec> {
-        self.start_claude_in_session_with_restart_and_binary(
+        self.start_claude_in_session_with_restart_and_binary(AgentLaunchParams {
             session_name,
-            false,
+            force_restart: false,
             binary_paths,
-            None,
-        )
+            amp_mcp_servers: None,
+            agent_type_override: None,
+            skip_prompt: false,
+            skip_permissions_override: None,
+        })
     }
 
     pub fn start_claude_in_session_with_args(
@@ -2935,29 +2981,44 @@ impl SessionManager {
         _cli_args: Option<&str>,
         binary_paths: &HashMap<String, String>,
     ) -> Result<AgentLaunchSpec> {
-        self.start_claude_in_session_with_restart_and_binary(
+        self.start_claude_in_session_with_restart_and_binary(AgentLaunchParams {
             session_name,
-            false,
+            force_restart: false,
             binary_paths,
-            None,
-        )
+            amp_mcp_servers: None,
+            agent_type_override: None,
+            skip_prompt: false,
+            skip_permissions_override: None,
+        })
     }
 
     pub fn start_claude_in_session_with_restart_and_binary(
         &self,
-        session_name: &str,
-        force_restart: bool,
-        binary_paths: &HashMap<String, String>,
-        _amp_mcp_servers: Option<&HashMap<String, crate::domains::settings::McpServerConfig>>,
+        params: AgentLaunchParams<'_>,
     ) -> Result<AgentLaunchSpec> {
+        let AgentLaunchParams {
+            session_name,
+            force_restart,
+            binary_paths,
+            amp_mcp_servers: _amp_mcp_servers,
+            agent_type_override,
+            skip_prompt,
+            skip_permissions_override,
+        } = params;
         let session = self.db_manager.get_session_by_name(session_name)?;
-        let skip_permissions = session
-            .original_skip_permissions
-            .unwrap_or(self.db_manager.get_skip_permissions()?);
-        let requested_agent_type = session
-            .original_agent_type
-            .clone()
-            .unwrap_or(self.db_manager.get_agent_type()?);
+        let skip_permissions = skip_permissions_override.unwrap_or_else(|| {
+            session
+                .original_skip_permissions
+                .unwrap_or(self.db_manager.get_skip_permissions().unwrap_or(false))
+        });
+        let requested_agent_type = agent_type_override
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| {
+                session
+                    .original_agent_type
+                    .clone()
+                    .unwrap_or_else(|| self.db_manager.get_agent_type().unwrap_or("claude".to_string()))
+            });
         let agent_type = resolve_launch_agent(&requested_agent_type, binary_paths)?;
 
         let registry = crate::domains::agents::unified::AgentRegistry::new();
@@ -2990,31 +3051,32 @@ impl SessionManager {
             );
 
             // Determine session_id and prompt based on force_restart and existing session
+            // When skip_prompt is true (e.g., secondary agent tabs), don't use the initial prompt
+            let effective_initial_prompt = if skip_prompt {
+                None
+            } else {
+                session.initial_prompt.as_deref()
+            };
+
             let (session_id_to_use, prompt_to_use, did_start_fresh) = if force_restart {
-                // Explicit restart - always use initial prompt, no session resumption
+                // Explicit restart - always use initial prompt (if not skipped), no session resumption
                 log::info!(
-                    "Session manager: Force restarting Claude session '{}' with initial_prompt={:?}",
-                    session_name,
-                    session.initial_prompt
+                    "Session manager: Force restarting Claude session '{session_name}' with initial_prompt={effective_initial_prompt:?}, skip_prompt={skip_prompt}"
                 );
-                (None, session.initial_prompt.as_deref(), true)
+                (None, effective_initial_prompt, true)
             } else if let Some(session_id) = resumable_session_id {
                 // Session exists with actual conversation content and not forcing restart - resume with session ID
+                let worktree = session.worktree_path.display();
                 log::info!(
-                    "Session manager: Resuming existing Claude session '{}' with session_id='{}' in worktree: {}",
-                    session_name,
-                    session_id,
-                    session.worktree_path.display()
+                    "Session manager: Resuming existing Claude session '{session_name}' with session_id='{session_id}' in worktree: {worktree}"
                 );
                 (Some(session_id), None, false)
             } else {
-                // No resumable session - use initial prompt for first start or empty sessions
+                // No resumable session - use initial prompt for first start or empty sessions (if not skipped)
                 log::info!(
-                    "Session manager: Starting fresh Claude session '{}' with initial_prompt={:?}",
-                    session_name,
-                    session.initial_prompt
+                    "Session manager: Starting fresh Claude session '{session_name}' with initial_prompt={effective_initial_prompt:?}, skip_prompt={skip_prompt}"
                 );
-                (None, session.initial_prompt.as_deref(), true)
+                (None, effective_initial_prompt, true)
             };
 
             log::info!(

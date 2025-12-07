@@ -1,5 +1,7 @@
-import { Terminal, TerminalHandle } from './Terminal'
+import { Terminal, TerminalHandle, clearTerminalStartedTracking } from './Terminal'
 import { TauriCommands } from '../../common/tauriCommands'
+import { useAgentTabs } from '../../hooks/useAgentTabs'
+import { AgentTabBar } from './AgentTabBar'
 import { TerminalTabs, TerminalTabsHandle } from './TerminalTabs'
 import { RunTerminal, RunTerminalHandle } from './RunTerminal'
 import { UnifiedBottomBar } from './UnifiedBottomBar'
@@ -57,6 +59,10 @@ import { useToast } from '../../common/toast/ToastProvider'
 import { resolveWorkingDirectory } from './resolveWorkingDirectory'
 import type { HeaderActionConfig } from '../../types/actionButton'
 import { mapRunScriptPreviewConfig, type AutoPreviewConfig } from '../../utils/runScriptPreviewConfig'
+import { SwitchOrchestratorModal } from '../modals/SwitchOrchestratorModal'
+import { CustomAgentModal } from '../modals/CustomAgentModal'
+import { useSessionManagement } from '../../hooks/useSessionManagement'
+import { startOrchestratorTop } from '../../common/agentSpawn'
 
 type TerminalTabDescriptor = { index: number; terminalId: string; label: string }
 type TerminalTabsUiState = {
@@ -70,7 +76,7 @@ const needsDelayedSubmitForAgent = (agent?: string | null) => agent === 'claude'
 
 
 const TerminalGridComponent = () => {
-    const { selection, terminals, isReady, isSpec } = useSelection()
+    const { selection, terminals, isReady, isSpec, clearTerminalTracking } = useSelection()
     const selectionIsSpec = selection.kind === 'session' && (isSpec || selection.sessionState === 'spec')
     const { getFocusForSession, setFocusForSession, currentFocus } = useFocus()
     const { addRunningSession, removeRunningSession } = useRun()
@@ -79,12 +85,19 @@ const TerminalGridComponent = () => {
     const { sessions } = useSessions()
     const { isAnyModalOpen } = useModal()
     const { pushToast } = useToast()
+    const { switchModel } = useSessionManagement()
     const projectPath = useAtomValue(projectPathAtom)
 
     const effectiveWorkingDirectory = useMemo(
         () => resolveWorkingDirectory(selection, terminals.workingDirectory, sessions),
         [selection, terminals.workingDirectory, sessions],
     )
+
+    const currentSessionSkipPermissions = useMemo(() => {
+        if (selection.kind !== 'session' || !selection.payload) return false
+        const session = sessions.find(s => s.info.session_id === selection.payload)
+        return Boolean(session?.info && (session.info as { original_skip_permissions?: boolean }).original_skip_permissions)
+    }, [selection, sessions])
 
     // Get dynamic shortcut for Focus Claude
     const focusClaudeShortcut = useShortcutDisplay(KeyboardShortcutAction.FocusClaude)
@@ -117,6 +130,34 @@ const TerminalGridComponent = () => {
     const setAgentType = useCallback((type: string) => {
         setAgentTypeCache({ sessionId: sessionKey, agentType: type })
     }, [sessionKey, setAgentTypeCache])
+
+    // Agent tabs state for multiple agents in top terminal
+    const agentTabScopeId = selection.kind === 'session' ? (selection.payload ?? null) : selection.kind === 'orchestrator' ? 'orchestrator' : null
+    const orchestratorTabStarter = useCallback(async ({ terminalId }: { sessionId: string; terminalId: string; agentType: string }) => {
+        await startOrchestratorTop({ terminalId })
+    }, [])
+
+    const {
+        ensureInitialized: ensureAgentTabsInitialized,
+        getTabsState: getAgentTabsState,
+        addTab: addAgentTab,
+        closeTab: closeAgentTab,
+        setActiveTab: setActiveAgentTab,
+        resetTabs: resetAgentTabs,
+        updatePrimaryAgentType,
+    } = useAgentTabs(
+        agentTabScopeId,
+        terminals.top,
+        selection.kind === 'orchestrator' ? { startAgent: orchestratorTabStarter } : undefined
+    )
+
+    const agentTabsState = getAgentTabsState()
+
+    useEffect(() => {
+        if ((selection.kind === 'session' || selection.kind === 'orchestrator') && terminals.top && agentType) {
+            ensureAgentTabsInitialized(agentType as AgentType)
+        }
+    }, [selection, terminals.top, agentType, ensureAgentTabsInitialized])
 
     // Terminal tabs state from Jotai atom
     const terminalTabsAtomState = useAtomValue(terminalTabsAtomFamily(terminals.bottomBase))
@@ -203,6 +244,54 @@ const TerminalGridComponent = () => {
     const [confirmResetOpen, setConfirmResetOpen] = useState(false)
     const [isResetting, setIsResetting] = useState(false)
     const [autoPreviewConfig, setAutoPreviewConfig] = useState<AutoPreviewConfig>(() => mapRunScriptPreviewConfig({}))
+    const [configureAgentsOpen, setConfigureAgentsOpen] = useState(false)
+    const [customAgentModalOpen, setCustomAgentModalOpen] = useState(false)
+
+    const handleConfigureAgentsSwitch = useCallback(async ({ agentType: nextAgent, skipPermissions }: { agentType: AgentType; skipPermissions: boolean }) => {
+        try {
+            const targetSelection = selection.kind === 'session'
+                ? selection
+                : { kind: 'orchestrator' as const }
+
+            await switchModel(
+                nextAgent,
+                skipPermissions,
+                targetSelection,
+                terminals,
+                clearTerminalTracking,
+                clearTerminalStartedTracking
+            )
+            setAgentType(nextAgent)
+            if (targetSelection.kind === 'session') {
+                updatePrimaryAgentType(nextAgent)
+            }
+        } catch (error) {
+            logger.error('[TerminalGrid] Failed to switch agent from tab bar modal:', error)
+            pushToast({
+                tone: 'error',
+                title: 'Agent switch failed',
+                description: 'We could not switch the agent. Please try again.'
+            })
+        } finally {
+            setConfigureAgentsOpen(false)
+        }
+    }, [selection, switchModel, terminals, clearTerminalTracking, pushToast, updatePrimaryAgentType, setAgentType])
+
+    const handleCustomAgentSelect = useCallback(async ({ agentType: nextAgent, skipPermissions }: { agentType: AgentType; skipPermissions: boolean }) => {
+        try {
+            await addAgentTab(nextAgent, { skipPermissions })
+        } catch (error) {
+            logger.error('[TerminalGrid] Failed to add custom agent tab:', error)
+            pushToast({
+                tone: 'error',
+                title: 'Failed to add agent tab',
+                description: 'We could not add the agent tab. Please try again.'
+            })
+        } finally {
+            setCustomAgentModalOpen(false)
+        }
+    }, [addAgentTab, pushToast])
+
     const handleConfirmReset = useCallback(() => {
         if (selection.kind !== 'session' || !selection.payload) return
         const sessionName = selection.payload
@@ -341,6 +430,7 @@ const TerminalGridComponent = () => {
                 ) {
                     return
                 }
+                resetAgentTabs()
             }
 
             setTerminalKey(prev => prev + 1)
@@ -395,7 +485,7 @@ const TerminalGridComponent = () => {
             cleanupFocus()
             cleanupReady()
         }
-    }, [isBottomCollapsed, runModeActive, terminalTabsState.activeTab, isAnyModalOpen, selection.kind, selection.payload, setIsBottomCollapsed])
+    }, [isBottomCollapsed, runModeActive, terminalTabsState.activeTab, isAnyModalOpen, selection.kind, selection.payload, setIsBottomCollapsed, resetAgentTabs])
 
     // Fetch agent type based on selection
     useEffect(() => {
@@ -433,6 +523,14 @@ const TerminalGridComponent = () => {
             })
         }
     }, [selection, sessions, getAgentType, getOrchestratorAgentType, setAgentType])
+
+    // Keep primary tab label/agentType in sync with current agentType
+    useEffect(() => {
+        if ((selection.kind === 'session' || selection.kind === 'orchestrator') && agentType) {
+            ensureAgentTabsInitialized(agentType as AgentType)
+            updatePrimaryAgentType(agentType as AgentType)
+        }
+    }, [selection.kind, ensureAgentTabsInitialized, updatePrimaryAgentType, agentType])
 
     // Use refs to avoid circular dependency issues with refreshRunScriptConfiguration
     const setRunModeActiveRef = useRef(setRunModeActive)
@@ -1164,7 +1262,23 @@ const TerminalGridComponent = () => {
                     }}
                     className={`bg-panel rounded overflow-hidden min-h-0 flex flex-col border-2 ${localFocus === 'claude' ? 'shadow-lg' : ''}`}
                     data-onboarding="agent-terminal"
+                    onClick={handleClaudeSessionClick}
                 >
+                    {(selection.kind === 'session' || selection.kind === 'orchestrator') && agentTabsState ? (
+                        <AgentTabBar
+                            tabs={agentTabsState.tabs}
+                            activeTab={agentTabsState.activeTab}
+                            onTabSelect={setActiveAgentTab}
+                            onTabClose={selection.kind === 'session' ? closeAgentTab : undefined}
+                            onTabAdd={selection.kind === 'session' ? addAgentTab : undefined}
+                            onReset={selection.kind === 'session' ? () => setConfirmResetOpen(true) : undefined}
+                            isFocused={localFocus === 'claude'}
+                            actionButtons={shouldShowActionButtons ? actionButtons : []}
+                            onAction={handleActionButtonInvoke}
+                            shortcutLabel={focusClaudeShortcut || '⌘T'}
+                            onConfigureAgents={selection.kind === 'session' ? () => setCustomAgentModalOpen(true) : undefined}
+                        />
+                    ) : (
                     <div
                         style={{
                             backgroundColor: localFocus === 'claude' ? theme.colors.accent.blue.bg : undefined,
@@ -1176,7 +1290,6 @@ const TerminalGridComponent = () => {
                                     ? 'hover:bg-opacity-60'
                                     : 'text-slate-400 border-slate-800 hover:bg-slate-800'
                         }`}
-                        onClick={handleClaudeSessionClick}
                     >
                         {/* Left side: Action Buttons - only show for orchestrator */}
                         <div className="flex items-center gap-1 pointer-events-auto">
@@ -1198,23 +1311,34 @@ const TerminalGridComponent = () => {
                                 </>
                             )}
                         </div>
-                        
+
                         {/* Absolute-centered title to avoid alignment shift */}
                         <span className="absolute left-0 right-0 text-center font-medium pointer-events-none">
                             {selection.kind === 'orchestrator' ? 'Orchestrator — main repo' : `Agent — ${selection.payload ?? ''}`}
                         </span>
-                        
-                        {/* Right side: Reset (session only) + ⌘T indicator */}
-                        {selection.kind === 'session' && (
-                            <button
-                                onClick={(e) => { e.stopPropagation(); setConfirmResetOpen(true) }}
-                                className="ml-auto mr-2 p-1 rounded hover:bg-slate-800"
-                                title="Reset session"
-                                aria-label="Reset session"
-                            >
-                                <VscDiscard className="text-base" />
-                            </button>
-                        )}
+
+                        {/* Right side: Configure/Reset + ⌘T indicator */}
+                        <div className="flex items-center gap-2 ml-auto">
+                            {selection.kind === 'orchestrator' && (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); setConfigureAgentsOpen(true) }}
+                                    className="px-2 py-1 text-[10px] rounded border border-slate-700 hover:bg-slate-800"
+                                    title="Change orchestrator agent"
+                                >
+                                    Configure agent…
+                                </button>
+                            )}
+                            {selection.kind === 'session' && (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); setConfirmResetOpen(true) }}
+                                    className="p-1 rounded hover:bg-slate-800"
+                                    title="Reset session"
+                                    aria-label="Reset session"
+                                >
+                                    <VscDiscard className="text-base" />
+                                </button>
+                            )}
+                        </div>
                         <span
                             style={{
                                 backgroundColor: localFocus === 'claude' ? theme.colors.accent.blue.bg : theme.colors.background.hover,
@@ -1224,6 +1348,7 @@ const TerminalGridComponent = () => {
                             title={`Focus Claude (${focusClaudeShortcut || '⌘T'})`}
                         >{focusClaudeShortcut || '⌘T'}</span>
                     </div>
+                    )}
                     <div
                         style={{
                             background: localFocus === 'claude' && !isDraggingSplit
@@ -1234,21 +1359,45 @@ const TerminalGridComponent = () => {
                     ></div>
                     <div className={`flex-1 min-h-0 ${localFocus === 'claude' ? 'terminal-focused-claude' : ''}`}>
                         {shouldRenderTerminals && (
-                        <TerminalErrorBoundary terminalId={terminals.top}>
-                            <Terminal 
-                            key={`top-terminal-${terminalKey}`}
-                            ref={claudeTerminalRef}
-                            terminalId={terminals.top} 
-                            className="h-full w-full" 
-                            sessionName={selection.kind === 'session' ? selection.payload ?? undefined : undefined}
-                            isCommander={selection.kind === 'orchestrator'}
-                            agentType={agentType}
-                            onTerminalClick={handleClaudeSessionClick}
-                            previewKey={previewKey ?? undefined}
-                            autoPreviewConfig={autoPreviewConfig}
-                            workingDirectory={effectiveWorkingDirectory}
-                        />
-                        </TerminalErrorBoundary>
+                            (selection.kind === 'session' || selection.kind === 'orchestrator') && agentTabsState ? (
+                                (() => {
+                                    const activeTab = agentTabsState.tabs[agentTabsState.activeTab]
+                                    if (!activeTab) return null
+                                    return (
+                                        <TerminalErrorBoundary key={activeTab.terminalId} terminalId={activeTab.terminalId}>
+                                            <Terminal
+                                                key={`top-terminal-${terminalKey}-${activeTab.terminalId}`}
+                                                ref={claudeTerminalRef}
+                                                terminalId={activeTab.terminalId}
+                                                className="h-full w-full"
+                                                sessionName={selection.kind === 'session' ? selection.payload ?? undefined : undefined}
+                                                isCommander={selection.kind === 'orchestrator'}
+                                                agentType={activeTab.agentType}
+                                                onTerminalClick={handleClaudeSessionClick}
+                                                previewKey={previewKey ?? undefined}
+                                                autoPreviewConfig={autoPreviewConfig}
+                                                workingDirectory={effectiveWorkingDirectory}
+                                            />
+                                        </TerminalErrorBoundary>
+                                    )
+                                })()
+                            ) : (
+                                <TerminalErrorBoundary terminalId={terminals.top}>
+                                    <Terminal
+                                    key={`top-terminal-${terminalKey}`}
+                                    ref={claudeTerminalRef}
+                                    terminalId={terminals.top}
+                                    className="h-full w-full"
+                                    sessionName={selection.kind === 'session' ? selection.payload ?? undefined : undefined}
+                                    isCommander={selection.kind === 'orchestrator'}
+                                    agentType={agentType}
+                                    onTerminalClick={handleClaudeSessionClick}
+                                    previewKey={previewKey ?? undefined}
+                                    autoPreviewConfig={autoPreviewConfig}
+                                    workingDirectory={effectiveWorkingDirectory}
+                                />
+                                </TerminalErrorBoundary>
+                            )
                         )}
                     </div>
                 </div>
@@ -1451,6 +1600,21 @@ const TerminalGridComponent = () => {
                 onCancel={() => setConfirmResetOpen(false)}
                 onConfirm={handleConfirmReset}
                 isBusy={isResetting}
+            />
+            <SwitchOrchestratorModal
+                open={configureAgentsOpen && (selection.kind === 'session' || selection.kind === 'orchestrator')}
+                onClose={() => setConfigureAgentsOpen(false)}
+                scope={selection.kind === 'session' ? 'session' : 'orchestrator'}
+                targetSessionId={selection.kind === 'session' ? selection.payload : null}
+                initialAgentType={agentType as AgentType}
+                onSwitch={handleConfigureAgentsSwitch}
+            />
+            <CustomAgentModal
+                open={customAgentModalOpen && selection.kind === 'session'}
+                onClose={() => setCustomAgentModalOpen(false)}
+                onSelect={handleCustomAgentSelect}
+                initialAgentType={agentType as AgentType}
+                initialSkipPermissions={currentSessionSkipPermissions}
             />
         </div>
     )

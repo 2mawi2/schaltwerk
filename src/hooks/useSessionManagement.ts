@@ -45,8 +45,10 @@ export function useSessionManagement(): SessionManagementHookReturn {
 
     const restartAgentInSession = useCallback(async (sessionName: string): Promise<void> => {
         await invoke(TauriCommands.SchaltwerkCoreStartSessionAgentWithRestart, {
-            sessionName,
-            forceRestart: true,
+            params: {
+                sessionName,
+                forceRestart: true,
+            },
         })
     }, [])
 
@@ -209,8 +211,10 @@ export function useSessionManagement(): SessionManagementHookReturn {
 
     const startSessionWithNewModel = useCallback(async (sessionName: string): Promise<void> => {
         await invoke(TauriCommands.SchaltwerkCoreStartSessionAgentWithRestart, {
-            sessionName,
-            forceRestart: true,
+            params: {
+                sessionName,
+                forceRestart: true,
+            },
         })
     }, [])
 

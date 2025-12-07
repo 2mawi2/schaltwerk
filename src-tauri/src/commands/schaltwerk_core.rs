@@ -4,7 +4,7 @@ use crate::{
     get_terminal_manager,
 };
 use schaltwerk::infrastructure::events::{SchaltEvent, emit_event};
-use schaltwerk::schaltwerk_core::SessionManager;
+use schaltwerk::schaltwerk_core::{AgentLaunchParams, SessionManager};
 use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
 use schaltwerk::schaltwerk_core::db_project_config::{DEFAULT_BRANCH_PREFIX, ProjectConfigMethods};
 use schaltwerk::services::format_branch_name;
@@ -1265,6 +1265,20 @@ pub async fn schaltwerk_core_start_claude(
     schaltwerk_core_start_claude_with_restart(app, session_name, false, cols, rows).await
 }
 
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StartAgentParams {
+    pub session_name: String,
+    #[serde(default)]
+    pub force_restart: bool,
+    pub cols: Option<u16>,
+    pub rows: Option<u16>,
+    pub terminal_id: Option<String>,
+    pub agent_type: Option<String>,
+    pub skip_prompt: Option<bool>,
+    pub skip_permissions: Option<bool>,
+}
+
 #[tauri::command]
 pub async fn schaltwerk_core_start_session_agent(
     app: tauri::AppHandle,
@@ -1272,7 +1286,20 @@ pub async fn schaltwerk_core_start_session_agent(
     cols: Option<u16>,
     rows: Option<u16>,
 ) -> Result<String, String> {
-    schaltwerk_core_start_session_agent_with_restart(app, session_name, false, cols, rows).await
+    schaltwerk_core_start_session_agent_with_restart(
+        app,
+        StartAgentParams {
+            session_name,
+            force_restart: false,
+            cols,
+            rows,
+            terminal_id: None,
+            agent_type: None,
+            skip_prompt: None,
+            skip_permissions: None,
+        },
+    )
+    .await
 }
 
 #[tauri::command]
@@ -1283,7 +1310,50 @@ pub async fn schaltwerk_core_start_claude_with_restart(
     cols: Option<u16>,
     rows: Option<u16>,
 ) -> Result<String, String> {
-    log::info!("Starting Claude for session: {session_name}");
+    schaltwerk_core_start_agent_in_terminal(
+        app,
+        AgentStartParams {
+            session_name,
+            force_restart,
+            cols,
+            rows,
+            terminal_id_override: None,
+            agent_type_override: None,
+            skip_prompt: false,
+            skip_permissions_override: None,
+        },
+    )
+    .await
+}
+
+struct AgentStartParams {
+    session_name: String,
+    force_restart: bool,
+    cols: Option<u16>,
+    rows: Option<u16>,
+    terminal_id_override: Option<String>,
+    agent_type_override: Option<String>,
+    skip_prompt: bool,
+    skip_permissions_override: Option<bool>,
+}
+
+async fn schaltwerk_core_start_agent_in_terminal(
+    app: tauri::AppHandle,
+    params: AgentStartParams,
+) -> Result<String, String> {
+    let AgentStartParams {
+        session_name,
+        force_restart,
+        cols,
+        rows,
+        terminal_id_override,
+        agent_type_override,
+        skip_prompt,
+        skip_permissions_override,
+    } = params;
+    log::info!(
+        "Starting agent for session: {session_name}, terminal_id_override={terminal_id_override:?}, agent_type_override={agent_type_override:?}, skip_prompt={skip_prompt}, skip_permissions_override={skip_permissions_override:?}"
+    );
 
     // We only need read access to the core snapshot; avoid write lock to prevent launch deadlocks
     let core = get_core_read().await?;
@@ -1295,10 +1365,12 @@ pub async fn schaltwerk_core_start_claude_with_restart(
     let session = manager
         .get_session(&session_name)
         .map_err(|e| format!("Failed to get session: {e}"))?;
-    let agent_type = session.original_agent_type.clone().unwrap_or(
-        db.get_agent_type()
-            .map_err(|e| format!("Failed to get agent type: {e}"))?,
-    );
+    let agent_type = agent_type_override.clone().unwrap_or_else(|| {
+        session
+            .original_agent_type
+            .clone()
+            .unwrap_or_else(|| db.get_agent_type().unwrap_or_else(|_| "claude".to_string()))
+    });
 
     if agent_type == "terminal" {
         log::info!("Skipping agent startup for terminal-only session: {session_name}");
@@ -1340,12 +1412,15 @@ pub async fn schaltwerk_core_start_claude_with_restart(
     };
 
     let spec = manager
-        .start_claude_in_session_with_restart_and_binary(
-            &session_name,
+        .start_claude_in_session_with_restart_and_binary(AgentLaunchParams {
+            session_name: &session_name,
             force_restart,
-            &binary_paths,
-            amp_mcp_servers.as_ref(),
-        )
+            binary_paths: &binary_paths,
+            amp_mcp_servers: amp_mcp_servers.as_ref(),
+            agent_type_override: agent_type_override.as_deref(),
+            skip_prompt,
+            skip_permissions_override,
+        })
         .map_err(|e| {
             log::error!("Failed to build {agent_type} command for session {session_name}: {e}");
             format!("Failed to start {agent_type} in session: {e}")
@@ -1373,8 +1448,9 @@ pub async fn schaltwerk_core_start_claude_with_restart(
     terminals::ensure_cwd_access(&cwd)?;
     log::info!("Working directory access confirmed: {cwd}");
 
-    // Sanitize session name to match frontend's terminal ID generation
-    let terminal_id = terminals::terminal_id_for_session_top(&session_name);
+    // Use override terminal ID if provided, otherwise derive from session name
+    let terminal_id = terminal_id_override
+        .unwrap_or_else(|| terminals::terminal_id_for_session_top(&session_name));
     let terminal_manager = get_terminal_manager().await?;
 
     // Always relaunch: close existing terminal if present
@@ -1611,15 +1687,35 @@ pub async fn schaltwerk_core_start_claude_with_restart(
 #[tauri::command]
 pub async fn schaltwerk_core_start_session_agent_with_restart(
     app: tauri::AppHandle,
-    session_name: String,
-    force_restart: bool,
-    cols: Option<u16>,
-    rows: Option<u16>,
+    params: StartAgentParams,
 ) -> Result<String, String> {
+    let StartAgentParams {
+        session_name,
+        force_restart,
+        cols,
+        rows,
+        terminal_id,
+        agent_type,
+        skip_prompt,
+        skip_permissions,
+    } = params;
     log::info!(
-        "[AGENT_LAUNCH_TRACE] schaltwerk_core_start_session_agent_with_restart called: session={session_name}, force_restart={force_restart}"
+        "[AGENT_LAUNCH_TRACE] schaltwerk_core_start_session_agent_with_restart called: session={session_name}, force_restart={force_restart}, terminal_id={terminal_id:?}, agent_type={agent_type:?}, skip_prompt={skip_prompt:?}, skip_permissions={skip_permissions:?}"
     );
-    schaltwerk_core_start_claude_with_restart(app, session_name, force_restart, cols, rows).await
+    schaltwerk_core_start_agent_in_terminal(
+        app,
+        AgentStartParams {
+            session_name,
+            force_restart,
+            cols,
+            rows,
+            terminal_id_override: terminal_id,
+            agent_type_override: agent_type,
+            skip_prompt: skip_prompt.unwrap_or(false),
+            skip_permissions_override: skip_permissions,
+        },
+    )
+    .await
 }
 
 #[tauri::command]

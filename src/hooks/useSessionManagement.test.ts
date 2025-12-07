@@ -97,8 +97,10 @@ describe('useSessionManagement', () => {
             expect(backendMocks.terminalExistsBackend).toHaveBeenCalledWith('test-terminal-top')
             expect(backendMocks.closeTerminalBackend).toHaveBeenCalledWith('test-terminal-top')
             expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartSessionAgentWithRestart, {
-                sessionName: 'test-session',
-                forceRestart: true
+                params: {
+                    sessionName: 'test-session',
+                    forceRestart: true
+                }
             })
             expect(dispatchSpy).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -129,8 +131,10 @@ describe('useSessionManagement', () => {
 
             expect(backendMocks.closeTerminalBackend).not.toHaveBeenCalled()
             expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartSessionAgentWithRestart, {
-                sessionName: 'test-session',
-                forceRestart: true
+                params: {
+                    sessionName: 'test-session',
+                    forceRestart: true
+                }
             })
         })
 
@@ -276,8 +280,10 @@ describe('useSessionManagement', () => {
                 agentType: 'opencode'
             })
             expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartSessionAgentWithRestart, {
-                sessionName: 'test-session',
-                forceRestart: true
+                params: {
+                    sessionName: 'test-session',
+                    forceRestart: true
+                }
             })
             expect(mockClearTerminalTracking).toHaveBeenCalledWith(['test-terminal-top'])
             expect(mockClearTerminalStartedTracking).toHaveBeenCalledWith(['test-terminal-top'])
