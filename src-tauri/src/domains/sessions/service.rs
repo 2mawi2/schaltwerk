@@ -2146,6 +2146,25 @@ impl SessionManager {
             ));
         }
 
+        if params.use_existing_branch {
+            let custom_branch = params.custom_branch.ok_or_else(|| {
+                anyhow!("use_existing_branch requires custom_branch to be specified")
+            })?;
+
+            if !git::branch_exists(&self.repo_path, custom_branch)? {
+                return Err(anyhow!(
+                    "Branch '{custom_branch}' does not exist. Cannot use existing branch mode with a non-existent branch."
+                ));
+            }
+
+            if let Some(existing_wt) = git::get_worktree_for_branch(&self.repo_path, custom_branch)? {
+                return Err(anyhow!(
+                    "Branch '{custom_branch}' is already checked out in worktree: {}",
+                    existing_wt.display()
+                ));
+            }
+        }
+
         let (unique_name, branch, worktree_path) = if let Some(custom_branch) = params.custom_branch
         {
             if !git::is_valid_branch_name(custom_branch) {

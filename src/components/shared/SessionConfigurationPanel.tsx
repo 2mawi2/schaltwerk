@@ -17,10 +17,12 @@ interface SessionConfigurationPanelProps {
     onAgentTypeChange?: (agentType: AgentType) => void
     onSkipPermissionsChange?: (enabled: boolean) => void
     onCustomBranchChange?: (branch: string) => void
+    onUseExistingBranchChange?: (useExisting: boolean) => void
     initialBaseBranch?: string
     initialAgentType?: AgentType
     initialSkipPermissions?: boolean
     initialCustomBranch?: string
+    initialUseExistingBranch?: boolean
     codexModel?: string
     codexModelOptions?: string[]
     codexModels?: CodexModelMetadata[]
@@ -33,6 +35,7 @@ interface SessionConfigurationPanelProps {
     hideAgentType?: boolean
     ignorePersistedAgentType?: boolean
     agentControlsDisabled?: boolean
+    branchError?: string
 }
 
 export interface SessionConfiguration {
@@ -48,10 +51,12 @@ export function SessionConfigurationPanel({
     onAgentTypeChange,
     onSkipPermissionsChange,
     onCustomBranchChange,
+    onUseExistingBranchChange,
     initialBaseBranch = '',
     initialAgentType = 'claude',
     initialSkipPermissions = false,
     initialCustomBranch = '',
+    initialUseExistingBranch = false,
     codexModel,
     codexModelOptions,
     codexModels,
@@ -63,7 +68,8 @@ export function SessionConfigurationPanel({
     hideLabels = false,
     hideAgentType = false,
     ignorePersistedAgentType = false,
-    agentControlsDisabled = false
+    agentControlsDisabled = false,
+    branchError
 }: SessionConfigurationPanelProps) {
     const [baseBranch, setBaseBranch] = useState(initialBaseBranch)
     const [branches, setBranches] = useState<string[]>([])
@@ -72,6 +78,7 @@ export function SessionConfigurationPanel({
     const [agentType, setAgentType] = useState<AgentType>(initialAgentType)
     const [skipPermissions, setSkipPermissions] = useState(initialSkipPermissions)
     const [customBranch, setCustomBranch] = useState(initialCustomBranch)
+    const [useExistingBranch, setUseExistingBranch] = useState(initialUseExistingBranch)
     const [branchPrefix, setBranchPrefix] = useState<string>('schaltwerk')
     const { getSkipPermissions, setSkipPermissions: saveSkipPermissions, getAgentType, setAgentType: saveAgentType } = useClaudeSession()
 
@@ -79,6 +86,7 @@ export function SessionConfigurationPanel({
     const onAgentTypeChangeRef = useRef(onAgentTypeChange)
     const onSkipPermissionsChangeRef = useRef(onSkipPermissionsChange)
     const onCustomBranchChangeRef = useRef(onCustomBranchChange)
+    const onUseExistingBranchChangeRef = useRef(onUseExistingBranchChange)
     const baseBranchValueRef = useRef(initialBaseBranch)
     const userEditedBranchRef = useRef(false)
     const skipPermissionsTouchedRef = useRef(false)
@@ -96,6 +104,7 @@ export function SessionConfigurationPanel({
     useEffect(() => { onAgentTypeChangeRef.current = onAgentTypeChange }, [onAgentTypeChange])
     useEffect(() => { onSkipPermissionsChangeRef.current = onSkipPermissionsChange }, [onSkipPermissionsChange])
     useEffect(() => { onCustomBranchChangeRef.current = onCustomBranchChange }, [onCustomBranchChange])
+    useEffect(() => { onUseExistingBranchChangeRef.current = onUseExistingBranchChange }, [onUseExistingBranchChange])
     useEffect(() => { getSkipPermissionsRef.current = getSkipPermissions }, [getSkipPermissions])
     useEffect(() => { getAgentTypeRef.current = getAgentType }, [getAgentType])
     useEffect(() => { saveAgentTypeRef.current = saveAgentType }, [saveAgentType])
@@ -222,6 +231,15 @@ export function SessionConfigurationPanel({
         onCustomBranchChangeRef.current?.(branch)
     }, [])
 
+    const handleUseExistingBranchChange = useCallback((useExisting: boolean) => {
+        setUseExistingBranch(useExisting)
+        onUseExistingBranchChangeRef.current?.(useExisting)
+        if (useExisting) {
+            setCustomBranch('')
+            onCustomBranchChangeRef.current?.('')
+        }
+    }, [])
+
     const effectiveCodexModels = useMemo(() => {
         if (codexModels && codexModels.length > 0) {
             return codexModels
@@ -276,6 +294,12 @@ export function SessionConfigurationPanel({
             setAgentType(initialAgentType)
         }
     }, [initialAgentType, agentType])
+
+    useEffect(() => {
+        if (initialUseExistingBranch !== useExistingBranch) {
+            setUseExistingBranch(initialUseExistingBranch)
+        }
+    }, [initialUseExistingBranch, useExistingBranch])
 
     const isCompact = variant === 'compact'
     const shouldShowShortcutHint = variant === 'modal' && !hideAgentType
@@ -340,9 +364,21 @@ export function SessionConfigurationPanel({
         <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-3">
                 <div data-onboarding="base-branch-selector">
-                    <label className="block text-sm mb-1" style={{ color: theme.colors.text.secondary }}>
-                        Base branch
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                        <label className="block text-sm" style={{ color: theme.colors.text.secondary }}>
+                            {useExistingBranch ? 'Existing branch' : 'Base branch'}
+                        </label>
+                        <label className={`flex items-center gap-1.5 text-xs cursor-pointer ${branchError ? 'text-red-400' : ''}`} style={branchError ? undefined : { color: theme.colors.text.secondary }}>
+                            <input
+                                type="checkbox"
+                                checked={useExistingBranch}
+                                onChange={(e) => handleUseExistingBranchChange(e.target.checked)}
+                                disabled={disabled}
+                                className={`rounded ${branchError ? 'accent-red-500' : ''}`}
+                            />
+                            <span>Use existing branch</span>
+                        </label>
+                    </div>
                     {loadingBranches ? (
                         <div
                             className="w-full rounded px-3 py-2 border flex items-center justify-center"
@@ -361,33 +397,47 @@ export function SessionConfigurationPanel({
                             disabled={disabled || branches.length === 0}
                             placeholder={branches.length === 0 ? "No branches available" : "Type to search branches... (Tab to autocomplete)"}
                             onValidationChange={setIsValidBranch}
+                            hasError={!!branchError}
                         />
                     )}
-                    <p className="text-xs mt-1" style={{ color: theme.colors.text.muted }}>
-                        Existing branch to create the new worktree from
-                    </p>
+                    {branchError ? (
+                        <div className="flex items-start gap-2 mt-1">
+                            <svg className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <p className="text-xs text-red-400">{branchError}</p>
+                        </div>
+                    ) : (
+                        <p className="text-xs mt-1" style={{ color: theme.colors.text.muted }}>
+                            {useExistingBranch
+                                ? 'Branch to check out directly (must not be in use by another worktree)'
+                                : 'Existing branch to create the new worktree from'}
+                        </p>
+                    )}
                 </div>
 
-                <div>
-                    <label className="block text-sm mb-1" style={{ color: theme.colors.text.secondary }}>
-                        Branch name (optional)
-                    </label>
-                    <input
-                        value={customBranch}
-                        onChange={(e) => handleCustomBranchChange(e.target.value)}
-                        className="w-full rounded px-3 py-2 border"
-                        style={{
-                            backgroundColor: theme.colors.background.elevated,
-                            color: theme.colors.text.primary,
-                            borderColor: theme.colors.border.default
-                        }}
-                        placeholder={branchPlaceholder}
-                        disabled={disabled}
-                    />
-                    <p className="text-xs mt-1" style={{ color: theme.colors.text.muted }}>
-                        New branch name for this session. Leave empty to auto-generate: {branchPlaceholder}
-                    </p>
-                </div>
+                {!useExistingBranch && (
+                    <div>
+                        <label className="block text-sm mb-1" style={{ color: theme.colors.text.secondary }}>
+                            Branch name (optional)
+                        </label>
+                        <input
+                            value={customBranch}
+                            onChange={(e) => handleCustomBranchChange(e.target.value)}
+                            className="w-full rounded px-3 py-2 border"
+                            style={{
+                                backgroundColor: theme.colors.background.elevated,
+                                color: theme.colors.text.primary,
+                                borderColor: theme.colors.border.default
+                            }}
+                            placeholder={branchPlaceholder}
+                            disabled={disabled}
+                        />
+                        <p className="text-xs mt-1" style={{ color: theme.colors.text.muted }}>
+                            New branch name for this session. Leave empty to auto-generate: {branchPlaceholder}
+                        </p>
+                    </div>
+                )}
             </div>
 
             {!hideAgentType && (
