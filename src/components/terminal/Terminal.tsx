@@ -52,6 +52,7 @@ import { parseTerminalFileReference, resolveTerminalFileReference } from '../../
 
 import { TerminalViewportController } from './viewport/TerminalViewportController'
 import { TERMINAL_FILE_DRAG_TYPE, type TerminalFileDragPayload } from '../../common/dragTypes'
+import { TerminalScrollButton } from './TerminalScrollButton'
 
 const DEFAULT_SCROLLBACK_LINES = 10000
 const BACKGROUND_SCROLLBACK_LINES = 5000
@@ -288,6 +289,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const lastSigintAtRef = useRef<number | null>(null);
     const [isSearchVisible, setIsSearchVisible] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [showScrollBottom, setShowScrollBottom] = useState(false);
     const handleSearchTermChange = useCallback((value: string) => {
         setSearchTerm(value);
     }, []);
@@ -1921,6 +1923,49 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         setHydrated(hasInstance);
     }, [terminalId]);
 
+    useEffect(() => {
+        if (!hydrated || !terminal.current) {
+            setShowScrollBottom(false);
+            return;
+        }
+
+        const term = terminal.current;
+        let rafId: number | null = null;
+
+        const checkState = () => {
+             if (!term.buffer?.active) return;
+             const buffer = term.buffer.active;
+             const distance = buffer.baseY - buffer.viewportY;
+             const shouldShow = distance > 0;
+             setShowScrollBottom(prev => {
+                 if (prev !== shouldShow) return shouldShow;
+                 return prev;
+             });
+        };
+
+        const scheduleUpdate = () => {
+            if (rafId) return;
+            rafId = requestAnimationFrame(() => {
+                checkState();
+                rafId = null;
+            });
+        };
+
+        // Check immediately
+        checkState();
+
+        const scrollDisposable = term.onScroll(scheduleUpdate);
+        // onRender covers output, resize, and other visual updates
+        // It fires after the frame is drawn, so metrics are fresh
+        const renderDisposable = (term as unknown as { onRender: (cb: () => void) => IDisposable }).onRender(scheduleUpdate);
+
+        return () => {
+            scrollDisposable.dispose();
+            renderDisposable?.dispose();
+            if (rafId) cancelAnimationFrame(rafId);
+        };
+    }, [hydrated, terminalId]);
+
 
     const handleTerminalClick = (event?: React.MouseEvent<HTMLDivElement>) => {
         if (isSearchVisible) {
@@ -2027,6 +2072,13 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
              <div
                  ref={termRef}
                  className={`h-full w-full overflow-hidden transition-opacity duration-150 ${!hydrated ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+             />
+             <TerminalScrollButton
+                 visible={showScrollBottom}
+                 onClick={(e) => {
+                     e.stopPropagation();
+                     scrollToBottomInstant();
+                 }}
              />
              {isAgentTopTerminal && agentStopped && hydrated && terminalEverStartedRef.current && (
                  <div className="absolute inset-0 flex items-center justify-center z-30">
