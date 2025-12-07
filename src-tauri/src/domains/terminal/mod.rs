@@ -59,12 +59,6 @@ pub trait TerminalBackend: Send + Sync {
     async fn force_kill_all(&self) -> Result<(), String> {
         Ok(())
     }
-
-    async fn is_process_alive(&self, _id: &str) -> Result<bool, String> {
-        // Conservative default: assume alive if a backend hasn't implemented this yet.
-        // Callers should treat Err as "unknown" and not fail hard.
-        Ok(true)
-    }
 }
 
 pub mod ansi;
