@@ -834,18 +834,18 @@ impl TerminalBackend for LocalPtyAdapter {
 
         {
             let mut guard = self.pty_children.lock().await;
-            if let Some(child) = guard.get_mut(&id) {
-                if let Ok(Some(status)) = child.try_wait() {
-                    drop(guard);
-                    self.pty_children.lock().await.remove(&id);
-                    self.pty_masters.lock().await.remove(&id);
-                    self.pty_writers.lock().await.remove(&id);
-                    self.creating.lock().await.remove(&id);
-                    return Err(format!(
-                        "Agent process exited immediately after launch with status: {:?}",
-                        status.exit_code()
-                    ));
-                }
+            if let Some(child) = guard.get_mut(&id)
+                && let Ok(Some(status)) = child.try_wait()
+            {
+                drop(guard);
+                self.pty_children.lock().await.remove(&id);
+                self.pty_masters.lock().await.remove(&id);
+                self.pty_writers.lock().await.remove(&id);
+                self.creating.lock().await.remove(&id);
+                return Err(format!(
+                    "Agent process exited immediately after launch with status: {:?}",
+                    status.exit_code()
+                ));
             }
         }
 

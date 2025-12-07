@@ -36,6 +36,7 @@ const viewportControllerMocks = vi.hoisted(() => {
   const instances: Array<{
     options: { terminal?: unknown }
     api: {
+      beforeResize: ReturnType<typeof vi.fn>
       onResize: ReturnType<typeof vi.fn>
       onFocusOrClick: ReturnType<typeof vi.fn>
       onVisibilityChange: ReturnType<typeof vi.fn>
@@ -46,6 +47,7 @@ const viewportControllerMocks = vi.hoisted(() => {
 
   const factory = vi.fn((options: { terminal: unknown }) => {
     const api = {
+      beforeResize: vi.fn(),
       onResize: vi.fn(() => {
         try {
           const raw = (options?.terminal as { raw?: HarnessInstance['raw'] } | undefined)?.raw

@@ -418,6 +418,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         lastSize.current = { cols, rows };
 
         try {
+            viewportControllerRef.current?.beforeResize();
             terminal.current.resize(effectiveCols, rows);
             (terminal.current as unknown as { refresh?: (start: number, end: number) => void })?.refresh?.(0, Math.max(0, rows - 1));
 
