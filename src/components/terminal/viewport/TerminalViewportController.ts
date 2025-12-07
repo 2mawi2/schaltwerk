@@ -136,6 +136,13 @@ export class TerminalViewportController {
       if (!raw?.buffer?.active) return
 
       const buf = raw.buffer.active
+
+      // TUI apps (vim, htop, Claude CLI) use the alternate buffer and control the viewport themselves.
+      // Calling scrollToBottom() would fight with their rendering and cause bottom-line flickering.
+      if (buf.type === 'alternate') {
+        return
+      }
+
       const distance = buf.baseY - buf.viewportY
 
       if (this._isStreaming() && this._userScrolledAway && source === 'resize') {
