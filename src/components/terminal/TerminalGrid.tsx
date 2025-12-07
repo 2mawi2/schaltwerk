@@ -448,8 +448,10 @@ const TerminalGridComponent = () => {
     })
 
     // Stable callbacks that use refs to avoid recreating on every render
-    const persistRunModeState = useCallback((_sessionKeyValue: string, isActive: boolean) => {
+    const persistRunModeState = useCallback((sessionKeyValue: string, isActive: boolean) => {
         setRunModeActiveRef.current(isActive)
+        const runModeKey = `schaltwerk:run-mode:${sessionKeyValue}`
+        sessionStorage.setItem(runModeKey, String(isActive))
     }, [])
 
     const syncActiveTab = useCallback((targetIndex: number, shouldUpdate?: (state: TerminalTabsUiState) => boolean) => {
@@ -517,7 +519,7 @@ const TerminalGridComponent = () => {
             return
         }
 
-        setRunModeActive(true)
+        persistRunModeState(sessionId, true)
         setActiveTab({ baseTerminalId: terminals.bottomBase, tabIndex: RUN_TAB_INDEX })
         sessionStorage.setItem(activeTabKey, String(RUN_TAB_INDEX))
 
@@ -533,7 +535,7 @@ const TerminalGridComponent = () => {
         getSessionKey,
         terminalTabsState.activeTab,
         runModeActive,
-        setRunModeActive,
+        persistRunModeState,
         setActiveTab,
         terminals.bottomBase,
         activeTabKey,
