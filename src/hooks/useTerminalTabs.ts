@@ -1,4 +1,5 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
+import { useAtomValue, useSetAtom } from 'jotai'
 import { TauriCommands } from '../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { logger } from '../utils/logger'
@@ -11,12 +12,13 @@ import {
   terminalExistsBackend,
 } from '../terminal/transport/backend'
 import { releaseTerminalInstance } from '../terminal/registry/terminalRegistry'
-
-interface SessionTabState {
-  activeTab: number
-  tabs: TabInfo[]
-  maxTabs: number
-}
+import {
+  terminalTabsAtomFamily,
+  addTabActionAtom,
+  removeTabActionAtom,
+  setActiveTabActionAtom,
+  resetTerminalTabsActionAtom,
+} from '../store/atoms/terminal'
 
 interface UseTerminalTabsProps {
   baseTerminalId: string
@@ -28,8 +30,6 @@ interface UseTerminalTabsProps {
 
 const DEFAULT_MAX_TABS = 6
 
-// Global state to persist tabs across component remounts
-const globalTabState = new Map<string, SessionTabState>()
 const globalTerminalCreated = new Set<string>()
 
 export function useTerminalTabs({
@@ -39,28 +39,28 @@ export function useTerminalTabs({
   sessionName = null,
   bootstrapTopTerminalId,
 }: UseTerminalTabsProps) {
-  // Use baseTerminalId as session key to maintain separate state per session
-  const sessionKey = baseTerminalId
-  
-  const [, forceUpdate] = useState(0)
-  const triggerUpdate = useCallback(() => {
-    forceUpdate(prev => prev + 1)
-  }, [])
+  // Use Jotai atoms for tab state
+  const atomState = useAtomValue(terminalTabsAtomFamily(baseTerminalId))
+  const addTabAction = useSetAtom(addTabActionAtom)
+  const removeTabAction = useSetAtom(removeTabActionAtom)
+  const setActiveTabAction = useSetAtom(setActiveTabActionAtom)
+  const resetTabsAction = useSetAtom(resetTerminalTabsActionAtom)
 
-  // Initialize session state if it doesn't exist
-  if (!globalTabState.has(sessionKey)) {
-    globalTabState.set(sessionKey, {
-      activeTab: 0,
-      tabs: [{
-        index: 0,
-        terminalId: `${baseTerminalId}-0`,
-        label: 'Terminal 1'
-      }],
-      maxTabs
-    })
-  }
+  // Convert atom state to TabInfo format, providing default tab if empty
+  const tabs: TabInfo[] = useMemo(() => {
+    if (atomState.tabs.length === 0) {
+      return [{ index: 0, terminalId: baseTerminalId, label: 'Terminal 1' }]
+    }
+    return atomState.tabs.map((tab, idx) => ({
+      index: tab.index,
+      terminalId: tab.terminalId,
+      label: `Terminal ${idx + 1}`,
+    }))
+  }, [atomState.tabs, baseTerminalId])
 
-  // Handle reset events by clearing global state for this session
+  const activeTab = atomState.activeTabIndex
+
+  // Handle reset events by clearing state for this session
   const shouldHandleReset = useCallback((detail?: TerminalResetDetail) => {
     if (!detail) return false
     if (detail.kind === 'orchestrator') {
@@ -72,35 +72,20 @@ export function useTerminalTabs({
   useEffect(() => {
     const handleReset = (detail?: TerminalResetDetail) => {
       if (!shouldHandleReset(detail)) return
-      // Clear all state for this session
-      const currentState = globalTabState.get(sessionKey)
-      if (currentState) {
-        // Clean up terminals
-        currentState.tabs.forEach(tab => {
-          globalTerminalCreated.delete(tab.terminalId)
-          releaseTerminalInstance(tab.terminalId)
-        })
-      }
-      
-      // Reset to initial state
-      globalTabState.set(sessionKey, {
-        activeTab: 0,
-        tabs: [{
-          index: 0,
-          terminalId: `${baseTerminalId}-0`,
-          label: 'Terminal 1'
-        }],
-        maxTabs
+
+      // Clean up terminals from global tracking
+      tabs.forEach(tab => {
+        globalTerminalCreated.delete(tab.terminalId)
+        releaseTerminalInstance(tab.terminalId)
       })
-      
-      triggerUpdate()
+
+      // Reset atom state
+      resetTabsAction({ baseTerminalId })
     }
 
     const cleanup = listenUiEvent(UiEvent.TerminalReset, handleReset)
     return cleanup
-  }, [sessionKey, baseTerminalId, maxTabs, triggerUpdate, shouldHandleReset])
-
-  const sessionTabs = globalTabState.get(sessionKey)!
+  }, [baseTerminalId, tabs, resetTabsAction, shouldHandleReset])
 
   const createTerminal = useCallback(async (terminalId: string) => {
     if (globalTerminalCreated.has(terminalId)) {
@@ -143,55 +128,41 @@ export function useTerminalTabs({
     }
   }, [workingDirectory, bootstrapTopTerminalId])
 
-   const addTab = useCallback(async () => {
-     if (sessionTabs.tabs.length >= sessionTabs.maxTabs) {
-       return
-     }
-
-     const newIndex = Math.max(...sessionTabs.tabs.map(t => t.index)) + 1
-     const newTerminalId = `${baseTerminalId}-${newIndex}`
-     
-     // Find the lowest available label number
-     const existingNumbers = sessionTabs.tabs.map(t => parseInt(t.label.replace('Terminal ', '')))
-     let labelNumber = 1
-     while (existingNumbers.includes(labelNumber)) {
-       labelNumber++
-     }
-
-     try {
-       await createTerminal(newTerminalId)
-
-       const newTab: TabInfo = {
-         index: newIndex,
-         terminalId: newTerminalId,
-         label: `Terminal ${labelNumber}`
-       }
-
-       const updatedState = {
-         ...sessionTabs,
-         tabs: [...sessionTabs.tabs, newTab],
-         activeTab: newIndex
-       }
-       globalTabState.set(sessionKey, updatedState)
-       triggerUpdate()
-
-         // Focus the newly created terminal tab
-         if (typeof window !== 'undefined') {
-           requestAnimationFrame(() => {
-             emitUiEvent(UiEvent.FocusTerminal, { terminalId: newTerminalId, focusType: 'terminal' })
-           })
-         }
-     } catch (error) {
-       logger.error('Failed to add new tab:', error)
-     }
-   }, [sessionTabs, baseTerminalId, createTerminal, sessionKey, triggerUpdate])
-
-  const closeTab = useCallback(async (tabIndex: number) => {
-    if (sessionTabs.tabs.length <= 1) {
+  const addTab = useCallback(async () => {
+    if (tabs.length >= maxTabs) {
       return
     }
 
-    const tabToClose = sessionTabs.tabs.find(t => t.index === tabIndex)
+    // The addTabActionAtom will compute the next index based on current tabs
+    // We need to predict the new terminal ID for creation
+    const nextIndex = tabs.length === 0
+      ? 1 // If empty, addTabActionAtom will create tab 0 first, then tab 1
+      : Math.max(...tabs.map(t => t.index)) + 1
+    const newTerminalId = `${baseTerminalId}-${nextIndex}`
+
+    try {
+      await createTerminal(newTerminalId)
+
+      // Use Jotai action to add the tab
+      addTabAction({ baseTerminalId, activateNew: true, maxTabs })
+
+      // Focus the newly created terminal tab
+      if (typeof window !== 'undefined') {
+        requestAnimationFrame(() => {
+          emitUiEvent(UiEvent.FocusTerminal, { terminalId: newTerminalId, focusType: 'terminal' })
+        })
+      }
+    } catch (error) {
+      logger.error('Failed to add new tab:', error)
+    }
+  }, [tabs, maxTabs, baseTerminalId, createTerminal, addTabAction])
+
+  const closeTab = useCallback(async (tabIndex: number) => {
+    if (tabs.length <= 1) {
+      return
+    }
+
+    const tabToClose = tabs.find(t => t.index === tabIndex)
     if (!tabToClose) return
 
     try {
@@ -199,42 +170,20 @@ export function useTerminalTabs({
       globalTerminalCreated.delete(tabToClose.terminalId)
       releaseTerminalInstance(tabToClose.terminalId)
 
-      const newTabs = sessionTabs.tabs.filter(t => t.index !== tabIndex)
-      let newActiveTab = sessionTabs.activeTab
-      
-      if (sessionTabs.activeTab === tabIndex) {
-        const currentTabPosition = sessionTabs.tabs.findIndex(t => t.index === tabIndex)
-        if (currentTabPosition > 0) {
-          newActiveTab = sessionTabs.tabs[currentTabPosition - 1].index
-        } else if (newTabs.length > 0) {
-          newActiveTab = newTabs[0].index
-        }
-      }
-
-      const updatedState = {
-        ...sessionTabs,
-        tabs: newTabs,
-        activeTab: newActiveTab
-      }
-      globalTabState.set(sessionKey, updatedState)
-      triggerUpdate()
+      // Use Jotai action to remove the tab
+      removeTabAction({ baseTerminalId, tabIndex })
     } catch (error) {
       logger.error(`Failed to close terminal ${tabToClose.terminalId}:`, error)
     }
-  }, [sessionTabs, sessionKey, triggerUpdate])
+  }, [tabs, baseTerminalId, removeTabAction])
 
   const setActiveTab = useCallback((tabIndex: number) => {
-    const updatedState = {
-      ...sessionTabs,
-      activeTab: tabIndex
-    }
-    globalTabState.set(sessionKey, updatedState)
-    triggerUpdate()
-  }, [sessionTabs, sessionKey, triggerUpdate])
+    setActiveTabAction({ baseTerminalId, tabIndex })
+  }, [baseTerminalId, setActiveTabAction])
 
   // Create initial terminal when component mounts
   useEffect(() => {
-    const initialTab = sessionTabs.tabs[0]
+    const initialTab = tabs[0]
     if (!initialTab) return
     const ensureInitial = async () => {
       try {
@@ -244,12 +193,12 @@ export function useTerminalTabs({
       }
     }
     void ensureInitial()
-  }, [createTerminal, sessionTabs.tabs])
+  }, [createTerminal, tabs])
 
   return {
-    tabs: sessionTabs.tabs,
-    activeTab: sessionTabs.activeTab,
-    canAddTab: sessionTabs.tabs.length < sessionTabs.maxTabs,
+    tabs,
+    activeTab,
+    canAddTab: tabs.length < maxTabs,
     addTab,
     closeTab,
     setActiveTab

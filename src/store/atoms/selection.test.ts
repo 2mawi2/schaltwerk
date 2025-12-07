@@ -62,8 +62,12 @@ vi.mock('../../common/uiEvents', () => ({
     }
     return Promise.resolve(() => {})
   }),
-  hasBackgroundStart: vi.fn(() => false),
-  clearBackgroundStarts: vi.fn(),
+}))
+
+vi.mock('../../common/terminalStartState', () => ({
+  isTerminalStartingOrStarted: vi.fn(() => false),
+  markTerminalStarting: vi.fn(),
+  clearTerminalStartState: vi.fn(),
 }))
 
 vi.mock('../../terminal/transport/backend', () => ({

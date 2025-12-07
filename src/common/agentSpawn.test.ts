@@ -25,11 +25,15 @@ vi.mock('./uiEvents', async () => {
   const actual = await vi.importActual<typeof import('./uiEvents')>('./uiEvents')
   return {
     ...actual,
-    markBackgroundStart: vi.fn(),
-    clearBackgroundStarts: vi.fn(),
     emitUiEvent: vi.fn(),
   }
 })
+
+vi.mock('./terminalStartState', () => ({
+  isTerminalStartingOrStarted: vi.fn(() => false),
+  markTerminalStarting: vi.fn(),
+  clearTerminalStartState: vi.fn(),
+}))
 
 vi.mock('../utils/singleflight', () => ({
   singleflight: vi.fn(),
@@ -38,7 +42,8 @@ vi.mock('../utils/singleflight', () => ({
 
 import { invoke } from '@tauri-apps/api/core'
 import { bestBootstrapSize } from './terminalSizeCache'
-import { markBackgroundStart, clearBackgroundStarts, emitUiEvent, UiEvent } from './uiEvents'
+import { emitUiEvent, UiEvent } from './uiEvents'
+import { markTerminalStarting, clearTerminalStartState } from './terminalStartState'
 import { singleflight, hasInflight } from '../utils/singleflight'
 import { resetAgentLifecycleStateForTests } from './agentLifecycleTracker'
 
@@ -205,7 +210,7 @@ describe('agentSpawn', () => {
         topId: 'session-test-top'
       })
 
-      expect(markBackgroundStart).not.toHaveBeenCalled()
+      expect(markTerminalStarting).not.toHaveBeenCalled()
       expect(invoke).not.toHaveBeenCalled()
     })
 
@@ -215,7 +220,7 @@ describe('agentSpawn', () => {
         topId: 'session-test-top'
       })
 
-      expect(markBackgroundStart).toHaveBeenCalledWith('session-test-top')
+      expect(markTerminalStarting).toHaveBeenCalledWith('session-test-top')
       expect(invoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartSessionAgent, {
         sessionName: 'test-session',
         cols: 118, // 120 - 2
@@ -261,7 +266,7 @@ describe('agentSpawn', () => {
         topId: 'session-test-top'
       })).rejects.toThrow('Start failed')
 
-      expect(clearBackgroundStarts).toHaveBeenCalledWith(['session-test-top'])
+      expect(clearTerminalStartState).toHaveBeenCalledWith(['session-test-top'])
     })
 
     it('rejects when start exceeds timeout and cleans up marks while tracking metric', async () => {
@@ -288,7 +293,7 @@ describe('agentSpawn', () => {
         await vi.advanceTimersByTimeAsync(EXTENDED_AGENT_START_TIMEOUT_MS)
 
         await expectation
-        expect(clearBackgroundStarts).toHaveBeenCalledWith(['session-test-top'])
+        expect(clearTerminalStartState).toHaveBeenCalledWith(['session-test-top'])
         expect(getAgentStartTimeoutMetricForTests()).toBe(1)
       } finally {
         vi.useRealTimers()
@@ -309,7 +314,7 @@ describe('agentSpawn', () => {
       const startError = new Error('Start failed')
       const cleanupError = new Error('Cleanup failed')
       vi.mocked(singleflight).mockRejectedValue(startError)
-      vi.mocked(clearBackgroundStarts).mockImplementation(() => {
+      vi.mocked(clearTerminalStartState).mockImplementation(() => {
         throw cleanupError
       })
 
@@ -369,7 +374,7 @@ describe('agentSpawn', () => {
         terminalId: 'orchestrator-test-top'
       })
 
-      expect(markBackgroundStart).not.toHaveBeenCalled()
+      expect(markTerminalStarting).not.toHaveBeenCalled()
       expect(invoke).not.toHaveBeenCalled()
     })
 
@@ -406,7 +411,7 @@ describe('agentSpawn', () => {
         terminalId: 'orchestrator-test-top'
       })).rejects.toThrow('Orchestrator start failed')
 
-      expect(clearBackgroundStarts).toHaveBeenCalledWith(['orchestrator-test-top'])
+      expect(clearTerminalStartState).toHaveBeenCalledWith(['orchestrator-test-top'])
     })
 
     it('rejects orchestrator start when timeout elapses', async () => {
@@ -429,7 +434,7 @@ describe('agentSpawn', () => {
         await vi.advanceTimersByTimeAsync(EXTENDED_AGENT_START_TIMEOUT_MS)
 
         await expectation
-        expect(clearBackgroundStarts).toHaveBeenCalledWith(['orchestrator-timeout-top'])
+        expect(clearTerminalStartState).toHaveBeenCalledWith(['orchestrator-timeout-top'])
         expect(getAgentStartTimeoutMetricForTests()).toBe(1)
       } finally {
         vi.useRealTimers()

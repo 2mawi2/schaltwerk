@@ -18,13 +18,25 @@ import { getActionButtonColorClasses } from '../../constants/actionButtonColors'
 import { ConfirmResetDialog } from '../common/ConfirmResetDialog'
 import { VscDiscard } from 'react-icons/vsc'
 import { useRef, useEffect, useState, useMemo, useCallback, memo } from 'react'
-import { useAtom, useAtomValue } from 'jotai'
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import {
   bottomTerminalCollapsedAtom,
   bottomTerminalSizesAtom,
   bottomTerminalLastExpandedSizeAtom,
 } from '../../store/atoms/layout'
 import { projectPathAtom } from '../../store/atoms/project'
+import {
+  terminalTabsAtomFamily,
+  terminalFocusAtom,
+  setTerminalFocusActionAtom,
+  runModeActiveAtomFamily,
+  agentTypeCacheAtom,
+  setAgentTypeCacheActionAtom,
+  addTabActionAtom,
+  removeTabActionAtom,
+  setActiveTabActionAtom,
+  resetTerminalTabsActionAtom,
+} from '../../store/atoms/terminal'
 import { buildPreviewKey } from '../../store/atoms/preview'
 import { useShortcutDisplay } from '../../keyboardShortcuts/useShortcutDisplay'
 import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
@@ -56,17 +68,6 @@ type TerminalTabsUiState = {
 const shouldUseBracketedPaste = (agent?: string | null) => agent !== 'claude' && agent !== 'droid'
 const needsDelayedSubmitForAgent = (agent?: string | null) => agent === 'claude' || agent === 'droid'
 
-const createInitialTabsState = (baseTerminalId: string): TerminalTabsUiState => ({
-    tabs: [{ index: 0, terminalId: baseTerminalId, label: 'Terminal 1' }],
-    activeTab: 0,
-    canAddTab: true,
-})
-
-const cloneTabsState = (state: TerminalTabsUiState): TerminalTabsUiState => ({
-    tabs: state.tabs.map(tab => ({ ...tab })),
-    activeTab: state.activeTab,
-    canAddTab: state.canAddTab,
-})
 
 const TerminalGridComponent = () => {
     const { selection, terminals, isReady, isSpec } = useSelection()
@@ -94,34 +95,81 @@ const TerminalGridComponent = () => {
     const shouldShowActionButtons = (selection.kind === 'orchestrator' || selection.kind === 'session') && actionButtons.length > 0
     
     const [terminalKey, setTerminalKey] = useState(0)
-    const [localFocus, setLocalFocus] = useState<'claude' | 'terminal' | null>(null)
-    const [agentType, setAgentType] = useState<string>('claude')
-    
+
     // Constants for special tab indices
     const RUN_TAB_INDEX = -1 // Special index for the Run tab
-    
+
     // Get session key for persistence
     const sessionKey = selection.kind === 'orchestrator' ? 'orchestrator' : selection.payload || 'unknown'
     const activeTabKey = `schaltwerk:active-tab:${sessionKey}`
-    
-    const [terminalTabsState, setTerminalTabsState] = useState<TerminalTabsUiState>(() =>
-        createInitialTabsState(terminals.bottomBase)
-    )
-    const tabsStateStoreRef = useRef<Map<string, TerminalTabsUiState>>(new Map())
-    const terminalTabsStateRef = useRef<TerminalTabsUiState>(terminalTabsState)
-    const previousTabsBaseRef = useRef<string | null>(terminals.bottomBase)
+
+    // Jotai atoms for terminal state
+    const terminalFocusMap = useAtomValue(terminalFocusAtom)
+    const setTerminalFocus = useSetAtom(setTerminalFocusActionAtom)
+    const localFocus = terminalFocusMap.get(sessionKey) ?? null
+    const setLocalFocus = useCallback((focus: 'claude' | 'terminal' | null) => {
+        setTerminalFocus({ sessionKey, focus })
+    }, [sessionKey, setTerminalFocus])
+
+    const agentTypeCacheMap = useAtomValue(agentTypeCacheAtom)
+    const setAgentTypeCache = useSetAtom(setAgentTypeCacheActionAtom)
+    const agentType = agentTypeCacheMap.get(sessionKey) ?? 'claude'
+    const setAgentType = useCallback((type: string) => {
+        setAgentTypeCache({ sessionId: sessionKey, agentType: type })
+    }, [sessionKey, setAgentTypeCache])
+
+    // Terminal tabs state from Jotai atom
+    const terminalTabsAtomState = useAtomValue(terminalTabsAtomFamily(terminals.bottomBase))
+    const addTab = useSetAtom(addTabActionAtom)
+    const removeTab = useSetAtom(removeTabActionAtom)
+    const setActiveTab = useSetAtom(setActiveTabActionAtom)
+    const resetTerminalTabs = useSetAtom(resetTerminalTabsActionAtom)
+
+    // Convert atom state to UI state format
+    const terminalTabsState: TerminalTabsUiState = useMemo(() => {
+        const tabs = terminalTabsAtomState.tabs.length === 0
+            ? [{ index: 0, terminalId: terminals.bottomBase, label: 'Terminal 1' }]
+            : terminalTabsAtomState.tabs.map((tab, idx) => ({
+                index: tab.index,
+                terminalId: tab.terminalId,
+                label: `Terminal ${idx + 1}`,
+            }))
+
+        return {
+            tabs,
+            activeTab: terminalTabsAtomState.activeTabIndex,
+            canAddTab: tabs.length < 6,
+        }
+    }, [terminalTabsAtomState, terminals.bottomBase])
+
     const previousTerminalKeyRef = useRef<number>(terminalKey)
-    const currentTabsOwnerRef = useRef<string | null>(terminals.bottomBase)
+    const previousTabsBaseRef = useRef<string | null>(terminals.bottomBase)
+
+    // Helper to apply tab state changes (replaces the old applyTabsState)
     const applyTabsState = useCallback(
         (updater: (prev: TerminalTabsUiState) => TerminalTabsUiState) => {
-            setTerminalTabsState(prev => {
-                const next = updater(prev)
-                currentTabsOwnerRef.current = terminals.bottomBase
-                return next
-            })
+            const next = updater(terminalTabsState)
+            // Update activeTabIndex via Jotai atom
+            if (next.activeTab !== terminalTabsState.activeTab) {
+                setActiveTab({ baseTerminalId: terminals.bottomBase, tabIndex: next.activeTab })
+            }
+            // Handle tab additions/removals
+            if (next.tabs.length > terminalTabsState.tabs.length) {
+                // Tab was added - use addTab action
+                addTab({ baseTerminalId: terminals.bottomBase, activateNew: next.activeTab === next.tabs.length - 1 })
+            } else if (next.tabs.length < terminalTabsState.tabs.length) {
+                // Tab was removed - find which one and use removeTab action
+                const removedTab = terminalTabsState.tabs.find(
+                    t => !next.tabs.some(nt => nt.index === t.index)
+                )
+                if (removedTab) {
+                    removeTab({ baseTerminalId: terminals.bottomBase, tabIndex: removedTab.index })
+                }
+            }
         },
-        [terminals.bottomBase]
+        [terminalTabsState, terminals.bottomBase, setActiveTab, addTab, removeTab]
     )
+
     const containerRef = useRef<HTMLDivElement>(null)
     const [collapsedPercent, setCollapsedPercent] = useState<number>(10) // fallback ~ header height in % with safety margin
 
@@ -175,7 +223,7 @@ const TerminalGridComponent = () => {
     
     // Run Mode state
     const [hasRunScripts, setHasRunScripts] = useState(false)
-    const [runModeActive, setRunModeActive] = useState(false)
+    const [runModeActive, setRunModeActive] = useAtom(runModeActiveAtomFamily(sessionKey))
     const [activeRunSessions, setActiveRunSessions] = useState<Set<string>>(new Set())
     const [pendingRunToggle, setPendingRunToggle] = useState(false)
 
@@ -384,60 +432,76 @@ const TerminalGridComponent = () => {
                 setAgentType('claude')
             })
         }
-    }, [selection, sessions, getAgentType, getOrchestratorAgentType])
+    }, [selection, sessions, getAgentType, getOrchestratorAgentType, setAgentType])
 
-    const persistRunModeState = useCallback((sessionKeyValue: string, isActive: boolean) => {
-        sessionStorage.setItem(`schaltwerk:run-mode:${sessionKeyValue}`, String(isActive))
-        setRunModeActive(isActive)
-    }, [setRunModeActive])
+    // Use refs to avoid circular dependency issues with refreshRunScriptConfiguration
+    const setRunModeActiveRef = useRef(setRunModeActive)
+    const setActiveTabRef = useRef(setActiveTab)
+    const terminalsBottomBaseRef = useRef(terminals.bottomBase)
+    const activeTabKeyRef = useRef(activeTabKey)
+
+    useEffect(() => {
+        setRunModeActiveRef.current = setRunModeActive
+        setActiveTabRef.current = setActiveTab
+        terminalsBottomBaseRef.current = terminals.bottomBase
+        activeTabKeyRef.current = activeTabKey
+    })
+
+    // Stable callbacks that use refs to avoid recreating on every render
+    const persistRunModeState = useCallback((_sessionKeyValue: string, isActive: boolean) => {
+        setRunModeActiveRef.current(isActive)
+    }, [])
 
     const syncActiveTab = useCallback((targetIndex: number, shouldUpdate?: (state: TerminalTabsUiState) => boolean) => {
-        applyTabsState(prev => {
-            if (prev.activeTab === targetIndex) {
-                return prev
-            }
-            if (shouldUpdate && !shouldUpdate(prev)) {
-                return prev
-            }
-            sessionStorage.setItem(activeTabKey, String(targetIndex))
-            return { ...prev, activeTab: targetIndex }
-        })
-    }, [applyTabsState, activeTabKey])
+        // Read current state from atom for the condition check
+        const currentActiveTab = terminalTabsState.activeTab
+        if (currentActiveTab === targetIndex) {
+            return
+        }
+        if (shouldUpdate && !shouldUpdate(terminalTabsState)) {
+            return
+        }
+        setActiveTabRef.current({ baseTerminalId: terminalsBottomBaseRef.current, tabIndex: targetIndex })
+        sessionStorage.setItem(activeTabKeyRef.current, String(targetIndex))
+    }, [terminalTabsState])
 
     const refreshRunScriptConfiguration = useCallback(async () => {
         const currentSessionKey = getSessionKey()
         try {
-        const config = await loadRunScriptConfiguration(currentSessionKey)
+            const config = await loadRunScriptConfiguration(currentSessionKey)
 
-        setHasRunScripts(config.hasRunScripts)
-        setAutoPreviewConfig(config.autoPreviewConfig)
-        logger.info('[TerminalGrid] Resolved auto preview config:', {
-            raw: config.rawRunScript,
-            resolved: config.autoPreviewConfig,
-        })
+            setHasRunScripts(config.hasRunScripts)
+            setAutoPreviewConfig(config.autoPreviewConfig)
+            logger.info('[TerminalGrid] Resolved auto preview config:', {
+                raw: config.rawRunScript,
+                resolved: config.autoPreviewConfig,
+            })
 
-        if (!config.hasRunScripts) {
-            persistRunModeState(currentSessionKey, false)
-            syncActiveTab(0, state => state.activeTab === RUN_TAB_INDEX)
-            return
+            if (!config.hasRunScripts) {
+                setRunModeActiveRef.current(false)
+                setActiveTabRef.current({ baseTerminalId: terminalsBottomBaseRef.current, tabIndex: 0 })
+                sessionStorage.setItem(activeTabKeyRef.current, String(0))
+                return
             }
 
-            persistRunModeState(currentSessionKey, config.shouldActivateRunMode)
+            setRunModeActiveRef.current(config.shouldActivateRunMode)
 
             if (config.savedActiveTab !== null) {
-                syncActiveTab(config.savedActiveTab)
+                setActiveTabRef.current({ baseTerminalId: terminalsBottomBaseRef.current, tabIndex: config.savedActiveTab })
+                sessionStorage.setItem(activeTabKeyRef.current, String(config.savedActiveTab))
             } else if (!config.shouldActivateRunMode) {
-                syncActiveTab(0, state => state.activeTab === RUN_TAB_INDEX)
+                setActiveTabRef.current({ baseTerminalId: terminalsBottomBaseRef.current, tabIndex: 0 })
+                sessionStorage.setItem(activeTabKeyRef.current, String(0))
             }
         } catch (error) {
             logger.error('[TerminalGrid] Failed to load run script configuration:', error)
         }
-    }, [getSessionKey, persistRunModeState, syncActiveTab, RUN_TAB_INDEX])
+    }, [getSessionKey])
 
-    // Load run script availability and manage run mode state
+    // Load run script availability and manage run mode state - only on selection changes
     useEffect(() => {
         void refreshRunScriptConfiguration()
-    }, [selection, refreshRunScriptConfiguration])
+    }, [selection, getSessionKey, refreshRunScriptConfiguration])
 
     const handleRunButtonClick = useCallback(() => {
         if (!hasRunScripts) {
@@ -453,15 +517,9 @@ const TerminalGridComponent = () => {
             return
         }
 
-        persistRunModeState(sessionId, true)
-        applyTabsState(prev => {
-            if (prev.activeTab === RUN_TAB_INDEX) {
-                return prev
-            }
-            const next = { ...prev, activeTab: RUN_TAB_INDEX }
-            sessionStorage.setItem(activeTabKey, String(RUN_TAB_INDEX))
-            return next
-        })
+        setRunModeActive(true)
+        setActiveTab({ baseTerminalId: terminals.bottomBase, tabIndex: RUN_TAB_INDEX })
+        sessionStorage.setItem(activeTabKey, String(RUN_TAB_INDEX))
 
         if (isBottomCollapsed) {
             const expandedSize = lastExpandedBottomPercent || 28
@@ -475,8 +533,9 @@ const TerminalGridComponent = () => {
         getSessionKey,
         terminalTabsState.activeTab,
         runModeActive,
-        persistRunModeState,
-        applyTabsState,
+        setRunModeActive,
+        setActiveTab,
+        terminals.bottomBase,
         activeTabKey,
         RUN_TAB_INDEX,
         isBottomCollapsed,
@@ -522,7 +581,7 @@ const TerminalGridComponent = () => {
             }
             // TODO: Add diff focus handling when we implement it
         }, isAnyModalOpen)
-    }, [selection, getFocusForSession, getSessionKey, isAnyModalOpen])
+    }, [selection, getFocusForSession, getSessionKey, isAnyModalOpen, setLocalFocus])
 
     // If global focus changes to claude/terminal, apply it immediately.
     // Avoid overriding per-session default when only the selection changed
@@ -576,7 +635,7 @@ const TerminalGridComponent = () => {
             setLocalFocus(null)
             lastAppliedGlobalFocusRef.current = null
         }
-    }, [currentFocus, selection, getSessionKey, isAnyModalOpen])
+    }, [currentFocus, selection, getSessionKey, isAnyModalOpen, setLocalFocus])
 
     // Keyboard shortcut handling for Run Mode (Cmd+E) and Terminal Focus (Cmd+/)
     useEffect(() => {
@@ -850,55 +909,18 @@ const TerminalGridComponent = () => {
         }
     }, [sizes, isBottomCollapsed, setLastExpandedBottomPercent])
 
-    // Keep a mutable reference of the latest terminal tabs state for persistence between sessions
+    // Reset terminal tabs state when terminal key changes (explicit reset signal)
     useEffect(() => {
-        terminalTabsStateRef.current = terminalTabsState
-    }, [terminalTabsState])
-
-    // Persist the latest state for the active session whenever tabs change
-    useEffect(() => {
-        const base = terminals.bottomBase
-        if (!base) return
-        if (currentTabsOwnerRef.current !== base) {
-            return
-        }
-        tabsStateStoreRef.current.set(base, cloneTabsState(terminalTabsState))
-    }, [terminalTabsState, terminals.bottomBase])
-
-    // Restore per-session tab state on selection changes and respect explicit reset signals
-    useEffect(() => {
-        const currentBase = terminals.bottomBase
-        const previousBase = previousTabsBaseRef.current
         const previousKey = previousTerminalKeyRef.current
+        const currentBase = terminals.bottomBase
 
-        if (previousBase && previousBase !== currentBase) {
-            tabsStateStoreRef.current.set(previousBase, cloneTabsState(terminalTabsStateRef.current))
+        if (terminalKey !== previousKey && currentBase) {
+            resetTerminalTabs({ baseTerminalId: currentBase })
         }
 
-        if (!currentBase) {
-            previousTabsBaseRef.current = currentBase
-            previousTerminalKeyRef.current = terminalKey
-            return
-        }
-
-        if (terminalKey !== previousKey) {
-            tabsStateStoreRef.current.delete(currentBase)
-        }
-
-        const stored = tabsStateStoreRef.current.get(currentBase)
-        if (stored) {
-            currentTabsOwnerRef.current = currentBase
-            setTerminalTabsState(cloneTabsState(stored))
-        } else {
-            const initialState = createInitialTabsState(currentBase)
-            tabsStateStoreRef.current.set(currentBase, initialState)
-            currentTabsOwnerRef.current = currentBase
-            setTerminalTabsState(initialState)
-        }
-
-        previousTabsBaseRef.current = currentBase
         previousTerminalKeyRef.current = terminalKey
-    }, [terminals.bottomBase, terminalKey])
+        previousTabsBaseRef.current = currentBase
+    }, [terminals.bottomBase, terminalKey, resetTerminalTabs])
 
     const handleClaudeSessionClick = useCallback((e?: React.MouseEvent) => {
         // Prevent event from bubbling if called from child

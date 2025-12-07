@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, waitFor, cleanup, act, fireEvent } from '@testing-library/react'
-import { Terminal } from './Terminal'
+import { render, waitFor, cleanup, act, fireEvent, type RenderOptions } from '@testing-library/react'
+import { Terminal, type TerminalProps } from './Terminal'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import { startSessionTop } from '../../common/agentSpawn'
 import { writeTerminalBackend } from '../../terminal/transport/backend'
 import { TERMINAL_FILE_DRAG_TYPE } from '../../common/dragTypes'
+import { Provider, createStore } from 'jotai'
 
 const ATLAS_CONTRAST_BASE = 1.1
 
@@ -323,8 +324,12 @@ vi.mock('../../common/uiEvents', () => ({
   UiEvent: { TerminalResizeRequest: 'TerminalResizeRequest', NewSpecRequest: 'NewSpecRequest', GlobalNewSessionShortcut: 'GlobalNewSessionShortcut', GlobalMarkReadyShortcut: 'GlobalMarkReadyShortcut' },
   emitUiEvent: vi.fn(),
   listenUiEvent: vi.fn(() => () => {}),
-  clearBackgroundStarts: vi.fn(),
-  hasBackgroundStart: vi.fn(() => false),
+}))
+
+vi.mock('../../common/terminalStartState', () => ({
+  isTerminalStartingOrStarted: vi.fn(() => false),
+  markTerminalStarted: vi.fn(),
+  clearTerminalStartState: vi.fn(),
 }))
 
 vi.mock('../../common/agentSpawn', () => ({
@@ -352,7 +357,10 @@ vi.mock('../../utils/safeFocus', () => ({
 }))
 
 vi.mock('../../utils/terminalFonts', () => ({
-  buildTerminalFontFamily: vi.fn(async () => null),
+  buildTerminalFontFamily: vi.fn((custom?: string | null) => {
+    const base = 'Menlo, Monaco, ui-monospace, SFMono-Regular, monospace'
+    return custom ? `"${custom}", ${base}` : base
+  }),
 }))
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -402,9 +410,19 @@ beforeEach(() => {
   vi.mocked(startSessionTop).mockClear()
 })
 
+function renderTerminal(props: Partial<TerminalProps> & { terminalId: string }, options?: RenderOptions) {
+  const store = createStore()
+  return render(
+    <Provider store={store}>
+      <Terminal {...props} />
+    </Provider>,
+    options
+  )
+}
+
 describe('Terminal', () => {
   it('constructs XtermTerminal with default scrollback for regular terminals', async () => {
-    render(<Terminal terminalId="session-123-bottom" />)
+    renderTerminal({ terminalId: 'session-123-bottom' })
 
     await waitFor(() => {
       expect(terminalHarness.acquireMock).toHaveBeenCalled()
@@ -420,7 +438,7 @@ describe('Terminal', () => {
   })
 
   it('uses reduced scrollback for background terminals', async () => {
-    render(<Terminal terminalId="background-1" isBackground />)
+    renderTerminal({ terminalId: 'background-1', isBackground: true })
 
     await waitFor(() => {
       expect(terminalHarness.acquireMock).toHaveBeenCalled()
@@ -435,7 +453,7 @@ describe('Terminal', () => {
   })
 
   it('applies deep scrollback for agent top terminals', async () => {
-    render(<Terminal terminalId="session-example-top" sessionName="example" />)
+    renderTerminal({ terminalId: 'session-example-top', sessionName: 'example' })
 
     await waitFor(() => {
       expect(terminalHarness.acquireMock).toHaveBeenCalled()
@@ -450,7 +468,7 @@ describe('Terminal', () => {
   })
 
   it('treats terminal-only top terminals as regular shells and skips agent startup', async () => {
-    render(<Terminal terminalId="session-terminal-top" sessionName="terminal" agentType="terminal" />)
+    renderTerminal({ terminalId: 'session-terminal-top', sessionName: 'terminal', agentType: 'terminal' })
 
     await waitFor(() => {
       expect(terminalHarness.acquireMock).toHaveBeenCalled()
@@ -484,7 +502,7 @@ describe('Terminal', () => {
   it('reapplies configuration when reusing an existing terminal instance', async () => {
     terminalHarness.setNextIsNew(false)
     registryMocks.hasTerminalInstance.mockReturnValue(true)
-    render(<Terminal terminalId="session-123-bottom" readOnly />)
+    renderTerminal({ terminalId: 'session-123-bottom', readOnly: true })
 
     await waitFor(() => {
       expect(terminalHarness.acquireMock).toHaveBeenCalled()
@@ -501,7 +519,7 @@ describe('Terminal', () => {
     terminalHarness.setNextIsNew(false)
     registryMocks.hasTerminalInstance.mockReturnValue(true)
 
-    render(<Terminal terminalId="session-reuse-viewport-top" sessionName="reuse-viewport" />)
+    renderTerminal({ terminalId: 'session-reuse-viewport-top', sessionName: 'reuse-viewport' })
 
     await waitFor(() => {
       expect(terminalHarness.acquireMock).toHaveBeenCalled()
@@ -515,7 +533,7 @@ describe('Terminal', () => {
   })
 
   it('ignores duplicate resize observer measurements', async () => {
-    render(<Terminal terminalId="session-resize-case-top" sessionName="resize-case" />)
+    renderTerminal({ terminalId: 'session-resize-case-top', sessionName: 'resize-case' })
 
     await waitFor(() => {
       expect(terminalHarness.acquireMock).toHaveBeenCalled()
@@ -582,7 +600,7 @@ describe('Terminal', () => {
     })
 
     try {
-      render(<Terminal terminalId="session-force-scroll" sessionName="force-scroll" />)
+      renderTerminal({ terminalId: 'session-force-scroll', sessionName: 'force-scroll' })
 
       await waitFor(() => {
         expect(terminalHarness.acquireMock).toHaveBeenCalled()
@@ -622,7 +640,7 @@ describe('Terminal', () => {
     })
 
     try {
-      render(<Terminal terminalId="session-force-ignore" sessionName="force-ignore" />)
+      renderTerminal({ terminalId: 'session-force-ignore', sessionName: 'force-ignore' })
 
       await waitFor(() => {
         expect(terminalHarness.acquireMock).toHaveBeenCalled()
@@ -652,7 +670,7 @@ describe('Terminal', () => {
   })
 
   it('pastes dropped file paths into the terminal input', async () => {
-    const { container } = render(<Terminal terminalId="session-drop-bottom" workingDirectory="/repo" />)
+    const { container } = renderTerminal({ terminalId: 'session-drop-bottom', workingDirectory: '/repo' })
 
     await waitFor(() => {
       expect(terminalHarness.acquireMock).toHaveBeenCalled()
@@ -675,5 +693,39 @@ describe('Terminal', () => {
     await waitFor(() => {
       expect(writeTerminalBackend).toHaveBeenCalledWith('session-drop-bottom', './src/example.ts ')
     })
+  })
+
+  it('does not restart agent when remounting a started terminal', async () => {
+    const { isTerminalStartingOrStarted } = await import('../../common/terminalStartState')
+    vi.mocked(isTerminalStartingOrStarted).mockReturnValue(true)
+    vi.mocked(startSessionTop).mockClear()
+
+    const { unmount } = renderTerminal({ terminalId: 'session-started-top', sessionName: 'started' })
+
+    await waitFor(() => {
+      expect(terminalHarness.acquireMock).toHaveBeenCalledWith(
+        'session-started-top',
+        expect.any(Function)
+      )
+    })
+
+    expect(startSessionTop).not.toHaveBeenCalled()
+
+    unmount()
+
+    vi.mocked(startSessionTop).mockClear()
+
+    terminalHarness.setNextIsNew(false)
+    registryMocks.hasTerminalInstance.mockReturnValue(true)
+    renderTerminal({ terminalId: 'session-started-top', sessionName: 'started' })
+
+    await waitFor(() => {
+      expect(terminalHarness.acquireMock).toHaveBeenLastCalledWith(
+        'session-started-top',
+        expect.any(Function)
+      )
+    })
+
+    expect(startSessionTop).not.toHaveBeenCalled()
   })
 })

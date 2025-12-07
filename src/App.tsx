@@ -79,8 +79,8 @@ import {
   StartAgentFromSpecDetail,
   AgentLifecycleDetail,
   type PermissionErrorDetail,
-  clearBackgroundStarts,
 } from './common/uiEvents'
+import { clearTerminalStartState } from './common/terminalStartState'
 import { logger } from './utils/logger'
 import { installSmartDashGuards } from './utils/normalizeCliText'
 import { useKeyboardShortcutsConfig } from './contexts/KeyboardShortcutsContext'
@@ -351,7 +351,7 @@ function AppContent() {
     void (async () => {
       try {
         orchestratorCleanup = await listenEvent(SchaltEvent.OrchestratorLaunchFailed, payload => {
-          clearBackgroundStarts([payload.terminal_id])
+          clearTerminalStartState([payload.terminal_id])
           toast.pushToast({
             tone: 'error',
             title: 'Orchestrator failed to start',

@@ -4,9 +4,10 @@ import { renderHook, act } from '@testing-library/react'
 import { useTerminalTabs } from './useTerminalTabs'
 import { invoke } from '@tauri-apps/api/core'
 import { MockTauriInvokeArgs } from '../types/testing'
-import { ReactNode, createElement, Fragment } from 'react'
+import { ReactNode, createElement } from 'react'
 import { UiEvent, emitUiEvent } from '../common/uiEvents'
 import { logger } from '../utils/logger'
+import { Provider, createStore } from 'jotai'
 
 // Mock the invoke function
 vi.mock('@tauri-apps/api/core', () => ({
@@ -59,9 +60,12 @@ describe('useTerminalTabs', () => {
     removeEventSpy?.mockRestore()
   })
 
-  const wrapper = ({ children }: { children: ReactNode }) => createElement(Fragment, null, children)
+  const createWrapper = () => {
+    const store = createStore()
+    return ({ children }: { children: ReactNode }) => createElement(Provider, { store }, children)
+  }
   const renderTabsHook = (props: Parameters<typeof useTerminalTabs>[0]) =>
-    renderHook<ReturnType<typeof useTerminalTabs>, void>(() => useTerminalTabs(props), { wrapper })
+    renderHook<ReturnType<typeof useTerminalTabs>, void>(() => useTerminalTabs(props), { wrapper: createWrapper() })
 
   describe('initialization', () => {
     it('creates initial tab with correct structure', () => {
@@ -73,7 +77,7 @@ describe('useTerminalTabs', () => {
       expect(result.current.tabs).toHaveLength(1)
       expect(result.current.tabs[0]).toMatchObject({
         index: 0,
-        terminalId: 'test-init-0',
+        terminalId: 'test-init',
         label: 'Terminal 1'
       })
       expect(result.current.activeTab).toBe(0)
@@ -159,8 +163,8 @@ describe('useTerminalTabs', () => {
         workingDirectory: '/test/dir'
       })
 
-      expect(result1.current.tabs[0].terminalId).toBe('session1-0')
-      expect(result2.current.tabs[0].terminalId).toBe('session2-0')
+      expect(result1.current.tabs[0].terminalId).toBe('session1')
+      expect(result2.current.tabs[0].terminalId).toBe('session2')
       expect(result1.current.tabs[0].terminalId).not.toBe(result2.current.tabs[0].terminalId)
     })
   })
@@ -190,7 +194,7 @@ describe('useTerminalTabs', () => {
       expect(result.current.tabs).toHaveLength(1)
       expect(result.current.tabs[0]).toMatchObject({
         index: 0,
-        terminalId: 'test-reset-0',
+        terminalId: 'test-reset',
         label: 'Terminal 1'
       })
       expect(result.current.activeTab).toBe(0)
@@ -225,7 +229,7 @@ describe('useTerminalTabs', () => {
       expect(result.current.tabs).toHaveLength(1)
       expect(result.current.tabs[0]).toMatchObject({
         index: 0,
-        terminalId: 'session-foo-base-0',
+        terminalId: 'session-foo-base',
       })
     })
 
@@ -370,7 +374,7 @@ describe('useTerminalTabs', () => {
         }
         if (command === TauriCommands.CreateTerminalWithSize) {
           expect(args).toEqual({
-            id: 'test-defer-0',
+            id: 'test-defer',
             cwd: '/ready/path',
             cols: 120,
             rows: 32
@@ -386,7 +390,7 @@ describe('useTerminalTabs', () => {
       const { rerender } = renderHook(
         (props: { baseTerminalId: string; workingDirectory: string }) => useTerminalTabs(props),
         {
-          wrapper,
+          wrapper: createWrapper(),
           initialProps: {
             baseTerminalId: 'test-defer',
             workingDirectory: ''
@@ -412,9 +416,9 @@ describe('useTerminalTabs', () => {
         await Promise.resolve()
       })
 
-      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.TerminalExists, { id: 'test-defer-0' })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.TerminalExists, { id: 'test-defer' })
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.CreateTerminalWithSize, {
-        id: 'test-defer-0',
+        id: 'test-defer',
         cwd: '/ready/path',
         cols: 120,
         rows: 32
@@ -484,7 +488,7 @@ describe('useTerminalTabs', () => {
       expect(result.current.tabs).toHaveLength(2)
       expect(result.current.tabs.map(t => t.index)).toEqual([0, 1])
       expect(result.current.tabs.map(t => t.terminalId)).toEqual([
-        'test-indices-0',
+        'test-indices',
         'test-indices-1'
       ])
 
@@ -612,7 +616,7 @@ describe('useTerminalTabs', () => {
       })
 
       expect(result.current.tabs).toHaveLength(1)
-      expect(result.current.activeTab).toBe(1) // Should switch to next tab
+      expect(result.current.activeTab).toBe(0) // Should stay at 0 (now pointing to remaining tab)
     })
 
     it('prevents closing the last tab', async () => {
@@ -714,7 +718,7 @@ describe('useTerminalTabs', () => {
         result.current.setActiveTab(999)
       })
 
-      expect(result.current.activeTab).toBe(999) // The hook doesn't validate the index
+      expect(result.current.activeTab).toBe(0) // Jotai atom clamps to valid range
     })
   })
 
@@ -729,7 +733,7 @@ describe('useTerminalTabs', () => {
         }
         if (command === TauriCommands.CreateTerminalWithSize) {
           expect(args).toEqual({
-            id: 'test-initial-0',
+            id: 'test-initial',
             cwd: '/test/dir',
             cols: 120,
             rows: 32
@@ -749,10 +753,10 @@ describe('useTerminalTabs', () => {
         await new Promise(resolve => setTimeout(resolve, 0))
       })
 
-      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.TerminalExists, { id: 'test-initial-0' })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.TerminalExists, { id: 'test-initial' })
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.PathExists, { path: '/test/dir' })
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.CreateTerminalWithSize, {
-        id: 'test-initial-0',
+        id: 'test-initial',
         cwd: '/test/dir',
         cols: 120,
         rows: 32
@@ -760,7 +764,7 @@ describe('useTerminalTabs', () => {
       const initialFallbackCalls = mockInvoke.mock.calls.filter(([command, args]) => {
         if (command !== TauriCommands.CreateTerminal) return false
         const record = args as Record<string, unknown> | undefined
-        return record?.id === 'test-initial-0'
+        return record?.id === 'test-initial'
       })
       expect(initialFallbackCalls).toHaveLength(0)
     })
@@ -782,17 +786,17 @@ describe('useTerminalTabs', () => {
         await new Promise(resolve => setTimeout(resolve, 0))
       })
 
-      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.TerminalExists, { id: 'test-initial-exists-0' })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.TerminalExists, { id: 'test-initial-exists' })
       const initialSizeCalls = mockInvoke.mock.calls.filter(([command, args]) => {
         if (command !== TauriCommands.CreateTerminalWithSize) return false
         const record = args as Record<string, unknown> | undefined
-        return record?.id === 'test-initial-exists-0'
+        return record?.id === 'test-initial-exists'
       })
       expect(initialSizeCalls).toHaveLength(0)
       const initialFallbackCalls = mockInvoke.mock.calls.filter(([command, args]) => {
         if (command !== TauriCommands.CreateTerminal) return false
         const record = args as Record<string, unknown> | undefined
-        return record?.id === 'test-initial-exists-0'
+        return record?.id === 'test-initial-exists'
       })
       expect(initialFallbackCalls).toHaveLength(0)
     })
@@ -823,7 +827,7 @@ describe('useTerminalTabs', () => {
       })
 
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to create terminal test-initial-fail-0'),
+        '[useTerminalTabs] Failed to initialize initial terminal',
         expect.any(Error)
       )
 
@@ -860,7 +864,7 @@ describe('useTerminalTabs', () => {
       ])
     })
 
-    it('reuses lowest available label numbers after deletion', async () => {
+    it('renumbers labels after deletion', async () => {
       mockInvoke.mockResolvedValue(undefined)
 
       const { result } = renderTabsHook({
@@ -883,16 +887,17 @@ describe('useTerminalTabs', () => {
         await result.current.closeTab(0)
       })
 
+      // After deletion, remaining tab becomes Terminal 1 (labels are position-based)
       expect(result.current.tabs.map(t => t.label)).toEqual([
-        'Terminal 2'
+        'Terminal 1'
       ])
 
-      // Add a new tab - should reuse "Terminal 1" (not "Terminal 3")
+      // Add a new tab
       await act(async () => {
         await result.current.addTab()
       })
 
-      const labels = result.current.tabs.map(t => t.label).sort()
+      const labels = result.current.tabs.map(t => t.label)
       expect(labels).toEqual([
         'Terminal 1',
         'Terminal 2'
@@ -916,29 +921,29 @@ describe('useTerminalTabs', () => {
         await result.current.addTab()
       })
 
-      expect(result.current.tabs.map(t => t.label).sort()).toEqual([
+      expect(result.current.tabs.map(t => t.label)).toEqual([
         'Terminal 1',
-        'Terminal 2', 
+        'Terminal 2',
         'Terminal 3'
       ])
 
-      // Delete Terminal 2 (middle one)
-      const terminal2Tab = result.current.tabs.find(t => t.label === 'Terminal 2')
+      // Delete Terminal 2 (middle one, which has index 1)
       await act(async () => {
-        await result.current.closeTab(terminal2Tab!.index)
+        await result.current.closeTab(1)
       })
 
-      expect(result.current.tabs.map(t => t.label).sort()).toEqual([
+      // Labels are position-based, so remaining tabs become Terminal 1 and Terminal 2
+      expect(result.current.tabs.map(t => t.label)).toEqual([
         'Terminal 1',
-        'Terminal 3'
+        'Terminal 2'
       ])
 
-      // Add new terminal - should reuse "Terminal 2"
+      // Add new terminal
       await act(async () => {
         await result.current.addTab()
       })
 
-      expect(result.current.tabs.map(t => t.label).sort()).toEqual([
+      expect(result.current.tabs.map(t => t.label)).toEqual([
         'Terminal 1',
         'Terminal 2',
         'Terminal 3'

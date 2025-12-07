@@ -291,6 +291,26 @@ emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions)?;
 2. Switching: Frontend switches IDs, backend persists
 3. Cleanup: All processes killed on exit
 
+### Single Source of Truth (CRITICAL)
+When multiple components need to track shared state (e.g., "has this resource been initialized?"), use ONE centralized module. Never duplicate tracking across files.
+
+- Example: Terminal start state lives in `src/common/terminalStartState.ts` - both `agentSpawn.ts` and `Terminal.tsx` use it
+- Before adding a new Set/Map for tracking, check if one already exists and consolidate
+
+### useEffect Dependencies (CRITICAL)
+Unstable useEffect dependencies cause component remounts and double-execution:
+
+- **Problem:** Values that start as `null` and update async (like fetched settings) trigger effect re-runs
+- **Solution:** Initialize with synchronous defaults, or use refs for values that shouldn't trigger re-renders
+- **Pattern:** For terminal config, we use Jotai atoms with synchronous defaults (`buildTerminalFontFamily(null)`) so the initial render has stable values
+
+**Example of what NOT to do:**
+```typescript
+const [fontFamily, setFontFamily] = useState<string | null>(null) // Starts null!
+useEffect(() => { loadSettings().then(s => setFontFamily(s.font)) }, [])
+useEffect(() => { /* This runs TWICE - once with null, once with loaded value */ }, [fontFamily])
+```
+
 ### Code Quality
 
 **Dead Code Policy (CRITICAL)**

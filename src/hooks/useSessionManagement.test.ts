@@ -5,7 +5,6 @@ import { useSessionManagement } from './useSessionManagement'
 import { invoke } from '@tauri-apps/api/core'
 import * as TauriEvent from '@tauri-apps/api/event'
 import { UiEvent } from '../common/uiEvents'
-import * as uiEvents from '../common/uiEvents'
 import * as backend from '../terminal/transport/backend'
 
 // Mock Tauri invoke
@@ -284,9 +283,10 @@ describe('useSessionManagement', () => {
             expect(mockClearTerminalStartedTracking).toHaveBeenCalledWith(['test-terminal-top'])
         })
 
-        it('marks background start while switching models to avoid duplicate launches', async () => {
-            const markSpy = vi.spyOn(uiEvents, 'markBackgroundStart')
-            const clearSpy = vi.spyOn(uiEvents, 'clearBackgroundStarts')
+        it('marks terminal starting while switching models to avoid duplicate launches', async () => {
+            const terminalStartState = await import('../common/terminalStartState')
+            const markSpy = vi.spyOn(terminalStartState, 'markTerminalStarting')
+            const clearSpy = vi.spyOn(terminalStartState, 'clearTerminalStartState')
 
             const { result } = renderHook(() => useSessionManagement())
             const selection = { kind: 'session' as const, payload: 'test-session' }

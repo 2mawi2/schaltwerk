@@ -22,6 +22,7 @@ import {
   refreshSessionsActionAtom,
   __resetSessionsTestingState,
 } from '../store/atoms/sessions'
+import { __resetTerminalAtomsForTest } from '../store/atoms/terminal'
 
 type GithubOverrides = Partial<GithubIntegrationValue>
 
@@ -150,6 +151,7 @@ function SelectionTestInitializer({ children }: { children: React.ReactNode }) {
     return () => {
       resetSelectionAtomsForTest()
       __resetSessionsTestingState()
+      __resetTerminalAtomsForTest()
     }
   }, [
     initializeSelectionEvents,
