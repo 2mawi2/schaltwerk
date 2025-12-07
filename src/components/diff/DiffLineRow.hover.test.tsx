@@ -19,7 +19,8 @@ describe('DiffLineRow hover functionality', () => {
     onLineMouseDown: vi.fn(),
     onLineMouseEnter: vi.fn(),
     onLineMouseLeave: vi.fn(),
-    onLineMouseUp: vi.fn()
+    onLineMouseUp: vi.fn(),
+    isHovered: false
   }
 
   const renderRow = (props = defaultProps) => {
@@ -66,19 +67,20 @@ describe('DiffLineRow hover functionality', () => {
     expect(row).toHaveAttribute('data-side', 'new')
   })
 
-  it('should show hover ring when hovered', () => {
-    renderRow()
-    
+  it('should show hover ring when isHovered prop is true', () => {
+    renderRow({ ...defaultProps, isHovered: true })
+
     const row = screen.getByRole('row')
-    
-    // Initially no hover ring
-    expect(row).not.toHaveClass('ring-1', 'ring-cyan-300/50')
 
-    // Hover
-    fireEvent.mouseEnter(row)
-
-    // Should have hover ring
     expect(row).toHaveClass('ring-1', 'ring-cyan-300/50')
+  })
+
+  it('should not show hover ring when isHovered prop is false', () => {
+    renderRow({ ...defaultProps, isHovered: false })
+
+    const row = screen.getByRole('row')
+
+    expect(row).not.toHaveClass('ring-1', 'ring-cyan-300/50')
   })
 
   it('should handle collapsible lines without showing hover hint', () => {

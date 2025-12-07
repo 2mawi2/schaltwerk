@@ -1,4 +1,4 @@
-import { memo, useState } from 'react'
+import { memo } from 'react'
 import { VscAdd, VscChevronDown, VscChevronRight } from 'react-icons/vsc'
 import clsx from 'clsx'
 import { LineInfo } from '../../types/diff'
@@ -20,6 +20,7 @@ interface DiffLineRowProps {
   onLineNumberContextMenu?: (payload: { event: React.MouseEvent<HTMLTableCellElement>, lineNumber: number, side: 'old' | 'new' }) => void
   onCodeContextMenu?: (payload: { event: React.MouseEvent<HTMLTableCellElement>, lineNumber: number, side: 'old' | 'new', content: string }) => void
   isKeyboardFocused?: boolean
+  isHovered?: boolean
 }
 
 function DiffLineRowComponent({
@@ -36,8 +37,8 @@ function DiffLineRowComponent({
   onLineNumberContextMenu,
   onCodeContextMenu,
   isKeyboardFocused = false,
+  isHovered = false,
 }: DiffLineRowProps) {
-  const [isHovered, setIsHovered] = useState(false)
   const showFocusIndicator = isHovered || isKeyboardFocused
   if (line.isCollapsible) {
     return (
@@ -66,16 +67,14 @@ function DiffLineRowComponent({
   }
   
   const { lineNum, side } = getSelectableLineIdentity(line)
-  
+
   const handleMouseEnter = () => {
-    setIsHovered(true)
     if (lineNum && onLineMouseEnter) {
       onLineMouseEnter({ lineNum, side, filePath })
     }
   }
 
   const handleMouseLeave = () => {
-    setIsHovered(false)
     if (onLineMouseLeave) {
       onLineMouseLeave({ filePath })
     }
@@ -216,6 +215,7 @@ function areEqual(prev: DiffLineRowProps, next: DiffLineRowProps) {
     prev.isCollapsed === next.isCollapsed &&
     prev.highlightedContent === next.highlightedContent &&
     prev.isKeyboardFocused === next.isKeyboardFocused &&
+    prev.isHovered === next.isHovered &&
     prev.onLineMouseDown === next.onLineMouseDown &&
     prev.onLineMouseEnter === next.onLineMouseEnter &&
     prev.onLineMouseLeave === next.onLineMouseLeave &&
