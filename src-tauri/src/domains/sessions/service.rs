@@ -2148,16 +2148,24 @@ impl SessionManager {
                 anyhow!("use_existing_branch requires custom_branch to be specified")
             })?;
 
-            if !git::branch_exists(&self.repo_path, custom_branch)? {
-                return Err(anyhow!(
-                    "Branch '{custom_branch}' does not exist. Cannot use existing branch mode with a non-existent branch."
-                ));
-            }
-
             if let Some(existing_wt) = git::get_worktree_for_branch(&self.repo_path, custom_branch)? {
                 return Err(anyhow!(
                     "Branch '{custom_branch}' is already checked out in worktree: {}",
                     existing_wt.display()
+                ));
+            }
+
+            if params.sync_with_origin
+                && let Err(e) = git::safe_sync_branch_with_origin(&self.repo_path, custom_branch)
+            {
+                log::info!(
+                    "Could not sync branch '{custom_branch}' with origin (may be local-only): {e}"
+                );
+            }
+
+            if !git::branch_exists(&self.repo_path, custom_branch)? {
+                return Err(anyhow!(
+                    "Branch '{custom_branch}' does not exist. Cannot use existing branch mode with a non-existent branch."
                 ));
             }
         }
