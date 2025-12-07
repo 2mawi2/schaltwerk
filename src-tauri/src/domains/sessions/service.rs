@@ -126,6 +126,12 @@ pub struct SessionCreationParams<'a> {
     pub base_branch: Option<&'a str>,
     pub custom_branch: Option<&'a str>,
     pub use_existing_branch: bool,
+    /// CAUTION: Only enable for branches where the remote is the source of truth (e.g., PR
+    /// branches from GitHub). When true, the local branch will be fast-forwarded to match
+    /// origin if it's behind. Local commits that are ahead of origin are preserved (no data
+    /// loss), but the sync is skipped with a warning. Never enable this for local development
+    /// branches where users may have unpushed commits.
+    pub sync_with_origin: bool,
     pub was_auto_generated: bool,
     pub version_group_id: Option<&'a str>,
     pub version_number: Option<i32>,
@@ -1408,6 +1414,7 @@ mod service_unified_tests {
             base_branch: None,
             custom_branch: None,
             use_existing_branch: false,
+            sync_with_origin: false,
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
@@ -1481,6 +1488,7 @@ mod service_unified_tests {
             base_branch: None,
             custom_branch: None,
             use_existing_branch: false,
+            sync_with_origin: false,
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
@@ -1540,6 +1548,7 @@ mod service_unified_tests {
             base_branch: Some("main"),
             custom_branch: None,
             use_existing_branch: false,
+            sync_with_origin: false,
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
@@ -1603,6 +1612,7 @@ mod service_unified_tests {
             base_branch: Some(&commit),
             custom_branch: None,
             use_existing_branch: false,
+            sync_with_origin: false,
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
@@ -1655,6 +1665,7 @@ mod service_unified_tests {
             base_branch: None,
             custom_branch: None,
             use_existing_branch: false,
+            sync_with_origin: false,
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
@@ -2102,6 +2113,7 @@ impl SessionManager {
             base_branch,
             custom_branch: None,
             use_existing_branch: false,
+            sync_with_origin: false,
             was_auto_generated,
             version_group_id,
             version_number,
@@ -2208,6 +2220,7 @@ impl SessionManager {
             parent_branch: &parent_branch,
             custom_branch: params.custom_branch,
             use_existing_branch: params.use_existing_branch,
+            sync_with_origin: params.sync_with_origin,
             should_copy_claude_locals,
         };
 

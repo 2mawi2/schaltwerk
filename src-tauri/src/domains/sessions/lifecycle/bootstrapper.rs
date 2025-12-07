@@ -16,6 +16,7 @@ pub struct BootstrapConfig<'a> {
     pub parent_branch: &'a str,
     pub custom_branch: Option<&'a str>,
     pub use_existing_branch: bool,
+    pub sync_with_origin: bool,
     pub should_copy_claude_locals: bool,
 }
 
@@ -41,7 +42,7 @@ impl<'a> WorktreeBootstrapper<'a> {
 
         let final_branch = if config.use_existing_branch {
             if let Some(custom) = config.custom_branch {
-                self.validate_existing_branch(custom)?;
+                self.validate_existing_branch(custom, config.sync_with_origin)?;
                 custom.to_string()
             } else {
                 return Err(anyhow!(
@@ -141,14 +142,16 @@ impl<'a> WorktreeBootstrapper<'a> {
         })
     }
 
-    fn validate_existing_branch(&self, branch_name: &str) -> Result<()> {
+    fn validate_existing_branch(&self, branch_name: &str, sync_with_origin: bool) -> Result<()> {
         if !git::is_valid_branch_name(branch_name) {
             return Err(anyhow!(
                 "Invalid branch name: branch names must be valid git references"
             ));
         }
 
-        if let Err(e) = git::fetch_and_sync_branch(self.repo_path, branch_name) {
+        if sync_with_origin
+            && let Err(e) = git::safe_sync_branch_with_origin(self.repo_path, branch_name)
+        {
             info!(
                 "Could not sync branch '{branch_name}' with origin (may be local-only): {e}"
             );
@@ -330,6 +333,7 @@ mod tests {
             parent_branch: "master",
             custom_branch: None,
             use_existing_branch: false,
+            sync_with_origin: false,
             should_copy_claude_locals: false,
         };
 
@@ -364,6 +368,7 @@ mod tests {
             parent_branch: "master",
             custom_branch: Some("custom-branch"),
             use_existing_branch: false,
+            sync_with_origin: false,
             should_copy_claude_locals: false,
         };
 
@@ -432,6 +437,7 @@ mod tests {
             parent_branch: "master",
             custom_branch: None,
             use_existing_branch: false,
+            sync_with_origin: false,
             should_copy_claude_locals: true,
         };
 
@@ -488,6 +494,7 @@ mod tests {
             parent_branch: "master",
             custom_branch: Some("feature/existing-branch"),
             use_existing_branch: true,
+            sync_with_origin: false,
             should_copy_claude_locals: false,
         };
 
@@ -516,6 +523,7 @@ mod tests {
             parent_branch: "master",
             custom_branch: Some("feature/nonexistent"),
             use_existing_branch: true,
+            sync_with_origin: false,
             should_copy_claude_locals: false,
         };
 
@@ -544,6 +552,7 @@ mod tests {
             parent_branch: "master",
             custom_branch: None,
             use_existing_branch: true,
+            sync_with_origin: false,
             should_copy_claude_locals: false,
         };
 
