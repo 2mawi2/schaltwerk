@@ -9,12 +9,14 @@ import { BranchAutocomplete } from '../inputs/BranchAutocomplete'
 interface BranchSelectorPopoverProps {
   sessionName: string
   currentBaseBranch: string
+  originalBaseBranch?: string | null
   onBranchChange: () => void
 }
 
 export function BranchSelectorPopover({
   sessionName,
   currentBaseBranch,
+  originalBaseBranch,
   onBranchChange
 }: BranchSelectorPopoverProps) {
   const [isOpen, setIsOpen] = useState(false)
@@ -23,6 +25,8 @@ export function BranchSelectorPopover({
   const [isLoading, setIsLoading] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+
+  const hasCustomCompare = originalBaseBranch != null && currentBaseBranch !== originalBaseBranch
 
   useEffect(() => {
     setSelectedBranch(currentBaseBranch)
@@ -85,6 +89,24 @@ export function BranchSelectorPopover({
     setIsOpen(false)
   }, [currentBaseBranch])
 
+  const handleResetToDefault = useCallback(async () => {
+    if (!originalBaseBranch) return
+    setIsUpdating(true)
+    try {
+      await invoke(TauriCommands.SetSessionDiffBaseBranch, {
+        sessionName,
+        newBaseBranch: originalBaseBranch
+      })
+      setIsOpen(false)
+      onBranchChange()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      logger.error('[BranchSelectorPopover] Failed to reset base branch:', message)
+    } finally {
+      setIsUpdating(false)
+    }
+  }, [sessionName, originalBaseBranch, onBranchChange])
+
   const stopPropagation = (e: React.SyntheticEvent) => {
     e.stopPropagation()
   }
@@ -134,15 +156,21 @@ export function BranchSelectorPopover({
         type="button"
         onClick={() => setIsOpen(prev => !prev)}
         disabled={isUpdating}
-        className="p-1 rounded hover:bg-slate-800 transition-colors"
-        style={{ color: isOpen ? theme.colors.accent.blue.DEFAULT : theme.colors.text.secondary }}
-        title="Change diff comparison branch"
+        className="p-1 rounded hover:bg-slate-800 transition-colors relative"
+        style={{ color: isOpen ? theme.colors.accent.blue.DEFAULT : hasCustomCompare ? theme.colors.accent.amber.DEFAULT : theme.colors.text.secondary }}
+        title={hasCustomCompare ? `Custom compare: ${currentBaseBranch} (click to change)` : "Change diff comparison branch"}
         aria-label="Change diff comparison branch"
       >
         {isUpdating ? (
           <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
         ) : (
           <VscSettings className="text-base" />
+        )}
+        {hasCustomCompare && !isUpdating && (
+          <span
+            className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full"
+            style={{ backgroundColor: theme.colors.accent.amber.DEFAULT }}
+          />
         )}
       </button>
 
@@ -155,6 +183,22 @@ export function BranchSelectorPopover({
             minWidth: '200px'
           }}
         >
+          {hasCustomCompare && originalBaseBranch && (
+            <button
+              type="button"
+              onClick={() => void handleResetToDefault()}
+              disabled={isUpdating}
+              className="w-full text-left text-xs px-2 py-1.5 mb-2 rounded border transition-colors hover:opacity-80"
+              style={{
+                backgroundColor: theme.colors.background.primary,
+                borderColor: theme.colors.accent.amber.border,
+                color: theme.colors.text.primary
+              }}
+            >
+              <span style={{ color: theme.colors.text.secondary }}>Reset to: </span>
+              <span style={{ color: theme.colors.accent.amber.DEFAULT }}>{originalBaseBranch}</span>
+            </button>
+          )}
           <div className="text-xs mb-1.5" style={{ color: theme.colors.text.secondary }}>
             Compare against
           </div>

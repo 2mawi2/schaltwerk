@@ -156,6 +156,7 @@ mod tests {
                 branch: format!("{name}-branch"),
                 worktree_path: "/tmp".to_string(),
                 base_branch: "main".to_string(),
+                original_base_branch: Some("main".to_string()),
                 status: SessionStatusType::Active,
                 created_at: Some(chrono::Utc::now()),
                 last_modified: None,

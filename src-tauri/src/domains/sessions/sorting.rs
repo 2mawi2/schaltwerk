@@ -30,6 +30,7 @@ mod session_sorting_tests {
             repository_name: "test-repo".to_string(),
             branch: format!("branch-{}", name),
             parent_branch: "main".to_string(),
+            original_parent_branch: Some("main".to_string()),
             worktree_path: repo_path.join(format!("worktree-{}", name)),
             status,
             created_at: now - Duration::minutes(created_offset_minutes),

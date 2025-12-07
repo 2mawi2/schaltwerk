@@ -19,6 +19,7 @@ const invokeMock = vi.fn(async (cmd: string) => {
   if (cmd === TauriCommands.GetCurrentBranchName) return 'schaltwerk/feature'
   if (cmd === TauriCommands.GetBaseBranchName) return 'main'
   if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc', 'def']
+  if (cmd === TauriCommands.SchaltwerkCoreGetSession) return { original_parent_branch: 'main' }
   if (cmd === TauriCommands.SchaltwerkCoreResetSessionWorktree) return undefined
   if (cmd === TauriCommands.StartFileWatcher) return undefined
   if (cmd === TauriCommands.StopFileWatcher) return undefined
