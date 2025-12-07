@@ -22,6 +22,7 @@ export interface SessionData {
 interface SpecData {
   name: string
   content: string
+  display_name?: string | null
 }
 
 /**
@@ -58,10 +59,13 @@ export function useSessionPrefill() {
         return null
       })
 
+      let displayName: string | undefined
+
       if (spec) {
         sessionData = {
           spec_content: spec.content,
         }
+        displayName = spec.display_name ?? undefined
         logger.info('[useSessionPrefill] Raw spec data:', spec)
       } else {
         sessionData = await invoke<SessionData>(TauriCommands.SchaltwerkCoreGetSession, { name: sessionName })
@@ -70,12 +74,12 @@ export function useSessionPrefill() {
 
       const taskContent = extractSessionContent(sessionData)
       logger.info('[useSessionPrefill] Extracted agent content:', taskContent?.substring(0, 100), '...')
-      
+
       const baseBranch = sessionData?.parent_branch || undefined
       logger.info('[useSessionPrefill] Base branch:', baseBranch)
 
       const prefillData = {
-        name: sessionName,
+        name: displayName || sessionName,
         taskContent,
         baseBranch,
         lockName: false,

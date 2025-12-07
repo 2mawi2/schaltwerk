@@ -2060,6 +2060,7 @@ pub async fn schaltwerk_core_create_spec_session(
             agent_type.as_deref(),
             skip_permissions,
             None,
+            None,
         )
         .map_err(|e| format!("Failed to create spec session: {e}"))?;
 
@@ -2145,6 +2146,67 @@ pub async fn schaltwerk_core_rename_draft_session(
         .map_err(|e| format!("Failed to rename spec session: {e}"))?;
 
     // Emit sessions-refreshed event to update UI
+    events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SpecSync);
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn schaltwerk_core_rename_session_display_name(
+    app: tauri::AppHandle,
+    session_id: String,
+    new_display_name: String,
+) -> Result<(), String> {
+    log::info!("Renaming session display name: session_id={session_id}, new_name={new_display_name}");
+
+    let sanitized = schaltwerk::domains::agents::naming::sanitize_name(&new_display_name);
+    if sanitized.is_empty() {
+        return Err("Display name cannot be empty".to_string());
+    }
+
+    let core = get_core_read().await?;
+    let manager = core.session_manager();
+    let db = core.db.clone();
+
+    let current_name = if let Ok(session) = manager.get_session(&session_id) {
+        session.name.clone()
+    } else if let Ok(spec) = manager.get_spec(&session_id) {
+        spec.name.clone()
+    } else {
+        return Err(format!("Session or spec '{session_id}' not found"));
+    };
+
+    let sessions = manager.list_sessions().map_err(|e| e.to_string())?;
+    let specs = manager.list_specs().map_err(|e| e.to_string())?;
+
+    let duplicate_session = sessions.iter().find(|s| {
+        s.name != current_name
+            && s.display_name
+                .as_ref()
+                .map(|dn| dn == &sanitized)
+                .unwrap_or(false)
+    });
+    let duplicate_spec = specs.iter().find(|s| {
+        s.name != current_name
+            && s.display_name
+                .as_ref()
+                .map(|dn| dn == &sanitized)
+                .unwrap_or(false)
+    });
+
+    if duplicate_session.is_some() || duplicate_spec.is_some() {
+        return Err(format!("A session with the name '{sanitized}' already exists"));
+    }
+
+    if let Ok(session) = manager.get_session(&session_id) {
+        db.update_session_display_name(&session.id, &sanitized)
+            .map_err(|e| format!("Failed to update session display name: {e}"))?;
+    } else if let Ok(spec) = manager.get_spec(&session_id) {
+        use schaltwerk::infrastructure::database::db_specs::SpecMethods;
+        db.update_spec_display_name(&spec.id, &sanitized)
+            .map_err(|e| format!("Failed to update spec display name: {e}"))?;
+    }
+
     events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SpecSync);
 
     Ok(())

@@ -580,6 +580,18 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         }
     }, [reloadSessionsAndRefreshIdle])
 
+    const handleRenameSession = useCallback(async (sessionId: string, newName: string) => {
+        try {
+            await invoke(TauriCommands.SchaltwerkCoreRenameSessionDisplayName, {
+                sessionId,
+                newDisplayName: newName
+            })
+        } catch (error) {
+            logger.error('Failed to rename session:', error)
+            throw error
+        }
+    }, [])
+
     const triggerMarkReady = useCallback(async (sessionId: string) => {
         if (markReadyCooldownRef.current) {
             logger.debug(`[Sidebar] Skipping mark-ready for ${sessionId} (cooldown active)`)
@@ -1486,6 +1498,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                         getMergeStatus={getMergeStatus}
                                         isMarkReadyDisabled={isMarkReadyCoolingDown}
                                         isSessionBusy={isSessionMutating}
+                                        onRename={handleRenameSession}
                                     />
                                 )
                             })

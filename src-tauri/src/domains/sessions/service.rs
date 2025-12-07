@@ -2397,6 +2397,7 @@ impl SessionManager {
             session.original_agent_type.as_deref(),
             session.original_skip_permissions,
             Some(&session.parent_branch),
+            session.display_name.as_deref(),
         )?;
 
         log::info!(
@@ -2433,6 +2434,7 @@ impl SessionManager {
             session.original_agent_type.as_deref(),
             session.original_skip_permissions,
             Some(&session.parent_branch),
+            session.display_name.as_deref(),
         )?;
 
         log::info!(
@@ -3653,7 +3655,7 @@ impl SessionManager {
     }
 
     pub fn create_spec_session(&self, name: &str, spec_content: &str) -> Result<Spec> {
-        self.create_spec_session_with_agent(name, spec_content, None, None, None)
+        self.create_spec_session_with_agent(name, spec_content, None, None, None, None)
     }
 
     pub fn create_spec_session_with_agent(
@@ -3663,6 +3665,7 @@ impl SessionManager {
         agent_type: Option<&str>,
         _skip_permissions: Option<bool>,
         _parent_branch_override: Option<&str>,
+        display_name: Option<&str>,
     ) -> Result<Spec> {
         log::info!(
             "Creating spec '{}' (agent hints: {:?}) in repository: {}",
@@ -3690,7 +3693,7 @@ impl SessionManager {
         let spec = Spec {
             id: spec_id,
             name: unique_name.clone(),
-            display_name: None,
+            display_name: display_name.map(|s| s.to_string()),
             repository_path: self.repo_path.clone(),
             repository_name: repo_name,
             content: spec_content.to_string(),
@@ -3766,7 +3769,7 @@ impl SessionManager {
         );
 
         let spec =
-            self.create_spec_session_with_agent(name, spec_content, None, None, base_branch)?;
+            self.create_spec_session_with_agent(name, spec_content, None, None, base_branch, None)?;
         let session =
             self.start_spec_session(&spec.name, base_branch, version_group_id, version_number)?;
         Ok(session)

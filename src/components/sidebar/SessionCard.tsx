@@ -5,6 +5,7 @@ import { SessionActions } from "../session/SessionActions";
 import { SessionInfo, SessionMonitorStatus } from "../../types/session";
 import { UncommittedIndicator } from "../common/UncommittedIndicator";
 import { ProgressIndicator } from "../common/ProgressIndicator";
+import { InlineEditableText } from "../common/InlineEditableText";
 import { theme, getAgentColorScheme } from "../../common/theme";
 import { typography } from "../../common/typography";
 import type { MergeStatus } from "../../store/atoms/sessions";
@@ -48,6 +49,7 @@ interface SessionCardProps {
   mergeStatus?: MergeStatus;
   isMarkReadyDisabled?: boolean;
   isBusy?: boolean;
+  onRename?: (sessionId: string, newName: string) => Promise<void>;
 }
 
 function getSessionStateColor(state?: string): "green" | "violet" | "gray" {
@@ -199,6 +201,7 @@ export const SessionCard = memo<SessionCardProps>(
     mergeStatus = "idle",
     isMarkReadyDisabled = false,
     isBusy = false,
+    onRename,
   }) => {
     const shortcuts = useMultipleShortcutDisplays([
       KeyboardShortcutAction.OpenDiffViewer,
@@ -320,7 +323,16 @@ export const SessionCard = memo<SessionCardProps>(
         >
           <div className="flex-1 min-w-0">
             <div className="truncate flex items-center gap-2" style={sessionText.title}>
-              {sessionName}
+              {onRename ? (
+                <InlineEditableText
+                  value={sessionName}
+                  onSave={(newName) => onRename(s.session_id, newName)}
+                  textStyle={sessionText.title}
+                  disabled={isBusy}
+                />
+              ) : (
+                sessionName
+              )}
               {isReviewedState && (
                 <span
                   className="ml-2"

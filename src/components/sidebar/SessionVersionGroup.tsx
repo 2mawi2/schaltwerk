@@ -39,6 +39,7 @@ interface SessionVersionGroupProps {
   getMergeStatus?: (sessionId: string) => MergeStatus
   isMarkReadyDisabled?: boolean
   isSessionBusy?: (sessionId: string) => boolean
+  onRename?: (sessionId: string, newName: string) => Promise<void>
 }
 
 export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
@@ -67,7 +68,8 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
   isMergeDisabled,
   getMergeStatus,
   isMarkReadyDisabled = false,
-  isSessionBusy
+  isSessionBusy,
+  onRename
 }) => {
   const [isExpanded, setIsExpanded] = useState(true)
   const [isPreviewingDeletion, setIsPreviewingDeletion] = useState(false)
@@ -109,6 +111,7 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
         mergeStatus={getMergeStatus?.(session.session.info.session_id) ?? 'idle'}
         isMarkReadyDisabled={isMarkReadyDisabled}
         isBusy={isSessionBusy?.(session.session.info.session_id) ?? false}
+        onRename={onRename}
       />
     )
   }
@@ -335,6 +338,7 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
                       mergeStatus={getMergeStatus?.(version.session.info.session_id) ?? 'idle'}
                       isMarkReadyDisabled={isMarkReadyDisabled}
                       isBusy={isSessionBusy?.(version.session.info.session_id) ?? false}
+                      onRename={onRename}
                       />
                     </div>
                   )
