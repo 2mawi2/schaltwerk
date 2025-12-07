@@ -17,6 +17,7 @@ vi.mock('../../common/eventSystem', () => ({
         SessionsRefreshed: 'schaltwerk:sessions-refreshed',
         SessionGitStats: 'schaltwerk:session-git-stats',
         SessionAdded: 'schaltwerk:session-added',
+        SessionRemoved: 'schaltwerk:session-removed',
         GitOperationStarted: 'schaltwerk:git-operation-started',
         GitOperationCompleted: 'schaltwerk:git-operation-completed',
         GitOperationFailed: 'schaltwerk:git-operation-failed',
@@ -31,12 +32,16 @@ vi.mock('../../common/agentSpawn', () => ({
 }))
 
 vi.mock('../../common/uiEvents', () => ({
-    hasBackgroundStart: vi.fn(() => false),
-    clearBackgroundStarts: vi.fn(),
     emitUiEvent: vi.fn(),
     UiEvent: {
         PermissionError: 'permission-error',
     },
+}))
+
+vi.mock('../../common/terminalStartState', () => ({
+    isTerminalStartingOrStarted: vi.fn(() => false),
+    markTerminalStarting: vi.fn(),
+    clearTerminalStartState: vi.fn(),
 }))
 
 vi.mock('../../terminal/registry/terminalRegistry', () => ({
@@ -112,6 +117,7 @@ import { releaseSessionTerminals, hasTerminalInstance } from '../../terminal/reg
 import { startSessionTop } from '../../common/agentSpawn'
 import { singleflight as singleflightMock } from '../../utils/singleflight'
 import { stableSessionTerminalId } from '../../common/terminalIdentity'
+import { clearTerminalStartState } from '../../common/terminalStartState'
 
 const createSession = (overrides: Partial<EnrichedSession['info']>): EnrichedSession => ({
     info: {
@@ -1291,5 +1297,42 @@ describe('sessions atoms', () => {
             call => call[0]?.sessionName === 'session-b'
         )
         expect(sessionBRestartCalls).toHaveLength(0)
+    })
+
+    it('clears terminal start state when SessionRemoved fires to allow session recreation with same name', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+
+        vi.mocked(invoke).mockImplementation(async (cmd) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
+                return [
+                    createSession({ session_id: 'reusable-session', status: 'active', session_state: 'running' }),
+                ]
+            }
+            if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) {
+                return []
+            }
+            return undefined
+        })
+
+        store.set(projectPathAtom, '/project')
+        await store.set(initializeSessionsEventsActionAtom)
+        await store.set(refreshSessionsActionAtom)
+
+        expect(store.get(allSessionsAtom)).toHaveLength(1)
+        expect(store.get(allSessionsAtom)[0]?.info.session_id).toBe('reusable-session')
+
+        vi.mocked(clearTerminalStartState).mockClear()
+        vi.mocked(releaseSessionTerminals).mockClear()
+
+        listeners['schaltwerk:session-removed']?.({
+            session_name: 'reusable-session',
+        })
+
+        expect(store.get(allSessionsAtom)).toHaveLength(0)
+        expect(releaseSessionTerminals).toHaveBeenCalledWith('reusable-session')
+
+        const expectedTopId = stableSessionTerminalId('reusable-session', 'top')
+        const expectedBottomId = stableSessionTerminalId('reusable-session', 'bottom')
+        expect(clearTerminalStartState).toHaveBeenCalledWith([expectedTopId, expectedBottomId])
     })
 })

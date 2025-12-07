@@ -258,33 +258,3 @@ export function listenUiEvent<T extends UiEvent>(
   window.addEventListener(String(event), listener)
   return () => window.removeEventListener(String(event), listener)
 }
-
-// Deterministic, process-wide registry to record terminals that were background-started
-// before their UI mounted. This avoids duplicate auto-starts.
-const bgStarted = new Set<string>()  // terminalId strings, e.g., "session-foo-top"
-
-export function markBackgroundStart(terminalId: string) {
-  bgStarted.add(terminalId)
-  emitUiEvent(UiEvent.BackgroundStartMarked, { terminalId })
-}
-
-export function hasBackgroundStart(terminalId: string): boolean {
-  return bgStarted.has(terminalId)
-}
-
-export function clearBackgroundStarts(ids: string[]): void {
-  for (const id of ids) bgStarted.delete(id)
-}
-
-
-/**
- * Clear any marks that match a prefix. Useful on project close for orchestrator terminals.
- * Example: clearBackgroundStartsByPrefix(`orchestrator-${projectId}`)
- */
-export function clearBackgroundStartsByPrefix(prefix: string): void {
-  const toDelete: string[] = []
-  for (const id of bgStarted) {
-    if (id.startsWith(prefix)) toDelete.push(id)
-  }
-  clearBackgroundStarts(toDelete)
-}

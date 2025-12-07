@@ -314,8 +314,8 @@ describe('App.tsx', () => {
     mockState.currentDir = '/Users/me/sample-project'
     mockState.defaultBranch = 'main'
     Object.defineProperty(navigator, 'userAgent', { value: 'Mozilla/5.0 (Macintosh)', configurable: true })
-    const { clearBackgroundStartsByPrefix } = await import('./common/uiEvents')
-    clearBackgroundStartsByPrefix('')
+    const { clearTerminalStartStateByPrefix } = await import('./common/terminalStartState')
+    clearTerminalStartStateByPrefix('')
   })
 
   async function renderProjectAndReturnHome() {
@@ -772,8 +772,8 @@ describe('validatePanelPercentage', () => {
     vi.clearAllMocks()
     startSessionTopMock.mockClear()
     listenEventHandlers.length = 0
-    const { clearBackgroundStartsByPrefix } = await import('./common/uiEvents')
-    clearBackgroundStartsByPrefix('')
+    const { clearTerminalStartStateByPrefix } = await import('./common/terminalStartState')
+    clearTerminalStartStateByPrefix('')
   })
 
   it('should return default value when input is null', () => {

@@ -12,7 +12,8 @@ import { setSelectionFilterModeActionAtom, clearTerminalTrackingActionAtom } fro
 import type { GitOperationFailedPayload, GitOperationPayload, SessionsRefreshedEventPayload } from '../../common/events'
 import { hasInflight, singleflight } from '../../utils/singleflight'
 import { stableSessionTerminalId, isTopTerminalId } from '../../common/terminalIdentity'
-import { hasBackgroundStart, emitUiEvent, UiEvent } from '../../common/uiEvents'
+import { emitUiEvent, UiEvent } from '../../common/uiEvents'
+import { isTerminalStartingOrStarted, clearTerminalStartState } from '../../common/terminalStartState'
 import { startSessionTop, computeProjectOrchestratorId } from '../../common/agentSpawn'
 import { releaseSessionTerminals, hasTerminalInstance } from '../../terminal/registry/terminalRegistry'
 import { logger } from '../../utils/logger'
@@ -326,7 +327,7 @@ function autoStartRunningSessions(
         }
 
         if (pendingEntry && nextState === SessionState.Running) {
-            if (hasBackgroundStart(topId) || hasInflight(topId)) {
+            if (isTerminalStartingOrStarted(topId) || hasInflight(topId)) {
                 logger.info(`[AGENT_LAUNCH_TRACE] pending startup skipping ${sessionId}; background mark or inflight present`)
                 pending.delete(sessionId)
                 suppressedAutoStart.add(sessionId)
@@ -406,7 +407,7 @@ function autoStartRunningSessions(
                         return
                     }
 
-                    if (hasBackgroundStart(topId) || hasInflight(topId)) {
+                    if (isTerminalStartingOrStarted(topId) || hasInflight(topId)) {
                         logger.info(
                             `[AGENT_LAUNCH_TRACE] autoStartRunningSessions - skipping ${sessionId}; background mark or inflight present (hydration ${reason})`
                         )
@@ -443,7 +444,7 @@ function autoStartRunningSessions(
             continue
         }
 
-        if (hasBackgroundStart(topId) || hasInflight(topId)) {
+        if (isTerminalStartingOrStarted(topId) || hasInflight(topId)) {
             logger.info(`[AGENT_LAUNCH_TRACE] autoStartRunningSessions - skipping ${sessionId}; background mark or inflight present (${reason})`)
             continue
         }
@@ -1535,6 +1536,9 @@ export const initializeSessionsEventsActionAtom = atom(
             if (removed) {
                 releaseSessionTerminals(event.session_name)
                 suppressedAutoStart.delete(event.session_name)
+                const topId = stableSessionTerminalId(event.session_name, 'top')
+                const bottomId = stableSessionTerminalId(event.session_name, 'bottom')
+                clearTerminalStartState([topId, bottomId])
                 const pending = new Map(get(pendingStartupsAtom))
                 if (pending.delete(event.session_name)) {
                     set(pendingStartupsAtom, pending)

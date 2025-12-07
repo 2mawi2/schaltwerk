@@ -1,7 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState, forwardRef, useImperativeHandle, useCallback, useMemo, memo } from 'react';
 import { TauriCommands } from '../../common/tauriCommands'
 import { SchaltEvent, listenEvent } from '../../common/eventSystem'
-import { UiEvent, emitUiEvent, listenUiEvent, hasBackgroundStart, clearBackgroundStarts } from '../../common/uiEvents'
+import { UiEvent, emitUiEvent, listenUiEvent } from '../../common/uiEvents'
+import {
+  isTerminalStartingOrStarted,
+  markTerminalStarted,
+  clearTerminalStartState,
+} from '../../common/terminalStartState'
 import { recordTerminalSize } from '../../common/terminalSizeCache'
 import { Terminal as XTerm, type IDisposable } from '@xterm/xterm';
 import type { FitAddon } from '@xterm/addon-fit';
@@ -10,21 +15,19 @@ import { invoke } from '@tauri-apps/api/core'
 import { startOrchestratorTop, startSessionTop, AGENT_START_TIMEOUT_MESSAGE } from '../../common/agentSpawn'
 import { schedulePtyResize } from '../../common/ptyResizeScheduler'
 import { sessionTerminalBase, stableSessionTerminalId } from '../../common/terminalIdentity'
-import { clearInflights } from '../../utils/singleflight'
 import { UnlistenFn } from '@tauri-apps/api/event';
 import { useAtomValue, useSetAtom } from 'jotai'
-import { terminalFontSizeAtom } from '../../store/atoms/fontSize'
 import { previewStateAtom, setPreviewUrlActionAtom } from '../../store/atoms/preview'
 import { LocalPreviewWatcher } from '../../features/preview/localPreview'
 import type { AutoPreviewConfig } from '../../utils/runScriptPreviewConfig'
 import { useCleanupRegistry } from '../../hooks/useCleanupRegistry';
+import { useTerminalConfig } from '../../hooks/useTerminalConfig';
 import { theme } from '../../common/theme';
 import '@xterm/xterm/css/xterm.css';
 import './xtermOverrides.css';
 import { logger } from '../../utils/logger'
 import { useModal } from '../../contexts/ModalContext'
 import { safeTerminalFocus, safeTerminalFocusImmediate } from '../../utils/safeFocus'
-import { buildTerminalFontFamily } from '../../utils/terminalFonts'
 import { TerminalLoadingOverlay } from './TerminalLoadingOverlay'
 import { TerminalSearchPanel } from './TerminalSearchPanel'
 import { detectPlatformSafe } from '../../keyboardShortcuts/helpers'
@@ -54,9 +57,6 @@ import { TerminalViewportController } from './viewport/TerminalViewportControlle
 import { TERMINAL_FILE_DRAG_TYPE, type TerminalFileDragPayload } from '../../common/dragTypes'
 import { TerminalScrollButton } from './TerminalScrollButton'
 
-const DEFAULT_SCROLLBACK_LINES = 10000
-const BACKGROUND_SCROLLBACK_LINES = 5000
-const AGENT_SCROLLBACK_LINES = 20000
 const CLAUDE_SHIFT_ENTER_SEQUENCE = '\\'
 // Track last effective size we told the PTY (after guard), for SIGWINCH nudging
 const lastEffectiveRefInit = { cols: 80, rows: 24 }
@@ -86,20 +86,12 @@ const classifyWheelEvent = (event: WheelEvent, previous: boolean): boolean => {
     return previous;
 }
 
-// Xterm/WebGL rounds minimumContrastRatio to one decimal place; use a single shared value
-const ATLAS_CONTRAST_BASE = 1.1;
-
-// Global guard to avoid starting Claude multiple times for the same terminal id across remounts
-const startedGlobal = new Set<string>();
-
 // Export function to clear started tracking for specific terminals
 export function clearTerminalStartedTracking(terminalIds: string[]) {
-    terminalIds.forEach(id => startedGlobal.delete(id));
-    clearInflights(terminalIds);
-    clearBackgroundStarts(terminalIds);
+    clearTerminalStartState(terminalIds)
 }
 
-interface TerminalProps {
+export interface TerminalProps {
     terminalId: string;
     className?: string;
     sessionName?: string;
@@ -131,7 +123,6 @@ type TerminalFileLinkHandler = (text: string) => Promise<boolean> | boolean;
 const normalizeForComparison = (value: string) => value.replace(/\\/g, '/');
 
 const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalId, className = '', sessionName, isCommander = false, agentType, readOnly = false, onTerminalClick, isBackground = false, onReady, inputFilter, workingDirectory, previewKey, autoPreviewConfig }, ref) => {
-    const terminalFontSize = useAtomValue(terminalFontSizeAtom);
     const { addEventListener, addResizeObserver } = useCleanupRegistry();
     const { isAnyModalOpen } = useModal();
     const containerRef = useRef<HTMLDivElement | null>(null);
@@ -257,7 +248,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         };
     }, [autoPreviewConfig, previewKey, setPreviewUrl, getPreviewState, terminalId]);
 
-    const handleLinkClick = useCallback((uri: string) => {
+    const handleLinkClickRef = useRef<((uri: string) => boolean) | null>(null);
+    handleLinkClickRef.current = useCallback((uri: string) => {
         const watcher = previewWatcherRef.current;
         if (watcher) {
             const handled = watcher.handleClick(uri);
@@ -268,6 +260,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         }
         return false;
     }, [previewKey, terminalId]);
+
 
     const terminal = useRef<XTerm | null>(null);
     const onDataDisposableRef = useRef<IDisposable | null>(null);
@@ -308,13 +301,16 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         setSearchTerm('');
     }, []);
     const termDebug = () => (typeof window !== 'undefined' && localStorage.getItem('TERMINAL_DEBUG') === '1');
+    const terminalIdRef = useRef(terminalId);
+    terminalIdRef.current = terminalId;
+
     const setupViewportController = useCallback((instance: XtermTerminal | null) => {
         const current = viewportControllerRef.current;
         if (current) {
             try {
                 current.dispose();
             } catch (e) {
-                logger.debug(`[Terminal ${terminalId}] Failed to dispose previous viewport controller`, e);
+                logger.debug(`[Terminal ${terminalIdRef.current}] Failed to dispose previous viewport controller`, e);
             }
         }
         viewportControllerRef.current = null;
@@ -329,34 +325,46 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             try {
                 instance.refresh();
             } catch (e) {
-                logger.debug(`[Terminal ${terminalId}] Viewport refresh during controller setup failed`, e);
+                logger.debug(`[Terminal ${terminalIdRef.current}] Viewport refresh during controller setup failed`, e);
             }
         }
 
         viewportControllerRef.current = new TerminalViewportController({
             terminal: instance,
-            logger: termDebug() ? (msg) => logger.debug(`[Terminal ${terminalId}] ${msg}`) : undefined,
+            logger: termDebug() ? (msg) => logger.debug(`[Terminal ${terminalIdRef.current}] ${msg}`) : undefined,
         });
-    }, [terminalId]);
+    }, []);
     const outputCallbackRef = useRef<(() => void) | null>(null);
     const mountedRef = useRef<boolean>(false);
     const startingTerminals = useRef<Map<string, boolean>>(new Map());
     const previousTerminalId = useRef<string>(terminalId);
     const rendererReadyRef = useRef<boolean>(false); // Canvas renderer readiness flag
-    const [resolvedFontFamily, setResolvedFontFamily] = useState<string | null>(null);
-    const [customFontFamily, setCustomFontFamily] = useState<string | null>(null);
     const [fontsFullyLoaded, setFontsFullyLoaded] = useState(false);
-    const [smoothScrollingEnabled, setSmoothScrollingEnabled] = useState(true);
     const fontsLoadedRef = useRef(false);
+    const agentTypeRef = useRef(agentType);
+    agentTypeRef.current = agentType;
     const isPhysicalWheelRef = useRef(true);
     const isTerminalOnlyAgent = agentType === 'terminal';
-    // Agent conversation terminal detection reused across sizing logic and scrollback config
     const isAgentTopTerminal = useMemo(() => {
         if (isTerminalOnlyAgent) {
             return false;
         }
         return terminalId.endsWith('-top') && (terminalId.startsWith('session-') || terminalId.startsWith('orchestrator-'));
     }, [terminalId, isTerminalOnlyAgent]);
+
+    const {
+        config: terminalConfig,
+        configRef: terminalConfigRef,
+        resolvedFontFamily,
+        customFontFamily,
+        smoothScrollingEnabled,
+        terminalFontSize,
+        readOnlyRef,
+    } = useTerminalConfig({
+        isBackground,
+        isAgentTopTerminal,
+        readOnly,
+    });
     // Drag-selection suppression for run terminals
     const suppressNextClickRef = useRef<boolean>(false);
     const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null);
@@ -502,6 +510,44 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         cancelGpuRefreshWorkRef.current = cancelGpuRefreshWork;
     }, [cancelGpuRefreshWork]);
 
+    const refreshGpuFontRenderingRef = useRef(refreshGpuFontRendering);
+    useEffect(() => {
+        refreshGpuFontRenderingRef.current = refreshGpuFontRendering;
+    }, [refreshGpuFontRendering]);
+
+    const applyLetterSpacingRef = useRef(applyLetterSpacing);
+    useEffect(() => {
+        applyLetterSpacingRef.current = applyLetterSpacing;
+    }, [applyLetterSpacing]);
+
+    const handleFontPreferenceChangeRef = useRef(handleFontPreferenceChange);
+    useEffect(() => {
+        handleFontPreferenceChangeRef.current = handleFontPreferenceChange;
+    }, [handleFontPreferenceChange]);
+
+    const webglRendererActiveRef = useRef(webglRendererActive);
+    webglRendererActiveRef.current = webglRendererActive;
+
+    const onReadyRef = useRef(onReady);
+    useEffect(() => {
+        onReadyRef.current = onReady;
+    }, [onReady]);
+
+    const inputFilterRef = useRef(inputFilter);
+    useEffect(() => {
+        inputFilterRef.current = inputFilter;
+    }, [inputFilter]);
+
+    const beginClaudeShiftEnterRef = useRef(beginClaudeShiftEnter);
+    useEffect(() => {
+        beginClaudeShiftEnterRef.current = beginClaudeShiftEnter;
+    }, [beginClaudeShiftEnter]);
+
+    const finalizeClaudeShiftEnterRef = useRef(finalizeClaudeShiftEnter);
+    useEffect(() => {
+        finalizeClaudeShiftEnterRef.current = finalizeClaudeShiftEnter;
+    }, [finalizeClaudeShiftEnter]);
+
     const requestResize = useCallback((reason: string, options?: { immediate?: boolean; force?: boolean }) => {
         if (!fitAddon.current || !terminal.current) {
             return;
@@ -546,6 +592,11 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         });
     }, [readDimensions, terminalId]);
 
+    const requestResizeRef = useRef(requestResize);
+    useEffect(() => {
+        requestResizeRef.current = requestResize;
+    }, [requestResize]);
+
     // Selection-aware autoscroll helpers (run terminal: avoid jumping while user selects text)
     const isUserSelectingInTerminal = useCallback((): boolean => {
         try {
@@ -585,7 +636,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         setRestartInFlight(true);
         setAgentLoading(true);
         sessionStorage.removeItem(`schaltwerk:agent-stopped:${terminalId}`);
-        clearTerminalStartedTracking([terminalId]); // clears startedGlobal + inflights/background marks
+        clearTerminalStartedTracking([terminalId]);
 
              try {
                  // Provide initial size to avoid early overflow (apply guard)
@@ -706,62 +757,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         };
     }, [onTerminalClick]);
 
-    useEffect(() => {
-        let mounted = true;
-        const load = async () => {
-            try {
-                const settings = await invoke<{ fontFamily?: string | null; smoothScrolling?: boolean }>(TauriCommands.GetTerminalSettings);
-                const custom = settings?.fontFamily ?? null;
-                const chain = buildTerminalFontFamily(custom);
-                if (mounted) {
-                    setCustomFontFamily(custom);
-                    setResolvedFontFamily(chain);
-                    setSmoothScrollingEnabled(settings?.smoothScrolling ?? true);
-                }
-            } catch (err) {
-                logger.warn('[Terminal] Failed to load terminal settings for font family', err);
-                const chain = buildTerminalFontFamily(null);
-                if (mounted) {
-                    setCustomFontFamily(null);
-                    setResolvedFontFamily(chain);
-                    setSmoothScrollingEnabled(true);
-                }
-            }
-        };
-        void load();
-        return () => { mounted = false; };
-    }, []);
-
-    useEffect(() => {
-        let unsub: (() => void) | null = null
-        let cancelled = false
-        void (async () => {
-            try {
-                const cleanup = await listenUiEvent(UiEvent.TerminalFontUpdated, detail => {
-                    const custom = detail.fontFamily ?? null
-                    const chain = buildTerminalFontFamily(custom)
-                    setCustomFontFamily(custom)
-                    setResolvedFontFamily(chain)
-                })
-                if (cancelled) {
-                    cleanup()
-                    return
-                }
-                unsub = cleanup
-            } catch (error) {
-                logger.warn(`[Terminal ${terminalId}] Failed to register terminal font listener`, error)
-            }
-        })()
-        return () => {
-            cancelled = true
-            try {
-                unsub?.()
-            } catch (error) {
-                logger.warn(`[Terminal ${terminalId}] Failed to remove terminal font listener`, error)
-            }
-        }
-    }, [terminalId])
-
     // Listen for unified agent-start events to prevent double-starting
     useEffect(() => {
         let unlistenAgentStarted: UnlistenFn | null = null;
@@ -784,7 +779,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
                     logger.debug(`[Terminal] Received terminal-agent-started event for ${id}`);
 
-                    startedGlobal.add(id);
+                    markTerminalStarted(id);
 
                     if (id === terminalId) {
                         sessionStorage.removeItem(`schaltwerk:agent-stopped:${terminalId}`);
@@ -1084,32 +1079,12 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             return;
         }
 
-        // Revert: Always show a visible terminal cursor.
-        // Prior logic adjusted/hid the xterm cursor for TUI agents which led to
-        // "no cursor" reports in bottom terminals (e.g., Neovim/Neogrim). We now
-        // unconditionally enable a blinking block cursor for all terminals.
-        // Agent conversation terminals (session/orchestrator top) need deeper scrollback to preserve history
-        // Background terminals use reduced scrollback to save memory
-        let scrollbackLines = DEFAULT_SCROLLBACK_LINES; // Default for bottom terminals
-        if (isBackground) {
-            scrollbackLines = BACKGROUND_SCROLLBACK_LINES; // Reduced for background terminals
-        } else if (isAgentTopTerminal) {
-            scrollbackLines = AGENT_SCROLLBACK_LINES; // Deep history for agent conversation terminals
-        }
-
-        const atlasContrast = ATLAS_CONTRAST_BASE;
+        const currentConfig = terminalConfigRef.current;
 
         const { record, isNew } = acquireTerminalInstance(terminalId, () => new XtermTerminal({
             terminalId,
-            config: {
-                scrollback: scrollbackLines,
-                fontSize: terminalFontSize,
-                fontFamily: resolvedFontFamily || 'Menlo, Monaco, ui-monospace, SFMono-Regular, monospace',
-                readOnly,
-                minimumContrastRatio: atlasContrast,
-                smoothScrolling: smoothScrollingEnabled && isPhysicalWheelRef.current,
-            },
-            onLinkClick: handleLinkClick,
+            config: currentConfig,
+            onLinkClick: (uri: string) => handleLinkClickRef.current?.(uri) ?? false,
         }));
 
         if (isNew) {
@@ -1122,22 +1097,15 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 hydratedRef,
                 hydratedOnceRef,
                 setHydrated,
-                onReady,
+                onReady: onReadyRef.current,
             });
         }
         const instance = record.xterm;
         if (!isNew) {
-            instance.applyConfig({
-                scrollback: scrollbackLines,
-                fontSize: terminalFontSize,
-                fontFamily: resolvedFontFamily || 'Menlo, Monaco, ui-monospace, SFMono-Regular, monospace',
-                readOnly,
-                minimumContrastRatio: atlasContrast,
-                smoothScrolling: smoothScrollingEnabled && isPhysicalWheelRef.current,
-            });
+            instance.applyConfig(currentConfig);
         }
-        instance.setLinkHandler(handleLinkClick);
-        instance.setSmoothScrolling(smoothScrollingEnabled && isPhysicalWheelRef.current);
+        instance.setLinkHandler((uri: string) => handleLinkClickRef.current?.(uri) ?? false);
+        instance.setSmoothScrolling(currentConfig.smoothScrolling && isPhysicalWheelRef.current);
         xtermWrapperRef.current = instance;
         setupViewportController(instance);
 
@@ -1157,7 +1125,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         if (termRef.current) {
             instance.attach(termRef.current);
         }
-        applyLetterSpacing(webglRendererActive);
+        applyLetterSpacingRef.current?.(webglRendererActiveRef.current);
         // Allow streaming immediately; proper fits will still run later
         rendererReadyRef.current = true;
 
@@ -1177,7 +1145,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
             try {
                 fitAddon.current.fit();
-                requestResize('initial-fit', { immediate: true, force: true });
+                requestResizeRef.current?.('initial-fit', { immediate: true, force: true });
                 const { cols, rows } = terminal.current;
                 logger.info(`[Terminal ${terminalId}] Initial fit: ${cols}x${rows} (container: ${containerWidth}x${containerHeight})`);
             } catch (e) {
@@ -1199,7 +1167,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                     if (fitAddon.current && terminal.current) {
                         fitAddon.current.fit();
                         try {
-                            requestResize('renderer-init', { immediate: true, force: true });
+                            requestResizeRef.current?.('renderer-init', { immediate: true, force: true });
                         } catch (e) {
                             logger.warn(`[Terminal ${terminalId}] Early initial resize failed:`, e);
                         }
@@ -1215,7 +1183,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                         if (fitAddon.current && terminal.current) {
                             try {
                                 fitAddon.current.fit();
-                                requestResize('post-init', { immediate: true, force: true });
+                                requestResizeRef.current?.('post-init', { immediate: true, force: true });
                             } catch (e) {
                                 logger.warn(`[Terminal ${terminalId}] Post-init fit failed:`, e);
                             }
@@ -1292,7 +1260,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 viewportControllerRef.current?.onVisibilityChange(true);
 
                 try {
-                    requestResize('visibility', { immediate: true, force: true });
+                    requestResizeRef.current?.('visibility', { immediate: true, force: true });
                 } catch (e) {
                     logger.warn(`[Terminal ${terminalId}] Visibility fit failed:`, e);
                 }
@@ -1311,13 +1279,13 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
         // Intercept global shortcuts before xterm.js processes them
         terminal.current.attachCustomKeyEventHandler((event: KeyboardEvent) => {
-            if (!readOnly && shouldEmitControlPaste(event)) {
+            if (!readOnlyRef.current && shouldEmitControlPaste(event)) {
                 event.preventDefault()
                 writeTerminalBackend(terminalId, '\x16').catch(err => logger.debug('[Terminal] ctrl+v ignored (backend not ready yet)', err))
                 return false
             }
 
-            if (!readOnly && shouldEmitControlNewline(event)) {
+            if (!readOnlyRef.current && shouldEmitControlNewline(event)) {
                 event.preventDefault()
                 writeTerminalBackend(terminalId, '\n').catch(err => logger.debug('[Terminal] ctrl+j ignored (backend not ready yet)', err))
                 return false
@@ -1326,18 +1294,18 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             const isMac = navigator.userAgent.includes('Mac')
             const modifierKey = isMac ? event.metaKey : event.ctrlKey
             const shouldHandleClaudeShiftEnter = (
-                agentType === 'claude' &&
+                agentTypeRef.current === 'claude' &&
                 isAgentTopTerminal &&
                 event.key === 'Enter' &&
                 event.type === 'keydown' &&
                 event.shiftKey &&
                 !modifierKey &&
                 !event.altKey &&
-                !readOnly
+                !readOnlyRef.current
             )
 
             if (shouldHandleClaudeShiftEnter) {
-                beginClaudeShiftEnter();
+                beginClaudeShiftEnterRef.current?.();
                 return true
             }
             
@@ -1383,7 +1351,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 if (!isReadyForFit() || !fitAddon.current || !terminal.current) return;
                 try {
                     fitAddon.current.fit();
-                    requestResize('initial-raf', { immediate: true, force: true });
+                    requestResizeRef.current?.('initial-raf', { immediate: true, force: true });
                 } catch {
                     // ignore single-shot fit error; RO will retry
                 }
@@ -1405,9 +1373,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                         if (!hydratedOnceRef.current) {
                             hydratedOnceRef.current = true;
                             setHydrated(true);
-                            if (onReady) {
-                                onReady();
-                            }
+                            onReadyRef.current?.();
                         }
                     }
                 });
@@ -1433,13 +1399,13 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             }
 
             if (fontsLoadedRef.current) {
-                applyLetterSpacing(webglRendererActive);
-                refreshGpuFontRendering();
+                applyLetterSpacingRef.current?.(webglRendererActiveRef.current);
+                refreshGpuFontRenderingRef.current?.();
                 if (gpuEnabledForTerminal) {
-                    void handleFontPreferenceChange();
+                    void handleFontPreferenceChangeRef.current?.();
                 }
             } else {
-                applyLetterSpacing(false);
+                applyLetterSpacingRef.current?.(false);
             }
 
             if (fontSizeRafPending) return;
@@ -1450,7 +1416,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
                 try {
                     fitAddon.current.fit();
-                    requestResize('font-size-change', { immediate: true, force: true });
+                    requestResizeRef.current?.('font-size-change', { immediate: true, force: true });
                 } catch (e) {
                     logger.warn(`[Terminal ${terminalId}] Font size change fit failed:`, e);
                 }
@@ -1460,7 +1426,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         addEventListener(window, 'font-size-changed', handleFontSizeChange);
 
      // Send input to backend (disabled for readOnly terminals)
-        if (!readOnly) {
+        if (!terminalConfigRef.current.readOnly) {
             if (onDataDisposableRef.current) {
                 try {
                     onDataDisposableRef.current.dispose();
@@ -1471,10 +1437,11 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             }
 
             onDataDisposableRef.current = terminal.current.onData((data) => {
-                if (finalizeClaudeShiftEnter(data)) {
+                if (finalizeClaudeShiftEnterRef.current?.(data)) {
                     return;
                 }
-             if (inputFilter && !inputFilter(data)) {
+             const filter = inputFilterRef.current;
+             if (filter && !filter(data)) {
                  if (termDebug()) {
                      logger.debug(`[Terminal ${terminalId}] blocked input: ${JSON.stringify(data)}`);
                  }
@@ -1506,7 +1473,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
             const dragging = document.body.classList.contains('is-split-dragging');
             try {
-                requestResize('resize-observer', { force: dragging });
+                requestResizeRef.current?.('resize-observer', { force: dragging });
             } catch (e) {
                 logger.warn(`[Terminal ${terminalId}] resize-observer measurement failed; skipping this tick`, e);
             }
@@ -1552,7 +1519,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                             logger.debug(`[Terminal ${terminalId}] Split-final pre-fit failed`, err);
                         }
                         resizeCoordinatorRef.current?.flush('split-final');
-                        requestResize('split-final', { immediate: true, force: true });
+                        requestResizeRef.current?.('split-final', { immediate: true, force: true });
                     });
                 }
             } catch (error) {
@@ -1616,35 +1583,38 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         terminalId,
         addEventListener,
         addResizeObserver,
-        agentType,
-        isBackground,
-        terminalFontSize,
-        onReady,
-        resolvedFontFamily,
-        readOnly,
-        requestResize,
-        inputFilter,
-        isAgentTopTerminal,
-        beginClaudeShiftEnter,
-        finalizeClaudeShiftEnter,
-        refreshGpuFontRendering,
-        gpuEnabledForTerminal,
-        applyLetterSpacing,
-        gpuRenderer,
-        handleFontPreferenceChange,
-        webglRendererActive,
-        smoothScrollingEnabled,
         setupViewportController,
-        handleLinkClick,
+        gpuEnabledForTerminal,
+        gpuRenderer,
     ]);
 
+    const configEffectInitializedRef = useRef(false);
+    useEffect(() => {
+        if (!xtermWrapperRef.current) {
+            return;
+        }
+        if (!configEffectInitializedRef.current) {
+            configEffectInitializedRef.current = true;
+            return;
+        }
+        xtermWrapperRef.current.applyConfig(terminalConfig);
+        xtermWrapperRef.current.setSmoothScrolling(terminalConfig.smoothScrolling && isPhysicalWheelRef.current);
+        if (fitAddon.current) {
+            try {
+                fitAddon.current.fit();
+            } catch (e) {
+                logger.debug(`[Terminal ${terminalId}] Config update fit failed`, e);
+            }
+        }
+    }, [terminalConfig, terminalId]);
 
-     // Automatically start Claude for top terminals when hydrated and first ready
+
+     // Automatically start Claude for top terminals when terminal instance is ready
      useEffect(() => {
-        if (!hydrated) return;
+        if (!terminal.current) return;
         if (agentType === 'terminal') return;
          if (!terminalId.endsWith('-top')) return;
-         if (startedGlobal.has(terminalId)) return;
+         if (isTerminalStartingOrStarted(terminalId)) return;
          if (agentStopped) return;
 
         const start = async () => {
@@ -1654,23 +1624,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             startingTerminals.current.set(terminalId, true);
             setAgentLoading(true);
             try {
-                // Avoid duplicate start if a background-start mark exists for this terminal.
-                // IMPORTANT: also CONSUME the mark to prevent the global registry from leaking ids.
-                if (hasBackgroundStart(terminalId)) {
-                    setAgentLoading(false);
-                    startingTerminals.current.set(terminalId, false);
-                    try {
-                        clearBackgroundStarts([terminalId]);
-                        logger.debug(`[Terminal ${terminalId}] Consumed background-start mark.`);
-                    } catch (ce) {
-                        logger.warn(`[Terminal ${terminalId}] Failed to clear background-start mark:`, ce);
-                    }
-                    return;
-                }
                 if (isCommander || (terminalId.includes('orchestrator') && terminalId.endsWith('-top'))) {
                     // OPTIMIZATION: Skip terminal_exists check - trust that hydrated terminals are ready
-                     // Mark as started BEFORE invoking to prevent overlaps
-                     startedGlobal.add(terminalId);
                       try {
                             // Provide initial size at spawn to avoid early overflow in TUI apps
                             let measured: { cols?: number; rows?: number } | undefined
@@ -1694,7 +1649,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                             setAgentLoading(false);
                       } catch (e) {
                          // Roll back start flags on failure to allow retry
-                         startedGlobal.delete(terminalId);
+                         clearTerminalStartState([terminalId]);
                          logger.error(`[Terminal ${terminalId}] Failed to start Claude:`, e);
                         
                         // Check if it's a permission error and dispatch event
@@ -1734,8 +1689,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                         return;
                     }
                     // OPTIMIZATION: Skip session terminal_exists check too
-                     // Mark as started BEFORE invoking to prevent overlaps
-                     startedGlobal.add(terminalId);
                      try {
                            // Provide initial size for session terminals as well
                            let measured: { cols?: number; rows?: number } | undefined
@@ -1766,7 +1719,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                             });
                       } catch (e) {
                          // Roll back start flags on failure to allow retry
-                         startedGlobal.delete(terminalId);
+                         clearTerminalStartState([terminalId]);
                          logger.error(`[Terminal ${terminalId}] Failed to start Claude for session ${sessionName}:`, e);
                         
                         // Check if it's a permission error and dispatch event

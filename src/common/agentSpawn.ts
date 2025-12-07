@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../common/tauriCommands'
 import { bestBootstrapSize } from './terminalSizeCache'
-import { markBackgroundStart, clearBackgroundStarts, emitUiEvent, UiEvent } from './uiEvents'
+import { emitUiEvent, UiEvent } from './uiEvents'
 import { singleflight, hasInflight } from '../utils/singleflight'
 import { logger } from '../utils/logger'
 import { getErrorMessage } from '../types/errors'
@@ -12,6 +12,11 @@ import {
   DEFAULT_AGENT_START_TIMEOUT_MS,
 } from './agentLifecycleTracker'
 import { DEFAULT_AGENT } from '../constants/agents'
+import {
+  isTerminalStartingOrStarted,
+  markTerminalStarting,
+  clearTerminalStartState,
+} from './terminalStartState'
 
 export { EXTENDED_AGENT_START_TIMEOUT_MS, DEFAULT_AGENT_START_TIMEOUT_MS } from './agentLifecycleTracker'
 
@@ -130,11 +135,11 @@ export async function startSessionTop(params: {
     return
   }
 
-  if (hasInflight(topId)) {
-    logger.info(`[AGENT_LAUNCH_TRACE] startSessionTop skipped - already inflight: ${topId}`)
+  if (hasInflight(topId) || isTerminalStartingOrStarted(topId)) {
+    logger.info(`[AGENT_LAUNCH_TRACE] startSessionTop skipped - already inflight or started: ${topId}`)
     return
   }
-  markBackgroundStart(topId)
+  markTerminalStarting(topId)
   try {
     const { cols, rows } = computeSpawnSize({ topId, measured, projectOrchestratorId })
     const timeoutMs = determineStartTimeoutMs(agentType)
@@ -175,9 +180,9 @@ export async function startSessionTop(params: {
     })
   } catch (e) {
     try {
-      clearBackgroundStarts([topId])
+      clearTerminalStartState([topId])
     } catch (cleanupErr) {
-      logger.debug(`[agentSpawn] Failed to clear background starts during error cleanup for ${topId}`, cleanupErr)
+      logger.debug(`[agentSpawn] Failed to clear terminal start state during error cleanup for ${topId}`, cleanupErr)
     }
     throw e
   }
@@ -188,7 +193,7 @@ export async function startOrchestratorTop(params: {
   measured?: { cols?: number | null; rows?: number | null }
 }) {
   const { terminalId, measured } = params
-  if (hasInflight(terminalId)) return
+  if (hasInflight(terminalId) || isTerminalStartingOrStarted(terminalId)) return
 
   // Orchestrator always runs Claude today; keep agentType aligned with backend expectations/metrics
   const agentType = DEFAULT_AGENT
@@ -197,7 +202,7 @@ export async function startOrchestratorTop(params: {
   const timeoutMs = determineStartTimeoutMs(agentType)
   const command = TauriCommands.SchaltwerkCoreStartClaudeOrchestrator
 
-  markBackgroundStart(terminalId)
+  markTerminalStarting(terminalId)
   const spawnedAt = Date.now()
   recordAgentLifecycle({ ...lifecycleBase, state: 'spawned', whenMs: spawnedAt })
   emitUiEvent(UiEvent.AgentLifecycle, { ...lifecycleBase, state: 'spawned', occurredAtMs: spawnedAt })
@@ -233,10 +238,10 @@ export async function startOrchestratorTop(params: {
     })
   } catch (e) {
     try {
-      clearBackgroundStarts([terminalId])
+      clearTerminalStartState([terminalId])
     } catch (cleanupErr) {
       logger.debug(
-        `[agentSpawn] Failed to clear background starts during orchestrator error cleanup for ${terminalId}`,
+        `[agentSpawn] Failed to clear terminal start state during orchestrator error cleanup for ${terminalId}`,
         cleanupErr
       )
     }

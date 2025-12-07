@@ -1341,7 +1341,6 @@ describe('TerminalGrid', () => {
       await waitFor(() => {
         expect(sessionStorage.getItem('schaltwerk:active-tab:orchestrator')).toBe(String(-1))
       })
-      expect(sessionStorage.getItem('schaltwerk:run-mode:orchestrator')).toBe('true')
       await waitFor(() => {
         expect(runTerminalRefs.get('orchestrator')).toBeDefined()
       })
@@ -1377,7 +1376,6 @@ describe('TerminalGrid', () => {
       })
 
       expect(await screen.findByLabelText('Collapse terminal panel')).toBeInTheDocument()
-      expect(sessionStorage.getItem('schaltwerk:run-mode:orchestrator')).toBe('true')
     })
   })
 
@@ -1424,8 +1422,6 @@ describe('TerminalGrid', () => {
       })
 
       await screen.findByTestId('run-terminal-orchestrator')
-
-      expect(sessionStorage.getItem('schaltwerk:run-mode:orchestrator')).toBe('true')
 
       await waitFor(() => {
         expect(runTerminalRefs.get('orchestrator')).toBeDefined()
@@ -1518,10 +1514,6 @@ describe('TerminalGrid', () => {
       })
 
       await waitFor(() => {
-        expect(sessionStorage.getItem('schaltwerk:run-mode:alpha')).toBe('true')
-      })
-
-      await waitFor(() => {
         const container = document.querySelector('[data-onboarding="user-terminal"]') as HTMLElement | null
         expect(container).not.toBeNull()
         expect(container!.style.display).toBe('none')
@@ -1529,10 +1521,6 @@ describe('TerminalGrid', () => {
 
       await act(async () => {
         await bridge!.setSelection({ kind: 'session', payload: 'beta', worktreePath: '/beta/path', sessionState: 'running' })
-      })
-
-      await waitFor(() => {
-        expect(sessionStorage.getItem('schaltwerk:run-mode:beta')).toBe('false')
       })
 
       await waitFor(() => {

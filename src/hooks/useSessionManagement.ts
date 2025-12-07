@@ -2,7 +2,8 @@ import { useState, useCallback } from 'react'
 import { TauriCommands } from '../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { SchaltEvent, listenEvent } from '../common/eventSystem'
-import { UiEvent, emitUiEvent, TerminalResetDetail, markBackgroundStart, clearBackgroundStarts } from '../common/uiEvents'
+import { UiEvent, emitUiEvent, TerminalResetDetail } from '../common/uiEvents'
+import { markTerminalStarting, clearTerminalStartState } from '../common/terminalStartState'
 import { closeTerminalBackend, terminalExistsBackend } from '../terminal/transport/backend'
 
 export interface SessionSelection {
@@ -251,11 +252,11 @@ export function useSessionManagement(): SessionManagementHookReturn {
         // Mark this terminal as background-started so the auto-start effect in the
         // Terminal component doesn't immediately re-spawn the old agent while the
         // model-switch restart is in flight.
-        markBackgroundStart(claudeTerminalId)
+        markTerminalStarting(claudeTerminalId)
         try {
             await restartWithNewModel(selection, claudeTerminalId)
         } finally {
-            clearBackgroundStarts([claudeTerminalId])
+            clearTerminalStartState([claudeTerminalId])
         }
 
         const resetDetail: TerminalResetDetail = selection.kind === 'session' && selection.payload
