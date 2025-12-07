@@ -304,24 +304,18 @@ export function UnifiedDiffView({
 
   const visualFileOrder = useMemo(() => {
     const tree = buildFolderTree(files);
-    return getVisualFileOrder(tree);
+    const order = getVisualFileOrder(tree);
+    visualFileOrderRef.current = order;
+    return order;
   }, [files]);
 
-  useEffect(() => {
-    visualFileOrderRef.current = visualFileOrder;
-  }, [visualFileOrder]);
-
-  const filePathToIndex = useMemo(() => {
+  useMemo(() => {
     const map = new Map<string, number>();
     files.forEach((file, index) => {
       map.set(file.path, index);
     });
-    return map;
+    filePathToIndexRef.current = map;
   }, [files]);
-
-  useEffect(() => {
-    filePathToIndexRef.current = filePathToIndex;
-  }, [filePathToIndex]);
 
   useEffect(() => {
     if (!isOpen || mode !== "history") {
