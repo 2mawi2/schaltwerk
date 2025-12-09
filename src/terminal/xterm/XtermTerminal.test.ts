@@ -13,6 +13,11 @@ vi.mock('@xterm/xterm', () => {
     open = vi.fn()
     dispose = vi.fn()
     registerLinkProvider = vi.fn(() => ({ dispose: vi.fn() }))
+    scrollToBottom = vi.fn()
+    scrollLines = vi.fn()
+    buffer: { active: { baseY: number; viewportY: number } } | undefined = {
+      active: { baseY: 0, viewportY: 0 },
+    }
     element: HTMLElement | null = null
     parser = {
       registerOscHandler: vi.fn(() => true),
@@ -120,6 +125,68 @@ describe('XtermTerminal wrapper', () => {
     wrapper.attach(container)
     expect((child as HTMLElement).style.display).toBe('block')
     expect(instance.open).toHaveBeenCalledTimes(1)
+  })
+
+  it('restores scroll to bottom after reattach when it was at bottom on detach', async () => {
+    const { XtermTerminal } = await import('./XtermTerminal')
+    const wrapper = new XtermTerminal({
+      terminalId: 'scroll-restore',
+      config: {
+        scrollback: 5000,
+        fontSize: 12,
+        fontFamily: 'Menlo',
+        readOnly: false,
+        minimumContrastRatio: 1,
+        smoothScrolling: false,
+      },
+    })
+
+    const { Terminal: MockTerminal } = await import('@xterm/xterm') as unknown as {
+      Terminal: { __instances: Array<{ buffer: { active: { baseY: number; viewportY: number } }; scrollToBottom: ReturnType<typeof vi.fn>; scrollLines: ReturnType<typeof vi.fn> }> }
+    }
+    const instance = MockTerminal.__instances.at(-1)!
+    instance.buffer.active.baseY = 20
+    instance.buffer.active.viewportY = 20 // at bottom
+
+    const container = document.createElement('div')
+    wrapper.attach(container)
+
+    wrapper.detach()
+    expect(instance.scrollToBottom).not.toHaveBeenCalled()
+
+    wrapper.attach(container)
+
+    expect(instance.scrollToBottom).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not force scroll when user was not at bottom on detach', async () => {
+    const { XtermTerminal } = await import('./XtermTerminal')
+    const wrapper = new XtermTerminal({
+      terminalId: 'scroll-preserve',
+      config: {
+        scrollback: 5000,
+        fontSize: 12,
+        fontFamily: 'Menlo',
+        readOnly: false,
+        minimumContrastRatio: 1,
+        smoothScrolling: false,
+      },
+    })
+
+    const { Terminal: MockTerminal } = await import('@xterm/xterm') as unknown as {
+      Terminal: { __instances: Array<{ buffer: { active: { baseY: number; viewportY: number } }; scrollToBottom: ReturnType<typeof vi.fn> }> }
+    }
+    const instance = MockTerminal.__instances.at(-1)!
+    instance.buffer.active.baseY = 50
+    instance.buffer.active.viewportY = 40 // scrolled up
+
+    const container = document.createElement('div')
+    wrapper.attach(container)
+
+    wrapper.detach()
+    wrapper.attach(container)
+
+    expect(instance.scrollToBottom).not.toHaveBeenCalled()
   })
 
   it('updates underlying xterm options via updateOptions', async () => {

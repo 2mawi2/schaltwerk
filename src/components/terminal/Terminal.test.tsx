@@ -278,6 +278,8 @@ vi.mock('../../terminal/registry/terminalRegistry', () => {
     hasTerminalInstance: registryMocks.hasTerminalInstance,
     addTerminalOutputCallback: vi.fn(),
     removeTerminalOutputCallback: vi.fn(),
+    addTerminalClearCallback: vi.fn(),
+    removeTerminalClearCallback: vi.fn(),
   }
 })
 

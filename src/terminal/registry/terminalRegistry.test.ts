@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { acquireTerminalInstance, removeTerminalInstance } from './terminalRegistry'
+import { acquireTerminalInstance, removeTerminalInstance, addTerminalClearCallback, removeTerminalClearCallback } from './terminalRegistry'
 import { terminalOutputManager } from '../stream/terminalOutputManager'
 
 vi.mock('../stream/terminalOutputManager', () => ({
@@ -24,6 +24,7 @@ describe('terminalRegistry stream flushing', () => {
 
   beforeEach(() => {
     vi.useFakeTimers()
+    vi.clearAllMocks()
     ;(global as unknown as { requestAnimationFrame?: typeof requestAnimationFrame }).requestAnimationFrame = (cb: FrameRequestCallback) => {
       const handle = setTimeout(() => cb(performance.now()), 0) as unknown as number
       rafHandles.push(handle)
@@ -41,11 +42,20 @@ describe('terminalRegistry stream flushing', () => {
     vi.useRealTimers()
   })
 
-  it('flushes pending chunks even when chunks arrive continuously', async () => {
+  it('batches and flushes pending chunks on animation frame', async () => {
     const rawWrite = vi.fn()
     const factory = () =>
       ({
-        raw: { write: rawWrite },
+        raw: {
+          write: rawWrite,
+          scrollToBottom: vi.fn(),
+          buffer: {
+            active: {
+              baseY: 10,
+              viewportY: 10,
+            },
+          },
+        },
         attach: vi.fn(),
         detach: vi.fn(),
         dispose: vi.fn(),
@@ -70,9 +80,51 @@ describe('terminalRegistry stream flushing', () => {
 
     await vi.runAllTimersAsync()
 
+    // All chunks batched into single write
     expect(rawWrite).toHaveBeenCalledTimes(1)
-    expect(rawWrite).toHaveBeenCalledWith('abc')
+    expect(rawWrite).toHaveBeenCalledWith('abc', expect.any(Function))
 
     removeTerminalInstance('stream-test')
+  })
+
+  it('clears pending chunks when clear sequence is detected', async () => {
+    const rawWrite = vi.fn()
+    const factory = () =>
+      ({
+        raw: {
+          write: rawWrite,
+          scrollToBottom: vi.fn(),
+          buffer: {
+            active: {
+              baseY: 10,
+              viewportY: 10,
+            },
+          },
+        },
+        attach: vi.fn(),
+        detach: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as import('../xterm/XtermTerminal').XtermTerminal)
+
+    acquireTerminalInstance('clear-test', factory)
+
+    const clearCb = vi.fn()
+    addTerminalClearCallback('clear-test', clearCb)
+
+    const listener = addListenerMock.mock.calls[0][1] as (chunk: string) => void
+
+    // Simulate some output followed by a clear sequence
+    listener('old content')
+    listener('\x1b[3J') // Clear scrollback sequence
+
+    await vi.runAllTimersAsync()
+
+    // Only the clear sequence should be written (old content cleared)
+    expect(rawWrite).toHaveBeenCalledTimes(1)
+    expect(rawWrite).toHaveBeenCalledWith('\x1b[3J', expect.any(Function))
+    expect(clearCb).toHaveBeenCalledTimes(1)
+
+    removeTerminalClearCallback('clear-test', clearCb)
+    removeTerminalInstance('clear-test')
   })
 })
