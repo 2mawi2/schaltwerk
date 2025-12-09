@@ -150,6 +150,18 @@ export class TerminalViewportController {
   }
 
   /**
+   * Notify the controller that the buffer was cleared (e.g. CSI 3J).
+   * Resets scroll tracking and snaps to bottom immediately.
+   */
+  onClear(): void {
+    if (this._disposed) return
+    this._userScrolledAway = false
+    this._lastKnownViewportY = null
+    this._logger?.('[TerminalViewportController] Clear detected, reset scroll state')
+    this._refreshAndSnap('clear')
+  }
+
+  /**
    * Force a refresh and conditional snap to bottom.
    */
   private _refreshAndSnap(source: string): void {

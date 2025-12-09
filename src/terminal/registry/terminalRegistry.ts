@@ -7,11 +7,6 @@ import { terminalOutputManager } from '../stream/terminalOutputManager';
 const ESC = '\x1b';
 const CLEAR_SCROLLBACK_SEQ = `${ESC}[3J`;
 
-function filterScrollbackClear(output: string): string {
-  if (!output.includes(CLEAR_SCROLLBACK_SEQ)) return output;
-  return output.split(CLEAR_SCROLLBACK_SEQ).join('');
-}
-
 export interface TerminalInstanceRecord {
   id: string;
   xterm: XtermTerminal;
@@ -26,6 +21,8 @@ export interface TerminalInstanceRecord {
   rafHandle?: number;
   lastChunkTime?: number;
   outputCallbacks?: Set<() => void>;
+  clearCallbacks?: Set<() => void>;
+  hadClearInBatch?: boolean;
 }
 
 export interface AcquireTerminalResult {
@@ -191,6 +188,21 @@ class TerminalInstanceRegistry {
     record.outputCallbacks.delete(callback);
   }
 
+  addClearCallback(id: string, callback: () => void): void {
+    const record = this.instances.get(id);
+    if (!record) return;
+    if (!record.clearCallbacks) {
+      record.clearCallbacks = new Set();
+    }
+    record.clearCallbacks.add(callback);
+  }
+
+  removeClearCallback(id: string, callback: () => void): void {
+    const record = this.instances.get(id);
+    if (!record?.clearCallbacks) return;
+    record.clearCallbacks.delete(callback);
+  }
+
   private notifyOutputCallbacks(record: TerminalInstanceRecord): void {
     if (!record.outputCallbacks) return;
     for (const cb of record.outputCallbacks) {
@@ -202,6 +214,17 @@ class TerminalInstanceRegistry {
     }
   }
 
+  private notifyClearCallbacks(record: TerminalInstanceRecord): void {
+    if (!record.clearCallbacks) return;
+    for (const cb of record.clearCallbacks) {
+      try {
+        cb();
+      } catch (error) {
+        logger.debug(`[Registry] Clear callback error for ${record.id}`, error);
+      }
+    }
+  }
+
   private ensureStream(record: TerminalInstanceRecord): void {
     if (record.streamRegistered) {
       return;
@@ -209,6 +232,8 @@ class TerminalInstanceRegistry {
 
     record.pendingChunks = [];
     record.rafScheduled = false;
+    record.hadClearInBatch = false;
+    record.hadClearInBatch = false;
 
     const flushChunks = () => {
       record.rafScheduled = false;
@@ -220,11 +245,23 @@ class TerminalInstanceRegistry {
 
       const combined = record.pendingChunks.join('');
       record.pendingChunks = [];
+      const hadClear = record.hadClearInBatch ?? false;
+      record.hadClearInBatch = false;
 
       this.notifyOutputCallbacks(record);
 
       try {
-        record.xterm.raw.write(combined);
+        const buffer = record.xterm.raw.buffer.active;
+        const baseY = buffer.baseY;
+        const viewportY = buffer.viewportY;
+        const isAtBottom = baseY - viewportY <= 1;
+        const shouldScroll = hadClear || isAtBottom;
+
+        record.xterm.raw.write(combined, () => {
+          if (shouldScroll) {
+            record.xterm.raw.scrollToBottom();
+          }
+        });
       } catch (error) {
         logger.debug(`[Registry] Failed to write batch for ${record.id}`, error);
       }
@@ -235,10 +272,15 @@ class TerminalInstanceRegistry {
         record.pendingChunks = [];
       }
 
-      const filtered = filterScrollbackClear(chunk);
-      if (!filtered) return;
+      // If a clear scrollback sequence arrives, drop any buffered chunks so we don't
+      // momentarily render stale content before the clear is applied.
+      if (chunk.includes(CLEAR_SCROLLBACK_SEQ)) {
+        this.notifyClearCallbacks(record);
+        record.pendingChunks = [];
+        record.hadClearInBatch = true;
+      }
 
-      record.pendingChunks.push(filtered);
+      record.pendingChunks.push(chunk);
 
       if (!record.rafScheduled) {
         record.rafScheduled = true;
@@ -287,6 +329,8 @@ class TerminalInstanceRegistry {
     record.rafScheduled = false;
     record.pendingChunks = undefined;
     record.lastChunkTime = undefined;
+    record.hadClearInBatch = false;
+    record.clearCallbacks = undefined;
 
     void terminalOutputManager.dispose(record.id).catch(error => {
       logger.debug(`[Registry] dispose stream failed for ${record.id}`, error);
@@ -343,4 +387,12 @@ export function addTerminalOutputCallback(id: string, callback: () => void): voi
 
 export function removeTerminalOutputCallback(id: string, callback: () => void): void {
   registry.removeOutputCallback(id, callback);
+}
+
+export function addTerminalClearCallback(id: string, callback: () => void): void {
+  registry.addClearCallback(id, callback);
+}
+
+export function removeTerminalClearCallback(id: string, callback: () => void): void {
+  registry.removeClearCallback(id, callback);
 }

@@ -97,6 +97,7 @@ export class XtermTerminal {
   private readonly terminalId: string
   private fileLinkHandler: FileLinkHandler | null = null
   private linkHandler: ((uri: string) => boolean | Promise<boolean>) | null = null
+  private wasAtBottomOnDetach: boolean | undefined
 
   constructor(options: XtermTerminalOptions) {
     this.terminalId = options.terminalId
@@ -176,9 +177,44 @@ export class XtermTerminal {
       target.appendChild(this.container)
     }
     this.container.style.display = 'block'
+
+    // Sync scrollbar with buffer state after reattachment
+    this.syncViewport()
+
+    // If we left the terminal at bottom, restore that position after reattach
+    const buffer = this.raw.buffer?.active
+    if (this.wasAtBottomOnDetach && buffer) {
+      try {
+        this.raw.scrollToBottom()
+      } catch (error) {
+        logger.debug(`[XtermTerminal ${this.terminalId}] scrollToBottom failed after attach`, error)
+      }
+    }
+
+    this.wasAtBottomOnDetach = undefined
+  }
+
+  private syncViewport(): void {
+    // Refresh the renderer to sync with current buffer state
+    const rawWithRefresh = this.raw as unknown as { refresh?: (start: number, end: number) => void }
+    if (typeof rawWithRefresh.refresh === 'function') {
+      rawWithRefresh.refresh(0, this.raw.rows - 1)
+    }
+
+    // Force scrollbar to recalc when there is existing scrollback
+    const buffer = this.raw.buffer?.active
+    if (buffer && buffer.baseY > 0) {
+      this.raw.scrollLines(0)
+    }
   }
 
   detach(): void {
+    const buffer = this.raw.buffer?.active
+    if (buffer) {
+      this.wasAtBottomOnDetach = buffer.baseY - buffer.viewportY <= 1
+    } else {
+      this.wasAtBottomOnDetach = true
+    }
     this.container.style.display = 'none'
   }
 
@@ -254,8 +290,10 @@ export class XtermTerminal {
   }
 
   refresh(): void {
-    // refresh is not in the public API types but is available on the instance
-    ;(this.raw as unknown as { refresh: (start: number, end: number) => void }).refresh(0, this.raw.rows - 1)
+    const rawWithRefresh = this.raw as unknown as { refresh?: (start: number, end: number) => void }
+    if (typeof rawWithRefresh.refresh === 'function') {
+      rawWithRefresh.refresh(0, this.raw.rows - 1)
+    }
   }
 
   setSmoothScrolling(enabled: boolean): void {

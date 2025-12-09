@@ -38,6 +38,8 @@ import {
     hasTerminalInstance,
     addTerminalOutputCallback,
     removeTerminalOutputCallback,
+    addTerminalClearCallback,
+    removeTerminalClearCallback,
 } from '../../terminal/registry/terminalRegistry'
 import { XtermTerminal } from '../../terminal/xterm/XtermTerminal'
 import { useTerminalGpu } from '../../hooks/useTerminalGpu'
@@ -335,6 +337,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         });
     }, []);
     const outputCallbackRef = useRef<(() => void) | null>(null);
+    const clearCallbackRef = useRef<(() => void) | null>(null);
     const mountedRef = useRef<boolean>(false);
     const startingTerminals = useRef<Map<string, boolean>>(new Map());
     const previousTerminalId = useRef<string>(terminalId);
@@ -1115,6 +1118,12 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         outputCallbackRef.current = outputCallback;
         addTerminalOutputCallback(terminalId, outputCallback);
 
+        const clearCallback = () => {
+            viewportControllerRef.current?.onClear();
+        };
+        clearCallbackRef.current = clearCallback;
+        addTerminalClearCallback(terminalId, clearCallback);
+
         if (fileLinkHandlerRef.current) {
             instance.setFileLinkHandler(fileLinkHandlerRef.current);
         }
@@ -1566,6 +1575,10 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             if (outputCallbackRef.current) {
                 removeTerminalOutputCallback(terminalId, outputCallbackRef.current);
                 outputCallbackRef.current = null;
+            }
+            if (clearCallbackRef.current) {
+                removeTerminalClearCallback(terminalId, clearCallbackRef.current);
+                clearCallbackRef.current = null;
             }
 
             setupViewportController(null);
