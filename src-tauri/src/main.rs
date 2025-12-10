@@ -995,18 +995,7 @@ fn main() {
     let log_dir = start_dir.as_ref().unwrap_or(&cwd);
     log::info!("Startup directory: {}", log_dir.display());
 
-    // Always return the directory if it exists - git check will happen in background
-    let initial_directory: Option<(String, Option<bool>)> = start_dir.and_then(|path| {
-        if path.is_dir() {
-            Some((path.to_string_lossy().to_string(), None))
-        } else {
-            log::warn!(
-                "❌ Invalid directory path: {}, opening at home",
-                path.display()
-            );
-            None
-        }
-    });
+    let initial_directory = startup::validate_cli_directory(start_dir.as_deref());
 
     // Create cleanup guard that will run on exit
     let _cleanup_guard = cleanup::TerminalCleanupGuard;
@@ -1310,54 +1299,53 @@ fn main() {
                 }
             });
 
-            // Check git status and initialize project in background
-            if let Some((dir, _)) = initial_directory.clone() {
-                let dir_path = std::path::PathBuf::from(&dir);
+            // Handle CLI directory argument based on validation result
+            {
                 let app_handle = app.handle().clone();
-                tauri::async_runtime::spawn(async move {
-                    // Check if it's a Git repository in background thread
-                    let is_git = match git2::Repository::discover(&dir_path) {
-                        Ok(_) => {
-                            log::info!("✅ Detected Git repository: {}", dir_path.display());
-                            true
-                        }
-                        Err(_) => {
-                            log::info!("Directory {} is not a Git repository, will open at home screen", dir_path.display());
-                            false
-                        }
-                    };
-
-                    if is_git {
-                        let manager = get_project_manager().await;
-                        if let Err(e) = manager.switch_to_project(dir_path.clone()).await {
-                            log::error!("Failed to set initial project: {e}");
-                        } else {
-                            log::info!("Initial project set to: {}", dir_path.display());
-                            // Emit project-ready event to notify frontend
-                            if let Err(e) = emit_event(&app_handle, SchaltEvent::ProjectReady, &dir_path.display().to_string()) {
-                                log::error!("Failed to emit project-ready event: {e}");
+                let cwd_str = cwd.to_string_lossy().to_string();
+                match initial_directory.clone() {
+                    startup::CliDirectoryResult::Valid(dir_path) => {
+                        let dir = dir_path.to_string_lossy().to_string();
+                        tauri::async_runtime::spawn(async move {
+                            log::info!("✅ Valid Git repository: {}", dir_path.display());
+                            let manager = get_project_manager().await;
+                            if let Err(e) = manager.switch_to_project(dir_path.clone()).await {
+                                log::error!("Failed to set initial project: {e}");
+                            } else {
+                                log::info!("Initial project set to: {}", dir_path.display());
+                                if let Err(e) = emit_event(&app_handle, SchaltEvent::ProjectReady, &dir) {
+                                    log::error!("Failed to emit project-ready event: {e}");
+                                }
                             }
-                        }
-
-                        // Emit event to open the Git repository
-                        if let Err(e) = emit_event(&app_handle, SchaltEvent::OpenDirectory, &dir) {
-                            log::error!("Failed to emit open-directory event: {e}");
-                        }
-                    } else {
-                        // Emit event to open home screen (non-Git directory)
-                        if let Err(e) = emit_event(&app_handle, SchaltEvent::OpenHome, &dir) {
-                            log::error!("Failed to emit open-home event: {e}");
-                        }
+                            if let Err(e) = emit_event(&app_handle, SchaltEvent::OpenDirectory, &dir) {
+                                log::error!("Failed to emit open-directory event: {e}");
+                            }
+                        });
                     }
-                });
-            } else {
-                let dir = cwd.to_string_lossy().to_string();
-                let app_handle = app.handle().clone();
-                tauri::async_runtime::spawn(async move {
-                    if let Err(e) = emit_event(&app_handle, SchaltEvent::OpenHome, &dir) {
-                        log::error!("Failed to emit open-home event: {e}");
+                    startup::CliDirectoryResult::ValidationError { path, error } => {
+                        let path_str = path.to_string_lossy().to_string();
+                        tauri::async_runtime::spawn(async move {
+                            log::warn!("CLI path validation failed: {error}");
+                            let payload = events::ProjectValidationErrorPayload {
+                                path: path_str.clone(),
+                                error,
+                            };
+                            if let Err(e) = emit_event(&app_handle, SchaltEvent::ProjectValidationError, &payload) {
+                                log::error!("Failed to emit project-validation-error event: {e}");
+                            }
+                            if let Err(e) = emit_event(&app_handle, SchaltEvent::OpenHome, &cwd_str) {
+                                log::error!("Failed to emit open-home event: {e}");
+                            }
+                        });
                     }
-                });
+                    startup::CliDirectoryResult::NoArgument => {
+                        tauri::async_runtime::spawn(async move {
+                            if let Err(e) = emit_event(&app_handle, SchaltEvent::OpenHome, &cwd_str) {
+                                log::error!("Failed to emit open-home event: {e}");
+                            }
+                        });
+                    }
+                }
             }
 
 
