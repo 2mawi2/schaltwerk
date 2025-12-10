@@ -41,6 +41,8 @@
     "coverage:all": "run-s test:frontend:coverage coverage:report coverage:rust",
     "coverage": "run-s test:frontend:coverage coverage:report",
     "build:rust": "cd src-tauri && CARGO_TERM_PROGRESS_WHEN=never cargo --quiet build --message-format=short",
+    "build:rust:fast": "cd src-tauri && CARGO_TERM_PROGRESS_WHEN=never cargo +nightly --quiet build -Z codegen-backend=cranelift --message-format=short",
+    "setup:fast-builds": "bash scripts/setup-fast-builds.sh",
     "check": "run-s test",
     "migrate-events": "node scripts/migrate-events.cjs",
     "validate-migration": "node scripts/validate-migration.cjs"
@@ -103,7 +105,6 @@
     "happy-dom": "^20.0.2",
     "knip": "^5.66.3",
     "npm-run-all2": "^8.0.0",
-    "terser": "^5.44.0",
     "typescript": "~5.9.3",
     "vite": "^7.1.9",
     "vitest": "^4.0.1"

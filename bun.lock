@@ -56,7 +56,6 @@
         "happy-dom": "^20.0.2",
         "knip": "^5.66.3",
         "npm-run-all2": "^8.0.0",
-        "terser": "^5.44.0",
         "typescript": "~5.9.3",
         "vite": "^7.1.9",
         "vitest": "^4.0.1",

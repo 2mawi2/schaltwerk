@@ -6,12 +6,29 @@ incremental = true
 # Uncomment the line below to re-enable shared cache:
 # target-dir = "/tmp/schaltwerk-shared-target"
 
-
+# macOS Intel
 [target.x86_64-apple-darwin]
 rustflags = ["-C", "target-cpu=native"]
 
+# macOS ARM (Apple Silicon)
 [target.aarch64-apple-darwin]
 rustflags = ["-C", "target-cpu=native"]
 
+# Linux x86_64 - use mold linker if available (install: apt/brew install mold)
+[target.x86_64-unknown-linux-gnu]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold", "-C", "target-cpu=native"]
+
+# Linux ARM64
+[target.aarch64-unknown-linux-gnu]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold", "-C", "target-cpu=native"]
+
 [net]
 git-fetch-with-cli = true
+
+# Alias for quick dev builds with Cranelift (requires nightly)
+# Usage: cargo +nightly build-fast
+[alias]
+build-fast = "build -Z codegen-backend=cranelift"
+check-fast = "check -Z codegen-backend=cranelift"
