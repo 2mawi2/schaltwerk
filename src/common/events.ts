@@ -32,6 +32,7 @@ export enum SchaltEvent {
   CloneProgress = 'schaltwerk:clone-progress',
   OrchestratorLaunchFailed = 'schaltwerk:orchestrator-launch-failed',
   DiffBaseBranchChanged = 'schaltwerk:diff-base-branch-changed',
+  ProjectValidationError = 'schaltwerk:project-validation-error',
 }
 
 
@@ -170,6 +171,11 @@ export interface DiffBaseBranchChangedPayload {
   new_base_branch: string
 }
 
+export interface ProjectValidationErrorPayload {
+  path: string
+  error: string
+}
+
 import { EnrichedSession } from '../types/session'
 
 export interface SessionsRefreshedEventPayload {
@@ -229,4 +235,5 @@ export type EventPayloadMap = {
   [SchaltEvent.CloneProgress]: CloneProgressPayload
   [SchaltEvent.OrchestratorLaunchFailed]: OrchestratorLaunchFailedPayload
   [SchaltEvent.DiffBaseBranchChanged]: DiffBaseBranchChangedPayload
+  [SchaltEvent.ProjectValidationError]: ProjectValidationErrorPayload
 }

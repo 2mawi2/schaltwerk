@@ -17,14 +17,14 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 {all-args}{after-help}
 
 EXAMPLES:
-    schaltwerk                    # Open current directory
-    schaltwerk /path/to/project   # Open specific project directory
+    schaltwerk                    # Open homescreen to select a project
+    schaltwerk /path/to/project   # Open specific Git repository
     schaltwerk --version, -V      # Show version information
     schaltwerk --help, -h         # Show this help message
 "
 )]
 pub struct Cli {
-    /// Optional project directory to open. Defaults to current working directory if omitted.
+    /// Path to a Git repository to open. Opens the homescreen if omitted.
     #[arg(value_name = "DIR")]
     pub dir: Option<PathBuf>,
 }

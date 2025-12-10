@@ -32,6 +32,7 @@ pub enum SchaltEvent {
     SetupScriptRequested,
     CloneProgress,
     OrchestratorLaunchFailed,
+    ProjectValidationError,
 }
 
 impl SchaltEvent {
@@ -68,6 +69,7 @@ impl SchaltEvent {
             SchaltEvent::SetupScriptRequested => "schaltwerk:setup-script-request",
             SchaltEvent::CloneProgress => "schaltwerk:clone-progress",
             SchaltEvent::OrchestratorLaunchFailed => "schaltwerk:orchestrator-launch-failed",
+            SchaltEvent::ProjectValidationError => "schaltwerk:project-validation-error",
         }
     }
 }
@@ -87,6 +89,13 @@ pub struct CloneProgressPayload {
     pub message: String,
     pub remote: String,
     pub kind: CloneProgressKind,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectValidationErrorPayload {
+    pub path: String,
+    pub error: String,
 }
 
 pub fn emit_event<T: Serialize + Clone>(

@@ -34,6 +34,7 @@ pub enum SchaltEvent {
     SetupScriptRequested,
     OrchestratorLaunchFailed,
     DiffBaseBranchChanged,
+    ProjectValidationError,
 }
 
 impl SchaltEvent {
@@ -72,6 +73,7 @@ impl SchaltEvent {
             SchaltEvent::SetupScriptRequested => "schaltwerk:setup-script-request",
             SchaltEvent::OrchestratorLaunchFailed => "schaltwerk:orchestrator-launch-failed",
             SchaltEvent::DiffBaseBranchChanged => "schaltwerk:diff-base-branch-changed",
+            SchaltEvent::ProjectValidationError => "schaltwerk:project-validation-error",
         }
     }
 }

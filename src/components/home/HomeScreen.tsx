@@ -20,9 +20,11 @@ const RECENT_PROJECT_DATE_OPTIONS: Intl.DateTimeFormatOptions = {
 
 interface HomeScreenProps {
   onOpenProject: (_path: string) => void
+  initialError?: string | null
+  onClearInitialError?: () => void
 }
 
-export function HomeScreen({ onOpenProject }: HomeScreenProps) {
+export function HomeScreen({ onOpenProject, initialError, onClearInitialError }: HomeScreenProps) {
   const [showNewProjectDialog, setShowNewProjectDialog] = useState(false)
   const [showCloneDialog, setShowCloneDialog] = useState(false)
   
@@ -36,7 +38,12 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
     handleOpenRecent,
     handleSelectDirectory,
     handleRemoveProject
-  } = useRecentProjects({ onOpenProject })
+  } = useRecentProjects({
+    onOpenProject,
+    onOperationSuccess: onClearInitialError
+  })
+
+  const displayError = error ?? initialError
 
   useEffect(() => {
     void loadRecentProjects()
@@ -64,12 +71,14 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
 
   const handleProjectCreated = async (projectPath: string) => {
     setError(null)
+    onClearInitialError?.()
     await loadRecentProjects()
     onOpenProject(projectPath)
   }
 
   const handleProjectCloned = (projectPath: string, shouldOpen: boolean) => {
     setError(null)
+    onClearInitialError?.()
     void loadRecentProjects().then(() => {
       if (shouldOpen) {
         onOpenProject(projectPath)
@@ -93,10 +102,10 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
           className="flex w-full flex-col"
           style={getContentAreaStyles()}
         >
-          {error && (
+          {displayError && (
             <div className="p-4 bg-red-950/50 border border-red-800 rounded-lg flex items-start gap-3">
               <VscWarning className="text-red-400 text-xl flex-shrink-0 mt-0.5" />
-              <p className="text-red-300 text-sm">{error}</p>
+              <p className="text-red-300 text-sm">{displayError}</p>
             </div>
           )}
 

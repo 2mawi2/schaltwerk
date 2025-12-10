@@ -519,6 +519,7 @@ function AppContent() {
   const [diffViewerState, setDiffViewerState] = useState<{ mode: 'session' | 'history'; filePath: string | null; historyContext?: HistoryDiffContext } | null>(null)
   const [isDiffViewerOpen, setIsDiffViewerOpen] = useState(false)
   const [showHome, setShowHome] = useState(true)
+  const [cliValidationError, setCliValidationError] = useState<string | null>(null)
   const [pendingActivePath, setPendingActivePath] = useState<string | null>(null)
   const [startFromDraftName, setStartFromSpecName] = useState<string | null>(null)
   const [showPermissionPrompt, setShowPermissionPrompt] = useState(false)
@@ -1041,6 +1042,12 @@ function AppContent() {
       logger.info('Opened home screen because', directoryPath, 'is not a Git repository')
     })
 
+    // Handle CLI project validation errors
+    const unlistenValidationErrorPromise = listenEvent(SchaltEvent.ProjectValidationError, async (payload) => {
+      logger.warn('CLI project validation error:', payload.error)
+      setCliValidationError(payload.error)
+    })
+
     // Deterministically pull active project on mount to avoid event race
     void (async () => {
       try {
@@ -1067,6 +1074,13 @@ function AppContent() {
           unlisten()
         } catch (error) {
           logger.warn('[App] Failed to remove home event listener', error)
+        }
+      })
+      void unlistenValidationErrorPromise.then(unlisten => {
+        try {
+          unlisten()
+        } catch (error) {
+          logger.warn('[App] Failed to remove validation error event listener', error)
         }
       })
     }
@@ -1694,7 +1708,11 @@ function AppContent() {
           }}
         />
         <div className="pt-[32px] h-full">
-          <HomeScreen onOpenProject={(path) => { void handleOpenProject(path) }} />
+          <HomeScreen
+            onOpenProject={(path) => { void handleOpenProject(path) }}
+            initialError={cliValidationError}
+            onClearInitialError={() => setCliValidationError(null)}
+          />
         </div>
         <SetupScriptApprovalModal
           open={Boolean(setupScriptProposal)}
@@ -1745,7 +1763,11 @@ function AppContent() {
       {showHome && (
         <div className="pt-[32px] h-full">
           <ErrorBoundary name="HomeScreen">
-            <HomeScreen onOpenProject={(path) => { void handleOpenProject(path) }} />
+            <HomeScreen
+              onOpenProject={(path) => { void handleOpenProject(path) }}
+              initialError={cliValidationError}
+              onClearInitialError={() => setCliValidationError(null)}
+            />
           </ErrorBoundary>
         </div>
       )}
