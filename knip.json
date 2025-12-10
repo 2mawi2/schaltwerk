@@ -19,8 +19,7 @@
     "@testing-library/dom",
     "@vitest/ui",
     "eslint",
-    "npm-run-all2",
-    "terser"
+    "npm-run-all2"
   ],
   "ignoreBinaries": [
     "vite",
