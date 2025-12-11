@@ -881,11 +881,10 @@ mod tests {
     async fn test_agent_top_terminal_has_larger_buffer() {
         use tokio::time::{Duration, sleep};
         let manager = TerminalManager::new();
-        // Simulate an agent conversation terminal (session top)
         let id = unique_id("session-longhistory-top");
 
-        // Spawn a one-shot shell that outputs > 3MB then exits
-        // This should exceed the old 2MB limit but fit within the new agent limit
+        // Use head to limit output to exactly 3MB (avoids hanging on `yes`)
+        // This is more reliable than dd|tr under parallel test load
         manager
             .create_terminal_with_app(
                 id.clone(),
@@ -893,41 +892,46 @@ mod tests {
                 "sh".to_string(),
                 vec![
                     "-c".to_string(),
-                    // Generate ~4MB of 'A' via dd + tr, then exit immediately
-                    "dd if=/dev/zero bs=1024 count=4096 2>/dev/null | tr '\\0' 'A'".to_string(),
+                    "head -c 3145728 /dev/zero | tr '\\0' 'A'".to_string(),
                 ],
                 vec![],
             )
             .await
             .unwrap();
 
+        let start = std::time::Instant::now();
+        let timeout = Duration::from_secs(30);
         let mut last_len = 0;
         let mut stable_count = 0;
-        let start = std::time::Instant::now();
 
         loop {
             let snapshot = manager.get_terminal_buffer(id.clone(), None).await.unwrap();
             let current_len = snapshot.data.len();
 
+            // Success: buffer exceeded old 2MB limit
             if current_len > 2 * 1024 * 1024 {
-                break;
+                println!("agent buffer length: {}", current_len);
+                safe_close(&manager, &id).await;
+                return;
             }
 
-            if current_len == last_len {
+            // Check for stable output (command finished but didn't reach target)
+            if current_len == last_len && current_len > 0 {
                 stable_count += 1;
-                if current_len > 0 && stable_count > 20 {
+                if stable_count > 40 {
+                    // Output stabilized - command finished
                     break;
                 }
             } else {
                 stable_count = 0;
             }
-
             last_len = current_len;
 
-            if start.elapsed() > Duration::from_secs(10) {
+            if start.elapsed() > timeout {
+                safe_close(&manager, &id).await;
                 panic!(
-                    "Buffer not populated after 10 seconds. Current size: {} bytes",
-                    current_len
+                    "Timeout after {:?}. Buffer size: {} bytes (expected >2MB)",
+                    timeout, current_len
                 );
             }
 
@@ -935,11 +939,13 @@ mod tests {
         }
 
         let snapshot = manager.get_terminal_buffer(id.clone(), None).await.unwrap();
-        println!("agent buffer length: {}", snapshot.data.len());
-        // Buffer should be larger than the previous 2MB default when using agent top terminals
-        assert!(snapshot.data.len() > 2 * 1024 * 1024);
-
         safe_close(&manager, &id).await;
+
+        assert!(
+            snapshot.data.len() > 2 * 1024 * 1024,
+            "Buffer should exceed 2MB for agent terminals, got {} bytes",
+            snapshot.data.len()
+        );
     }
 
     use futures;
