@@ -102,12 +102,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      - uses: taiki-e/install-action@7646916979096be288829d3d80a5e43636357a04
+      - uses: taiki-e/install-action@271014ec0fe73d05f4206c04b4392ad895d8f0e3
         with:
           tool: cargo-shear
           version: 1.5.2
 
-      - uses: taiki-e/install-action@7646916979096be288829d3d80a5e43636357a04
+      - uses: taiki-e/install-action@271014ec0fe73d05f4206c04b4392ad895d8f0e3
         with:
           tool: nextest
           version: 0.9.108
