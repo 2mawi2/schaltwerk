@@ -113,6 +113,33 @@ describe('useAgentTabs', () => {
             )
         })
 
+        it('forces fresh start when adding duplicate agent type', async () => {
+            const { result } = renderTabsHook('session-1', 'term-1')
+
+            act(() => {
+                result.current.ensureInitialized('claude')
+            })
+
+            mockInvoke.mockClear()
+
+            await act(async () => {
+                await result.current.addTab('claude')
+            })
+
+            expect(mockInvoke).toHaveBeenCalledWith(
+                TauriCommands.SchaltwerkCoreStartSessionAgentWithRestart,
+                {
+                    params: {
+                        sessionName: 'session-1',
+                        forceRestart: true,
+                        terminalId: 'term-1-1',
+                        agentType: 'claude',
+                        skipPrompt: true,
+                    },
+                }
+            )
+        })
+
         it('passes skipPermissions option to backend', async () => {
             const { result } = renderTabsHook('session-1', 'term-1')
 
@@ -186,6 +213,43 @@ describe('useAgentTabs', () => {
                 expect.objectContaining({ terminalId: 'term-1-1', agentType: 'codex' }),
             ])
             expect(state?.activeTab).toBe(1)
+        })
+
+        it('uses next available numeric index after closing a middle tab', async () => {
+            const { result } = renderTabsHook('session-1', 'term-1')
+
+            act(() => {
+                result.current.ensureInitialized('claude')
+            })
+
+            await act(async () => {
+                await result.current.addTab('codex')
+                await result.current.addTab('claude')
+            })
+
+            expect(result.current.getTabsState()?.tabs.map((t) => t.id)).toEqual([
+                'tab-0',
+                'tab-1',
+                'tab-2',
+            ])
+
+            act(() => {
+                result.current.closeTab(1)
+            })
+
+            expect(result.current.getTabsState()?.tabs.map((t) => t.id)).toEqual([
+                'tab-0',
+                'tab-2',
+            ])
+
+            await act(async () => {
+                await result.current.addTab('codex')
+            })
+
+            const state = result.current.getTabsState()
+            expect(state?.tabs.map((t) => t.id)).toEqual(['tab-0', 'tab-2', 'tab-3'])
+            expect(state?.tabs[2].terminalId).toBe('term-1-3')
+            expect(state?.activeTab).toBe(2)
         })
     })
 
