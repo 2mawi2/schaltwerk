@@ -41,7 +41,6 @@
     "coverage:all": "run-s test:frontend:coverage coverage:report coverage:rust",
     "coverage": "run-s test:frontend:coverage coverage:report",
     "build:rust": "cd src-tauri && CARGO_TERM_PROGRESS_WHEN=never cargo --quiet build --message-format=short",
-    "build:rust:fast": "cd src-tauri && CARGO_TERM_PROGRESS_WHEN=never cargo +nightly --quiet build -Z codegen-backend=cranelift --message-format=short",
     "setup:fast-builds": "bash scripts/setup-fast-builds.sh",
     "check": "run-s test",
     "migrate-events": "node scripts/migrate-events.cjs",
