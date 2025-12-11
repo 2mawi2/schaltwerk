@@ -75,6 +75,35 @@
         ]
       },
       {
+        "id": "gpt-5.2",
+        "label": "GPT-5.2",
+        "description": "Next-generation model with improved world knowledge and reasoning.",
+        "defaultReasoning": "medium",
+        "isDefault": false,
+        "reasoningOptions": [
+          {
+            "id": "low",
+            "label": "Low",
+            "description": "Fast responses with lighter reasoning"
+          },
+          {
+            "id": "medium",
+            "label": "Medium",
+            "description": "Balanced speed and reasoning depth"
+          },
+          {
+            "id": "high",
+            "label": "High",
+            "description": "Deep reasoning for complex problems"
+          },
+          {
+            "id": "xhigh",
+            "label": "Extra high",
+            "description": "Maximum reasoning depth for the most difficult tasks"
+          }
+        ]
+      },
+      {
         "id": "gpt-5.1",
         "label": "GPT-5.1",
         "description": "Broad world knowledge with strong general reasoning.",
