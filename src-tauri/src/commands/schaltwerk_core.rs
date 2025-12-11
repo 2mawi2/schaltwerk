@@ -1123,13 +1123,39 @@ pub async fn schaltwerk_core_cancel_session(
         // shells in deleted directories (which causes getcwd errors in tools like `just`).
         terminals::close_session_terminals_if_any(&name_for_bg).await;
 
-        let cancel_result = match get_core_write().await {
+        // Get session info with a brief lock, then release before slow filesystem operations
+        let session_info = match get_core_write().await {
             Ok(core) => {
                 let manager = core.session_manager();
-                // Use fast async cancellation
-                manager.fast_cancel_session(&name_for_bg).await
+                manager.get_session_for_cancellation(&name_for_bg)
             }
             Err(e) => Err(anyhow::anyhow!(e)),
+        };
+
+        let cancel_result = match session_info {
+            Ok(info) => {
+                // Perform slow filesystem operations WITHOUT holding the core write lock
+                use schaltwerk::schaltwerk_core::{
+                    CancellationConfig, StandaloneCancellationCoordinator,
+                };
+                let coordinator =
+                    StandaloneCancellationCoordinator::new(info.repo_path.clone(), info.session.clone());
+                let config = CancellationConfig::default();
+                let result = coordinator.cancel_filesystem_only(config).await;
+
+                // Only acquire lock briefly for final DB update
+                match result {
+                    Ok(fs_result) => match get_core_write().await {
+                        Ok(core) => {
+                            let manager = core.session_manager();
+                            manager.finalize_session_cancellation(&info.session.id, fs_result)
+                        }
+                        Err(e) => Err(anyhow::anyhow!(e)),
+                    },
+                    Err(e) => Err(e),
+                }
+            }
+            Err(e) => Err(e),
         };
 
         match cancel_result {

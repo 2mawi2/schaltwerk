@@ -13,4 +13,4 @@ pub mod sorting;
 
 pub use entity::{EnrichedSession, SessionState};
 pub use repository::SessionDbManager;
-pub use service::{AgentLaunchParams, SessionManager};
+pub use service::{AgentLaunchParams, SessionCancellationInfo, SessionManager};

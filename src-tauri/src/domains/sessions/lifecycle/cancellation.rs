@@ -4,12 +4,18 @@ use crate::domains::sessions::process_cleanup::terminate_processes_with_cwd;
 use crate::domains::sessions::repository::SessionDbManager;
 use anyhow::{Context, Result, anyhow};
 use log::{info, warn};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tokio::runtime::Handle;
 
 pub struct CancellationCoordinator<'a> {
     repo_path: &'a Path,
     db_manager: &'a SessionDbManager,
+}
+
+/// Standalone coordinator for filesystem operations only (no DB reference)
+pub struct StandaloneCancellationCoordinator {
+    repo_path: PathBuf,
+    session: Session,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -27,12 +33,155 @@ pub struct CancellationResult {
     pub errors: Vec<String>,
 }
 
+impl StandaloneCancellationCoordinator {
+    pub fn new(repo_path: PathBuf, session: Session) -> Self {
+        Self { repo_path, session }
+    }
+
+    /// Perform filesystem-only cancellation operations (no DB writes)
+    /// This can run WITHOUT holding the core write lock
+    pub async fn cancel_filesystem_only(&self, config: CancellationConfig) -> Result<CancellationResult> {
+        info!("Canceling session '{}' (filesystem-only)", self.session.name);
+
+        if self.session.session_state == SessionState::Spec {
+            return Err(anyhow!(
+                "Cannot cancel spec session '{}'. Use archive or delete spec operations instead.",
+                self.session.name
+            ));
+        }
+
+        let mut result = CancellationResult {
+            terminated_processes: Vec::new(),
+            worktree_removed: false,
+            branch_deleted: false,
+            errors: Vec::new(),
+        };
+
+        Self::check_uncommitted_changes(&self.session);
+
+        if !config.skip_process_cleanup {
+            result.terminated_processes = Self::terminate_processes_async(&self.session, &mut result.errors).await;
+        }
+
+        match Self::remove_worktree_async(&self.repo_path, &self.session.worktree_path, &self.session.name).await {
+            Ok(()) => result.worktree_removed = true,
+            Err(e) => result.errors.push(format!("Worktree removal failed: {e}")),
+        }
+
+        if !config.skip_branch_deletion {
+            match Self::delete_branch_async(&self.repo_path, &self.session.branch, &self.session.name).await {
+                Ok(()) => result.branch_deleted = true,
+                Err(e) => result.errors.push(format!("Branch deletion failed: {e}")),
+            }
+        }
+
+        if !result.errors.is_empty() {
+            warn!(
+                "Filesystem cancel {}: Completed with {} error(s)",
+                self.session.name,
+                result.errors.len()
+            );
+        } else {
+            info!("Filesystem cancel {}: Successfully completed", self.session.name);
+        }
+
+        Ok(result)
+    }
+
+    fn check_uncommitted_changes(session: &Session) {
+        if !session.worktree_path.exists() {
+            return;
+        }
+
+        let has_uncommitted = git::has_uncommitted_changes(&session.worktree_path).unwrap_or(false);
+        if has_uncommitted {
+            warn!(
+                "Canceling session '{}' with uncommitted changes",
+                session.name
+            );
+        }
+    }
+
+    async fn terminate_processes_async(session: &Session, errors: &mut Vec<String>) -> Vec<i32> {
+        if !session.worktree_path.exists() {
+            return Vec::new();
+        }
+
+        match terminate_processes_with_cwd(&session.worktree_path).await {
+            Ok(pids) => {
+                if !pids.is_empty() {
+                    info!(
+                        "Cancel {}: terminated {} lingering process(es): {:?}",
+                        session.name,
+                        pids.len(),
+                        pids
+                    );
+                }
+                pids
+            }
+            Err(e) => {
+                let msg = format!("Failed to terminate lingering processes: {e}");
+                warn!("Cancel {}: {}", session.name, msg);
+                errors.push(msg);
+                Vec::new()
+            }
+        }
+    }
+
+    async fn remove_worktree_async(repo_path: &Path, worktree_path: &Path, session_name: &str) -> Result<()> {
+        if !worktree_path.exists() {
+            warn!(
+                "Cancel {}: Worktree path missing, skipping removal: {}",
+                session_name,
+                worktree_path.display()
+            );
+            return Ok(());
+        }
+
+        let repo_path = repo_path.to_path_buf();
+        let worktree_path = worktree_path.to_path_buf();
+        let session_name = session_name.to_string();
+
+        tokio::task::spawn_blocking(move || {
+            git::remove_worktree(&repo_path, &worktree_path)?;
+            info!("Cancel {session_name}: Removed worktree");
+            Ok::<(), anyhow::Error>(())
+        })
+        .await
+        .map_err(|e| anyhow!("Task join error: {e}"))?
+    }
+
+    async fn delete_branch_async(repo_path: &Path, branch: &str, session_name: &str) -> Result<()> {
+        let repo_path = repo_path.to_path_buf();
+        let branch = branch.to_string();
+        let session_name = session_name.to_string();
+
+        tokio::task::spawn_blocking(move || {
+            if !git::branch_exists(&repo_path, &branch)? {
+                info!("Cancel {session_name}: Branch doesn't exist, skipping deletion");
+                return Ok(());
+            }
+
+            git::delete_branch(&repo_path, &branch)?;
+            info!("Deleted branch '{branch}'");
+            Ok::<(), anyhow::Error>(())
+        })
+        .await
+        .map_err(|e| anyhow!("Task join error: {e}"))?
+    }
+}
+
 impl<'a> CancellationCoordinator<'a> {
     pub fn new(repo_path: &'a Path, db_manager: &'a SessionDbManager) -> Self {
         Self {
             repo_path,
             db_manager,
         }
+    }
+
+    /// Create a standalone coordinator for filesystem-only operations
+    pub fn new_standalone(repo_path: &Path, session: &Session) -> StandaloneCancellationCoordinator {
+        StandaloneCancellationCoordinator::new(repo_path.to_path_buf(), session.clone())
     }
 
     pub fn cancel_session(
@@ -304,8 +453,6 @@ impl<'a> CancellationCoordinator<'a> {
         worktree_path: &Path,
         session_name: &str,
     ) -> Result<()> {
-        use git2::{Repository, WorktreePruneOptions};
-
         if !worktree_path.exists() {
             warn!(
                 "Fast cancel {}: Worktree path missing, skipping removal: {}",
@@ -320,22 +467,7 @@ impl<'a> CancellationCoordinator<'a> {
         let session_name = session_name.to_string();
 
         tokio::task::spawn_blocking(move || {
-            let repo = Repository::open(&repo_path)?;
-            let worktrees = repo.worktrees()?;
-
-            for wt_name in worktrees.iter().flatten() {
-                if let Ok(wt) = repo.find_worktree(wt_name)
-                    && wt.path() == worktree_path
-                {
-                    wt.prune(Some(&mut WorktreePruneOptions::new())).ok();
-                    break;
-                }
-            }
-
-            if worktree_path.exists() {
-                std::fs::remove_dir_all(&worktree_path)?;
-            }
-
+            git::remove_worktree(&repo_path, &worktree_path)?;
             info!("Fast cancel {session_name}: Removed worktree");
             Ok::<(), anyhow::Error>(())
         })

@@ -6,6 +6,9 @@ use git2::{
 };
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+
+static WORKTREE_MUTEX: Mutex<()> = Mutex::new(());
 
 /// Discard changes for a single path inside a worktree.
 ///
@@ -260,9 +263,12 @@ pub fn create_worktree_from_base(
 }
 
 pub fn remove_worktree(repo_path: &Path, worktree_path: &Path) -> Result<()> {
+    let _lock = WORKTREE_MUTEX
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+
     let repo = Repository::open(repo_path)?;
 
-    // Find the worktree by path (handle path canonicalization for macOS)
     let canonical_target_path = worktree_path
         .canonicalize()
         .unwrap_or_else(|_| worktree_path.to_path_buf());
@@ -275,14 +281,10 @@ pub fn remove_worktree(repo_path: &Path, worktree_path: &Path) -> Result<()> {
                 .canonicalize()
                 .unwrap_or_else(|_| wt_path.to_path_buf());
             if canonical_wt_path == canonical_target_path || wt_path == worktree_path {
-                // First remove the directory (this makes the worktree invalid)
-                if worktree_path.exists()
-                    && let Err(e) = std::fs::remove_dir_all(worktree_path)
-                {
-                    return Err(anyhow!("Failed to remove worktree directory: {e}"));
+                if worktree_path.exists() {
+                    fast_remove_dir(worktree_path)?;
                 }
 
-                // Now prune the worktree (should work since directory is gone)
                 if let Err(e) = wt.prune(Some(&mut WorktreePruneOptions::new())) {
                     log::warn!("Failed to prune worktree from git registry: {e}");
                 }
@@ -291,12 +293,61 @@ pub fn remove_worktree(repo_path: &Path, worktree_path: &Path) -> Result<()> {
         }
     }
 
-    // If not found as a worktree, return an error unless directory exists
     if worktree_path.exists() {
-        std::fs::remove_dir_all(worktree_path)?;
+        fast_remove_dir(worktree_path)?;
         Ok(())
     } else {
         Err(anyhow!("Worktree not found: {worktree_path:?}"))
+    }
+}
+
+fn fast_remove_dir(path: &Path) -> Result<()> {
+    let trash_dir = path
+        .parent()
+        .unwrap_or(path)
+        .join(".schaltwerk-trash");
+
+    if !trash_dir.exists() {
+        fs::create_dir_all(&trash_dir)?;
+    }
+
+    let trash_name = format!(
+        "{}-{}",
+        path.file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("worktree"),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0)
+    );
+    let trash_path = trash_dir.join(&trash_name);
+
+    match fs::rename(path, &trash_path) {
+        Ok(()) => {
+            log::info!(
+                "Fast-moved worktree to trash: {} -> {}",
+                path.display(),
+                trash_path.display()
+            );
+            let trash_path_owned = trash_path.clone();
+            std::thread::spawn(move || {
+                if let Err(e) = fs::remove_dir_all(&trash_path_owned) {
+                    log::warn!("Background cleanup failed for {}: {e}", trash_path_owned.display());
+                } else {
+                    log::debug!("Background cleanup completed: {}", trash_path_owned.display());
+                }
+            });
+            Ok(())
+        }
+        Err(e) => {
+            log::warn!(
+                "Fast rename failed ({}), falling back to direct removal for {}",
+                e,
+                path.display()
+            );
+            fs::remove_dir_all(path).with_context(|| format!("Failed to remove {}", path.display()))
+        }
     }
 }
 
@@ -321,15 +372,18 @@ pub fn list_worktrees(repo_path: &Path) -> Result<Vec<PathBuf>> {
 }
 
 pub fn prune_worktrees(repo_path: &Path) -> Result<()> {
+    let _lock = WORKTREE_MUTEX
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+
     let repo = Repository::open(repo_path)?;
     let worktrees = repo.worktrees()?;
 
     for wt_name in worktrees.iter().flatten() {
-        if let Ok(wt) = repo.find_worktree(wt_name) {
-            // Try to prune invalid worktrees
-            if wt.validate().is_err() {
-                wt.prune(Some(&mut WorktreePruneOptions::new()))?;
-            }
+        if let Ok(wt) = repo.find_worktree(wt_name)
+            && wt.validate().is_err()
+        {
+            wt.prune(Some(&mut WorktreePruneOptions::new()))?;
         }
     }
 

@@ -215,6 +215,30 @@ impl SessionUtils {
             }
         }
 
+        self.cleanup_trash_directory()?;
+
+        Ok(())
+    }
+
+    fn cleanup_trash_directory(&self) -> Result<()> {
+        let worktrees_dir = self.repo_path.join(".schaltwerk/worktrees");
+        let trash_dir = worktrees_dir.join(".schaltwerk-trash");
+
+        if !trash_dir.exists() {
+            return Ok(());
+        }
+
+        log::info!("Cleaning up trash directory: {}", trash_dir.display());
+
+        match std::fs::remove_dir_all(&trash_dir) {
+            Ok(()) => {
+                log::info!("Trash directory cleaned up successfully");
+            }
+            Err(e) => {
+                log::warn!("Failed to clean up trash directory: {e}");
+            }
+        }
+
         Ok(())
     }
 
