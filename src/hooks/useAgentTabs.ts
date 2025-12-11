@@ -11,6 +11,8 @@ import { TauriCommands } from '../common/tauriCommands'
 import { logger } from '../utils/logger'
 import { displayNameForAgent } from '../components/shared/agentDefaults'
 import { AgentType } from '../types/session'
+import { clearTerminalStartState } from '../common/terminalStartState'
+import { removeTerminalInstance } from '../terminal/registry/terminalRegistry'
 
 type StartAgentFn = (params: {
     sessionId: string
@@ -26,6 +28,14 @@ export const useAgentTabs = (
     const [agentTabsMap, setAgentTabsMap] = useAtom(agentTabsStateAtom)
     const startAgent = options?.startAgent
 
+    const parseTabNumericIndex = useCallback((tab: AgentTab, fallback: number): number => {
+        if (tab.id.startsWith('tab-')) {
+            const maybe = Number(tab.id.slice(4))
+            if (Number.isFinite(maybe)) return maybe
+        }
+        return fallback
+    }, [])
+
     const ensureInitialized = useCallback(
         (initialAgentType: AgentType = 'claude') => {
             if (!sessionId || !baseTerminalId) return
@@ -39,7 +49,10 @@ export const useAgentTabs = (
                     const next = new Map(prev)
                     const updatedTabs = existing.tabs.map((tab, index) => ({
                         ...tab,
-                        terminalId: getAgentTabTerminalId(baseTerminalId, index),
+                        terminalId: getAgentTabTerminalId(
+                            baseTerminalId,
+                            parseTabNumericIndex(tab, index)
+                        ),
                     }))
                     next.set(sessionId, {
                         ...existing,
@@ -63,7 +76,7 @@ export const useAgentTabs = (
                 return next
             })
         },
-        [sessionId, baseTerminalId, setAgentTabsMap]
+        [sessionId, baseTerminalId, setAgentTabsMap, parseTabNumericIndex]
     )
 
     const getTabsState = useCallback(() => {
@@ -76,7 +89,9 @@ export const useAgentTabs = (
             if (!sessionId || !baseTerminalId) return
 
             let newTerminalId = ''
-            let newIndex = 0
+            let newTabArrayIndex = 0
+            let newTabNumericIndex = 0
+            let forceRestartForNewTab = false
 
             setAgentTabsMap((prev) => {
                 const next = new Map(prev)
@@ -96,11 +111,17 @@ export const useAgentTabs = (
                     }
                 }
 
-                newIndex = current.tabs.length
-                newTerminalId = getAgentTabTerminalId(baseTerminalId, newIndex)
+                newTabArrayIndex = current.tabs.length
+                forceRestartForNewTab = current.tabs.some((tab) => tab.agentType === agentType)
+                const numericIndices = current.tabs.map((tab, idx) =>
+                    parseTabNumericIndex(tab, idx)
+                )
+                newTabNumericIndex =
+                    numericIndices.length === 0 ? 0 : Math.max(...numericIndices) + 1
+                newTerminalId = getAgentTabTerminalId(baseTerminalId, newTabNumericIndex)
 
                 const newTab: AgentTab = {
-                    id: `tab-${newIndex}`,
+                    id: `tab-${newTabNumericIndex}`,
                     terminalId: newTerminalId,
                     label: displayNameForAgent(agentType) ?? DEFAULT_AGENT_TAB_LABEL,
                     agentType,
@@ -109,7 +130,7 @@ export const useAgentTabs = (
                 next.set(sessionId, {
                     ...current,
                     tabs: [...current.tabs, newTab],
-                    activeTab: newIndex,
+                    activeTab: newTabArrayIndex,
                 })
 
                 return next
@@ -117,14 +138,14 @@ export const useAgentTabs = (
 
             if (newTerminalId) {
                 logger.info(
-                    `[useAgentTabs] Starting new agent tab ${newIndex} with ${agentType} in ${newTerminalId}, skipPermissions=${options?.skipPermissions}`
+                    `[useAgentTabs] Starting new agent tab ${newTabArrayIndex} (idx=${newTabNumericIndex}) with ${agentType} in ${newTerminalId}, skipPermissions=${options?.skipPermissions}`
                 )
                 const starter = startAgent
                     ? startAgent({ sessionId, terminalId: newTerminalId, agentType })
                     : invoke(TauriCommands.SchaltwerkCoreStartSessionAgentWithRestart, {
                           params: {
                               sessionName: sessionId,
-                              forceRestart: false,
+                              forceRestart: forceRestartForNewTab,
                               terminalId: newTerminalId,
                               agentType: agentType,
                               skipPrompt: true,
@@ -133,13 +154,18 @@ export const useAgentTabs = (
                       })
 
                 Promise.resolve(starter).catch((err) => {
-                    logger.error(`[useAgentTabs] Failed to start agent for tab ${newIndex}:`, err)
+                    logger.error(
+                        `[useAgentTabs] Failed to start agent for tab ${newTabArrayIndex}:`,
+                        err
+                    )
                     setAgentTabsMap((prev) => {
                         const next = new Map(prev)
                         const current = next.get(sessionId)
                         if (!current) return prev
 
-                        const newTabs = current.tabs.filter((_, i) => i !== newIndex)
+                        const newTabs = current.tabs.filter(
+                            (_tab, i) => i !== newTabArrayIndex
+                        )
                         next.set(sessionId, {
                             ...current,
                             tabs: newTabs,
@@ -150,7 +176,7 @@ export const useAgentTabs = (
                 })
             }
         },
-        [sessionId, baseTerminalId, setAgentTabsMap, startAgent]
+        [sessionId, baseTerminalId, setAgentTabsMap, startAgent, parseTabNumericIndex]
     )
 
     const setActiveTab = useCallback(
@@ -190,6 +216,8 @@ export const useAgentTabs = (
                         err
                     )
                 })
+                clearTerminalStartState([tabToClose.terminalId])
+                removeTerminalInstance(tabToClose.terminalId)
 
                 const newTabs = current.tabs.filter((_, i) => i !== index)
 
@@ -225,6 +253,8 @@ export const useAgentTabs = (
                             e
                         )
                     })
+                    clearTerminalStartState([tab.terminalId])
+                    removeTerminalInstance(tab.terminalId)
                 }
             })
         }
