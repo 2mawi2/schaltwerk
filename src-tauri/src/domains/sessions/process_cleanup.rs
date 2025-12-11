@@ -133,9 +133,9 @@ async fn terminate_pid(pid: i32) -> bool {
         debug!("Sent SIGTERM to process {pid}");
     }
 
+    let slice = Duration::from_millis(50);
+    let timeout = Duration::from_millis(300);
     let mut waited = Duration::from_millis(0);
-    let slice = Duration::from_millis(100);
-    let timeout = Duration::from_millis(1500);
     while waited < timeout {
         if !process_alive(pid_t) {
             return true;
@@ -157,7 +157,7 @@ async fn terminate_pid(pid: i32) -> bool {
         debug!("Escalated to SIGKILL for process {pid}");
     }
 
-    for _ in 0..10 {
+    for _ in 0..4 {
         if !process_alive(pid_t) {
             return true;
         }

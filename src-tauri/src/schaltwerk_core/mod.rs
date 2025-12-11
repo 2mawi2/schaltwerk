@@ -14,7 +14,12 @@ pub mod agents {
 mod tests;
 
 pub use crate::domains::sessions::entity::{EnrichedSession, SessionState};
-pub use crate::domains::sessions::service::{AgentLaunchParams, SessionManager};
+pub use crate::domains::sessions::lifecycle::cancellation::{
+    CancellationConfig, CancellationResult, StandaloneCancellationCoordinator,
+};
+pub use crate::domains::sessions::service::{
+    AgentLaunchParams, SessionCancellationInfo, SessionManager,
+};
 pub use database::Database;
 
 use crate::domains::git;

@@ -116,6 +116,12 @@ fn resolve_launch_agent(
     ))
 }
 
+/// Info needed for session cancellation (extracted with brief lock, then released)
+pub struct SessionCancellationInfo {
+    pub session: Session,
+    pub repo_path: PathBuf,
+}
+
 pub struct SessionCreationParams<'a> {
     pub name: &'a str,
     pub prompt: Option<&'a str>,
@@ -2409,6 +2415,46 @@ impl SessionManager {
         };
 
         coordinator.cancel_session_async(&session, config).await?;
+        Ok(())
+    }
+
+    /// Get session info needed for cancellation (call with brief lock, then release)
+    pub fn get_session_for_cancellation(&self, name: &str) -> Result<SessionCancellationInfo> {
+        let session = self.db_manager.get_session_by_name(name)?;
+
+        if session.session_state == SessionState::Spec {
+            return Err(anyhow!(
+                "Cannot cancel spec session '{name}'. Use archive or delete spec operations instead."
+            ));
+        }
+
+        Ok(SessionCancellationInfo {
+            session,
+            repo_path: self.repo_path.clone(),
+        })
+    }
+
+    /// Finalize cancellation after filesystem operations complete (call with brief lock)
+    pub fn finalize_session_cancellation(
+        &self,
+        session_id: &str,
+        fs_result: crate::domains::sessions::lifecycle::cancellation::CancellationResult,
+    ) -> Result<()> {
+        self.db_manager
+            .update_session_status(session_id, SessionStatus::Cancelled)?;
+
+        if let Err(e) = self.db_manager.set_session_resume_allowed(session_id, false) {
+            log::warn!("Failed to gate resume for {session_id}: {e}");
+        }
+
+        if !fs_result.errors.is_empty() {
+            log::warn!(
+                "Session cancellation completed with {} error(s): {:?}",
+                fs_result.errors.len(),
+                fs_result.errors
+            );
+        }
+
         Ok(())
     }
 
