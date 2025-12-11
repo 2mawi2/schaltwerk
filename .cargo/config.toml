@@ -1,6 +1,9 @@
 [build]
 jobs = 8
 incremental = true
+# Use sccache for faster rebuilds (install: brew install sccache / apt install sccache)
+# Comment out if sccache is not installed
+rustc-wrapper = "sccache"
 # Each worktree will have its own target directory
 # This allows parallel builds but uses more disk space
 # Uncomment the line below to re-enable shared cache:
@@ -26,9 +29,3 @@ rustflags = ["-C", "link-arg=-fuse-ld=mold", "-C", "target-cpu=native"]
 
 [net]
 git-fetch-with-cli = true
-
-# Alias for quick dev builds with Cranelift (requires nightly)
-# Usage: cargo +nightly build-fast
-[alias]
-build-fast = "build -Z codegen-backend=cranelift"
-check-fast = "check -Z codegen-backend=cranelift"
