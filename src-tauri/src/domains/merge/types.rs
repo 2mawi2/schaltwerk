@@ -85,6 +85,27 @@ pub struct MergeOutcome {
     pub mode: MergeMode,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum UpdateFromParentStatus {
+    Success,
+    AlreadyUpToDate,
+    HasUncommittedChanges,
+    HasConflicts,
+    PullFailed,
+    MergeFailed,
+    NoSession,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateSessionFromParentResult {
+    pub status: UpdateFromParentStatus,
+    pub parent_branch: String,
+    pub message: String,
+    pub conflicting_paths: Vec<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -47,6 +47,7 @@ pub use schaltwerk_core::{
     schaltwerk_core_list_project_files, schaltwerk_core_list_sessions,
     schaltwerk_core_list_sessions_by_state, schaltwerk_core_mark_session_ready,
     schaltwerk_core_merge_session_to_main, schaltwerk_core_rename_draft_session,
+    schaltwerk_core_update_session_from_parent,
     schaltwerk_core_rename_session_display_name, schaltwerk_core_rename_version_group,
     schaltwerk_core_reset_orchestrator,
     schaltwerk_core_reset_session_worktree, schaltwerk_core_restore_archived_spec,
