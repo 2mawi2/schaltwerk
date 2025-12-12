@@ -123,7 +123,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Cache apt packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         id: apt-cache
         with:
           path: /var/cache/apt/archives
@@ -144,7 +144,7 @@ jobs:
       - name: Restore cargo home cache
         id: cache_cargo_home_restore
         if: ${{ !env.ACT }}
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: |
             ~/.cargo/bin/
@@ -156,7 +156,7 @@ jobs:
       - name: Restore cargo target cache
         id: cache_target_restore
         if: ${{ !env.ACT }}
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: src-tauri/target/
           key: cargo-target-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
@@ -182,7 +182,7 @@ jobs:
       - name: Save cargo home cache
         if: always() && !cancelled() && steps.cache_cargo_home_restore.outputs.cache-hit != 'true' && !env.ACT
         continue-on-error: true
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: |
             ~/.cargo/bin/
@@ -194,7 +194,7 @@ jobs:
       - name: Save cargo target cache
         if: always() && !cancelled() && steps.cache_target_restore.outputs.cache-hit != 'true' && !env.ACT
         continue-on-error: true
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: src-tauri/target/
           key: cargo-target-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
