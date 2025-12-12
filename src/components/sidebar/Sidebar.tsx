@@ -42,6 +42,7 @@ import { useClaudeSession } from '../../hooks/useClaudeSession'
 import { ORCHESTRATOR_SESSION_NAME } from '../../constants/sessions'
 import { projectPathAtom } from '../../store/atoms/project'
 import { useSessionMergeShortcut } from '../../hooks/useSessionMergeShortcut'
+import { useUpdateSessionFromParent } from '../../hooks/useUpdateSessionFromParent'
 import { DEFAULT_AGENT } from '../../constants/agents'
 
 // Removed legacy terminal-stuck idle handling; we rely on last-edited timestamps only
@@ -179,6 +180,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const { handleMergeShortcut, isSessionMerging } = useSessionMergeShortcut({
         getCommitDraftForSession,
     })
+    const { updateSessionFromParent } = useUpdateSessionFromParent()
 
     const handleMergeSession = useCallback(
         (sessionId: string) => {
@@ -911,6 +913,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         onResetSelection: handleResetSelectionShortcut,
         onOpenSwitchModel: handleOpenSwitchModelShortcut,
         onOpenMergeModal: () => { void handleMergeShortcut() },
+        onUpdateSessionFromParent: () => { void updateSessionFromParent() },
         onCreatePullRequest: handleCreatePullRequestShortcut,
         isDiffViewerOpen,
         isModalOpen: isAnyModalOpen()

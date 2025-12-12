@@ -534,6 +534,36 @@ pub async fn schaltwerk_core_merge_session_to_main(
 }
 
 #[tauri::command]
+pub async fn schaltwerk_core_update_session_from_parent(
+    name: String,
+) -> Result<schaltwerk::services::UpdateSessionFromParentResult, String> {
+    let core = get_core_read().await?;
+    let manager = core.session_manager();
+
+    let session = manager
+        .get_session(&name)
+        .map_err(|e| format!("Session not found: {e}"))?;
+
+    if session.session_state == SessionState::Spec {
+        return Ok(schaltwerk::services::UpdateSessionFromParentResult {
+            status: schaltwerk::services::UpdateFromParentStatus::NoSession,
+            parent_branch: session.parent_branch.clone(),
+            message: "Cannot update a spec session".to_string(),
+            conflicting_paths: Vec::new(),
+        });
+    }
+
+    let result = schaltwerk::services::update_session_from_parent(
+        &session.name,
+        &session.worktree_path,
+        &session.repository_path,
+        &session.parent_branch,
+    );
+
+    Ok(result)
+}
+
+#[tauri::command]
 pub async fn schaltwerk_core_archive_spec_session(
     app: tauri::AppHandle,
     name: String,

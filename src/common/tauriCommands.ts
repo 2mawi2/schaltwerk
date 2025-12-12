@@ -142,6 +142,7 @@ export const TauriCommands = {
   SchaltwerkCoreUnmarkSessionReady: 'schaltwerk_core_unmark_session_ready',
   SchaltwerkCoreUpdateSpecContent: 'schaltwerk_core_update_spec_content',
   SchaltwerkCoreMergeSessionToMain: 'schaltwerk_core_merge_session_to_main',
+  SchaltwerkCoreUpdateSessionFromParent: 'schaltwerk_core_update_session_from_parent',
   SetAgentBinaryPath: 'set_agent_binary_path',
   SetAgentCliArgs: 'set_agent_cli_args',
   SetAgentEnvVars: 'set_agent_env_vars',

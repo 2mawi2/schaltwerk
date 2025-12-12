@@ -131,6 +131,39 @@ describe('useKeyboardShortcuts', () => {
     expect(event.defaultPrevented).toBe(true)
   })
 
+  it('invokes update session from parent callback on mod+shift+u', () => {
+    const onSelectOrchestrator = vi.fn()
+    const onSelectSession = vi.fn()
+    const onUpdateSessionFromParent = vi.fn()
+
+    renderHook(() => useKeyboardShortcuts({
+      onSelectOrchestrator,
+      onSelectSession,
+      onUpdateSessionFromParent,
+      sessionCount: 1,
+    }))
+
+    const event = pressKey('u', { metaKey: true, shiftKey: true })
+
+    expect(onUpdateSessionFromParent).toHaveBeenCalledTimes(1)
+    expect(event.defaultPrevented).toBe(true)
+  })
+
+  it('does not invoke update session from parent when callback not provided', () => {
+    const onSelectOrchestrator = vi.fn()
+    const onSelectSession = vi.fn()
+
+    renderHook(() => useKeyboardShortcuts({
+      onSelectOrchestrator,
+      onSelectSession,
+      sessionCount: 1,
+    }))
+
+    const event = pressKey('u', { metaKey: true, shiftKey: true })
+
+    expect(event.defaultPrevented).toBe(false)
+  })
+
   it('does not navigate sessions with arrow keys when diff viewer is open', () => {
     const onSelectPrevSession = vi.fn()
     const onSelectNextSession = vi.fn()

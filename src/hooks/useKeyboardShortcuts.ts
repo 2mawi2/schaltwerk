@@ -32,6 +32,7 @@ interface KeyboardShortcutsProps {
   onResetSelection?: () => void
   onOpenSwitchModel?: () => void
   onOpenMergeModal?: () => void
+  onUpdateSessionFromParent?: () => void
   onCreatePullRequest?: () => void
   onOpenInApp?: () => void
 }
@@ -65,6 +66,7 @@ export function useKeyboardShortcuts(
     onResetSelection,
     onOpenSwitchModel,
     onOpenMergeModal,
+    onUpdateSessionFromParent,
     onCreatePullRequest,
     onOpenInApp,
   }: KeyboardShortcutsProps,
@@ -210,6 +212,12 @@ export function useKeyboardShortcuts(
         return
       }
 
+      if (onUpdateSessionFromParent && isShortcutForAction(event, KeyboardShortcutAction.UpdateSessionFromParent, shortcutConfig, { platform })) {
+        event.preventDefault()
+        onUpdateSessionFromParent()
+        return
+      }
+
       if (onCreatePullRequest && isShortcutForAction(event, KeyboardShortcutAction.CreatePullRequest, shortcutConfig, { platform })) {
         event.preventDefault()
         onCreatePullRequest()
@@ -246,6 +254,7 @@ export function useKeyboardShortcuts(
     onResetSelection,
     onOpenSwitchModel,
     onOpenMergeModal,
+    onUpdateSessionFromParent,
     onCreatePullRequest,
     onOpenInApp,
     isDiffViewerOpen,

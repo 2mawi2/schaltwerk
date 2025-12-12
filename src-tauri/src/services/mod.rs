@@ -34,7 +34,8 @@ pub use crate::domains::git::{
 };
 pub use crate::domains::git::{repository, worktrees};
 pub use crate::domains::merge::{
-    MergeMode, MergeOutcome, MergePreview, MergeService, types::MergeStateSnapshot,
+    MergeMode, MergeOutcome, MergePreview, MergeService, UpdateFromParentStatus,
+    UpdateSessionFromParentResult, types::MergeStateSnapshot, update_session_from_parent,
 };
 pub use crate::domains::power::types::GlobalState;
 pub use crate::domains::sessions::db_sessions::SessionMethods;

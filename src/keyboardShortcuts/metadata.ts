@@ -77,6 +77,11 @@ export const KEYBOARD_SHORTCUT_SECTIONS: ShortcutSection[] = [
         label: 'Quick merge session',
         description: 'Runs a squash merge instantly and only opens the dialog when conflicts or input is required.',
       },
+      {
+        action: KeyboardShortcutAction.UpdateSessionFromParent,
+        label: 'Update from parent',
+        description: 'Pulls latest changes from parent branch and merges into current session.',
+      },
       { action: KeyboardShortcutAction.CreatePullRequest, label: 'Create pull request' },
     ],
   },

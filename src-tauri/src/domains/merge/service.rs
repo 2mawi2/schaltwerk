@@ -27,7 +27,10 @@ use crate::domains::git::operations::{
 };
 use crate::domains::git::service as git;
 use crate::domains::merge::lock;
-use crate::domains::merge::types::{MergeMode, MergeOutcome, MergePreview, MergeState};
+use crate::domains::merge::types::{
+    MergeMode, MergeOutcome, MergePreview, MergeState, UpdateFromParentStatus,
+    UpdateSessionFromParentResult,
+};
 use crate::domains::sessions::db_sessions::SessionMethods;
 use crate::domains::sessions::entity::SessionState;
 use crate::domains::sessions::service::SessionManager;
@@ -1080,6 +1083,216 @@ fn index_entry_path(entry: &git2::IndexEntry) -> Option<String> {
     std::str::from_utf8(entry.path.as_ref())
         .ok()
         .map(|s| s.trim_end_matches(char::from(0)).to_string())
+}
+
+pub fn update_session_from_parent(
+    session_name: &str,
+    worktree_path: &std::path::Path,
+    repo_path: &std::path::Path,
+    parent_branch: &str,
+) -> UpdateSessionFromParentResult {
+    let empty_result = |status: UpdateFromParentStatus, message: String| {
+        UpdateSessionFromParentResult {
+            status,
+            parent_branch: parent_branch.to_string(),
+            message,
+            conflicting_paths: Vec::new(),
+        }
+    };
+
+    if has_uncommitted_changes(worktree_path).unwrap_or(true) {
+        return empty_result(
+            UpdateFromParentStatus::HasUncommittedChanges,
+            "Commit or stash changes before updating".to_string(),
+        );
+    }
+
+    let fetch_result = std::process::Command::new("git")
+        .args(["fetch", "origin", parent_branch])
+        .current_dir(repo_path)
+        .output();
+
+    if let Err(e) = fetch_result {
+        return empty_result(
+            UpdateFromParentStatus::PullFailed,
+            format!("Failed to fetch origin: {e}"),
+        );
+    }
+
+    let fetch_output = fetch_result.unwrap();
+    if !fetch_output.status.success() {
+        let stderr = String::from_utf8_lossy(&fetch_output.stderr);
+        debug!(
+            "update_session_from_parent: fetch failed for {parent_branch}: {stderr}"
+        );
+    }
+
+    let merge_result = std::process::Command::new("git")
+        .args(["merge", &format!("origin/{parent_branch}"), "--ff-only"])
+        .current_dir(repo_path)
+        .output();
+
+    if let Err(e) = merge_result {
+        warn!(
+            "update_session_from_parent: git merge command failed for {parent_branch}: {e}"
+        );
+    }
+
+    let repo = match Repository::open(worktree_path) {
+        Ok(r) => r,
+        Err(e) => {
+            return empty_result(
+                UpdateFromParentStatus::MergeFailed,
+                format!("Failed to open worktree repository: {e}"),
+            );
+        }
+    };
+
+    let remote_parent_ref = format!("origin/{parent_branch}");
+    let parent_oid = match repo.revparse_single(&remote_parent_ref) {
+        Ok(obj) => obj.id(),
+        Err(_) => {
+            match repo.revparse_single(parent_branch) {
+                Ok(obj) => obj.id(),
+                Err(e) => {
+                    return empty_result(
+                        UpdateFromParentStatus::PullFailed,
+                        format!("Could not find parent branch '{parent_branch}': {e}"),
+                    );
+                }
+            }
+        }
+    };
+
+    let head = match repo.head() {
+        Ok(h) => h,
+        Err(e) => {
+            return empty_result(
+                UpdateFromParentStatus::MergeFailed,
+                format!("Failed to get HEAD: {e}"),
+            );
+        }
+    };
+
+    let session_oid = match head.target() {
+        Some(oid) => oid,
+        None => {
+            return empty_result(
+                UpdateFromParentStatus::MergeFailed,
+                "HEAD has no target".to_string(),
+            );
+        }
+    };
+
+    let merge_base = match repo.merge_base(session_oid, parent_oid) {
+        Ok(base) => base,
+        Err(e) => {
+            return empty_result(
+                UpdateFromParentStatus::MergeFailed,
+                format!("Failed to find merge base: {e}"),
+            );
+        }
+    };
+
+    if merge_base == parent_oid {
+        return empty_result(
+            UpdateFromParentStatus::AlreadyUpToDate,
+            format!("Session already up to date with {parent_branch}"),
+        );
+    }
+
+    let parent_commit = match repo.find_commit(parent_oid) {
+        Ok(c) => c,
+        Err(e) => {
+            return empty_result(
+                UpdateFromParentStatus::MergeFailed,
+                format!("Failed to find parent commit: {e}"),
+            );
+        }
+    };
+    let session_commit = match repo.find_commit(session_oid) {
+        Ok(c) => c,
+        Err(e) => {
+            return empty_result(
+                UpdateFromParentStatus::MergeFailed,
+                format!("Failed to find session commit: {e}"),
+            );
+        }
+    };
+
+    let mut merge_opts = MergeOptions::new();
+    merge_opts.fail_on_conflict(false);
+
+    let merge_index = match repo.merge_commits(&session_commit, &parent_commit, Some(&merge_opts)) {
+        Ok(index) => index,
+        Err(e) => {
+            return empty_result(
+                UpdateFromParentStatus::MergeFailed,
+                format!("Failed to simulate merge: {e}"),
+            );
+        }
+    };
+
+    if merge_index.has_conflicts() {
+        let conflicting_paths = collect_conflicting_paths(&merge_index).unwrap_or_default();
+        let count = conflicting_paths.len();
+        return UpdateSessionFromParentResult {
+            status: UpdateFromParentStatus::HasConflicts,
+            parent_branch: parent_branch.to_string(),
+            message: format!(
+                "Merge conflicts detected in {count} file{}",
+                if count == 1 { "" } else { "s" }
+            ),
+            conflicting_paths,
+        };
+    }
+
+    let merge_commit_result = std::process::Command::new("git")
+        .args([
+            "merge",
+            &remote_parent_ref,
+            "-m",
+            &format!("Merge {parent_branch} into {session_name}"),
+        ])
+        .current_dir(worktree_path)
+        .output();
+
+    match merge_commit_result {
+        Ok(output) if output.status.success() => {
+            info!(
+                "update_session_from_parent: successfully merged {parent_branch} into session {session_name}"
+            );
+            empty_result(
+                UpdateFromParentStatus::Success,
+                format!("Session updated from {parent_branch}"),
+            )
+        }
+        Ok(output) => {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            if stderr.contains("CONFLICT") || stderr.contains("conflict") {
+                UpdateSessionFromParentResult {
+                    status: UpdateFromParentStatus::HasConflicts,
+                    parent_branch: parent_branch.to_string(),
+                    message: "Merge conflicts detected".to_string(),
+                    conflicting_paths: Vec::new(),
+                }
+            } else if stderr.contains("Already up to date") || stderr.contains("up-to-date") {
+                empty_result(
+                    UpdateFromParentStatus::AlreadyUpToDate,
+                    format!("Session already up to date with {parent_branch}"),
+                )
+            } else {
+                empty_result(
+                    UpdateFromParentStatus::MergeFailed,
+                    format!("Merge failed: {}", stderr.trim()),
+                )
+            }
+        }
+        Err(e) => empty_result(
+            UpdateFromParentStatus::MergeFailed,
+            format!("Failed to execute merge: {e}"),
+        ),
+    }
 }
 
 #[cfg(test)]
