@@ -81,7 +81,7 @@ export function useSessionMergeShortcut(options: UseSessionMergeShortcutOptions 
         enableFilterPivot && filterMode === FilterMode.Running && Boolean(result.autoMarkedReady)
 
       if (shouldPivotFilter) {
-        setFilterMode(FilterMode.All)
+        setFilterMode(FilterMode.Reviewed)
       }
 
       if (result.status === 'started') {
@@ -94,7 +94,7 @@ export function useSessionMergeShortcut(options: UseSessionMergeShortcutOptions 
           pushToast({
             tone: 'info',
             title: 'Session moved to review',
-            description: 'Switched to the “All” filter so the reviewed session stays visible. Switch back anytime.',
+            description: 'Switched to the "Reviewed" filter so the reviewed session stays visible. Switch back anytime.',
           })
         }
         return

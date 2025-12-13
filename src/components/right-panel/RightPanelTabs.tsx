@@ -68,7 +68,7 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
     sessions: allSessions,
     setFilterMode: () => { },
     setSelection,
-    currentFilterMode: FilterMode.All
+    currentFilterMode: FilterMode.Running
   })
 
   const { openSpecInWorkspace, closeSpecTab, openTabs, activeTab: specActiveTab } = specModeHook

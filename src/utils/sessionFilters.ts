@@ -8,12 +8,11 @@ export { mapSessionUiState, isSpec, isReviewed, isRunning }
  * Calculate filter counts for sessions
  */
 export function calculateFilterCounts(sessions: EnrichedSession[]) {
-    const allCount = sessions.length
     const specsCount = sessions.filter(s => isSpec(s.info)).length
     const runningCount = sessions.filter(s => isRunning(s.info)).length
     const reviewedCount = sessions.filter(s => isReviewed(s.info)).length
-    
-    return { allCount, specsCount, runningCount, reviewedCount }
+
+    return { specsCount, runningCount, reviewedCount }
 }
 
 /**

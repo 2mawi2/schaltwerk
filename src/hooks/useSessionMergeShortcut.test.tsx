@@ -166,7 +166,7 @@ describe('useSessionMergeShortcut', () => {
       sessions: [session],
       allSessions: [session],
       quickMergeSession,
-      filterMode: FilterMode.All,
+      filterMode: FilterMode.Running,
       setFilterMode,
       mergeDialogState: createMergeDialogState({ status: 'running', sessionName: 'session-1' }),
       isMergeInFlight,
