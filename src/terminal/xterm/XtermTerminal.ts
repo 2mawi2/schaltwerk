@@ -32,6 +32,16 @@ type TerminalTheme = NonNullable<ITerminalOptions['theme']>
 type FileLinkHandler = (text: string) => Promise<boolean> | boolean
 export type TerminalUiMode = 'standard' | 'tui'
 
+interface IXtermCore {
+  viewport?: {
+    _innerRefresh(): void
+  }
+}
+
+interface ITerminalWithCore {
+  _core: IXtermCore
+}
+
 function buildTheme(): TerminalTheme {
   return {
     background: theme.colors.background.secondary,
@@ -260,10 +270,23 @@ export class XtermTerminal {
       rawWithRefresh.refresh(0, this.raw.rows - 1)
     }
 
+    // Force xterm's internal viewport to recalculate scrollbar dimensions.
+    // This is the same approach VS Code uses - accessing the private _core.viewport API.
+    this.forceScrollbarRefresh()
+
     // Force scrollbar to recalc when there is existing scrollback
     const buffer = this.raw.buffer?.active
     if (buffer && buffer.baseY > 0) {
       this.raw.scrollLines(0)
+    }
+  }
+
+  forceScrollbarRefresh(): void {
+    try {
+      const terminalWithCore = this.raw as unknown as ITerminalWithCore
+      terminalWithCore._core?.viewport?._innerRefresh()
+    } catch (error) {
+      logger.debug(`[XtermTerminal ${this.terminalId}] forceScrollbarRefresh failed`, error)
     }
   }
 
