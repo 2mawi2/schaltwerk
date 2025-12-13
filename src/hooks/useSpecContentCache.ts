@@ -10,7 +10,10 @@ interface SpecCacheEntry {
 
 const specCache = new Map<string, SpecCacheEntry>()
 
-export function useSpecContentCache(sessionName: string, sessionState?: 'spec' | 'running' | 'reviewed') {
+export function useSpecContentCache(
+  sessionName: string,
+  sessionState?: 'spec' | 'processing' | 'running' | 'reviewed',
+) {
   const [content, setContent] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

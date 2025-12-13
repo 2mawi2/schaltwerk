@@ -9,7 +9,11 @@ import type { ChangedFile } from '../../common/events'
 import { FilterMode } from '../../types/sessionFilters'
 import { sessionTerminalGroup, stableSessionTerminalId } from '../../common/terminalIdentity'
 
-let selectionState: { kind: 'session' | 'orchestrator'; payload?: string; sessionState?: 'spec' | 'running' | 'reviewed' }
+let selectionState: {
+  kind: 'session' | 'orchestrator'
+  payload?: string
+  sessionState?: 'spec' | 'processing' | 'running' | 'reviewed'
+}
 let sessionsState: EnrichedSession[]
 const reloadSessionsMock = vi.fn(async () => {})
 const demoTerminals = sessionTerminalGroup('demo')

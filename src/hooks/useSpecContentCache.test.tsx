@@ -325,8 +325,9 @@ describe('useSpecContentCache', () => {
     mockInvoke.mockResolvedValue(['Content', null])
 
     const { result, rerender } = renderHook(
-      ({ sessionState }: { sessionState: 'spec' | 'running' | 'reviewed' }) => useSpecContentCache('test-session', sessionState),
-      { initialProps: { sessionState: 'spec' as 'spec' | 'running' | 'reviewed' } }
+      ({ sessionState }: { sessionState: 'spec' | 'processing' | 'running' | 'reviewed' }) =>
+        useSpecContentCache('test-session', sessionState),
+      { initialProps: { sessionState: 'spec' as 'spec' | 'processing' | 'running' | 'reviewed' } }
     )
 
     await flushPromises()
@@ -335,7 +336,7 @@ describe('useSpecContentCache', () => {
     expect(mockInvoke).toHaveBeenCalledTimes(1)
     mockInvoke.mockClear()
 
-    rerender({ sessionState: 'running' as 'spec' | 'running' | 'reviewed' })
+    rerender({ sessionState: 'running' as 'spec' | 'processing' | 'running' | 'reviewed' })
 
     await flushPromises()
     expect(result.current.loading).toBe(false)
@@ -344,7 +345,7 @@ describe('useSpecContentCache', () => {
 
     mockInvoke.mockClear()
 
-    rerender({ sessionState: 'running' as 'spec' | 'running' | 'reviewed' })
+    rerender({ sessionState: 'running' as 'spec' | 'processing' | 'running' | 'reviewed' })
 
     expect(mockInvoke).not.toHaveBeenCalled()
   })

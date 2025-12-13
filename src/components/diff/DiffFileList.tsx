@@ -17,7 +17,7 @@ import { ORCHESTRATOR_SESSION_NAME } from '../../constants/sessions'
 import { theme } from '../../common/theme'
 import { useAtomValue } from 'jotai'
 import { projectPathAtom } from '../../store/atoms/project'
-import { isSessionMissingError } from '../../types/errors'
+import { getErrorMessage, isSessionMissingError } from '../../types/errors'
 import { FileTree } from './FileTree'
 import type { FileNode } from '../../utils/folderTree'
 import { TERMINAL_FILE_DRAG_TYPE, type TerminalFileDragPayload } from '../../common/dragTypes'
@@ -405,19 +405,35 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
           watcherStarted = true
           logger.info(`File watcher started for session: ${currentSession}`)
         } catch (error) {
-          const missingSession = isSessionMissingError(error)
-          if (missingSession) {
+          const message = getErrorMessage(error)
+          const normalized = message.toLowerCase()
+          const missingWorktree =
+            isSessionMissingError(error) ||
+            normalized.includes('no path was found') ||
+            normalized.includes('no such file or directory') ||
+            normalized.includes('code=notfound') ||
+            normalized.includes('failed to resolve path') ||
+            normalized.includes('worktree not found') ||
+            normalized.includes('session not found')
+
+          if (missingWorktree) {
             logger.debug(
-              `[DiffFileList] Session ${currentSession ?? 'unknown'} missing while starting file watcher, falling back to polling`,
-              error
+              `[DiffFileList] Session ${currentSession ?? 'unknown'} missing worktree while starting file watcher, skipping polling`,
+              error,
             )
             if (currentSession) {
               cancelledSessionsRef.current.add(currentSession)
+              try {
+                await invoke(TauriCommands.StopFileWatcher, { sessionName: currentSession })
+              } catch (stopError) {
+                logger.debug('[DiffFileList] Unable to stop file watcher after missing worktree', stopError)
+              }
             }
-          } else {
-            logger.error('Failed to start file watcher, falling back to polling:', error)
+            return
           }
-          // Fallback to polling if file watcher fails
+
+          logger.error('Failed to start file watcher, falling back to polling:', error)
+
           pollInterval = setInterval(() => {
             if (!isCancelled) {
               void loadChangedFiles()

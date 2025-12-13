@@ -197,7 +197,7 @@ export interface SelectionPayload {
   kind: 'session' | 'orchestrator'
   payload?: string
   worktreePath?: string
-  sessionState?: 'spec' | 'running' | 'reviewed'
+  sessionState?: 'spec' | 'processing' | 'running' | 'reviewed'
 }
 
 export type EventPayloadMap = {
@@ -210,6 +210,8 @@ export type EventPayloadMap = {
     created_at: string
     last_modified?: string
     epic?: Epic
+    agent_type?: string
+    skip_permissions?: boolean
   }
   [SchaltEvent.SessionRemoved]: { session_name: string }
   [SchaltEvent.ArchiveUpdated]: { repo: string, count: number }

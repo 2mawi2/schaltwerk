@@ -143,6 +143,7 @@ pub enum SessionStatus {
 #[serde(rename_all = "lowercase")]
 pub enum SessionState {
     Spec,
+    Processing,
     Running,
     Reviewed,
 }
@@ -174,6 +175,7 @@ impl SessionState {
     pub fn as_str(&self) -> &str {
         match self {
             SessionState::Spec => "spec",
+            SessionState::Processing => "processing",
             SessionState::Running => "running",
             SessionState::Reviewed => "reviewed",
         }
@@ -186,6 +188,7 @@ impl FromStr for SessionState {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "spec" => Ok(SessionState::Spec),
+            "processing" => Ok(SessionState::Processing),
             "running" => Ok(SessionState::Running),
             "reviewed" => Ok(SessionState::Reviewed),
             _ => Err(format!("Invalid session state: {s}")),

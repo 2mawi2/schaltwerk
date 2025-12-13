@@ -21,7 +21,7 @@ export interface Selection {
   kind: 'session' | 'orchestrator'
   payload?: string
   worktreePath?: string
-  sessionState?: 'spec' | 'running' | 'reviewed'
+  sessionState?: 'spec' | 'processing' | 'running' | 'reviewed'
   projectPath?: string | null
 }
 
@@ -88,6 +88,7 @@ export const isReadyAtom = atom(get => {
   const selection = get(selectionValueAtom)
   if (selection.kind === 'orchestrator') return true
   if (selection.sessionState === 'spec') return true
+  if (selection.sessionState === 'processing') return false
   return Boolean(selection.worktreePath)
 })
 
@@ -127,7 +128,7 @@ function computeTerminals(selection: Selection, projectPath: string | null): Ter
     }
   }
 
-  if (selection.kind === 'session' && selection.sessionState === 'spec') {
+  if (selection.kind === 'session' && (selection.sessionState === 'spec' || selection.sessionState === 'processing')) {
     return {
       top: '',
       bottomBase: '',
@@ -190,7 +191,7 @@ function selectionMatchesCurrentFilter(selection: Selection): boolean {
     case FilterMode.Spec:
       return state === 'spec'
     case FilterMode.Running:
-      return state === 'running'
+      return state === 'running' || state === 'processing'
     case FilterMode.Reviewed:
       return state === 'reviewed'
     default:
@@ -214,7 +215,7 @@ export const setSelectionFilterModeActionAtom = atom(
 )
 
 function normalizeSessionState(state?: string | null, status?: string, readyToMerge?: boolean): NormalizedSessionState {
-  if (state === 'spec' || state === 'running' || state === 'reviewed') {
+  if (state === 'spec' || state === 'processing' || state === 'running' || state === 'reviewed') {
     return state
   }
   if (status === 'spec') {
@@ -389,7 +390,7 @@ async function validateOrchestratorTerminalCreation(cwd: string | undefined): Pr
 
 async function evaluateTerminalCreation(selection: Selection, terminals: TerminalSet): Promise<TerminalCreationDecision> {
   if (selection.kind === 'session') {
-    if (selection.sessionState === 'spec') {
+    if (selection.sessionState === 'spec' || selection.sessionState === 'processing') {
       return { shouldCreateTerminals: false, cleanupMissingWorktree: false }
     }
     return validateSessionTerminalCreation(selection, terminals.workingDirectory)
@@ -459,8 +460,12 @@ async function ensureTerminal(
     terminalWorkingDirectory.delete(id)
   }
 
-  if (!mustRecreate && registryHasInstance && backendHasInstance) {
-    logger.info('[selection] Rebinding existing terminal instance to selection cache', {
+  if (!mustRecreate && backendHasInstance) {
+    const logMessage = registryHasInstance
+      ? '[selection] Rebinding existing terminal instance to selection cache'
+      : '[selection] Tracking existing backend terminal without recreation'
+
+    logger.info(logMessage, {
       id,
       cacheKey,
       cwd,

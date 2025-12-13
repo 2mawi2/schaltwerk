@@ -1,7 +1,7 @@
 import { atom } from 'jotai'
 import type { Getter, Setter } from 'jotai'
 import { invoke } from '@tauri-apps/api/core'
-import type { EnrichedSession, AgentType, Epic } from '../../types/session'
+import { AGENT_TYPES, type EnrichedSession, type AgentType, type Epic } from '../../types/session'
 import { FilterMode, getDefaultFilterMode, isValidFilterMode } from '../../types/sessionFilters'
 import { TauriCommands } from '../../common/tauriCommands'
 import { mapSessionUiState, searchSessions as searchSessionsUtil } from '../../utils/sessionFilters'
@@ -13,9 +13,9 @@ import type { GitOperationFailedPayload, GitOperationPayload, SessionsRefreshedE
 import { hasInflight, singleflight } from '../../utils/singleflight'
 import { stableSessionTerminalId, isTopTerminalId } from '../../common/terminalIdentity'
 import { emitUiEvent, UiEvent } from '../../common/uiEvents'
-import { isTerminalStartingOrStarted, clearTerminalStartState } from '../../common/terminalStartState'
+import { isTerminalStartingOrStarted, clearTerminalStartState, markTerminalStarted } from '../../common/terminalStartState'
 import { startSessionTop, computeProjectOrchestratorId } from '../../common/agentSpawn'
-import { releaseSessionTerminals, hasTerminalInstance } from '../../terminal/registry/terminalRegistry'
+import { releaseSessionTerminals } from '../../terminal/registry/terminalRegistry'
 import { logger } from '../../utils/logger'
 import { getErrorMessage } from '../../types/errors'
 
@@ -57,6 +57,66 @@ export type ShortcutMergeResult =
 export type SessionMutationKind = 'merge' | 'remove'
 
 const PENDING_STARTUP_TTL_MS = 10_000
+const BACKGROUND_AGENT_START_CONCURRENCY = 2
+
+type BackgroundAgentStartTask = {
+    id: string
+    run: () => Promise<void>
+}
+
+const backgroundAgentStartQueue: BackgroundAgentStartTask[] = []
+const backgroundAgentStartQueued = new Set<string>()
+let backgroundAgentStartInFlight = 0
+let backgroundAgentStartDrainScheduled = false
+
+function scheduleBackgroundAgentStartDrain() {
+    if (backgroundAgentStartDrainScheduled) {
+        return
+    }
+    backgroundAgentStartDrainScheduled = true
+
+    const schedule = typeof queueMicrotask === 'function'
+        ? queueMicrotask
+        : (cb: () => void) => void Promise.resolve().then(cb)
+
+    schedule(() => {
+        backgroundAgentStartDrainScheduled = false
+        drainBackgroundAgentStartQueue()
+    })
+}
+
+function enqueueBackgroundAgentStart(task: BackgroundAgentStartTask) {
+    if (!task.id) return
+    if (backgroundAgentStartQueued.has(task.id)) {
+        return
+    }
+    backgroundAgentStartQueued.add(task.id)
+    backgroundAgentStartQueue.push(task)
+    scheduleBackgroundAgentStartDrain()
+}
+
+function drainBackgroundAgentStartQueue() {
+    if (backgroundAgentStartInFlight >= BACKGROUND_AGENT_START_CONCURRENCY) {
+        return
+    }
+    while (backgroundAgentStartInFlight < BACKGROUND_AGENT_START_CONCURRENCY && backgroundAgentStartQueue.length > 0) {
+        const next = backgroundAgentStartQueue.shift()
+        if (!next) {
+            continue
+        }
+        backgroundAgentStartInFlight += 1
+        void next
+            .run()
+            .catch((error) => {
+                logger.warn(`[SessionsAtoms] Background agent start failed for ${next.id}:`, error)
+            })
+            .finally(() => {
+                backgroundAgentStartInFlight = Math.max(0, backgroundAgentStartInFlight - 1)
+                backgroundAgentStartQueued.delete(next.id)
+                scheduleBackgroundAgentStartDrain()
+            })
+    }
+}
 
 interface PendingStartup {
     agentType?: AgentType
@@ -313,19 +373,106 @@ function autoStartRunningSessions(
             continue
         }
 
-        const nextState = mapSessionUiState(session.info)
+        const uiState = mapSessionUiState(session.info)
+        const rawState = session.info.session_state
+        const isEligibleRunning = uiState === SessionState.Running && rawState === SessionState.Running
         const topId = stableSessionTerminalId(sessionId, 'top')
         const pendingEntry = pending.get(sessionId)
 
-        if (pendingEntry && nextState !== SessionState.Running) {
-            if (nextState === SessionState.Spec) {
+        if (session.info.status === 'missing' || session.info.status === 'archived') {
+            logger.debug(
+                `[AGENT_LAUNCH_TRACE] autoStartRunningSessions - skipping ${sessionId}: status=${session.info.status} (${reason})`
+            )
+            continue
+        }
+
+        const scheduleStart = (opts?: { agentTypeOverride?: AgentType; pendingEntry?: PendingStartup }) => {
+            const agentTypeOverride = opts?.agentTypeOverride
+            const taskId = topId
+            enqueueBackgroundAgentStart({
+                id: taskId,
+                run: async () => {
+                    try {
+                        const activeProjectPath = get(projectPathAtom)
+                        if (!activeProjectPath || activeProjectPath !== projectPath) {
+                            logger.debug(
+                                `[AGENT_LAUNCH_TRACE] autoStartRunningSessions - skipping ${sessionId}; project changed (${reason})`,
+                            )
+                            return
+                        }
+
+                        const latestSession = get(allSessionsAtom).find(s => s.info.session_id === sessionId)
+                        if (!latestSession) {
+                            logger.debug(
+                                `[AGENT_LAUNCH_TRACE] autoStartRunningSessions - skipping ${sessionId}; session missing in store (${reason})`,
+                            )
+                            return
+                        }
+
+                        if (latestSession.info.status === 'missing' || latestSession.info.status === 'archived') {
+                            logger.debug(
+                                `[AGENT_LAUNCH_TRACE] autoStartRunningSessions - skipping ${sessionId}: status=${latestSession.info.status} (${reason})`,
+                            )
+                            return
+                        }
+
+                        const latestUiState = mapSessionUiState(latestSession.info)
+                        const latestRawState = latestSession.info.session_state
+                        const latestEligible = latestUiState === SessionState.Running && latestRawState === SessionState.Running
+                        if (!latestEligible) {
+                            logger.debug(
+                                `[AGENT_LAUNCH_TRACE] autoStartRunningSessions - skipping ${sessionId}; latest state=${latestRawState} (${reason})`,
+                            )
+                            return
+                        }
+
+                        const projectOrchestratorId = computeProjectOrchestratorId(projectPath ?? null)
+                        const agentType = agentTypeOverride ?? latestSession.info.original_agent_type ?? session.info.original_agent_type ?? undefined
+                        await startSessionTop({ sessionName: sessionId, topId, projectOrchestratorId, agentType })
+                        logger.info(`[SessionsAtoms] Started agent for ${sessionId} (${reason}).`)
+                        suppressedAutoStart.add(sessionId)
+                    } catch (error) {
+                        const message = getErrorMessage(error)
+                        if (message.includes('Working directory not found:')) {
+                            logger.info(`[SessionsAtoms] Auto-start skipped for ${sessionId} because worktree is missing.`)
+                            suppressedAutoStart.add(sessionId)
+                            set(allSessionsAtom, (prev) => prev.map(session => {
+                                if (session.info.session_id !== sessionId) {
+                                    return session
+                                }
+                                if (session.info.status === 'missing') {
+                                    return session
+                                }
+                                return {
+                                    ...session,
+                                    info: {
+                                        ...session.info,
+                                        status: 'missing',
+                                    },
+                                }
+                            }))
+                            return
+                        }
+                        if (message.includes('Permission required for folder:')) {
+                            emitUiEvent(UiEvent.PermissionError, { error: message })
+                        } else {
+                            logger.warn(`[SessionsAtoms] Auto-start failed for ${sessionId} (${reason}):`, error)
+                        }
+                    }
+                },
+            })
+        }
+
+        if (pendingEntry && !isEligibleRunning) {
+            if (uiState === SessionState.Spec || uiState === SessionState.Reviewed) {
                 pending.delete(sessionId)
                 suppressedAutoStart.add(sessionId)
+                pendingChanged = true
             }
             continue
         }
 
-        if (pendingEntry && nextState === SessionState.Running) {
+        if (pendingEntry && isEligibleRunning) {
             if (isTerminalStartingOrStarted(topId) || hasInflight(topId)) {
                 logger.info(`[AGENT_LAUNCH_TRACE] pending startup skipping ${sessionId}; background mark or inflight present`)
                 pending.delete(sessionId)
@@ -340,45 +487,12 @@ function autoStartRunningSessions(
 
             const pendingElapsed = Date.now() - pendingEntry.enqueuedAt
             logger.info(`[AGENT_LAUNCH_TRACE] pending startup starting ${sessionId} (queued=${pendingElapsed}ms, reason=${reason})`)
-            void (async () => {
-                try {
-                    const exists = await invoke<boolean>(TauriCommands.TerminalExists, { id: topId })
-                    if (exists) {
-                        logger.debug(
-                            `[AGENT_LAUNCH_TRACE] autoStartRunningSessions - skipping ${sessionId}: backend terminal already exists`
-                        )
-                        suppressedAutoStart.add(sessionId)
-                        return
-                    }
-
-                    const projectOrchestratorId = computeProjectOrchestratorId(projectPath ?? null)
-                    const fallbackAgent = session.info.original_agent_type ?? undefined
-                    await startSessionTop({
-                        sessionName: sessionId,
-                        topId,
-                        projectOrchestratorId,
-                        agentType: pendingEntry.agentType ?? fallbackAgent,
-                    })
-                    const totalElapsed = Date.now() - pendingEntry.enqueuedAt
-                    logger.info(`[SpecStart] Agent ready after pending start`, {
-                        sessionId,
-                        queuedDurationMs: pendingElapsed,
-                        totalDurationMs: totalElapsed,
-                        agentType: pendingEntry.agentType ?? fallbackAgent ?? 'default',
-                    })
-                } catch (error) {
-                    const message = getErrorMessage(error)
-                    if (message.includes('Permission required for folder:')) {
-                        emitUiEvent(UiEvent.PermissionError, { error: message })
-                    } else {
-                        logger.warn(`[SessionsAtoms] Pending start failed for ${sessionId}:`, error)
-                    }
-                }
-            })()
+            const fallbackAgent = session.info.original_agent_type ?? undefined
+            scheduleStart({ agentTypeOverride: pendingEntry.agentType ?? fallbackAgent })
             continue
         }
 
-        if (nextState !== SessionState.Running) {
+        if (!isEligibleRunning) {
             suppressedAutoStart.delete(sessionId)
             continue
         }
@@ -389,96 +503,28 @@ function autoStartRunningSessions(
         }
 
         const previousState = previousStates.get(sessionId)
-        const wasRunning = previousState === SessionState.Running
-        if (wasRunning) {
-            logger.debug(`[AGENT_LAUNCH_TRACE] autoStartRunningSessions - already running last tick; will verify terminal before restart`)
-        }
-
-        if (previousState === undefined && nextState === SessionState.Running) {
-            void (async () => {
-                try {
-                    const exists = await invoke<boolean>(TauriCommands.TerminalExists, { id: topId })
-                    if (exists) {
-                        logger.debug(
-                            `[AGENT_LAUNCH_TRACE] autoStartRunningSessions - hydration skip for ${sessionId}: backend terminal already exists`
-                        )
-                        suppressedAutoStart.add(sessionId)
-                        return
-                    }
-
-                    if (isTerminalStartingOrStarted(topId) || hasInflight(topId)) {
-                        logger.info(
-                            `[AGENT_LAUNCH_TRACE] autoStartRunningSessions - skipping ${sessionId}; background mark or inflight present (hydration ${reason})`
-                        )
-                        return
-                    }
-
-                    if (!hasTerminalInstance(topId)) {
-                        logger.debug(
-                            `[SessionsAtoms] Skipping hydration auto-start for ${sessionId}: terminal not created (lazy)`
-                        )
-                        return
-                    }
-
-                    logger.info(
-                        `[AGENT_LAUNCH_TRACE] autoStartRunningSessions - will auto-start ${sessionId} (hydration reason: ${reason})`
-                    )
-
-                    const projectOrchestratorId = computeProjectOrchestratorId(projectPath ?? null)
-                    const agentType = session.info.original_agent_type ?? undefined
-                    await startSessionTop({ sessionName: sessionId, topId, projectOrchestratorId, agentType })
-                    logger.info(`[SessionsAtoms] Started agent for ${sessionId} (${reason}).`)
-                } catch (error) {
-                    const message = getErrorMessage(error)
-                    if (message.includes('Permission required for folder:')) {
-                        emitUiEvent(UiEvent.PermissionError, { error: message })
-                    } else {
-                        logger.warn(
-                            `[SessionsAtoms] Auto-start failed for ${sessionId} during hydration (${reason}):`,
-                            error
-                        )
-                    }
-                }
-            })()
-            continue
-        }
 
         if (isTerminalStartingOrStarted(topId) || hasInflight(topId)) {
             logger.info(`[AGENT_LAUNCH_TRACE] autoStartRunningSessions - skipping ${sessionId}; background mark or inflight present (${reason})`)
             continue
         }
 
-        if (!hasTerminalInstance(topId)) {
-            logger.debug(`[SessionsAtoms] Skipping auto-start for ${sessionId}: terminal not created (lazy)`) 
+        if (backgroundAgentStartQueued.has(topId)) {
+            logger.debug(
+                `[AGENT_LAUNCH_TRACE] autoStartRunningSessions - skipping ${sessionId}; background start already queued (${reason})`
+            )
             continue
         }
 
-        logger.info(`[AGENT_LAUNCH_TRACE] autoStartRunningSessions - will auto-start ${sessionId} (reason: ${reason})`)
+        if (previousState === undefined) {
+            logger.info(
+                `[AGENT_LAUNCH_TRACE] autoStartRunningSessions - will auto-start ${sessionId} (hydration reason: ${reason})`
+            )
+        } else {
+            logger.info(`[AGENT_LAUNCH_TRACE] autoStartRunningSessions - will auto-start ${sessionId} (reason: ${reason})`)
+        }
 
-        void (async () => {
-            try {
-                const exists = await invoke<boolean>(TauriCommands.TerminalExists, { id: topId })
-                if (exists) {
-                    logger.debug(
-                        `[AGENT_LAUNCH_TRACE] autoStartRunningSessions - skipping ${sessionId}: backend terminal already exists`
-                    )
-                    suppressedAutoStart.add(sessionId)
-                    return
-                }
-
-                const projectOrchestratorId = computeProjectOrchestratorId(projectPath ?? null)
-                const agentType = session.info.original_agent_type ?? undefined
-                await startSessionTop({ sessionName: sessionId, topId, projectOrchestratorId, agentType })
-                logger.info(`[SessionsAtoms] Started agent for ${sessionId} (${reason}).`)
-            } catch (error) {
-                const message = getErrorMessage(error)
-                if (message.includes('Permission required for folder:')) {
-                    emitUiEvent(UiEvent.PermissionError, { error: message })
-                } else {
-                    logger.warn(`[SessionsAtoms] Auto-start failed for ${sessionId} (${reason}):`, error)
-                }
-            }
-        })()
+        scheduleStart()
     }
 
     if (pendingChanged) {
@@ -857,7 +903,7 @@ export const enqueuePendingStartupActionAtom = atom(
             return
         }
 
-        if (mapSessionUiState(existing.info) !== SessionState.Running) {
+        if (existing.info.session_state !== SessionState.Running) {
             return
         }
 
@@ -911,10 +957,12 @@ export const refreshSessionsActionAtom = atom(
         const started = performance.now()
         logger.debug(`[SessionsAtoms] refreshSessionsActionAtom start (project=${projectPath ?? 'none'})`)
 
+        let cachedSnapshot: EnrichedSession[] | null = null
+        let cachedStates: Map<string, string> | null = null
         if (projectPath) {
-            const cachedSnapshot = projectSessionsSnapshotCache.get(projectPath)
+            cachedSnapshot = projectSessionsSnapshotCache.get(projectPath) ?? null
             previousSessionsSnapshot = cachedSnapshot ? [...cachedSnapshot] : []
-            const cachedStates = projectSessionStatesCache.get(projectPath)
+            cachedStates = projectSessionStatesCache.get(projectPath) ?? null
             previousSessionStates = cachedStates ? new Map(cachedStates) : new Map()
         }
 
@@ -932,6 +980,12 @@ export const refreshSessionsActionAtom = atom(
         }
 
         try {
+            if (cachedSnapshot && cachedSnapshot.length > 0) {
+                await applySessionsSnapshot(get, set, cachedSnapshot, projectPath, {
+                    reason: 'cache-hydrate',
+                    previousStates: cachedStates ? new Map(cachedStates) : new Map(previousSessionStates),
+                })
+            }
             const loadStart = performance.now()
             const sessions = await loadSessionsSnapshot(projectPath)
             logger.debug(
@@ -1171,6 +1225,14 @@ export const initializeSessionsEventsActionAtom = atom(
                     previousStates: previousStatesSnapshot,
                 })
             })()
+        })
+
+        await register(SchaltEvent.TerminalAgentStarted, (payload) => {
+            const event = payload as { terminal_id?: string | null }
+            if (!event?.terminal_id) {
+                return
+            }
+            markTerminalStarted(event.terminal_id)
         })
 
         const hasSessionInActiveProject = (sessionId: string | undefined | null): boolean => {
@@ -1483,10 +1545,16 @@ export const initializeSessionsEventsActionAtom = atom(
                 created_at?: string
                 last_modified?: string
                 epic?: Epic
+                agent_type?: string
+                skip_permissions?: boolean
             }
 
             const previousStatesSnapshot = new Map(previousSessionStates)
             const pendingStartup = get(pendingStartupsAtom).get(event.session_name) ?? null
+            const agentTypeFromEvent: AgentType | undefined =
+                typeof event.agent_type === 'string' && AGENT_TYPES.includes(event.agent_type as AgentType)
+                    ? (event.agent_type as AgentType)
+                    : undefined
 
             set(allSessionsAtom, (prev) => {
                 if (prev.some(session => session.info.session_id === event.session_name)) {
@@ -1514,7 +1582,8 @@ export const initializeSessionsEventsActionAtom = atom(
                     current_task: undefined,
                     todo_percentage: undefined,
                     is_blocked: undefined,
-                    original_agent_type: pendingStartup?.agentType,
+                    original_agent_type: agentTypeFromEvent ?? pendingStartup?.agentType,
+                    original_skip_permissions: event.skip_permissions,
                     diff_stats: undefined,
                     ready_to_merge: false,
                 }
@@ -1637,6 +1706,10 @@ export function __resetSessionsTestingState() {
     protectedReleaseUntil.clear()
     sessionsEventHandlersForTests.clear()
     expectedSessionsByProject.clear()
+    backgroundAgentStartQueue.splice(0)
+    backgroundAgentStartQueued.clear()
+    backgroundAgentStartInFlight = 0
+    backgroundAgentStartDrainScheduled = false
 }
 
 export const openMergeDialogActionAtom = atom(
