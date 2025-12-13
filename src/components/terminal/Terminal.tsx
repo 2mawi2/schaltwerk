@@ -1277,6 +1277,12 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 } catch (e) {
                     logger.warn(`[Terminal ${terminalId}] Visibility fit failed:`, e);
                 }
+
+                // Force scrollbar refresh after layout is stable. xterm's internal viewport
+                // needs to recalculate scroll dimensions after the container becomes visible.
+                requestAnimationFrame(() => {
+                    xtermWrapperRef.current?.forceScrollbarRefresh();
+                });
             }, { threshold: 0.01 });
             visibilityObserver.observe(termRef.current);
         }
