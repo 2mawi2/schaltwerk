@@ -25,10 +25,12 @@ export interface XtermTerminalOptions {
   terminalId: string
   config: XtermTerminalConfig
   onLinkClick?: (uri: string) => boolean | Promise<boolean>
+  uiMode?: TerminalUiMode
 }
 
 type TerminalTheme = NonNullable<ITerminalOptions['theme']>
 type FileLinkHandler = (text: string) => Promise<boolean> | boolean
+export type TerminalUiMode = 'standard' | 'tui'
 
 function buildTheme(): TerminalTheme {
   return {
@@ -98,10 +100,12 @@ export class XtermTerminal {
   private fileLinkHandler: FileLinkHandler | null = null
   private linkHandler: ((uri: string) => boolean | Promise<boolean>) | null = null
   private wasAtBottomOnDetach: boolean | undefined
+  private uiMode: TerminalUiMode
 
   constructor(options: XtermTerminalOptions) {
     this.terminalId = options.terminalId
     this.config = options.config
+    this.uiMode = options.uiMode ?? 'standard'
     this.linkHandler = options.onLinkClick ?? null
     const resolvedOptions = buildTerminalOptions(this.config)
 
@@ -164,6 +168,29 @@ export class XtermTerminal {
     this.registerOscHandlers()
   }
 
+  isTuiMode(): boolean {
+    return this.uiMode === 'tui'
+  }
+
+  shouldFollowOutput(): boolean {
+    return !this.isTuiMode()
+  }
+
+  setUiMode(mode: TerminalUiMode): void {
+    if (mode === this.uiMode) {
+      return
+    }
+    this.uiMode = mode
+    if (!this.opened) {
+      return
+    }
+    if (this.uiMode === 'tui') {
+      this.applyTuiMode()
+    } else {
+      this.applyStandardMode()
+    }
+  }
+
   get element(): HTMLDivElement {
     return this.container
   }
@@ -172,6 +199,9 @@ export class XtermTerminal {
     if (!this.opened) {
       this.raw.open(this.container)
       this.opened = true
+    }
+    if (this.uiMode === 'tui') {
+      this.applyTuiMode()
     }
     if (this.container.parentElement !== target) {
       target.appendChild(this.container)
@@ -192,6 +222,35 @@ export class XtermTerminal {
     }
 
     this.wasAtBottomOnDetach = undefined
+  }
+
+  private applyTuiMode(): void {
+    try {
+      this.raw.options.cursorBlink = false
+    } catch (error) {
+      logger.debug(`[XtermTerminal ${this.terminalId}] Failed to disable cursor blink for TUI mode`, error)
+    }
+
+    try {
+      // Ink TUIs often render their own caret; hide the terminal cursor to prevent flicker.
+      this.raw.write('\x1b[?25l')
+    } catch (error) {
+      logger.debug(`[XtermTerminal ${this.terminalId}] Failed to hide cursor for TUI mode`, error)
+    }
+  }
+
+  private applyStandardMode(): void {
+    try {
+      this.raw.options.cursorBlink = true
+    } catch (error) {
+      logger.debug(`[XtermTerminal ${this.terminalId}] Failed to enable cursor blink for standard mode`, error)
+    }
+
+    try {
+      this.raw.write('\x1b[?25h')
+    } catch (error) {
+      logger.debug(`[XtermTerminal ${this.terminalId}] Failed to show cursor for standard mode`, error)
+    }
   }
 
   private syncViewport(): void {

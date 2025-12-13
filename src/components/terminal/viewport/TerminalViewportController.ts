@@ -87,6 +87,7 @@ export class TerminalViewportController {
    */
   onOutput(): void {
     if (this._disposed) return
+    if (this._terminal.isTuiMode()) return
     this._lastOutputTime = Date.now()
 
     // Schedule a viewport sync on the next frame.
@@ -122,6 +123,7 @@ export class TerminalViewportController {
    */
   onFocusOrClick(): void {
     if (this._disposed) return
+    if (this._terminal.isTuiMode()) return
     this._userScrolledAway = false
     this._refreshAndSnap('focus')
   }
@@ -143,6 +145,9 @@ export class TerminalViewportController {
 
     this._isResizing = false
     this._lastKnownViewportY = null
+    if (this._terminal.isTuiMode()) {
+      return
+    }
 
     if (this._isStreaming() && this._userScrolledAway) {
       this._logger?.(`[TerminalViewportController] Skipping snap during streaming (user scrolled away)`)
@@ -158,6 +163,7 @@ export class TerminalViewportController {
    */
   onVisibilityChange(isVisible: boolean): void {
     if (this._disposed || !isVisible) return
+    if (this._terminal.isTuiMode()) return
     this._refreshAndSnap('visibility')
   }
 
@@ -170,6 +176,9 @@ export class TerminalViewportController {
     this._userScrolledAway = false
     this._lastKnownViewportY = null
     this._logger?.('[TerminalViewportController] Clear detected, reset scroll state')
+    if (this._terminal.isTuiMode()) {
+      return
+    }
     this._refreshAndSnap('clear')
   }
 
@@ -178,8 +187,6 @@ export class TerminalViewportController {
    */
   private _refreshAndSnap(source: string): void {
     try {
-      this._terminal.refresh()
-
       const raw = this._terminal.raw
       if (!raw?.buffer?.active) return
 
@@ -190,6 +197,8 @@ export class TerminalViewportController {
       if (buf.type === 'alternate') {
         return
       }
+
+      this._terminal.refresh()
 
       const distance = buf.baseY - buf.viewportY
 
@@ -214,12 +223,12 @@ export class TerminalViewportController {
 
   private _refreshViewportOnly(source: string): void {
     try {
-      this._terminal.refresh()
-
       const raw = this._terminal.raw
       const buf = raw?.buffer?.active
       if (!buf) return
       if (buf.type === 'alternate') return
+
+      this._terminal.refresh()
 
       // Nudge xterm to recalculate the viewport scrollbar without changing scroll position.
       if (buf.baseY > 0) {
