@@ -203,20 +203,26 @@ describe('WebPreviewPanel', () => {
     })
   })
 
-  it('calls toggle DevTools command when button is clicked', async () => {
+  it('can open the current URL in an external browser', async () => {
     const user = userEvent.setup()
     const { invoke } = await import('@tauri-apps/api/core')
     const invokeSpy = vi.mocked(invoke)
 
     renderPanel({ previewKey: 'test-key' })
 
-    const devToolsButton = screen.getByLabelText('Toggle DevTools')
-    expect(devToolsButton).toBeInTheDocument()
-
-    await user.click(devToolsButton)
+    const input = screen.getByLabelText('Preview URL')
+    await user.type(input, 'localhost:3000')
+    await user.click(screen.getByLabelText('Navigate'))
 
     await waitFor(() => {
-      expect(invokeSpy).toHaveBeenCalledWith('toggle_preview_devtools')
+      expect(screen.getByLabelText('Preview URL')).toHaveValue('http://localhost:3000')
+    })
+
+    invokeSpy.mockClear()
+    await user.click(screen.getByLabelText('Open in browser'))
+
+    await waitFor(() => {
+      expect(invokeSpy).toHaveBeenCalledWith('open_external_url', { url: 'http://localhost:3000' })
     })
   })
 

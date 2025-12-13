@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import type { FormEvent, ChangeEvent } from 'react'
 import { useAtom, useSetAtom } from 'jotai'
-import { VscRefresh, VscGlobe, VscArrowRight, VscChevronLeft, VscChevronRight, VscTools, VscSearch } from 'react-icons/vsc'
+import { VscRefresh, VscGlobe, VscArrowRight, VscChevronLeft, VscChevronRight, VscSearch, VscLinkExternal } from 'react-icons/vsc'
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
 import {
@@ -14,7 +14,7 @@ import {
   PREVIEW_MIN_ZOOM,
   PREVIEW_MAX_ZOOM
 } from '../../store/atoms/preview'
-import { mountIframe, unmountIframe, setIframeUrl, refreshIframe } from '../../features/preview/previewIframeRegistry'
+import { mountIframe, refreshIframe, setIframeUrl, setPreviewZoom, unmountIframe } from '../../features/preview/previewIframeRegistry'
 import { useKeyboardShortcutsConfig } from '../../contexts/KeyboardShortcutsContext'
 import { detectPlatformSafe, isShortcutForAction } from '../../keyboardShortcuts/helpers'
 import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
@@ -57,6 +57,7 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
 
   const previewState = getPreviewState(previewKey)
   const { url: currentUrl, zoom, history, historyIndex } = previewState
+  const hasUrl = Boolean(currentUrl)
 
   const [inputValue, setInputValue] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -105,6 +106,34 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
 
     return () => {
       unmountIframe(previewKey)
+    }
+  }, [previewKey, currentUrl, hostElement, isResizing])
+
+  useEffect(() => {
+    if (!currentUrl) return
+    setPreviewZoom(previewKey, zoom)
+  }, [previewKey, zoom, currentUrl])
+
+  useEffect(() => {
+    if (!hostElement || !currentUrl || isResizing) return
+
+    const updateBounds = () => {
+      mountIframe(previewKey, hostElement)
+    }
+
+    updateBounds()
+
+    const resizeObserver = typeof ResizeObserver === 'undefined'
+      ? null
+      : new ResizeObserver(() => {
+          updateBounds()
+        })
+    resizeObserver?.observe(hostElement)
+    window.addEventListener('resize', updateBounds)
+
+    return () => {
+      resizeObserver?.disconnect()
+      window.removeEventListener('resize', updateBounds)
     }
   }, [previewKey, currentUrl, hostElement, isResizing])
 
@@ -182,21 +211,19 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
     setShowZoomPopover(value => !value)
   }, [])
 
-  const handleToggleDevTools = useCallback(async () => {
+  const handleOpenInBrowser = useCallback(async () => {
     try {
-      await invoke(TauriCommands.TogglePreviewDevtools)
+      if (!currentUrl) return
+      await invoke(TauriCommands.OpenExternalUrl, { url: currentUrl })
     } catch (err) {
-      logger.error('Failed to toggle DevTools', { error: err })
+      logger.error('Failed to open preview URL in browser', { error: err })
     }
-  }, [])
+  }, [currentUrl])
 
   const canGoBack = historyIndex > 0
   const canGoForward = historyIndex >= 0 && historyIndex < history.length - 1
   const canZoomOut = zoom > PREVIEW_MIN_ZOOM + 0.001
   const canZoomIn = zoom < PREVIEW_MAX_ZOOM - 0.001
-
-  const inverseZoom = 1 / zoom
-  const hasUrl = Boolean(currentUrl)
 
   const buttonClass = (disabled?: boolean) =>
     [
@@ -219,8 +246,8 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
           <button type="button" aria-label="Hard reload" className={buttonClass(!hasUrl)} onClick={() => handleRefresh(true)} disabled={!hasUrl} title="Hard reload (clears cache)">
             <VscRefresh className="text-lg" />
           </button>
-          <button type="button" aria-label="Toggle DevTools" className={buttonClass()} onClick={() => { void handleToggleDevTools() }} title="Toggle DevTools">
-            <VscTools className="text-lg" />
+          <button type="button" aria-label="Open in browser" className={buttonClass(!hasUrl)} onClick={() => { void handleOpenInBrowser() }} disabled={!hasUrl} title="Open in browser (for DevTools/logs)">
+            <VscLinkExternal className="text-lg" />
           </button>
         </div>
         <form
@@ -300,18 +327,8 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
         {isResizing ? (
           <div className="flex h-full items-center justify-center px-6 text-center text-sm text-slate-400">Preview paused while resizing…</div>
         ) : hasUrl ? (
-          <div className="h-full w-full overflow-auto" data-preview-zoom={zoom.toFixed(2)}>
-            <div
-              className="relative"
-              style={{
-                transform: `scale(${zoom})`,
-                transformOrigin: 'top left',
-                width: `${100 * inverseZoom}%`,
-                height: `${100 * inverseZoom}%`
-              }}
-            >
-              <div ref={setHostElement} className="h-full w-full overflow-hidden" />
-            </div>
+          <div className="h-full w-full overflow-hidden" data-preview-zoom={zoom.toFixed(2)}>
+            <div ref={setHostElement} className="h-full w-full overflow-hidden" />
           </div>
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">

@@ -6,10 +6,12 @@ import { Provider, createStore } from 'jotai'
 import { setPreviewUrlActionAtom } from '../../store/atoms/preview'
 
 vi.mock('../../features/preview/previewIframeRegistry', () => ({
+  getPreviewWebviewLabel: vi.fn().mockReturnValue('preview-test'),
   mountIframe: vi.fn(),
   unmountIframe: vi.fn(),
   setIframeUrl: vi.fn(),
   refreshIframe: vi.fn(),
+  setPreviewZoom: vi.fn(),
 }))
 
 describe('WebPreviewPanel preview input sync', () => {
