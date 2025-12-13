@@ -32,6 +32,7 @@ import { TerminalLoadingOverlay } from './TerminalLoadingOverlay'
 import { TerminalSearchPanel } from './TerminalSearchPanel'
 import { detectPlatformSafe } from '../../keyboardShortcuts/helpers'
 import { writeTerminalBackend } from '../../terminal/transport/backend'
+import { buildBracketedPasteChunks } from '../../terminal/paste/bracketedPaste'
 import {
     acquireTerminalInstance,
     detachTerminalInstance,
@@ -40,6 +41,7 @@ import {
     removeTerminalOutputCallback,
     addTerminalClearCallback,
     removeTerminalClearCallback,
+    isTerminalBracketedPasteEnabled,
 } from '../../terminal/registry/terminalRegistry'
 import { XtermTerminal } from '../../terminal/xterm/XtermTerminal'
 import { useTerminalGpu } from '../../hooks/useTerminalGpu'
@@ -1435,6 +1437,41 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         };
 
         addEventListener(window, 'font-size-changed', handleFontSizeChange);
+
+        const handlePaste = (e: Event) => {
+            if (readOnlyRef.current) return
+            const id = terminalIdRef.current
+            if (!isTerminalBracketedPasteEnabled(id)) return
+
+            const event = e as ClipboardEvent
+            const target = event.target
+            if (!(target instanceof Node) || !termRef.current?.contains(target)) {
+                return
+            }
+
+            const text = event.clipboardData?.getData('text/plain')
+            if (!text) return
+
+            // Some TUIs enable "bracketed paste mode" (ESC[?2004h) and expect the terminal emulator to
+            // wrap the entire paste in ESC[200~ … ESC[201~. Without these markers, multi-line pastes can
+            // be misinterpreted as many individual Enter key presses.
+            event.preventDefault()
+            event.stopPropagation()
+            event.stopImmediatePropagation()
+
+            void (async () => {
+                const chunks = buildBracketedPasteChunks(text, 60_000)
+                for (const chunk of chunks) {
+                    await writeTerminalBackend(id, chunk)
+                }
+            })().catch(error => {
+                logger.debug(`[Terminal ${id}] Failed to paste bracketed payload`, error)
+            })
+        }
+
+        // Capture-phase ensures we intercept before xterm/browser default handling so we can emit a
+        // single bracketed paste payload to the PTY.
+        addEventListener(containerRef.current, 'paste', handlePaste as EventListener, { capture: true })
 
      // Send input to backend (disabled for readOnly terminals)
         if (!terminalConfigRef.current.readOnly) {
