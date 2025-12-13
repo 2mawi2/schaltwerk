@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { formatLastActivity, formatDurationFromNow } from './time'
+import { formatLastActivity, formatDurationFromNow, formatRelativeDate } from './time'
 
 describe('formatLastActivity', () => {
     beforeEach(() => {
@@ -102,6 +102,73 @@ describe('formatLastActivity', () => {
         // 120 minutes ago (should show "2h")
         const twoHoursAgo = '2025-08-09T10:00:00Z'
         expect(formatLastActivity(twoHoursAgo)).toBe('2h')
+    })
+})
+
+describe('formatRelativeDate', () => {
+    beforeEach(() => {
+        vi.useRealTimers()
+    })
+
+    it('returns "today" for timestamps from today', () => {
+        const now = new Date('2025-08-09T12:00:00Z')
+        vi.useFakeTimers()
+        vi.setSystemTime(now)
+
+        expect(formatRelativeDate('2025-08-09T08:00:00Z')).toBe('today')
+        expect(formatRelativeDate('2025-08-09T11:59:59Z')).toBe('today')
+    })
+
+    it('returns "yesterday" for timestamps from yesterday', () => {
+        const now = new Date('2025-08-09T12:00:00Z')
+        vi.useFakeTimers()
+        vi.setSystemTime(now)
+
+        expect(formatRelativeDate('2025-08-08T12:00:00Z')).toBe('yesterday')
+    })
+
+    it('returns "X days ago" for timestamps within the last week', () => {
+        const now = new Date('2025-08-09T12:00:00Z')
+        vi.useFakeTimers()
+        vi.setSystemTime(now)
+
+        expect(formatRelativeDate('2025-08-07T12:00:00Z')).toBe('2 days ago')
+        expect(formatRelativeDate('2025-08-04T12:00:00Z')).toBe('5 days ago')
+        expect(formatRelativeDate('2025-08-03T12:00:00Z')).toBe('6 days ago')
+    })
+
+    it('returns "X weeks ago" for timestamps within the last month', () => {
+        const now = new Date('2025-08-09T12:00:00Z')
+        vi.useFakeTimers()
+        vi.setSystemTime(now)
+
+        expect(formatRelativeDate('2025-08-02T12:00:00Z')).toBe('1 weeks ago')
+        expect(formatRelativeDate('2025-07-26T12:00:00Z')).toBe('2 weeks ago')
+        expect(formatRelativeDate('2025-07-12T12:00:00Z')).toBe('4 weeks ago')
+    })
+
+    it('returns formatted date for older timestamps', () => {
+        const now = new Date('2025-08-09T12:00:00Z')
+        vi.useFakeTimers()
+        vi.setSystemTime(now)
+
+        const result = formatRelativeDate('2025-06-01T12:00:00Z')
+        expect(result).not.toBe('unknown')
+        expect(result).not.toContain('ago')
+    })
+
+    it('accepts Date objects', () => {
+        const now = new Date('2025-08-09T12:00:00Z')
+        vi.useFakeTimers()
+        vi.setSystemTime(now)
+
+        expect(formatRelativeDate(new Date('2025-08-09T08:00:00Z'))).toBe('today')
+        expect(formatRelativeDate(new Date('2025-08-08T08:00:00Z'))).toBe('yesterday')
+    })
+
+    it('returns "unknown" for invalid timestamps', () => {
+        expect(formatRelativeDate('not-a-date')).toBe('unknown')
+        expect(formatRelativeDate('')).toBe('unknown')
     })
 })
 

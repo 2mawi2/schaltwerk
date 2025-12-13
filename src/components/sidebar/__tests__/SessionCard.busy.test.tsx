@@ -1,8 +1,17 @@
 import { render, waitFor } from '@testing-library/react'
+import { vi } from 'vitest'
 import { SessionCard } from '../SessionCard'
 import type { ComponentProps } from 'react'
 import { GithubIntegrationProvider } from '../../../contexts/GithubIntegrationContext'
 import { ToastProvider } from '../../../common/toast/ToastProvider'
+
+vi.mock('../../../hooks/usePrComments', () => ({
+  usePrComments: () => ({
+    fetchingComments: false,
+    fetchAndPasteToTerminal: vi.fn(),
+    fetchAndCopyToClipboard: vi.fn(),
+  }),
+}))
 
 type SessionCardProps = ComponentProps<typeof SessionCard>
 

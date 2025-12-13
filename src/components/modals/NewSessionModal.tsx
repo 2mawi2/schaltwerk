@@ -76,6 +76,8 @@ interface Props {
         agentType?: AgentType
         agentTypes?: AgentType[]
         skipPermissions?: boolean
+        prNumber?: number
+        prUrl?: string
     }) => void | Promise<void>
 }
 
@@ -559,6 +561,10 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
             const effectiveUseExistingBranch = !!prHeadBranch || useExistingBranch
             const effectiveCustomBranch = prHeadBranch || (useExistingBranch ? baseBranch : customBranch.trim()) || undefined
 
+            const prInfo = promptSource === 'github_pull_request' && githubPrSelection
+                ? { prNumber: githubPrSelection.details.number, prUrl: githubPrSelection.details.url }
+                : {}
+
             const createData: CreateSessionPayload = {
                 name: finalName,
                 prompt: createAsDraft ? undefined : (currentPrompt || undefined),
@@ -572,6 +578,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                 versionCount: effectiveVersionCount,
                 agentType: primaryAgentType,
                 skipPermissions: createAsDraft ? skipPermissions : undefined,
+                ...prInfo,
             }
             if (agentTypesPayload) {
                 createData.agentTypes = agentTypesPayload

@@ -171,6 +171,8 @@ mod tests {
                 ready_to_merge: false,
                 spec_content: None,
                 session_state: SessionState::Running,
+                pr_number: None,
+                pr_url: None,
             },
             status: None,
             terminals: vec![],

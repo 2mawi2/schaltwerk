@@ -1420,6 +1420,8 @@ function AppContent() {
     agentType?: string
     skipPermissions?: boolean
     agentTypes?: string[]
+    prNumber?: number
+    prUrl?: string
   }) => {
     try {
       await preserveSelection(async () => {
@@ -1498,6 +1500,19 @@ function AppContent() {
             const actualSessionName = createdSession?.name ?? versionName
             createdSessions.push({ name: actualSessionName, agentType: agentTypeForVersion })
             expectSession(actualSessionName)
+
+            if (data.prNumber && data.prUrl) {
+              try {
+                await invoke(TauriCommands.SchaltwerkCoreLinkSessionToPr, {
+                  name: actualSessionName,
+                  prNumber: data.prNumber,
+                  prUrl: data.prUrl,
+                })
+                logger.info(`[App] Auto-linked session ${actualSessionName} to PR #${data.prNumber}`)
+              } catch (linkError) {
+                logger.warn(`[App] Failed to auto-link session to PR:`, linkError)
+              }
+            }
 
             if (!data.isSpec && actualSessionName !== versionName) {
               try {

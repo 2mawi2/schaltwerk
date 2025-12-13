@@ -594,6 +594,19 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         }
     }, [])
 
+    const handleLinkPr = useCallback(async (sessionId: string, prNumber: number, prUrl: string) => {
+        try {
+            await invoke(TauriCommands.SchaltwerkCoreLinkSessionToPr, {
+                name: sessionId,
+                prNumber,
+                prUrl
+            })
+            await reloadSessionsAndRefreshIdle()
+        } catch (error) {
+            logger.error('Failed to link session to PR:', error)
+        }
+    }, [reloadSessionsAndRefreshIdle])
+
     const triggerMarkReady = useCallback(async (sessionId: string) => {
         if (markReadyCooldownRef.current) {
             logger.debug(`[Sidebar] Skipping mark-ready for ${sessionId} (cooldown active)`)
@@ -1502,6 +1515,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                         isMarkReadyDisabled={isMarkReadyCoolingDown}
                                         isSessionBusy={isSessionMutating}
                                         onRename={handleRenameSession}
+                                        onLinkPr={(sessionId, prNumber, prUrl) => { void handleLinkPr(sessionId, prNumber, prUrl) }}
                                     />
                                 )
                             })

@@ -1,11 +1,14 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import { VscCheck, VscDiscard } from 'react-icons/vsc'
+import { VscCheck, VscDiscard, VscLink, VscComment, VscLinkExternal } from 'react-icons/vsc'
 import type { EnrichedSession } from '../../types/session'
 import { TauriCommands } from '../../common/tauriCommands'
 import { ConfirmResetDialog } from '../common/ConfirmResetDialog'
 import { logger } from '../../utils/logger'
 import { UiEvent, emitUiEvent } from '../../common/uiEvents'
+import { LinkPrModal } from '../modals/LinkPrModal'
+import { useToast } from '../../common/toast/ToastProvider'
+import { usePrComments } from '../../hooks/usePrComments'
 
 type DiffSessionActionsRenderProps = {
   headerActions: ReactNode
@@ -33,9 +36,15 @@ export function DiffSessionActions({
   onLoadChangedFiles,
   children
 }: DiffSessionActionsProps) {
+  const { pushToast } = useToast()
+  const { fetchingComments, fetchAndPasteToTerminal } = usePrComments()
   const [isResetting, setIsResetting] = useState(false)
   const [confirmResetOpen, setConfirmResetOpen] = useState(false)
   const [isMarkingReviewed, setIsMarkingReviewed] = useState(false)
+  const [linkPrModalOpen, setLinkPrModalOpen] = useState(false)
+
+  const prNumber = targetSession?.info.pr_number
+  const prUrl = targetSession?.info.pr_url
 
   const handleConfirmReset = useCallback(async () => {
     if (!sessionName) return
@@ -71,11 +80,64 @@ export function DiffSessionActions({
     }
   }, [targetSession, sessionName, isMarkingReviewed, onReloadSessions, onClose])
 
+  const handleLinkPrConfirm = useCallback(async (prNum: number, prUrlValue: string) => {
+    if (!sessionName) return
+    setLinkPrModalOpen(false)
+    try {
+      await invoke(TauriCommands.SchaltwerkCoreLinkSessionToPr, {
+        name: sessionName,
+        prNumber: prNum,
+        prUrl: prUrlValue
+      })
+      await onReloadSessions()
+      pushToast({ tone: 'success', title: 'PR linked', description: `Session linked to PR #${prNum}` })
+    } catch (error) {
+      logger.error('Failed to link session to PR:', error)
+      pushToast({ tone: 'error', title: 'Failed to link PR', description: String(error) })
+    }
+  }, [sessionName, onReloadSessions, pushToast])
+
+  const handleFetchAndPasteComments = useCallback(async () => {
+    if (!prNumber) return
+    await fetchAndPasteToTerminal(prNumber)
+  }, [prNumber, fetchAndPasteToTerminal])
+
   const headerActions = useMemo(() => {
     if (!isSessionSelection) return null
 
     return (
       <>
+        {prNumber ? (
+          <>
+            <button
+              onClick={() => { void handleFetchAndPasteComments() }}
+              className="px-2 py-1 bg-blue-600/80 hover:bg-blue-600 rounded-md text-sm font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+              title={`Send PR #${prNumber} review comments to terminal`}
+              disabled={fetchingComments}
+            >
+              <VscComment className="text-lg" />
+              {fetchingComments ? 'Fetching...' : `PR #${prNumber} Comments`}
+            </button>
+            {prUrl && (
+              <button
+                onClick={() => { void invoke(TauriCommands.OpenExternalUrl, { url: prUrl }) }}
+                className="px-2 py-1 bg-blue-600/80 hover:bg-blue-600 rounded-md text-sm font-medium flex items-center gap-2"
+                title={`Open PR #${prNumber} in browser`}
+              >
+                <VscLinkExternal className="text-lg" />
+              </button>
+            )}
+          </>
+        ) : (
+          <button
+            onClick={() => setLinkPrModalOpen(true)}
+            className="px-2 py-1 bg-slate-600/80 hover:bg-slate-600 rounded-md text-sm font-medium flex items-center gap-2"
+            title="Link this session to a GitHub PR"
+          >
+            <VscLink className="text-lg" />
+            Link PR
+          </button>
+        )}
         <button
           onClick={() => setConfirmResetOpen(true)}
           className="px-2 py-1 bg-red-600/80 hover:bg-red-600 rounded-md text-sm font-medium flex items-center gap-2"
@@ -98,16 +160,24 @@ export function DiffSessionActions({
         )}
       </>
     )
-  }, [isSessionSelection, isResetting, canMarkReviewed, handleMarkReviewedClick, isMarkingReviewed])
+  }, [isSessionSelection, isResetting, canMarkReviewed, handleMarkReviewedClick, isMarkingReviewed, prNumber, prUrl, fetchingComments, handleFetchAndPasteComments])
 
   const dialogs = useMemo(() => (
-    <ConfirmResetDialog
-      open={confirmResetOpen && isSessionSelection}
-      onCancel={() => setConfirmResetOpen(false)}
-      onConfirm={() => { void handleConfirmReset() }}
-      isBusy={isResetting}
-    />
-  ), [confirmResetOpen, isSessionSelection, handleConfirmReset, isResetting])
+    <>
+      <ConfirmResetDialog
+        open={confirmResetOpen && isSessionSelection}
+        onCancel={() => setConfirmResetOpen(false)}
+        onConfirm={() => { void handleConfirmReset() }}
+        isBusy={isResetting}
+      />
+      <LinkPrModal
+        open={linkPrModalOpen}
+        currentPrUrl={prUrl}
+        onConfirm={(prNum, prUrlVal) => { void handleLinkPrConfirm(prNum, prUrlVal) }}
+        onCancel={() => setLinkPrModalOpen(false)}
+      />
+    </>
+  ), [confirmResetOpen, isSessionSelection, handleConfirmReset, isResetting, linkPrModalOpen, prUrl, handleLinkPrConfirm])
 
   return <>{children({ headerActions, dialogs })}</>
 }

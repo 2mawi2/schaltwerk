@@ -1,6 +1,68 @@
 import type { GithubPrDetails, GithubPrSummary } from '../../types/githubIssues'
 import { formatDateTime } from '../../utils/dateTime'
 
+export interface PrReviewComment {
+  id: number
+  path: string
+  line: number | null
+  body: string
+  author: string | null
+  createdAt: string
+  htmlUrl: string
+  inReplyToId: number | null
+}
+
+export function formatPrReviewCommentsForTerminal(
+  comments: PrReviewComment[],
+  prNumber: number
+): string {
+  let formatted = `\n# PR Review Comments (PR #${prNumber})\n\n`
+
+  const commentsByFile = comments.reduce((acc, c) => {
+    if (!acc[c.path]) acc[c.path] = []
+    acc[c.path].push(c)
+    return acc
+  }, {} as Record<string, PrReviewComment[]>)
+
+  for (const [file, fileComments] of Object.entries(commentsByFile)) {
+    formatted += `## ${file}\n\n`
+    const topLevel = fileComments.filter(c => c.inReplyToId === null)
+    const repliesById = new Map<number, PrReviewComment[]>()
+
+    for (const c of fileComments) {
+      if (c.inReplyToId !== null) {
+        const existing = repliesById.get(c.inReplyToId) ?? []
+        existing.push(c)
+        repliesById.set(c.inReplyToId, existing)
+      }
+    }
+
+    for (const c of topLevel) {
+      const location = c.line ? `Line ${c.line}` : 'General'
+      const author = c.author ? `@${c.author}` : 'Unknown'
+      formatted += `### ${location}:\n**${author}:** ${c.body}\n\n`
+
+      const threadReplies = repliesById.get(c.id) ?? []
+      for (const reply of threadReplies) {
+        const replyAuthor = reply.author ? `@${reply.author}` : 'Unknown'
+        formatted += `  > **${replyAuthor} (reply):** ${reply.body}\n\n`
+      }
+    }
+  }
+
+  return formatted
+}
+
+export function formatPrReviewCommentsForClipboard(
+  comments: PrReviewComment[]
+): string {
+  return comments.map(c => {
+    const location = c.line ? `${c.path}:${c.line}` : c.path
+    const author = c.author ? `@${c.author}` : 'Unknown'
+    return `## ${location}\n**${author}**: ${c.body}`
+  }).join('\n\n---\n\n')
+}
+
 export function buildPrPrompt(details: GithubPrDetails): string {
   const lines: string[] = [
     `GitHub Pull Request Context: ${details.title} (#${details.number})`,

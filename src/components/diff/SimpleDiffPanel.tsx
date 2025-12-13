@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type ChangeEvent } from 'react'
 import { DiffFileList } from './DiffFileList'
 import { UnifiedDiffView } from './UnifiedDiffView'
-import { VscScreenFull, VscChevronLeft } from 'react-icons/vsc'
+import { VscScreenFull, VscChevronLeft, VscLink, VscComment, VscLinkExternal } from 'react-icons/vsc'
 import { useReview } from '../../contexts/ReviewContext'
 import { useReviewComments } from '../../hooks/useReviewComments'
 import { useSelection } from '../../hooks/useSelection'
@@ -17,6 +17,9 @@ import { inlineSidebarDefaultPreferenceAtom } from '../../store/atoms/diffPrefer
 import { useShortcutDisplay } from '../../keyboardShortcuts/useShortcutDisplay'
 import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
 import { useClaudeSession } from '../../hooks/useClaudeSession'
+import { LinkPrModal } from '../modals/LinkPrModal'
+import { useToast } from '../../common/toast/ToastProvider'
+import { usePrComments } from '../../hooks/usePrComments'
 
 interface SimpleDiffPanelProps {
   mode: 'list' | 'review'
@@ -47,14 +50,24 @@ export function SimpleDiffPanel({
 }: SimpleDiffPanelProps) {
   const [hasFiles, setHasFiles] = useState(true)
   const [preferInline, setPreferInline] = useAtom(inlineSidebarDefaultPreferenceAtom)
+  const [linkPrModalOpen, setLinkPrModalOpen] = useState(false)
+  const { pushToast } = useToast()
   const { currentReview, getCommentsForFile, clearReview } = useReview()
   const { formatReviewForPrompt, getConfirmationMessage } = useReviewComments()
   const { selection, setSelection, terminals } = useSelection()
   const { setFocusForSession, setCurrentFocus } = useFocus()
-  const { sessions } = useSessions()
+  const { sessions, reloadSessions } = useSessions()
   const { getOrchestratorAgentType } = useClaudeSession()
+  const { fetchingComments, fetchAndPasteToTerminal } = usePrComments()
   const testProps: { 'data-testid': string } = { 'data-testid': 'diff-panel' }
   const openDiffViewerShortcut = useShortcutDisplay(KeyboardShortcutAction.OpenDiffViewer)
+
+  const currentSession = selection.kind === 'session' && typeof selection.payload === 'string'
+    ? sessions.find(s => s.info.session_id === selection.payload)
+    : null
+  const prNumber = currentSession?.info.pr_number
+  const prUrl = currentSession?.info.pr_url
+  const sessionName = currentSession?.info.session_id
 
   const handleSelectFile = useCallback((filePath: string) => {
     onActiveFileChange(filePath)
@@ -155,6 +168,28 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
     clearReview()
     handleBackToList()
   }, [clearReview, handleBackToList])
+
+  const handleLinkPrConfirm = useCallback(async (prNum: number, prUrlValue: string) => {
+    if (!sessionName) return
+    setLinkPrModalOpen(false)
+    try {
+      await invoke(TauriCommands.SchaltwerkCoreLinkSessionToPr, {
+        name: sessionName,
+        prNumber: prNum,
+        prUrl: prUrlValue
+      })
+      await reloadSessions()
+      pushToast({ tone: 'success', title: 'PR linked', description: `Session linked to PR #${prNum}` })
+    } catch (error) {
+      logger.error('Failed to link session to PR:', error)
+      pushToast({ tone: 'error', title: 'Failed to link PR', description: String(error) })
+    }
+  }, [sessionName, reloadSessions, pushToast])
+
+  const handleFetchAndPasteComments = useCallback(async () => {
+    if (!prNumber) return
+    await fetchAndPasteToTerminal(prNumber)
+  }, [prNumber, fetchAndPasteToTerminal])
 
   const handleViewerSelectionChange = useCallback((filePath: string | null) => {
     if (filePath !== activeFile) {
@@ -268,6 +303,37 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
             />
             <span>Auto-collapse sidebar</span>
           </label>
+          {currentSession && (
+            prNumber ? (
+              <>
+                <button
+                  onClick={() => { void handleFetchAndPasteComments() }}
+                  className="p-1 hover:bg-slate-800 rounded text-blue-400 hover:text-blue-300 transition-colors disabled:opacity-50"
+                  title={`Send PR #${prNumber} review comments to terminal`}
+                  disabled={fetchingComments}
+                >
+                  <VscComment />
+                </button>
+                {prUrl && (
+                  <button
+                    onClick={() => { void invoke(TauriCommands.OpenExternalUrl, { url: prUrl }) }}
+                    className="p-1 hover:bg-slate-800 rounded text-blue-400 hover:text-blue-300 transition-colors"
+                    title={`Open PR #${prNumber} in browser`}
+                  >
+                    <VscLinkExternal />
+                  </button>
+                )}
+              </>
+            ) : (
+              <button
+                onClick={() => setLinkPrModalOpen(true)}
+                className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-slate-200 transition-colors"
+                title="Link to GitHub PR"
+              >
+                <VscLink />
+              </button>
+            )
+          )}
           {onOpenDiff && (
             <button
               onClick={() => onOpenDiff(activeFile, true)}
@@ -282,6 +348,12 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
       <div className="flex-1 min-h-0 overflow-hidden">
         {renderDiffFileList()}
       </div>
+      <LinkPrModal
+        open={linkPrModalOpen}
+        currentPrUrl={prUrl}
+        onConfirm={(prNum, prUrlVal) => { void handleLinkPrConfirm(prNum, prUrlVal) }}
+        onCancel={() => setLinkPrModalOpen(false)}
+      />
     </div>
   )
 }

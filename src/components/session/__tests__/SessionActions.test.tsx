@@ -19,6 +19,14 @@ vi.mock('../../../utils/logger', () => ({
   },
 }))
 
+vi.mock('../../../hooks/usePrComments', () => ({
+  usePrComments: () => ({
+    fetchingComments: false,
+    fetchAndPasteToTerminal: vi.fn(),
+    fetchAndCopyToClipboard: vi.fn(),
+  }),
+}))
+
 function renderWithGithub(value: Partial<GithubIntegrationValue>) {
   const defaultValue: GithubIntegrationValue = {
     status: {

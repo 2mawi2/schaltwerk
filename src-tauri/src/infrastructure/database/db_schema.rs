@@ -291,6 +291,9 @@ fn apply_sessions_migrations(conn: &rusqlite::Connection) -> anyhow::Result<()> 
         "UPDATE sessions SET original_parent_branch = parent_branch WHERE original_parent_branch IS NULL",
         [],
     );
+    // GitHub PR integration fields
+    let _ = conn.execute("ALTER TABLE sessions ADD COLUMN pr_number INTEGER", []);
+    let _ = conn.execute("ALTER TABLE sessions ADD COLUMN pr_url TEXT", []);
     Ok(())
 }
 

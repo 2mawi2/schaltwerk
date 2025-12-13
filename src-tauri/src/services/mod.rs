@@ -29,7 +29,7 @@ pub use crate::domains::git::{
     github_cli::{
         CommandOutput, CommandRunner, CreatePrOptions, GitHubCli, GitHubCliError,
         GitHubIssueComment, GitHubIssueDetails, GitHubIssueLabel, GitHubIssueSummary,
-        GitHubPrDetails, GitHubPrSummary,
+        GitHubPrDetails, GitHubPrReviewComment, GitHubPrSummary,
     },
 };
 pub use crate::domains::git::{repository, worktrees};

@@ -5,7 +5,8 @@ use schaltwerk::project_manager::ProjectManager;
 use schaltwerk::schaltwerk_core::db_project_config::{ProjectConfigMethods, ProjectGithubConfig};
 use schaltwerk::services::{
     CommandRunner, CreatePrOptions, GitHubCli, GitHubCliError, GitHubIssueComment,
-    GitHubIssueDetails, GitHubIssueLabel, GitHubIssueSummary, GitHubPrDetails, GitHubPrSummary,
+    GitHubIssueDetails, GitHubIssueLabel, GitHubIssueSummary, GitHubPrDetails,
+    GitHubPrReviewComment, GitHubPrSummary,
 };
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -98,6 +99,19 @@ pub struct GitHubPrDetailsPayload {
     pub labels: Vec<GitHubIssueLabelPayload>,
     pub comments: Vec<GitHubIssueCommentPayload>,
     pub head_ref_name: String,
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubPrReviewCommentPayload {
+    pub id: u64,
+    pub path: String,
+    pub line: Option<u64>,
+    pub body: String,
+    pub author: Option<String>,
+    pub created_at: String,
+    pub html_url: String,
+    pub in_reply_to_id: Option<u64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -312,6 +326,37 @@ pub async fn github_get_pr_details(
     github_get_pr_details_impl(Arc::clone(&manager), &cli, number).await
 }
 
+#[tauri::command]
+pub async fn github_get_pr_review_comments(
+    _app: AppHandle,
+    pr_number: u64,
+) -> Result<Vec<GitHubPrReviewCommentPayload>, String> {
+    let manager = get_project_manager().await;
+    let cli = GitHubCli::new();
+    github_get_pr_review_comments_impl(Arc::clone(&manager), &cli, pr_number).await
+}
+
+async fn github_get_pr_review_comments_impl<R: CommandRunner>(
+    project_manager: Arc<ProjectManager>,
+    cli: &GitHubCli<R>,
+    pr_number: u64,
+) -> Result<Vec<GitHubPrReviewCommentPayload>, String> {
+    let project_path = resolve_project_path(project_manager).await?;
+
+    if let Err(err) = cli.ensure_installed() {
+        return Err(format_cli_error(err));
+    }
+
+    let comments = cli
+        .get_pr_review_comments(&project_path, pr_number)
+        .map_err(|err| {
+            error!("GitHub PR review comments fetch failed: {err}");
+            format_cli_error(err)
+        })?;
+
+    Ok(comments.into_iter().map(map_pr_review_comment_payload).collect())
+}
+
 async fn github_search_issues_impl<R: CommandRunner>(
     project_manager: Arc<ProjectManager>,
     cli: &GitHubCli<R>,
@@ -502,6 +547,19 @@ fn map_pr_details_payload(details: GitHubPrDetails) -> GitHubPrDetailsPayload {
             .map(map_issue_comment_payload)
             .collect(),
         head_ref_name: details.head_ref_name,
+    }
+}
+
+fn map_pr_review_comment_payload(comment: GitHubPrReviewComment) -> GitHubPrReviewCommentPayload {
+    GitHubPrReviewCommentPayload {
+        id: comment.id,
+        path: comment.path,
+        line: comment.line,
+        body: comment.body,
+        author: comment.author_login,
+        created_at: comment.created_at,
+        html_url: comment.html_url,
+        in_reply_to_id: comment.in_reply_to_id,
     }
 }
 

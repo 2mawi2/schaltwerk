@@ -226,6 +226,8 @@ mod tests {
             session_state: SessionState::Running,
             resume_allowed: true,
             amp_thread_id: None,
+            pr_number: None,
+            pr_url: None,
         }
     }
 
