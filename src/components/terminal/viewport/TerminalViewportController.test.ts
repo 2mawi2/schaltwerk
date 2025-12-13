@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { TerminalViewportController } from './TerminalViewportController'
 
+vi.mock('../../../terminal/registry/terminalRegistry', () => ({
+  isTerminalStreaming: vi.fn(() => false),
+}))
+
 const buildMockTerminal = (options?: { baseY?: number; viewportY?: number }) => {
   const buffer = {
     baseY: options?.baseY ?? 10,
@@ -13,16 +17,20 @@ const buildMockTerminal = (options?: { baseY?: number; viewportY?: number }) => 
     refresh: vi.fn(),
     scrollToBottom: vi.fn(),
     scrollLines: vi.fn(),
+    scrollToLine: vi.fn(),
   }
 
   const terminal = {
     raw,
     refresh: () => raw.refresh(),
     isTuiMode: () => false,
+    forceScrollbarRefresh: vi.fn(),
   }
 
   return { terminal, buffer }
 }
+
+const TEST_TERMINAL_ID = 'test-terminal'
 
 describe('TerminalViewportController', () => {
   beforeEach(() => {
@@ -37,7 +45,8 @@ describe('TerminalViewportController', () => {
     it('never calls scrollToBottom during output', async () => {
       const { terminal } = buildMockTerminal({ baseY: 100, viewportY: 50 })
       const controller = new TerminalViewportController({
-        terminal: terminal as any
+        terminal: terminal as any,
+        terminalId: TEST_TERMINAL_ID,
       })
 
       controller.onOutput()
@@ -50,7 +59,8 @@ describe('TerminalViewportController', () => {
     it('coalesces multiple output calls into single RAF', async () => {
       const { terminal } = buildMockTerminal()
       const controller = new TerminalViewportController({
-        terminal: terminal as any
+        terminal: terminal as any,
+        terminalId: TEST_TERMINAL_ID,
       })
 
       controller.onOutput()
@@ -66,7 +76,8 @@ describe('TerminalViewportController', () => {
     it('snaps to bottom on clear', () => {
       const { terminal } = buildMockTerminal()
       const controller = new TerminalViewportController({
-        terminal: terminal as any
+        terminal: terminal as any,
+        terminalId: TEST_TERMINAL_ID,
       })
 
       controller.onClear()
@@ -79,7 +90,8 @@ describe('TerminalViewportController', () => {
     it('snaps to bottom when near bottom', () => {
       const { terminal } = buildMockTerminal({ baseY: 100, viewportY: 98 })
       const controller = new TerminalViewportController({
-        terminal: terminal as any
+        terminal: terminal as any,
+        terminalId: TEST_TERMINAL_ID,
       })
 
       controller.onFocusOrClick()
@@ -90,7 +102,8 @@ describe('TerminalViewportController', () => {
     it('does not snap when far from bottom', () => {
       const { terminal } = buildMockTerminal({ baseY: 100, viewportY: 50 })
       const controller = new TerminalViewportController({
-        terminal: terminal as any
+        terminal: terminal as any,
+        terminalId: TEST_TERMINAL_ID,
       })
 
       controller.onFocusOrClick()
@@ -103,7 +116,8 @@ describe('TerminalViewportController', () => {
     it('snaps to bottom when near bottom and not streaming', () => {
       const { terminal } = buildMockTerminal({ baseY: 100, viewportY: 98 })
       const controller = new TerminalViewportController({
-        terminal: terminal as any
+        terminal: terminal as any,
+        terminalId: TEST_TERMINAL_ID,
       })
 
       controller.onResize()
@@ -114,7 +128,8 @@ describe('TerminalViewportController', () => {
     it('does not snap during streaming', async () => {
       const { terminal } = buildMockTerminal({ baseY: 100, viewportY: 98 })
       const controller = new TerminalViewportController({
-        terminal: terminal as any
+        terminal: terminal as any,
+        terminalId: TEST_TERMINAL_ID,
       })
 
       controller.onOutput()
@@ -125,12 +140,114 @@ describe('TerminalViewportController', () => {
 
       expect(terminal.raw.scrollToBottom).not.toHaveBeenCalled()
     })
+
+    it('restores scroll position if user was scrolled away', () => {
+      const { terminal, buffer } = buildMockTerminal({ baseY: 100, viewportY: 50 })
+      const controller = new TerminalViewportController({
+        terminal: terminal as any,
+        terminalId: TEST_TERMINAL_ID,
+      })
+
+      controller.beforeResize()
+      buffer.baseY = 110
+      controller.onResize()
+
+      expect(terminal.raw.scrollToLine).toHaveBeenCalled()
+      expect(terminal.raw.scrollToBottom).not.toHaveBeenCalled()
+    })
+
+    it('does not save scroll state if already at bottom', () => {
+      const { terminal } = buildMockTerminal({ baseY: 100, viewportY: 100 })
+      const controller = new TerminalViewportController({
+        terminal: terminal as any,
+        terminalId: TEST_TERMINAL_ID,
+      })
+
+      controller.beforeResize()
+      controller.onResize()
+
+      expect(terminal.raw.scrollToLine).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('scroll state save/restore', () => {
+    it('saves and restores viewport position', () => {
+      const { terminal, buffer } = buildMockTerminal({ baseY: 100, viewportY: 50 })
+      const controller = new TerminalViewportController({
+        terminal: terminal as any,
+        terminalId: TEST_TERMINAL_ID,
+      })
+
+      controller.saveScrollState()
+      buffer.viewportY = 80
+      controller.restoreScrollState()
+
+      expect(terminal.raw.scrollToLine).toHaveBeenCalledWith(50)
+    })
+
+    it('adjusts for buffer growth during restore', () => {
+      const { terminal, buffer } = buildMockTerminal({ baseY: 100, viewportY: 50 })
+      const controller = new TerminalViewportController({
+        terminal: terminal as any,
+        terminalId: TEST_TERMINAL_ID,
+      })
+
+      controller.saveScrollState()
+      buffer.baseY = 120
+      buffer.viewportY = 80
+      controller.restoreScrollState()
+
+      expect(terminal.raw.scrollToLine).toHaveBeenCalledWith(70)
+    })
+  })
+
+  describe('isAtBottom and isNearBottom', () => {
+    it('isAtBottom returns true when at bottom', () => {
+      const { terminal } = buildMockTerminal({ baseY: 100, viewportY: 100 })
+      const controller = new TerminalViewportController({
+        terminal: terminal as any,
+        terminalId: TEST_TERMINAL_ID,
+      })
+
+      expect(controller.isAtBottom()).toBe(true)
+    })
+
+    it('isAtBottom returns false when scrolled away', () => {
+      const { terminal } = buildMockTerminal({ baseY: 100, viewportY: 50 })
+      const controller = new TerminalViewportController({
+        terminal: terminal as any,
+        terminalId: TEST_TERMINAL_ID,
+      })
+
+      expect(controller.isAtBottom()).toBe(false)
+    })
+
+    it('isNearBottom returns true within threshold', () => {
+      const { terminal } = buildMockTerminal({ baseY: 100, viewportY: 98 })
+      const controller = new TerminalViewportController({
+        terminal: terminal as any,
+        terminalId: TEST_TERMINAL_ID,
+      })
+
+      expect(controller.isNearBottom()).toBe(true)
+    })
+
+    it('isNearBottom returns false when far from bottom', () => {
+      const { terminal } = buildMockTerminal({ baseY: 100, viewportY: 50 })
+      const controller = new TerminalViewportController({
+        terminal: terminal as any,
+        terminalId: TEST_TERMINAL_ID,
+      })
+
+      expect(controller.isNearBottom()).toBe(false)
+    })
   })
 
   it('no-ops when disposed', async () => {
     const { terminal } = buildMockTerminal()
     const controller = new TerminalViewportController({
-      terminal: terminal as any
+      terminal: terminal as any,
+      terminalId: TEST_TERMINAL_ID,
     })
     controller.dispose()
 
@@ -144,7 +261,10 @@ describe('TerminalViewportController', () => {
   it('skips output and clear handling in TUI mode', () => {
     const { terminal } = buildMockTerminal()
     terminal.isTuiMode = () => true
-    const controller = new TerminalViewportController({ terminal: terminal as unknown as import('../../../terminal/xterm/XtermTerminal').XtermTerminal })
+    const controller = new TerminalViewportController({
+      terminal: terminal as any,
+      terminalId: TEST_TERMINAL_ID,
+    })
 
     controller.onOutput()
     controller.onClear()

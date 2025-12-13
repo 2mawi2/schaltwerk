@@ -28,6 +28,9 @@ export interface TerminalInstanceRecord {
   outputCallbacks?: Set<() => void>;
   clearCallbacks?: Set<() => void>;
   hadClearInBatch?: boolean;
+  // VS Code-style dual-timestamp tracking for write synchronization
+  latestWriteId: number;
+  latestParseId: number;
 }
 
 export interface AcquireTerminalResult {
@@ -61,6 +64,8 @@ class TerminalInstanceRegistry {
       streamRegistered: false,
       bracketedPasteEnabled: false,
       controlSequenceTail: '',
+      latestWriteId: 0,
+      latestParseId: 0,
     };
 
     this.instances.set(id, record);
@@ -147,6 +152,25 @@ class TerminalInstanceRegistry {
 
   isBracketedPasteEnabled(id: string): boolean {
     return this.instances.get(id)?.bracketedPasteEnabled ?? false;
+  }
+
+  /**
+   * Check if all written data has been parsed by xterm.
+   * VS Code pattern: latestWriteId === latestParseId means all data processed.
+   */
+  isFullyParsed(id: string): boolean {
+    const record = this.instances.get(id);
+    if (!record) return true;
+    return record.latestWriteId === record.latestParseId;
+  }
+
+  /**
+   * Check if terminal is actively streaming (has unparsed data).
+   */
+  isStreaming(id: string): boolean {
+    const record = this.instances.get(id);
+    if (!record) return false;
+    return record.latestWriteId !== record.latestParseId;
   }
 
   clear(): void {
@@ -258,12 +282,16 @@ class TerminalInstanceRegistry {
       const hadClear = record.hadClearInBatch ?? false;
       record.hadClearInBatch = false;
 
+      // VS Code-style dual-timestamp tracking: increment write ID before write,
+      // update parse ID in callback when xterm finishes parsing.
+      // This allows checking if all buffered data has been processed.
+      const writeId = ++record.latestWriteId;
+
       try {
-        // Write chunks without auto-scrolling. Scroll decisions are handled by
-        // TerminalViewportController.onOutput() which respects user scroll intent.
-        // This separation prevents race conditions where we'd decide to scroll before
-        // write completes, then yank the user back down even if they scrolled away.
         record.xterm.raw.write(combined, () => {
+          // Mark this write as fully parsed by xterm
+          record.latestParseId = writeId;
+
           if (hadClear) {
             this.notifyClearCallbacks(record);
           }
@@ -403,6 +431,14 @@ export function hasTerminalInstance(id: string): boolean {
 
 export function isTerminalBracketedPasteEnabled(id: string): boolean {
   return registry.isBracketedPasteEnabled(id);
+}
+
+export function isTerminalFullyParsed(id: string): boolean {
+  return registry.isFullyParsed(id);
+}
+
+export function isTerminalStreaming(id: string): boolean {
+  return registry.isStreaming(id);
 }
 
 export function addTerminalOutputCallback(id: string, callback: () => void): void {

@@ -335,6 +335,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
         viewportControllerRef.current = new TerminalViewportController({
             terminal: instance,
+            terminalId: terminalIdRef.current,
             logger: termDebug() ? (msg) => logger.debug(`[Terminal ${terminalIdRef.current}] ${msg}`) : undefined,
         });
     }, []);
