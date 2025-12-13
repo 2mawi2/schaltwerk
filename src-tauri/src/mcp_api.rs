@@ -11,7 +11,6 @@ use std::path::PathBuf;
 use url::form_urlencoded;
 
 use schaltwerk::domains::settings::setup_script::SetupScriptService;
-use crate::commands::github::{CreateReviewedPrArgs, github_create_reviewed_pr};
 use crate::commands::schaltwerk_core::{
     MergeCommandError, merge_session_with_events, schaltwerk_core_cancel_session,
 };
@@ -20,8 +19,10 @@ use crate::mcp_api::diff_api::{DiffApiError, DiffChunkRequest, DiffScope, Summar
 use crate::{REQUEST_PROJECT_OVERRIDE, get_core_read, get_core_write};
 use schaltwerk::domains::merge::MergeMode;
 use schaltwerk::domains::sessions::entity::{Session, Spec};
-use schaltwerk::infrastructure::events::{SchaltEvent, emit_event};
+use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
+use schaltwerk::schaltwerk_core::db_project_config::ProjectConfigMethods;
 use schaltwerk::schaltwerk_core::{SessionManager, SessionState};
+use schaltwerk::services::{CreateSessionPrOptions, PrCommitMode, PrContent};
 
 mod diff_api;
 
@@ -94,6 +95,12 @@ async fn handle_mcp_request_inner(
         {
             let name = extract_session_name_for_action(path, "/pull-request");
             create_pull_request(req, &name, app).await
+        }
+        (&Method::POST, path)
+            if path.starts_with("/api/sessions/") && path.ends_with("/prepare-pr") =>
+        {
+            let name = extract_session_name_for_action(path, "/prepare-pr");
+            prepare_pull_request(req, &name, app).await
         }
         (&Method::DELETE, path) if path.starts_with("/api/sessions/") => {
             let name = extract_session_name(path);
@@ -1325,12 +1332,19 @@ async fn merge_session(
 #[derive(Debug, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 struct PullRequestRequest {
+    pr_title: String,
+    #[serde(default)]
+    pr_body: Option<String>,
+    #[serde(default)]
+    base_branch: Option<String>,
+    #[serde(default)]
+    pr_branch_name: Option<String>,
     #[serde(default)]
     commit_message: Option<String>,
     #[serde(default)]
-    default_branch: Option<String>,
-    #[serde(default)]
     repository: Option<String>,
+    #[serde(default)]
+    mode: Option<MergeMode>,
     #[serde(default)]
     cancel_after_pr: bool,
 }
@@ -1350,7 +1364,7 @@ async fn create_pull_request(
     name: &str,
     app: tauri::AppHandle,
 ) -> Result<Response<String>, hyper::Error> {
-    let worktree_path = match get_core_read().await {
+    let (worktree_path, session_branch, parent_branch) = match get_core_read().await {
         Ok(core) => {
             let manager = core.session_manager();
             match manager.get_session(name) {
@@ -1363,7 +1377,11 @@ async fn create_pull_request(
                             ),
                         ));
                     }
-                    session.worktree_path
+                    (
+                        session.worktree_path.clone(),
+                        session.branch.clone(),
+                        session.parent_branch.clone(),
+                    )
                 }
                 Err(e) => {
                     return Ok(error_response(
@@ -1393,16 +1411,89 @@ async fn create_pull_request(
         }
     };
 
-    let pr_payload = CreateReviewedPrArgs {
-        session_slug: name.to_string(),
-        worktree_path: worktree_path.to_string_lossy().to_string(),
-        default_branch: payload.default_branch.clone(),
-        commit_message: payload.commit_message.clone(),
-        repository: payload.repository.clone(),
+    let repo_path = match REQUEST_PROJECT_OVERRIDE.try_with(|cell| cell.borrow().clone()) {
+        Ok(Some(path)) => path,
+        _ => {
+            let manager = crate::get_project_manager().await;
+            match manager.current_project().await {
+                Ok(project) => project.path.clone(),
+                Err(e) => {
+                    return Ok(error_response(
+                        StatusCode::BAD_REQUEST,
+                        format!("No active project: {e}"),
+                    ));
+                }
+            }
+        }
     };
 
-    let pr_result = match github_create_reviewed_pr(app.clone(), pr_payload).await {
-        Ok(result) => result,
+    let mode = payload.mode.unwrap_or(MergeMode::Reapply);
+    let pr_mode = match mode {
+        MergeMode::Squash => PrCommitMode::Squash,
+        MergeMode::Reapply => PrCommitMode::Reapply,
+    };
+
+    let pr_branch_name = payload
+        .pr_branch_name
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+        .map(schaltwerk::domains::git::github_cli::sanitize_branch_name)
+        .unwrap_or_else(|| session_branch.clone());
+
+    let base_branch = payload
+        .base_branch
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| {
+            if parent_branch.trim().is_empty() {
+                "main".to_string()
+            } else {
+                parent_branch.clone()
+            }
+        });
+
+    let repository_config = match get_core_read().await {
+        Ok(core) => core
+            .database()
+            .get_project_github_config(&repo_path)
+            .map_err(|e| format!("Failed to load GitHub project config: {e}"))
+            .ok()
+            .flatten(),
+        Err(_) => None,
+    };
+
+    let repository = payload
+        .repository
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| s.to_string())
+        .or_else(|| repository_config.as_ref().map(|cfg| cfg.repository.clone()));
+
+    let cli = schaltwerk::services::GitHubCli::new();
+    if let Err(err) = cli.ensure_installed() {
+        return Ok(error_response(
+            StatusCode::BAD_REQUEST,
+            format!("GitHub CLI is not available: {err}"),
+        ));
+    }
+
+    let pr_result = match cli.create_session_pr(CreateSessionPrOptions {
+        repo_path: &repo_path,
+        session_worktree_path: &worktree_path,
+        session_slug: name,
+        session_branch: &session_branch,
+        base_branch: &base_branch,
+        pr_branch_name: &pr_branch_name,
+        content: PrContent::Explicit {
+            title: &payload.pr_title,
+            body: payload.pr_body.as_deref().unwrap_or(""),
+        },
+        commit_message: payload.commit_message.as_deref(),
+        repository: repository.as_deref(),
+        mode: pr_mode,
+    }) {
+        Ok(res) => res,
         Err(e) => {
             return Ok(error_response(
                 StatusCode::BAD_REQUEST,
@@ -1416,12 +1507,8 @@ async fn create_pull_request(
 
     if payload.cancel_after_pr {
         match schaltwerk_core_cancel_session(app.clone(), name.to_string()).await {
-            Ok(()) => {
-                cancel_queued = true;
-            }
-            Err(e) => {
-                cancel_error = Some(e.to_string());
-            }
+            Ok(()) => cancel_queued = true,
+            Err(e) => cancel_error = Some(e.to_string()),
         }
     }
 
@@ -1436,6 +1523,117 @@ async fn create_pull_request(
 
     let json = serde_json::to_string(&response).unwrap_or_else(|e| {
         error!("Failed to serialize PR response for '{name}': {e}");
+        "{}".to_string()
+    });
+
+    Ok(json_response(StatusCode::OK, json))
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct PreparePrRequest {
+    pr_title: Option<String>,
+    pr_body: Option<String>,
+    base_branch: Option<String>,
+    pr_branch_name: Option<String>,
+    #[serde(default)]
+    mode: Option<MergeMode>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OpenPrModalPayload {
+    session_name: String,
+    pr_title: Option<String>,
+    pr_body: Option<String>,
+    base_branch: Option<String>,
+    pr_branch_name: Option<String>,
+    mode: Option<String>,
+}
+
+#[derive(Debug, serde::Serialize)]
+struct PreparePrResponse {
+    session_name: String,
+    modal_triggered: bool,
+}
+
+async fn prepare_pull_request(
+    req: Request<Incoming>,
+    name: &str,
+    app: tauri::AppHandle,
+) -> Result<Response<String>, hyper::Error> {
+    match get_core_read().await {
+        Ok(core) => {
+            let manager = core.session_manager();
+            match manager.get_session(name) {
+                Ok(session) => {
+                    if session.session_state == SessionState::Spec {
+                        return Ok(error_response(
+                            StatusCode::BAD_REQUEST,
+                            format!(
+                                "Session '{name}' is a spec. Start the spec before creating a PR."
+                            ),
+                        ));
+                    }
+                }
+                Err(e) => {
+                    return Ok(error_response(
+                        StatusCode::NOT_FOUND,
+                        format!("Session '{name}' not found: {e}"),
+                    ));
+                }
+            }
+        }
+        Err(e) => {
+            error!("Failed to acquire session manager for prepare PR: {e}");
+            return Ok(error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Internal error: {e}"),
+            ));
+        }
+    };
+
+    let body_bytes = req.into_body().collect().await?.to_bytes();
+    let payload: PreparePrRequest = match serde_json::from_slice(&body_bytes) {
+        Ok(p) => p,
+        Err(e) => {
+            return Ok(error_response(
+                StatusCode::BAD_REQUEST,
+                format!("Invalid JSON payload: {e}"),
+            ));
+        }
+    };
+
+    let mode_str = payload.mode.map(|m| match m {
+        MergeMode::Squash => "squash".to_string(),
+        MergeMode::Reapply => "reapply".to_string(),
+    });
+
+    let event_payload = OpenPrModalPayload {
+        session_name: name.to_string(),
+        pr_title: payload.pr_title,
+        pr_body: payload.pr_body,
+        base_branch: payload.base_branch,
+        pr_branch_name: payload.pr_branch_name,
+        mode: mode_str,
+    };
+
+    if let Err(e) = emit_event(&app, SchaltEvent::OpenPrModal, &event_payload) {
+        error!("Failed to emit OpenPrModal event: {e}");
+        return Ok(error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to trigger PR modal: {e}"),
+        ));
+    }
+
+    info!("Triggered PR modal for session '{name}'");
+
+    let response = PreparePrResponse {
+        session_name: name.to_string(),
+        modal_triggered: true,
+    };
+
+    let json = serde_json::to_string(&response).unwrap_or_else(|e| {
+        error!("Failed to serialize prepare PR response for '{name}': {e}");
         "{}".to_string()
     });
 

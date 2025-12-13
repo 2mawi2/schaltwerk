@@ -33,6 +33,7 @@ pub enum SchaltEvent {
     CloneProgress,
     OrchestratorLaunchFailed,
     ProjectValidationError,
+    OpenPrModal,
 }
 
 impl SchaltEvent {
@@ -70,6 +71,7 @@ impl SchaltEvent {
             SchaltEvent::CloneProgress => "schaltwerk:clone-progress",
             SchaltEvent::OrchestratorLaunchFailed => "schaltwerk:orchestrator-launch-failed",
             SchaltEvent::ProjectValidationError => "schaltwerk:project-validation-error",
+            SchaltEvent::OpenPrModal => "schaltwerk:open-pr-modal",
         }
     }
 }

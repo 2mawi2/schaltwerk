@@ -4,9 +4,10 @@ use schaltwerk::infrastructure::events::{SchaltEvent, emit_event};
 use schaltwerk::project_manager::ProjectManager;
 use schaltwerk::schaltwerk_core::db_project_config::{ProjectConfigMethods, ProjectGithubConfig};
 use schaltwerk::services::{
-    CommandRunner, CreatePrOptions, GitHubCli, GitHubCliError, GitHubIssueComment,
-    GitHubIssueDetails, GitHubIssueLabel, GitHubIssueSummary, GitHubPrDetails,
-    GitHubPrReviewComment, GitHubPrSummary,
+    CommandRunner, CreatePrOptions, CreateSessionPrOptions, GitHubCli, GitHubCliError,
+    GitHubIssueComment, GitHubIssueDetails, GitHubIssueLabel, GitHubIssueSummary,
+    GitHubPrDetails, GitHubPrReviewComment, GitHubPrSummary, MergeMode, PrCommitMode,
+    PrContent, sanitize_branch_name,
 };
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -122,6 +123,42 @@ pub struct CreateReviewedPrArgs {
     pub default_branch: Option<String>,
     pub commit_message: Option<String>,
     pub repository: Option<String>,
+    pub pr_title: Option<String>,
+    pub pr_body: Option<String>,
+    pub target_branch: Option<String>,
+    pub custom_branch_name: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateSessionPrArgs {
+    pub session_name: String,
+    pub pr_title: String,
+    pub pr_body: Option<String>,
+    pub base_branch: Option<String>,
+    pub pr_branch_name: Option<String>,
+    pub commit_message: Option<String>,
+    pub repository: Option<String>,
+    pub mode: MergeMode,
+    #[serde(default)]
+    pub cancel_after_pr: bool,
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PrPreviewPayload {
+    pub session_name: String,
+    pub session_branch: String,
+    pub parent_branch: String,
+    pub default_title: String,
+    pub default_body: String,
+    pub commit_count: usize,
+    pub commit_summaries: Vec<String>,
+    pub default_branch: String,
+    pub worktree_path: String,
+    pub has_uncommitted_changes: bool,
+    pub branch_pushed: bool,
+    pub branch_conflict_warning: Option<String>,
 }
 
 #[tauri::command]
@@ -256,6 +293,14 @@ pub async fn github_create_reviewed_pr(
         "Creating GitHub PR for session '{}' on branch '{}'",
         args.session_slug, default_branch
     );
+    let content = match args.pr_title.as_deref().filter(|t| !t.trim().is_empty()) {
+        Some(title) => PrContent::Explicit {
+            title,
+            body: args.pr_body.as_deref().unwrap_or(""),
+        },
+        None => PrContent::Fill,
+    };
+
     let pr_result = cli
         .create_pr_from_worktree(CreatePrOptions {
             repo_path: &project_path,
@@ -264,11 +309,150 @@ pub async fn github_create_reviewed_pr(
             default_branch: &default_branch,
             commit_message: args.commit_message.as_deref(),
             repository: repository.as_deref(),
+            content,
+            target_branch: args.target_branch.as_deref(),
+            custom_branch_name: args.custom_branch_name.as_deref(),
         })
         .map_err(|err| {
             error!("GitHub PR creation failed: {err}");
             format_cli_error(err)
         })?;
+
+    let payload = GitHubPrPayload {
+        branch: pr_result.branch,
+        url: pr_result.url,
+    };
+
+    let status = build_status().await?;
+    emit_status(&app, &status)?;
+    Ok(payload)
+}
+
+#[tauri::command]
+pub async fn github_create_session_pr(
+    app: AppHandle,
+    args: CreateSessionPrArgs,
+) -> Result<GitHubPrPayload, String> {
+    github_create_session_pr_impl(app, args).await
+}
+
+pub async fn github_create_session_pr_impl(
+    app: AppHandle,
+    args: CreateSessionPrArgs,
+) -> Result<GitHubPrPayload, String> {
+    use crate::commands::schaltwerk_core::schaltwerk_core_cancel_session;
+
+    let cli = GitHubCli::new();
+    if let Err(err) = cli.ensure_installed() {
+        return Err(format_cli_error(err));
+    }
+
+    let project_manager = get_project_manager().await;
+    let project = project_manager
+        .current_project()
+        .await
+        .map_err(|e| format!("No active project: {e}"))?;
+    let project_path = project.path.clone();
+
+    let repository_config = {
+        let core = project.schaltwerk_core.read().await;
+        let db = core.database();
+        db.get_project_github_config(&project.path)
+            .map_err(|e| format!("Failed to load GitHub project config: {e}"))?
+            .map(|cfg| GitHubRepositoryPayload {
+                name_with_owner: cfg.repository,
+                default_branch: cfg.default_branch,
+            })
+    };
+
+    let (session_worktree, session_branch, parent_branch, session_state) = {
+        let core = project.schaltwerk_core.read().await;
+        let session = core
+            .session_manager()
+            .get_session(&args.session_name)
+            .map_err(|e| format!("Session not found: {e}"))?;
+        (
+            session.worktree_path.clone(),
+            session.branch.clone(),
+            session.parent_branch.clone(),
+            session.session_state,
+        )
+    };
+
+    if session_state == schaltwerk::domains::sessions::SessionState::Spec {
+        return Err("Cannot create PR for a spec session. Start the session first.".to_string());
+    }
+
+    let base_branch = args
+        .base_branch
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| s.to_string())
+        .or_else(|| {
+            let trimmed = parent_branch.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_string())
+            }
+        })
+        .or_else(|| repository_config.as_ref().map(|cfg| cfg.default_branch.clone()))
+        .unwrap_or_else(|| "main".to_string());
+
+    let repository = args
+        .repository
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| s.to_string())
+        .or_else(|| repository_config.as_ref().map(|cfg| cfg.name_with_owner.clone()));
+
+    let pr_branch_name = args
+        .pr_branch_name
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+        .map(sanitize_branch_name)
+        .unwrap_or_else(|| session_branch.clone());
+
+    info!(
+        "Creating PR for session '{}' (branch='{}', base='{}', head='{}')",
+        args.session_name, session_branch, base_branch, pr_branch_name
+    );
+
+    let pr_mode = match args.mode {
+        MergeMode::Squash => PrCommitMode::Squash,
+        MergeMode::Reapply => PrCommitMode::Reapply,
+    };
+
+    let pr_result = cli
+        .create_session_pr(CreateSessionPrOptions {
+            repo_path: &project_path,
+            session_worktree_path: &session_worktree,
+            session_slug: &args.session_name,
+            session_branch: &session_branch,
+            base_branch: &base_branch,
+            pr_branch_name: &pr_branch_name,
+            content: PrContent::Explicit {
+                title: &args.pr_title,
+                body: args.pr_body.as_deref().unwrap_or(""),
+            },
+            commit_message: args.commit_message.as_deref(),
+            repository: repository.as_deref(),
+            mode: pr_mode,
+        })
+        .map_err(|err| {
+            error!("GitHub PR creation failed: {err}");
+            format_cli_error(err)
+        })?;
+
+    if args.cancel_after_pr
+        && let Err(err) =
+            schaltwerk_core_cancel_session(app.clone(), args.session_name.clone()).await
+    {
+        error!(
+            "PR created but auto-cancel failed for session '{}': {err}",
+            args.session_name
+        );
+    }
 
     let payload = GitHubPrPayload {
         branch: pr_result.branch,
@@ -327,6 +511,84 @@ pub async fn github_get_pr_details(
 }
 
 #[tauri::command]
+pub async fn github_preview_pr(
+    _app: AppHandle,
+    session_name: String,
+) -> Result<PrPreviewPayload, String> {
+    let project_manager = get_project_manager().await;
+    let project = project_manager
+        .current_project()
+        .await
+        .map_err(|e| format!("No active project: {e}"))?;
+
+    let core = project.schaltwerk_core.read().await;
+    let session = core
+        .session_manager()
+        .get_session(&session_name)
+        .map_err(|e| format!("Session not found: {e}"))?;
+
+    if session.session_state == schaltwerk::domains::sessions::SessionState::Spec {
+        return Err("Cannot create PR for a spec session. Start the session first.".to_string());
+    }
+
+    let worktree_path = session.worktree_path.clone();
+    let parent_branch = session.parent_branch.clone();
+    let session_branch = session.branch.clone();
+
+    let repository_config = core
+        .database()
+        .get_project_github_config(&project.path)
+        .map_err(|e| format!("Failed to load GitHub config: {e}"))?;
+
+    let default_branch = repository_config
+        .as_ref()
+        .map(|cfg| cfg.default_branch.clone())
+        .unwrap_or_else(|| "main".to_string());
+
+    let (commit_count, commit_summaries) =
+        get_commit_info(&worktree_path, &parent_branch).unwrap_or((0, vec![]));
+
+    let has_uncommitted =
+        schaltwerk::domains::git::has_uncommitted_changes(&worktree_path).unwrap_or(false);
+
+    let default_title = if commit_count == 1 && !commit_summaries.is_empty() {
+        commit_summaries[0].clone()
+    } else {
+        format_session_title(&session_name)
+    };
+
+    let default_body = if commit_summaries.is_empty() {
+        session.initial_prompt.clone().unwrap_or_default()
+    } else {
+        commit_summaries
+            .iter()
+            .map(|s| format!("- {s}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+
+    let remote_status = schaltwerk::domains::git::branches::check_remote_branch_status(
+        &project.path,
+        &session_branch,
+    );
+
+    Ok(PrPreviewPayload {
+        session_name,
+        session_branch,
+        parent_branch,
+        default_title,
+        default_body,
+        commit_count,
+        commit_summaries,
+        default_branch,
+        worktree_path: worktree_path.to_string_lossy().to_string(),
+        has_uncommitted_changes: has_uncommitted,
+        branch_pushed: remote_status.exists_on_remote,
+        branch_conflict_warning: remote_status.conflict_warning,
+    })
+}
+
+#[tauri::command]
 pub async fn github_get_pr_review_comments(
     _app: AppHandle,
     pr_number: u64,
@@ -355,6 +617,57 @@ async fn github_get_pr_review_comments_impl<R: CommandRunner>(
         })?;
 
     Ok(comments.into_iter().map(map_pr_review_comment_payload).collect())
+}
+
+fn get_commit_info(worktree_path: &std::path::Path, base_branch: &str) -> Option<(usize, Vec<String>)> {
+    use git2::Repository;
+
+    let repo = Repository::open(worktree_path).ok()?;
+
+    let head = repo.head().ok()?;
+    let head_commit = head.peel_to_commit().ok()?;
+
+    let base_ref = format!("refs/heads/{base_branch}");
+    let base_oid = repo
+        .find_reference(&base_ref)
+        .or_else(|_| repo.find_reference(&format!("refs/remotes/origin/{base_branch}")))
+        .ok()
+        .and_then(|r| r.peel_to_commit().ok())
+        .map(|c| c.id())?;
+
+    let merge_base = repo.merge_base(base_oid, head_commit.id()).ok()?;
+
+    let mut revwalk = repo.revwalk().ok()?;
+    revwalk.push(head_commit.id()).ok()?;
+    revwalk.hide(merge_base).ok()?;
+
+    let mut summaries = Vec::new();
+    for oid in revwalk.flatten() {
+        if let Ok(commit) = repo.find_commit(oid) {
+            let summary = commit
+                .summary()
+                .unwrap_or("(no message)")
+                .to_string();
+            summaries.push(summary);
+        }
+    }
+
+    Some((summaries.len(), summaries))
+}
+
+fn format_session_title(session_name: &str) -> String {
+    session_name
+        .replace(['_', '-'], " ")
+        .split_whitespace()
+        .map(|word| {
+            let mut chars = word.chars();
+            match chars.next() {
+                Some(first) => first.to_uppercase().chain(chars).collect(),
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 async fn github_search_issues_impl<R: CommandRunner>(
@@ -641,6 +954,7 @@ fn format_cli_error(err: GitHubCliError) -> String {
         GitHubCliError::Io(err) => err.to_string(),
         GitHubCliError::Json(err) => format!("Failed to parse GitHub CLI response: {err}"),
         GitHubCliError::Git(err) => format!("Git operation failed: {err}"),
+        GitHubCliError::InvalidInput(msg) => msg,
         GitHubCliError::InvalidOutput(msg) => msg,
         GitHubCliError::NoGitRemote => {
             "No Git remotes configured for this project. Add a remote (e.g. `git remote add origin ...`) and try again.".to_string()

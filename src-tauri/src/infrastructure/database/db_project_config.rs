@@ -22,6 +22,8 @@ pub struct ProjectSessionsSettings {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectMergePreferences {
     pub auto_cancel_after_merge: bool,
+    #[serde(default)]
+    pub auto_cancel_after_pr: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -365,23 +367,24 @@ impl ProjectConfigMethods for Database {
         let canonical_path =
             std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
 
-        let query_res: rusqlite::Result<i64> = conn.query_row(
-            "SELECT auto_cancel_after_merge FROM project_config WHERE repository_path = ?1",
+        let query_res: rusqlite::Result<(i64, i64)> = conn.query_row(
+            "SELECT COALESCE(auto_cancel_after_merge, 1), COALESCE(auto_cancel_after_pr, 0) FROM project_config WHERE repository_path = ?1",
             params![canonical_path.to_string_lossy()],
-            |row| row.get(0),
+            |row| Ok((row.get(0)?, row.get(1)?)),
         );
 
-        let auto_cancel = match query_res {
-            Ok(auto_cancel_raw) => auto_cancel_raw != 0,
-            Err(rusqlite::Error::QueryReturnedNoRows) => true,
+        let (auto_cancel_merge, auto_cancel_pr) = match query_res {
+            Ok((merge_raw, pr_raw)) => (merge_raw != 0, pr_raw != 0),
+            Err(rusqlite::Error::QueryReturnedNoRows) => (true, false),
             Err(e) => match e {
-                rusqlite::Error::SqliteFailure(_, _) => true,
+                rusqlite::Error::SqliteFailure(_, _) => (true, false),
                 other => return Err(other.into()),
             },
         };
 
         Ok(ProjectMergePreferences {
-            auto_cancel_after_merge: auto_cancel,
+            auto_cancel_after_merge: auto_cancel_merge,
+            auto_cancel_after_pr: auto_cancel_pr,
         })
     }
 
@@ -395,20 +398,22 @@ impl ProjectConfigMethods for Database {
 
         let canonical_path =
             std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
-        let value = if preferences.auto_cancel_after_merge {
+        let merge_value = if preferences.auto_cancel_after_merge {
             1
         } else {
             0
         };
+        let pr_value = if preferences.auto_cancel_after_pr { 1 } else { 0 };
 
         conn.execute(
-            "INSERT INTO project_config (repository_path, auto_cancel_after_merge,
+            "INSERT INTO project_config (repository_path, auto_cancel_after_merge, auto_cancel_after_pr,
                                             created_at, updated_at)
-                VALUES (?1, ?2, ?3, ?4)
+                VALUES (?1, ?2, ?3, ?4, ?5)
                 ON CONFLICT(repository_path) DO UPDATE SET
                     auto_cancel_after_merge = excluded.auto_cancel_after_merge,
+                    auto_cancel_after_pr = excluded.auto_cancel_after_pr,
                     updated_at              = excluded.updated_at",
-            params![canonical_path.to_string_lossy(), value, now, now],
+            params![canonical_path.to_string_lossy(), merge_value, pr_value, now, now],
         )?;
 
         Ok(())

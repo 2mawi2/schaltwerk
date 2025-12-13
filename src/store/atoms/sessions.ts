@@ -699,6 +699,7 @@ export const pendingStartupsAtom = atom<Map<string, PendingStartup>>(new Map())
 const loadingStateAtom = atom<boolean>(false)
 const settingsLoadedAtom = atom<boolean>(false)
 const autoCancelAfterMergeStateAtom = atom<boolean>(true)
+const autoCancelAfterPrStateAtom = atom<boolean>(false)
 const currentSelectionStateAtom = atom<string | null>(null)
 
 let lastPersistedFilterMode: FilterMode | null = null
@@ -734,6 +735,7 @@ export function __getSessionsEventHandlerForTest(event: SchaltEvent): ((payload:
 }
 
 export const autoCancelAfterMergeAtom = atom((get) => get(autoCancelAfterMergeStateAtom))
+export const autoCancelAfterPrAtom = atom((get) => get(autoCancelAfterPrStateAtom))
 export const sessionsLoadingAtom = atom((get) => get(loadingStateAtom))
 
 export const expectSessionActionAtom = atom(
@@ -1048,15 +1050,21 @@ export const initializeSessionsSettingsActionAtom = atom(
         }
 
         try {
-            const prefs = await invoke<{ auto_cancel_after_merge?: boolean } | null>(TauriCommands.GetProjectMergePreferences)
+            const prefs = await invoke<{ auto_cancel_after_merge?: boolean; auto_cancel_after_pr?: boolean } | null>(TauriCommands.GetProjectMergePreferences)
             if (prefs && typeof prefs.auto_cancel_after_merge === 'boolean') {
                 set(autoCancelAfterMergeStateAtom, prefs.auto_cancel_after_merge)
             } else {
                 set(autoCancelAfterMergeStateAtom, true)
             }
+            if (prefs && typeof prefs.auto_cancel_after_pr === 'boolean') {
+                set(autoCancelAfterPrStateAtom, prefs.auto_cancel_after_pr)
+            } else {
+                set(autoCancelAfterPrStateAtom, false)
+            }
         } catch (error) {
             logger.warn('[SessionsAtoms] Failed to load project merge preferences', error)
             set(autoCancelAfterMergeStateAtom, true)
+            set(autoCancelAfterPrStateAtom, false)
         }
     },
 )
@@ -1075,11 +1083,36 @@ export const updateAutoCancelAfterMergeActionAtom = atom(
             await invoke(TauriCommands.SetProjectMergePreferences, {
                 preferences: {
                     auto_cancel_after_merge: input.value,
+                    auto_cancel_after_pr: get(autoCancelAfterPrStateAtom),
                 },
             })
         } catch (error) {
             logger.warn('[SessionsAtoms] Failed to persist project merge preferences', error)
             set(autoCancelAfterMergeStateAtom, previous)
+        }
+    },
+)
+
+export const updateAutoCancelAfterPrActionAtom = atom(
+    null,
+    async (get, set, input: { value: boolean; persist?: boolean }) => {
+        const previous = get(autoCancelAfterPrStateAtom)
+        set(autoCancelAfterPrStateAtom, input.value)
+
+        if (input.persist === false) {
+            return
+        }
+
+        try {
+            await invoke(TauriCommands.SetProjectMergePreferences, {
+                preferences: {
+                    auto_cancel_after_merge: get(autoCancelAfterMergeStateAtom),
+                    auto_cancel_after_pr: input.value,
+                },
+            })
+        } catch (error) {
+            logger.warn('[SessionsAtoms] Failed to persist project PR preferences', error)
+            set(autoCancelAfterPrStateAtom, previous)
         }
     },
 )

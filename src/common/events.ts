@@ -33,6 +33,7 @@ export enum SchaltEvent {
   OrchestratorLaunchFailed = 'schaltwerk:orchestrator-launch-failed',
   DiffBaseBranchChanged = 'schaltwerk:diff-base-branch-changed',
   ProjectValidationError = 'schaltwerk:project-validation-error',
+  OpenPrModal = 'schaltwerk:open-pr-modal',
 }
 
 
@@ -176,6 +177,15 @@ export interface ProjectValidationErrorPayload {
   error: string
 }
 
+export interface OpenPrModalPayload {
+  sessionName: string
+  prTitle?: string
+  prBody?: string
+  baseBranch?: string
+  prBranchName?: string
+  mode?: 'squash' | 'reapply'
+}
+
 import { EnrichedSession } from '../types/session'
 
 export interface SessionsRefreshedEventPayload {
@@ -236,4 +246,5 @@ export type EventPayloadMap = {
   [SchaltEvent.OrchestratorLaunchFailed]: OrchestratorLaunchFailedPayload
   [SchaltEvent.DiffBaseBranchChanged]: DiffBaseBranchChangedPayload
   [SchaltEvent.ProjectValidationError]: ProjectValidationErrorPayload
+  [SchaltEvent.OpenPrModal]: OpenPrModalPayload
 }

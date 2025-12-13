@@ -27,9 +27,10 @@ pub use crate::domains::git::{
     CommitFileChange, HistoryProviderSnapshot, get_commit_file_changes, get_git_history,
     get_git_history_with_head,
     github_cli::{
-        CommandOutput, CommandRunner, CreatePrOptions, GitHubCli, GitHubCliError,
-        GitHubIssueComment, GitHubIssueDetails, GitHubIssueLabel, GitHubIssueSummary,
-        GitHubPrDetails, GitHubPrReviewComment, GitHubPrSummary,
+        CommandOutput, CommandRunner, CreatePrOptions, CreateSessionPrOptions, GitHubCli,
+        GitHubCliError, GitHubIssueComment, GitHubIssueDetails, GitHubIssueLabel,
+        GitHubIssueSummary, GitHubPrDetails, GitHubPrReviewComment, GitHubPrSummary,
+        PrCommitMode, PrContent, sanitize_branch_name,
     },
 };
 pub use crate::domains::git::{repository, worktrees};

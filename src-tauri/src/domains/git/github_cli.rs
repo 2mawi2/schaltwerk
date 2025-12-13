@@ -8,11 +8,27 @@ use anyhow::Error as AnyhowError;
 use git2::Repository;
 use log::{debug, info, warn};
 use serde::Deserialize;
+use tempfile::NamedTempFile;
 
 use super::branches::branch_exists;
 use super::operations::{commit_all_changes, has_uncommitted_changes};
 use super::repository::get_current_branch;
 use super::worktrees::update_worktree_branch;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PrCommitMode {
+    Squash,
+    Reapply,
+}
+
+impl PrCommitMode {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            PrCommitMode::Squash => "squash",
+            PrCommitMode::Reapply => "reapply",
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct CommandOutput {
@@ -138,6 +154,7 @@ pub enum GitHubCliError {
     Io(io::Error),
     Json(serde_json::Error),
     Git(anyhow::Error),
+    InvalidInput(String),
     InvalidOutput(String),
 }
 
@@ -160,6 +177,7 @@ impl std::fmt::Display for GitHubCliError {
             GitHubCliError::Io(err) => write!(f, "IO error: {err}"),
             GitHubCliError::Json(err) => write!(f, "JSON error: {err}"),
             GitHubCliError::Git(err) => write!(f, "Git error: {err}"),
+            GitHubCliError::InvalidInput(msg) => write!(f, "Invalid input: {msg}"),
             GitHubCliError::InvalidOutput(msg) => write!(f, "Invalid CLI output: {msg}"),
         }
     }
@@ -861,26 +879,47 @@ impl<R: CommandRunner> GitHubCli<R> {
         );
 
         let current_branch = get_current_branch(opts.worktree_path).map_err(GitHubCliError::Git)?;
-        let mut target_branch = current_branch.clone();
+        let mut push_branch = current_branch.clone();
 
-        if current_branch == opts.default_branch {
+        if let Some(custom_name) = opts.custom_branch_name.filter(|n| !n.trim().is_empty()) {
+            let sanitized_name = sanitize_branch_name(custom_name);
+            if sanitized_name != current_branch {
+                push_branch = sanitized_name.clone();
+
+                let repo = Repository::open(opts.worktree_path)
+                    .map_err(|err| GitHubCliError::Git(AnyhowError::new(err)))?;
+
+                if !branch_exists(opts.worktree_path, &push_branch).map_err(GitHubCliError::Git)? {
+                    let head = repo
+                        .head()
+                        .and_then(|h| h.peel_to_commit())
+                        .map_err(|err| GitHubCliError::Git(AnyhowError::new(err)))?;
+                    repo.branch(&push_branch, &head, false)
+                        .map_err(|err| GitHubCliError::Git(AnyhowError::new(err)))?;
+                    debug!("Created custom branch '{push_branch}' for PR");
+                }
+
+                update_worktree_branch(opts.worktree_path, &push_branch)
+                    .map_err(GitHubCliError::Git)?;
+            }
+        } else if current_branch == opts.default_branch {
             let sanitized_slug = sanitize_branch_component(opts.session_slug);
-            target_branch = format!("reviewed/{sanitized_slug}");
+            push_branch = format!("reviewed/{sanitized_slug}");
 
             let repo = Repository::open(opts.repo_path)
                 .map_err(|err| GitHubCliError::Git(AnyhowError::new(err)))?;
 
-            if !branch_exists(opts.repo_path, &target_branch).map_err(GitHubCliError::Git)? {
+            if !branch_exists(opts.repo_path, &push_branch).map_err(GitHubCliError::Git)? {
                 let head = repo
                     .head()
                     .and_then(|h| h.peel_to_commit())
                     .map_err(|err| GitHubCliError::Git(AnyhowError::new(err)))?;
-                repo.branch(&target_branch, &head, false)
+                repo.branch(&push_branch, &head, false)
                     .map_err(|err| GitHubCliError::Git(AnyhowError::new(err)))?;
-                debug!("Created branch '{target_branch}' for reviewed session");
+                debug!("Created branch '{push_branch}' for reviewed session");
             }
 
-            update_worktree_branch(opts.worktree_path, &target_branch)
+            update_worktree_branch(opts.worktree_path, &push_branch)
                 .map_err(GitHubCliError::Git)?;
         }
 
@@ -900,13 +939,158 @@ impl<R: CommandRunner> GitHubCli<R> {
             debug!("No uncommitted changes detected prior to PR creation");
         }
 
-        self.push_branch(opts.worktree_path, &target_branch)?;
+        self.push_branch(opts.worktree_path, &push_branch)?;
 
-        let pr_url =
-            self.create_pull_request(&target_branch, opts.repository, opts.worktree_path)?;
+        let pr_url = self.create_pull_request(
+            &push_branch,
+            opts.repository,
+            opts.worktree_path,
+            opts.content.clone(),
+            opts.target_branch,
+        )?;
 
         Ok(GitHubPrResult {
-            branch: target_branch,
+            branch: push_branch,
+            url: pr_url,
+        })
+    }
+
+    pub fn create_session_pr(
+        &self,
+        opts: CreateSessionPrOptions<'_>,
+    ) -> Result<GitHubPrResult, GitHubCliError> {
+        info!(
+            "Creating session PR for session '{}' (mode={})",
+            opts.session_slug,
+            opts.mode.as_str()
+        );
+
+        ensure_git_remote_exists(opts.repo_path)?;
+
+        let dirty_patch = build_full_worktree_patch(self, opts.session_worktree_path)?;
+
+        let temp_root = tempfile::tempdir().map_err(GitHubCliError::Io)?;
+        let temp_worktree_path = temp_root.path().join("schaltwerk-pr-worktree");
+
+        let worktree_add_args = vec![
+            "worktree".to_string(),
+            "add".to_string(),
+            "--detach".to_string(),
+            temp_worktree_path.to_string_lossy().to_string(),
+            opts.session_branch.to_string(),
+        ];
+        run_git(self, opts.repo_path, &worktree_add_args, &[])?;
+
+        let remove_guard = TemporaryWorktreeGuard {
+            cli: self,
+            repo_path: opts.repo_path,
+            worktree_path: &temp_worktree_path,
+        };
+
+        if !dirty_patch.trim().is_empty() {
+            let mut patch_file = NamedTempFile::new().map_err(GitHubCliError::Io)?;
+            std::io::Write::write_all(&mut patch_file, dirty_patch.as_bytes())
+                .map_err(GitHubCliError::Io)?;
+            let patch_path = patch_file.path().to_string_lossy().to_string();
+            let apply_args = vec![
+                "apply".to_string(),
+                "--index".to_string(),
+                "--whitespace=nowarn".to_string(),
+                patch_path,
+            ];
+            run_git(self, &temp_worktree_path, &apply_args, &[])?;
+        }
+
+        let fallback_title = match &opts.content {
+            PrContent::Explicit { title, .. } => title.trim(),
+            PrContent::Fill => "",
+        };
+
+        match opts.mode {
+            PrCommitMode::Reapply => {
+                if !dirty_patch.trim().is_empty() {
+                    let msg = opts
+                        .commit_message
+                        .map(|m| m.trim())
+                        .filter(|m| !m.is_empty())
+                        .unwrap_or(fallback_title);
+                    if msg.is_empty() {
+                        return Err(GitHubCliError::InvalidInput(
+                            "Commit message is required when committing uncommitted changes."
+                                .to_string(),
+                        ));
+                    }
+                    let commit_args = vec!["commit".to_string(), "-m".to_string(), msg.to_string()];
+                    run_git(self, &temp_worktree_path, &commit_args, &[])?;
+                }
+            }
+            PrCommitMode::Squash => {
+                let msg = opts
+                    .commit_message
+                    .map(|m| m.trim())
+                    .filter(|m| !m.is_empty())
+                    .unwrap_or(fallback_title);
+                if msg.is_empty() {
+                    return Err(GitHubCliError::InvalidInput(
+                        "Commit message is required for squash mode.".to_string(),
+                    ));
+                }
+
+                let merge_base =
+                    resolve_merge_base(self, &temp_worktree_path, opts.base_branch)?;
+
+                let reset_args = vec![
+                    "reset".to_string(),
+                    "--soft".to_string(),
+                    merge_base,
+                ];
+                run_git(self, &temp_worktree_path, &reset_args, &[])?;
+                let add_args = vec!["add".to_string(), "-A".to_string()];
+                run_git(self, &temp_worktree_path, &add_args, &[])?;
+                let commit_args = vec!["commit".to_string(), "-m".to_string(), msg.to_string()];
+                run_git(self, &temp_worktree_path, &commit_args, &[])?;
+            }
+        }
+
+        let push_result = push_head_to_remote_branch(
+            self,
+            &temp_worktree_path,
+            opts.pr_branch_name,
+        );
+
+        if let Err(push_err) = push_result {
+            let err_str = push_err.to_string();
+            let is_branch_conflict =
+                err_str.contains("non-fast-forward") || err_str.contains("[rejected]");
+            if is_branch_conflict
+                && let Ok(Some(existing_url)) =
+                    self.view_existing_pr(opts.pr_branch_name, opts.repository, &temp_worktree_path)
+            {
+                info!(
+                    "Push failed but PR already exists for branch '{}': {existing_url}",
+                    opts.pr_branch_name
+                );
+                drop(remove_guard);
+                return Ok(GitHubPrResult {
+                    branch: opts.pr_branch_name.to_string(),
+                    url: existing_url,
+                });
+            }
+            return Err(push_err);
+        }
+
+        let pr_url = self.create_pull_request(
+            opts.pr_branch_name,
+            opts.repository,
+            &temp_worktree_path,
+            opts.content.clone(),
+            Some(opts.base_branch),
+        )?;
+
+        drop(remove_guard);
+
+        Ok(GitHubPrResult {
+            branch: opts.pr_branch_name.to_string(),
             url: pr_url,
         })
     }
@@ -951,16 +1135,33 @@ impl<R: CommandRunner> GitHubCli<R> {
         branch_name: &str,
         repository: Option<&str>,
         worktree_path: &Path,
+        content: PrContent<'_>,
+        target_branch: Option<&str>,
     ) -> Result<String, GitHubCliError> {
         let env = [("GH_PROMPT_DISABLED", "1"), ("NO_COLOR", "1")];
         let mut args_vec = vec![
             "pr".to_string(),
             "create".to_string(),
-            "--fill".to_string(),
-            "--web".to_string(),
             "--head".to_string(),
             branch_name.to_string(),
         ];
+
+        match content {
+            PrContent::Explicit { title, body } => {
+                args_vec.push("--title".to_string());
+                args_vec.push(title.to_string());
+                args_vec.push("--body".to_string());
+                args_vec.push(body.to_string());
+            }
+            PrContent::Fill => {
+                args_vec.push("--fill".to_string());
+            }
+        }
+
+        if let Some(base) = target_branch.filter(|b| !b.trim().is_empty()) {
+            args_vec.push("--base".to_string());
+            args_vec.push(base.to_string());
+        }
 
         if let Some(repo) = repository {
             args_vec.push("--repo".to_string());
@@ -997,8 +1198,10 @@ impl<R: CommandRunner> GitHubCli<R> {
             return Ok(url);
         }
 
-        info!("PR form opened in browser with --web flag (no URL returned)");
-        Ok(String::new())
+        Err(GitHubCliError::InvalidOutput(
+            "GitHub CLI did not return a PR URL. The PR may have been created - check GitHub."
+                .to_string(),
+        ))
     }
 
     fn view_existing_pr(
@@ -1061,6 +1264,17 @@ impl<R: CommandRunner> GitHubCli<R> {
     }
 }
 
+/// Content for a pull request. When providing an explicit title, a body is
+/// required (though it may be empty). The `Fill` variant uses `gh --fill` to
+/// auto-generate title/body from commit messages.
+#[derive(Debug, Clone)]
+pub enum PrContent<'a> {
+    /// Explicit title and body. Body may be empty but must be provided.
+    Explicit { title: &'a str, body: &'a str },
+    /// Use `--fill` to generate title/body from commit messages.
+    Fill,
+}
+
 pub struct CreatePrOptions<'a> {
     pub repo_path: &'a Path,
     pub worktree_path: &'a Path,
@@ -1068,6 +1282,157 @@ pub struct CreatePrOptions<'a> {
     pub default_branch: &'a str,
     pub commit_message: Option<&'a str>,
     pub repository: Option<&'a str>,
+    pub content: PrContent<'a>,
+    pub target_branch: Option<&'a str>,
+    pub custom_branch_name: Option<&'a str>,
+}
+
+pub struct CreateSessionPrOptions<'a> {
+    pub repo_path: &'a Path,
+    pub session_worktree_path: &'a Path,
+    pub session_slug: &'a str,
+    pub session_branch: &'a str,
+    pub base_branch: &'a str,
+    pub pr_branch_name: &'a str,
+    pub content: PrContent<'a>,
+    pub commit_message: Option<&'a str>,
+    pub repository: Option<&'a str>,
+    pub mode: PrCommitMode,
+}
+
+struct TemporaryWorktreeGuard<'a, R: CommandRunner> {
+    cli: &'a GitHubCli<R>,
+    repo_path: &'a Path,
+    worktree_path: &'a Path,
+}
+
+impl<R: CommandRunner> Drop for TemporaryWorktreeGuard<'_, R> {
+    fn drop(&mut self) {
+        let args_vec = vec![
+            "worktree".to_string(),
+            "remove".to_string(),
+            "--force".to_string(),
+            self.worktree_path.to_string_lossy().to_string(),
+        ];
+        if let Err(err) = run_git(self.cli, self.repo_path, &args_vec, &[]) {
+            warn!(
+                "Failed to remove temporary worktree at {}: {err}",
+                self.worktree_path.display()
+            );
+        }
+    }
+}
+
+fn run_git<R: CommandRunner>(
+    cli: &GitHubCli<R>,
+    cwd: &Path,
+    args: &[String],
+    extra_env: &[(&str, &str)],
+) -> Result<CommandOutput, GitHubCliError> {
+    let env_base = [("GIT_TERMINAL_PROMPT", "0")];
+    let mut env = Vec::with_capacity(env_base.len() + extra_env.len());
+    env.extend_from_slice(&env_base);
+    env.extend_from_slice(extra_env);
+
+    let arg_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+    let output = cli
+        .runner
+        .run("git", &arg_refs, Some(cwd), &env)
+        .map_err(map_runner_error)?;
+    if output.success() {
+        return Ok(output);
+    }
+    Err(command_failure("git", args, output))
+}
+
+fn resolve_merge_base<R: CommandRunner>(
+    cli: &GitHubCli<R>,
+    worktree_path: &Path,
+    base_branch: &str,
+) -> Result<String, GitHubCliError> {
+    let origin_ref = format!("origin/{base_branch}");
+    let attempt_origin_args = vec![
+        "merge-base".to_string(),
+        "HEAD".to_string(),
+        origin_ref.clone(),
+    ];
+    if let Ok(output) = run_git(cli, worktree_path, &attempt_origin_args, &[]) {
+        let mb = output.stdout.trim().to_string();
+        if !mb.is_empty() {
+            return Ok(mb);
+        }
+    }
+
+    let attempt_local_args = vec![
+        "merge-base".to_string(),
+        "HEAD".to_string(),
+        base_branch.to_string(),
+    ];
+    let output = run_git(cli, worktree_path, &attempt_local_args, &[])?;
+    let mb = output.stdout.trim().to_string();
+    if mb.is_empty() {
+        return Err(GitHubCliError::InvalidOutput(format!(
+            "Could not compute merge-base for base branch '{base_branch}'"
+        )));
+    }
+    Ok(mb)
+}
+
+fn push_head_to_remote_branch<R: CommandRunner>(
+    cli: &GitHubCli<R>,
+    worktree_path: &Path,
+    remote_branch: &str,
+) -> Result<(), GitHubCliError> {
+    let push_refspec = format!("HEAD:refs/heads/{remote_branch}");
+    let args = vec![
+        "push".to_string(),
+        "origin".to_string(),
+        push_refspec,
+    ];
+
+    let result = run_git(cli, worktree_path, &args, &[]);
+    if result.is_ok() {
+        debug!("Pushed HEAD to remote branch '{remote_branch}'");
+        return Ok(());
+    }
+
+    if let Err(ref e) = result {
+        let err_str = e.to_string();
+        if err_str.contains("non-fast-forward") || err_str.contains("[rejected]") {
+            return Err(GitHubCliError::InvalidInput(format!(
+                "[rejected] Branch '{remote_branch}' already exists on remote with different commits (non-fast-forward). A PR may already exist for this branch."
+            )));
+        }
+    }
+    result.map(|_| ())
+}
+
+fn build_full_worktree_patch<R: CommandRunner>(
+    cli: &GitHubCli<R>,
+    worktree_path: &Path,
+) -> Result<String, GitHubCliError> {
+    let dirty = has_uncommitted_changes(worktree_path).map_err(GitHubCliError::Git)?;
+    if !dirty {
+        return Ok(String::new());
+    }
+
+    let index_file = tempfile::NamedTempFile::new().map_err(GitHubCliError::Io)?;
+    let index_path = index_file.path().to_string_lossy().to_string();
+
+    let env = [("GIT_INDEX_FILE", index_path.as_str())];
+
+    let read_tree_args = vec!["read-tree".to_string(), "HEAD".to_string()];
+    run_git(cli, worktree_path, &read_tree_args, &env)?;
+    let add_args = vec!["add".to_string(), "-A".to_string()];
+    run_git(cli, worktree_path, &add_args, &env)?;
+    let diff_args = vec![
+        "diff".to_string(),
+        "--cached".to_string(),
+        "--binary".to_string(),
+        "--no-ext-diff".to_string(),
+    ];
+    let output = run_git(cli, worktree_path, &diff_args, &env)?;
+    Ok(output.stdout)
 }
 
 fn map_runner_error(err: io::Error) -> GitHubCliError {
@@ -1220,7 +1585,7 @@ fn extract_pr_url(text: &str) -> Option<String> {
     None
 }
 
-fn sanitize_branch_component(input: &str) -> String {
+pub fn sanitize_branch_component(input: &str) -> String {
     let mut result = String::with_capacity(input.len());
     let mut prev_dash = true;
 
@@ -1249,6 +1614,26 @@ fn sanitize_branch_component(input: &str) -> String {
         "session".to_string()
     } else {
         trimmed.to_string()
+    }
+}
+
+pub fn sanitize_branch_name(input: &str) -> String {
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        return "session".to_string();
+    }
+
+    let result = trimmed
+        .split('/')
+        .filter(|part| !part.trim().is_empty())
+        .map(sanitize_branch_component)
+        .collect::<Vec<_>>()
+        .join("/");
+
+    if result.is_empty() {
+        "session".to_string()
+    } else {
+        result
     }
 }
 
@@ -1953,6 +2338,9 @@ mod tests {
             default_branch: "main",
             commit_message: Some("feat: demo"),
             repository: Some("owner/repo"),
+            content: PrContent::Fill,
+            target_branch: None,
+            custom_branch_name: None,
         };
 
         let result = cli.create_pr_from_worktree(opts).expect("pr result");
@@ -1961,7 +2349,7 @@ mod tests {
     }
 
     #[test]
-    fn create_pr_fetches_url_when_web_flag_used() {
+    fn create_pr_with_title_and_body() {
         let runner = MockRunner::default();
         runner.push_response(Ok(CommandOutput {
             status: Some(0),
@@ -1970,16 +2358,11 @@ mod tests {
         }));
         runner.push_response(Ok(CommandOutput {
             status: Some(0),
-            stdout: "Opening github.com/owner/repo/pull/42 in your browser.".to_string(),
-            stderr: String::new(),
-        }));
-        runner.push_response(Ok(CommandOutput {
-            status: Some(0),
-            stdout: json!({ "url": "https://github.com/owner/repo/pull/42" }).to_string(),
+            stdout: "https://github.com/owner/repo/pull/55".to_string(),
             stderr: String::new(),
         }));
 
-        let cli = GitHubCli::with_runner(runner);
+        let cli = GitHubCli::with_runner(runner.clone());
 
         let temp = TempDir::new().unwrap();
         let repo_path = temp.path();
@@ -2024,11 +2407,27 @@ mod tests {
             default_branch: "main",
             commit_message: Some("feat: demo"),
             repository: Some("owner/repo"),
+            content: PrContent::Explicit {
+                title: "My Custom PR Title",
+                body: "Custom body\nwith multiple lines",
+            },
+            target_branch: Some("develop"),
+            custom_branch_name: None,
         };
 
         let result = cli.create_pr_from_worktree(opts).expect("pr result");
         assert_eq!(result.branch, "reviewed/session-demo");
-        assert_eq!(result.url, "");
+        assert_eq!(result.url, "https://github.com/owner/repo/pull/55");
+
+        let calls = runner.calls();
+        let gh_calls: Vec<_> = calls.iter().filter(|c| c.program == "gh").collect();
+        assert_eq!(gh_calls.len(), 1);
+        let args = &gh_calls[0].args;
+        assert!(args.contains(&"--title".to_string()));
+        assert!(args.contains(&"My Custom PR Title".to_string()));
+        assert!(args.contains(&"--body".to_string()));
+        assert!(args.contains(&"--base".to_string()));
+        assert!(args.contains(&"develop".to_string()));
     }
 
     #[test]
@@ -2095,6 +2494,9 @@ mod tests {
             default_branch: "main",
             commit_message: Some("feat: demo"),
             repository: Some("owner/repo"),
+            content: PrContent::Fill,
+            target_branch: None,
+            custom_branch_name: None,
         };
 
         let result = cli.create_pr_from_worktree(opts).expect("pr result");
@@ -2129,6 +2531,51 @@ mod tests {
     }
 
     #[test]
+    fn sanitize_branch_name_handles_simple_names() {
+        assert_eq!(sanitize_branch_name("feature"), "feature");
+        assert_eq!(sanitize_branch_name("my-feature"), "my-feature");
+        assert_eq!(sanitize_branch_name("feat123"), "feat123");
+    }
+
+    #[test]
+    fn sanitize_branch_name_handles_slashes() {
+        assert_eq!(
+            sanitize_branch_name("schaltwerk/my-session"),
+            "schaltwerk/my-session"
+        );
+        assert_eq!(
+            sanitize_branch_name("feature/add-login"),
+            "feature/add-login"
+        );
+    }
+
+    #[test]
+    fn sanitize_branch_name_normalizes_components() {
+        assert_eq!(
+            sanitize_branch_name("My Feature/Session #1"),
+            "my-feature/session-1"
+        );
+        assert_eq!(
+            sanitize_branch_name("UPPER/lower/MiXeD"),
+            "upper/lower/mixed"
+        );
+    }
+
+    #[test]
+    fn sanitize_branch_name_handles_whitespace_and_empty() {
+        assert_eq!(sanitize_branch_name(""), "session");
+        assert_eq!(sanitize_branch_name("   "), "session");
+        assert_eq!(sanitize_branch_name("  feature  "), "feature");
+    }
+
+    #[test]
+    fn sanitize_branch_name_handles_empty_path_components() {
+        assert_eq!(sanitize_branch_name("a//b"), "a/b");
+        assert_eq!(sanitize_branch_name("/feature/"), "feature");
+        assert_eq!(sanitize_branch_name("///"), "session");
+    }
+
+    #[test]
     fn strip_ansi_codes_removes_color_codes() {
         let colored = "\x1b[1;38m{\x1b[m\n  \x1b[1;34m\"login\"\x1b[m\x1b[1;38m:\x1b[m \x1b[32m\"octocat\"\x1b[m\n\x1b[1;38m}\x1b[m";
         let stripped = strip_ansi_codes(colored);
@@ -2157,5 +2604,77 @@ mod tests {
 
         let calls = runner.calls();
         assert_eq!(calls.len(), 0);
+    }
+
+    #[test]
+    fn create_pull_request_explicit_includes_title_and_body() {
+        let runner = MockRunner::default();
+        runner.push_response(Ok(CommandOutput {
+            status: Some(0),
+            stdout: "https://github.com/owner/repo/pull/123\n".to_string(),
+            stderr: String::new(),
+        }));
+        let cli = GitHubCli::with_runner(runner.clone());
+
+        let temp = TempDir::new().unwrap();
+        let result = cli.create_pull_request(
+            "feature-branch",
+            Some("owner/repo"),
+            temp.path(),
+            PrContent::Explicit {
+                title: "My PR Title",
+                body: "",
+            },
+            Some("main"),
+        );
+
+        assert!(result.is_ok());
+
+        let calls = runner.calls();
+        assert_eq!(calls.len(), 1);
+        let args = &calls[0].args;
+
+        assert!(args.contains(&"--title".to_string()));
+        assert!(args.contains(&"My PR Title".to_string()));
+        assert!(
+            args.contains(&"--body".to_string()),
+            "PrContent::Explicit must include --body. Args: {:?}",
+            args
+        );
+        assert!(!args.contains(&"--fill".to_string()));
+    }
+
+    #[test]
+    fn create_pull_request_fill_uses_fill_flag() {
+        let runner = MockRunner::default();
+        runner.push_response(Ok(CommandOutput {
+            status: Some(0),
+            stdout: "https://github.com/owner/repo/pull/124\n".to_string(),
+            stderr: String::new(),
+        }));
+        let cli = GitHubCli::with_runner(runner.clone());
+
+        let temp = TempDir::new().unwrap();
+        let result = cli.create_pull_request(
+            "feature-branch",
+            Some("owner/repo"),
+            temp.path(),
+            PrContent::Fill,
+            Some("main"),
+        );
+
+        assert!(result.is_ok());
+
+        let calls = runner.calls();
+        assert_eq!(calls.len(), 1);
+        let args = &calls[0].args;
+
+        assert!(
+            args.contains(&"--fill".to_string()),
+            "PrContent::Fill must include --fill. Args: {:?}",
+            args
+        );
+        assert!(!args.contains(&"--title".to_string()));
+        assert!(!args.contains(&"--body".to_string()));
     }
 }

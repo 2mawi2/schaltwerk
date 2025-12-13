@@ -35,6 +35,7 @@ pub enum SchaltEvent {
     OrchestratorLaunchFailed,
     DiffBaseBranchChanged,
     ProjectValidationError,
+    OpenPrModal,
 }
 
 impl SchaltEvent {
@@ -74,6 +75,7 @@ impl SchaltEvent {
             SchaltEvent::OrchestratorLaunchFailed => "schaltwerk:orchestrator-launch-failed",
             SchaltEvent::DiffBaseBranchChanged => "schaltwerk:diff-base-branch-changed",
             SchaltEvent::ProjectValidationError => "schaltwerk:project-validation-error",
+            SchaltEvent::OpenPrModal => "schaltwerk:open-pr-modal",
         }
     }
 }

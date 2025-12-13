@@ -8,7 +8,7 @@ import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
 import { useFocus } from '../../contexts/FocusContext'
 import { UnlistenFn } from '@tauri-apps/api/event'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
-import { EventPayloadMap, GitOperationPayload } from '../../common/events'
+import { EventPayloadMap, GitOperationPayload, OpenPrModalPayload } from '../../common/events'
 import { useSelection } from '../../hooks/useSelection'
 import { useSessions } from '../../hooks/useSessions'
 import { captureSelectionSnapshot, SelectionMemoryEntry } from '../../utils/selectionMemory'
@@ -24,6 +24,8 @@ import { PromoteVersionConfirmation } from '../modals/PromoteVersionConfirmation
 import { useSessionManagement } from '../../hooks/useSessionManagement'
 import { SwitchOrchestratorModal } from '../modals/SwitchOrchestratorModal'
 import { MergeSessionModal } from '../modals/MergeSessionModal'
+import { PrSessionModal, PrPreviewResponse, PrCreateOptions } from '../modals/PrSessionModal'
+import { useSessionPrShortcut } from '../../hooks/useSessionPrShortcut'
 import { useShortcutDisplay } from '../../keyboardShortcuts/useShortcutDisplay'
 import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
 import { VscRefresh, VscCode, VscLayoutSidebarLeft, VscLayoutSidebarLeftOff } from 'react-icons/vsc'
@@ -36,6 +38,7 @@ import { runSpecRefineWithOrchestrator } from '../../utils/specRefine'
 import { AGENT_TYPES, AgentType, EnrichedSession } from '../../types/session'
 import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
 import { useRun } from '../../contexts/RunContext'
+import { useToast } from '../../common/toast/ToastProvider'
 import { useModal } from '../../contexts/ModalContext'
 import { getSessionDisplayName } from '../../utils/sessionDisplayName'
 import { useClaudeSession } from '../../hooks/useClaudeSession'
@@ -44,6 +47,7 @@ import { projectPathAtom } from '../../store/atoms/project'
 import { useSessionMergeShortcut } from '../../hooks/useSessionMergeShortcut'
 import { useUpdateSessionFromParent } from '../../hooks/useUpdateSessionFromParent'
 import { DEFAULT_AGENT } from '../../constants/agents'
+import { extractPrNumberFromUrl } from '../../utils/githubUrls'
 
 // Removed legacy terminal-stuck idle handling; we rely on last-edited timestamps only
 
@@ -77,6 +81,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const { isSessionRunning } = useRun()
     const { isAnyModalOpen } = useModal()
     const github = useGithubIntegrationContext()
+    const { pushToast } = useToast()
     const { 
         sessions,
         allSessions,
@@ -96,6 +101,8 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         getMergeStatus,
         autoCancelAfterMerge,
         updateAutoCancelAfterMerge,
+        autoCancelAfterPr,
+        updateAutoCancelAfterPr,
         isSessionMutating,
     } = useSessions()
     const { isResetting, resettingSelection, resetSession, switchModel } = useSessionManagement()
@@ -182,6 +189,27 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     })
     const { updateSessionFromParent } = useUpdateSessionFromParent()
 
+    const [prDialogState, setPrDialogState] = useState<{
+        isOpen: boolean
+        sessionName: string | null
+        status: 'idle' | 'loading' | 'ready' | 'running'
+        preview: PrPreviewResponse | null
+        prefill?: {
+            suggestedTitle?: string
+            suggestedBody?: string
+            suggestedBaseBranch?: string
+            suggestedPrBranchName?: string
+            suggestedMode?: 'squash' | 'reapply'
+        }
+        error: string | null
+    }>({
+        isOpen: false,
+        sessionName: null,
+        status: 'idle',
+        preview: null,
+        error: null,
+    })
+
     const handleMergeSession = useCallback(
         (sessionId: string) => {
             if (isSessionMerging(sessionId)) return
@@ -189,6 +217,101 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         },
         [isSessionMerging, openMergeDialog]
     )
+
+    const handleOpenPrModal = useCallback((
+        sessionName: string,
+        preview: PrPreviewResponse,
+        prefill?: {
+            suggestedTitle?: string
+            suggestedBody?: string
+            suggestedBaseBranch?: string
+            suggestedPrBranchName?: string
+            suggestedMode?: 'squash' | 'reapply'
+        }
+    ) => {
+        setPrDialogState({
+            isOpen: true,
+            sessionName,
+            status: 'ready',
+            preview,
+            prefill,
+            error: null,
+        })
+    }, [])
+
+    const handleClosePrModal = useCallback(() => {
+        setPrDialogState({
+            isOpen: false,
+            sessionName: null,
+            status: 'idle',
+            preview: null,
+            error: null,
+        })
+    }, [])
+
+    const handleConfirmPr = useCallback(async (options: PrCreateOptions) => {
+        const { sessionName, preview } = prDialogState
+        if (!sessionName || !preview) return
+
+        setPrDialogState(prev => ({ ...prev, status: 'running', error: null }))
+
+        try {
+            const result = await invoke<{ url: string; branch: string }>(TauriCommands.GitHubCreateSessionPr, {
+                args: {
+                    sessionName,
+                    prTitle: options.title,
+                    prBody: options.body,
+                    baseBranch: options.baseBranch,
+                    prBranchName: options.prBranchName,
+                    commitMessage: options.commitMessage,
+                    mode: options.mode,
+                    cancelAfterPr: autoCancelAfterPr,
+                }
+            })
+
+            handleClosePrModal()
+            if (result.url) {
+                const prUrl = result.url
+                const prNumber = extractPrNumberFromUrl(prUrl)
+                if (prNumber) {
+                    try {
+                        await invoke(TauriCommands.SchaltwerkCoreLinkSessionToPr, {
+                            name: sessionName,
+                            prNumber,
+                            prUrl
+                        })
+                    } catch (linkError) {
+                        logger.warn('Failed to link session to PR after creation:', linkError)
+                    }
+                }
+                pushToast({
+                    tone: 'success',
+                    title: 'Pull request created',
+                    description: prUrl,
+                    action: {
+                        label: 'Open',
+                        onClick: () => {
+                            void invoke(TauriCommands.OpenExternalUrl, { url: prUrl }).catch((err) => {
+                                logger.warn('Failed to open URL via Tauri, falling back to window.open', err)
+                                window.open(prUrl, '_blank', 'noopener,noreferrer')
+                            })
+                        },
+                    },
+                })
+            } else {
+                pushToast({ tone: 'success', title: 'Pull request created', description: `Branch: ${result.branch}` })
+            }
+            await reloadSessions()
+        } catch (error) {
+            logger.error('Failed to create PR', error)
+            const message = error instanceof Error ? error.message : String(error)
+            setPrDialogState(prev => ({ ...prev, status: 'ready', error: message }))
+        }
+    }, [prDialogState, autoCancelAfterPr, handleClosePrModal, reloadSessions, pushToast])
+
+    const { handlePrShortcut } = useSessionPrShortcut({
+        onOpenModal: handleOpenPrModal,
+    })
 
     const [convertToSpecModal, setConvertToDraftModal] = useState<{ 
         open: boolean; 
@@ -297,7 +420,48 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             }
         }
     }, [])
-    
+
+    useEffect(() => {
+        let unlistenOpenPrModal: UnlistenFn | null = null
+
+        const attach = async () => {
+            try {
+                const unlisten = await listenEvent(SchaltEvent.OpenPrModal, async (payload: OpenPrModalPayload) => {
+                    try {
+                        const preview = await invoke<PrPreviewResponse>(TauriCommands.GitHubPreviewPr, {
+                            sessionName: payload.sessionName,
+                        })
+                        handleOpenPrModal(payload.sessionName, preview, {
+                            suggestedTitle: payload.prTitle,
+                            suggestedBody: payload.prBody,
+                            suggestedBaseBranch: payload.baseBranch,
+                            suggestedPrBranchName: payload.prBranchName,
+                            suggestedMode: payload.mode,
+                        })
+                    } catch (error) {
+                        logger.error('Failed to load PR preview for MCP request:', error)
+                        pushToast({
+                            tone: 'error',
+                            title: 'Failed to open PR modal',
+                            description: error instanceof Error ? error.message : String(error),
+                        })
+                    }
+                })
+                unlistenOpenPrModal = createSafeUnlistener(unlisten)
+            } catch (error) {
+                logger.warn('Failed to listen for OpenPrModal events:', error)
+            }
+        }
+
+        void attach()
+
+        return () => {
+            if (unlistenOpenPrModal) {
+                unlistenOpenPrModal()
+            }
+        }
+    }, [createSafeUnlistener, handleOpenPrModal, pushToast])
+
     // Maintain per-filter selection memory and choose the next best session when visibility changes
     useEffect(() => {
         if (isProjectSwitching.current) {
@@ -846,13 +1010,9 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     ])
 
     const handleCreatePullRequestShortcut = useCallback(() => {
-        if (isAnyModalOpen()) return
-        if (selection.kind !== 'session' || !selection.payload) return
-        const session = sessions.find(s => s.info.session_id === selection.payload)
-        if (!session || !session.info.ready_to_merge) return
         if (!github.canCreatePr) return
-        emitUiEvent(UiEvent.CreatePullRequest, { sessionId: selection.payload })
-    }, [isAnyModalOpen, selection, sessions, github.canCreatePr])
+        void handlePrShortcut()
+    }, [github.canCreatePr, handlePrShortcut])
 
     const runRefineSpecFlow = useCallback((sessionId: string, displayName?: string) => {
         void runSpecRefineWithOrchestrator({
@@ -1506,6 +1666,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                             const initialSkipPermissions = Boolean(session?.info && (session.info as { original_skip_permissions?: boolean }).original_skip_permissions)
                                             setSwitchOrchestratorModal({ open: true, initialAgentType, initialSkipPermissions, targetSessionId: sessionId })
                                         }}
+                                        onCreatePullRequest={(sessionId) => { void handlePrShortcut(sessionId) }}
                                         resettingSelection={resettingSelection}
                                         isSessionRunning={isSessionRunning}
                                         onMerge={handleMergeSession}
@@ -1579,6 +1740,18 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 }}
                 autoCancelEnabled={autoCancelAfterMerge}
                 onToggleAutoCancel={(next) => { void updateAutoCancelAfterMerge(next) }}
+            />
+            <PrSessionModal
+                open={prDialogState.isOpen}
+                sessionName={prDialogState.sessionName}
+                status={prDialogState.status}
+                preview={prDialogState.preview}
+                prefill={prDialogState.prefill}
+                error={prDialogState.error}
+                onClose={handleClosePrModal}
+                onConfirm={(options) => { void handleConfirmPr(options) }}
+                autoCancelEnabled={autoCancelAfterPr}
+                onToggleAutoCancel={(next) => { void updateAutoCancelAfterPr(next) }}
             />
             <SwitchOrchestratorModal
                 open={switchOrchestratorModal.open}

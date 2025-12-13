@@ -132,11 +132,12 @@ export function ToastCard({ tone, title, description, action, copyText, onDismis
                 <button
                   type="button"
                   onClick={() => { void action.onClick() }}
-                  className="inline-flex items-center gap-1 rounded px-3 py-1.5 font-medium transition-all duration-150 hover:brightness-110"
+                  className="inline-flex items-center gap-1 rounded border px-2 py-1 font-medium transition-colors duration-150 hover:brightness-125"
                   style={{
-                    backgroundColor: accentColor,
-                    color: theme.colors.background.primary,
-                    fontSize: theme.fontSize.button,
+                    borderColor: theme.colors.border.subtle,
+                    backgroundColor: theme.colors.background.primary,
+                    color: theme.colors.text.primary,
+                    fontSize: theme.fontSize.caption,
                   }}
                 >
                   {action.label}

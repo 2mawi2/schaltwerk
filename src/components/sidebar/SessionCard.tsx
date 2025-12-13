@@ -41,6 +41,7 @@ interface SessionCardProps {
   onPromoteVersionHoverEnd?: () => void;
   onReset?: (sessionId: string) => void;
   onSwitchModel?: (sessionId: string) => void;
+  onCreatePullRequest?: (sessionId: string) => void;
   isResetting?: boolean;
   isRunning?: boolean;
   onMerge?: (sessionId: string) => void;
@@ -194,6 +195,7 @@ export const SessionCard = memo<SessionCardProps>(
     onPromoteVersionHoverEnd,
     onReset,
     onSwitchModel,
+    onCreatePullRequest,
     isResetting = false,
     isRunning = false,
     onMerge,
@@ -444,6 +446,7 @@ export const SessionCard = memo<SessionCardProps>(
                 branch={s.branch}
                 defaultBranch={s.parent_branch ?? undefined}
                 showPromoteIcon={showPromoteIcon}
+                onCreatePullRequest={onCreatePullRequest}
                 prNumber={s.pr_number}
                 prUrl={s.pr_url}
                 onRunSpec={onRunDraft}
@@ -481,6 +484,7 @@ export const SessionCard = memo<SessionCardProps>(
               branch={s.branch}
               defaultBranch={s.parent_branch ?? undefined}
               showPromoteIcon={showPromoteIcon}
+              onCreatePullRequest={onCreatePullRequest}
               prNumber={s.pr_number}
               prUrl={s.pr_url}
               onRunSpec={onRunDraft}

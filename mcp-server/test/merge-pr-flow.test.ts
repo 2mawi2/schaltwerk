@@ -118,7 +118,7 @@ describe('SchaltwerkBridge merge/pr helpers', () => {
     expect(result.mode).toBe('reapply')
   })
 
-  it('creates pull request with optional overrides', async () => {
+  it('prepares pull request and triggers modal with suggested values', async () => {
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
@@ -126,38 +126,36 @@ describe('SchaltwerkBridge merge/pr helpers', () => {
       text: async () =>
         JSON.stringify({
           session_name: 'feature-login',
-          branch: 'reviewed/feature-login',
-          url: 'https://github.com/example/repo/pull/42',
-          cancel_requested: true,
-          cancel_queued: false,
-          cancel_error: 'session has active terminals'
+          modal_triggered: true
         })
     })
 
     const bridge = new SchaltwerkBridge()
     const result = await bridge.createPullRequest('feature-login', {
-      commitMessage: 'review: login',
-      defaultBranch: 'develop',
-      repository: 'example/repo',
-      cancelAfterPr: true
+      prTitle: 'review: login',
+      prBody: 'Implements login flow.',
+      baseBranch: 'develop',
+      mode: 'reapply',
     })
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    const [, init] = fetchMock.mock.calls[0] as [string, Record<string, unknown>]
+    const [url, init] = fetchMock.mock.calls[0] as [string, Record<string, unknown>]
+    expect(url).toContain('/prepare-pr')
     expect(init?.method).toBe('POST')
     expect(JSON.parse(String(init?.body))).toEqual({
-      commit_message: 'review: login',
-      default_branch: 'develop',
-      repository: 'example/repo',
-      cancel_after_pr: true
+      pr_title: 'review: login',
+      pr_body: 'Implements login flow.',
+      base_branch: 'develop',
+      mode: 'reapply',
     })
     expect(result).toEqual({
       sessionName: 'feature-login',
-      branch: 'reviewed/feature-login',
-      url: 'https://github.com/example/repo/pull/42',
-      cancelRequested: true,
+      branch: '',
+      url: '',
+      cancelRequested: false,
       cancelQueued: false,
-      cancelError: 'session has active terminals'
+      cancelError: undefined,
+      modalTriggered: true,
     })
   })
 })

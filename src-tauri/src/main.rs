@@ -1018,6 +1018,8 @@ fn main() {
             github_get_issue_details,
             github_search_prs,
             github_get_pr_details,
+            github_create_session_pr,
+            github_preview_pr,
             github_get_pr_review_comments,
             // Permission commands
             permissions::check_folder_access,

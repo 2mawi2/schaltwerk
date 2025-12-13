@@ -1137,6 +1137,7 @@ mod tests {
     async fn test_set_project_merge_preferences_uninitialized_manager() {
         let preferences = ProjectMergePreferences {
             auto_cancel_after_merge: true,
+            auto_cancel_after_pr: false,
         };
         let result = set_project_merge_preferences(preferences).await;
         assert!(result.is_err());

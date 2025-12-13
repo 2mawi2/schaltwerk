@@ -459,6 +459,7 @@ export const toolOutputSchemas = {
       cancel_requested: { type: 'boolean' },
       cancel_queued: { type: 'boolean' },
       cancel_error: nullableString,
+      modal_triggered: { type: 'boolean' },
     },
     required: ['session', 'branch', 'cancel_requested', 'cancel_queued'],
     additionalProperties: false,
