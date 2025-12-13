@@ -28,6 +28,6 @@ describe('session agent constants', () => {
   it('defines skip-permission support for every agent', () => {
     expect(Object.keys(AGENT_SUPPORTS_SKIP_PERMISSIONS)).toEqual(AGENT_TYPES)
     expect(AGENT_SUPPORTS_SKIP_PERMISSIONS.copilot).toBe(true)
-    expect(AGENT_SUPPORTS_SKIP_PERMISSIONS.kilocode).toBe(false)
+    expect(AGENT_SUPPORTS_SKIP_PERMISSIONS.kilocode).toBe(true)
   })
 })
