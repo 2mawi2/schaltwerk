@@ -29,7 +29,7 @@ const spinnerIcon = (
 )
 
 interface SessionActionsProps {
-  sessionState: 'spec' | 'running' | 'reviewed';
+  sessionState: 'spec' | 'processing' | 'running' | 'reviewed';
   isReadyToMerge?: boolean;
   sessionId: string;
   hasUncommittedChanges?: boolean;

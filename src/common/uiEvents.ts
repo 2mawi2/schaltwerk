@@ -72,7 +72,7 @@ export interface SelectionChangedDetail {
   kind: 'session' | 'orchestrator'
   payload?: string
   worktreePath?: string
-  sessionState?: 'spec' | 'running' | 'reviewed'
+  sessionState?: 'spec' | 'processing' | 'running' | 'reviewed'
 }
 
 export interface FocusTerminalDetail {

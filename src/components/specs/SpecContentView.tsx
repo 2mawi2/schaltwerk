@@ -13,7 +13,7 @@ interface Props {
   sessionName: string
   editable?: boolean
   debounceMs?: number
-  sessionState?: 'spec' | 'running' | 'reviewed'
+  sessionState?: 'spec' | 'processing' | 'running' | 'reviewed'
 }
 
 export function SpecContentView({ sessionName, editable = true, debounceMs = 1000, sessionState }: Props) {

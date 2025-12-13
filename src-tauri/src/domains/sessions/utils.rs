@@ -361,12 +361,12 @@ impl SessionUtils {
                     // First sort by session state priority (Spec > Running)
                     let a_priority = match a.info.session_state {
                         SessionState::Spec => 0,
-                        SessionState::Running => 1,
+                        SessionState::Processing | SessionState::Running => 1,
                         SessionState::Reviewed => 2,
                     };
                     let b_priority = match b.info.session_state {
                         SessionState::Spec => 0,
-                        SessionState::Running => 1,
+                        SessionState::Processing | SessionState::Running => 1,
                         SessionState::Reviewed => 2,
                     };
 

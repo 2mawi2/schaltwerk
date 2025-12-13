@@ -2890,6 +2890,15 @@ impl SessionManager {
                 }
             };
 
+            let session_state = if !worktree_exists
+                && !cfg!(test)
+                && session.session_state == SessionState::Running
+            {
+                SessionState::Processing
+            } else {
+                session.session_state.clone()
+            };
+
             let original_agent_type = session
                 .original_agent_type
                 .clone()
@@ -2921,7 +2930,7 @@ impl SessionManager {
                 diff_stats: diff_stats.clone(),
                 ready_to_merge: session.ready_to_merge,
                 spec_content: session.spec_content.clone(),
-                session_state: session.session_state.clone(),
+                session_state,
                 pr_number: session.pr_number,
                 pr_url: session.pr_url.clone(),
             };

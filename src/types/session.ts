@@ -34,6 +34,7 @@ export function createAgentRecord<T>(factory: (agent: AgentType) => T): Record<A
 
 export enum SessionState {
     Spec = 'spec',
+    Processing = 'processing',
     Running = 'running',
     Reviewed = 'reviewed'
 }
@@ -67,13 +68,14 @@ export interface SessionInfo {
     is_current: boolean
     session_type: 'worktree' | 'container'
     container_status?: string
-    session_state: SessionState | 'spec' | 'running' | 'reviewed'
+    session_state: SessionState | 'spec' | 'processing' | 'running' | 'reviewed'
     current_task?: string
     todo_percentage?: number
     is_blocked?: boolean
     ready_to_merge?: boolean
     spec_content?: string
     original_agent_type?: AgentType
+    original_skip_permissions?: boolean | null
     diff_stats?: DiffStats
     top_uncommitted_paths?: string[]
     attention_required?: boolean
@@ -126,7 +128,7 @@ export interface RawSession {
     pending_name_generation: boolean
     was_auto_generated: boolean
     spec_content?: string
-    session_state: 'spec' | 'running' | 'reviewed'
+    session_state: 'spec' | 'processing' | 'running' | 'reviewed'
     git_stats?: {
         files_changed: number
         additions: number

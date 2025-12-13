@@ -77,7 +77,7 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
   const currentSession = effectiveSelection.kind === 'session' && effectiveSelection.payload
     ? allSessions.find(s => s.info.session_id === effectiveSelection.payload || s.info.branch === effectiveSelection.payload)
     : null
-  const sessionState = currentSession?.info.session_state as ('spec' | 'running' | 'reviewed') | undefined
+  const sessionState = currentSession?.info.session_state as ('spec' | 'processing' | 'running' | 'reviewed') | undefined
   const sessionWorktreePath = effectiveSelection.kind === 'session'
     ? effectiveSelection.worktreePath ?? currentSession?.info.worktree_path ?? null
     : null
@@ -167,7 +167,9 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
   // Determine active tab based on global state
   // For specs, always show info tab regardless of selection
   // For running sessions, fall back to 'changes' if stored tab is 'specs' (specs tab only exists for orchestrator)
-  const effectiveIsSpec = typeof isSpecOverride === 'boolean' ? isSpecOverride : isSpec
+  const effectiveIsSpec = typeof isSpecOverride === 'boolean'
+    ? isSpecOverride
+    : (currentSession ? sessionState === 'spec' : isSpec)
   const effectiveIsRunningSession = effectiveSelection.kind === 'session' && !effectiveIsSpec
   const activeTab = (effectiveSelection.kind === 'session' && effectiveIsSpec && rightPanelTab !== 'preview')
     ? 'info'

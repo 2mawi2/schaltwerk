@@ -18,7 +18,7 @@ pub fn initialize_schema(db: &Database) -> anyhow::Result<()> {
                 parent_branch TEXT NOT NULL,
                 worktree_path TEXT NOT NULL,
             status TEXT NOT NULL,  -- 'active', 'cancelled', or 'spec'
-            session_state TEXT DEFAULT 'running',  -- 'spec', 'running', or 'reviewed'
+            session_state TEXT DEFAULT 'running',  -- 'spec', 'processing', 'running', or 'reviewed'
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL,
             last_activity INTEGER,

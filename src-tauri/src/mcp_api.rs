@@ -1134,6 +1134,8 @@ async fn list_sessions(req: Request<Incoming>) -> Result<Response<String>, hyper
     // Simple query parameter parsing for state filter
     if query.contains("state=reviewed") {
         filter_state = Some(SessionState::Reviewed);
+    } else if query.contains("state=processing") {
+        filter_state = Some(SessionState::Processing);
     } else if query.contains("state=running") {
         filter_state = Some(SessionState::Running);
     } else if query.contains("state=spec") {
@@ -1159,6 +1161,9 @@ async fn list_sessions(req: Request<Incoming>) -> Result<Response<String>, hyper
                     SessionState::Reviewed => s.info.ready_to_merge,
                     SessionState::Running => {
                         !s.info.ready_to_merge && s.info.session_state == SessionState::Running
+                    }
+                    SessionState::Processing => {
+                        !s.info.ready_to_merge && s.info.session_state == SessionState::Processing
                     }
                     SessionState::Spec => s.info.session_state == SessionState::Spec,
                 });

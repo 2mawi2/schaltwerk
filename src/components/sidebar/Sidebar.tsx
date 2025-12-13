@@ -1078,7 +1078,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             || null
     }, [sessions, allSessions])
 
-    const getSelectedSessionState = useCallback((): ('spec' | 'running' | 'reviewed') | null => {
+    const getSelectedSessionState = useCallback((): ('spec' | 'processing' | 'running' | 'reviewed') | null => {
         if (selection.kind !== 'session') return null
         if (selection.sessionState) return selection.sessionState
         const session = findSessionById(selection.payload || null)

@@ -11,7 +11,11 @@ import type { ChangedFile } from '../../common/events'
 import { FilterMode } from '../../types/sessionFilters'
 import { stableSessionTerminalId } from '../../common/terminalIdentity'
 
-let selectionState: { kind: 'session' | 'orchestrator'; payload?: string; sessionState?: 'spec' | 'running' | 'reviewed' }
+let selectionState: {
+  kind: 'session' | 'orchestrator'
+  payload?: string
+  sessionState?: 'spec' | 'processing' | 'running' | 'reviewed'
+}
 let sessionsState: EnrichedSession[]
 const demoTerminals = { top: 'session-demo-top', bottomBase: 'session-demo-bottom' }
 let fileChangeHandler: ((payload: unknown) => void | Promise<void>) | null = null

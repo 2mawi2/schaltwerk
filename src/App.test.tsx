@@ -878,9 +878,9 @@ describe('validatePanelPercentage', () => {
     expect(sessionsHandler).toBeDefined()
     await act(async () => {
       sessionsHandler?.([
-        { info: { session_id: 'feature-unique', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } },
-        { info: { session_id: 'feature-unique_v2', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } },
-        { info: { session_id: 'feature-unique_v3', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } }
+        { info: { session_id: 'feature-unique', status: 'active', session_state: 'running', original_agent_type: 'claude' } },
+        { info: { session_id: 'feature-unique_v2', status: 'active', session_state: 'running', original_agent_type: 'claude' } },
+        { info: { session_id: 'feature-unique_v3', status: 'active', session_state: 'running', original_agent_type: 'claude' } }
       ])
     })
 
@@ -888,9 +888,9 @@ describe('validatePanelPercentage', () => {
     await act(async () => {
       sessionsRefreshedHandlers.forEach(({ handler }) => {
         handler([
-          { info: { session_id: 'feature-unique', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } },
-          { info: { session_id: 'feature-unique_v2', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } },
-          { info: { session_id: 'feature-unique_v3', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } }
+          { info: { session_id: 'feature-unique', status: 'active', session_state: 'running', original_agent_type: 'claude' } },
+          { info: { session_id: 'feature-unique_v2', status: 'active', session_state: 'running', original_agent_type: 'claude' } },
+          { info: { session_id: 'feature-unique_v3', status: 'active', session_state: 'running', original_agent_type: 'claude' } }
         ])
       })
     })
@@ -978,8 +978,8 @@ describe('validatePanelPercentage', () => {
         {
           info: {
             session_id: 'feature',
-            status: 'Active',
-            session_state: 'Running',
+            status: 'active',
+            session_state: 'running',
             original_agent_type: 'codex',
           }
         }
@@ -995,8 +995,8 @@ describe('validatePanelPercentage', () => {
           {
             info: {
               session_id: 'feature',
-              status: 'Active',
-              session_state: 'Running',
+              status: 'active',
+              session_state: 'running',
               original_agent_type: 'codex',
             }
           }
@@ -1217,7 +1217,7 @@ describe('validatePanelPercentage', () => {
 
     await act(async () => {
       sessionsHandler?.([
-        { info: { session_id: 'session-b', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } }
+        { info: { session_id: 'session-b', status: 'active', session_state: 'running', original_agent_type: 'claude' } }
       ])
     })
 
@@ -1226,7 +1226,7 @@ describe('validatePanelPercentage', () => {
     await act(async () => {
       sessionsRefreshedHandlers.forEach(({ handler }) => {
         handler([
-          { info: { session_id: 'session-b', status: 'Active', session_state: 'Running', original_agent_type: 'claude' } }
+          { info: { session_id: 'session-b', status: 'active', session_state: 'running', original_agent_type: 'claude' } }
         ])
       })
     })

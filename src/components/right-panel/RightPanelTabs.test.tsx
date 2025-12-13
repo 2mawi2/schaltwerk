@@ -166,6 +166,26 @@ describe('RightPanelTabs split layout', () => {
     expect(screen.queryByTestId('git-history')).toBeNull()
   })
 
+  it('forces the Info tab for spec sessions based on session metadata', () => {
+    mockSessions.push(createRunningSession({
+      session_id: 'spec-session',
+      worktree_path: '/tmp/specs/spec-session',
+      branch: 'specs/spec-session',
+      status: 'spec',
+      session_state: 'spec',
+    }))
+
+    renderWithProject(
+      <RightPanelTabs
+        selectionOverride={{ kind: 'session', payload: 'spec-session' }}
+      />
+    )
+
+    expect(screen.getByTestId('spec-metadata')).toBeInTheDocument()
+    expect(screen.queryByTestId('diff-panel')).toBeNull()
+    expect(screen.queryByTestId('copy-bundle-bar')).toBeNull()
+  })
+
   it('hides the copy bundle bar when viewing the Spec tab directly', async () => {
     const user = userEvent.setup()
     mockSessions.push(createRunningSession({

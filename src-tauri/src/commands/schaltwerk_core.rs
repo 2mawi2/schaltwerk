@@ -831,6 +831,10 @@ pub async fn schaltwerk_core_create_session(
         last_modified: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         epic: Option<schaltwerk::domains::sessions::entity::Epic>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        skip_permissions: Option<bool>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        agent_type: Option<String>,
     }
     let _ = emit_event(
         &app,
@@ -843,6 +847,8 @@ pub async fn schaltwerk_core_create_session(
             created_at: session.created_at.to_rfc3339(),
             last_modified: session.last_activity.map(|ts| ts.to_rfc3339()),
             epic,
+            agent_type: session.original_agent_type.clone(),
+            skip_permissions: session.original_skip_permissions,
         },
     );
 

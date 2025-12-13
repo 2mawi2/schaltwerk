@@ -14,7 +14,7 @@ import type { SearchAddon } from '@xterm/addon-search';
 import { invoke } from '@tauri-apps/api/core'
 import { startOrchestratorTop, startSessionTop, AGENT_START_TIMEOUT_MESSAGE } from '../../common/agentSpawn'
 import { schedulePtyResize } from '../../common/ptyResizeScheduler'
-import { sessionTerminalBase, stableSessionTerminalId } from '../../common/terminalIdentity'
+import { sessionTerminalBase } from '../../common/terminalIdentity'
 import { UnlistenFn } from '@tauri-apps/api/event';
 import { useAtomValue, useSetAtom } from 'jotai'
 import { previewStateAtom, setPreviewUrlActionAtom } from '../../store/atoms/preview'
@@ -1677,6 +1677,12 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
          if (isTerminalStartingOrStarted(terminalId)) return;
          if (agentStopped) return;
 
+        const isOrchestratorTop = isCommander || (terminalId.includes('orchestrator') && terminalId.endsWith('-top'))
+        // Session agents are started by the sessions domain (background auto-start), not by terminal mount.
+        if (!isOrchestratorTop) {
+            return
+        }
+
         const start = async () => {
             if (startingTerminals.current.get(terminalId)) {
                 return;
@@ -1684,7 +1690,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             startingTerminals.current.set(terminalId, true);
             setAgentLoading(true);
             try {
-                if (isCommander || (terminalId.includes('orchestrator') && terminalId.endsWith('-top'))) {
                     // OPTIMIZATION: Skip terminal_exists check - trust that hydrated terminals are ready
                       try {
                             // Provide initial size at spawn to avoid early overflow in TUI apps
@@ -1737,68 +1742,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                      // OPTIMIZATION: Immediate state reset
                      setAgentLoading(false);
                      startingTerminals.current.set(terminalId, false);
-                } else {
-                    if (!sessionName) {
-                        startingTerminals.current.set(terminalId, false);
-                        return;
-                    }
-                    const expectedId = stableSessionTerminalId(sessionName, 'top');
-                    if (expectedId !== terminalId) {
-                        startingTerminals.current.set(terminalId, false);
-                        setAgentLoading(false);
-                        return;
-                    }
-                    // OPTIMIZATION: Skip session terminal_exists check too
-                     try {
-                           // Provide initial size for session terminals as well
-                           let measured: { cols?: number; rows?: number } | undefined
-                           try {
-                               if (fitAddon.current && terminal.current) {
-                                   fitAddon.current.fit();
-                                   const mCols = calculateEffectiveColumns(terminal.current.cols);
-                                   measured = { cols: mCols, rows: terminal.current.rows };
-                               }
-                           } catch (e) {
-                               logger.warn(`[Terminal ${terminalId}] Failed to measure size before session start:`, e);
-                           }
-                            logger.info(`[Terminal ${terminalId}] Auto-starting Claude (session=${sessionName}) at ${new Date().toISOString()}`);
-                            await startSessionTop({ sessionName, topId: terminalId, measured, agentType });
-                            // Mark that this terminal has been started at least once
-                            terminalEverStartedRef.current = true;
-                            // Focus the terminal after Claude starts successfully (modal-safe)
-                            requestAnimationFrame(() => {
-                                safeTerminalFocus(() => {
-                                    terminal.current?.focus();
-                                }, isAnyModalOpen)
-                            });
-                            // Ensure terminal is fully ready before showing it
-                            requestAnimationFrame(() => {
-                                requestAnimationFrame(() => {
-                                    setAgentLoading(false);
-                                });
-                            });
-                      } catch (e) {
-                         // Roll back start flags on failure to allow retry
-                         clearTerminalStartState([terminalId]);
-                         logger.error(`[Terminal ${terminalId}] Failed to start Claude for session ${sessionName}:`, e);
-                        
-                        // Check if it's a permission error and dispatch event
-                        const errorMessage = String(e);
-                        if (errorMessage.includes('Permission required for folder:')) {
-                            emitUiEvent(UiEvent.PermissionError, { error: errorMessage });
-                        } else if (errorMessage.includes(AGENT_START_TIMEOUT_MESSAGE)) {
-                            emitUiEvent(UiEvent.SpawnError, { error: errorMessage, terminalId });
-                            terminalEverStartedRef.current = true;
-                            setAgentStopped(true);
-                            sessionStorage.setItem(`schaltwerk:agent-stopped:${terminalId}`, 'true');
-                            clearTerminalStartedTracking([terminalId]);
-                         }
-                         throw e;
-                     }
-                     // OPTIMIZATION: Immediate state reset
-                     setAgentLoading(false);
-                     startingTerminals.current.set(terminalId, false);
-                 }
               } catch (error) {
                   logger.error(`[Terminal ${terminalId}] Failed to auto-start Claude:`, error);
                   // Ensure terminal state is properly reset
@@ -1821,7 +1764,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
          return () => {
              cancelled = true;
          };
-     }, [agentType, hydrated, terminalId, isCommander, sessionName, isAnyModalOpen, agentStopped]);
+     }, [agentType, hydrated, terminalId, isCommander, isAnyModalOpen, agentStopped]);
 
     useEffect(() => {
         if (!terminal.current || !resolvedFontFamily) {

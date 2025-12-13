@@ -23,6 +23,7 @@ vi.mock('../../common/eventSystem', () => ({
         GitOperationFailed: 'schaltwerk:git-operation-failed',
         SessionActivity: 'schaltwerk:session-activity',
         TerminalAttention: 'schaltwerk:terminal-attention',
+        TerminalAgentStarted: 'schaltwerk:terminal-agent-started',
     },
 }))
 
@@ -41,11 +42,11 @@ vi.mock('../../common/uiEvents', () => ({
 vi.mock('../../common/terminalStartState', () => ({
     isTerminalStartingOrStarted: vi.fn(() => false),
     markTerminalStarting: vi.fn(),
+    markTerminalStarted: vi.fn(),
     clearTerminalStartState: vi.fn(),
 }))
 
 vi.mock('../../terminal/registry/terminalRegistry', () => ({
-  hasTerminalInstance: vi.fn(() => true),
   acquireTerminalInstance: vi.fn(),
   releaseTerminalInstance: vi.fn(),
   removeTerminalInstance: vi.fn(),
@@ -113,7 +114,7 @@ import {
 } from './sessions'
 import { projectPathAtom } from './project'
 import { listenEvent as listenEventMock } from '../../common/eventSystem'
-import { releaseSessionTerminals, hasTerminalInstance } from '../../terminal/registry/terminalRegistry'
+import { releaseSessionTerminals } from '../../terminal/registry/terminalRegistry'
 import { startSessionTop } from '../../common/agentSpawn'
 import { singleflight as singleflightMock } from '../../utils/singleflight'
 import { stableSessionTerminalId } from '../../common/terminalIdentity'
@@ -161,8 +162,6 @@ describe('sessions atoms', () => {
     beforeEach(() => {
         store = createStore()
         vi.clearAllMocks()
-        vi.mocked(hasTerminalInstance).mockReset()
-        vi.mocked(hasTerminalInstance).mockReturnValue(true)
         Object.keys(listeners).forEach(key => delete listeners[key])
         __resetSessionsTestingState()
         vi.useFakeTimers()
@@ -357,44 +356,66 @@ describe('sessions atoms', () => {
         expect(startSessionTop).toHaveBeenCalledWith(expect.objectContaining({ sessionName: 'auto-run' }))
     })
 
-    it('suppresses hydration auto-start when backend terminal already exists and UI terminal is not yet created', async () => {
+    it('skips auto-start for missing worktrees', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
         store.set(projectPathAtom, '/project')
 
-        const sessionId = 'hydration-run'
+        const missingSession = createSession({ session_id: 'missing-run', status: 'missing', session_state: 'running' })
+
+        vi.mocked(invoke).mockImplementation(async (cmd) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
+                return [missingSession]
+            }
+            if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) {
+                return []
+            }
+            return undefined
+        })
+
+        await store.set(refreshSessionsActionAtom)
+        await Promise.resolve()
+        await Promise.resolve()
+
+        expect(startSessionTop).not.toHaveBeenCalled()
+    })
+
+    it('marks running sessions missing when auto-start fails due to missing worktree', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+        store.set(projectPathAtom, '/project')
+
+        const sessionId = 'missing-worktree'
         const runningSession = createSession({ session_id: sessionId, status: 'active', session_state: 'running' })
-        const topId = stableSessionTerminalId(sessionId, 'top')
 
-        // First refresh (hydration): backend terminal exists, UI terminal not mounted yet
-        vi.mocked(hasTerminalInstance)
-            .mockImplementationOnce(() => false)
-            .mockImplementation(() => true)
-
-        let terminalExistsCalls = 0
-        vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+        vi.mocked(invoke).mockImplementation(async (cmd, _args) => {
             if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
                 return [runningSession]
             }
             if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) {
                 return []
             }
-            if (cmd === TauriCommands.TerminalExists) {
-                terminalExistsCalls += 1
-                const payload = args as { id?: string }
-                if (terminalExistsCalls === 1 && payload?.id === topId) {
-                    return true
-                }
-                return false
-            }
             return undefined
         })
 
-        await store.set(refreshSessionsActionAtom) // hydration pass; should mark suppressed auto-start
+        vi.mocked(startSessionTop).mockRejectedValueOnce(
+            new Error('Working directory not found: /tmp/missing'),
+        )
 
-        await store.set(refreshSessionsActionAtom) // second pass; should not start agent despite terminal missing
-        await Promise.resolve()
-        await Promise.resolve()
+        await store.set(refreshSessionsActionAtom)
 
+        await vi.waitFor(() => {
+            expect(startSessionTop).toHaveBeenCalledWith(expect.objectContaining({ sessionName: sessionId }))
+        })
+
+        await vi.waitFor(() => {
+            const sessions = store.get(allSessionsAtom)
+            expect(sessions[0]?.info.status).toBe('missing')
+        })
+
+        vi.mocked(startSessionTop).mockClear()
+
+        await store.set(refreshSessionsActionAtom)
+
+        await Promise.resolve()
         expect(startSessionTop).not.toHaveBeenCalled()
     })
 
@@ -549,80 +570,6 @@ describe('sessions atoms', () => {
         expect(store.get(pendingStartupsAtom).has('beta')).toBe(false)
     })
 
-    it('skips auto-start when backend terminal already exists', async () => {
-        const { invoke } = await import('@tauri-apps/api/core')
-        store.set(projectPathAtom, '/project')
-
-        const session = createSession({ session_id: 'alpha', session_state: SessionState.Running, status: 'active' })
-        const topId = stableSessionTerminalId(session.info.session_id, 'top')
-
-        vi.mocked(invoke).mockImplementation(async (cmd, args) => {
-            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
-                return [session]
-            }
-            if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) {
-                return []
-            }
-            if (cmd === TauriCommands.TerminalExists) {
-                const id = (args as { id?: string } | undefined)?.id
-                return id === topId ? true : false
-            }
-            return undefined
-        })
-
-        await store.set(refreshSessionsActionAtom)
-
-        await Promise.resolve()
-        expect(invoke).toHaveBeenCalledWith(TauriCommands.TerminalExists, { id: topId })
-        expect(startSessionTop).not.toHaveBeenCalled()
-    })
-
-    it('auto-starts when backend terminal is missing', async () => {
-        const { invoke } = await import('@tauri-apps/api/core')
-        store.set(projectPathAtom, '/project')
-
-        const session = createSession({ session_id: 'beta', session_state: SessionState.Running, status: 'active' })
-        const topId = stableSessionTerminalId(session.info.session_id, 'top')
-
-        vi.mocked(hasTerminalInstance).mockClear()
-        vi.mocked(hasTerminalInstance).mockImplementation(() => true)
-
-        vi.mocked(invoke).mockImplementation(async (cmd, args) => {
-            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
-                return [session]
-            }
-            if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) {
-                return []
-            }
-            if (cmd === TauriCommands.TerminalExists) {
-                const id = (args as { id?: string } | undefined)?.id
-                return id === topId ? false : false
-            }
-            return undefined
-        })
-
-        await store.set(refreshSessionsActionAtom)
-
-        expect(store.get(allSessionsAtom).length).toBe(1)
-
-        await vi.waitFor(() => {
-            expect(invoke).toHaveBeenCalledWith(TauriCommands.TerminalExists, { id: topId })
-        })
-
-        await vi.waitFor(() => {
-            expect(hasTerminalInstance).toHaveBeenCalled()
-        })
-
-        await vi.waitFor(() => {
-            expect(startSessionTop).toHaveBeenCalledWith({
-                sessionName: session.info.session_id,
-                topId,
-                projectOrchestratorId: 'orchestrator-test',
-                agentType: undefined,
-            })
-        })
-    })
-
     it('initializes event listeners and responds to refresh events', async () => {
         await store.set(initializeSessionsEventsActionAtom)
         expect(Object.keys(listeners)).toContain('schaltwerk:sessions-refreshed')
@@ -634,6 +581,25 @@ describe('sessions atoms', () => {
 
         emitSessionsRefreshed(payload)
         expect(store.get(allSessionsAtom)).toEqual(payload)
+    })
+
+    it('skips queued background starts when the session becomes non-running before the queue drains', async () => {
+        store.set(projectPathAtom, '/project')
+        await store.set(initializeSessionsEventsActionAtom)
+
+        const payload = [
+            createSession({ session_id: 'alpha', status: 'active', session_state: SessionState.Running }),
+        ]
+
+        emitSessionsRefreshed(payload)
+
+        // Simulate the session becoming "processing" before the queued background start runs.
+        store.set(allSessionsAtom, [
+            createSession({ session_id: 'alpha', status: 'active', session_state: SessionState.Processing }),
+        ])
+
+        await Promise.resolve()
+        expect(startSessionTop).not.toHaveBeenCalled()
     })
 
     it('updates session status via backend commands', async () => {
@@ -1231,7 +1197,7 @@ describe('sessions atoms', () => {
     it('does not restart existing running sessions when SessionsRefreshed fires after SessionAdded', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
 
-        vi.mocked(invoke).mockImplementation(async (cmd) => {
+        vi.mocked(invoke).mockImplementation(async (cmd, _args) => {
             if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
                 return [
                     createSession({ session_id: 'session-a', status: 'active', session_state: 'running' }),
@@ -1254,6 +1220,10 @@ describe('sessions atoms', () => {
         await store.set(initializeSessionsEventsActionAtom)
         await store.set(refreshSessionsActionAtom)
 
+        await vi.waitFor(() => {
+            expect(vi.mocked(startSessionTop).mock.calls.some(call => call[0]?.sessionName === 'session-a')).toBe(true)
+        })
+
         expect(store.get(allSessionsAtom)).toHaveLength(1)
         expect(store.get(allSessionsAtom)[0]?.info.session_id).toBe('session-a')
 
@@ -1269,10 +1239,12 @@ describe('sessions atoms', () => {
             expect(store.get(allSessionsAtom)).toHaveLength(2)
         })
 
-        const sessionBStartCalls = vi.mocked(startSessionTop).mock.calls.filter(
-            call => call[0]?.sessionName === 'session-b'
-        )
-        expect(sessionBStartCalls).toHaveLength(1)
+        await vi.waitFor(() => {
+            const sessionBStartCalls = vi.mocked(startSessionTop).mock.calls.filter(
+                call => call[0]?.sessionName === 'session-b'
+            )
+            expect(sessionBStartCalls).toHaveLength(1)
+        })
 
         vi.mocked(startSessionTop).mockClear()
 

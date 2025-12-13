@@ -4,7 +4,22 @@ import { recordTerminalSize, getTerminalSize, bestBootstrapSize, clearCacheForTe
 // Mock window for viewport-derived sizing tests
 const mockWindow = {
   innerWidth: 1440,
-  innerHeight: 900
+  innerHeight: 900,
+  localStorage: (() => {
+    let store: Record<string, string> = {}
+    return {
+      getItem: (key: string) => (key in store ? store[key] : null),
+      setItem: (key: string, value: string) => {
+        store[key] = String(value)
+      },
+      removeItem: (key: string) => {
+        delete store[key]
+      },
+      clear: () => {
+        store = {}
+      },
+    }
+  })(),
 }
 
 Object.defineProperty(global, 'window', {
@@ -15,6 +30,7 @@ Object.defineProperty(global, 'window', {
 describe('terminalSizeCache', () => {
   beforeEach(() => {
     vi.useFakeTimers()
+    mockWindow.localStorage.clear()
     clearCacheForTesting()
   })
 
@@ -47,6 +63,24 @@ describe('terminalSizeCache', () => {
 
       expect(getTerminalSize('session-a-top')).toEqual({ cols: 120, rows: 40 })
       expect(getTerminalSize('session-b-top')).toEqual({ cols: 140, rows: 50 })
+    })
+
+    it('persists the last top size to localStorage', () => {
+      recordTerminalSize('session-test-top', 120, 40)
+
+      const raw = mockWindow.localStorage.getItem('schaltwerk:terminalSize:lastTop')
+      expect(raw).not.toBeNull()
+      const parsed = JSON.parse(raw as string) as { cols: number; rows: number }
+      expect(parsed).toMatchObject({ cols: 120, rows: 40 })
+    })
+
+    it('persists orchestrator top sizes by terminal id', () => {
+      recordTerminalSize('orchestrator-proj-123456-top', 140, 50)
+
+      const raw = mockWindow.localStorage.getItem('schaltwerk:terminalSize:orchestrator-proj-123456-top')
+      expect(raw).not.toBeNull()
+      const parsed = JSON.parse(raw as string) as { cols: number; rows: number }
+      expect(parsed).toMatchObject({ cols: 140, rows: 50 })
     })
   })
 
@@ -130,6 +164,37 @@ describe('terminalSizeCache', () => {
       expect(size).toEqual({
         cols: 142, // 140 + 2 safety margin
         rows: 50
+      })
+    })
+
+    it('uses persisted orchestrator size when cache is empty', () => {
+      mockWindow.localStorage.setItem(
+        'schaltwerk:terminalSize:orchestrator-proj-123456-top',
+        JSON.stringify({ cols: 140, rows: 50, ts: Date.now() }),
+      )
+
+      const size = bestBootstrapSize({
+        topId: 'session-new-top',
+        projectOrchestratorId: 'orchestrator-proj-123456-top',
+      })
+
+      expect(size).toEqual({
+        cols: 142,
+        rows: 50,
+      })
+    })
+
+    it('uses persisted last top size when no cached sizes available', () => {
+      mockWindow.localStorage.setItem(
+        'schaltwerk:terminalSize:lastTop',
+        JSON.stringify({ cols: 150, rows: 40, ts: Date.now() }),
+      )
+
+      const size = bestBootstrapSize({ topId: 'session-new-top' })
+
+      expect(size).toEqual({
+        cols: 152,
+        rows: 40,
       })
     })
 
