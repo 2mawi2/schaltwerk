@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { acquireTerminalInstance, removeTerminalInstance, addTerminalClearCallback, removeTerminalClearCallback } from './terminalRegistry'
+import {
+  acquireTerminalInstance,
+  removeTerminalInstance,
+  addTerminalClearCallback,
+  removeTerminalClearCallback,
+  addTerminalOutputCallback,
+  removeTerminalOutputCallback,
+} from './terminalRegistry'
 import { terminalOutputManager } from '../stream/terminalOutputManager'
 
 vi.mock('../stream/terminalOutputManager', () => ({
@@ -122,9 +129,54 @@ describe('terminalRegistry stream flushing', () => {
     // Only the clear sequence should be written (old content cleared)
     expect(rawWrite).toHaveBeenCalledTimes(1)
     expect(rawWrite).toHaveBeenCalledWith('\x1b[3J', expect.any(Function))
+    expect(clearCb).not.toHaveBeenCalled()
+
+    const writeCallback = rawWrite.mock.calls[0][1] as unknown as () => void
+    writeCallback()
     expect(clearCb).toHaveBeenCalledTimes(1)
 
     removeTerminalClearCallback('clear-test', clearCb)
     removeTerminalInstance('clear-test')
+  })
+
+  it('fires output callbacks after write flush completes', async () => {
+    const rawWrite = vi.fn()
+    const factory = () =>
+      ({
+        raw: {
+          write: rawWrite,
+          scrollToBottom: vi.fn(),
+          buffer: {
+            active: {
+              baseY: 10,
+              viewportY: 10,
+            },
+          },
+        },
+        attach: vi.fn(),
+        detach: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as import('../xterm/XtermTerminal').XtermTerminal)
+
+    acquireTerminalInstance('output-test', factory)
+
+    const outCb = vi.fn()
+    addTerminalOutputCallback('output-test', outCb)
+
+    const listener = addListenerMock.mock.calls[0][1] as (chunk: string) => void
+    listener('hello')
+
+    await vi.runAllTimersAsync()
+
+    expect(rawWrite).toHaveBeenCalledTimes(1)
+    expect(outCb).not.toHaveBeenCalled()
+
+    const writeCallback = rawWrite.mock.calls[0][1] as unknown as () => void
+    writeCallback()
+
+    expect(outCb).toHaveBeenCalledTimes(1)
+
+    removeTerminalOutputCallback('output-test', outCb)
+    removeTerminalInstance('output-test')
   })
 })

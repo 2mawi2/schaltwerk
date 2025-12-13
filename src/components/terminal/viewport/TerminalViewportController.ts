@@ -88,10 +88,14 @@ export class TerminalViewportController {
     // xterm.js can desync its virtual scroll area height from its internal buffer
     // during heavy output bursts; explicitly refreshing forces the DOM scrollbar
     // to match the buffer length immediately.
+    //
+    // Avoid snapping to bottom during output frames here: the terminal registry
+    // already performs follow-output when appropriate, and an extra scrollToBottom()
+    // under heavy streaming can cause visible scroll jitter.
     if (!this._userScrolledAway && this._outputRaf === null) {
       this._outputRaf = requestAnimationFrame(() => {
         this._outputRaf = null
-        this._refreshAndSnap('output')
+        this._refreshViewportOnly('output')
       })
     }
   }
@@ -195,6 +199,28 @@ export class TerminalViewportController {
       }
     } catch (e) {
       const msg = `[TerminalViewportController] Error during refresh/snap: ${String(e)}`
+      logger.error(msg)
+      this._logger?.(msg)
+    }
+  }
+
+  private _refreshViewportOnly(source: string): void {
+    try {
+      this._terminal.refresh()
+
+      const raw = this._terminal.raw
+      const buf = raw?.buffer?.active
+      if (!buf) return
+      if (buf.type === 'alternate') return
+
+      // Nudge xterm to recalculate the viewport scrollbar without changing scroll position.
+      if (buf.baseY > 0) {
+        raw.scrollLines(0)
+      }
+
+      this._logScrollState(source)
+    } catch (e) {
+      const msg = `[TerminalViewportController] Error during refresh-only: ${String(e)}`
       logger.error(msg)
       this._logger?.(msg)
     }
