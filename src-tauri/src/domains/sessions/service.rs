@@ -263,6 +263,8 @@ mod service_unified_tests {
             session_state: SessionState::Running,
             resume_allowed: true,
             amp_thread_id: None,
+            pr_number: None,
+            pr_url: None,
         }
     }
 
@@ -2331,6 +2333,8 @@ impl SessionManager {
             session_state: SessionState::Running,
             resume_allowed: true,
             amp_thread_id: None,
+            pr_number: None,
+            pr_url: None,
         };
 
         let finalizer = SessionFinalizer::new(&self.db_manager, &self.cache_manager);
@@ -2673,6 +2677,8 @@ impl SessionManager {
                 ready_to_merge: false,
                 spec_content: Some(spec.content.clone()),
                 session_state: SessionState::Spec,
+                pr_number: None,
+                pr_url: None,
             };
 
             enriched.push(EnrichedSession {
@@ -2731,6 +2737,8 @@ impl SessionManager {
                     ready_to_merge: session.ready_to_merge,
                     spec_content: session.spec_content.clone(),
                     session_state: session.session_state.clone(),
+                    pr_number: session.pr_number,
+                    pr_url: session.pr_url.clone(),
                 };
 
                 enriched.push(EnrichedSession {
@@ -2875,6 +2883,8 @@ impl SessionManager {
                 ready_to_merge: session.ready_to_merge,
                 spec_content: session.spec_content.clone(),
                 session_state: session.session_state.clone(),
+                pr_number: session.pr_number,
+                pr_url: session.pr_url.clone(),
             };
 
             let terminals = vec![
@@ -3858,6 +3868,8 @@ impl SessionManager {
             spec_content: Some(spec.content),
             session_state: SessionState::Spec,
             resume_allowed: false,
+            pr_number: None,
+            pr_url: None,
             amp_thread_id: None,
         }
     }

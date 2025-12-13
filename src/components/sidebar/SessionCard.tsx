@@ -50,6 +50,7 @@ interface SessionCardProps {
   isMarkReadyDisabled?: boolean;
   isBusy?: boolean;
   onRename?: (sessionId: string, newName: string) => Promise<void>;
+  onLinkPr?: (sessionId: string, prNumber: number, prUrl: string) => void;
 }
 
 function getSessionStateColor(state?: string): "green" | "violet" | "gray" {
@@ -202,6 +203,7 @@ export const SessionCard = memo<SessionCardProps>(
     isMarkReadyDisabled = false,
     isBusy = false,
     onRename,
+    onLinkPr,
   }) => {
     const shortcuts = useMultipleShortcutDisplays([
       KeyboardShortcutAction.OpenDiffViewer,
@@ -442,6 +444,8 @@ export const SessionCard = memo<SessionCardProps>(
                 branch={s.branch}
                 defaultBranch={s.parent_branch ?? undefined}
                 showPromoteIcon={showPromoteIcon}
+                prNumber={s.pr_number}
+                prUrl={s.pr_url}
                 onRunSpec={onRunDraft}
                 onRefineSpec={onRefineSpec}
                 onDeleteSpec={onDeleteSpec}
@@ -461,6 +465,7 @@ export const SessionCard = memo<SessionCardProps>(
                 mergeStatus={mergeStatus}
                 mergeConflictingPaths={s.merge_conflicting_paths}
                 isMarkReadyDisabled={isMarkReadyDisabled}
+                onLinkPr={onLinkPr}
               />
             </div>
           </div>
@@ -476,6 +481,8 @@ export const SessionCard = memo<SessionCardProps>(
               branch={s.branch}
               defaultBranch={s.parent_branch ?? undefined}
               showPromoteIcon={showPromoteIcon}
+              prNumber={s.pr_number}
+              prUrl={s.pr_url}
               onRunSpec={onRunDraft}
               onRefineSpec={onRefineSpec}
               onDeleteSpec={onDeleteSpec}
@@ -495,6 +502,7 @@ export const SessionCard = memo<SessionCardProps>(
               mergeStatus={mergeStatus}
               mergeConflictingPaths={s.merge_conflicting_paths}
               isMarkReadyDisabled={isMarkReadyDisabled}
+              onLinkPr={onLinkPr}
             />
           </div>
         )}

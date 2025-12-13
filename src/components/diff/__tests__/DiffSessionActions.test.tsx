@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { screen, fireEvent, waitFor } from '@testing-library/react'
 import { DiffSessionActions } from '../DiffSessionActions'
 import { TauriCommands } from '../../../common/tauriCommands'
 import type { EnrichedSession } from '../../../types/session'
+import { renderWithProviders } from '../../../tests/test-utils'
 
 const invokeMock = vi.fn(async (command: string, _args?: Record<string, unknown>) => {
   switch (command) {
@@ -54,7 +55,7 @@ describe('DiffSessionActions', () => {
     const onReloadSessions = vi.fn(async () => {})
     const onLoadChangedFiles = vi.fn(async () => {})
 
-    render(
+    renderWithProviders(
       <DiffSessionActions
         isSessionSelection={true}
         sessionName="demo"
@@ -88,7 +89,7 @@ describe('DiffSessionActions', () => {
   })
 
   it('hides mark reviewed when session cannot be marked', () => {
-    render(
+    renderWithProviders(
       <DiffSessionActions
         isSessionSelection={true}
         sessionName="demo"
@@ -109,7 +110,7 @@ describe('DiffSessionActions', () => {
     const onClose = vi.fn()
     const onLoadChangedFiles = vi.fn(async () => {})
 
-    render(
+    renderWithProviders(
       <DiffSessionActions
         isSessionSelection={true}
         sessionName="demo"

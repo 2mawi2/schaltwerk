@@ -11,7 +11,8 @@ import {
   VscCode,
   VscGitMerge,
   VscWarning,
-  VscBeaker
+  VscBeaker,
+  VscComment,
 } from 'react-icons/vsc';
 import { FaGithub } from 'react-icons/fa'
 import { IconButton } from '../common/IconButton';
@@ -21,6 +22,8 @@ import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationCon
 import { useToast } from '../../common/toast/ToastProvider'
 import { UiEvent, listenUiEvent } from '../../common/uiEvents'
 import { logger } from '../../utils/logger'
+import { usePrComments } from '../../hooks/usePrComments'
+import { extractPrNumberFromUrl } from '../../utils/githubUrls'
 
 const spinnerIcon = (
   <span className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
@@ -36,6 +39,8 @@ interface SessionActionsProps {
   worktreePath?: string;
   defaultBranch?: string;
   showPromoteIcon?: boolean;
+  prNumber?: number;
+  prUrl?: string;
   onRunSpec?: (sessionId: string) => void;
   onRefineSpec?: (sessionId: string) => void;
   onDeleteSpec?: (sessionId: string) => void;
@@ -55,6 +60,7 @@ interface SessionActionsProps {
   mergeStatus?: MergeStatus;
   isMarkReadyDisabled?: boolean;
   mergeConflictingPaths?: string[];
+  onLinkPr?: (sessionId: string, prNumber: number, prUrl: string) => void;
 }
 
 export function SessionActions({
@@ -66,6 +72,7 @@ export function SessionActions({
   worktreePath,
   defaultBranch,
   showPromoteIcon = false,
+  prNumber,
   onRunSpec,
   onRefineSpec,
   onDeleteSpec,
@@ -85,9 +92,11 @@ export function SessionActions({
   mergeStatus = 'idle',
   isMarkReadyDisabled = false,
   mergeConflictingPaths,
+  onLinkPr,
 }: SessionActionsProps) {
   const github = useGithubIntegrationContext()
   const { pushToast } = useToast()
+  const { fetchingComments, fetchAndCopyToClipboard } = usePrComments()
   // Use moderate spacing for medium-sized buttons
   const spacing = sessionState === 'spec' ? 'gap-1' : 'gap-0.5';
   const conflictCount = mergeConflictingPaths?.length ?? 0;
@@ -129,6 +138,11 @@ export function SessionActions({
           title: 'Pull request created',
           description: result.url,
         })
+
+        const prNum = extractPrNumberFromUrl(result.url)
+        if (prNum && onLinkPr) {
+          onLinkPr(sessionId, prNum, result.url)
+        }
       } else {
         pushToast({
           tone: 'success',
@@ -141,7 +155,15 @@ export function SessionActions({
       const message = error instanceof Error ? error.message : String(error)
       pushToast({ tone: 'error', title: 'GitHub pull request failed', description: message })
     }
-  }, [worktreePath, github, sessionId, sessionSlug, defaultBranch, pushToast])
+  }, [worktreePath, github, sessionId, sessionSlug, defaultBranch, pushToast, onLinkPr])
+
+  const handleFetchAndCopyComments = useCallback(async () => {
+    if (!prNumber) {
+      pushToast({ tone: 'error', title: 'No PR linked', description: 'Link a PR first before fetching comments' })
+      return
+    }
+    await fetchAndCopyToClipboard(prNumber)
+  }, [prNumber, pushToast, fetchAndCopyToClipboard])
 
   useEffect(() => {
     if (!isReadyToMerge) return
@@ -263,6 +285,16 @@ export function SessionActions({
       {/* Reviewed state actions */}
       {isReadyToMerge && (
         <>
+          {prNumber && (
+            <IconButton
+              icon={fetchingComments ? spinnerIcon : <VscComment />}
+              onClick={() => { void handleFetchAndCopyComments() }}
+              ariaLabel="Copy PR comments"
+              tooltip={`Fetch & copy PR #${prNumber} review comments to clipboard`}
+              disabled={fetchingComments}
+              variant="success"
+            />
+          )}
           <IconButton
             icon={creatingPr ? spinnerIcon : <FaGithub />}
             onClick={() => { void handleCreateGithubPr() }}

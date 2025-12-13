@@ -53,6 +53,12 @@ pub trait SessionMethods {
         version_number: Option<i32>,
     ) -> Result<()>;
     fn delete_session(&self, id: &str) -> Result<()>;
+    fn update_session_pr_info(
+        &self,
+        id: &str,
+        pr_number: Option<i64>,
+        pr_url: Option<&str>,
+    ) -> Result<()>;
 }
 
 const SQLITE_MAX_VARIABLE_NUMBER: usize = 999;
@@ -82,6 +88,8 @@ struct SessionSummaryRow {
     session_state: SessionState,
     resume_allowed: bool,
     amp_thread_id: Option<String>,
+    pr_number: Option<i64>,
+    pr_url: Option<String>,
 }
 
 impl Database {
@@ -138,6 +146,8 @@ impl Database {
                     session_state: summary.session_state,
                     resume_allowed: summary.resume_allowed,
                     amp_thread_id: summary.amp_thread_id,
+                    pr_number: summary.pr_number,
+                    pr_url: summary.pr_url,
                 }
             })
             .collect())
@@ -187,8 +197,8 @@ impl SessionMethods for Database {
                 branch, parent_branch, original_parent_branch, worktree_path,
                 status, created_at, updated_at, last_activity, initial_prompt, ready_to_merge,
                 original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
-                spec_content, session_state, resume_allowed, amp_thread_id
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25)",
+                spec_content, session_state, resume_allowed, amp_thread_id, pr_number, pr_url
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27)",
             params![
                 session.id,
                 session.name,
@@ -215,6 +225,8 @@ impl SessionMethods for Database {
                 session.session_state.as_str(),
                 session.resume_allowed,
                 session.amp_thread_id,
+                session.pr_number,
+                session.pr_url,
             ],
         )?;
 
@@ -229,7 +241,7 @@ impl SessionMethods for Database {
                     branch, parent_branch, original_parent_branch, worktree_path,
                     status, created_at, updated_at, last_activity, initial_prompt, ready_to_merge,
                     original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
-                    spec_content, session_state, resume_allowed, amp_thread_id
+                    spec_content, session_state, resume_allowed, amp_thread_id, pr_number, pr_url
              FROM sessions
              WHERE repository_path = ?1 AND name = ?2"
         )?;
@@ -270,6 +282,8 @@ impl SessionMethods for Database {
                     .unwrap_or(SessionState::Running),
                 resume_allowed: row.get(23).unwrap_or(true),
                 amp_thread_id: row.get(24).ok(),
+                pr_number: row.get(25).ok(),
+                pr_url: row.get(26).ok(),
             })
         })?;
 
@@ -284,7 +298,7 @@ impl SessionMethods for Database {
                     branch, parent_branch, original_parent_branch, worktree_path,
                     status, created_at, updated_at, last_activity, initial_prompt, ready_to_merge,
                     original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
-                    spec_content, session_state, resume_allowed, amp_thread_id
+                    spec_content, session_state, resume_allowed, amp_thread_id, pr_number, pr_url
              FROM sessions
              WHERE id = ?1"
         )?;
@@ -325,6 +339,8 @@ impl SessionMethods for Database {
                     .unwrap_or(SessionState::Running),
                 resume_allowed: row.get(23).unwrap_or(true),
                 amp_thread_id: row.get(24).ok(),
+                pr_number: row.get(25).ok(),
+                pr_url: row.get(26).ok(),
             })
         })?;
 
@@ -366,7 +382,7 @@ impl SessionMethods for Database {
                         branch, parent_branch, original_parent_branch, worktree_path,
                         status, created_at, updated_at, last_activity, ready_to_merge,
                         original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
-                        session_state, resume_allowed, amp_thread_id
+                        session_state, resume_allowed, amp_thread_id, pr_number, pr_url
                  FROM sessions
                  WHERE repository_path = ?1
                  ORDER BY ready_to_merge ASC, last_activity DESC",
@@ -406,6 +422,8 @@ impl SessionMethods for Database {
                         .unwrap_or(SessionState::Running),
                     resume_allowed: row.get(21).unwrap_or(true),
                     amp_thread_id: row.get(22).ok(),
+                    pr_number: row.get(23).ok(),
+                    pr_url: row.get(24).ok(),
                 })
             })?;
             rows.collect::<SqlResult<Vec<_>>>()?
@@ -435,7 +453,7 @@ impl SessionMethods for Database {
                         branch, parent_branch, original_parent_branch, worktree_path,
                         status, created_at, updated_at, last_activity, ready_to_merge,
                         original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
-                        session_state, resume_allowed, amp_thread_id
+                        session_state, resume_allowed, amp_thread_id, pr_number, pr_url
                  FROM sessions
                  WHERE status = 'active'
                  ORDER BY ready_to_merge ASC, last_activity DESC",
@@ -475,6 +493,8 @@ impl SessionMethods for Database {
                         .unwrap_or(SessionState::Running),
                     resume_allowed: row.get(21).unwrap_or(true),
                     amp_thread_id: row.get(22).ok(),
+                    pr_number: row.get(23).ok(),
+                    pr_url: row.get(24).ok(),
                 })
             })?;
             rows.collect::<SqlResult<Vec<_>>>()?
@@ -588,7 +608,7 @@ impl SessionMethods for Database {
                         branch, parent_branch, original_parent_branch, worktree_path,
                         status, created_at, updated_at, last_activity, ready_to_merge,
                         original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
-                        session_state, resume_allowed, amp_thread_id
+                        session_state, resume_allowed, amp_thread_id, pr_number, pr_url
                  FROM sessions
                  WHERE repository_path = ?1 AND session_state = ?2
                  ORDER BY ready_to_merge ASC, last_activity DESC",
@@ -630,6 +650,8 @@ impl SessionMethods for Database {
                             .unwrap_or(SessionState::Running),
                         resume_allowed: row.get(21).unwrap_or(true),
                         amp_thread_id: row.get(22).ok(),
+                        pr_number: row.get(23).ok(),
+                        pr_url: row.get(24).ok(),
                     })
                 },
             )?;
@@ -812,12 +834,123 @@ impl SessionMethods for Database {
         conn.execute("DELETE FROM sessions WHERE id = ?1", params![id])?;
         Ok(())
     }
+
+    fn update_session_pr_info(
+        &self,
+        id: &str,
+        pr_number: Option<i64>,
+        pr_url: Option<&str>,
+    ) -> Result<()> {
+        let conn = self.get_conn()?;
+        conn.execute(
+            "UPDATE sessions SET pr_number = ?1, pr_url = ?2, updated_at = ?3 WHERE id = ?4",
+            params![pr_number, pr_url, Utc::now().timestamp(), id],
+        )?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use rusqlite::params;
+
+    #[test]
+    fn test_session_pr_fields_persist() {
+        let db = Database::new_in_memory().expect("failed to build in-memory database");
+
+        let session = Session {
+            id: "test-session-1".to_string(),
+            name: "test-session".to_string(),
+            display_name: None,
+            version_group_id: None,
+            version_number: None,
+            repository_path: PathBuf::from("/tmp/repo"),
+            repository_name: "repo".to_string(),
+            branch: "schaltwerk/test-session".to_string(),
+            parent_branch: "main".to_string(),
+            original_parent_branch: Some("main".to_string()),
+            worktree_path: PathBuf::from("/tmp/repo/.schaltwerk/worktrees/test-session"),
+            status: SessionStatus::Active,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            last_activity: None,
+            initial_prompt: None,
+            ready_to_merge: false,
+            original_agent_type: None,
+            original_skip_permissions: None,
+            pending_name_generation: false,
+            was_auto_generated: false,
+            spec_content: None,
+            session_state: SessionState::Running,
+            resume_allowed: true,
+            amp_thread_id: None,
+            pr_number: Some(142),
+            pr_url: Some("https://github.com/owner/repo/pull/142".to_string()),
+        };
+
+        db.create_session(&session).expect("failed to create session");
+
+        let loaded = db
+            .get_session_by_id("test-session-1")
+            .expect("failed to load session");
+
+        assert_eq!(loaded.pr_number, Some(142));
+        assert_eq!(
+            loaded.pr_url,
+            Some("https://github.com/owner/repo/pull/142".to_string())
+        );
+    }
+
+    #[test]
+    fn test_update_session_pr_info() {
+        let db = Database::new_in_memory().expect("failed to build in-memory database");
+
+        let session = Session {
+            id: "test-session-2".to_string(),
+            name: "test-session-2".to_string(),
+            display_name: None,
+            version_group_id: None,
+            version_number: None,
+            repository_path: PathBuf::from("/tmp/repo"),
+            repository_name: "repo".to_string(),
+            branch: "schaltwerk/test-session-2".to_string(),
+            parent_branch: "main".to_string(),
+            original_parent_branch: Some("main".to_string()),
+            worktree_path: PathBuf::from("/tmp/repo/.schaltwerk/worktrees/test-session-2"),
+            status: SessionStatus::Active,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            last_activity: None,
+            initial_prompt: None,
+            ready_to_merge: false,
+            original_agent_type: None,
+            original_skip_permissions: None,
+            pending_name_generation: false,
+            was_auto_generated: false,
+            spec_content: None,
+            session_state: SessionState::Running,
+            resume_allowed: true,
+            amp_thread_id: None,
+            pr_number: None,
+            pr_url: None,
+        };
+
+        db.create_session(&session).expect("failed to create session");
+
+        db.update_session_pr_info("test-session-2", Some(99), Some("https://github.com/owner/repo/pull/99"))
+            .expect("failed to update PR info");
+
+        let loaded = db
+            .get_session_by_id("test-session-2")
+            .expect("failed to load session");
+
+        assert_eq!(loaded.pr_number, Some(99));
+        assert_eq!(
+            loaded.pr_url,
+            Some("https://github.com/owner/repo/pull/99".to_string())
+        );
+    }
 
     #[test]
     fn test_repo_order_index_structure_and_plan() {

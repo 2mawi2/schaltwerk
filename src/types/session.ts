@@ -70,6 +70,8 @@ export interface SessionInfo {
     diff_stats?: DiffStats
     top_uncommitted_paths?: string[]
     attention_required?: boolean
+    pr_number?: number
+    pr_url?: string
 }
 
 export interface DiffStats {
@@ -123,4 +125,6 @@ export interface RawSession {
         deletions: number
         insertions: number
     }
+    pr_number?: number
+    pr_url?: string
 }

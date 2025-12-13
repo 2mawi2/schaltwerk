@@ -2380,6 +2380,31 @@ pub async fn schaltwerk_core_append_spec_content(
 }
 
 #[tauri::command]
+pub async fn schaltwerk_core_link_session_to_pr(
+    app: tauri::AppHandle,
+    name: String,
+    pr_number: i64,
+    pr_url: String,
+) -> Result<(), String> {
+    log::info!("Linking session '{name}' to PR #{pr_number}");
+
+    let core = get_core_write().await?;
+    let manager = core.session_manager();
+
+    let session = manager
+        .get_session(&name)
+        .map_err(|e| format!("Session not found: {e}"))?;
+
+    core.db
+        .update_session_pr_info(&session.id, Some(pr_number), Some(&pr_url))
+        .map_err(|e| format!("Failed to link session to PR: {e}"))?;
+
+    events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SpecSync);
+
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn schaltwerk_core_list_sessions_by_state(state: String) -> Result<Vec<Session>, String> {
     log::info!("Listing sessions by state: {state}");
 

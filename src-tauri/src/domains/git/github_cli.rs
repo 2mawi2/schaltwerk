@@ -112,6 +112,18 @@ pub struct GitHubPrDetails {
     pub head_ref_name: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GitHubPrReviewComment {
+    pub id: u64,
+    pub path: String,
+    pub line: Option<u64>,
+    pub body: String,
+    pub author_login: Option<String>,
+    pub created_at: String,
+    pub html_url: String,
+    pub in_reply_to_id: Option<u64>,
+}
+
 #[derive(Debug)]
 pub enum GitHubCliError {
     NotInstalled,
@@ -778,6 +790,67 @@ impl<R: CommandRunner> GitHubCli<R> {
         })
     }
 
+    pub fn get_pr_review_comments(
+        &self,
+        project_path: &Path,
+        pr_number: u64,
+    ) -> Result<Vec<GitHubPrReviewComment>, GitHubCliError> {
+        debug!(
+            "[GitHubCli] Fetching PR review comments for project={}, pr_number={}",
+            project_path.display(),
+            pr_number
+        );
+        ensure_git_remote_exists(project_path)?;
+
+        let repo_info = self.view_repository(project_path)?;
+        let api_path = format!("repos/{}/pulls/{}/comments", repo_info.name_with_owner, pr_number);
+
+        let env = [("GH_PROMPT_DISABLED", "1"), ("NO_COLOR", "1")];
+        let args_vec = vec![
+            "api".to_string(),
+            api_path.clone(),
+        ];
+
+        let arg_refs: Vec<&str> = args_vec.iter().map(|entry| entry.as_str()).collect();
+        let output = self
+            .runner
+            .run(&self.program, &arg_refs, Some(project_path), &env)
+            .map_err(map_runner_error)?;
+
+        if !output.success() {
+            return Err(command_failure(&self.program, &args_vec, output));
+        }
+
+        let clean_output = strip_ansi_codes(&output.stdout);
+        let parsed: Vec<PrReviewCommentResponse> =
+            serde_json::from_str(clean_output.trim()).map_err(|err| {
+                log::error!(
+                    "[GitHubCli] Failed to parse PR review comments response: {err}; raw={}, cleaned={}",
+                    output.stdout.trim(),
+                    clean_output.trim()
+                );
+                GitHubCliError::InvalidOutput(
+                    "GitHub CLI returned PR review comments in an unexpected format.".to_string(),
+                )
+            })?;
+
+        let comments = parsed
+            .into_iter()
+            .map(|comment| GitHubPrReviewComment {
+                id: comment.id,
+                path: comment.path,
+                line: comment.line.or(comment.original_line),
+                body: comment.body,
+                author_login: comment.user.and_then(|u| u.login),
+                created_at: comment.created_at,
+                html_url: comment.html_url,
+                in_reply_to_id: comment.in_reply_to_id,
+            })
+            .collect();
+
+        Ok(comments)
+    }
+
     pub fn create_pr_from_worktree(
         &self,
         opts: CreatePrOptions<'_>,
@@ -1397,6 +1470,19 @@ struct PrDetailsResponse {
     comments: Option<IssueComments>,
     #[serde(rename = "headRefName")]
     head_ref_name: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct PrReviewCommentResponse {
+    id: u64,
+    path: String,
+    line: Option<u64>,
+    original_line: Option<u64>,
+    body: String,
+    user: Option<IssueActor>,
+    created_at: String,
+    html_url: String,
+    in_reply_to_id: Option<u64>,
 }
 
 #[cfg(test)]

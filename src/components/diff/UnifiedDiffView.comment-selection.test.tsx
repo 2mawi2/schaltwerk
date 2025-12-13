@@ -5,6 +5,8 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { createChangedFile } from '../../tests/test-utils'
 import type { LineSelection } from '../../hooks/useLineSelection'
 import type { LineInfo } from '../../types/diff'
+import { ToastProvider } from '../../common/toast/ToastProvider'
+import { GithubIntegrationProvider } from '../../contexts/GithubIntegrationContext'
 
 const invokeMock = vi.fn()
 
@@ -192,11 +194,15 @@ beforeEach(() => {
 describe('UnifiedDiffView comment selection', () => {
   it('uses the selection file when selectedFile is stale after multi-line drag', async () => {
     render(
-      <UnifiedDiffModal
-        filePath="src/first.ts"
-        isOpen={true}
-        onClose={() => {}}
-      />
+      <GithubIntegrationProvider>
+        <ToastProvider>
+          <UnifiedDiffModal
+            filePath="src/first.ts"
+            isOpen={true}
+            onClose={() => {}}
+          />
+        </ToastProvider>
+      </GithubIntegrationProvider>
     )
 
     await waitFor(() => {
@@ -230,11 +236,15 @@ describe('UnifiedDiffView comment selection', () => {
     }
 
     render(
-      <UnifiedDiffModal
-        filePath="src/first.ts"
-        isOpen={true}
-        onClose={() => {}}
-      />
+      <GithubIntegrationProvider>
+        <ToastProvider>
+          <UnifiedDiffModal
+            filePath="src/first.ts"
+            isOpen={true}
+            onClose={() => {}}
+          />
+        </ToastProvider>
+      </GithubIntegrationProvider>
     )
 
     await waitFor(() => {

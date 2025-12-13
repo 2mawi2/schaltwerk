@@ -1,6 +1,31 @@
 import { logger } from '../utils/logger'
 
 /**
+ * Format a timestamp as a friendly relative string (e.g., "today", "yesterday", "3 days ago")
+ */
+export function formatRelativeDate(timestamp: string | Date): string {
+    try {
+        const date = typeof timestamp === 'string' ? new Date(timestamp) : timestamp
+        if (isNaN(date.getTime())) {
+            return 'unknown'
+        }
+
+        const now = new Date()
+        const diffMs = now.getTime() - date.getTime()
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+        if (diffDays === 0) return 'today'
+        if (diffDays === 1) return 'yesterday'
+        if (diffDays < 7) return `${diffDays} days ago`
+        if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`
+        return date.toLocaleDateString()
+    } catch (e) {
+        logger.error('Error formatting relative date:', e)
+        return 'unknown'
+    }
+}
+
+/**
  * Format a timestamp as a relative time string (e.g., "2m", "3h", "5d")
  * Handles UTC timestamps correctly by ensuring both dates are in UTC
  */

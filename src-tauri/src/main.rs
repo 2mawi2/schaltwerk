@@ -1018,6 +1018,7 @@ fn main() {
             github_get_issue_details,
             github_search_prs,
             github_get_pr_details,
+            github_get_pr_review_comments,
             // Permission commands
             permissions::check_folder_access,
             permissions::trigger_folder_permission_request,
@@ -1107,6 +1108,7 @@ fn main() {
             schaltwerk_core_update_session_state,
             schaltwerk_core_update_spec_content,
             schaltwerk_core_append_spec_content,
+            schaltwerk_core_link_session_to_pr,
             schaltwerk_core_rename_draft_session,
             schaltwerk_core_rename_session_display_name,
             schaltwerk_core_list_sessions_by_state,

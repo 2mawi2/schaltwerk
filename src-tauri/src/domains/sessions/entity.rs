@@ -105,6 +105,10 @@ pub struct Session {
     pub resume_allowed: bool,
     // Amp thread ID for resuming threads across Schaltwerk sessions
     pub amp_thread_id: Option<String>,
+    // GitHub PR number linked to this session
+    pub pr_number: Option<i64>,
+    // GitHub PR URL linked to this session
+    pub pr_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -283,6 +287,10 @@ pub struct SessionInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub spec_content: Option<String>,
     pub session_state: SessionState,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pr_number: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pr_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
