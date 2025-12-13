@@ -27,7 +27,9 @@ import {
   mergeInFlightSelectorAtom,
   mergeStatusSelectorAtom,
   autoCancelAfterMergeAtom,
+  autoCancelAfterPrAtom,
   updateAutoCancelAfterMergeActionAtom,
+  updateAutoCancelAfterPrActionAtom,
   beginSessionMutationActionAtom,
   endSessionMutationActionAtom,
   sessionMutationSelectorAtom,
@@ -61,6 +63,8 @@ export interface UseSessionsResult {
   getMergeStatus: (sessionId: string) => MergeStatus
   autoCancelAfterMerge: boolean
   updateAutoCancelAfterMerge: (value: boolean, persist?: boolean) => Promise<void>
+  autoCancelAfterPr: boolean
+  updateAutoCancelAfterPr: (value: boolean, persist?: boolean) => Promise<void>
   beginSessionMutation: (sessionId: string, kind: 'merge' | 'remove') => void
   endSessionMutation: (sessionId: string, kind: 'merge' | 'remove') => void
   isSessionMutating: (sessionId: string, kind?: 'merge' | 'remove') => boolean
@@ -91,7 +95,9 @@ export function useSessions(): UseSessionsResult {
   const mergeInFlightSelector = useAtomValue(mergeInFlightSelectorAtom)
   const mergeStatusSelector = useAtomValue(mergeStatusSelectorAtom)
   const autoCancelAfterMerge = useAtomValue(autoCancelAfterMergeAtom)
+  const autoCancelAfterPr = useAtomValue(autoCancelAfterPrAtom)
   const updateAutoCancelAfterMergeAtom = useSetAtom(updateAutoCancelAfterMergeActionAtom)
+  const updateAutoCancelAfterPrAtom = useSetAtom(updateAutoCancelAfterPrActionAtom)
   const beginSessionMutationAtom = useSetAtom(beginSessionMutationActionAtom)
   const endSessionMutationAtom = useSetAtom(endSessionMutationActionAtom)
   const sessionMutationSelector = useAtomValue(sessionMutationSelectorAtom)
@@ -156,6 +162,10 @@ export function useSessions(): UseSessionsResult {
     await updateAutoCancelAfterMergeAtom({ value, persist })
   }, [updateAutoCancelAfterMergeAtom])
 
+  const updateAutoCancelAfterPr = useCallback(async (value: boolean, persist: boolean = true) => {
+    await updateAutoCancelAfterPrAtom({ value, persist })
+  }, [updateAutoCancelAfterPrAtom])
+
   const beginSessionMutation = useCallback((sessionId: string, kind: 'merge' | 'remove') => {
     beginSessionMutationAtom({ sessionId, kind })
   }, [beginSessionMutationAtom])
@@ -192,6 +202,8 @@ export function useSessions(): UseSessionsResult {
     getMergeStatus,
     autoCancelAfterMerge,
     updateAutoCancelAfterMerge,
+    autoCancelAfterPr,
+    updateAutoCancelAfterPr,
     beginSessionMutation,
     endSessionMutation,
     isSessionMutating,
@@ -223,6 +235,8 @@ export function useSessions(): UseSessionsResult {
     getMergeStatus,
     autoCancelAfterMerge,
     updateAutoCancelAfterMerge,
+    autoCancelAfterPr,
+    updateAutoCancelAfterPr,
     beginSessionMutation,
     endSessionMutation,
     isSessionMutating,

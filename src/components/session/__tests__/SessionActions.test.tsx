@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { SessionActions } from '../SessionActions'
 import { GithubIntegrationContext } from '../../../contexts/GithubIntegrationContext'
@@ -8,15 +8,6 @@ const pushToast = vi.fn()
 
 vi.mock('../../../common/toast/ToastProvider', () => ({
   useToast: () => ({ pushToast }),
-}))
-
-vi.mock('../../../utils/logger', () => ({
-  logger: {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  },
 }))
 
 vi.mock('../../../hooks/usePrComments', () => ({
@@ -60,76 +51,89 @@ function renderWithGithub(value: Partial<GithubIntegrationValue>) {
         sessionState="reviewed"
         isReadyToMerge={true}
         sessionId="session-123"
-        sessionSlug="session-123"
-        worktreePath="/tmp/worktrees/session-123"
-        defaultBranch="main"
-        branch="feature/session-123"
+        onCreatePullRequest={vi.fn()}
       />
     </GithubIntegrationContext.Provider>
   )
 }
 
 describe('SessionActions – GitHub PR button', () => {
-  beforeEach(() => {
-    pushToast.mockClear()
-  })
-
   it('disables the PR button when integration is not ready', () => {
     renderWithGithub({ canCreatePr: false })
-    const button = screen.getByLabelText('Create GitHub pull request') as HTMLButtonElement
+    const button = screen.getByLabelText('Create pull request') as HTMLButtonElement
     expect(button.disabled).toBe(true)
   })
 
-  it('creates a PR and shows success toast', async () => {
-    const createReviewedPr = vi.fn().mockResolvedValue({
-      branch: 'reviewed/session-123',
-      url: 'https://github.com/owner/repo/pull/5',
-    })
+  it('invokes the provided PR callback', async () => {
+    const onCreatePullRequest = vi.fn()
+    const defaultValue: GithubIntegrationValue = {
+      status: {
+        installed: true,
+        authenticated: true,
+        userLogin: 'tester',
+        repository: {
+          nameWithOwner: 'owner/repo',
+          defaultBranch: 'main',
+        },
+      },
+      loading: false,
+      isAuthenticating: false,
+      isConnecting: false,
+      isCreatingPr: () => false,
+      authenticate: vi.fn(),
+      connectProject: vi.fn(),
+      createReviewedPr: vi.fn(),
+      getCachedPrUrl: () => undefined,
+      canCreatePr: true,
+      isGhMissing: false,
+      hasRepository: true,
+      refreshStatus: vi.fn(),
+    }
 
-    renderWithGithub({ createReviewedPr })
+    render(
+      <GithubIntegrationContext.Provider value={defaultValue}>
+        <SessionActions
+          sessionState="reviewed"
+          isReadyToMerge={true}
+          sessionId="session-123"
+          onCreatePullRequest={onCreatePullRequest}
+        />
+      </GithubIntegrationContext.Provider>
+    )
 
-    const button = screen.getByLabelText('Create GitHub pull request')
+    const button = screen.getByLabelText('Create pull request')
     fireEvent.click(button)
 
     await waitFor(() => {
-      expect(createReviewedPr).toHaveBeenCalledWith({
-        sessionId: 'session-123',
-        sessionSlug: 'session-123',
-        worktreePath: '/tmp/worktrees/session-123',
-        defaultBranch: 'main',
-      })
-    })
-
-    await waitFor(() => {
-      expect(pushToast).toHaveBeenCalledWith(expect.objectContaining({
-        tone: 'success',
-        title: 'Pull request created',
-        description: 'https://github.com/owner/repo/pull/5',
-      }))
+      expect(onCreatePullRequest).toHaveBeenCalledWith('session-123')
     })
   })
 
-  it('shows an error toast when PR creation fails', async () => {
-    const createReviewedPr = vi.fn().mockRejectedValue(new Error('network error'))
-    renderWithGithub({ createReviewedPr })
+  it('disables the PR button when callback is missing', () => {
+    const defaultValue = {
+      canCreatePr: true,
+      isGhMissing: false,
+      hasRepository: true,
+    } as unknown as GithubIntegrationValue
 
-    const button = screen.getByLabelText('Create GitHub pull request')
-    fireEvent.click(button)
+    render(
+      <GithubIntegrationContext.Provider value={defaultValue}>
+        <SessionActions
+          sessionState="reviewed"
+          isReadyToMerge={true}
+          sessionId="session-123"
+        />
+      </GithubIntegrationContext.Provider>
+    )
 
-    await waitFor(() => {
-      expect(pushToast).toHaveBeenCalledWith(expect.objectContaining({
-        tone: 'error',
-        title: 'GitHub pull request failed',
-      }))
-    })
+    const button = screen.getByLabelText('Create pull request') as HTMLButtonElement
+    expect(button.disabled).toBe(true)
   })
 })
 
 describe('SessionActions – Running state', () => {
   const mockGithub = {
     canCreatePr: true,
-    isCreatingPr: () => false,
-    getCachedPrUrl: () => undefined,
     isGhMissing: false,
     hasRepository: true,
   } as unknown as GithubIntegrationValue

@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react'
+import { useCallback } from 'react'
 import {
   VscPlay,
   VscTrash,
@@ -20,10 +20,7 @@ import { theme } from '../../common/theme';
 import type { MergeStatus } from '../../store/atoms/sessions';
 import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
 import { useToast } from '../../common/toast/ToastProvider'
-import { UiEvent, listenUiEvent } from '../../common/uiEvents'
-import { logger } from '../../utils/logger'
 import { usePrComments } from '../../hooks/usePrComments'
-import { extractPrNumberFromUrl } from '../../utils/githubUrls'
 
 const spinnerIcon = (
   <span className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
@@ -39,6 +36,7 @@ interface SessionActionsProps {
   worktreePath?: string;
   defaultBranch?: string;
   showPromoteIcon?: boolean;
+  onCreatePullRequest?: (sessionId: string) => void;
   prNumber?: number;
   prUrl?: string;
   onRunSpec?: (sessionId: string) => void;
@@ -68,10 +66,8 @@ export function SessionActions({
   isReadyToMerge = false,
   sessionId,
   hasUncommittedChanges = false,
-  sessionSlug,
-  worktreePath,
-  defaultBranch,
   showPromoteIcon = false,
+  onCreatePullRequest,
   prNumber,
   onRunSpec,
   onRefineSpec,
@@ -92,7 +88,7 @@ export function SessionActions({
   mergeStatus = 'idle',
   isMarkReadyDisabled = false,
   mergeConflictingPaths,
-  onLinkPr,
+  onLinkPr: _onLinkPr,
 }: SessionActionsProps) {
   const github = useGithubIntegrationContext()
   const { pushToast } = useToast()
@@ -105,57 +101,18 @@ export function SessionActions({
     ? `Resolve conflicts (⌘⇧M)${mergeConflictingPaths?.length ? ` • ${mergeConflictingPaths.slice(0, 3).join(', ')}${mergeConflictingPaths.length > 3 ? '…' : ''}` : ''}`
     : 'Resolve conflicts (⌘⇧M)';
 
-  const canCreatePr = github.canCreatePr && Boolean(worktreePath);
-  const creatingPr = github.isCreatingPr(sessionId);
-  const cachedUrl = github.getCachedPrUrl(sessionId);
+  const canCreatePr = github.canCreatePr;
   const prTooltip = canCreatePr
-    ? cachedUrl
-      ? `Push changes and update PR (${cachedUrl})`
-      : 'Create GitHub pull request'
+    ? 'Create pull request'
     : github.isGhMissing
       ? 'Install the GitHub CLI to enable PR automation'
       : github.hasRepository
         ? 'Sign in with GitHub to enable PR automation'
         : 'Connect this project to a GitHub repository first';
-
-  const handleCreateGithubPr = useCallback(async () => {
-    if (!worktreePath) {
-      pushToast({ tone: 'error', title: 'Unable to open pull request', description: 'Session worktree path is unavailable.' })
-      return
-    }
-
-    try {
-      const result = await github.createReviewedPr({
-        sessionId,
-        sessionSlug: sessionSlug ?? sessionId,
-        worktreePath,
-        defaultBranch,
-      })
-
-      if (result.url) {
-        pushToast({
-          tone: 'success',
-          title: 'Pull request created',
-          description: result.url,
-        })
-
-        const prNum = extractPrNumberFromUrl(result.url)
-        if (prNum && onLinkPr) {
-          onLinkPr(sessionId, prNum, result.url)
-        }
-      } else {
-        pushToast({
-          tone: 'success',
-          title: 'Pull request form opened',
-          description: 'Review and create the PR in your browser',
-        })
-      }
-    } catch (error) {
-      logger.error(`Failed to create GitHub PR for session ${sessionId}`, error)
-      const message = error instanceof Error ? error.message : String(error)
-      pushToast({ tone: 'error', title: 'GitHub pull request failed', description: message })
-    }
-  }, [worktreePath, github, sessionId, sessionSlug, defaultBranch, pushToast, onLinkPr])
+  const handleOpenPullRequest = useCallback(() => {
+    if (!onCreatePullRequest) return
+    onCreatePullRequest(sessionId)
+  }, [onCreatePullRequest, sessionId])
 
   const handleFetchAndCopyComments = useCallback(async () => {
     if (!prNumber) {
@@ -164,16 +121,6 @@ export function SessionActions({
     }
     await fetchAndCopyToClipboard(prNumber)
   }, [prNumber, pushToast, fetchAndCopyToClipboard])
-
-  useEffect(() => {
-    if (!isReadyToMerge) return
-    const cleanup = listenUiEvent(UiEvent.CreatePullRequest, (detail) => {
-      if (detail.sessionId === sessionId) {
-        void handleCreateGithubPr()
-      }
-    })
-    return cleanup
-  }, [isReadyToMerge, sessionId, handleCreateGithubPr])
 
   return (
     <div className={`flex items-center ${spacing}`} data-onboarding="session-actions">
@@ -212,6 +159,14 @@ export function SessionActions({
       {/* Running state actions */}
       {sessionState === 'running' && !isReadyToMerge && (
         <>
+          <IconButton
+            icon={<FaGithub />}
+            onClick={handleOpenPullRequest}
+            ariaLabel="Create pull request"
+            tooltip={canCreatePr ? 'Create pull request (⌘⇧P)' : prTooltip}
+            disabled={!canCreatePr || !onCreatePullRequest}
+            className={!canCreatePr ? 'opacity-60' : undefined}
+          />
           {showPromoteIcon && onPromoteVersion && (
             <div
               onMouseEnter={onPromoteVersionHover}
@@ -296,11 +251,11 @@ export function SessionActions({
             />
           )}
           <IconButton
-            icon={creatingPr ? spinnerIcon : <FaGithub />}
-            onClick={() => { void handleCreateGithubPr() }}
-            ariaLabel="Create GitHub pull request"
-            tooltip={canCreatePr ? 'Create GitHub pull request (⌘⇧P)' : prTooltip}
-            disabled={!canCreatePr || creatingPr}
+            icon={<FaGithub />}
+            onClick={handleOpenPullRequest}
+            ariaLabel="Create pull request"
+            tooltip={canCreatePr ? 'Create pull request (⌘⇧P)' : prTooltip}
+            disabled={!canCreatePr || !onCreatePullRequest}
             className={!canCreatePr ? 'opacity-60' : undefined}
           />
           {onMerge && (

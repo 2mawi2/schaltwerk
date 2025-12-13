@@ -29,6 +29,7 @@ interface SessionVersionGroupProps {
   onSelectBestVersion?: (groupBaseName: string, selectedSessionId: string) => void
   onReset?: (sessionId: string) => void
   onSwitchModel?: (sessionId: string) => void
+  onCreatePullRequest?: (sessionId: string) => void
   resettingSelection?: SessionSelection | null
   isInSpecMode?: boolean  // Optional: whether we're in spec mode
   currentSpecId?: string | null  // Optional: current spec selected in spec mode
@@ -60,6 +61,7 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
   onSelectBestVersion,
   onReset,
   onSwitchModel,
+  onCreatePullRequest,
   resettingSelection,
   isInSpecMode,
   currentSpecId,
@@ -105,6 +107,7 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
         onDeleteSpec={onDeleteSpec}
         onReset={onReset}
         onSwitchModel={onSwitchModel}
+        onCreatePullRequest={onCreatePullRequest}
         isResetting={isResettingForSession}
         isRunning={isSessionRunning?.(session.session.info.session_id) || false}
         onMerge={onMerge}
@@ -332,6 +335,7 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
                       onPromoteVersionHoverEnd={() => setIsPreviewingDeletion(false)}
                       onReset={onReset}
                       onSwitchModel={onSwitchModel}
+                      onCreatePullRequest={onCreatePullRequest}
                       isResetting={resettingSelection?.kind === 'session'
                         && resettingSelection.payload === version.session.info.session_id}
                       isRunning={isSessionRunning?.(version.session.info.session_id) || false}

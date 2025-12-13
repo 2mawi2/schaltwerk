@@ -80,15 +80,6 @@ export interface MergeSessionResult {
   cancelError?: string
 }
 
-interface PullRequestApiResponse {
-  session_name: string
-  branch: string
-  url: string
-  cancel_requested: boolean
-  cancel_queued: boolean
-  cancel_error?: string | null
-}
-
 export interface PullRequestResult {
   sessionName: string
   branch: string
@@ -96,6 +87,7 @@ export interface PullRequestResult {
   cancelRequested: boolean
   cancelQueued: boolean
   cancelError?: string
+  modalTriggered?: boolean
 }
 
 export interface DiffSummaryOptions {
@@ -1229,39 +1221,53 @@ export class SchaltwerkBridge {
 
   async createPullRequest(
     sessionName: string,
-    options: { commitMessage?: string; defaultBranch?: string; repository?: string; cancelAfterPr?: boolean }
+    options: {
+      prTitle: string
+      prBody?: string
+      baseBranch?: string
+      prBranchName?: string
+      mode?: MergeModeOption
+      commitMessage?: string
+      repository?: string
+      cancelAfterPr?: boolean
+    }
   ): Promise<PullRequestResult> {
-    const commitMessage = options.commitMessage?.trim()
+    const prTitle = options.prTitle?.trim()
+    if (!prTitle) {
+      throw new Error('prTitle is required to create a pull request.')
+    }
 
-    const response = await this.fetchWithAutoPort(`/api/sessions/${encodeURIComponent(sessionName)}/pull-request`, {
+    const response = await this.fetchWithAutoPort(`/api/sessions/${encodeURIComponent(sessionName)}/prepare-pr`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...this.getProjectHeaders()
       },
       body: JSON.stringify({
-        commit_message: commitMessage && commitMessage.length > 0 ? commitMessage : undefined,
-        default_branch: options.defaultBranch,
-        repository: options.repository,
-        cancel_after_pr: Boolean(options.cancelAfterPr)
+        pr_title: prTitle,
+        pr_body: options.prBody,
+        base_branch: options.baseBranch,
+        pr_branch_name: options.prBranchName,
+        mode: options.mode,
       })
     })
 
     const responseBody = await response.text()
     if (!response.ok) {
       const reason = responseBody ? ` - ${responseBody}` : ''
-      throw new Error(`Failed to create pull request for session '${sessionName}': ${response.status} ${response.statusText}${reason}`)
+      throw new Error(`Failed to prepare pull request for session '${sessionName}': ${response.status} ${response.statusText}${reason}`)
     }
 
-    const payload = JSON.parse(responseBody) as PullRequestApiResponse
+    const payload = JSON.parse(responseBody) as { session_name: string; modal_triggered: boolean }
 
     return {
       sessionName: payload.session_name,
-      branch: payload.branch,
-      url: payload.url,
-      cancelRequested: payload.cancel_requested,
-      cancelQueued: payload.cancel_queued,
-      cancelError: payload.cancel_error ?? undefined
+      branch: '',
+      url: '',
+      cancelRequested: false,
+      cancelQueued: false,
+      cancelError: undefined,
+      modalTriggered: payload.modal_triggered,
     }
   }
 

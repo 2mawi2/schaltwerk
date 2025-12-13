@@ -412,6 +412,7 @@ describe('useSettings', () => {
 
       const mergePreferences = {
         autoCancelAfterMerge: true,
+        autoCancelAfterPr: false,
       }
 
       const saveResult = await act(async () => {
@@ -433,7 +434,7 @@ describe('useSettings', () => {
       })
       expect(result.current.saving).toBe(false)
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetProjectMergePreferences, {
-        preferences: { auto_cancel_after_merge: true }
+        preferences: { auto_cancel_after_merge: true, auto_cancel_after_pr: false }
       })
     })
 
@@ -506,6 +507,7 @@ describe('useSettings', () => {
 
       const mergePreferences = {
         autoCancelAfterMerge: false,
+        autoCancelAfterPr: false,
       }
 
       const saveResult = await act(async () => {
@@ -596,6 +598,7 @@ describe('useSettings', () => {
 
       const mergePreferences = {
         autoCancelAfterMerge: false,
+        autoCancelAfterPr: false,
       }
 
       const saveResult = await act(async () => {
@@ -622,7 +625,7 @@ describe('useSettings', () => {
     it('loads merge preferences from backend', async () => {
       mockInvoke.mockImplementation(async (command: string) => {
         if (command === TauriCommands.GetProjectMergePreferences) {
-          return { auto_cancel_after_merge: true }
+          return { auto_cancel_after_merge: true, auto_cancel_after_pr: false }
         }
         return null
       })
@@ -633,7 +636,7 @@ describe('useSettings', () => {
         return await result.current.loadMergePreferences()
       })
 
-      expect(prefs).toEqual({ autoCancelAfterMerge: true })
+      expect(prefs).toEqual({ autoCancelAfterMerge: true, autoCancelAfterPr: false })
     })
 
     it('defaults auto-cancel to true when backend omits preference', async () => {
@@ -650,7 +653,7 @@ describe('useSettings', () => {
         return await result.current.loadMergePreferences()
       })
 
-      expect(prefs).toEqual({ autoCancelAfterMerge: true })
+      expect(prefs).toEqual({ autoCancelAfterMerge: true, autoCancelAfterPr: false })
     })
   })
 

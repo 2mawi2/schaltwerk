@@ -317,7 +317,8 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
         remember_idle_baseline: true
     })
     const [mergePreferences, setMergePreferences] = useState<ProjectMergePreferences>({
-        autoCancelAfterMerge: true
+        autoCancelAfterMerge: true,
+        autoCancelAfterPr: false
     })
     const [devErrorToastsEnabled, setDevErrorToastsEnabled] = useState(false)
     const [initialDevErrorToastsEnabled, setInitialDevErrorToastsEnabled] = useState(false)
@@ -663,7 +664,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
         let loadedProjectSettings: ProjectSettings = { setupScript: '', branchPrefix: '', environmentVariables: [] }
         let loadedTerminalSettings: TerminalSettings = { shell: null, shellArgs: [], fontFamily: null, webglEnabled: true }
         let loadedRunScript: RunScript = { command: '', workingDirectory: '', environmentVariables: {} }
-        let loadedMergePreferences: ProjectMergePreferences = { autoCancelAfterMerge: true }
+        let loadedMergePreferences: ProjectMergePreferences = { autoCancelAfterMerge: true, autoCancelAfterPr: false }
         let loadedDevErrorToasts = true
         
         try {

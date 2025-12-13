@@ -367,6 +367,10 @@ fn apply_project_config_migrations(conn: &rusqlite::Connection) -> anyhow::Resul
         "ALTER TABLE project_config ADD COLUMN github_default_branch TEXT",
         [],
     );
+    let _ = conn.execute(
+        "ALTER TABLE project_config ADD COLUMN auto_cancel_after_pr INTEGER DEFAULT 0",
+        [],
+    );
     Ok(())
 }
 

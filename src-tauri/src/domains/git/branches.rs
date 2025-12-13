@@ -365,6 +365,75 @@ pub fn safe_sync_branch_with_origin(repo_path: &Path, branch_name: &str) -> Resu
     Ok(())
 }
 
+pub struct RemoteBranchStatus {
+    pub exists_on_remote: bool,
+    pub conflict_warning: Option<String>,
+}
+
+/// Checks if a branch exists on the remote and whether it has different commits.
+/// Returns status indicating if branch exists and any conflict warning.
+pub fn check_remote_branch_status(repo_path: &Path, branch_name: &str) -> RemoteBranchStatus {
+    let not_found = RemoteBranchStatus {
+        exists_on_remote: false,
+        conflict_warning: None,
+    };
+
+    let repo = match Repository::open(repo_path) {
+        Ok(r) => r,
+        Err(e) => {
+            log::warn!("Failed to open repository: {e}");
+            return not_found;
+        }
+    };
+
+    let local_commit = match repo.find_branch(branch_name, BranchType::Local) {
+        Ok(branch) => match branch.get().peel_to_commit() {
+            Ok(commit) => commit.id().to_string(),
+            Err(e) => {
+                log::debug!("Failed to get local commit for branch '{branch_name}': {e}");
+                return not_found;
+            }
+        },
+        Err(_) => return not_found,
+    };
+
+    let output = match std::process::Command::new("git")
+        .args(["ls-remote", "origin", branch_name])
+        .current_dir(repo_path)
+        .output()
+    {
+        Ok(o) => o,
+        Err(e) => {
+            log::debug!("Failed to run git ls-remote: {e}");
+            return not_found;
+        }
+    };
+
+    if !output.status.success() {
+        return not_found;
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let remote_commit = stdout.split_whitespace().next();
+
+    match remote_commit {
+        Some(remote) if !remote.is_empty() => {
+            let has_conflict = !local_commit.starts_with(remote) && !remote.starts_with(&local_commit);
+            RemoteBranchStatus {
+                exists_on_remote: true,
+                conflict_warning: if has_conflict {
+                    Some(format!(
+                        "[rejected] Branch '{branch_name}' already exists on remote with different commits (non-fast-forward). A PR may already exist for this branch."
+                    ))
+                } else {
+                    None
+                },
+            }
+        }
+        _ => not_found,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

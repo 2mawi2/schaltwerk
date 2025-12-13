@@ -91,12 +91,14 @@ interface SchaltwerkMergeArgs {
 
 interface SchaltwerkCreatePrArgs {
   session_name: string
-  options?: {
-    commit_message?: string
-    default_branch?: string
-    repository?: string
-    cancel_after_pr?: boolean
-  }
+  pr_title: string
+  pr_body?: string | null
+  base_branch?: string | null
+  pr_branch_name?: string | null
+  mode?: 'squash' | 'reapply'
+  commit_message?: string | null
+  repository?: string | null
+  cancel_after_pr?: boolean
 }
 
 interface SchaltwerkSetSetupScriptArgs {
@@ -679,38 +681,49 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "schaltwerk_create_pr",
-        description: `Push a session branch and open or update a GitHub PR through the GitHub CLI integration. Make sure \`gh\` is authenticated and the branch is ready; the command will auto-commit staged files if required. Optional settings adjust the commit_message, default_branch, target repository, or queue cancel_after_pr to remove the worktree after the PR succeeds. Spec sessions are not eligible for PR creation.`,
+        description: `Open a pull request modal in the Schaltwerk UI for user review and confirmation. The modal is pre-filled with the provided title, body, and branch options. The user can review, edit, and confirm to create the PR. This tool does NOT create the PR directly - it requires user confirmation via the UI. Works for running and reviewed sessions. Spec sessions are not eligible for PR creation.`,
         inputSchema: {
           type: "object",
           properties: {
             session_name: {
               type: "string",
-              description: "Reviewed session to push and open a pull request for."
+              description: "Running or reviewed session to open the PR modal for."
             },
-            options: {
-              type: "object",
-              description: "Optional overrides for PR creation (all keys optional).",
-              properties: {
-                commit_message: {
-                  type: "string",
-                  description: "Commit message used if uncommitted changes must be committed before pushing."
-                },
-                default_branch: {
-                  type: "string",
-                  description: "Override the repository default branch (e.g. 'main', 'develop')."
-                },
-                repository: {
-                  type: "string",
-                  description: "Target GitHub repository in owner/name form if it differs from the connected repo."
-                },
-                cancel_after_pr: {
-                  type: "boolean",
-                  description: "Queue session cancellation after the PR is created (default false)."
-                }
-              }
+            pr_title: {
+              type: "string",
+              description: "Suggested pull request title (user can edit before confirming)."
+            },
+            pr_body: {
+              type: "string",
+              description: "Suggested pull request description/body (user can edit before confirming)."
+            },
+            base_branch: {
+              type: "string",
+              description: "Suggested base branch to open the PR against (defaults to the session parent branch)."
+            },
+            pr_branch_name: {
+              type: "string",
+              description: "Suggested remote branch name to push and use as PR head (defaults to the session's branch name)."
+            },
+            mode: {
+              type: "string",
+              enum: ["squash", "reapply"],
+              description: "Suggested preparation strategy: 'squash' creates a single commit for the PR; 'reapply' preserves commits. Defaults to 'reapply'."
+            },
+            commit_message: {
+              type: "string",
+              description: "Suggested commit message used for squash mode. Defaults to pr_title when omitted."
+            },
+            repository: {
+              type: "string",
+              description: "Target GitHub repository in owner/name form if it differs from the connected repo."
+            },
+            cancel_after_pr: {
+              type: "boolean",
+              description: "Queue session cancellation after the PR is created (default false). Applied when user confirms."
             }
           },
-          required: ["session_name"]
+          required: ["session_name", "pr_title"]
         },
         outputSchema: toolOutputSchemas.schaltwerk_create_pr
       },
@@ -1393,39 +1406,34 @@ ${cancelLine}`
         if (!prArgs.session_name || typeof prArgs.session_name !== 'string') {
           throw new Error('session_name is required when invoking schaltwerk_create_pr.')
         }
-
-        const prOptions = prArgs.options ?? {}
+        if (!prArgs.pr_title || typeof prArgs.pr_title !== 'string') {
+          throw new Error('pr_title is required when invoking schaltwerk_create_pr.')
+        }
 
         const prResult = await bridge.createPullRequest(prArgs.session_name, {
-          commitMessage: prOptions.commit_message,
-          defaultBranch: prOptions.default_branch,
-          repository: prOptions.repository,
-          cancelAfterPr: prOptions.cancel_after_pr
+          prTitle: prArgs.pr_title,
+          prBody: prArgs.pr_body ?? undefined,
+          baseBranch: prArgs.base_branch ?? undefined,
+          prBranchName: prArgs.pr_branch_name ?? undefined,
+          mode: prArgs.mode,
+          commitMessage: prArgs.commit_message ?? undefined,
+          repository: prArgs.repository ?? undefined,
+          cancelAfterPr: Boolean(prArgs.cancel_after_pr),
         })
-
-        const urlLine = prResult.url && prResult.url.length > 0
-          ? `- Pull request URL: ${prResult.url}`
-          : '- GitHub CLI opened the PR form in a browser (no URL returned).'
 
         const structured = {
           session: prArgs.session_name,
-          branch: prResult.branch,
-          pr_url: prResult.url || null,
-          cancel_requested: prResult.cancelRequested,
-          cancel_queued: prResult.cancelQueued,
-          cancel_error: prResult.cancelError ?? null
+          branch: '',
+          pr_url: null,
+          cancel_requested: false,
+          cancel_queued: false,
+          cancel_error: null,
+          modal_triggered: prResult.modalTriggered ?? false,
         }
 
-        const cancelLine = prResult.cancelRequested
-          ? (prResult.cancelQueued
-              ? '- Session cancellation queued (cleanup runs asynchronously).'
-              : `- Cancellation requested but failed: ${prResult.cancelError ?? 'unknown error'}`)
-          : '- Session retained (cancel_after_pr=false).'
-
-        const summary = `Pull request workflow completed for '${prArgs.session_name}':
-- Branch pushed: ${prResult.branch}
-${urlLine}
-${cancelLine}`
+        const summary = prResult.modalTriggered
+          ? `Pull request modal opened for '${prArgs.session_name}'. The user will review and confirm the PR details in the Schaltwerk UI.`
+          : `Failed to open pull request modal for '${prArgs.session_name}'.`
 
         response = buildStructuredResponse(structured, { summaryText: summary })
         break
