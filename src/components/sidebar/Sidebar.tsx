@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, useEffectEvent, useMemo } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useEffectEvent, useMemo, type ReactNode } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
 import clsx from 'clsx'
 import { invoke } from '@tauri-apps/api/core'
@@ -35,7 +35,7 @@ import { clearTerminalStartedTracking } from '../terminal/Terminal'
 import { logger } from '../../utils/logger'
 import { UiEvent, emitUiEvent, listenUiEvent } from '../../common/uiEvents'
 import { runSpecRefineWithOrchestrator } from '../../utils/specRefine'
-import { AGENT_TYPES, AgentType, EnrichedSession } from '../../types/session'
+import { AGENT_TYPES, AgentType, EnrichedSession, type Epic } from '../../types/session'
 import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
 import { useRun } from '../../contexts/RunContext'
 import { useToast } from '../../common/toast/ToastProvider'
@@ -48,6 +48,10 @@ import { useSessionMergeShortcut } from '../../hooks/useSessionMergeShortcut'
 import { useUpdateSessionFromParent } from '../../hooks/useUpdateSessionFromParent'
 import { DEFAULT_AGENT } from '../../constants/agents'
 import { extractPrNumberFromUrl } from '../../utils/githubUrls'
+import { EpicModal } from '../modals/EpicModal'
+import { ConfirmModal } from '../modals/ConfirmModal'
+import { useEpics } from '../../hooks/useEpics'
+import { EpicGroupHeader } from './EpicGroupHeader'
 
 // Removed legacy terminal-stuck idle handling; we rely on last-edited timestamps only
 
@@ -61,8 +65,17 @@ interface SidebarProps {
     onToggleSidebar?: () => void
 }
 
-const flattenGroupedSessions = (sessionsToFlatten: EnrichedSession[]): EnrichedSession[] => {
-    const sessionGroups = groupSessionsByVersion(sessionsToFlatten)
+type EpicVersionGroup = {
+    epic: Epic
+    groups: SessionVersionGroupType[]
+}
+
+type EpicGroupingResult = {
+    epicGroups: EpicVersionGroup[]
+    ungroupedGroups: SessionVersionGroupType[]
+}
+
+const flattenVersionGroups = (sessionGroups: SessionVersionGroupType[]): EnrichedSession[] => {
     const flattenedSessions: EnrichedSession[] = []
     
     for (const group of sessionGroups) {
@@ -72,6 +85,50 @@ const flattenGroupedSessions = (sessionsToFlatten: EnrichedSession[]): EnrichedS
     }
     
     return flattenedSessions
+}
+
+const epicForVersionGroup = (group: SessionVersionGroupType): Epic | null => {
+    const epics = group.versions
+        .map(version => version.session.info.epic)
+        .filter(Boolean) as Epic[]
+
+    if (epics.length === 0) {
+        return null
+    }
+
+    const epicId = epics[0]?.id
+    if (!epicId) {
+        return null
+    }
+
+    if (!epics.every(epic => epic.id === epicId)) {
+        return null
+    }
+
+    return epics[0] ?? null
+}
+
+const groupVersionGroupsByEpic = (sessionGroups: SessionVersionGroupType[]): EpicGroupingResult => {
+    const groupsByEpicId = new Map<string, EpicVersionGroup>()
+    const ungroupedGroups: SessionVersionGroupType[] = []
+
+    for (const group of sessionGroups) {
+        const epic = epicForVersionGroup(group)
+        if (!epic) {
+            ungroupedGroups.push(group)
+            continue
+        }
+
+        const existing = groupsByEpicId.get(epic.id)
+        if (existing) {
+            existing.groups.push(group)
+        } else {
+            groupsByEpicId.set(epic.id, { epic, groups: [group] })
+        }
+    }
+
+    const epicGroups = [...groupsByEpicId.values()].sort((a, b) => a.epic.name.localeCompare(b.epic.name))
+    return { epicGroups, ungroupedGroups }
 }
 
 export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, onSelectNextProject, isCollapsed = false, onExpandRequest, onToggleSidebar }: SidebarProps) {
@@ -107,6 +164,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     } = useSessions()
     const { isResetting, resettingSelection, resetSession, switchModel } = useSessionManagement()
     const { getOrchestratorAgentType, getOrchestratorSkipPermissions } = useClaudeSession()
+    const { updateEpic, deleteEpic } = useEpics()
 
     // Get dynamic shortcut for Orchestrator
     const orchestratorShortcut = useShortcutDisplay(KeyboardShortcutAction.SwitchToOrchestrator)
@@ -120,6 +178,11 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
 
     const [sessionsWithNotifications, setSessionsWithNotifications] = useState<Set<string>>(new Set())
     const [orchestratorBranch, setOrchestratorBranch] = useState<string>("main")
+    const [editingEpic, setEditingEpic] = useState<Epic | null>(null)
+    const [deleteEpicTarget, setDeleteEpicTarget] = useState<Epic | null>(null)
+    const [deleteEpicLoading, setDeleteEpicLoading] = useState(false)
+    const [epicMenuOpenId, setEpicMenuOpenId] = useState<string | null>(null)
+    const [collapsedEpicIds, setCollapsedEpicIds] = useState<Record<string, boolean>>({})
     const inlineDiffDefault = useAtomValue(inlineSidebarDefaultPreferenceAtom)
     const [isMarkReadyCoolingDown, setIsMarkReadyCoolingDown] = useState(false)
     const markReadyCooldownRef = useRef(false)
@@ -379,7 +442,76 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
       return selectionMemoryRef.current.get(key)!;
     }, [projectPath]);
 
-    const flattenedSessions = useMemo(() => flattenGroupedSessions(sessions), [sessions])
+    const epicCollapseStorageKey = useMemo(
+        () => (projectPath ? `schaltwerk:epic-collapse:${projectPath}` : null),
+        [projectPath],
+    )
+
+    useEffect(() => {
+        if (!epicCollapseStorageKey) {
+            setCollapsedEpicIds({})
+            return
+        }
+        try {
+            const raw = localStorage.getItem(epicCollapseStorageKey)
+            if (!raw) {
+                setCollapsedEpicIds({})
+                return
+            }
+            const parsed = JSON.parse(raw) as Record<string, boolean>
+            setCollapsedEpicIds(parsed ?? {})
+        } catch (err) {
+            logger.warn('[Sidebar] Failed to load epic collapse state, resetting:', err)
+            setCollapsedEpicIds({})
+        }
+    }, [epicCollapseStorageKey])
+
+    useEffect(() => {
+        if (!epicCollapseStorageKey) {
+            return
+        }
+        try {
+            localStorage.setItem(epicCollapseStorageKey, JSON.stringify(collapsedEpicIds))
+        } catch (err) {
+            logger.warn('[Sidebar] Failed to persist epic collapse state:', err)
+        }
+    }, [epicCollapseStorageKey, collapsedEpicIds])
+
+    const toggleEpicCollapsed = useCallback((epicId: string) => {
+        setCollapsedEpicIds((prev) => {
+            const next = { ...prev }
+            if (next[epicId]) {
+                delete next[epicId]
+            } else {
+                next[epicId] = true
+            }
+            return next
+        })
+    }, [])
+
+    const hasAnyEpicAssigned = useMemo(() => allSessions.some(session => session.info.epic), [allSessions])
+    const versionGroups = useMemo(() => groupSessionsByVersion(sessions), [sessions])
+    const epicGrouping = useMemo<EpicGroupingResult>(() => {
+        if (!hasAnyEpicAssigned) {
+            return { epicGroups: [], ungroupedGroups: versionGroups }
+        }
+        return groupVersionGroupsByEpic(versionGroups)
+    }, [hasAnyEpicAssigned, versionGroups])
+
+    const flattenedSessions = useMemo(() => {
+        if (!hasAnyEpicAssigned) {
+            return flattenVersionGroups(versionGroups)
+        }
+
+        const expandedEpicGroups = epicGrouping.epicGroups.flatMap((group) => {
+            if (collapsedEpicIds[group.epic.id]) {
+                return []
+            }
+            return group.groups
+        })
+
+        return flattenVersionGroups([...expandedEpicGroups, ...epicGrouping.ungroupedGroups])
+    }, [hasAnyEpicAssigned, versionGroups, epicGrouping, collapsedEpicIds])
 
     useEffect(() => {
         if (previousProjectPathRef.current !== null && previousProjectPathRef.current !== projectPath) {
@@ -1553,13 +1685,12 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                         />
                     ) : (
                         (() => {
-                            const sessionGroups = groupSessionsByVersion(sessions)
                             let globalIndex = 0
-                            
-                            return sessionGroups.map((group) => {
+
+                            const renderVersionGroup = (group: SessionVersionGroupType) => {
                                 const groupStartIndex = globalIndex
                                 globalIndex += group.versions.length
-                                
+
                                 return (
                                     <SessionVersionGroup
                                         key={group.id}
@@ -1679,11 +1810,113 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                         onLinkPr={(sessionId, prNumber, prUrl) => { void handleLinkPr(sessionId, prNumber, prUrl) }}
                                     />
                                 )
-                            })
+                            }
+
+                            if (!hasAnyEpicAssigned) {
+                                return versionGroups.map(renderVersionGroup)
+                            }
+
+	                            const elements: ReactNode[] = []
+
+	                            for (const epicGroup of epicGrouping.epicGroups) {
+	                                const epic = epicGroup.epic
+	                                const sessionCount = epicGroup.groups.reduce((acc, group) => acc + group.versions.length, 0)
+	                                const collapsed = Boolean(collapsedEpicIds[epic.id])
+	                                const countLabel = `${sessionCount} session${sessionCount === 1 ? '' : 's'}`
+
+	                                elements.push(
+	                                    <EpicGroupHeader
+	                                        key={`epic-header-${epic.id}`}
+	                                        epic={epic}
+	                                        collapsed={collapsed}
+	                                        countLabel={countLabel}
+	                                        menuOpen={epicMenuOpenId === epic.id}
+	                                        onMenuOpenChange={(open) => setEpicMenuOpenId(open ? epic.id : null)}
+	                                        onToggleCollapsed={() => toggleEpicCollapsed(epic.id)}
+	                                        onEdit={() => setEditingEpic(epic)}
+	                                        onDelete={() => setDeleteEpicTarget(epic)}
+	                                    />
+	                                )
+
+                                if (!collapsed) {
+                                    for (const group of epicGroup.groups) {
+                                        elements.push(renderVersionGroup(group))
+                                    }
+                                }
+                            }
+
+                            if (epicGrouping.ungroupedGroups.length > 0) {
+                                elements.push(
+                                    <div
+                                        key="ungrouped-header"
+                                        data-testid="epic-ungrouped-header"
+                                        className="mt-4 mb-2 px-2 flex items-center gap-2"
+                                        style={{ color: theme.colors.text.muted, fontSize: theme.fontSize.caption }}
+                                    >
+                                        <div style={{ flex: 1, height: 1, backgroundColor: theme.colors.border.subtle }} />
+                                        <span>Ungrouped</span>
+                                        <div style={{ flex: 1, height: 1, backgroundColor: theme.colors.border.subtle }} />
+                                    </div>
+                                )
+
+                                for (const group of epicGrouping.ungroupedGroups) {
+                                    elements.push(renderVersionGroup(group))
+                                }
+                            }
+
+                            return elements
                         })()
                     )
                 )}
             </div>
+
+            <EpicModal
+                open={Boolean(editingEpic)}
+                mode="edit"
+                initialName={editingEpic?.name ?? ''}
+                initialColor={editingEpic?.color ?? null}
+                onClose={() => setEditingEpic(null)}
+                onSubmit={async ({ name, color }) => {
+                    if (!editingEpic) {
+                        throw new Error('No epic selected')
+                    }
+                    await updateEpic(editingEpic.id, name, color)
+                }}
+            />
+
+            <ConfirmModal
+                open={Boolean(deleteEpicTarget)}
+                title={`Delete epic "${deleteEpicTarget?.name ?? ''}"?`}
+                body={
+                    <div style={{ color: theme.colors.text.secondary, fontSize: theme.fontSize.body }}>
+                        All sessions and specs in this epic will be moved to <strong>Ungrouped</strong>.
+                    </div>
+                }
+                confirmText="Delete"
+                cancelText="Cancel"
+                variant="danger"
+                loading={deleteEpicLoading}
+                onCancel={() => {
+                    if (deleteEpicLoading) {
+                        return
+                    }
+                    setDeleteEpicTarget(null)
+                }}
+                onConfirm={() => {
+                    if (!deleteEpicTarget || deleteEpicLoading) {
+                        return
+                    }
+                    void (async () => {
+                        setDeleteEpicLoading(true)
+                        try {
+                            await deleteEpic(deleteEpicTarget.id)
+                            setDeleteEpicTarget(null)
+                        } finally {
+                            setDeleteEpicLoading(false)
+                        }
+                    })()
+                }}
+            />
             
             <ConvertToSpecConfirmation
                 open={convertToSpecModal.open}

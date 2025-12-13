@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useCallback } from "react";
 import { clsx } from "clsx";
 import { formatLastActivity } from "../../utils/time";
 import { SessionActions } from "../session/SessionActions";
@@ -13,6 +13,8 @@ import { getSessionDisplayName } from "../../utils/sessionDisplayName";
 import { useMultipleShortcutDisplays } from "../../keyboardShortcuts/useShortcutDisplay";
 import { KeyboardShortcutAction } from "../../keyboardShortcuts/config";
 import { detectPlatformSafe } from "../../keyboardShortcuts/helpers";
+import { EpicSelect } from "../shared/EpicSelect";
+import { useEpics } from "../../hooks/useEpics";
 
 interface SessionCardProps {
   session: {
@@ -207,6 +209,7 @@ export const SessionCard = memo<SessionCardProps>(
     onRename,
     onLinkPr,
   }) => {
+    const { setItemEpic } = useEpics();
     const shortcuts = useMultipleShortcutDisplays([
       KeyboardShortcutAction.OpenDiffViewer,
       KeyboardShortcutAction.CancelSession,
@@ -266,6 +269,13 @@ export const SessionCard = memo<SessionCardProps>(
     const sessionState = s.session_state;
     const showReviewedDirtyBadge =
       isReviewedState && !isReadyToMerge && !!s.has_uncommitted_changes;
+
+    const handleEpicChange = useCallback(
+      async (nextEpicId: string | null) => {
+        await setItemEpic(s.session_id, nextEpicId);
+      },
+      [setItemEpic, s.session_id],
+    );
 
     // State icon removed - no longer using emojis
 
@@ -591,6 +601,12 @@ export const SessionCard = memo<SessionCardProps>(
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <EpicSelect
+              value={s.epic ?? null}
+              onChange={handleEpicChange}
+              disabled={isBusy}
+              stopPropagation
+            />
             {agentType && sessionState !== "spec" && !isWithinVersionGroup && (
               <span
                 className="inline-flex items-center gap-1 px-1.5 py-[1px] rounded border"

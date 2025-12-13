@@ -24,6 +24,7 @@ async fn spec_name_generation_updates_spec_display_name() {
         content: "Build the docs for the API".to_string(),
         created_at: Utc::now(),
         updated_at: Utc::now(),
+        epic_id: None,
     };
 
     db.create_spec(&spec).unwrap();

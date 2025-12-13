@@ -1422,6 +1422,7 @@ function AppContent() {
     agentTypes?: string[]
     prNumber?: number
     prUrl?: string
+    epicId?: string | null
   }) => {
     try {
       await preserveSelection(async () => {
@@ -1432,6 +1433,7 @@ function AppContent() {
             specContent: data.draftContent || '',
             agentType: data.agentType,
             skipPermissions: data.skipPermissions,
+            epicId: data.epicId ?? null,
           })
           setNewSessionOpen(false)
           setCachedPrompt('')
@@ -1493,6 +1495,7 @@ function AppContent() {
               userEditedName: count > 1 ? false : (data.userEditedName ?? false),
               versionGroupId,
               versionNumber: i,
+              epicId: data.epicId ?? null,
               agentType: agentTypeForVersion,
               skipPermissions: data.skipPermissions,
             })

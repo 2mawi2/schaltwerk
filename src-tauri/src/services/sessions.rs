@@ -153,6 +153,7 @@ mod tests {
                 display_name: None,
                 version_group_id: None,
                 version_number: None,
+                epic: None,
                 branch: format!("{name}-branch"),
                 worktree_path: "/tmp".to_string(),
                 base_branch: "main".to_string(),

@@ -739,6 +739,7 @@ pub struct CreateSessionParams {
     user_edited_name: Option<bool>,
     version_group_id: Option<String>,
     version_number: Option<i32>,
+    epic_id: Option<String>,
     agent_type: Option<String>,
     skip_permissions: Option<bool>,
 }
@@ -756,6 +757,7 @@ pub async fn schaltwerk_core_create_session(
     user_edited_name: Option<bool>,
     version_group_id: Option<String>,
     version_number: Option<i32>,
+    epic_id: Option<String>,
     agent_type: Option<String>,
     skip_permissions: Option<bool>,
 ) -> Result<Session, SchaltError> {
@@ -769,6 +771,7 @@ pub async fn schaltwerk_core_create_session(
         user_edited_name,
         version_group_id,
         version_number,
+        epic_id,
         agent_type,
         skip_permissions,
     };
@@ -785,17 +788,18 @@ pub async fn schaltwerk_core_create_session(
         was_auto_generated,
         version_group_id: params.version_group_id.as_deref(),
         version_number: params.version_number,
+        epic_id: params.epic_id.as_deref(),
         agent_type: params.agent_type.as_deref(),
         skip_permissions: params.skip_permissions,
     };
-    let session = {
+    let (session, epic) = {
         let core = get_core_write()
             .await
             .map_err(|e| SchaltError::DatabaseError {
                 message: e.to_string(),
             })?;
         let manager = core.session_manager();
-        manager
+        let session = manager
             .create_session_with_agent(creation_params)
             .map_err(|e| {
                 let msg = e.to_string();
@@ -806,7 +810,12 @@ pub async fn schaltwerk_core_create_session(
                 } else {
                     SchaltError::DatabaseError { message: msg }
                 }
-            })?
+            })?;
+        let epic = session
+            .epic_id
+            .as_deref()
+            .and_then(|epic_id| manager.get_epic_by_id(epic_id).ok());
+        (session, epic)
     };
 
     let session_name_clone = session.name.clone();
@@ -820,6 +829,8 @@ pub async fn schaltwerk_core_create_session(
         parent_branch: String,
         created_at: String,
         last_modified: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        epic: Option<schaltwerk::domains::sessions::entity::Epic>,
     }
     let _ = emit_event(
         &app,
@@ -831,6 +842,7 @@ pub async fn schaltwerk_core_create_session(
             parent_branch: session.parent_branch.clone(),
             created_at: session.created_at.to_rfc3339(),
             last_modified: session.last_activity.map(|ts| ts.to_rfc3339()),
+            epic,
         },
     );
 
@@ -1042,6 +1054,81 @@ pub async fn schaltwerk_core_list_sessions() -> Result<Vec<Session>, String> {
         .await?
         .list_sessions()
         .map_err(|e| format!("Failed to list sessions: {e}"))
+}
+
+#[tauri::command]
+pub async fn schaltwerk_core_list_epics(
+) -> Result<Vec<schaltwerk::domains::sessions::entity::Epic>, String> {
+    session_manager_read()
+        .await?
+        .list_epics()
+        .map_err(|e| format!("Failed to list epics: {e}"))
+}
+
+#[tauri::command]
+pub async fn schaltwerk_core_create_epic(
+    app: tauri::AppHandle,
+    name: String,
+    color: Option<String>,
+) -> Result<schaltwerk::domains::sessions::entity::Epic, String> {
+    let core = get_core_write().await?;
+    let manager = core.session_manager();
+
+    let epic = manager
+        .create_epic(&name, color.as_deref())
+        .map_err(|e| format!("Failed to create epic: {e}"))?;
+
+    events::request_sessions_refreshed(&app, events::SessionsRefreshReason::Unknown);
+    Ok(epic)
+}
+
+#[tauri::command]
+pub async fn schaltwerk_core_update_epic(
+    app: tauri::AppHandle,
+    id: String,
+    name: String,
+    color: Option<String>,
+) -> Result<schaltwerk::domains::sessions::entity::Epic, String> {
+    let core = get_core_write().await?;
+    let manager = core.session_manager();
+
+    let epic = manager
+        .update_epic(&id, &name, color.as_deref())
+        .map_err(|e| format!("Failed to update epic: {e}"))?;
+
+    events::request_sessions_refreshed(&app, events::SessionsRefreshReason::Unknown);
+    Ok(epic)
+}
+
+#[tauri::command]
+pub async fn schaltwerk_core_delete_epic(
+    app: tauri::AppHandle,
+    id: String,
+) -> Result<(), String> {
+    let core = get_core_write().await?;
+    let manager = core.session_manager();
+    manager
+        .delete_epic(&id)
+        .map_err(|e| format!("Failed to delete epic: {e}"))?;
+
+    events::request_sessions_refreshed(&app, events::SessionsRefreshReason::Unknown);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn schaltwerk_core_set_item_epic(
+    app: tauri::AppHandle,
+    name: String,
+    epic_id: Option<String>,
+) -> Result<(), String> {
+    let core = get_core_write().await?;
+    let manager = core.session_manager();
+    manager
+        .set_item_epic(&name, epic_id.as_deref())
+        .map_err(|e| format!("Failed to set epic: {e}"))?;
+
+    events::request_sessions_refreshed(&app, events::SessionsRefreshReason::Unknown);
+    Ok(())
 }
 
 #[tauri::command]
@@ -2199,8 +2286,10 @@ pub async fn schaltwerk_core_create_spec_session(
     spec_content: String,
     agent_type: Option<String>,
     skip_permissions: Option<bool>,
+    epic_id: Option<String>,
 ) -> Result<Session, String> {
     log::info!("Creating spec: {name} with agent_type={agent_type:?}");
+    let _ = skip_permissions;
 
     let core = get_core_write().await?;
     let manager = core.session_manager();
@@ -2210,9 +2299,8 @@ pub async fn schaltwerk_core_create_spec_session(
             &name,
             &spec_content,
             agent_type.as_deref(),
-            skip_permissions,
             None,
-            None,
+            epic_id.as_deref(),
         )
         .map_err(|e| format!("Failed to create spec session: {e}"))?;
 

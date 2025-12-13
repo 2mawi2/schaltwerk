@@ -206,6 +206,7 @@ mod tests {
             display_name: None,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             repository_path: PathBuf::from("/tmp/repo"),
             repository_name: "test-repo".to_string(),
             branch: "schaltwerk/test-session".to_string(),

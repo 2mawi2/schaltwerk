@@ -1,7 +1,7 @@
 import { atom } from 'jotai'
 import type { Getter, Setter } from 'jotai'
 import { invoke } from '@tauri-apps/api/core'
-import type { EnrichedSession, AgentType } from '../../types/session'
+import type { EnrichedSession, AgentType, Epic } from '../../types/session'
 import { FilterMode, getDefaultFilterMode, isValidFilterMode } from '../../types/sessionFilters'
 import { TauriCommands } from '../../common/tauriCommands'
 import { mapSessionUiState, searchSessions as searchSessionsUtil } from '../../utils/sessionFilters'
@@ -1483,6 +1483,7 @@ export const initializeSessionsEventsActionAtom = atom(
                 parent_branch?: string
                 created_at?: string
                 last_modified?: string
+                epic?: Epic
             }
 
             const previousStatesSnapshot = new Map(previousSessionStates)
@@ -1501,6 +1502,7 @@ export const initializeSessionsEventsActionAtom = atom(
                     worktree_path: event.worktree_path ?? '',
                     base_branch: event.parent_branch ?? '',
                     parent_branch: event.parent_branch ?? null,
+                    epic: event.epic,
                     status: 'active' as const,
                     created_at: createdAtIso,
                     last_modified: lastModifiedIso,

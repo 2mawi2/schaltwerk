@@ -1675,6 +1675,7 @@ mod tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };
@@ -1743,6 +1744,7 @@ mod tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };
@@ -1812,6 +1814,7 @@ mod tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };
@@ -1853,6 +1856,7 @@ mod tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };
@@ -1890,6 +1894,7 @@ mod tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };
@@ -1937,6 +1942,7 @@ mod tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };
@@ -1984,6 +1990,7 @@ mod tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };
@@ -2050,6 +2057,7 @@ mod tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };
@@ -2092,6 +2100,7 @@ mod tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };
@@ -2141,6 +2150,7 @@ mod tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };
@@ -2182,6 +2192,7 @@ mod tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };
@@ -2223,6 +2234,7 @@ mod tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };
@@ -2260,6 +2272,7 @@ mod tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };
@@ -2298,6 +2311,7 @@ mod tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };
@@ -2367,6 +2381,7 @@ mod tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };
@@ -2475,6 +2490,7 @@ mod tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };
@@ -2547,6 +2563,7 @@ mod tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };
@@ -2576,6 +2593,7 @@ mod tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };
@@ -2608,6 +2626,7 @@ mod tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };
@@ -2639,6 +2658,7 @@ mod tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };
@@ -2685,6 +2705,7 @@ mod tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };
@@ -2765,6 +2786,7 @@ mod tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };
@@ -2860,6 +2882,7 @@ mod tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };
@@ -2918,6 +2941,7 @@ mod tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };
@@ -2986,6 +3010,7 @@ mod tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };
@@ -3062,6 +3087,7 @@ mod tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };
@@ -3135,6 +3161,7 @@ mod tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };
@@ -3212,6 +3239,7 @@ mod tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };
@@ -3277,6 +3305,7 @@ mod tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };
@@ -3362,6 +3391,7 @@ mod tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };
@@ -3469,6 +3499,7 @@ mod tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };
@@ -3565,6 +3596,7 @@ mod tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };

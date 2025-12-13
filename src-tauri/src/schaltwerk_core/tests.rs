@@ -507,6 +507,81 @@ fn test_list_enriched_sessions() {
 }
 
 #[test]
+fn test_epic_assignment_round_trip() {
+    let env = TestEnvironment::new().unwrap();
+    let manager = env.get_session_manager().unwrap();
+
+    manager
+        .create_session("session-1", Some("First session"), None)
+        .unwrap();
+    manager
+        .create_spec_session("spec-one", "Spec content one")
+        .unwrap();
+
+    let epic = manager
+        .create_epic("billing-v2", Some("blue"))
+        .unwrap();
+
+    manager
+        .set_item_epic("session-1", Some(&epic.id))
+        .unwrap();
+    manager
+        .set_item_epic("spec-one", Some(&epic.id))
+        .unwrap();
+
+    let enriched = manager.list_enriched_sessions().unwrap();
+
+    let session = enriched
+        .iter()
+        .find(|s| s.info.session_id == "session-1")
+        .unwrap();
+    assert_eq!(session.info.epic.as_ref().unwrap().name, "billing-v2");
+    assert_eq!(session.info.epic.as_ref().unwrap().id, epic.id);
+    assert_eq!(session.info.epic.as_ref().unwrap().color.as_deref(), Some("blue"));
+
+    let spec = enriched
+        .iter()
+        .find(|s| s.info.session_id == "spec-one")
+        .unwrap();
+    assert_eq!(spec.info.session_state, SessionState::Spec);
+    assert_eq!(spec.info.epic.as_ref().unwrap().name, "billing-v2");
+}
+
+#[test]
+fn test_delete_epic_moves_items_to_ungrouped() {
+    let env = TestEnvironment::new().unwrap();
+    let manager = env.get_session_manager().unwrap();
+
+    manager.create_session("session-1", None, None).unwrap();
+    manager
+        .create_spec_session("spec-one", "Spec content")
+        .unwrap();
+
+    let epic = manager.create_epic("billing-v2", None).unwrap();
+    manager
+        .set_item_epic("session-1", Some(&epic.id))
+        .unwrap();
+    manager
+        .set_item_epic("spec-one", Some(&epic.id))
+        .unwrap();
+
+    manager.delete_epic(&epic.id).unwrap();
+
+    let enriched = manager.list_enriched_sessions().unwrap();
+    let session = enriched
+        .iter()
+        .find(|s| s.info.session_id == "session-1")
+        .unwrap();
+    assert!(session.info.epic.is_none());
+
+    let spec = enriched
+        .iter()
+        .find(|s| s.info.session_id == "spec-one")
+        .unwrap();
+    assert!(spec.info.epic.is_none());
+}
+
+#[test]
 #[serial_test::serial]
 fn test_list_enriched_sessions_skips_spec_git_stats() {
     let env = TestEnvironment::new().unwrap();
@@ -1613,7 +1688,13 @@ fn test_codex_spec_start_respects_resume_gate() {
     // Create a spec session with Codex as agent
     let spec_content = "Implement feature X via Codex";
     let _spec = manager
-        .create_spec_session_with_agent("codex_spec", spec_content, Some("codex"), None, None, None)
+        .create_spec_session_with_agent(
+            "codex_spec",
+            spec_content,
+            Some("codex"),
+            None,
+            None,
+        )
         .unwrap();
 
     // Ensure global agent is Codex so start uses Codex (start_spec_session stores original settings from globals)

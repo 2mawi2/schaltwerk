@@ -26,6 +26,7 @@ mod session_sorting_tests {
             display_name: Some(format!("Display {}", name)),
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             repository_path: repo_path.clone(),
             repository_name: "test-repo".to_string(),
             branch: format!("branch-{}", name),

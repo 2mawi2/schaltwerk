@@ -30,6 +30,8 @@ import type { GithubIssueSelectionResult, GithubPrSelectionResult } from '../../
 import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
 import { FALLBACK_CODEX_MODELS, getCodexModelMetadata } from '../../common/codexModels'
 import { loadCodexModelCatalog, CodexModelCatalog } from '../../services/codexModelCatalog'
+import { EpicSelect } from '../shared/EpicSelect'
+import { useEpics } from '../../hooks/useEpics'
 import {
     MAX_VERSION_COUNT,
     MULTI_AGENT_TYPES,
@@ -78,6 +80,7 @@ interface Props {
         skipPermissions?: boolean
         prNumber?: number
         prUrl?: string
+        epicId?: string | null
     }) => void | Promise<void>
 }
 
@@ -86,6 +89,7 @@ type CreateSessionPayload = Parameters<Props['onCreate']>[0]
 export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '', onPromptChange, onClose, onCreate }: Props) {
     const { registerModal, unregisterModal } = useModal()
     const { isAvailable } = useAgentAvailability({ autoLoad: open })
+    const { epics, ensureLoaded: ensureEpicsLoaded } = useEpics()
     const githubIntegration = useGithubIntegrationContext()
     const [name, setName] = useState(() => generateDockerStyleName())
     const [, setWasEdited] = useState(false)
@@ -103,6 +107,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
     const [multiAgentAllocations, setMultiAgentAllocations] = useState<MultiAgentAllocations>({})
     const [showVersionMenu, setShowVersionMenu] = useState<boolean>(false)
     const [nameLocked, setNameLocked] = useState(false)
+    const [epicId, setEpicId] = useState<string | null>(null)
     const [repositoryIsEmpty, setRepositoryIsEmpty] = useState(false)
     const [isPrefillPending, setIsPrefillPending] = useState(false)
     const [hasPrefillData, setHasPrefillData] = useState(false)
@@ -139,6 +144,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
     }))
     const codexModelIds = useMemo(() => codexCatalog.models.map(meta => meta.id), [codexCatalog.models])
     const defaultCodexModelId = codexCatalog.defaultModelId
+    const selectedEpic = useMemo(() => (epicId ? epics.find(epic => epic.id === epicId) ?? null : null), [epics, epicId])
     const normalizedAgentTypes = useMemo<AgentType[]>(
         () => (multiAgentMode ? normalizeAllocations(multiAgentAllocations) : []),
         [multiAgentMode, multiAgentAllocations]
@@ -578,6 +584,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                 versionCount: effectiveVersionCount,
                 agentType: primaryAgentType,
                 skipPermissions: createAsDraft ? skipPermissions : undefined,
+                epicId,
                 ...prInfo,
             }
             if (agentTypesPayload) {
@@ -609,7 +616,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
             setValidationError(errorMessage)
             setCreating(false)
         }
-    }, [creating, name, taskContent, baseBranch, customBranch, useExistingBranch, onCreate, validateSessionName, createAsDraft, versionCount, agentType, skipPermissions, promptSource, githubIssueSelection, githubPrSelection, multiAgentMode, normalizedAgentTypes])
+    }, [creating, name, taskContent, baseBranch, customBranch, useExistingBranch, onCreate, validateSessionName, createAsDraft, versionCount, agentType, skipPermissions, epicId, promptSource, githubIssueSelection, githubPrSelection, multiAgentMode, normalizedAgentTypes])
 
     // Keep ref in sync immediately on render to avoid stale closures in tests
     createRef.current = () => { void handleCreate() }
@@ -801,6 +808,15 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
     }, [open, resetMultiAgentSelections])
 
     useEffect(() => {
+        if (!open) {
+            return
+        }
+        ensureEpicsLoaded().catch((err) => {
+            logger.warn('[NewSessionModal] Failed to load epics:', err)
+        })
+    }, [open, ensureEpicsLoaded])
+
+    useEffect(() => {
         if (createAsDraft || agentType === 'terminal') {
             resetMultiAgentSelections()
         }
@@ -855,6 +871,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                 setUseExistingBranch(false)
                 setNameLocked(false)
                 setOriginalSpecName('')
+                setEpicId(null)
                 setShowVersionMenu(false)
                 setVersionCount(1)
                 const shouldIgnorePersisted = hasAgentOverrideRef.current
@@ -1276,14 +1293,15 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
             minWidth={600}
             minHeight={500}
             footer={footer}
-        >
-            <div className="flex flex-col h-full p-4 gap-4">
-                    <div>
-                        <label className="block text-sm text-slate-300 mb-1">Agent name</label>
-                        <input 
-                            ref={nameInputRef}
-                            value={name} 
-                            onChange={handleNameChange} 
+	        >
+	            <div className="flex flex-col h-full p-4 gap-4">
+	                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+	                    <div>
+	                        <label className="block text-sm text-slate-300 mb-1">Agent name</label>
+	                        <input 
+	                            ref={nameInputRef}
+	                            value={name} 
+	                            onChange={handleNameChange} 
                             onFocus={() => { setWasEdited(true); wasEditedRef.current = true }}
                             onKeyDown={() => { setWasEdited(true); wasEditedRef.current = true }}
                             onInput={() => { setWasEdited(true); wasEditedRef.current = true }}
@@ -1325,13 +1343,23 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                     </button>
                                 )}
                             </div>
-                        )}
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        <input
-                            id="createAsDraft"
-                            type="checkbox"
+	                        )}
+	                    </div>
+	
+	                    <div>
+	                        <label className="block text-sm text-slate-300 mb-1">Epic</label>
+	                        <EpicSelect
+	                            value={selectedEpic}
+	                            onChange={setEpicId}
+	                            variant="field"
+	                        />
+	                    </div>
+	                    </div>
+	
+	                    <div className="flex items-center gap-2">
+	                        <input
+	                            id="createAsDraft"
+	                            type="checkbox"
                             checked={createAsDraft}
                             onChange={e => {
                                 setCreateAsDraft(e.target.checked)

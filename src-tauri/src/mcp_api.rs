@@ -184,11 +184,11 @@ fn create_spec_session_with_notifications<F>(
 where
     F: Fn() -> Result<(), tauri::Error>,
 {
+    let _ = skip_permissions;
     let session = manager.create_spec_session_with_agent(
         name,
         content,
         agent_type,
-        skip_permissions,
         None,
         None,
     )?;
@@ -509,6 +509,7 @@ mod tests {
             id: format!("spec-{name}"),
             name: name.to_string(),
             display_name: Some(format!("Display {name}")),
+            epic_id: None,
             repository_path: PathBuf::from("/tmp/mock"),
             repository_name: "mock".to_string(),
             content: content.unwrap_or_default().to_string(),
@@ -1098,6 +1099,7 @@ async fn create_session(
         was_auto_generated,
         version_group_id: None,
         version_number: None,
+        epic_id: None,
         agent_type: agent_type.as_deref(),
         skip_permissions,
     };
