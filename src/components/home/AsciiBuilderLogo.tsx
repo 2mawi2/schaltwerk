@@ -46,6 +46,8 @@ interface AsciiBuilderLogoProps {
   onAssembled?: () => void
   /** NEW: extend classes (keeps your colorClassName). */
   className?: string
+  /** Override default responsive font sizes with a fixed size class */
+  textSizeClass?: string
 }
 
 const DEFAULT_ASCII = `╔═══╗╔═══╗╔╗ ╔╗╔═══╗╔╗  ╔═══╗╔╗  ╔╗╔═══╗╔═══╗╔╗╔═╗
@@ -91,6 +93,7 @@ export function AsciiBuilderLogo({
   glow = 'subtle',
   onAssembled,
   className = '',
+  textSizeClass,
 }: AsciiBuilderLogoProps) {
   const preRef = useRef<HTMLPreElement | null>(null)
   const frameRef = useRef<number | null>(null)
@@ -748,10 +751,13 @@ export function AsciiBuilderLogo({
       ? `0 0 6px ${withOpacity(primaryGlow, 0.25)}`
       : 'none'
 
+  const defaultTextSizeClasses = 'text-[10px] sm:text-xs md:text-sm lg:text-base xl:text-lg 2xl:text-xl'
+  const textSizeClasses = textSizeClass ?? defaultTextSizeClasses
+
   return (
     <pre
       ref={preRef}
-      className={`${gradientClasses} ascii-logo block leading-[1.05] text-[10px] sm:text-xs md:text-sm lg:text-base xl:text-lg 2xl:text-xl font-mono select-none ${className}`}
+      className={`${gradientClasses} ascii-logo block leading-[1.05] ${textSizeClasses} font-mono select-none ${className}`}
       style={{ textShadow, ...colorStyle }}
       aria-label="SCHALTWERK 3D assembled logo"
       role="img"
