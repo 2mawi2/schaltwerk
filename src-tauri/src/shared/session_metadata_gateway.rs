@@ -58,6 +58,7 @@ mod tests {
             display_name: None,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             repository_path: repo.to_path_buf(),
             repository_name: "test-repo".into(),
             branch: "schaltwerk/test-session".into(),

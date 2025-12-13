@@ -77,6 +77,8 @@ pub struct Session {
     // DB-backed version grouping for parallel versions
     pub version_group_id: Option<String>,
     pub version_number: Option<i32>,
+    // Optional epic association for grouping sessions/specs
+    pub epic_id: Option<String>,
     pub repository_path: PathBuf,
     pub repository_name: String,
     pub branch: String,
@@ -116,11 +118,19 @@ pub struct Spec {
     pub id: String,
     pub name: String,
     pub display_name: Option<String>,
+    pub epic_id: Option<String>,
     pub repository_path: PathBuf,
     pub repository_name: String,
     pub content: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Epic {
+    pub id: String,
+    pub name: String,
+    pub color: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -260,6 +270,8 @@ pub struct SessionInfo {
     pub version_group_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version_number: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub epic: Option<Epic>,
     pub branch: String,
     pub worktree_path: String,
     pub base_branch: String,

@@ -137,6 +137,7 @@ pub struct SessionCreationParams<'a> {
     pub was_auto_generated: bool,
     pub version_group_id: Option<&'a str>,
     pub version_number: Option<i32>,
+    pub epic_id: Option<&'a str>,
     pub agent_type: Option<&'a str>,
     pub skip_permissions: Option<bool>,
 }
@@ -159,8 +160,8 @@ use crate::{
     domains::sessions::db_sessions::SessionMethods,
     domains::sessions::entity::ArchivedSpec,
     domains::sessions::entity::{
-        DiffStats, EnrichedSession, FilterMode, Session, SessionInfo, SessionState, SessionStatus,
-        SessionStatusType, SessionType, SortMode, Spec,
+        DiffStats, EnrichedSession, Epic, FilterMode, Session, SessionInfo, SessionState,
+        SessionStatus, SessionStatusType, SessionType, SortMode, Spec,
     },
     domains::sessions::repository::SessionDbManager,
     domains::sessions::utils::SessionUtils,
@@ -169,6 +170,8 @@ use crate::{
     infrastructure::database::{Database, db_archived_specs::ArchivedSpecMethods as _},
 };
 use uuid::Uuid;
+
+mod epics;
 
 #[cfg(test)]
 mod service_unified_tests {
@@ -243,6 +246,7 @@ mod service_unified_tests {
             display_name: None,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             repository_path: repo_path,
             repository_name: "test-repo".to_string(),
             branch: "schaltwerk/test-session".to_string(),
@@ -1463,6 +1467,7 @@ mod service_unified_tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: Some("claude"),
             skip_permissions: Some(true),
         };
@@ -1537,6 +1542,7 @@ mod service_unified_tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: Some("opencode"),
             skip_permissions: Some(false),
         };
@@ -1597,6 +1603,7 @@ mod service_unified_tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };
@@ -1661,6 +1668,7 @@ mod service_unified_tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };
@@ -1714,6 +1722,7 @@ mod service_unified_tests {
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
+            epic_id: None,
             agent_type: Some("gemini"),
             skip_permissions: Some(true),
         };
@@ -2162,6 +2171,7 @@ impl SessionManager {
             was_auto_generated,
             version_group_id,
             version_number,
+            epic_id: None,
             agent_type: None,
             skip_permissions: None,
         };
@@ -2189,6 +2199,10 @@ impl SessionManager {
             return Err(anyhow!(
                 "Invalid session name: use only letters, numbers, hyphens, and underscores"
             ));
+        }
+
+        if let Some(epic_id) = params.epic_id {
+            let _ = self.db_manager.get_epic_by_id(epic_id)?;
         }
 
         if params.use_existing_branch {
@@ -2313,6 +2327,7 @@ impl SessionManager {
             display_name: None,
             version_group_id: params.version_group_id.map(|s| s.to_string()),
             version_number: params.version_number,
+            epic_id: params.epic_id.map(|id| id.to_string()),
             repository_path: self.repo_path.clone(),
             repository_name: repo_name,
             branch: bootstrap_result.branch.clone(),
@@ -2485,9 +2500,8 @@ impl SessionManager {
             &session.name,
             &preserved_content,
             session.original_agent_type.as_deref(),
-            session.original_skip_permissions,
-            Some(&session.parent_branch),
             session.display_name.as_deref(),
+            session.epic_id.as_deref(),
         )?;
 
         log::info!(
@@ -2522,9 +2536,8 @@ impl SessionManager {
             &session.name,
             &preserved_content,
             session.original_agent_type.as_deref(),
-            session.original_skip_permissions,
-            Some(&session.parent_branch),
             session.display_name.as_deref(),
+            session.epic_id.as_deref(),
         )?;
 
         log::info!(
@@ -2594,6 +2607,18 @@ impl SessionManager {
             specs_elapsed
         );
 
+        let epics_start = std::time::Instant::now();
+        let epics = self.db_manager.list_epics().unwrap_or_else(|_| Vec::new());
+        let epics_elapsed = epics_start.elapsed().as_millis();
+        log::info!(
+            "[SES] list_epics fetched {} rows in {}ms",
+            epics.len(),
+            epics_elapsed
+        );
+
+        let epics_by_id: HashMap<String, Epic> =
+            epics.into_iter().map(|epic| (epic.id.clone(), epic)).collect();
+
         let spec_count = sessions
             .iter()
             .filter(|s| s.session_state == SessionState::Spec)
@@ -2606,7 +2631,9 @@ impl SessionManager {
             sessions.len().saturating_sub(spec_count)
         );
 
-        let db_time = std::time::Duration::from_millis((sessions_elapsed + specs_elapsed) as u64);
+        let db_time = std::time::Duration::from_millis(
+            (sessions_elapsed + specs_elapsed + epics_elapsed) as u64,
+        );
 
         // Fetch global defaults once to avoid per-row DB hits
         let default_agent_type = self.db_manager.get_agent_type().ok();
@@ -2659,6 +2686,10 @@ impl SessionManager {
                 display_name: spec.display_name.clone(),
                 version_group_id: None,
                 version_number: None,
+                epic: spec
+                    .epic_id
+                    .as_deref()
+                    .and_then(|id| epics_by_id.get(id).cloned()),
                 branch: format!("specs/{}", spec.name),
                 worktree_path: worktree_path.to_string_lossy().to_string(),
                 base_branch: base_branch.clone(),
@@ -2716,6 +2747,10 @@ impl SessionManager {
                     display_name: session.display_name.clone(),
                     version_group_id: session.version_group_id.clone(),
                     version_number: session.version_number,
+                    epic: session
+                        .epic_id
+                        .as_deref()
+                        .and_then(|id| epics_by_id.get(id).cloned()),
                     branch: session.branch.clone(),
                     worktree_path: session.worktree_path.to_string_lossy().to_string(),
                     base_branch: session.parent_branch.clone(),
@@ -2865,6 +2900,10 @@ impl SessionManager {
                 display_name: session.display_name.clone(),
                 version_group_id: session.version_group_id.clone(),
                 version_number: session.version_number,
+                epic: session
+                    .epic_id
+                    .as_deref()
+                    .and_then(|id| epics_by_id.get(id).cloned()),
                 branch: session.branch.clone(),
                 worktree_path: session.worktree_path.to_string_lossy().to_string(),
                 base_branch: session.parent_branch.clone(),
@@ -3773,7 +3812,7 @@ impl SessionManager {
     }
 
     pub fn create_spec_session(&self, name: &str, spec_content: &str) -> Result<Spec> {
-        self.create_spec_session_with_agent(name, spec_content, None, None, None, None)
+        self.create_spec_session_with_agent(name, spec_content, None, None, None)
     }
 
     pub fn create_spec_session_with_agent(
@@ -3781,9 +3820,8 @@ impl SessionManager {
         name: &str,
         spec_content: &str,
         agent_type: Option<&str>,
-        _skip_permissions: Option<bool>,
-        _parent_branch_override: Option<&str>,
         display_name: Option<&str>,
+        epic_id: Option<&str>,
     ) -> Result<Spec> {
         log::info!(
             "Creating spec '{}' (agent hints: {:?}) in repository: {}",
@@ -3801,6 +3839,10 @@ impl SessionManager {
             ));
         }
 
+        if let Some(epic_id) = epic_id {
+            self.db_manager.get_epic_by_id(epic_id)?;
+        }
+
         // Reuse session name uniqueness logic to avoid future branch/worktree collisions
         let (unique_name, _, _) = self.utils.find_unique_session_paths(name)?;
 
@@ -3812,6 +3854,7 @@ impl SessionManager {
             id: spec_id,
             name: unique_name.clone(),
             display_name: display_name.map(|s| s.to_string()),
+            epic_id: epic_id.map(|value| value.to_string()),
             repository_path: self.repo_path.clone(),
             repository_name: repo_name,
             content: spec_content.to_string(),
@@ -3847,6 +3890,7 @@ impl SessionManager {
             display_name: spec.display_name,
             version_group_id: None,
             version_number: None,
+            epic_id: spec.epic_id,
             repository_path: spec.repository_path.clone(),
             repository_name: spec.repository_name,
             branch,
@@ -3888,8 +3932,7 @@ impl SessionManager {
             self.repo_path.display()
         );
 
-        let spec =
-            self.create_spec_session_with_agent(name, spec_content, None, None, base_branch, None)?;
+        let spec = self.create_spec_session_with_agent(name, spec_content, None, None, None)?;
         let session =
             self.start_spec_session(&spec.name, base_branch, version_group_id, version_number)?;
         Ok(session)

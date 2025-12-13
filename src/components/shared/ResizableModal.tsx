@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { theme } from '../../common/theme'
 
 interface ResizableModalProps {
@@ -144,7 +145,7 @@ export const ResizableModal: React.FC<ResizableModalProps> = ({
     />
   )
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
       style={{ backgroundColor: theme.colors.overlay.backdrop }}
@@ -223,6 +224,7 @@ export const ResizableModal: React.FC<ResizableModalProps> = ({
           </svg>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

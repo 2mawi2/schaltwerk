@@ -13,6 +13,7 @@ import { useSpecContent } from '../../hooks/useSpecContent'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { useSelection } from '../../hooks/useSelection'
 import { useSessions } from '../../hooks/useSessions'
+import { useEpics } from '../../hooks/useEpics'
 import { buildSpecRefineReference, runSpecRefineWithOrchestrator } from '../../utils/specRefine'
 import { theme } from '../../common/theme'
 import { typography } from '../../common/typography'
@@ -23,6 +24,7 @@ import {
   specEditorSavedContentAtomFamily,
   specEditorViewModeAtomFamily,
 } from '../../store/atoms/specEditor'
+import { EpicSelect } from '../shared/EpicSelect'
 
 const specText = {
   title: {
@@ -78,11 +80,13 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
 
   const { content: cachedContent, displayName: cachedDisplayName, hasData: hasCachedData } = useSpecContent(sessionName)
   const { setSelection } = useSelection()
-  const { updateSessionSpecContent } = useSessions()
+  const { sessions, updateSessionSpecContent } = useSessions()
+  const { setItemEpic } = useEpics()
   const [currentContent, setCurrentContent] = useAtom(specEditorContentAtomFamily(sessionName))
   const [viewMode, setViewMode] = useAtom(specEditorViewModeAtomFamily(sessionName))
   const markSessionSaved = useSetAtom(markSpecEditorSessionSavedAtom)
   const setSavedContent = useSetAtom(specEditorSavedContentAtomFamily(sessionName))
+  const selectedEpic = useMemo(() => sessions.find(session => session.info.session_id === sessionName)?.info.epic ?? null, [sessions, sessionName])
 
   useEffect(() => {
     setError(null)
@@ -269,6 +273,10 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
       <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <h2 className="truncate" style={specText.title}>{displayName || sessionName}</h2>
+          <EpicSelect
+            value={selectedEpic}
+            onChange={(epicId) => setItemEpic(sessionName, epicId)}
+          />
           {!disableFocusShortcut && (
             <span
               className="px-1.5 py-0.5 rounded bg-slate-700/50"

@@ -38,11 +38,18 @@ export enum SessionState {
     Reviewed = 'reviewed'
 }
 
+export interface Epic {
+    id: string
+    name: string
+    color?: string | null
+}
+
 export interface SessionInfo {
     session_id: string
     display_name?: string
     version_group_id?: string
     version_number?: number
+    epic?: Epic
     branch: string
     worktree_path: string
     base_branch: string
@@ -102,6 +109,7 @@ export interface RawSession {
     display_name?: string
     version_group_id?: string
     version_number?: number
+    epic_id?: string | null
     repository_path: string
     repository_name: string
     branch: string

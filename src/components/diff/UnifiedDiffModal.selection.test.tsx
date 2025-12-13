@@ -162,10 +162,10 @@ describe('UnifiedDiffModal line selection behaviour', () => {
   })
 
   it('calls selection handlers with file path when dragging across rows', async () => {
-    const { container } = await renderModal()
+    await renderModal()
 
-    const firstRow = await waitFor(() => container.querySelector('tr[data-line-num="1"]') as HTMLTableRowElement)
-    const secondRow = await waitFor(() => container.querySelector('tr[data-line-num="2"]') as HTMLTableRowElement)
+    const firstRow = await waitFor(() => document.body.querySelector('tr[data-line-num="1"]') as HTMLTableRowElement)
+    const secondRow = await waitFor(() => document.body.querySelector('tr[data-line-num="2"]') as HTMLTableRowElement)
 
     fireEvent.mouseDown(firstRow, { button: 0 })
 
@@ -196,9 +196,9 @@ describe('UnifiedDiffModal line selection behaviour', () => {
   })
 
   it('clears dragging state when mouseup happens outside the diff row', async () => {
-    const { container } = await renderModal()
+    await renderModal()
 
-    const firstRow = await waitFor(() => container.querySelector('tr[data-line-num="1"]') as HTMLTableRowElement)
+    const firstRow = await waitFor(() => document.body.querySelector('tr[data-line-num="1"]') as HTMLTableRowElement)
 
     fireEvent.mouseDown(firstRow, { button: 0 })
 

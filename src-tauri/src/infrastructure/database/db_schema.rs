@@ -11,6 +11,7 @@ pub fn initialize_schema(db: &Database) -> anyhow::Result<()> {
                 display_name TEXT,
                 version_group_id TEXT,
                 version_number INTEGER,
+                epic_id TEXT,
                 repository_path TEXT NOT NULL,
                 repository_name TEXT NOT NULL,
                 branch TEXT NOT NULL,
@@ -109,12 +110,41 @@ pub fn initialize_schema(db: &Database) -> anyhow::Result<()> {
     // Apply migrations for sessions table
     apply_sessions_migrations(&conn)?;
 
+    // Optional columns added by migrations need their indexes created after the migration runs.
+    let _ = conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_sessions_epic ON sessions(repository_path, epic_id)",
+        [],
+    );
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS epics (
+            id TEXT PRIMARY KEY,
+            repository_path TEXT NOT NULL,
+            name TEXT NOT NULL,
+            color TEXT,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            UNIQUE(repository_path, name)
+        )",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_epics_repo ON epics(repository_path)",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_epics_name_repo ON epics(repository_path, name)",
+        [],
+    )?;
+
     // Specs table (decoupled from sessions)
     conn.execute(
         "CREATE TABLE IF NOT EXISTS specs (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
             display_name TEXT,
+            epic_id TEXT,
             repository_path TEXT NOT NULL,
             repository_name TEXT NOT NULL,
             content TEXT NOT NULL,
@@ -294,16 +324,21 @@ fn apply_sessions_migrations(conn: &rusqlite::Connection) -> anyhow::Result<()> 
     // GitHub PR integration fields
     let _ = conn.execute("ALTER TABLE sessions ADD COLUMN pr_number INTEGER", []);
     let _ = conn.execute("ALTER TABLE sessions ADD COLUMN pr_url TEXT", []);
+    // Epic grouping (optional)
+    let _ = conn.execute("ALTER TABLE sessions ADD COLUMN epic_id TEXT", []);
     Ok(())
 }
 
 /// Apply migrations for the specs table and migrate legacy spec-state sessions.
 fn apply_specs_migrations(conn: &rusqlite::Connection) -> anyhow::Result<()> {
+    // Idempotent - silently fails if column already exists
+    let _ = conn.execute("ALTER TABLE specs ADD COLUMN epic_id TEXT", []);
+
     let tx = conn.unchecked_transaction()?;
 
     tx.execute(
-        "INSERT INTO specs (id, name, display_name, repository_path, repository_name, content, created_at, updated_at)
-         SELECT s.id, s.name, s.display_name,
+        "INSERT INTO specs (id, name, display_name, epic_id, repository_path, repository_name, content, created_at, updated_at)
+         SELECT s.id, s.name, s.display_name, s.epic_id,
                 s.repository_path, s.repository_name,
                 COALESCE(s.spec_content, s.initial_prompt, ''),
                 s.created_at, s.updated_at
@@ -388,6 +423,7 @@ mod tests {
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
                 display_name TEXT,
+                epic_id TEXT,
                 repository_path TEXT NOT NULL,
                 repository_name TEXT NOT NULL,
                 branch TEXT NOT NULL,

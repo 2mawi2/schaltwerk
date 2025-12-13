@@ -186,7 +186,7 @@ export interface OpenPrModalPayload {
   mode?: 'squash' | 'reapply'
 }
 
-import { EnrichedSession } from '../types/session'
+import { type EnrichedSession, type Epic } from '../types/session'
 
 export interface SessionsRefreshedEventPayload {
   projectPath: string
@@ -209,6 +209,7 @@ export type EventPayloadMap = {
     parent_branch: string
     created_at: string
     last_modified?: string
+    epic?: Epic
   }
   [SchaltEvent.SessionRemoved]: { session_name: string }
   [SchaltEvent.ArchiveUpdated]: { repo: string, count: number }

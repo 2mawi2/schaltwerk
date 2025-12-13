@@ -2,8 +2,8 @@ use crate::{
     domains::git::db_git_stats::GitStatsMethods,
     domains::git::service as git,
     domains::sessions::db_sessions::SessionMethods,
-    domains::sessions::entity::{GitStats, Session, SessionState, SessionStatus, Spec},
-    infrastructure::database::{AppConfigMethods, Database, ProjectConfigMethods, SpecMethods},
+    domains::sessions::entity::{Epic, GitStats, Session, SessionState, SessionStatus, Spec},
+    infrastructure::database::{AppConfigMethods, Database, EpicMethods, ProjectConfigMethods, SpecMethods},
 };
 use anyhow::{Context, Result, anyhow};
 use chrono::Utc;
@@ -169,6 +169,48 @@ impl SessionDbManager {
             .map_err(|e| anyhow!("Failed to list specs: {e}"))
     }
 
+    pub fn list_epics(&self) -> Result<Vec<Epic>> {
+        self.db
+            .list_epics(&self.repo_path)
+            .map_err(|e| anyhow!("Failed to list epics: {e}"))
+    }
+
+    pub fn create_epic(&self, epic: &Epic) -> Result<()> {
+        self.db
+            .create_epic(&self.repo_path, epic)
+            .map_err(|e| anyhow!("Failed to create epic '{}': {e}", epic.name))
+    }
+
+    pub fn get_epic_by_id(&self, id: &str) -> Result<Epic> {
+        self.db
+            .get_epic_by_id(&self.repo_path, id)
+            .map_err(|e| anyhow!("Failed to get epic '{id}': {e}"))
+    }
+
+    pub fn get_epic_by_name(&self, name: &str) -> Result<Epic> {
+        self.db
+            .get_epic_by_name(&self.repo_path, name)
+            .map_err(|e| anyhow!("Failed to get epic '{name}': {e}"))
+    }
+
+    pub fn update_epic(&self, id: &str, name: &str, color: Option<&str>) -> Result<()> {
+        self.db
+            .update_epic(&self.repo_path, id, name, color)
+            .map_err(|e| anyhow!("Failed to update epic '{id}': {e}"))
+    }
+
+    pub fn clear_epic_assignments(&self, epic_id: &str) -> Result<()> {
+        self.db
+            .clear_epic_assignments(&self.repo_path, epic_id)
+            .map_err(|e| anyhow!("Failed to clear epic assignments: {e}"))
+    }
+
+    pub fn delete_epic(&self, id: &str) -> Result<()> {
+        self.db
+            .delete_epic(&self.repo_path, id)
+            .map_err(|e| anyhow!("Failed to delete epic '{id}': {e}"))
+    }
+
     pub fn get_spec_by_name(&self, name: &str) -> Result<Spec> {
         self.db
             .get_spec_by_name(&self.repo_path, name)
@@ -189,6 +231,11 @@ impl SessionDbManager {
     pub fn update_spec_display_name(&self, id: &str, display_name: &str) -> Result<()> {
         SpecMethods::update_spec_display_name(&self.db, id, display_name)
             .map_err(|e| anyhow!("Failed to update spec display name: {e}"))
+    }
+
+    pub fn update_spec_epic_id(&self, id: &str, epic_id: Option<&str>) -> Result<()> {
+        SpecMethods::update_spec_epic_id(&self.db, id, epic_id)
+            .map_err(|e| anyhow!("Failed to update spec epic: {e}"))
     }
 
     pub fn delete_spec(&self, id: &str) -> Result<()> {
@@ -222,6 +269,12 @@ impl SessionDbManager {
         self.db
             .update_session_ready_to_merge(session_id, ready)
             .map_err(|e| anyhow!("Failed to update session ready_to_merge: {e}"))
+    }
+
+    pub fn update_session_epic_id(&self, session_id: &str, epic_id: Option<&str>) -> Result<()> {
+        self.db
+            .update_session_epic_id(session_id, epic_id)
+            .map_err(|e| anyhow!("Failed to update session epic: {e}"))
     }
 
     pub fn update_session_initial_prompt(&self, session_id: &str, prompt: &str) -> Result<()> {
