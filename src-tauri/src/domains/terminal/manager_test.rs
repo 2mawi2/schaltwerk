@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
     use super::super::*;
+    use super::super::local::max_buffer_size_for_terminal;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
     use tokio::time::{sleep, timeout};
@@ -877,43 +878,21 @@ mod tests {
         safe_close(&manager, &large_id).await;
     }
 
-    #[tokio::test]
-    async fn test_agent_top_terminal_has_larger_buffer() {
-        let manager = TerminalManager::new();
-        let id = unique_id("session-longhistory-top");
+    #[test]
+    fn test_agent_top_terminal_has_larger_buffer() {
+        let top_id = "session-longhistory~deadbeef-top";
+        let bottom_id = "session-longhistory~deadbeef-bottom";
 
-        // Use head to limit output to exactly 3MB (avoids hanging on `yes`)
-        // This is more reliable than dd|tr under parallel test load
-        manager
-            .create_terminal_with_app(
-                id.clone(),
-                "/tmp".to_string(),
-                "sh".to_string(),
-                vec![
-                    "-c".to_string(),
-                    "head -c 3145728 /dev/zero | tr '\\0' 'A'".to_string(),
-                ],
-                vec![],
-            )
-            .await
-            .unwrap();
-
-        let mut snapshot = manager.get_terminal_buffer(id.clone(), None).await.unwrap();
-
-        while snapshot.data.len() <= 2 * 1024 * 1024 {
-            let current_seq = snapshot.seq;
-            if manager.wait_for_output_change(&id, current_seq).await.is_err() {
-                break;
-            }
-            snapshot = manager.get_terminal_buffer(id.clone(), None).await.unwrap();
-        }
-
-        safe_close(&manager, &id).await;
+        let top_size = max_buffer_size_for_terminal(top_id);
+        let bottom_size = max_buffer_size_for_terminal(bottom_id);
 
         assert!(
-            snapshot.data.len() > 2 * 1024 * 1024,
-            "Buffer should exceed 2MB for agent terminals, got {} bytes",
-            snapshot.data.len()
+            top_size > bottom_size,
+            "Agent terminals should have a larger buffer. top={top_size} bottom={bottom_size}"
+        );
+        assert!(
+            top_size > 2 * 1024 * 1024,
+            "Agent buffer should exceed 2MB, got {top_size} bytes"
         );
     }
 

@@ -23,6 +23,14 @@ use tokio::time::{Instant as TokioInstant, sleep};
 
 const DEFAULT_MAX_BUFFER_SIZE: usize = 2 * 1024 * 1024;
 const AGENT_MAX_BUFFER_SIZE: usize = 64 * 1024 * 1024;
+
+pub(crate) fn max_buffer_size_for_terminal(terminal_id: &str) -> usize {
+    if lifecycle::is_agent_terminal(terminal_id) {
+        AGENT_MAX_BUFFER_SIZE
+    } else {
+        DEFAULT_MAX_BUFFER_SIZE
+    }
+}
 const IDLE_THRESHOLD_MS: u64 = 5000;
 pub(super) struct TerminalState {
     pub(super) buffer: Vec<u8>,
@@ -483,11 +491,7 @@ impl LocalPtyAdapter {
             if let Some(state) = terminals.get_mut(id) {
                 let total_len = sanitized.len();
                 let mut processed = 0usize;
-                let max_size = if lifecycle::is_agent_terminal(id) {
-                    AGENT_MAX_BUFFER_SIZE
-                } else {
-                    DEFAULT_MAX_BUFFER_SIZE
-                };
+                let max_size = max_buffer_size_for_terminal(id);
 
                 let apply_segment = |state: &mut TerminalState, segment: &[u8]| {
                     if segment.is_empty() {
