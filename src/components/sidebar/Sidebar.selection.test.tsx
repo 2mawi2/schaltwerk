@@ -68,10 +68,6 @@ describe('Reviewed session cancellation focus preservation', () => {
       // Always use the current value of currentSessions
       const sessions = (globalThis as { __testCurrentSessions?: TestSession[] }).__testCurrentSessions || currentSessions
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
-        const mode = (args as { filterMode?: string })?.filterMode || 'all'
-        if (mode === 'spec') return sessions.filter(s => s.info.session_state === 'spec')
-        if (mode === 'running') return sessions.filter(s => s.info.session_state !== 'spec' && !s.info.ready_to_merge)
-        if (mode === 'reviewed') return sessions.filter(s => s.info.ready_to_merge)
         return sessions
       }
       if (cmd === TauriCommands.SchaltwerkCoreGetSession) {
@@ -80,7 +76,7 @@ describe('Reviewed session cancellation focus preservation', () => {
         return match ? toRawSession(match) : null
       }
       if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
-      if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
+      if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'running', sort_mode: 'name' }
       if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
       return undefined
     })
@@ -110,13 +106,13 @@ describe('Reviewed session cancellation focus preservation', () => {
   it('preserves focus on current session when a reviewed session is cancelled', async () => {
     render(<TestProviders><Sidebar /></TestProviders>)
 
-    // Wait for sessions to load
+    // Wait for running sessions to load (reviewed-session is not visible with Running filter)
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
         const text = btn.textContent || ''
-        return text.includes('current-session') || text.includes('reviewed-session') || text.includes('another-session')
+        return text.includes('current-session') || text.includes('another-session')
       })
-      expect(sessionButtons).toHaveLength(3)
+      expect(sessionButtons).toHaveLength(2)
     })
 
     // Select the current session
@@ -144,27 +140,20 @@ describe('Reviewed session cancellation focus preservation', () => {
 
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
-        const mode = (args as { filterMode?: string })?.filterMode || 'all'
-        if (mode === 'spec') return sessions.filter(s => s.info.session_state === 'spec')
-        if (mode === 'running') return sessions.filter(s => s.info.session_state !== 'spec' && !s.info.ready_to_merge)
-        if (mode === 'reviewed') return sessions.filter(s => s.info.ready_to_merge)
-        return sessions
-      }
       if (cmd === TauriCommands.SchaltwerkCoreGetSession) {
         const name = (args as { name?: string })?.name
         const match = sessions.find(s => s.info.session_id === name)
         return match ? toRawSession(match) : null
       }
       if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
-      if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
+      if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'reviewed', sort_mode: 'name' }
       if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
       return undefined
     })
 
     render(<TestProviders><Sidebar /></TestProviders>)
 
-    // Wait for sessions to load
+    // Wait for sessions to load (using reviewed filter to see reviewed sessions)
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
         const text = btn.textContent || ''
@@ -198,20 +187,12 @@ describe('Reviewed session cancellation focus preservation', () => {
     ;(globalThis as { __testCurrentSessions?: TestSession[] }).__testCurrentSessions = currentSessions
 
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
+      const sessions = (globalThis as { __testCurrentSessions?: TestSession[] }).__testCurrentSessions || currentSessions
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
-        return (globalThis as { __testCurrentSessions?: TestSession[] }).__testCurrentSessions || currentSessions
-      }
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
-        const sessions = (globalThis as { __testCurrentSessions?: TestSession[] }).__testCurrentSessions || currentSessions
-        const mode = (args as { filterMode?: string })?.filterMode || 'all'
-        if (mode === 'reviewed') return sessions.filter(s => s.info.ready_to_merge)
-        if (mode === 'running') return sessions.filter(s => s.info.session_state !== 'spec' && !s.info.ready_to_merge)
-        if (mode === 'spec') return sessions.filter(s => s.info.session_state === 'spec')
         return sessions
       }
       if (cmd === TauriCommands.SchaltwerkCoreGetSession) {
         const name = (args as { name?: string })?.name
-        const sessions = (globalThis as { __testCurrentSessions?: TestSession[] }).__testCurrentSessions || currentSessions
         const match = sessions.find(s => s.info.session_id === name)
         return match ? toRawSession(match) : null
       }
@@ -246,23 +227,22 @@ describe('Reviewed session cancellation focus preservation', () => {
   })
 
   it('continues normal auto-selection behavior for non-reviewed session cancellation', async () => {
-    const currentSession = mockEnrichedSession('current-session', SessionState.Running, false)
     const runningSession = mockEnrichedSession('running-session', SessionState.Running, false)
-    const specSession = mockEnrichedSession('spec-session', SessionState.Spec, false)
+    const anotherRunning = mockEnrichedSession('another-running', SessionState.Running, false)
 
-    currentSessions = [currentSession, runningSession, specSession]
+    currentSessions = [runningSession, anotherRunning]
     ;(globalThis as { __testCurrentSessions?: TestSession[] }).__testCurrentSessions = currentSessions
 
     render(<TestProviders><Sidebar /></TestProviders>)
 
-    // Wait for sessions to load
+    // Wait for running sessions to load
     await waitFor(() => {
       const allButtons = screen.getAllByRole('button')
       const sessionButtons = allButtons.filter(btn => {
         const text = btn.textContent || ''
-        return text.includes('current-session') || text.includes('running-session') || text.includes('spec-session')
+        return text.includes('running-session') || text.includes('another-running')
       })
-      expect(sessionButtons).toHaveLength(3)
+      expect(sessionButtons).toHaveLength(2)
     })
 
     // Select the running session
@@ -275,34 +255,23 @@ describe('Reviewed session cancellation focus preservation', () => {
     // Cancel the running session
     await emitEvent(SchaltEvent.SessionRemoved, { session_name: 'running-session' })
 
-    // Check what sessions are visible after removal
+    // Check session is removed
     await waitFor(() => {
-      const sessionButtons = screen.getAllByRole('button').filter(btn => {
-        const text = btn.textContent || ''
-        return text.includes('current-session') || text.includes('spec-session')
-      })
-      expect(sessionButtons).toHaveLength(2)
+      expect(screen.queryByText('running-session')).toBeNull()
     })
 
-    // Should auto-select to the next available session (spec-session)
+    // Should auto-select to the remaining session
     await waitFor(() => {
-      const specButton = screen.getByText('spec-session').closest('[role="button"]')
-      expect(specButton).toHaveClass('session-ring-blue')
-    })
-
-    // And current should not be selected
-    await waitFor(() => {
-      const currentButton = screen.getByText('current-session').closest('[role="button"]')
-      expect(currentButton).not.toHaveClass('session-ring-blue')
+      const nextButton = screen.getByText('another-running').closest('[role="button"]')
+      expect(nextButton).toHaveClass('session-ring-blue')
     })
   })
 
   it('selects the next spec after deleting the focused spec in spec filter', async () => {
     const spec1 = mockEnrichedSession('spec-1', SessionState.Spec, false)
     const spec2 = mockEnrichedSession('spec-2', SessionState.Spec, false)
-    const spec3 = mockEnrichedSession('spec-3', SessionState.Spec, false)
 
-    currentSessions = [spec1, spec2, spec3]
+    currentSessions = [spec1, spec2]
     ;(globalThis as { __testCurrentSessions?: TestSession[] }).__testCurrentSessions = currentSessions
 
     render(<TestProviders><Sidebar /></TestProviders>)
@@ -315,29 +284,26 @@ describe('Reviewed session cancellation focus preservation', () => {
 
     await waitFor(() => {
       const specButtons = screen.getAllByRole('button').filter(btn => (btn.textContent || '').includes('spec-'))
-      expect(specButtons).toHaveLength(3)
+      expect(specButtons).toHaveLength(2)
     })
 
-    await userEvent.click(screen.getByText('spec-2'))
+    await userEvent.click(screen.getByText('spec-1'))
 
     await waitFor(() => {
-      const selected = screen.getByText('spec-2').closest('[role="button"]')
+      const selected = screen.getByText('spec-1').closest('[role="button"]')
       expect(selected).toHaveClass('session-ring-blue')
     })
 
-    await emitEvent(SchaltEvent.SessionRemoved, { session_name: 'spec-2' })
+    await emitEvent(SchaltEvent.SessionRemoved, { session_name: 'spec-1' })
 
     await waitFor(() => {
-      expect(screen.queryByText('spec-2')).toBeNull()
+      expect(screen.queryByText('spec-1')).toBeNull()
     })
 
     await waitFor(() => {
-      const nextButton = screen.getByText('spec-3').closest('[role="button"]')
+      const nextButton = screen.getByText('spec-2').closest('[role="button"]')
       expect(nextButton).toHaveClass('session-ring-blue')
     })
-
-    const firstButton = screen.getByText('spec-1').closest('[role="button"]')
-    expect(firstButton).not.toHaveClass('session-ring-blue')
   })
 
 
@@ -350,33 +316,26 @@ describe('Reviewed session cancellation focus preservation', () => {
 
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
-        const mode = (args as { filterMode?: string })?.filterMode || 'all'
-        if (mode === 'spec') return sessions.filter(s => s.info.session_state === 'spec')
-        if (mode === 'running') return sessions.filter(s => s.info.session_state !== 'spec' && !s.info.ready_to_merge)
-        if (mode === 'reviewed') return sessions.filter(s => s.info.ready_to_merge)
-        return sessions
-      }
       if (cmd === TauriCommands.SchaltwerkCoreGetSession) {
         const name = (args as { name?: string })?.name
         const match = sessions.find(s => s.info.session_id === name)
         return match ? toRawSession(match) : null
       }
       if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
-      if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
+      if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'running', sort_mode: 'name' }
       if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
       return undefined
     })
 
     render(<TestProviders><Sidebar /></TestProviders>)
 
-    // Wait for sessions to load
+    // Wait for running session to load (reviewed sessions not visible with Running filter)
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
         const text = btn.textContent || ''
-        return text.includes('current-session') || text.includes('reviewed-1') || text.includes('reviewed-2')
+        return text.includes('current-session')
       })
-      expect(sessionButtons).toHaveLength(3)
+      expect(sessionButtons).toHaveLength(1)
     })
 
     // Select the current session
@@ -402,27 +361,20 @@ describe('Reviewed session cancellation focus preservation', () => {
 
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
-        const mode = (args as { filterMode?: string })?.filterMode || 'all'
-        if (mode === 'spec') return sessions.filter(s => s.info.session_state === 'spec')
-        if (mode === 'running') return sessions.filter(s => s.info.session_state !== 'spec' && !s.info.ready_to_merge)
-        if (mode === 'reviewed') return sessions.filter(s => s.info.ready_to_merge)
-        return sessions
-      }
       if (cmd === TauriCommands.SchaltwerkCoreGetSession) {
         const name = (args as { name?: string })?.name
         const match = sessions.find(s => s.info.session_id === name)
         return match ? toRawSession(match) : null
       }
       if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
-      if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
+      if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'reviewed', sort_mode: 'name' }
       if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
       return undefined
     })
 
     render(<TestProviders><Sidebar /></TestProviders>)
 
-    // Wait for sessions to load
+    // Wait for sessions to load (using reviewed filter to see reviewed sessions)
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
         const text = btn.textContent || ''
@@ -457,38 +409,27 @@ describe('Reviewed session cancellation focus preservation', () => {
 
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
-        const mode = (args as { filterMode?: string })?.filterMode || 'all'
-        if (mode === 'spec') return sessions.filter(s => s.info.session_state === 'spec')
-        if (mode === 'running') return sessions.filter(s => s.info.session_state !== 'spec' && !s.info.ready_to_merge)
-        if (mode === 'reviewed') return sessions.filter(s => s.info.ready_to_merge)
-        return sessions
-      }
       if (cmd === TauriCommands.SchaltwerkCoreGetSession) {
         const name = (args as { name?: string })?.name
         const match = sessions.find(s => s.info.session_id === name)
         return match ? toRawSession(match) : null
       }
       if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
-      if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
+      if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'running', sort_mode: 'name' }
       if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
       return undefined
     })
 
     render(<TestProviders><Sidebar /></TestProviders>)
 
-    // Wait for sessions to load
+    // Wait for running sessions to load (reviewed sessions not visible with Running filter)
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
         const text = btn.textContent || ''
-        return text.includes('current-session') || text.includes('reviewed-session') || text.includes('another-session')
+        return text.includes('current-session') || text.includes('another-session')
       })
-      expect(sessionButtons).toHaveLength(3)
+      expect(sessionButtons).toHaveLength(2)
     })
-
-    // Switch to running filter
-    const runningFilterButton = screen.getByTitle('Show running agents')
-    await userEvent.click(runningFilterButton)
 
     // Select the current session
     await userEvent.click(screen.getByText('current-session'))
@@ -526,10 +467,6 @@ describe('Merge selection progression', () => {
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       const sessions = (globalThis as { __testCurrentSessions?: ReturnType<typeof mockEnrichedSession>[] }).__testCurrentSessions || currentSessions
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
-        const mode = (args as { filterMode?: string })?.filterMode || 'all'
-        if (mode === 'spec') return sessions.filter(s => s.info.session_state === 'spec')
-        if (mode === 'running') return sessions.filter(s => s.info.session_state !== 'spec' && !s.info.ready_to_merge)
-        if (mode === 'reviewed') return sessions.filter(s => s.info.ready_to_merge)
         return sessions
       }
       if (cmd === TauriCommands.SchaltwerkCoreGetSession) {
@@ -538,7 +475,7 @@ describe('Merge selection progression', () => {
         return match ? toRawSession(match) : null
       }
       if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
-      if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
+      if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'reviewed', sort_mode: 'name' }
       if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
       return undefined
     })
@@ -608,8 +545,7 @@ describe('Merge selection progression', () => {
       expect(selectedButtons[0]?.textContent ?? '').toContain('reviewed-two')
     })
 
-    const mergedButton = screen.getByText('reviewed-one').closest('[role="button"]')
-    expect(mergedButton).not.toHaveClass('session-ring-blue')
+    expect(screen.queryByText('reviewed-one')).toBeNull()
   })
 
   it('falls back to orchestrator when no reviewed sessions remain after merge', async () => {
@@ -620,18 +556,13 @@ describe('Merge selection progression', () => {
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       const sessions = (globalThis as { __testCurrentSessions?: ReturnType<typeof mockEnrichedSession>[] }).__testCurrentSessions || currentSessions
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
-        const mode = (args as { filterMode?: string })?.filterMode || 'all'
-        if (mode === 'reviewed') return sessions.filter(s => s.info.ready_to_merge)
-        return sessions
-      }
       if (cmd === TauriCommands.SchaltwerkCoreGetSession) {
         const name = (args as { name?: string })?.name
         const match = sessions.find(s => s.info.session_id === name)
         return match ? toRawSession(match) : null
       }
       if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
-      if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
+      if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'reviewed', sort_mode: 'name' }
       if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
       return undefined
     })
@@ -641,9 +572,6 @@ describe('Merge selection progression', () => {
     await waitFor(() => {
       expect(screen.getByText('solo-reviewed')).toBeInTheDocument()
     })
-
-    const reviewedFilterButton = screen.getByTitle('Show reviewed agents')
-    await userEvent.click(reviewedFilterButton)
 
     await userEvent.click(screen.getByText('solo-reviewed'))
     await waitFor(() => {

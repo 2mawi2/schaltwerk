@@ -433,7 +433,6 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
       const key = projectPath || '__default__';
       if (!selectionMemoryRef.current.has(key)) {
         selectionMemoryRef.current.set(key, {
-          [FilterMode.All]: { lastSelection: null, lastSessions: [] },
           [FilterMode.Spec]: { lastSelection: null, lastSessions: [] },
           [FilterMode.Running]: { lastSelection: null, lastSessions: [] },
           [FilterMode.Reviewed]: { lastSelection: null, lastSessions: [] },
@@ -1359,7 +1358,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     useEffect(() => () => cancelMarkReadyCooldown(), [cancelMarkReadyCooldown])
 
     // Calculate counts based on all sessions (unaffected by search)
-    const { allCount, specsCount, runningCount, reviewedCount } = calculateFilterCounts(allSessions)
+    const { specsCount, runningCount, reviewedCount } = calculateFilterCounts(allSessions)
 
     return (
         <div
@@ -1509,7 +1508,6 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                         }}
                         title={`Filter: ${filterMode}`}
                     >
-                        {filterMode === FilterMode.All && 'ALL'}
                         {filterMode === FilterMode.Spec && 'SPEC'}
                         {filterMode === FilterMode.Running && 'RUN'}
                         {filterMode === FilterMode.Reviewed && 'REV'}
@@ -1552,15 +1550,6 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
                                 </svg>
-                            </button>
-                            <button
-                                className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
-                                    filterMode === FilterMode.All ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50',
-                                    keyboardNavigatedFilter === FilterMode.All && '' )}
-                                onClick={() => setFilterMode(FilterMode.All)}
-                                title="Show all agents"
-                            >
-                                All <span className="text-slate-400">({allCount})</span>
                             </button>
                             <button
                                 className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1',

@@ -151,35 +151,19 @@ mod session_sorting_tests {
         let (_temp_dir, manager, _sessions) = setup_test_sessions();
 
         let sorted_sessions = manager
-            .list_enriched_sessions_sorted(SortMode::Name, FilterMode::All)
+            .list_enriched_sessions_sorted(SortMode::Name, FilterMode::Running)
             .unwrap();
 
-        // Check that sessions are sorted alphabetically by name (case-insensitive)
+        // Check that running sessions are sorted alphabetically by name
         let session_names: Vec<&str> = sorted_sessions
             .iter()
-            .filter(|s| !s.info.ready_to_merge) // Exclude reviewed sessions (they come at the end)
             .map(|s| s.info.session_id.as_str())
             .collect();
 
         assert_eq!(
             session_names,
-            vec![
-                "spec-alpha",
-                "spec-beta",
-                "running-charlie",
-                "running-delta",
-                "running-echo"
-            ]
+            vec!["running-charlie", "running-delta", "running-echo"]
         );
-
-        // Check that reviewed sessions are at the end and also sorted by name
-        let reviewed_names: Vec<&str> = sorted_sessions
-            .iter()
-            .filter(|s| s.info.ready_to_merge)
-            .map(|s| s.info.session_id.as_str())
-            .collect();
-
-        assert_eq!(reviewed_names, vec!["reviewed-foxtrot", "reviewed-golf"]);
     }
 
     #[tokio::test]
@@ -187,36 +171,20 @@ mod session_sorting_tests {
         let (_temp_dir, manager, _sessions) = setup_test_sessions();
 
         let sorted_sessions = manager
-            .list_enriched_sessions_sorted(SortMode::Created, FilterMode::All)
+            .list_enriched_sessions_sorted(SortMode::Created, FilterMode::Running)
             .unwrap();
 
-        // Check that non-reviewed sessions are sorted by creation time (newest first)
+        // Check that running sessions are sorted by creation time (newest first)
         let session_names: Vec<&str> = sorted_sessions
             .iter()
-            .filter(|s| !s.info.ready_to_merge)
             .map(|s| s.info.session_id.as_str())
             .collect();
 
-        // Expected order: running-echo (20min ago), spec-beta (30min ago), running-delta (45min ago), spec-alpha (60min ago), running-charlie (90min ago)
+        // Expected order: running-echo (20min ago), running-delta (45min ago), running-charlie (90min ago)
         assert_eq!(
             session_names,
-            vec![
-                "running-echo",
-                "spec-beta",
-                "running-delta",
-                "spec-alpha",
-                "running-charlie"
-            ]
+            vec!["running-echo", "running-delta", "running-charlie"]
         );
-
-        // Reviewed sessions should still be at the end, sorted by name
-        let reviewed_names: Vec<&str> = sorted_sessions
-            .iter()
-            .filter(|s| s.info.ready_to_merge)
-            .map(|s| s.info.session_id.as_str())
-            .collect();
-
-        assert_eq!(reviewed_names, vec!["reviewed-foxtrot", "reviewed-golf"]);
     }
 
     #[tokio::test]
@@ -224,26 +192,19 @@ mod session_sorting_tests {
         let (_temp_dir, manager, _sessions) = setup_test_sessions();
 
         let sorted_sessions = manager
-            .list_enriched_sessions_sorted(SortMode::LastEdited, FilterMode::All)
+            .list_enriched_sessions_sorted(SortMode::LastEdited, FilterMode::Running)
             .unwrap();
 
-        // Check that sessions are sorted by last activity (most recent first)
+        // Check that running sessions are sorted by last activity (most recent first)
         let session_names: Vec<&str> = sorted_sessions
             .iter()
-            .filter(|s| !s.info.ready_to_merge)
             .map(|s| s.info.session_id.as_str())
             .collect();
 
-        // Expected order by last activity: running-charlie (5min ago), running-delta (10min ago), running-echo (15min ago), then specs by created time
+        // Expected order by last activity: running-charlie (5min ago), running-delta (10min ago), running-echo (15min ago)
         assert_eq!(
             session_names,
-            vec![
-                "running-charlie",
-                "running-delta",
-                "running-echo",
-                "spec-beta",
-                "spec-alpha"
-            ]
+            vec!["running-charlie", "running-delta", "running-echo"]
         );
     }
 
@@ -321,13 +282,13 @@ mod session_sorting_tests {
     async fn test_no_cache_consistency() {
         let (temp_dir, manager, _sessions) = setup_test_sessions();
 
-        // Get initial sessions
+        // Get initial running sessions
         let initial_sessions = manager
-            .list_enriched_sessions_sorted(SortMode::Name, FilterMode::All)
+            .list_enriched_sessions_sorted(SortMode::Name, FilterMode::Running)
             .unwrap();
         let initial_count = initial_sessions.len();
 
-        // Create a new session
+        // Create a new running session
         let new_session = create_test_session_with_repo(
             "new-session",
             SessionStatus::Active,
@@ -341,7 +302,7 @@ mod session_sorting_tests {
 
         // Should immediately reflect the new session (no cache)
         let updated_sessions = manager
-            .list_enriched_sessions_sorted(SortMode::Name, FilterMode::All)
+            .list_enriched_sessions_sorted(SortMode::Name, FilterMode::Running)
             .unwrap();
 
         assert_eq!(updated_sessions.len(), initial_count + 1);

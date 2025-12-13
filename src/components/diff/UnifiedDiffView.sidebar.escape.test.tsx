@@ -39,7 +39,7 @@ vi.mock('../../hooks/useSessions', async () => {
       filteredSessions: sessionsState,
       sortedSessions: sessionsState,
       loading: false,
-      filterMode: FilterMode.All,
+      filterMode: FilterMode.Running,
       searchQuery: '',
       isSearchVisible: false,
       setFilterMode: vi.fn(),

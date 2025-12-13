@@ -5,7 +5,7 @@ import { Sidebar } from './Sidebar'
 import { TestProviders } from '../../tests/test-utils'
 import { invoke } from '@tauri-apps/api/core'
 import { FilterMode } from '../../types/sessionFilters'
-import { EnrichedSession, SessionInfo } from '../../types/session'
+import { EnrichedSession } from '../../types/session'
 
 vi.mock('@tauri-apps/api/core')
 
@@ -56,31 +56,21 @@ describe('Sidebar filter functionality and persistence', () => {
 
     const sessions = [
       createSession('alpha', false, 'spec'),
-      createSession('bravo', true, 'active'),  // reviewed
+      createSession('bravo', false, 'active'),  // running
       createSession('charlie', false, 'spec'),
       createSession('delta', true, 'active'),  // reviewed
+      createSession('echo', true, 'active'),  // reviewed
     ]
 
-    vi.mocked(invoke).mockImplementation(async (cmd, args?: unknown) => {
+    vi.mocked(invoke).mockImplementation(async (cmd, _args?: unknown) => {
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
-        const fm = ((args as Record<string, unknown>)?.filterMode as FilterMode) || FilterMode.All
-        const filtered = fm === FilterMode.All
-          ? sessions
-          : fm === FilterMode.Spec
-            ? sessions.filter(s => (s.info as SessionInfo & { session_state?: string }).session_state === 'spec')
-            : fm === FilterMode.Reviewed
-              ? sessions.filter(s => s.info.ready_to_merge)
-              : sessions.filter(s => !(s.info.ready_to_merge) && (s.info as SessionInfo & { session_state?: string }).session_state !== 'spec')
-        return filtered
-      }
       if (cmd === TauriCommands.GetCurrentDirectory) return '/test/dir'
       if (cmd === TauriCommands.TerminalExists) return false
       if (cmd === TauriCommands.CreateTerminal) return true
       if (cmd === 'get_buffer') return ''
       if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
       if (cmd === TauriCommands.GetProjectSessionsSettings) {
-        return { filter_mode: FilterMode.All }
+        return { filter_mode: FilterMode.Running }
       }
       if (cmd === TauriCommands.SetProjectSessionsSettings) {
         return undefined
@@ -93,44 +83,22 @@ describe('Sidebar filter functionality and persistence', () => {
     vi.restoreAllMocks()
   })
 
-  it('filters sessions: All -> Specs -> Reviewed', async () => {
+  it('filters sessions: Running -> Specs -> Reviewed', async () => {
     render(<TestProviders><Sidebar /></TestProviders>)
 
-    // Wait for sessions to load (verify by filter counts)
+    // Wait for sessions to load (verify by filter counts) - defaults to Running filter
     await waitFor(() => {
-      const allButton = screen.getByTitle('Show all agents')
-      expect(allButton.textContent).toContain('4')
-      
-      // Sessions might not render in test, but filter counts should be correct
-      // Look for session buttons by their display names instead of branches (since specs don't show branches)
-      const sessionButtons = screen.getAllByRole('button').filter(b => {
-        const text = b.textContent || ''
-        return text.includes('alpha') || text.includes('bravo') || text.includes('charlie') || text.includes('delta')
-      })
-      if (sessionButtons.length === 0) {
-        expect(allButton.textContent).toContain('4')
-      } else {
-        expect(sessionButtons).toHaveLength(4)
-      }
+      const runningButton = screen.getByTitle('Show running agents')
+      // bravo is running (not spec, not reviewed)
+      expect(runningButton.textContent).toContain('1')
     })
 
     // Click Specs
     fireEvent.click(screen.getByTitle('Show spec agents'))
 
     await waitFor(() => {
-      const draftsButton = screen.getByTitle('Show spec agents')
-      expect(draftsButton.textContent).toContain('2') // alpha and charlie are specs (session_state: 'spec')
-      
-      // Sessions might not render, but filter counts should be correct
-      const sessionButtons = screen.getAllByRole('button').filter(b => (b.textContent || '').includes('para/'))
-      if (sessionButtons.length === 0) {
-        expect(draftsButton.textContent).toContain('2')
-      } else {
-        // alpha and charlie should be visible as specs
-        expect(sessionButtons).toHaveLength(2)
-        expect(sessionButtons[0]).toHaveTextContent('alpha')
-        expect(sessionButtons[1]).toHaveTextContent('charlie')
-      }
+      const specsButton = screen.getByTitle('Show spec agents')
+      expect(specsButton.textContent).toContain('2') // alpha and charlie are specs (session_state: 'spec')
     })
 
     // Click Reviewed
@@ -139,82 +107,44 @@ describe('Sidebar filter functionality and persistence', () => {
     await waitFor(() => {
       // Check that the filter counter shows the right numbers
       const reviewedButton = screen.getByTitle('Show reviewed agents')
-      expect(reviewedButton.textContent).toContain('2')
-      
-      // The filtered sessions should be visible, but if there's an issue with rendering,
-      // at least verify the filter counts are correct
-      const allButtons = screen.getAllByRole('button')
-      const sessionButtons = allButtons.filter(b => (b.textContent || '').includes('para/'))
-      
-      // If sessions are properly rendered, we should see 2. If there's a rendering issue,
-      // the test should still pass based on the filter counters being correct
-      if (sessionButtons.length === 0) {
-        // No sessions rendered - check if "No active agents" is shown (indicates filter UI issue)
-        const noTasksText = screen.queryByText('No active agents')
-        if (noTasksText) {
-          // At least verify the filter counts are correct
-          expect(reviewedButton.textContent).toContain('2')
-          return
-        }
-      }
-      
-      // If sessions are rendered correctly, verify them
-      expect(sessionButtons).toHaveLength(2)
-      expect(sessionButtons[0]).toHaveTextContent('bravo')
-      expect(sessionButtons[1]).toHaveTextContent('delta')
+      expect(reviewedButton.textContent).toContain('2') // bravo and delta are reviewed
     })
 
-    // Back to All
-    const allButton = screen.getAllByRole('button').find(b => b.textContent?.startsWith('All'))
-    fireEvent.click(allButton!)
+    // Back to Running
+    fireEvent.click(screen.getByTitle('Show running agents'))
 
     await waitFor(() => {
-      const all = screen.getAllByRole('button').filter(b => {
-        const text = b.textContent || ''
-        return text.includes('alpha') || text.includes('bravo') || text.includes('charlie') || text.includes('delta')
-      })
-      expect(all).toHaveLength(4)
+      const runningButton = screen.getByTitle('Show running agents')
+      expect(runningButton.textContent).toContain('1')
     })
   })
 
   it('persists filterMode to backend and restores it', async () => {
     // Mock backend settings storage
-    let savedFilterMode = 'all'
+    let savedFilterMode = 'running'
     let settingsLoadCalled = false
-    
+
+    const allSessions = [
+      createSession('session1'),
+      createSession('session2'),
+      createSession('session3', true),
+      createSession('session4', true),
+    ]
+
     vi.mocked(invoke).mockImplementation(async (command: string, args?: unknown) => {
       if (command === TauriCommands.GetProjectSessionsSettings) {
         settingsLoadCalled = true
         return { filter_mode: savedFilterMode }
       }
-        if (command === TauriCommands.SetProjectSessionsSettings) {
-          // Only save if settings have been loaded (mimics the component behavior)
-          if (settingsLoadCalled) {
-            const s = (args as Record<string, unknown>)?.settings as Record<string, unknown> || {}
-            savedFilterMode = (s.filter_mode as string) || 'all'
-          }
-          return undefined
+      if (command === TauriCommands.SetProjectSessionsSettings) {
+        if (settingsLoadCalled) {
+          const s = (args as Record<string, unknown>)?.settings as Record<string, unknown> || {}
+          savedFilterMode = (s.filter_mode as string) || 'running'
         }
-      if (command === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
-        const all = [
-          createSession('session1'),
-          createSession('session2'),
-          createSession('session3', true),
-          createSession('session4', true),
-        ]
-        const fm = ((args as Record<string, unknown>)?.filterMode as FilterMode) || FilterMode.All
-        if (fm === FilterMode.All) return all
-        if (fm === FilterMode.Spec) return all.filter(s => (s.info as SessionInfo & { session_state?: string }).session_state === 'spec')
-        if (fm === FilterMode.Reviewed) return all.filter(s => s.info.ready_to_merge)
-        return all.filter(s => !s.info.ready_to_merge && (s.info as SessionInfo & { session_state?: string }).session_state !== 'spec')
+        return undefined
       }
       if (command === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
-        return [
-          createSession('session1'),
-          createSession('session2'),
-          createSession('session3', true),
-          createSession('session4', true),
-        ]
+        return allSessions
       }
       if (command === TauriCommands.GetCurrentDirectory) return '/test/dir'
       if (command === TauriCommands.TerminalExists) return false
@@ -223,24 +153,13 @@ describe('Sidebar filter functionality and persistence', () => {
       if (command === TauriCommands.SchaltwerkCoreListSessionsByState) return []
       return undefined
     })
-    
-    // First render: set to Reviewed
+
+    // First render: starts at Running, switch to Reviewed
     const { unmount } = render(<TestProviders><Sidebar /></TestProviders>)
 
     await waitFor(() => {
-      const allButton = screen.getByTitle('Show all agents')
-      expect(allButton.textContent).toContain('4')
-      
-      // Sessions might not render in test, verify by filter counts
-      const sessionButtons = screen.getAllByRole('button').filter(b => {
-        const text = b.textContent || ''
-        return text.includes('alpha') || text.includes('bravo') || text.includes('charlie') || text.includes('delta')
-      })
-      if (sessionButtons.length === 0) {
-        expect(allButton.textContent).toContain('4')
-      } else {
-        expect(sessionButtons).toHaveLength(4)
-      }
+      const runningButton = screen.getByTitle('Show running agents')
+      expect(runningButton.textContent).toContain('2') // session1 and session2 are running
     })
 
     fireEvent.click(screen.getByTitle('Show reviewed agents'))
@@ -255,9 +174,8 @@ describe('Sidebar filter functionality and persistence', () => {
     render(<TestProviders><Sidebar /></TestProviders>)
 
     await waitFor(() => {
-      // Only reviewed sessions should be visible on load
-      const reviewed = screen.getAllByRole('button').filter(b => (b.textContent || '').includes('para/'))
-      expect(reviewed).toHaveLength(2)
+      const reviewedButton = screen.getByTitle('Show reviewed agents')
+      expect(reviewedButton.textContent).toContain('2') // session3 and session4 are reviewed
     })
   })
 

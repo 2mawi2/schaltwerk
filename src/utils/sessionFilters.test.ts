@@ -92,8 +92,7 @@ describe('calculateFilterCounts', () => {
 
     it('should correctly count all session types', () => {
         const counts = calculateFilterCounts(allSessions)
-        
-        expect(counts.allCount).toBe(4)
+
         expect(counts.specsCount).toBe(1)
         expect(counts.runningCount).toBe(2)
         expect(counts.reviewedCount).toBe(1)
@@ -101,8 +100,7 @@ describe('calculateFilterCounts', () => {
 
     it('should return zero counts for empty array', () => {
         const counts = calculateFilterCounts([])
-        
-        expect(counts.allCount).toBe(0)
+
         expect(counts.specsCount).toBe(0)
         expect(counts.runningCount).toBe(0)
         expect(counts.reviewedCount).toBe(0)
@@ -111,8 +109,7 @@ describe('calculateFilterCounts', () => {
     it('should handle sessions with only one type', () => {
         const onlyRunning = [runningSession1, runningSession2]
         const counts = calculateFilterCounts(onlyRunning)
-        
-        expect(counts.allCount).toBe(2)
+
         expect(counts.specsCount).toBe(0)
         expect(counts.runningCount).toBe(2)
         expect(counts.reviewedCount).toBe(0)

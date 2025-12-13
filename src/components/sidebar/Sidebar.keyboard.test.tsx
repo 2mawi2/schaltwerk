@@ -60,7 +60,6 @@ describe('Sidebar keyboard navigation basic', () => {
 
     vi.mocked(invoke).mockImplementation(async (cmd) => {
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
       if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
       if (cmd === TauriCommands.GetCurrentDirectory) return '/cwd'
       if (cmd === TauriCommands.TerminalExists) return false
@@ -71,7 +70,7 @@ describe('Sidebar keyboard navigation basic', () => {
       if (cmd === TauriCommands.DirectoryExists) return true
       if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
       if (cmd === TauriCommands.GetProjectSessionsSettings) {
-        return { filter_mode: 'all', sort_mode: 'name' }
+        return { filter_mode: 'running', sort_mode: 'name' }
       }
       if (cmd === TauriCommands.SetProjectSessionsSettings) {
         return undefined
@@ -148,7 +147,7 @@ describe('Sidebar keyboard navigation basic', () => {
       if (cmd === TauriCommands.PathExists) return true
       if (cmd === TauriCommands.DirectoryExists) return true
       if (cmd === TauriCommands.GetProjectSessionsSettings) {
-        return { filter_mode: 'all', sort_mode: 'name' }
+        return { filter_mode: 'spec', sort_mode: 'name' }
       }
       if (cmd === TauriCommands.SetProjectSessionsSettings) {
         return undefined
@@ -201,18 +200,14 @@ describe('Sidebar keyboard navigation basic', () => {
   })
 
   it('prevents marking spec sessions as reviewed', async () => {
-    // Mock console.warn to verify it's called for spec sessions
     const consoleWarnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {})
 
-    // Mock sessions with a spec session
-    const sessions = [
-      { info: { session_id: 'spec-session', branch: 'spec/branch', worktree_path: '/spec', base_branch: 'main',  status: 'spec', session_state: 'spec', is_current: false, session_type: 'worktree', ready_to_merge: false }, terminals: [] },
-      { info: { session_id: 'running-session', branch: 'running/branch', worktree_path: '/running', base_branch: 'main',  status: 'active', is_current: false, session_type: 'worktree', ready_to_merge: false }, terminals: [] },
+    const specSessions = [
+      { info: { session_id: 'spec-session', branch: 'spec/branch', worktree_path: '/spec', base_branch: 'main', status: 'spec', session_state: 'spec', is_current: false, session_type: 'worktree', ready_to_merge: false }, terminals: [] },
     ]
 
     vi.mocked(invoke).mockImplementation(async (cmd) => {
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return specSessions
       if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
       if (cmd === TauriCommands.GetCurrentDirectory) return '/cwd'
       if (cmd === TauriCommands.TerminalExists) return false
@@ -223,7 +218,7 @@ describe('Sidebar keyboard navigation basic', () => {
       if (cmd === TauriCommands.DirectoryExists) return true
       if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
       if (cmd === TauriCommands.GetProjectSessionsSettings) {
-        return { filter_mode: 'all', sort_mode: 'name' }
+        return { filter_mode: 'spec', sort_mode: 'name' }
       }
       if (cmd === TauriCommands.SetProjectSessionsSettings) {
         return undefined
@@ -235,52 +230,75 @@ describe('Sidebar keyboard navigation basic', () => {
 
     await waitFor(() => {
       expect(screen.getByText('spec-session')).toBeInTheDocument()
-      expect(screen.getByText('running-session')).toBeInTheDocument()
     })
 
-    // Select the spec session
     const specButton = screen.getByText('spec-session').closest('[role="button"]') as HTMLElement | null
     if (specButton) {
       await click(specButton)
     }
 
-    // Wait for selection to be updated
     await waitFor(() => {
       const selectedSpecButton = screen.getByText('spec-session').closest('[role="button"]')
       expect(selectedSpecButton?.className).toContain('session-ring')
     })
 
-    // Try to mark spec as ready with Cmd+R - should log warning and not call backend
     await press('r', { metaKey: true })
 
-    // Verify warning was logged
     expect(consoleWarnSpy).toHaveBeenCalledWith(
       expect.stringContaining('Cannot mark spec "spec-session" as reviewed')
     )
 
     expect(invoke).not.toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreMarkSessionReady, expect.anything())
 
-    // Now select the running session
+    consoleWarnSpy.mockRestore()
+  })
+
+  it('allows marking running sessions as reviewed', async () => {
+    const consoleWarnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {})
+
+    const runningSessions = [
+      { info: { session_id: 'running-session', branch: 'running/branch', worktree_path: '/running', base_branch: 'main', status: 'active', is_current: false, session_type: 'worktree', ready_to_merge: false }, terminals: [] },
+    ]
+
+    vi.mocked(invoke).mockImplementation(async (cmd) => {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return runningSessions
+      if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
+      if (cmd === TauriCommands.GetCurrentDirectory) return '/cwd'
+      if (cmd === TauriCommands.TerminalExists) return false
+      if (cmd === TauriCommands.CreateTerminal) return true
+      if (cmd === TauriCommands.ListAvailableOpenApps) return [{ id: 'finder', name: 'Finder', kind: 'system' }]
+      if (cmd === TauriCommands.GetDefaultOpenApp) return 'finder'
+      if (cmd === TauriCommands.PathExists) return true
+      if (cmd === TauriCommands.DirectoryExists) return true
+      if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
+      if (cmd === TauriCommands.GetProjectSessionsSettings) {
+        return { filter_mode: 'running', sort_mode: 'name' }
+      }
+      if (cmd === TauriCommands.SetProjectSessionsSettings) {
+        return undefined
+      }
+      return undefined
+    })
+
+    await renderSidebar()
+
+    await waitFor(() => {
+      expect(screen.getByText('running-session')).toBeInTheDocument()
+    })
+
     const runningButton = screen.getByText('running-session').closest('[role="button"]') as HTMLElement | null
     if (runningButton) {
       await click(runningButton)
     }
 
-    // Wait for selection to be updated
     await waitFor(() => {
       const selectedRunningButton = screen.getByText('running-session').closest('[role="button"]')
       expect(selectedRunningButton?.className).toContain('session-ring')
     })
 
-    // Clear previous console calls
-    consoleWarnSpy.mockClear()
-
-    // Try to mark running session as ready with Cmd+R - should open modal (no warning)
     await press('r', { metaKey: true })
 
-    // Verify no warning was logged for running session
     expect(consoleWarnSpy).not.toHaveBeenCalled()
-
     expect(invoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreMarkSessionReady, {
       name: 'running-session'
     })
@@ -289,15 +307,12 @@ describe('Sidebar keyboard navigation basic', () => {
   })
 
   it('prevents converting spec sessions to specs with Cmd+S', async () => {
-    // Mock sessions with a spec session and a running session
-    const sessions = [
-      { info: { session_id: 'spec-session', branch: 'spec/branch', worktree_path: '/spec', base_branch: 'main',  status: 'spec', session_state: 'spec', is_current: false, session_type: 'worktree', ready_to_merge: false }, terminals: [] },
-      { info: { session_id: 'running-session', branch: 'running/branch', worktree_path: '/running', base_branch: 'main',  status: 'active', is_current: false, session_type: 'worktree', ready_to_merge: false }, terminals: [] },
+    const specSessions = [
+      { info: { session_id: 'spec-session', branch: 'spec/branch', worktree_path: '/spec', base_branch: 'main', status: 'spec', session_state: 'spec', is_current: false, session_type: 'worktree', ready_to_merge: false }, terminals: [] },
     ]
 
     vi.mocked(invoke).mockImplementation(async (cmd) => {
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return specSessions
       if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
       if (cmd === TauriCommands.GetCurrentDirectory) return '/cwd'
       if (cmd === TauriCommands.TerminalExists) return false
@@ -308,7 +323,7 @@ describe('Sidebar keyboard navigation basic', () => {
       if (cmd === TauriCommands.DirectoryExists) return true
       if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
       if (cmd === TauriCommands.GetProjectSessionsSettings) {
-        return { filter_mode: 'all', sort_mode: 'name' }
+        return { filter_mode: 'spec', sort_mode: 'name' }
       }
       if (cmd === TauriCommands.SetProjectSessionsSettings) {
         return undefined
@@ -320,45 +335,68 @@ describe('Sidebar keyboard navigation basic', () => {
 
     await waitFor(() => {
       expect(screen.getByText('spec-session')).toBeInTheDocument()
-      expect(screen.getByText('running-session')).toBeInTheDocument()
     })
 
-    // Select the spec session
     const specButton = screen.getByText('spec-session').closest('[role="button"]') as HTMLElement | null
     if (specButton) {
       await click(specButton)
     }
 
-    // Wait for selection to be updated
     await waitFor(() => {
       const selectedSpecButton = screen.getByText('spec-session').closest('[role="button"]')
       expect(selectedSpecButton?.className).toContain('session-ring')
     })
 
-    // Try to convert spec to spec with Cmd+S - should not open modal
     await press('s', { metaKey: true })
 
-    // Modal should not appear
     await waitFor(() => {
       expect(screen.queryByText('Convert to Spec')).not.toBeInTheDocument()
     })
+  })
 
-    // Now select the running session
+  it('allows converting running sessions to specs with Cmd+S', async () => {
+    const runningSessions = [
+      { info: { session_id: 'running-session', branch: 'running/branch', worktree_path: '/running', base_branch: 'main', status: 'active', is_current: false, session_type: 'worktree', ready_to_merge: false }, terminals: [] },
+    ]
+
+    vi.mocked(invoke).mockImplementation(async (cmd) => {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return runningSessions
+      if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
+      if (cmd === TauriCommands.GetCurrentDirectory) return '/cwd'
+      if (cmd === TauriCommands.TerminalExists) return false
+      if (cmd === TauriCommands.CreateTerminal) return true
+      if (cmd === TauriCommands.ListAvailableOpenApps) return [{ id: 'finder', name: 'Finder', kind: 'system' }]
+      if (cmd === TauriCommands.GetDefaultOpenApp) return 'finder'
+      if (cmd === TauriCommands.PathExists) return true
+      if (cmd === TauriCommands.DirectoryExists) return true
+      if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
+      if (cmd === TauriCommands.GetProjectSessionsSettings) {
+        return { filter_mode: 'running', sort_mode: 'name' }
+      }
+      if (cmd === TauriCommands.SetProjectSessionsSettings) {
+        return undefined
+      }
+      return undefined
+    })
+
+    await renderSidebar()
+
+    await waitFor(() => {
+      expect(screen.getByText('running-session')).toBeInTheDocument()
+    })
+
     const runningButton = screen.getByText('running-session').closest('[role="button"]') as HTMLElement | null
     if (runningButton) {
       await click(runningButton)
     }
 
-    // Wait for selection to be updated
     await waitFor(() => {
       const selectedRunningButton = screen.getByText('running-session').closest('[role="button"]')
       expect(selectedRunningButton?.className).toContain('session-ring')
     })
 
-    // Try to convert running session to spec with Cmd+S - should open modal
     await press('s', { metaKey: true })
 
-    // Modal should appear
     await waitFor(() => {
       expect(screen.getByText('Convert to Spec')).toBeInTheDocument()
     })

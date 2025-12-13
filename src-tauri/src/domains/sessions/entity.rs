@@ -25,7 +25,6 @@ impl FromStr for SortMode {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum FilterMode {
-    All,
     Spec,
     Running,
     Reviewed,
@@ -36,9 +35,8 @@ impl FromStr for FilterMode {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "all" => Ok(FilterMode::All),
+            "all" | "running" => Ok(FilterMode::Running),
             "spec" => Ok(FilterMode::Spec),
-            "running" => Ok(FilterMode::Running),
             "reviewed" => Ok(FilterMode::Reviewed),
             _ => Err(format!("Invalid filter mode: {s}")),
         }

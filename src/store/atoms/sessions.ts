@@ -122,9 +122,8 @@ function filterSessions(sessions: EnrichedSession[], filterMode: FilterMode): En
             return sessions.filter(session => mapSessionUiState(session.info) === SessionState.Running)
         case FilterMode.Reviewed:
             return sessions.filter(session => mapSessionUiState(session.info) === SessionState.Reviewed)
-        case FilterMode.All:
         default:
-            return sessions
+            return sessions.filter(session => mapSessionUiState(session.info) === SessionState.Running)
     }
 }
 

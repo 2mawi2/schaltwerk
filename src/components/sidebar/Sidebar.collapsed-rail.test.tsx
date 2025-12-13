@@ -61,7 +61,7 @@ describe('Collapsed sidebar mini rail', () => {
         case TauriCommands.SchaltwerkCoreListSessionsByState:
           return Promise.resolve([])
         case TauriCommands.GetProjectSessionsSettings:
-          return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
+          return Promise.resolve({ filter_mode: 'spec', sort_mode: 'name' })
         case TauriCommands.SetProjectSessionsSettings:
           return Promise.resolve()
         case TauriCommands.GetCurrentBranchName:
@@ -120,7 +120,7 @@ describe('Collapsed sidebar mini rail', () => {
       expect(screen.getByTestId('collapsed-rail')).toBeInTheDocument()
     })
 
-    const card = container.querySelector('[data-session-id="running-session"]')
+    const card = container.querySelector('[data-session-id="spec-session"]')
     expect(card).toBeTruthy()
     expect(card?.querySelectorAll('button').length).toBe(0)
   })

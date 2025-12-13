@@ -1,5 +1,4 @@
 export enum FilterMode {
-    All = 'all',
     Spec = 'spec',
     Running = 'running',
     Reviewed = 'reviewed'
@@ -12,5 +11,5 @@ export function isValidFilterMode(value: unknown): value is FilterMode {
 }
 
 export function getDefaultFilterMode(): FilterMode {
-    return FilterMode.All
+    return FilterMode.Running
 }

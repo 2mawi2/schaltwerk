@@ -40,7 +40,6 @@ describe('Sidebar creation-date sorting', () => {
       createSession('alpha_session', '2024-01-01T10:00:00Z'),
       createSession('zebra_session', '2024-01-02T12:00:00Z'),
       createSession('beta_session', '2023-12-31T09:00:00Z'),
-      createSession('reviewed_session', '2024-01-03T08:00:00Z', true),
     ]
 
     vi.mocked(invoke).mockImplementation(async (cmd: string, _args?: MockTauriInvokeArgs) => {
@@ -50,7 +49,7 @@ describe('Sidebar creation-date sorting', () => {
         case TauriCommands.SchaltwerkCoreListSessionsByState:
           return []
         case TauriCommands.GetProjectSessionsSettings:
-          return { filter_mode: 'all' }
+          return { filter_mode: 'running' }
         case TauriCommands.SetProjectSessionsSettings:
           return undefined
         case TauriCommands.GetCurrentDirectory:
@@ -85,7 +84,6 @@ describe('Sidebar creation-date sorting', () => {
       expect.stringContaining('zebra_session'),
       expect.stringContaining('alpha_session'),
       expect.stringContaining('beta_session'),
-      expect.stringContaining('reviewed_session'),
     ])
   })
 })

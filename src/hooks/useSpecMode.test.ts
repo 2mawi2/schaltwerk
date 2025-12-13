@@ -377,7 +377,7 @@ describe('useSpecMode', () => {
         sessions: [spec1, spec2],
         setFilterMode: mockSetFilterMode,
         setSelection: mockSetSelection,
-        currentFilterMode: FilterMode.All
+        currentFilterMode: FilterMode.Running
       }))
 
       // Select spec-2
@@ -396,14 +396,14 @@ describe('useSpecMode', () => {
 
     it('should persist last selected spec to sessionStorage', () => {
       const spec = createMockSpec('test-spec')
-      
+
       const { result } = renderHook(() => useSpecMode({
         projectPath: '/test/project',
         selection: mockOrchestratorSelection,
         sessions: [spec],
         setFilterMode: mockSetFilterMode,
         setSelection: mockSetSelection,
-        currentFilterMode: FilterMode.All
+        currentFilterMode: FilterMode.Running
       }))
 
       act(() => {
@@ -416,14 +416,14 @@ describe('useSpecMode', () => {
     it('should fall back to first spec if last selected no longer exists', async () => {
       const spec1 = createMockSpec('spec-1')
       const spec2 = createMockSpec('spec-2')
-      
+
       const { result, rerender } = renderHook(() => useSpecMode({
         projectPath: '/test/project',
         selection: mockOrchestratorSelection,
         sessions: [spec1, spec2],
         setFilterMode: mockSetFilterMode,
         setSelection: mockSetSelection,
-        currentFilterMode: FilterMode.All
+        currentFilterMode: FilterMode.Running
       }))
 
       // Select spec-2
@@ -443,7 +443,7 @@ describe('useSpecMode', () => {
         sessions: [spec1], // spec-2 removed
         setFilterMode: mockSetFilterMode,
         setSelection: mockSetSelection,
-        currentFilterMode: FilterMode.All
+        currentFilterMode: FilterMode.Running
       })
 
       // Check that when toggling with removed spec, it would fall back
@@ -532,7 +532,7 @@ describe('useSpecMode', () => {
       expect(mockSetFilterMode).toHaveBeenCalledWith(FilterMode.Spec)
     })
 
-    it('should default to All filter if no previous filter was saved', async () => {
+    it('should default to Running filter if no previous filter was saved', async () => {
       const { result } = renderHook(() => useSpecMode({
         projectPath: '/test/project',
         selection: mockOrchestratorSelection,
@@ -552,8 +552,8 @@ describe('useSpecMode', () => {
         await result.current.handleExitSpecMode()
       })
 
-      // Should default to All filter
-      expect(mockSetFilterMode).toHaveBeenCalledWith(FilterMode.All)
+      // Should default to Running filter
+      expect(mockSetFilterMode).toHaveBeenCalledWith(FilterMode.Running)
     })
   })
 
@@ -607,7 +607,7 @@ describe('useSpecMode', () => {
         sessions: [spec],
         setFilterMode: mockSetFilterMode,
         setSelection: mockSetSelection,
-        currentFilterMode: FilterMode.All
+        currentFilterMode: FilterMode.Running
       }))
 
       await act(async () => {
@@ -621,14 +621,14 @@ describe('useSpecMode', () => {
 
     it('should not save selection if already in orchestrator', async () => {
       const spec = createMockSpec('test-spec')
-      
+
       const { result } = renderHook(() => useSpecMode({
         projectPath: '/test/project',
         selection: mockOrchestratorSelection, // Already in orchestrator
         sessions: [spec],
         setFilterMode: mockSetFilterMode,
         setSelection: mockSetSelection,
-        currentFilterMode: FilterMode.All
+        currentFilterMode: FilterMode.Running
       }))
 
       await act(async () => {

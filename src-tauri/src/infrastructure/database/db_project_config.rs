@@ -185,10 +185,10 @@ impl ProjectConfigMethods for Database {
 
         match query_res {
             Ok(filter_opt) => Ok(ProjectSessionsSettings {
-                filter_mode: filter_opt.unwrap_or_else(|| "all".to_string()),
+                filter_mode: filter_opt.unwrap_or_else(|| "running".to_string()),
             }),
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(ProjectSessionsSettings {
-                filter_mode: "all".to_string(),
+                filter_mode: "running".to_string(),
             }),
             Err(e) => Err(e.into()),
         }

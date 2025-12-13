@@ -315,7 +315,6 @@ impl SessionUtils {
         filter_mode: &FilterMode,
     ) -> Vec<EnrichedSession> {
         match filter_mode {
-            FilterMode::All => sessions,
             FilterMode::Spec => sessions
                 .into_iter()
                 .filter(|s| s.info.session_state == SessionState::Spec)

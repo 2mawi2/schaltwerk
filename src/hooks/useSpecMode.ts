@@ -109,7 +109,7 @@ export function useSpecMode({ projectPath, selection, sessions, setFilterMode, s
     }
     
     // Save current filter mode (always save it, including Spec)
-    const filterToSave = currentFilterMode || FilterMode.All
+    const filterToSave = currentFilterMode || FilterMode.Running
     setPreviousFilterMode(filterToSave)
     if (projectPath) {
       const projectId = getBasename(projectPath)
@@ -250,8 +250,8 @@ export function useSpecMode({ projectPath, selection, sessions, setFilterMode, s
         sessionStorage.removeItem(`schaltwerk:prev-filter:${projectId}`)
       }
     } else {
-      // Default to All filter if no previous filter was saved
-      setFilterMode(FilterMode.All)
+      // Default to Running filter if no previous filter was saved
+      setFilterMode(FilterMode.Running)
     }
     
     // Then restore previous selection if available

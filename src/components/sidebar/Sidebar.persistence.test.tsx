@@ -32,12 +32,12 @@ const createSession = (id: string, createdAt: string, readyToMerge = false): Enr
 })
 
 describe('Sidebar session ordering and persistence', () => {
-  let savedFilterMode: string = FilterMode.All
+  let savedFilterMode: string = FilterMode.Running
   let lastPersistedSettings: Record<string, unknown> | null = null
 
   beforeEach(() => {
     vi.clearAllMocks()
-    savedFilterMode = FilterMode.All
+    savedFilterMode = FilterMode.Running
     lastPersistedSettings = null
 
     const sessions = [
@@ -79,7 +79,7 @@ describe('Sidebar session ordering and persistence', () => {
     vi.restoreAllMocks()
   })
 
-  it('sorts sessions by creation date while keeping reviewed sessions last', async () => {
+  it('sorts running sessions by creation date descending', async () => {
     render(
       <TestProviders>
         <Sidebar />
@@ -91,7 +91,7 @@ describe('Sidebar session ordering and persistence', () => {
         const text = btn.textContent || ''
         return text.includes('para/') && !text.includes('main (orchestrator)')
       })
-      expect(sessionButtons).toHaveLength(4)
+      expect(sessionButtons).toHaveLength(3)
     })
 
     const orderedButtons = screen.getAllByRole('button').filter(btn => {
@@ -99,10 +99,32 @@ describe('Sidebar session ordering and persistence', () => {
       return text.includes('para/') && !text.includes('main (orchestrator)')
     })
 
-    expect(orderedButtons[0]).toHaveTextContent('test_session_b') // newest unreviewed
+    expect(orderedButtons[0]).toHaveTextContent('test_session_b') // newest
     expect(orderedButtons[1]).toHaveTextContent('test_session_a')
-    expect(orderedButtons[2]).toHaveTextContent('test_session_c') // oldest unreviewed
-    expect(orderedButtons[3]).toHaveTextContent('reviewed_session') // reviewed pinned last
+    expect(orderedButtons[2]).toHaveTextContent('test_session_c') // oldest
+  })
+
+  it('shows reviewed sessions separately in reviewed filter', async () => {
+    render(
+      <TestProviders>
+        <Sidebar />
+      </TestProviders>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTitle('Show reviewed agents')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByTitle('Show reviewed agents'))
+
+    await waitFor(() => {
+      const sessionButtons = screen.getAllByRole('button').filter(btn => {
+        const text = btn.textContent || ''
+        return text.includes('para/') && !text.includes('main (orchestrator)')
+      })
+      expect(sessionButtons).toHaveLength(1)
+      expect(sessionButtons[0]).toHaveTextContent('reviewed_session')
+    })
   })
 
   it('persists filter mode changes without emitting legacy sort state', async () => {

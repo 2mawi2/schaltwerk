@@ -39,7 +39,7 @@ describe('Sidebar status indicators and actions', () => {
       if (cmd === TauriCommands.TerminalExists) return false
       if (cmd === TauriCommands.CreateTerminal) return true
       if (cmd === TauriCommands.GetProjectSessionsSettings) {
-        return { filter_mode: 'all', sort_mode: 'name' }
+        return { filter_mode: 'running', sort_mode: 'name' }
       }
       if (cmd === TauriCommands.SetProjectSessionsSettings) {
         return undefined
@@ -67,11 +67,15 @@ describe('Sidebar status indicators and actions', () => {
     render(<TestProviders><Sidebar /></TestProviders>)
 
     await waitFor(() => {
+      expect(screen.getByTitle('Show reviewed agents')).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByTitle('Show reviewed agents'))
+
+    await waitFor(() => {
       const items = screen.getAllByRole('button').filter(b => (b.textContent || '').includes('para/'))
-      expect(items.length).toBe(2)
+      expect(items.length).toBe(1)
     })
 
-    // Hover state controls visibility of action buttons; but they are in DOM and clickable
     const reviewedItem = screen.getAllByRole('button').find(b => /s2/.test(b.textContent || ''))!
     expect(reviewedItem).toHaveTextContent('Reviewed')
 
@@ -128,7 +132,7 @@ describe('Sidebar status indicators and actions', () => {
       if (cmd === TauriCommands.PathExists) return true
       if (cmd === TauriCommands.DirectoryExists) return true
       if (cmd === TauriCommands.GetProjectSessionsSettings) {
-        return { filter_mode: 'all', sort_mode: 'name' }
+        return { filter_mode: 'running', sort_mode: 'name' }
       }
       if (cmd === TauriCommands.SetProjectSessionsSettings) {
         return undefined
@@ -139,6 +143,12 @@ describe('Sidebar status indicators and actions', () => {
     const emitSpy = vi.spyOn(uiEvents, 'emitUiEvent')
 
     render(<TestProviders><Sidebar /></TestProviders>)
+
+    // Switch to Spec filter to see spec sessions
+    await waitFor(() => {
+      expect(screen.getByTitle('Show spec agents')).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByTitle('Show spec agents'))
 
     await waitFor(() => {
       expect(screen.getByText('Spec Alpha')).toBeInTheDocument()
@@ -186,10 +196,10 @@ describe('Sidebar status indicators and actions', () => {
 
     await waitFor(() => {
       const items = screen.getAllByRole('button').filter(b => (b.textContent || '').includes('para/'))
-      expect(items.length).toBe(2)
+      expect(items.length).toBe(1)
     })
 
-    const cancelBtn = screen.getAllByRole('button', { name: /Cancel session/i })[0]
+    const cancelBtn = screen.getByRole('button', { name: /Cancel session/i })
 
     const eventSpy = vi.fn()
     window.addEventListener('schaltwerk:session-action', eventSpy as EventListener, { once: true })
@@ -229,7 +239,7 @@ describe('Sidebar status indicators and actions', () => {
       if (cmd === TauriCommands.PathExists) return true
       if (cmd === TauriCommands.DirectoryExists) return true
       if (cmd === TauriCommands.GetProjectSessionsSettings) {
-        return { filter_mode: 'all', sort_mode: 'name' }
+        return { filter_mode: 'running', sort_mode: 'name' }
       }
       if (cmd === TauriCommands.SetProjectSessionsSettings) {
         return undefined
@@ -240,6 +250,12 @@ describe('Sidebar status indicators and actions', () => {
     vi.mocked(listen).mockResolvedValue(() => {})
 
     render(<TestProviders><Sidebar /></TestProviders>)
+
+    // Switch to Spec filter to see spec sessions
+    await waitFor(() => {
+      expect(screen.getByTitle('Show spec agents')).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByTitle('Show spec agents'))
 
     await waitFor(() => {
       expect(screen.getByText('Spec One')).toBeInTheDocument()
@@ -345,7 +361,7 @@ describe('Sidebar status indicators and actions', () => {
       if (cmd === TauriCommands.TerminalExists) return false
       if (cmd === TauriCommands.CreateTerminal) return true
       if (cmd === TauriCommands.GetProjectSessionsSettings) {
-        return { filter_mode: 'all', sort_mode: 'name' }
+        return { filter_mode: 'running', sort_mode: 'name' }
       }
       if (cmd === TauriCommands.SetProjectSessionsSettings) {
         return undefined
@@ -372,13 +388,7 @@ describe('Sidebar status indicators and actions', () => {
     const confirmButton = screen.getByRole('button', { name: /Convert to Spec/ })
     fireEvent.click(confirmButton)
 
-    await waitFor(() => {
-      const sessionButton = screen.getAllByRole('button').find(b => /s1-spec/.test(b.textContent || ''))
-      expect(sessionButton).toBeTruthy()
-      expect(sessionButton).toHaveTextContent('Spec')
-    })
-
-    // Switch to spec filter and ensure the session is listed there
+    // Switch to spec filter to see the converted session
     fireEvent.click(screen.getByTitle('Show spec agents'))
 
     await waitFor(() => {
