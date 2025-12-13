@@ -233,7 +233,6 @@ class TerminalInstanceRegistry {
     record.pendingChunks = [];
     record.rafScheduled = false;
     record.hadClearInBatch = false;
-    record.hadClearInBatch = false;
 
     const flushChunks = () => {
       record.rafScheduled = false;
@@ -248,8 +247,6 @@ class TerminalInstanceRegistry {
       const hadClear = record.hadClearInBatch ?? false;
       record.hadClearInBatch = false;
 
-      this.notifyOutputCallbacks(record);
-
       try {
         const buffer = record.xterm.raw.buffer.active;
         const baseY = buffer.baseY;
@@ -261,6 +258,10 @@ class TerminalInstanceRegistry {
           if (shouldScroll) {
             record.xterm.raw.scrollToBottom();
           }
+          if (hadClear) {
+            this.notifyClearCallbacks(record);
+          }
+          this.notifyOutputCallbacks(record);
         });
       } catch (error) {
         logger.debug(`[Registry] Failed to write batch for ${record.id}`, error);
@@ -275,7 +276,6 @@ class TerminalInstanceRegistry {
       // If a clear scrollback sequence arrives, drop any buffered chunks so we don't
       // momentarily render stale content before the clear is applied.
       if (chunk.includes(CLEAR_SCROLLBACK_SEQ)) {
-        this.notifyClearCallbacks(record);
         record.pendingChunks = [];
         record.hadClearInBatch = true;
       }
