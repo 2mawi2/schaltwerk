@@ -8,6 +8,8 @@ import { MockTauriInvokeArgs } from '../../types/testing'
 import { UiEvent, emitUiEvent } from '../../common/uiEvents'
 import { sessionTerminalGroup } from '../../common/terminalIdentity'
 import { resetSplitDragForTests } from '../../utils/splitDragCoordinator'
+import { useSetAtom } from 'jotai'
+import { addTabActionAtom } from '../../store/atoms/terminal'
 
 // Type definitions for proper typing
 interface MockSplitProps {
@@ -188,6 +190,7 @@ vi.mock('./TerminalTabs', () => {
     const { baseTerminalId, isCommander, onTerminalClick } = props
     // For orchestrator, add -0 suffix; for sessions, no suffix
     const terminalId = isCommander ? `${baseTerminalId}-0` : baseTerminalId
+    const addTabAction = useSetAtom(addTabActionAtom)
     const focusRef = useRef<ReturnType<typeof vi.fn> | null>(null)
     if (!focusRef.current) focusRef.current = vi.fn()
     const focus = focusRef.current
@@ -204,6 +207,12 @@ vi.mock('./TerminalTabs', () => {
 
     const focusTerminal = vi.fn((tid?: string) => { lastFocusedTerminalId = tid || null })
     const tabFns = getOrCreateTabFns(terminalId)
+
+    useEffect(() => {
+      tabFns.addTab.mockImplementation(() => {
+        addTabAction({ baseTerminalId, activateNew: true, maxTabs: 6 })
+      })
+    }, [addTabAction, baseTerminalId, tabFns])
 
     useImperativeHandle(ref, () => ({ 
       focus: focusRef.current!,
@@ -771,6 +780,17 @@ describe('TerminalGrid', () => {
    })
 
   describe('Terminal Tab Management', () => {
+    it('adds only one bottom terminal per click', async () => {
+      await renderGrid()
+      await waitForGridReady()
+
+      const addButton = screen.getByTitle('Add new terminal')
+      fireEvent.click(addButton)
+
+      await screen.findByText('Terminal 2', {}, { timeout: 3000 })
+      expect(screen.queryByText('Terminal 3')).not.toBeInTheDocument()
+    })
+
     it('shows + icon again after deleting terminal tabs when at max capacity', async () => {
       await renderGrid()
       vi.useRealTimers()
