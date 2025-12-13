@@ -124,7 +124,7 @@ export const AnimatedText: React.FC<AnimatedTextProps> = ({
   // First check if we have a predefined ASCII art for this text
   const normalizedText = text.toLowerCase().replace(/[^\w\s]/g, '').trim()
   let asciiArt = textToAsciiMap[normalizedText]
-  
+
   // If not found, try to match partial words (like "loading..." -> "loading")
   if (!asciiArt) {
     for (const [key, art] of Object.entries(textToAsciiMap)) {
@@ -134,7 +134,7 @@ export const AnimatedText: React.FC<AnimatedTextProps> = ({
       }
     }
   }
-  
+
   // If still not found, generate simple ASCII
   if (!asciiArt) {
     asciiArt = stringToSimpleAscii(normalizedText)
@@ -142,21 +142,20 @@ export const AnimatedText: React.FC<AnimatedTextProps> = ({
 
   return (
     <div className={`flex ${centered ? 'justify-center' : ''} items-center ${className}`}>
-      <div className={sizeClasses[size]}>
-        <AsciiBuilderLogo
-          asciiArt={asciiArt}
-          colorClassName={colorClassName ?? DEFAULT_COLOR_CLASS}
-          paused={paused}
-          idleMode={idleMode}
-          groupOrder="center-out"
-          fallDurationMs={400 / speedMultiplier}
-          settleDurationMs={600 / speedMultiplier}
-          groupGapMs={80 / speedMultiplier}
-          idleArtifactMagnitude={2.8}
-          idleArtifactMinDelayMs={1200 / speedMultiplier}
-          idleArtifactMaxDelayMs={2000 / speedMultiplier}
-        />
-      </div>
+      <AsciiBuilderLogo
+        asciiArt={asciiArt}
+        colorClassName={colorClassName ?? DEFAULT_COLOR_CLASS}
+        paused={paused}
+        idleMode={idleMode}
+        groupOrder="center-out"
+        fallDurationMs={400 / speedMultiplier}
+        settleDurationMs={600 / speedMultiplier}
+        groupGapMs={80 / speedMultiplier}
+        idleArtifactMagnitude={2.8}
+        idleArtifactMinDelayMs={1200 / speedMultiplier}
+        idleArtifactMaxDelayMs={2000 / speedMultiplier}
+        textSizeClass={sizeClasses[size]}
+      />
     </div>
   )
 }
