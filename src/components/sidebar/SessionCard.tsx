@@ -1,6 +1,5 @@
 import { memo, useCallback } from "react";
 import { clsx } from "clsx";
-import { formatLastActivity } from "../../utils/time";
 import { SessionActions } from "../session/SessionActions";
 import { SessionInfo, SessionMonitorStatus } from "../../types/session";
 import { UncommittedIndicator } from "../common/UncommittedIndicator";
@@ -13,7 +12,6 @@ import { getSessionDisplayName } from "../../utils/sessionDisplayName";
 import { useMultipleShortcutDisplays } from "../../keyboardShortcuts/useShortcutDisplay";
 import { KeyboardShortcutAction } from "../../keyboardShortcuts/config";
 import { detectPlatformSafe } from "../../keyboardShortcuts/helpers";
-import { EpicSelect } from "../shared/EpicSelect";
 import { useEpics } from "../../hooks/useEpics";
 
 interface SessionCardProps {
@@ -171,8 +169,6 @@ const sessionText = {
   },
 };
 
-const STATUS_SLOT_WIDTH = 72;
-
 export const SessionCard = memo<SessionCardProps>(
   ({
     session,
@@ -249,12 +245,10 @@ export const SessionCard = memo<SessionCardProps>(
     const s = session.info;
     const color = getSessionStateColor(s.session_state);
     const sessionName = getSessionDisplayName(s);
-    const currentAgent = s.current_task || `Working on ${sessionName}`;
+    const taskDescription = s.current_task || s.spec_content;
     const progressPercent = s.todo_percentage || 0;
     const additions = s.diff_stats?.insertions || s.diff_stats?.additions || 0;
     const deletions = s.diff_stats?.deletions || 0;
-    const filesChanged = s.diff_stats?.files_changed || 0;
-    const lastActivity = formatLastActivity(s.last_modified);
     const isBlocked = s.is_blocked || false;
     const isReadyToMerge = s.ready_to_merge || false;
     const isReviewedState = s.session_state === "reviewed";
@@ -271,8 +265,8 @@ export const SessionCard = memo<SessionCardProps>(
       isReviewedState && !isReadyToMerge && !!s.has_uncommitted_changes;
 
     const handleEpicChange = useCallback(
-      async (nextEpicId: string | null) => {
-        await setItemEpic(s.session_id, nextEpicId);
+      (nextEpicId: string | null) => {
+        void setItemEpic(s.session_id, nextEpicId);
       },
       [setItemEpic, s.session_id],
     );
@@ -335,7 +329,7 @@ export const SessionCard = memo<SessionCardProps>(
           className="flex items-start justify-between gap-2"
           style={{ marginBottom: "8px" }}
         >
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 flex items-center gap-2">
             <div className="truncate flex items-center gap-2" style={sessionText.title}>
               {onRename ? (
                 <InlineEditableText
@@ -347,78 +341,99 @@ export const SessionCard = memo<SessionCardProps>(
               ) : (
                 sessionName
               )}
-              {isReviewedState && (
-                <span
-                  className="ml-2"
-                  style={{
-                    ...sessionText.badge,
-                    color: theme.colors.accent.green.light,
-                  }}
-                >
-                  ✓ Reviewed
-                </span>
-              )}
-              {!isReviewedState && !isRunning && sessionState === "spec" && (
-                <span
-                  className="px-1.5 py-0.5 rounded border"
-                  style={{
-                    ...sessionText.badge,
-                    backgroundColor: theme.colors.accent.amber.bg,
-                    color: theme.colors.accent.amber.light,
-                    borderColor: theme.colors.accent.amber.border,
-                  }}
-                >
-                  Spec
-                </span>
-              )}
-              {isBlocked && (
-                <span
-                  className="ml-2"
-                  style={{
-                    ...sessionText.badge,
-                    color: theme.colors.accent.red.light,
-                  }}
-                >
-                  ⚠ blocked
-                </span>
-              )}
+            </div>
+            {sessionState !== "spec" && (
+              <div className="flex-shrink-0 flex items-center">
+                {!s.attention_required &&
+                  sessionState === "running" &&
+                  !isReadyToMerge && <ProgressIndicator size="sm" />}
+                {s.attention_required && (
+                  <span
+                    className="idle-indicator"
+                    style={{
+                      fontSize: theme.fontSize.caption,
+                      lineHeight: theme.lineHeight.compact,
+                      fontFamily: theme.fontFamily.sans,
+                      fontWeight: 600,
+                      color: theme.colors.accent.yellow.light,
+                    }}
+                  >
+                    ⏸︎ Idle
+                  </span>
+                )}
+                {isRunning && isReviewedState && (
+                  <span
+                    className="px-1.5 py-0.5 rounded border"
+                    style={{
+                      ...sessionText.badge,
+                      backgroundColor: theme.colors.accent.magenta.bg,
+                      color: theme.colors.accent.magenta.DEFAULT,
+                      borderColor: theme.colors.accent.magenta.border,
+                    }}
+                  >
+                    Running
+                  </span>
+                )}
+              </div>
+            )}
+            {isReviewedState && (
+              <span
+                className="flex-shrink-0"
+                style={{
+                  ...sessionText.badge,
+                  color: theme.colors.accent.green.light,
+                }}
+              >
+                ✓ Reviewed
+              </span>
+            )}
+            {isBlocked && (
+              <span
+                className="flex-shrink-0"
+                style={{
+                  ...sessionText.badge,
+                  color: theme.colors.accent.red.light,
+                }}
+              >
+                ⚠ blocked
+              </span>
+            )}
 
-              {showReviewedDirtyBadge && (
-                <UncommittedIndicator
-                  className="ml-2"
-                  sessionName={sessionName}
-                  samplePaths={s.top_uncommitted_paths}
-                />
-              )}
+            {showReviewedDirtyBadge && (
+              <UncommittedIndicator
+                className="flex-shrink-0"
+                sessionName={sessionName}
+                samplePaths={s.top_uncommitted_paths}
+              />
+            )}
 
-              {hasFollowUpMessage && !isReadyToMerge && (
-                <span
-                  className="ml-2 inline-flex items-center gap-1"
-                  title="New follow-up message received"
-                >
-                  <span className="flex h-4 w-4 relative">
-                    <span
-                      className="absolute inline-flex h-full w-full rounded-full opacity-75"
-                      style={{
-                        backgroundColor: theme.colors.accent.blue.light,
-                      }}
-                    ></span>
-                    <span
-                      className="relative inline-flex rounded-full h-4 w-4 text-white items-center justify-center font-bold"
-                      style={{
-                        ...sessionText.badge,
-                        fontSize: theme.fontSize.caption,
-                        backgroundColor: theme.colors.accent.blue.DEFAULT,
-                      }}
-                    >
-                      !
-                    </span>
+            {hasFollowUpMessage && !isReadyToMerge && (
+              <span
+                className="flex-shrink-0 inline-flex items-center gap-1"
+                title="New follow-up message received"
+              >
+                <span className="flex h-4 w-4 relative">
+                  <span
+                    className="absolute inline-flex h-full w-full rounded-full opacity-75"
+                    style={{
+                      backgroundColor: theme.colors.accent.blue.light,
+                    }}
+                  ></span>
+                  <span
+                    className="relative inline-flex rounded-full h-4 w-4 text-white items-center justify-center font-bold"
+                    style={{
+                      ...sessionText.badge,
+                      fontSize: theme.fontSize.caption,
+                      backgroundColor: theme.colors.accent.blue.DEFAULT,
+                    }}
+                  >
+                    !
                   </span>
                 </span>
-              )}
-            </div>
+              </span>
+            )}
           </div>
-          <div className="flex items-start gap-2 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0">
             {index < 8 && (
               <span
                 className="px-1.5 py-0.5 rounded bg-slate-700/50"
@@ -441,87 +456,63 @@ export const SessionCard = memo<SessionCardProps>(
             )}
           </div>
         </div>
-        {sessionState !== "spec" && (
-          <div className="flex items-center justify-between gap-2">
-            <div className="truncate max-w-[50%]" style={sessionText.meta}>
-              {s.branch}
-            </div>
-            <div className="flex items-center gap-2">
-              <SessionActions
-                sessionState={sessionState as "spec" | "running" | "reviewed"}
-                isReadyToMerge={isReadyToMerge}
-                sessionId={s.session_id}
-                sessionSlug={s.session_id}
-                worktreePath={s.worktree_path}
-                branch={s.branch}
-                defaultBranch={s.parent_branch ?? undefined}
-                showPromoteIcon={showPromoteIcon}
-                onCreatePullRequest={onCreatePullRequest}
-                prNumber={s.pr_number}
-                prUrl={s.pr_url}
-                onRunSpec={onRunDraft}
-                onRefineSpec={onRefineSpec}
-                onDeleteSpec={onDeleteSpec}
-                onMarkReviewed={onMarkReady}
-                onUnmarkReviewed={onUnmarkReady}
-                onCancel={onCancel}
-                onConvertToSpec={onConvertToSpec}
-                onPromoteVersion={onPromoteVersion}
-                onPromoteVersionHover={onPromoteVersionHover}
-                onPromoteVersionHoverEnd={onPromoteVersionHoverEnd}
-                onReset={onReset}
-                onSwitchModel={onSwitchModel}
-                isResetting={isResetting}
-                onMerge={onMerge}
-                onQuickMerge={onQuickMerge}
-                disableMerge={disableMerge}
-                mergeStatus={mergeStatus}
-                mergeConflictingPaths={s.merge_conflicting_paths}
-                isMarkReadyDisabled={isMarkReadyDisabled}
-                onLinkPr={onLinkPr}
-              />
-            </div>
+        {taskDescription && (
+          <div
+            className="truncate"
+            style={{
+              ...sessionText.agent,
+              color: theme.colors.text.primary,
+            }}
+            title={taskDescription}
+          >
+            {taskDescription}
           </div>
         )}
-        {sessionState === "spec" && (
-          <div className="flex items-center justify-end">
-            <SessionActions
-              sessionState={sessionState as "spec" | "running" | "reviewed"}
-              isReadyToMerge={isReadyToMerge}
-              sessionId={s.session_id}
-              sessionSlug={s.session_id}
-              worktreePath={s.worktree_path}
-              branch={s.branch}
-              defaultBranch={s.parent_branch ?? undefined}
-              showPromoteIcon={showPromoteIcon}
-              onCreatePullRequest={onCreatePullRequest}
-              prNumber={s.pr_number}
-              prUrl={s.pr_url}
-              onRunSpec={onRunDraft}
-              onRefineSpec={onRefineSpec}
-              onDeleteSpec={onDeleteSpec}
-              onMarkReviewed={onMarkReady}
-              onUnmarkReviewed={onUnmarkReady}
-              onCancel={onCancel}
-              onConvertToSpec={onConvertToSpec}
-              onPromoteVersion={onPromoteVersion}
-              onPromoteVersionHover={onPromoteVersionHover}
-              onPromoteVersionHoverEnd={onPromoteVersionHoverEnd}
-              onReset={onReset}
-              onSwitchModel={onSwitchModel}
-              isResetting={isResetting}
-              onMerge={onMerge}
-              onQuickMerge={onQuickMerge}
-              disableMerge={disableMerge}
-              mergeStatus={mergeStatus}
-              mergeConflictingPaths={s.merge_conflicting_paths}
-              isMarkReadyDisabled={isMarkReadyDisabled}
-              onLinkPr={onLinkPr}
-            />
-          </div>
-        )}
-        <div className="mt-2 truncate" style={sessionText.agent}>
-          {currentAgent}
+        <div
+          className="mt-1 flex items-center gap-2"
+          style={sessionText.meta}
+        >
+          {sessionState === "spec" ? (
+            <span
+              className="flex-shrink-0 inline-flex items-center gap-1 px-1.5 py-[1px] rounded border"
+              style={{
+                ...sessionText.badge,
+                backgroundColor: theme.colors.accent.amber.bg,
+                color: theme.colors.accent.amber.light,
+                borderColor: theme.colors.accent.amber.border,
+              }}
+            >
+              Spec
+            </span>
+          ) : (
+            <>
+              {agentType && !isWithinVersionGroup && (
+                <span
+                  className="flex-shrink-0 inline-flex items-center gap-1 px-1.5 py-[1px] rounded border"
+                  style={{
+                    ...sessionText.badge,
+                    backgroundColor: colorScheme.bg,
+                    color: colorScheme.light,
+                    borderColor: colorScheme.border,
+                  }}
+                  title={`Agent: ${agentLabel}`}
+                >
+                  <span
+                    className="w-1 h-1 rounded-full"
+                    style={{
+                      backgroundColor: colorScheme.DEFAULT,
+                    }}
+                  />
+                  {agentLabel}
+                </span>
+              )}
+              <span className="text-green-400">+{additions}</span>
+              <span className="text-red-400">-{deletions}</span>
+              <span className="truncate max-w-[120px]" title={s.branch}>
+                {s.branch}
+              </span>
+            </>
+          )}
         </div>
         {progressPercent > 0 && (
           <>
@@ -541,94 +532,43 @@ export const SessionCard = memo<SessionCardProps>(
             </div>
           </>
         )}
-        <div
-          className="mt-2 flex items-center justify-between"
-          style={sessionText.meta}
-        >
-          <div className="flex items-center gap-2" style={sessionText.meta}>
-            {sessionState !== "spec" && (
-              <>
-                {filesChanged > 0 && <span>{filesChanged} files, </span>}
-                <span className="text-green-400">+{additions}</span>{" "}
-                <span className="text-red-400">-{deletions}</span>
-              </>
-            )}
-            <div
-              className="flex items-center gap-1 flex-shrink-0"
-              style={{
-                width: STATUS_SLOT_WIDTH,
-                minWidth: STATUS_SLOT_WIDTH,
-                justifyContent: "flex-start",
-                alignItems: "center",
-                textAlign: "left",
-              }}
-              >
-                {!s.attention_required &&
-                  sessionState === "running" &&
-                  !isReadyToMerge && <ProgressIndicator size="sm" />}
-              {s.attention_required && (
-                <span
-                  className="idle-indicator"
-                  style={{
-                    fontSize: theme.fontSize.caption,
-                    lineHeight: theme.lineHeight.compact,
-                    fontFamily: theme.fontFamily.sans,
-                    fontWeight: 600,
-                    color: theme.colors.accent.yellow.light,
-                  }}
-                >
-                  ⏸︎ Idle
-                </span>
-              )}
-              {isRunning && isReviewedState && (
-                <span
-                  className="px-1.5 py-0.5 rounded border"
-                  style={{
-                    ...sessionText.badge,
-                    backgroundColor: theme.colors.accent.magenta.bg,
-                    color: theme.colors.accent.magenta.DEFAULT,
-                    borderColor: theme.colors.accent.magenta.border,
-                  }}
-                >
-                  Running
-                </span>
-              )}
-              {!s.attention_required &&
-                sessionState !== "running" &&
-                !isRunning && (
-                  <span style={{ visibility: "hidden" }}>•••</span>
-                )}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <EpicSelect
-              value={s.epic ?? null}
-              onChange={handleEpicChange}
-              disabled={isBusy}
-              stopPropagation
-            />
-            {agentType && sessionState !== "spec" && !isWithinVersionGroup && (
-              <span
-                className="inline-flex items-center gap-1 px-1.5 py-[1px] rounded border"
-                style={{
-                  ...sessionText.badge,
-                  backgroundColor: colorScheme.bg,
-                  color: colorScheme.light,
-                  borderColor: colorScheme.border,
-                }}
-                title={`Agent: ${agentLabel}`}
-              >
-                <span
-                  className="w-1 h-1 rounded-full"
-                  style={{
-                    backgroundColor: colorScheme.DEFAULT,
-                  }}
-                />
-                {agentLabel}
-              </span>
-            )}
-            <div style={sessionText.meta}>Last: {lastActivity}</div>
-          </div>
+        <div className="mt-2 flex items-center justify-between">
+          <SessionActions
+            sessionState={sessionState as "spec" | "running" | "reviewed"}
+            isReadyToMerge={isReadyToMerge}
+            sessionId={s.session_id}
+            sessionSlug={s.session_id}
+            worktreePath={s.worktree_path}
+            branch={s.branch}
+            defaultBranch={s.parent_branch ?? undefined}
+            showPromoteIcon={showPromoteIcon}
+            onCreatePullRequest={onCreatePullRequest}
+            prNumber={s.pr_number}
+            prUrl={s.pr_url}
+            onRunSpec={onRunDraft}
+            onRefineSpec={onRefineSpec}
+            onDeleteSpec={onDeleteSpec}
+            onMarkReviewed={onMarkReady}
+            onUnmarkReviewed={onUnmarkReady}
+            onCancel={onCancel}
+            onConvertToSpec={onConvertToSpec}
+            onPromoteVersion={onPromoteVersion}
+            onPromoteVersionHover={onPromoteVersionHover}
+            onPromoteVersionHoverEnd={onPromoteVersionHoverEnd}
+            onReset={onReset}
+            onSwitchModel={onSwitchModel}
+            isResetting={isResetting}
+            onMerge={onMerge}
+            onQuickMerge={onQuickMerge}
+            disableMerge={disableMerge}
+            mergeStatus={mergeStatus}
+            mergeConflictingPaths={s.merge_conflicting_paths}
+            isMarkReadyDisabled={isMarkReadyDisabled}
+            onLinkPr={onLinkPr}
+            epic={s.epic}
+            onEpicChange={handleEpicChange}
+            epicDisabled={isBusy}
+          />
         </div>
       </div>
     );

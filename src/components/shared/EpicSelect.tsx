@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
+import { VscTag } from 'react-icons/vsc'
 import type { Epic } from '../../types/session'
 import { Dropdown, type DropdownItem } from '../inputs/Dropdown'
 import { theme } from '../../common/theme'
@@ -11,7 +12,7 @@ interface EpicSelectProps {
     value?: Epic | null
     disabled?: boolean
     onChange: (epicId: string | null) => void | Promise<void>
-    variant?: 'pill' | 'field'
+    variant?: 'pill' | 'field' | 'compact' | 'icon'
     className?: string
     stopPropagation?: boolean
 }
@@ -107,8 +108,11 @@ export function EpicSelect({ value, disabled = false, onChange, variant = 'pill'
                             toggle()
                         }}
                         disabled={disabled}
-                        className={`${variant === 'field' ? 'w-full px-3 py-2 justify-between' : 'px-2 py-1'} rounded border inline-flex items-center gap-2 ${disabled ? 'opacity-60 cursor-not-allowed' : 'hover:opacity-90'} ${className}`}
-                        style={{
+                        className={variant === 'icon'
+                            ? `inline-flex items-center justify-center px-1.5 py-1 rounded transition-colors duration-150 ${disabled ? 'opacity-50 cursor-not-allowed' : 'bg-slate-700/60 hover:bg-slate-600/60 cursor-pointer'} ${className}`
+                            : `${variant === 'field' ? 'w-full px-3 py-2 justify-between' : variant === 'compact' ? 'p-1' : 'px-2 py-1'} rounded border inline-flex items-center gap-2 ${disabled ? 'opacity-60 cursor-not-allowed' : 'hover:opacity-90'} ${className}`
+                        }
+                        style={variant === 'icon' ? undefined : {
                             backgroundColor: variant === 'field'
                                 ? theme.colors.background.secondary
                                 : theme.colors.background.elevated,
@@ -116,14 +120,26 @@ export function EpicSelect({ value, disabled = false, onChange, variant = 'pill'
                             color: variant === 'field' ? theme.colors.text.primary : theme.colors.text.secondary,
                             fontSize: variant === 'field' ? theme.fontSize.body : theme.fontSize.caption,
                         }}
-                        title={value?.name ?? 'None'}
+                        title={value?.name ?? 'Set epic'}
                     >
-                        <span
-                            className="w-2 h-2 rounded-full"
-                            style={{ backgroundColor: selectedScheme?.DEFAULT ?? theme.colors.text.muted }}
-                        />
-                        <span className={`truncate ${variant === 'field' ? 'flex-1 text-left' : 'max-w-[140px]'}`}>{value?.name ?? 'None'}</span>
-                        <span style={{ color: theme.colors.text.muted }}>▾</span>
+                        {variant === 'icon' ? (
+                            <span className="w-4 h-4 flex items-center justify-center">
+                                <VscTag style={{ color: selectedScheme?.DEFAULT ?? theme.colors.text.muted }} />
+                            </span>
+                        ) : (
+                            <>
+                                <span
+                                    className="w-2 h-2 rounded-full"
+                                    style={{ backgroundColor: selectedScheme?.DEFAULT ?? theme.colors.text.muted }}
+                                />
+                                {variant !== 'compact' && (
+                                    <>
+                                        <span className={`truncate ${variant === 'field' ? 'flex-1 text-left' : 'max-w-[140px]'}`}>{value?.name ?? 'None'}</span>
+                                        <span style={{ color: theme.colors.text.muted }}>▾</span>
+                                    </>
+                                )}
+                            </>
+                        )}
                     </button>
                 )}
             </Dropdown>

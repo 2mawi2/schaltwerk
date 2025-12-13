@@ -1411,7 +1411,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                         }
                     }}
                     className={clsx(
-                        'w-full text-left py-2 rounded-md mb-1 group border transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500/70 focus-visible:ring-offset-slate-900',
+                        'w-full text-left py-2 rounded-md mb-1 group border transition-all duration-300 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500/70 focus-visible:ring-offset-slate-900',
                         isCollapsed ? 'px-0 justify-center flex' : 'px-3',
                         selection.kind === 'orchestrator'
                             ? 'bg-slate-800/60 session-ring session-ring-blue border-transparent'
@@ -1487,9 +1487,6 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                             </>
                         )}
                     </div>
-                    {!isCollapsed && (
-                        <div className="text-xs text-slate-500">Original repository from which agents are created</div>
-                    )}
                 </div>
             </div>
 
