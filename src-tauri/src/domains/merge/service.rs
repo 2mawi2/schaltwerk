@@ -1088,55 +1088,59 @@ fn index_entry_path(entry: &git2::IndexEntry) -> Option<String> {
 pub fn update_session_from_parent(
     session_name: &str,
     worktree_path: &std::path::Path,
-    repo_path: &std::path::Path,
+    _repo_path: &std::path::Path,
     parent_branch: &str,
 ) -> UpdateSessionFromParentResult {
+    let normalize_local_parent_branch = |input: &str| -> String {
+        let trimmed = input.trim();
+        if let Some(rest) = trimmed.strip_prefix("refs/heads/") {
+            rest.to_string()
+        } else if let Some(rest) = trimmed.strip_prefix("refs/remotes/origin/") {
+            rest.to_string()
+        } else if let Some(rest) = trimmed.strip_prefix("origin/") {
+            rest.to_string()
+        } else {
+            trimmed.to_string()
+        }
+    };
+
+    let local_parent_branch = normalize_local_parent_branch(parent_branch);
+
     let empty_result = |status: UpdateFromParentStatus, message: String| {
         UpdateSessionFromParentResult {
             status,
-            parent_branch: parent_branch.to_string(),
+            parent_branch: local_parent_branch.clone(),
             message,
             conflicting_paths: Vec::new(),
         }
     };
 
-    if has_uncommitted_changes(worktree_path).unwrap_or(true) {
-        return empty_result(
-            UpdateFromParentStatus::HasUncommittedChanges,
-            "Commit or stash changes before updating".to_string(),
-        );
-    }
+    let git_output =
+        |cwd: &std::path::Path, args: &[&str]| -> Result<std::process::Output, String> {
+            std::process::Command::new("git")
+                .args(args)
+                .current_dir(cwd)
+                .output()
+                .map_err(|e| format!("Failed to execute git {args:?}: {e}"))
+        };
 
-    let fetch_result = std::process::Command::new("git")
-        .args(["fetch", "origin", parent_branch])
-        .current_dir(repo_path)
-        .output();
+    let git_stdout_lines = |output: &std::process::Output| -> Vec<String> {
+        String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .map(|l| l.trim().to_string())
+            .filter(|l| !l.is_empty())
+            .collect()
+    };
 
-    if let Err(e) = fetch_result {
-        return empty_result(
-            UpdateFromParentStatus::PullFailed,
-            format!("Failed to fetch origin: {e}"),
-        );
-    }
-
-    let fetch_output = fetch_result.unwrap();
-    if !fetch_output.status.success() {
-        let stderr = String::from_utf8_lossy(&fetch_output.stderr);
-        debug!(
-            "update_session_from_parent: fetch failed for {parent_branch}: {stderr}"
-        );
-    }
-
-    let merge_result = std::process::Command::new("git")
-        .args(["merge", &format!("origin/{parent_branch}"), "--ff-only"])
-        .current_dir(repo_path)
-        .output();
-
-    if let Err(e) = merge_result {
-        warn!(
-            "update_session_from_parent: git merge command failed for {parent_branch}: {e}"
-        );
-    }
+    let git_combined_output = |output: &std::process::Output| -> String {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if !stderr.is_empty() {
+            stderr
+        } else {
+            stdout
+        }
+    };
 
     let repo = match Repository::open(worktree_path) {
         Ok(r) => r,
@@ -1148,21 +1152,31 @@ pub fn update_session_from_parent(
         }
     };
 
-    let remote_parent_ref = format!("origin/{parent_branch}");
-    let parent_oid = match repo.revparse_single(&remote_parent_ref) {
+    if let Ok(output) = git_output(worktree_path, &["rev-parse", "-q", "--verify", "MERGE_HEAD"])
+        && output.status.success()
+    {
+        let conflicts_output =
+            git_output(worktree_path, &["diff", "--name-only", "--diff-filter=U"]).ok();
+        let conflicting_paths = conflicts_output.as_ref().map(git_stdout_lines).unwrap_or_default();
+        return UpdateSessionFromParentResult {
+            status: UpdateFromParentStatus::HasConflicts,
+            parent_branch: local_parent_branch.clone(),
+            message: "Session has an in-progress merge. Resolve or abort before updating.".to_string(),
+            conflicting_paths,
+        };
+    }
+
+    let local_parent_ref = format!("refs/heads/{local_parent_branch}");
+    let parent_oid = match repo.revparse_single(&local_parent_ref) {
         Ok(obj) => obj.id(),
-        Err(_) => {
-            match repo.revparse_single(parent_branch) {
-                Ok(obj) => obj.id(),
-                Err(e) => {
-                    return empty_result(
-                        UpdateFromParentStatus::PullFailed,
-                        format!("Could not find parent branch '{parent_branch}': {e}"),
-                    );
-                }
-            }
+        Err(e) => {
+            return empty_result(
+                UpdateFromParentStatus::PullFailed,
+                format!("Could not find local parent branch '{local_parent_branch}': {e}"),
+            );
         }
     };
+    let merge_target_ref = local_parent_branch.clone();
 
     let head = match repo.head() {
         Ok(h) => h,
@@ -1197,7 +1211,7 @@ pub fn update_session_from_parent(
     if merge_base == parent_oid {
         return empty_result(
             UpdateFromParentStatus::AlreadyUpToDate,
-            format!("Session already up to date with {parent_branch}"),
+            format!("Session already up to date with {local_parent_branch}"),
         );
     }
 
@@ -1220,21 +1234,125 @@ pub fn update_session_from_parent(
         }
     };
 
-    let mut merge_opts = MergeOptions::new();
-    merge_opts.fail_on_conflict(false);
+    let dirty = get_uncommitted_changes_status(worktree_path).unwrap_or_default();
 
-    let merge_index = match repo.merge_commits(&session_commit, &parent_commit, Some(&merge_opts)) {
-        Ok(index) => index,
-        Err(e) => {
+    let preflight_index = if dirty.has_tracked_changes || dirty.has_untracked_changes {
+        let base_commit = match repo.find_commit(merge_base) {
+            Ok(c) => c,
+            Err(e) => {
+                return empty_result(
+                    UpdateFromParentStatus::MergeFailed,
+                    format!("Failed to find merge base commit: {e}"),
+                );
+            }
+        };
+
+        let head_tree = match session_commit.tree() {
+            Ok(t) => t,
+            Err(e) => {
+                return empty_result(
+                    UpdateFromParentStatus::MergeFailed,
+                    format!("Failed to load session tree: {e}"),
+                );
+            }
+        };
+        let parent_tree = match parent_commit.tree() {
+            Ok(t) => t,
+            Err(e) => {
+                return empty_result(
+                    UpdateFromParentStatus::MergeFailed,
+                    format!("Failed to load parent tree: {e}"),
+                );
+            }
+        };
+        let base_tree = match base_commit.tree() {
+            Ok(t) => t,
+            Err(e) => {
+                return empty_result(
+                    UpdateFromParentStatus::MergeFailed,
+                    format!("Failed to load merge base tree: {e}"),
+                );
+            }
+        };
+
+        // Build a synthetic tree representing the current working directory
+        // (committed + staged + unstaged + untracked) so we can detect conflicts
+        // without writing or leaving the worktree in a MERGING state.
+        let mut index = match repo.index() {
+            Ok(i) => i,
+            Err(e) => {
+                return empty_result(
+                    UpdateFromParentStatus::MergeFailed,
+                    format!("Failed to open git index: {e}"),
+                );
+            }
+        };
+        if let Err(e) = index.read_tree(&head_tree) {
             return empty_result(
                 UpdateFromParentStatus::MergeFailed,
-                format!("Failed to simulate merge: {e}"),
+                format!("Failed to seed index from HEAD tree: {e}"),
             );
+        }
+        if let Err(e) = index.add_all(["*"], IndexAddOption::DEFAULT, None) {
+            return empty_result(
+                UpdateFromParentStatus::MergeFailed,
+                format!("Failed to stage worktree snapshot: {e}"),
+            );
+        }
+        if let Err(e) = index.update_all(["*"], None) {
+            return empty_result(
+                UpdateFromParentStatus::MergeFailed,
+                format!("Failed to update worktree snapshot: {e}"),
+            );
+        }
+        let worktree_tree_oid = match index.write_tree_to(&repo) {
+            Ok(oid) => oid,
+            Err(e) => {
+                return empty_result(
+                    UpdateFromParentStatus::MergeFailed,
+                    format!("Failed to write synthetic worktree tree: {e}"),
+                );
+            }
+        };
+        let worktree_tree = match repo.find_tree(worktree_tree_oid) {
+            Ok(t) => t,
+            Err(e) => {
+                return empty_result(
+                    UpdateFromParentStatus::MergeFailed,
+                    format!("Failed to load synthetic worktree tree: {e}"),
+                );
+            }
+        };
+
+        let mut merge_opts = MergeOptions::new();
+        merge_opts.fail_on_conflict(false);
+
+        match repo.merge_trees(&base_tree, &worktree_tree, &parent_tree, Some(&merge_opts)) {
+            Ok(index) => index,
+            Err(e) => {
+                return empty_result(
+                    UpdateFromParentStatus::MergeFailed,
+                    format!("Failed to simulate merge: {e}"),
+                );
+            }
+        }
+    } else {
+        let mut merge_opts = MergeOptions::new();
+        merge_opts.fail_on_conflict(false);
+
+        match repo.merge_commits(&session_commit, &parent_commit, Some(&merge_opts)) {
+            Ok(index) => index,
+            Err(e) => {
+                return empty_result(
+                    UpdateFromParentStatus::MergeFailed,
+                    format!("Failed to simulate merge: {e}"),
+                );
+            }
         }
     };
 
-    if merge_index.has_conflicts() {
-        let conflicting_paths = collect_conflicting_paths(&merge_index).unwrap_or_default();
+    if preflight_index.has_conflicts() {
+        let conflicting_paths = collect_conflicting_paths(&preflight_index).unwrap_or_default();
         let count = conflicting_paths.len();
         return UpdateSessionFromParentResult {
             status: UpdateFromParentStatus::HasConflicts,
@@ -1247,12 +1365,66 @@ pub fn update_session_from_parent(
         };
     }
 
+    let original_head = session_oid.to_string();
+
+    let stash_hash = if dirty.has_tracked_changes || dirty.has_untracked_changes {
+        let message = format!("schaltwerk: update session '{session_name}' from '{parent_branch}'");
+        match git_output(worktree_path, &["stash", "push", "-u", "-m", &message]) {
+            Ok(output) if output.status.success() => {
+                let combined = git_combined_output(&output);
+                if combined.contains("No local changes") {
+                    None
+                } else {
+                    match git_output(worktree_path, &["rev-parse", "-q", "--verify", "stash@{0}"])
+                    {
+                        Ok(output) if output.status.success() => {
+                            git_combined_output(&output).lines().next().map(|s| s.to_string())
+                        }
+                        _ => None,
+                    }
+                }
+            }
+            Ok(output) => {
+                return empty_result(
+                    UpdateFromParentStatus::MergeFailed,
+                    format!("Failed to stash local changes: {}", git_combined_output(&output)),
+                );
+            }
+            Err(err) => {
+                return empty_result(
+                    UpdateFromParentStatus::MergeFailed,
+                    format!("Failed to stash local changes: {err}"),
+                );
+            }
+        }
+    } else {
+        None
+    };
+
+    let restore_stash = |stash_hash: &str| {
+        match git_output(worktree_path, &["stash", "apply", "--index", stash_hash]) {
+            Ok(output) if output.status.success() => {
+                let _ = git_output(worktree_path, &["stash", "drop", stash_hash]);
+            }
+            Ok(output) => {
+                warn!(
+                    "update_session_from_parent: failed to restore stash {}: {}",
+                    stash_hash,
+                    git_combined_output(&output)
+                );
+            }
+            Err(err) => {
+                warn!("update_session_from_parent: failed to restore stash {stash_hash}: {err}");
+            }
+        }
+    };
+
     let merge_commit_result = std::process::Command::new("git")
         .args([
             "merge",
-            &remote_parent_ref,
+            &merge_target_ref,
             "-m",
-            &format!("Merge {parent_branch} into {session_name}"),
+            &format!("Merge {local_parent_branch} into {session_name}"),
         ])
         .current_dir(worktree_path)
         .output();
@@ -1260,28 +1432,85 @@ pub fn update_session_from_parent(
     match merge_commit_result {
         Ok(output) if output.status.success() => {
             info!(
-                "update_session_from_parent: successfully merged {parent_branch} into session {session_name}"
+                "update_session_from_parent: successfully merged {local_parent_branch} into session {session_name}"
             );
+            if let Some(stash_hash) = stash_hash.as_deref() {
+                let apply_output = git_output(worktree_path, &["stash", "apply", "--index", stash_hash]);
+                match apply_output {
+                    Ok(output) if output.status.success() => {
+                        let _ = git_output(worktree_path, &["stash", "drop", stash_hash]);
+                    }
+                    Ok(output) => {
+                        // Roll back the merge so the user gets their original dirty worktree back.
+                        let _ = git_output(worktree_path, &["reset", "--hard", &original_head]);
+                        restore_stash(stash_hash);
+                        return empty_result(
+                            UpdateFromParentStatus::MergeFailed,
+                            format!(
+                                "Failed to restore local changes after updating: {}",
+                                git_combined_output(&output)
+                            ),
+                        );
+                    }
+                    Err(err) => {
+                        let _ = git_output(worktree_path, &["reset", "--hard", &original_head]);
+                        restore_stash(stash_hash);
+                        return empty_result(
+                            UpdateFromParentStatus::MergeFailed,
+                            format!("Failed to restore local changes after updating: {err}"),
+                        );
+                    }
+                }
+            }
             empty_result(
                 UpdateFromParentStatus::Success,
-                format!("Session updated from {parent_branch}"),
+                format!("Session updated from {local_parent_branch}"),
             )
         }
         Ok(output) => {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            if stderr.contains("CONFLICT") || stderr.contains("conflict") {
-                UpdateSessionFromParentResult {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let combined = format!("{stderr}\n{stdout}");
+
+            let is_conflict = combined.contains("CONFLICT") || combined.contains("conflict");
+            let is_up_to_date =
+                combined.contains("Already up to date") || combined.contains("up-to-date");
+
+            if is_conflict {
+                let conflicts_output =
+                    git_output(worktree_path, &["diff", "--name-only", "--diff-filter=U"])
+                        .ok();
+                let conflicting_paths = conflicts_output
+                    .as_ref()
+                    .map(git_stdout_lines)
+                    .unwrap_or_default();
+
+                let _ = git_output(worktree_path, &["merge", "--abort"]);
+                if let Some(stash_hash) = stash_hash.as_deref() {
+                    restore_stash(stash_hash);
+                }
+
+                return UpdateSessionFromParentResult {
                     status: UpdateFromParentStatus::HasConflicts,
                     parent_branch: parent_branch.to_string(),
                     message: "Merge conflicts detected".to_string(),
-                    conflicting_paths: Vec::new(),
+                    conflicting_paths,
+                };
+            }
+
+            if is_up_to_date {
+                if let Some(stash_hash) = stash_hash.as_deref() {
+                    restore_stash(stash_hash);
                 }
-            } else if stderr.contains("Already up to date") || stderr.contains("up-to-date") {
                 empty_result(
                     UpdateFromParentStatus::AlreadyUpToDate,
-                    format!("Session already up to date with {parent_branch}"),
+                    format!("Session already up to date with {local_parent_branch}"),
                 )
             } else {
+                let _ = git_output(worktree_path, &["merge", "--abort"]);
+                if let Some(stash_hash) = stash_hash.as_deref() {
+                    restore_stash(stash_hash);
+                }
                 empty_result(
                     UpdateFromParentStatus::MergeFailed,
                     format!("Merge failed: {}", stderr.trim()),
@@ -1376,6 +1605,44 @@ mod tests {
             ],
         )
         .unwrap();
+    }
+
+    fn commit_file(repo_path: &Path, rel_path: &str, contents: &str, message: &str) {
+        let file_path = repo_path.join(rel_path);
+        if let Some(parent) = file_path.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+        std::fs::write(&file_path, contents).unwrap();
+        run_git(
+            repo_path,
+            vec![OsString::from("add"), OsString::from(rel_path)],
+        )
+        .unwrap();
+        run_git(
+            repo_path,
+            vec![
+                OsString::from("commit"),
+                OsString::from("-m"),
+                OsString::from(message),
+            ],
+        )
+        .unwrap();
+    }
+
+    fn git_has_merge_head(repo_path: &Path) -> bool {
+        std::process::Command::new("git")
+            .args(["rev-parse", "-q", "--verify", "MERGE_HEAD"])
+            .current_dir(repo_path)
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    }
+
+    fn create_bare_origin(temp: &TempDir) -> PathBuf {
+        let origin_path = temp.path().join("origin.git");
+        std::fs::create_dir_all(&origin_path).unwrap();
+        run_git(&origin_path, vec![OsString::from("init"), OsString::from("--bare")]).unwrap();
+        origin_path
     }
 
     struct RunGitBlocker;
@@ -1606,6 +1873,257 @@ mod tests {
         // Session should remain unreviewed (no ready flag flip)
         let refreshed = manager.get_session(&session.name).unwrap();
         assert!(!refreshed.ready_to_merge);
+    }
+
+    #[test]
+    fn update_session_from_parent_stashes_and_restores_dirty_worktree() {
+        let temp = TempDir::new().unwrap();
+        let (manager, _db, repo_path) = create_session_manager(&temp);
+
+        let params = SessionCreationParams {
+            name: "update-dirty",
+            prompt: Some("dirty"),
+            base_branch: Some("main"),
+            custom_branch: None,
+            use_existing_branch: false,
+            sync_with_origin: false,
+            was_auto_generated: false,
+            version_group_id: None,
+            version_number: None,
+            agent_type: None,
+            skip_permissions: None,
+        };
+
+        let session = manager.create_session_with_agent(params).unwrap();
+
+        // Advance parent branch after session creation so the session is behind.
+        commit_file(&repo_path, "parent.txt", "parent update\n", "parent update");
+
+        // Dirty worktree (untracked)
+        std::fs::write(session.worktree_path.join("local.txt"), "local change\n").unwrap();
+        assert!(has_uncommitted_changes(&session.worktree_path).unwrap());
+
+        let result = update_session_from_parent(
+            &session.name,
+            &session.worktree_path,
+            &repo_path,
+            "main",
+        );
+
+        assert_eq!(result.status, UpdateFromParentStatus::Success);
+        assert!(!git_has_merge_head(&session.worktree_path));
+        assert!(std::fs::read_to_string(session.worktree_path.join("parent.txt")).is_ok());
+        assert_eq!(
+            std::fs::read_to_string(session.worktree_path.join("local.txt")).unwrap(),
+            "local change\n"
+        );
+        assert!(has_uncommitted_changes(&session.worktree_path).unwrap());
+    }
+
+    #[test]
+    fn update_session_from_parent_detects_commit_conflicts_without_writing() {
+        let temp = TempDir::new().unwrap();
+        let (manager, _db, repo_path) = create_session_manager(&temp);
+
+        commit_file(&repo_path, "conflict.txt", "base\n", "add conflict file");
+
+        let params = SessionCreationParams {
+            name: "update-conflict",
+            prompt: Some("conflict"),
+            base_branch: Some("main"),
+            custom_branch: None,
+            use_existing_branch: false,
+            sync_with_origin: false,
+            was_auto_generated: false,
+            version_group_id: None,
+            version_number: None,
+            agent_type: None,
+            skip_permissions: None,
+        };
+
+        let session = manager.create_session_with_agent(params).unwrap();
+
+        // Diverge: session commit changes conflict.txt one way.
+        commit_file(
+            &session.worktree_path,
+            "conflict.txt",
+            "session change\n",
+            "session edit",
+        );
+
+        // Parent changes same file differently.
+        commit_file(&repo_path, "conflict.txt", "parent change\n", "parent edit");
+
+        let result = update_session_from_parent(
+            &session.name,
+            &session.worktree_path,
+            &repo_path,
+            "main",
+        );
+
+        assert_eq!(result.status, UpdateFromParentStatus::HasConflicts);
+        assert!(!git_has_merge_head(&session.worktree_path));
+        assert!(!has_uncommitted_changes(&session.worktree_path).unwrap());
+        assert!(!result.conflicting_paths.is_empty());
+    }
+
+    #[test]
+    fn update_session_from_parent_detects_local_change_conflicts_without_stashing() {
+        let temp = TempDir::new().unwrap();
+        let (manager, _db, repo_path) = create_session_manager(&temp);
+
+        commit_file(&repo_path, "conflict.txt", "base\n", "add conflict file");
+
+        let params = SessionCreationParams {
+            name: "update-local-conflict",
+            prompt: Some("conflict"),
+            base_branch: Some("main"),
+            custom_branch: None,
+            use_existing_branch: false,
+            sync_with_origin: false,
+            was_auto_generated: false,
+            version_group_id: None,
+            version_number: None,
+            agent_type: None,
+            skip_permissions: None,
+        };
+
+        let session = manager.create_session_with_agent(params).unwrap();
+
+        // Parent advances conflict.txt
+        commit_file(&repo_path, "conflict.txt", "parent change\n", "parent edit");
+
+        // Local uncommitted change in session worktree.
+        std::fs::write(session.worktree_path.join("conflict.txt"), "local change\n").unwrap();
+        assert!(has_uncommitted_changes(&session.worktree_path).unwrap());
+
+        let result = update_session_from_parent(
+            &session.name,
+            &session.worktree_path,
+            &repo_path,
+            "main",
+        );
+
+        assert_eq!(result.status, UpdateFromParentStatus::HasConflicts);
+        assert!(!git_has_merge_head(&session.worktree_path));
+        assert_eq!(
+            std::fs::read_to_string(session.worktree_path.join("conflict.txt")).unwrap(),
+            "local change\n"
+        );
+        assert!(has_uncommitted_changes(&session.worktree_path).unwrap());
+    }
+
+    #[test]
+    fn update_session_from_parent_prefers_local_parent_over_origin_tracking() {
+        let temp = TempDir::new().unwrap();
+        let (manager, _db, repo_path) = create_session_manager(&temp);
+
+        let origin_path = create_bare_origin(&temp);
+        run_git(
+            &repo_path,
+            vec![
+                OsString::from("remote"),
+                OsString::from("add"),
+                OsString::from("origin"),
+                OsString::from(origin_path.to_string_lossy().to_string()),
+            ],
+        )
+        .unwrap();
+        run_git(
+            &repo_path,
+            vec![
+                OsString::from("push"),
+                OsString::from("-u"),
+                OsString::from("origin"),
+                OsString::from("main"),
+            ],
+        )
+        .unwrap();
+
+        let params = SessionCreationParams {
+            name: "update-local-preferred",
+            prompt: Some("local preferred"),
+            base_branch: Some("main"),
+            custom_branch: None,
+            use_existing_branch: false,
+            sync_with_origin: false,
+            was_auto_generated: false,
+            version_group_id: None,
+            version_number: None,
+            agent_type: None,
+            skip_permissions: None,
+        };
+
+        let session = manager.create_session_with_agent(params).unwrap();
+
+        // Local main advances, but origin/main remains behind.
+        run_git(
+            &repo_path,
+            vec![OsString::from("checkout"), OsString::from("main")],
+        )
+        .unwrap();
+        commit_file(&repo_path, "local_only.txt", "local main update\n", "local only");
+
+        let result = update_session_from_parent(
+            &session.name,
+            &session.worktree_path,
+            &repo_path,
+            "main",
+        );
+
+        assert_eq!(result.status, UpdateFromParentStatus::Success);
+        assert!(std::fs::read_to_string(session.worktree_path.join("local_only.txt")).is_ok());
+    }
+
+    #[test]
+    fn update_session_from_parent_blocks_when_merge_in_progress() {
+        let temp = TempDir::new().unwrap();
+        let (manager, _db, repo_path) = create_session_manager(&temp);
+
+        commit_file(&repo_path, "conflict.txt", "base\n", "add conflict file");
+
+        let params = SessionCreationParams {
+            name: "update-merge-in-progress",
+            prompt: Some("conflict"),
+            base_branch: Some("main"),
+            custom_branch: None,
+            use_existing_branch: false,
+            sync_with_origin: false,
+            was_auto_generated: false,
+            version_group_id: None,
+            version_number: None,
+            agent_type: None,
+            skip_permissions: None,
+        };
+
+        let session = manager.create_session_with_agent(params).unwrap();
+
+        commit_file(
+            &session.worktree_path,
+            "conflict.txt",
+            "session change\n",
+            "session edit",
+        );
+        commit_file(&repo_path, "conflict.txt", "parent change\n", "parent edit");
+
+        let merge_attempt = std::process::Command::new("git")
+            .args(["merge", "main"])
+            .current_dir(&session.worktree_path)
+            .output()
+            .unwrap();
+        assert!(!merge_attempt.status.success());
+        assert!(git_has_merge_head(&session.worktree_path));
+
+        let result = update_session_from_parent(
+            &session.name,
+            &session.worktree_path,
+            &repo_path,
+            "main",
+        );
+
+        assert_eq!(result.status, UpdateFromParentStatus::HasConflicts);
+        assert!(git_has_merge_head(&session.worktree_path));
+        assert!(!result.conflicting_paths.is_empty());
     }
 
     #[tokio::test]
