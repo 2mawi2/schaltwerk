@@ -4,6 +4,7 @@ import {
   removeTerminalInstance,
   addTerminalClearCallback,
   removeTerminalClearCallback,
+  isTerminalBracketedPasteEnabled,
   addTerminalOutputCallback,
   removeTerminalOutputCallback,
 } from './terminalRegistry'
@@ -139,6 +140,45 @@ describe('terminalRegistry stream flushing', () => {
 
     removeTerminalClearCallback('clear-test', clearCb)
     removeTerminalInstance('clear-test')
+  })
+
+  it('tracks bracketed paste mode from output sequences (including split chunks)', async () => {
+    const rawWrite = vi.fn()
+    const factory = () =>
+      ({
+        raw: {
+          write: rawWrite,
+          scrollToBottom: vi.fn(),
+          buffer: {
+            active: {
+              baseY: 10,
+              viewportY: 10,
+            },
+          },
+        },
+        shouldFollowOutput: () => true,
+        attach: vi.fn(),
+        detach: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as import('../xterm/XtermTerminal').XtermTerminal)
+
+    acquireTerminalInstance('paste-mode-test', factory)
+
+    const listener = addListenerMock.mock.calls[0][1] as (chunk: string) => void
+
+    expect(isTerminalBracketedPasteEnabled('paste-mode-test')).toBe(false)
+
+    listener('\x1b[?20')
+    listener('04h')
+    await vi.runAllTimersAsync()
+    expect(isTerminalBracketedPasteEnabled('paste-mode-test')).toBe(true)
+
+    listener('\x1b[?200')
+    listener('4l')
+    await vi.runAllTimersAsync()
+    expect(isTerminalBracketedPasteEnabled('paste-mode-test')).toBe(false)
+
+    removeTerminalInstance('paste-mode-test')
   })
 
   it('does not force scrollToBottom in alternate buffer', async () => {

@@ -6,6 +6,9 @@ import { terminalOutputManager } from '../stream/terminalOutputManager';
 
 const ESC = '\x1b';
 const CLEAR_SCROLLBACK_SEQ = `${ESC}[3J`;
+const BRACKETED_PASTE_ENABLE_SEQ = `${ESC}[?2004h`;
+const BRACKETED_PASTE_DISABLE_SEQ = `${ESC}[?2004l`;
+const CONTROL_SEQUENCE_TAIL_MAX = 32;
 
 export interface TerminalInstanceRecord {
   id: string;
@@ -15,6 +18,8 @@ export interface TerminalInstanceRecord {
   initialized: boolean;
   attached: boolean;
   streamRegistered: boolean;
+  bracketedPasteEnabled: boolean;
+  controlSequenceTail: string;
   streamListener?: (chunk: string) => void;
   pendingChunks?: string[];
   rafScheduled?: boolean;
@@ -54,6 +59,8 @@ class TerminalInstanceRegistry {
       initialized: false,
       attached: true,
       streamRegistered: false,
+      bracketedPasteEnabled: false,
+      controlSequenceTail: '',
     };
 
     this.instances.set(id, record);
@@ -136,6 +143,10 @@ class TerminalInstanceRegistry {
 
   has(id: string): boolean {
     return this.instances.has(id);
+  }
+
+  isBracketedPasteEnabled(id: string): boolean {
+    return this.instances.get(id)?.bracketedPasteEnabled ?? false;
   }
 
   clear(): void {
@@ -268,6 +279,20 @@ class TerminalInstanceRegistry {
         record.pendingChunks = [];
       }
 
+      // The backend stream can split control sequences across chunks (e.g. "\x1b[?20" + "04h").
+      // Keep a short tail so we can still detect bracketed paste mode transitions reliably.
+      const combinedControl = `${record.controlSequenceTail}${chunk}`;
+      const enableIdx = combinedControl.lastIndexOf(BRACKETED_PASTE_ENABLE_SEQ);
+      const disableIdx = combinedControl.lastIndexOf(BRACKETED_PASTE_DISABLE_SEQ);
+      if (enableIdx !== -1 || disableIdx !== -1) {
+        // We care about the most recent toggle in the combined window; whichever sequence appears
+        // last wins (enable after disable => enabled, disable after enable => disabled).
+        record.bracketedPasteEnabled = enableIdx > disableIdx;
+      }
+      record.controlSequenceTail = combinedControl.slice(
+        Math.max(0, combinedControl.length - CONTROL_SEQUENCE_TAIL_MAX),
+      );
+
       // If a clear scrollback sequence arrives, drop any buffered chunks so we don't
       // momentarily render stale content before the clear is applied.
       if (chunk.includes(CLEAR_SCROLLBACK_SEQ)) {
@@ -374,6 +399,10 @@ export function releaseSessionTerminals(sessionName: string): void {
 
 export function hasTerminalInstance(id: string): boolean {
   return registry.has(id);
+}
+
+export function isTerminalBracketedPasteEnabled(id: string): boolean {
+  return registry.isBracketedPasteEnabled(id);
 }
 
 export function addTerminalOutputCallback(id: string, callback: () => void): void {
