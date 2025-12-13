@@ -248,16 +248,11 @@ class TerminalInstanceRegistry {
       record.hadClearInBatch = false;
 
       try {
-        const buffer = record.xterm.raw.buffer.active;
-        const baseY = buffer.baseY;
-        const viewportY = buffer.viewportY;
-        const isAtBottom = baseY - viewportY <= 1;
-        const shouldScroll = hadClear || isAtBottom;
-
+        // Write chunks without auto-scrolling. Scroll decisions are handled by
+        // TerminalViewportController.onOutput() which respects user scroll intent.
+        // This separation prevents race conditions where we'd decide to scroll before
+        // write completes, then yank the user back down even if they scrolled away.
         record.xterm.raw.write(combined, () => {
-          if (shouldScroll) {
-            record.xterm.raw.scrollToBottom();
-          }
           if (hadClear) {
             this.notifyClearCallbacks(record);
           }
