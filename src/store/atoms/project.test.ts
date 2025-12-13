@@ -188,6 +188,31 @@ describe('project lifecycle atoms', () => {
     await second
     expect(store.get(projectPathAtom)).toBe('/repo/two')
   })
+
+  it('deduplicates concurrent openProject calls for the same path during initial open', async () => {
+    const switchPromise = deferredPromise()
+
+    invoke.mockImplementation(async (command, args?: InvokeArgsType) => {
+      const pathArg = (args as { path?: string } | undefined)?.path
+      if (command === TauriCommands.InitializeProject && pathArg === '/repo/shared') {
+        return switchPromise.promise
+      }
+      return null
+    })
+
+    const first = store.set(openProjectActionAtom, { path: '/repo/shared' })
+    const second = store.set(openProjectActionAtom, { path: '/repo/shared' })
+
+    await flushMicrotask()
+    expect(initializeCalls(invoke)).toHaveLength(1)
+
+    switchPromise.resolve()
+    await first
+    await second
+
+    expect(store.get(projectPathAtom)).toBe('/repo/shared')
+    expect(initializeCalls(invoke)).toHaveLength(1)
+  })
 })
 
 function deferredPromise() {

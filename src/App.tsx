@@ -853,6 +853,33 @@ function AppContent() {
     }
   }, [openProject])
 
+  const openProjectInFlightRef = useRef(new Map<string, Promise<void>>())
+  const openProjectOnce = useCallback(async (path: string, source: string) => {
+    const trimmed = path.trim()
+    if (!trimmed) {
+      return
+    }
+
+    const normalized = trimmed === '/' ? trimmed : trimmed.replace(/[/\\]+$/, '')
+    const existing = openProjectInFlightRef.current.get(normalized)
+    if (existing) {
+      logger.debug(`[App] Ignoring duplicate openProject (${source})`, { path: normalized })
+      await existing
+      return
+    }
+
+    logger.debug(`[App] Opening project (${source})`, { path: normalized })
+    const promise = handleOpenProject(normalized)
+    openProjectInFlightRef.current.set(normalized, promise)
+    void promise.finally(() => {
+      if (openProjectInFlightRef.current.get(normalized) === promise) {
+        openProjectInFlightRef.current.delete(normalized)
+      }
+    })
+
+    await promise
+  }, [handleOpenProject])
+
   // Right panel global state (using atoms for persistence)
   const [rightSizes, setRightSizes] = useAtom(rightPanelSizesAtom)
   const [rightDragSizes, setRightDragSizes] = useState<number[] | null>(null)
@@ -1032,7 +1059,7 @@ function AppContent() {
     // Handle opening a Git repository
     const unlistenDirectoryPromise = listenEvent(SchaltEvent.OpenDirectory, async (directoryPath) => {
       logger.info('Received open-directory event:', directoryPath)
-      await handleOpenProject(directoryPath)
+      await openProjectOnce(directoryPath, 'open-directory-event')
     })
 
     // Handle opening home screen for non-Git directories
@@ -1054,7 +1081,7 @@ function AppContent() {
         const active = await invoke<string | null>(TauriCommands.GetActiveProjectPath)
         if (active) {
           logger.info('Detected active project on startup:', active)
-          await handleOpenProject(active)
+          await openProjectOnce(active, 'active-project-detection')
         }
       } catch (_e) {
         logger.warn('Failed to fetch active project on startup:', _e)
@@ -1084,7 +1111,7 @@ function AppContent() {
         }
       })
     }
-  }, [handleOpenProject])
+  }, [openProjectOnce])
 
   // Install smart dash/quote normalization for all text inputs (except terminals)
   useEffect(() => {
@@ -1709,7 +1736,7 @@ function AppContent() {
         />
         <div className="pt-[32px] h-full">
           <HomeScreen
-            onOpenProject={(path) => { void handleOpenProject(path) }}
+            onOpenProject={(path) => { void openProjectOnce(path, 'home-screen') }}
             initialError={cliValidationError}
             onClearInitialError={() => setCliValidationError(null)}
           />
@@ -1764,7 +1791,7 @@ function AppContent() {
         <div className="pt-[32px] h-full">
           <ErrorBoundary name="HomeScreen">
             <HomeScreen
-              onOpenProject={(path) => { void handleOpenProject(path) }}
+              onOpenProject={(path) => { void openProjectOnce(path, 'home-screen') }}
               initialError={cliValidationError}
               onClearInitialError={() => setCliValidationError(null)}
             />
@@ -2029,7 +2056,7 @@ function AppContent() {
           <ProjectSelectorModal
             open={projectSelectorOpen}
             onClose={() => setProjectSelectorOpen(false)}
-            onOpenProject={(path) => { void handleOpenProject(path) }}
+            onOpenProject={(path) => { void openProjectOnce(path, 'project-selector-modal') }}
             openProjectPaths={projectTabs.map(tab => tab.projectPath)}
           />
 
@@ -2052,7 +2079,7 @@ function AppContent() {
                 setPermissionDeniedPath(null)
                 setPermissionContext('unknown')
                 if (origin === 'project' && targetPath) {
-                  void handleOpenProject(targetPath)
+                  void openProjectOnce(targetPath, 'permission-prompt')
                 }
               }}
               onRetryAgent={permissionContext === 'session'

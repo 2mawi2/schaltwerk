@@ -220,7 +220,21 @@ export const openProjectActionAtom = atom(
     }
 
     try {
-      const switched = await enqueueSwitch(() => runProjectSwitch(set as SetAtomFunction, normalized))
+      const switched = await enqueueSwitch(async () => {
+        const currentPathNow = (get as GetAtomFunction)(projectPathAtom)
+        const switchStateNow = (get as GetAtomFunction)(projectSwitchStateAtom)
+        const competingSwitchNow = Boolean(
+          switchStateNow.inFlight &&
+          switchStateNow.target &&
+          switchStateNow.target !== normalized
+        )
+
+        if (currentPathNow === normalized && !competingSwitchNow) {
+          return true
+        }
+
+        return runProjectSwitch(set as SetAtomFunction, normalized)
+      })
       if (!switched) {
         updateTabStatus(get as GetAtomFunction, set as SetAtomFunction, normalized, entry => ({
           ...entry,
@@ -282,7 +296,21 @@ export const selectProjectActionAtom = atom(
     }))
 
     try {
-      const switched = await enqueueSwitch(() => runProjectSwitch(set as SetAtomFunction, normalized))
+      const switched = await enqueueSwitch(async () => {
+        const currentPathNow = (get as GetAtomFunction)(projectPathAtom)
+        const switchStateNow = (get as GetAtomFunction)(projectSwitchStateAtom)
+        const competingSwitchNow = Boolean(
+          switchStateNow.inFlight &&
+          switchStateNow.target &&
+          switchStateNow.target !== normalized
+        )
+
+        if (currentPathNow === normalized && !competingSwitchNow) {
+          return true
+        }
+
+        return runProjectSwitch(set as SetAtomFunction, normalized)
+      })
       if (!switched) {
         updateTabStatus(get as GetAtomFunction, set as SetAtomFunction, normalized, entry => ({
           ...entry,
