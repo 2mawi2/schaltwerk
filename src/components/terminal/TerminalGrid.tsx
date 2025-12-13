@@ -1476,13 +1476,6 @@ const TerminalGridComponent = () => {
                         }}
                         onTabAdd={() => {
                             terminalTabsRef.current?.getTabFunctions().addTab()
-                            const newIndex = terminalTabsState.tabs.length
-                            const newTerminalId = `${terminals.bottomBase}-${newIndex}`
-                            applyTabsState(prev => ({
-                                tabs: [...prev.tabs, { index: newIndex, terminalId: newTerminalId, label: `Terminal ${newIndex + 1}` }],
-                                activeTab: newIndex,
-                                canAddTab: prev.tabs.length + 1 < 6 // Limit to 6 terminal tabs (Run tab doesn't count)
-                            }))
                         }}
                         canAddTab={terminalTabsState.canAddTab}
                         isFocused={localFocus === 'terminal'}
