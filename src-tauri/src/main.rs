@@ -1053,6 +1053,11 @@ fn main() {
             open_external_url,
             // MCP commands
             start_mcp_server,
+            // Preview commands
+            preview_eval_script,
+            preview_enable_element_picker,
+            preview_disable_element_picker,
+            preview_poll_picked_element,
             // Para core commands
             schaltwerk_core_create_session,
             schaltwerk_core_rename_version_group,

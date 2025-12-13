@@ -6,6 +6,7 @@ pub mod github;
 pub mod mcp;
 pub mod mcp_config;
 pub mod power;
+pub mod preview;
 pub mod project;
 pub mod pty;
 pub mod schaltwerk_core;
@@ -67,6 +68,7 @@ pub use schaltwerk_core::{
     schaltwerk_core_update_spec_content,
     schaltwerk_core_update_epic,
 };
+pub use preview::*;
 pub use settings::*;
 pub use terminal::*;
 pub use updater::*;
