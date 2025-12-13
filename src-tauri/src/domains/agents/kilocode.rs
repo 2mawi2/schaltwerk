@@ -16,7 +16,7 @@ pub fn build_kilocode_command_with_config(
     worktree_path: &Path,
     _session_id: Option<&str>,
     initial_prompt: Option<&str>,
-    _skip_permissions: bool,
+    skip_permissions: bool,
     config: Option<&KilocodeConfig>,
 ) -> String {
     // Use simple binary name and let system PATH handle resolution
@@ -38,6 +38,10 @@ pub fn build_kilocode_command_with_config(
     let cwd_quoted = format_binary_invocation(&worktree_path.display().to_string());
     let mut cmd = format!("cd {cwd_quoted} && {binary_invocation}");
 
+    if skip_permissions {
+        cmd.push_str(" --auto");
+    }
+
     if let Some(prompt) = initial_prompt {
         let escaped = escape_prompt_for_shell(prompt);
         cmd.push(' ');
@@ -45,10 +49,6 @@ pub fn build_kilocode_command_with_config(
         cmd.push_str(&escaped);
         cmd.push('"');
     }
-
-    // Note: Kilo Code documentation doesn't explicitly list a flag for skipping permissions
-    // in interactive mode (like --yolo). It relies on config.
-    // If a flag is discovered (e.g. --yes or -y), it can be added here.
 
     cmd
 }
@@ -70,7 +70,7 @@ mod tests {
             true,
             Some(&config),
         );
-        assert!(cmd.ends_with("kilocode \"implement feature X\""));
+        assert!(cmd.ends_with("kilocode --auto \"implement feature X\""));
     }
 
     #[test]

@@ -522,6 +522,10 @@ impl TerminalManager {
         Ok(snapshot)
     }
 
+    pub async fn wait_for_output_change(&self, id: &str, min_seq: u64) -> Result<u64, String> {
+        self.backend.wait_for_output_change(id, min_seq).await
+    }
+
     pub async fn close_all(&self) -> Result<(), String> {
         info!("Closing all terminals");
         let ids: Vec<String> = self.active_ids.read().await.iter().cloned().collect();

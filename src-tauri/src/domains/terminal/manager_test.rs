@@ -879,7 +879,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_agent_top_terminal_has_larger_buffer() {
-        use tokio::time::{Duration, sleep};
         let manager = TerminalManager::new();
         let id = unique_id("session-longhistory-top");
 
@@ -899,46 +898,16 @@ mod tests {
             .await
             .unwrap();
 
-        let start = std::time::Instant::now();
-        let timeout = Duration::from_secs(30);
-        let mut last_len = 0;
-        let mut stable_count = 0;
+        let mut snapshot = manager.get_terminal_buffer(id.clone(), None).await.unwrap();
 
-        loop {
-            let snapshot = manager.get_terminal_buffer(id.clone(), None).await.unwrap();
-            let current_len = snapshot.data.len();
-
-            // Success: buffer exceeded old 2MB limit
-            if current_len > 2 * 1024 * 1024 {
-                println!("agent buffer length: {}", current_len);
-                safe_close(&manager, &id).await;
-                return;
+        while snapshot.data.len() <= 2 * 1024 * 1024 {
+            let current_seq = snapshot.seq;
+            if manager.wait_for_output_change(&id, current_seq).await.is_err() {
+                break;
             }
-
-            // Check for stable output (command finished but didn't reach target)
-            if current_len == last_len && current_len > 0 {
-                stable_count += 1;
-                if stable_count > 40 {
-                    // Output stabilized - command finished
-                    break;
-                }
-            } else {
-                stable_count = 0;
-            }
-            last_len = current_len;
-
-            if start.elapsed() > timeout {
-                safe_close(&manager, &id).await;
-                panic!(
-                    "Timeout after {:?}. Buffer size: {} bytes (expected >2MB)",
-                    timeout, current_len
-                );
-            }
-
-            sleep(Duration::from_millis(50)).await;
+            snapshot = manager.get_terminal_buffer(id.clone(), None).await.unwrap();
         }
 
-        let snapshot = manager.get_terminal_buffer(id.clone(), None).await.unwrap();
         safe_close(&manager, &id).await;
 
         assert!(
