@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import type { FormEvent, ChangeEvent } from 'react'
 import { useAtom, useSetAtom } from 'jotai'
-import { VscRefresh, VscGlobe, VscArrowRight, VscChevronLeft, VscChevronRight, VscSearch, VscLinkExternal } from 'react-icons/vsc'
+import { VscRefresh, VscGlobe, VscArrowRight, VscChevronLeft, VscChevronRight, VscSearch, VscLinkExternal, VscInspect } from 'react-icons/vsc'
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
 import {
@@ -10,14 +10,18 @@ import {
   adjustPreviewZoomActionAtom,
   resetPreviewZoomActionAtom,
   navigatePreviewHistoryActionAtom,
+  isElementPickerActiveAtom,
+  setElementPickerActiveActionAtom,
   PREVIEW_ZOOM_STEP,
   PREVIEW_MIN_ZOOM,
   PREVIEW_MAX_ZOOM
 } from '../../store/atoms/preview'
+import { getPreviewWebviewLabel } from '../../features/preview/previewIframeRegistry'
 import { mountIframe, refreshIframe, setIframeUrl, setPreviewZoom, unmountIframe } from '../../features/preview/previewIframeRegistry'
 import { useKeyboardShortcutsConfig } from '../../contexts/KeyboardShortcutsContext'
 import { detectPlatformSafe, isShortcutForAction } from '../../keyboardShortcuts/helpers'
 import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
+import { emitUiEvent, UiEvent } from '../../common/uiEvents'
 import { logger } from '../../utils/logger'
 
 interface WebPreviewPanelProps {
@@ -48,16 +52,21 @@ const normalizeUrl = (input: string): string | null => {
   return null
 }
 
+const isTestEnv = typeof process !== 'undefined' && process.env.NODE_ENV === 'test'
+
 export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPanelProps) => {
   const getPreviewState = useAtom(previewStateAtom)[0]
+  const getIsElementPickerActive = useAtom(isElementPickerActiveAtom)[0]
   const setPreviewUrl = useSetAtom(setPreviewUrlActionAtom)
   const adjustZoom = useSetAtom(adjustPreviewZoomActionAtom)
   const resetZoom = useSetAtom(resetPreviewZoomActionAtom)
   const navigateHistory = useSetAtom(navigatePreviewHistoryActionAtom)
+  const setElementPickerActive = useSetAtom(setElementPickerActiveActionAtom)
 
   const previewState = getPreviewState(previewKey)
   const { url: currentUrl, zoom, history, historyIndex } = previewState
   const hasUrl = Boolean(currentUrl)
+  const isPickerActive = getIsElementPickerActive(previewKey)
 
   const [inputValue, setInputValue] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -220,6 +229,71 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
     }
   }, [currentUrl])
 
+  const webviewLabel = useMemo(() => getPreviewWebviewLabel(previewKey), [previewKey])
+
+  const handleToggleElementPicker = useCallback(async () => {
+    if (isTestEnv) return
+
+    try {
+      if (isPickerActive) {
+        await invoke(TauriCommands.PreviewDisableElementPicker, { label: webviewLabel })
+        setElementPickerActive({ key: previewKey, active: false })
+      } else {
+        await invoke(TauriCommands.PreviewEnableElementPicker, { label: webviewLabel })
+        setElementPickerActive({ key: previewKey, active: true })
+      }
+    } catch (err) {
+      logger.error('Failed to toggle element picker', { error: err })
+      setElementPickerActive({ key: previewKey, active: false })
+    }
+  }, [isPickerActive, webviewLabel, previewKey, setElementPickerActive])
+
+  useEffect(() => {
+    if (isTestEnv || !isPickerActive) return
+
+    let cancelled = false
+
+    const poll = async () => {
+      if (cancelled) return
+
+      try {
+        const result = await invoke<{ html: string | null; cancelled: boolean }>(
+          TauriCommands.PreviewPollPickedElement,
+          { label: webviewLabel }
+        )
+
+        if (cancelled) return
+
+        if (result.cancelled) {
+          setElementPickerActive({ key: previewKey, active: false })
+          return
+        }
+
+        if (result.html) {
+          setElementPickerActive({ key: previewKey, active: false })
+          const formattedHtml = `\`\`\`html\n${result.html}\n\`\`\`\n\n`
+          emitUiEvent(UiEvent.InsertTerminalText, { text: formattedHtml })
+          return
+        }
+
+        if (!cancelled) {
+          setTimeout(() => { void poll() }, 150)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          logger.error('Failed to poll element picker', { error: err })
+          setTimeout(() => { void poll() }, 500)
+        }
+      }
+    }
+
+    void poll()
+
+    return () => {
+      cancelled = true
+    }
+  }, [isPickerActive, webviewLabel, previewKey, setElementPickerActive])
+
   const canGoBack = historyIndex > 0
   const canGoForward = historyIndex >= 0 && historyIndex < history.length - 1
   const canZoomOut = zoom > PREVIEW_MIN_ZOOM + 0.001
@@ -248,6 +322,19 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
           </button>
           <button type="button" aria-label="Open in browser" className={buttonClass(!hasUrl)} onClick={() => { void handleOpenInBrowser() }} disabled={!hasUrl} title="Open in browser (for DevTools/logs)">
             <VscLinkExternal className="text-lg" />
+          </button>
+          <button
+            type="button"
+            aria-label="Select element"
+            className={[
+              buttonClass(!hasUrl),
+              isPickerActive ? 'ring-2 ring-cyan-500 bg-slate-800' : ''
+            ].join(' ')}
+            onClick={() => { void handleToggleElementPicker() }}
+            disabled={!hasUrl}
+            title="Select an element to paste its HTML into the terminal"
+          >
+            <VscInspect className="text-lg" />
           </button>
         </div>
         <form

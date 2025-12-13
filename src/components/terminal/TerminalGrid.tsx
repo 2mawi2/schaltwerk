@@ -1098,9 +1098,6 @@ const TerminalGridComponent = () => {
         if (!pendingText) {
             return
         }
-        if (selection.kind !== 'orchestrator') {
-            return
-        }
         if (!shouldRenderTerminals) {
             return
         }
@@ -1109,15 +1106,20 @@ const TerminalGridComponent = () => {
             return
         }
 
+        const isOrchestrator = selection.kind === 'orchestrator'
+        const sessionKey = selection.kind === 'session' && selection.payload ? selection.payload : 'orchestrator'
+
         try {
             const exists = await invoke<boolean>(TauriCommands.TerminalExists, { id: terminalId })
             if (!exists) {
                 pendingInsertTextRef.current = null
-                logger.warn('[TerminalGrid] Orchestrator terminal not available for refine insert')
+                logger.warn('[TerminalGrid] Terminal not available for text insert', { terminalId, selectionKind: selection.kind })
                 pushToast({
                     tone: 'error',
-                    title: 'Orchestrator terminal unavailable',
-                    description: 'Select the orchestrator to start its terminal, then try refining again.'
+                    title: 'Terminal unavailable',
+                    description: isOrchestrator
+                        ? 'Select the orchestrator to start its terminal, then try again.'
+                        : 'The session terminal is not available. Please try again.'
                 })
                 return
             }
@@ -1125,25 +1127,25 @@ const TerminalGridComponent = () => {
             try {
                 await invoke(TauriCommands.WriteTerminal, { id: terminalId, data: '\u0015' })
             } catch (err) {
-                logger.debug('[TerminalGrid] Failed to clear existing terminal input before refine insert', err)
+                logger.debug('[TerminalGrid] Failed to clear existing terminal input before insert', err)
             }
             await invoke(TauriCommands.WriteTerminal, { id: terminalId, data: `${pendingText} ` })
             pendingInsertTextRef.current = null
-            setFocusForSession('orchestrator', 'claude')
+            setFocusForSession(sessionKey, 'claude')
             setLocalFocus('claude')
             safeTerminalFocus(() => {
                 claudeTerminalRef.current?.focus()
             }, isAnyModalOpen)
         } catch (error) {
             pendingInsertTextRef.current = null
-            logger.error('[TerminalGrid] Failed to insert text into orchestrator terminal', error)
+            logger.error('[TerminalGrid] Failed to insert text into terminal', { error, terminalId, selectionKind: selection.kind })
             pushToast({
                 tone: 'error',
                 title: 'Failed to insert text',
-                description: 'Unable to insert refined spec reference into the orchestrator terminal.'
+                description: 'Unable to insert text into the terminal.'
             })
         }
-    }, [selection.kind, shouldRenderTerminals, terminals.top, pushToast, setFocusForSession, setLocalFocus, isAnyModalOpen])
+    }, [selection.kind, selection.payload, shouldRenderTerminals, terminals.top, pushToast, setFocusForSession, setLocalFocus, isAnyModalOpen])
 
     useEffect(() => {
         const cleanup = listenUiEvent(UiEvent.InsertTerminalText, (detail) => {

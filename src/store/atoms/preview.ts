@@ -98,3 +98,25 @@ export const resetPreviewZoomActionAtom = atom(
 )
 
 export const PREVIEW_ZOOM_STEP = ZOOM_STEP
+
+const elementPickerActiveKeysAtom = atom<Set<string>>(new Set<string>())
+
+export const isElementPickerActiveAtom = atom(
+  (get) => (key: string): boolean => {
+    return get(elementPickerActiveKeysAtom).has(key)
+  }
+)
+
+export const setElementPickerActiveActionAtom = atom(
+  null,
+  (get, set, payload: { key: string; active: boolean }) => {
+    const current = get(elementPickerActiveKeysAtom)
+    const updated = new Set(current)
+    if (payload.active) {
+      updated.add(payload.key)
+    } else {
+      updated.delete(payload.key)
+    }
+    set(elementPickerActiveKeysAtom, updated)
+  }
+)
