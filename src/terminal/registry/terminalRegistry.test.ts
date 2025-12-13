@@ -63,6 +63,7 @@ describe('terminalRegistry stream flushing', () => {
             },
           },
         },
+        shouldFollowOutput: () => true,
         attach: vi.fn(),
         detach: vi.fn(),
         dispose: vi.fn(),
@@ -108,6 +109,7 @@ describe('terminalRegistry stream flushing', () => {
             },
           },
         },
+        shouldFollowOutput: () => true,
         attach: vi.fn(),
         detach: vi.fn(),
         dispose: vi.fn(),
@@ -139,6 +141,122 @@ describe('terminalRegistry stream flushing', () => {
     removeTerminalInstance('clear-test')
   })
 
+  it('does not force scrollToBottom in alternate buffer', async () => {
+    const scrollToBottom = vi.fn()
+    const rawWrite = vi.fn()
+    const factory = () =>
+      ({
+        raw: {
+          write: rawWrite,
+          scrollToBottom,
+          buffer: {
+            active: {
+              baseY: 0,
+              viewportY: 0,
+              type: 'alternate',
+            },
+          },
+        },
+        shouldFollowOutput: () => true,
+        attach: vi.fn(),
+        detach: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as import('../xterm/XtermTerminal').XtermTerminal)
+
+    acquireTerminalInstance('alternate-buffer-test', factory)
+
+    const listener = addListenerMock.mock.calls[0][1] as (chunk: string) => void
+    listener('hello')
+
+    await vi.runAllTimersAsync()
+
+    expect(rawWrite).toHaveBeenCalledTimes(1)
+    const writeCallback = rawWrite.mock.calls[0][1] as unknown as () => void
+    writeCallback()
+
+    expect(scrollToBottom).not.toHaveBeenCalled()
+
+    removeTerminalInstance('alternate-buffer-test')
+  })
+
+  it('does not force scrollToBottom when cursor is moved near bottom in normal buffer', async () => {
+    const scrollToBottom = vi.fn()
+    const rawWrite = vi.fn()
+    const factory = () =>
+      ({
+        raw: {
+          rows: 10,
+          write: rawWrite,
+          scrollToBottom,
+          buffer: {
+            active: {
+              baseY: 10,
+              viewportY: 10,
+              cursorY: 8,
+              type: 'normal',
+            },
+          },
+        },
+        shouldFollowOutput: () => true,
+        attach: vi.fn(),
+        detach: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as import('../xterm/XtermTerminal').XtermTerminal)
+
+    acquireTerminalInstance('cursor-move-test', factory)
+
+    const listener = addListenerMock.mock.calls[0][1] as (chunk: string) => void
+    listener('frame update')
+
+    await vi.runAllTimersAsync()
+
+    expect(rawWrite).toHaveBeenCalledTimes(1)
+    const writeCallback = rawWrite.mock.calls[0][1] as unknown as () => void
+    writeCallback()
+
+    expect(scrollToBottom).not.toHaveBeenCalled()
+
+    removeTerminalInstance('cursor-move-test')
+  })
+
+  it('does not follow output when shouldFollowOutput returns false', async () => {
+    const scrollToBottom = vi.fn()
+    const rawWrite = vi.fn()
+    const factory = () =>
+      ({
+        raw: {
+          write: rawWrite,
+          scrollToBottom,
+          buffer: {
+            active: {
+              baseY: 10,
+              viewportY: 10,
+              type: 'normal',
+            },
+          },
+        },
+        shouldFollowOutput: () => false,
+        attach: vi.fn(),
+        detach: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as import('../xterm/XtermTerminal').XtermTerminal)
+
+    acquireTerminalInstance('tui-follow-test', factory)
+
+    const listener = addListenerMock.mock.calls[0][1] as (chunk: string) => void
+    listener('hello')
+
+    await vi.runAllTimersAsync()
+
+    expect(rawWrite).toHaveBeenCalledTimes(1)
+    const writeCallback = rawWrite.mock.calls[0][1] as unknown as () => void
+    writeCallback()
+
+    expect(scrollToBottom).not.toHaveBeenCalled()
+
+    removeTerminalInstance('tui-follow-test')
+  })
+
   it('fires output callbacks after write flush completes', async () => {
     const rawWrite = vi.fn()
     const factory = () =>
@@ -153,6 +271,7 @@ describe('terminalRegistry stream flushing', () => {
             },
           },
         },
+        shouldFollowOutput: () => true,
         attach: vi.fn(),
         detach: vi.fn(),
         dispose: vi.fn(),

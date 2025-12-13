@@ -23,6 +23,7 @@ const buildMockTerminal = () => {
   const terminal = {
     raw,
     refresh: () => raw.refresh(),
+    isTuiMode: () => false,
   }
 
   return { terminal, onScrollHandlers }
@@ -50,6 +51,18 @@ describe('TerminalViewportController', () => {
 
     controller.onClear()
 
+    expect(terminal.raw.scrollToBottom).not.toHaveBeenCalled()
+  })
+
+  it('skips output and clear handling in TUI mode', () => {
+    const { terminal } = buildMockTerminal()
+    terminal.isTuiMode = () => true
+    const controller = new TerminalViewportController({ terminal: terminal as unknown as import('../../../terminal/xterm/XtermTerminal').XtermTerminal })
+
+    controller.onOutput()
+    controller.onClear()
+
+    expect(terminal.raw.refresh).not.toHaveBeenCalled()
     expect(terminal.raw.scrollToBottom).not.toHaveBeenCalled()
   })
 })

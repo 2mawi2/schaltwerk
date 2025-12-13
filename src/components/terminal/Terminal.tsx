@@ -1087,6 +1087,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         const { record, isNew } = acquireTerminalInstance(terminalId, () => new XtermTerminal({
             terminalId,
             config: currentConfig,
+            uiMode: agentTypeRef.current === 'kilocode' ? 'tui' : 'standard',
             onLinkClick: (uri: string) => handleLinkClickRef.current?.(uri) ?? false,
         }));
 
@@ -1107,6 +1108,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         if (!isNew) {
             instance.applyConfig(currentConfig);
         }
+        instance.setUiMode(agentTypeRef.current === 'kilocode' ? 'tui' : 'standard');
         instance.setLinkHandler((uri: string) => handleLinkClickRef.current?.(uri) ?? false);
         instance.setSmoothScrolling(currentConfig.smoothScrolling && isPhysicalWheelRef.current);
         xtermWrapperRef.current = instance;

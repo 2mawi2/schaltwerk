@@ -256,4 +256,5 @@ describe('useTerminalGpu', () => {
 
     expect(renderer.clearTextureAtlas).not.toHaveBeenCalled()
   })
+
 })

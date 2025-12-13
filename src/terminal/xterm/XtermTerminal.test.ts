@@ -11,6 +11,7 @@ vi.mock('@xterm/xterm', () => {
     options: Record<string, unknown>
     loadAddon = vi.fn()
     open = vi.fn()
+    write = vi.fn()
     dispose = vi.fn()
     registerLinkProvider = vi.fn(() => ({ dispose: vi.fn() }))
     scrollToBottom = vi.fn()
@@ -274,5 +275,33 @@ describe('XtermTerminal wrapper', () => {
     expect(instance.options.smoothScrollDuration).toBe(0)
     wrapper.setSmoothScrolling(true)
     expect(instance.options.smoothScrollDuration).toBeGreaterThan(0)
+  })
+
+  it('hides the cursor in TUI mode on attach', async () => {
+    const { XtermTerminal } = await import('./XtermTerminal')
+
+    const wrapper = new XtermTerminal({
+      terminalId: 'tui',
+      uiMode: 'tui',
+      config: {
+        scrollback: 4000,
+        fontSize: 12,
+        fontFamily: 'Menlo',
+        readOnly: false,
+        minimumContrastRatio: 1.0,
+        smoothScrolling: false,
+      },
+    })
+
+    const { Terminal: MockTerminal } = await import('@xterm/xterm') as unknown as {
+      Terminal: { __instances: Array<{ options: Record<string, unknown>; write: ReturnType<typeof vi.fn> }> }
+    }
+    const instance = MockTerminal.__instances.at(-1)!
+
+    const container = document.createElement('div')
+    wrapper.attach(container)
+
+    expect(instance.options.cursorBlink).toBe(false)
+    expect(instance.write).toHaveBeenCalledWith('\x1b[?25l')
   })
 })

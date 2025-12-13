@@ -179,6 +179,12 @@ const terminalHarness = vi.hoisted(() => {
     detach = vi.fn()
     dispose = vi.fn()
     setSmoothScrolling = vi.fn()
+    uiMode: 'standard' | 'tui' = 'standard'
+    isTuiMode = vi.fn(() => this.uiMode === 'tui')
+    shouldFollowOutput = vi.fn(() => this.uiMode !== 'tui')
+    setUiMode = vi.fn((mode: 'standard' | 'tui') => {
+      this.uiMode = mode
+    })
     refresh = vi.fn()
     applyConfig = vi.fn((partial: Record<string, unknown>) => {
       this.config = { ...this.config, ...partial } as HarnessConfig
@@ -197,11 +203,19 @@ const terminalHarness = vi.hoisted(() => {
     })
     linkHandler: ((uri: string) => boolean | Promise<boolean>) | null = null
     config: HarnessConfig
-    constructor(public readonly options: { config?: Partial<HarnessConfig>; onLinkClick?: (uri: string) => boolean | Promise<boolean> } = {}) {
+    constructor(
+      public readonly options: {
+        config?: Partial<HarnessConfig>;
+        onLinkClick?: (uri: string) => boolean | Promise<boolean>;
+        uiMode?: 'standard' | 'tui';
+        [key: string]: unknown;
+      } = {},
+    ) {
       this.raw = createMockRaw()
       this.fitAddon = { fit: vi.fn() }
       this.searchAddon = { findNext: vi.fn(), findPrevious: vi.fn() }
       this.config = { scrollback: 0, fontSize: 0, fontFamily: '', minimumContrastRatio: ATLAS_CONTRAST_BASE, ...(options?.config ?? {}) } as HarnessConfig
+      this.uiMode = options.uiMode ?? 'standard'
       if (options?.onLinkClick) {
         this.linkHandler = options.onLinkClick
       }
