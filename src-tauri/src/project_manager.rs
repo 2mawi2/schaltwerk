@@ -182,31 +182,35 @@ impl ProjectManager {
 
         info!("Switching to project: {}", path.display());
 
-        // Check if project already exists
-        let mut projects = self.projects.write().await;
+        // Check if project already exists.
+        // IMPORTANT: Don't hold the projects lock while awaiting the current_project lock; this can deadlock
+        // with readers that look up the current project while holding the current_project lock.
+        let project = {
+            let mut projects = self.projects.write().await;
 
-        let project = if let Some(existing) = projects.get(&path) {
-            info!("♻️ Using existing project instance for: {}", path.display());
-            existing.clone()
-        } else {
-            info!("🆕 Creating new project instance for: {}", path.display());
-            let new_project = match Project::new(path.clone()) {
-                Ok(p) => Arc::new(p),
-                Err(e) => {
-                    log::error!("❌ Failed to create project: {e}");
-                    return Err(e);
-                }
-            };
-            projects.insert(path.clone(), new_project.clone());
-            new_project
+            if let Some(existing) = projects.get(&path) {
+                info!("♻️ Using existing project instance for: {}", path.display());
+                existing.clone()
+            } else {
+                info!("🆕 Creating new project instance for: {}", path.display());
+                let new_project = match Project::new(path.clone()) {
+                    Ok(p) => Arc::new(p),
+                    Err(e) => {
+                        log::error!("❌ Failed to create project: {e}");
+                        return Err(e);
+                    }
+                };
+                projects.insert(path.clone(), new_project.clone());
+                new_project
+            }
         };
 
-        // Ensure .schaltwerk is excluded from git
+        // Ensure .schaltwerk is excluded from git (outside the projects lock).
         if let Err(e) = Self::ensure_schaltwerk_excluded(&path) {
             log::warn!("Failed to ensure .schaltwerk exclusion: {e}");
         }
 
-        // Update current project
+        // Update current project (outside the projects lock).
         *self.current_project.write().await = Some(path.clone());
         log::info!("✅ Current project set to: {}", path.display());
 
@@ -501,15 +505,17 @@ impl ProjectManager {
         // Normalize the path
         let path = canonicalize_project_path(&path)?;
 
-        // Check if project already exists
-        let mut projects = self.projects.write().await;
+        let project = {
+            // Check if project already exists
+            let mut projects = self.projects.write().await;
 
-        let project = if let Some(existing) = projects.get(&path) {
-            existing.clone()
-        } else {
-            let new_project = Arc::new(Project::new_in_memory(path.clone())?);
-            projects.insert(path.clone(), new_project.clone());
-            new_project
+            if let Some(existing) = projects.get(&path) {
+                existing.clone()
+            } else {
+                let new_project = Arc::new(Project::new_in_memory(path.clone())?);
+                projects.insert(path.clone(), new_project.clone());
+                new_project
+            }
         };
 
         // Update current project
