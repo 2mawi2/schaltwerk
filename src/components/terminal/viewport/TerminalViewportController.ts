@@ -78,24 +78,32 @@ export class TerminalViewportController {
 
   /**
    * Notify the controller that output was written to the terminal.
-   * This helps track streaming activity to avoid scroll jumps during active output.
+   * Handles follow-output scrolling when user hasn't scrolled away.
+   *
+   * This is the single source of truth for auto-scroll decisions during streaming.
+   * The terminal registry only writes chunks and fires callbacks - it does not scroll.
+   * This avoids race conditions where the registry would make a scroll decision before
+   * the write completes, then yank the user back down even if they scrolled away.
    */
   onOutput(): void {
     if (this._disposed) return
     this._lastOutputTime = Date.now()
 
-    // Schedule a viewport sync on the next frame when tracking the bottom.
+    // Schedule a viewport sync on the next frame.
     // xterm.js can desync its virtual scroll area height from its internal buffer
     // during heavy output bursts; explicitly refreshing forces the DOM scrollbar
     // to match the buffer length immediately.
     //
-    // Avoid snapping to bottom during output frames here: the terminal registry
-    // already performs follow-output when appropriate, and an extra scrollToBottom()
-    // under heavy streaming can cause visible scroll jitter.
-    if (!this._userScrolledAway && this._outputRaf === null) {
+    // The _userScrolledAway check happens inside the RAF callback (not here) so that
+    // if user scrolls after RAF is scheduled but before it fires, we respect that.
+    if (this._outputRaf === null) {
       this._outputRaf = requestAnimationFrame(() => {
         this._outputRaf = null
-        this._refreshViewportOnly('output')
+        if (this._userScrolledAway) {
+          this._refreshViewportOnly('output')
+        } else {
+          this._refreshAndSnapToBottom('output')
+        }
       })
     }
   }
@@ -221,6 +229,24 @@ export class TerminalViewportController {
       this._logScrollState(source)
     } catch (e) {
       const msg = `[TerminalViewportController] Error during refresh-only: ${String(e)}`
+      logger.error(msg)
+      this._logger?.(msg)
+    }
+  }
+
+  private _refreshAndSnapToBottom(source: string): void {
+    try {
+      this._terminal.refresh()
+
+      const raw = this._terminal.raw
+      const buf = raw?.buffer?.active
+      if (!buf) return
+      if (buf.type === 'alternate') return
+
+      raw.scrollToBottom()
+      this._logScrollState(source)
+    } catch (e) {
+      const msg = `[TerminalViewportController] Error during snap-to-bottom: ${String(e)}`
       logger.error(msg)
       this._logger?.(msg)
     }
