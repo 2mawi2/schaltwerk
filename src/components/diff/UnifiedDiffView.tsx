@@ -6,6 +6,7 @@ import {
   useRef,
   useLayoutEffect,
 } from "react";
+import { useAtomValue } from "jotai";
 import { TauriCommands } from "../../common/tauriCommands";
 import { invoke } from "@tauri-apps/api/core";
 import { useSelection } from "../../hooks/useSelection";
@@ -63,6 +64,7 @@ import { HistoryDiffContext } from "../../types/diff";
 import type { OpenInAppRequest } from "../OpenInSplitButton";
 import { buildFolderTree, getVisualFileOrder } from "../../utils/folderTree";
 import { useClaudeSession } from "../../hooks/useClaudeSession";
+import { inlineSidebarDefaultPreferenceAtom } from "../../store/atoms/diffPreferences";
 import {
   captureSidebarScroll,
   restoreSidebarScroll,
@@ -203,7 +205,7 @@ export function UnifiedDiffView({
   const [isSearchVisible, setIsSearchVisible] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const sidebarWidthRef = useRef(320);
-  const inlineSidebarDefaultRef = useRef(true);
+  const inlineSidebarDefault = useAtomValue(inlineSidebarDefaultPreferenceAtom);
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const sidebarDragStartRef = useRef<{ x: number; width: number } | null>(null);
   const resizeFrameRef = useRef<number | null>(null);
@@ -558,7 +560,7 @@ export function UnifiedDiffView({
         continuous_scroll: partial.continuous_scroll ?? continuousScroll,
         compact_diffs: partial.compact_diffs ?? compactDiffs,
         sidebar_width: partial.sidebar_width ?? sidebarWidthRef.current,
-        inline_sidebar_default: inlineSidebarDefaultRef.current,
+        inline_sidebar_default: inlineSidebarDefault,
       };
 
       try {
@@ -569,7 +571,7 @@ export function UnifiedDiffView({
         logger.error("Failed to save diff view preference:", err);
       }
     },
-    [mode, isSidebarMode, continuousScroll, compactDiffs],
+    [mode, isSidebarMode, continuousScroll, compactDiffs, inlineSidebarDefault],
   );
 
   const toggleContinuousScroll = useCallback(async () => {
@@ -1957,8 +1959,6 @@ export function UnifiedDiffView({
             );
             setSidebarWidth(width);
             sidebarWidthRef.current = width;
-            inlineSidebarDefaultRef.current =
-              prefs.inline_sidebar_default ?? true;
           })
           .catch((err) =>
             logger.error("Failed to load diff view preferences:", err),

@@ -3,6 +3,12 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { UnifiedDiffModal } from './UnifiedDiffModal'
 import { TestProviders } from '../../tests/test-utils'
 import { TauriCommands } from '../../common/tauriCommands'
+import { useEffect, useState } from 'react'
+import { useSetAtom } from 'jotai'
+import {
+  initializeInlineDiffPreferenceActionAtom,
+  inlineSidebarDefaultPreferenceAtom,
+} from '../../store/atoms/diffPreferences'
 
 vi.mock('../../hooks/useSelection', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('../../hooks/useSelection')
@@ -25,8 +31,36 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: (cmd: string, args?: unknown) => invokeMock(cmd, args)
 }))
 
+function InlineDiffPreferenceController({ value }: { value: boolean }) {
+  const initializePreference = useSetAtom(initializeInlineDiffPreferenceActionAtom)
+  const setInlinePreference = useSetAtom(inlineSidebarDefaultPreferenceAtom)
+  const [initialized, setInitialized] = useState(false)
+
+  useEffect(() => {
+    void initializePreference().finally(() => {
+      setInitialized(true)
+    })
+  }, [initializePreference])
+
+  useEffect(() => {
+    if (!initialized) return
+    setInlinePreference(value)
+  }, [initialized, value, setInlinePreference])
+
+  return null
+}
+
 describe('UnifiedDiffModal diff viewer preferences', () => {
+  let diffPrefs: { continuous_scroll: boolean; compact_diffs: boolean; sidebar_width: number; inline_sidebar_default: boolean }
+
   beforeEach(() => {
+    diffPrefs = {
+      continuous_scroll: false,
+      compact_diffs: true,
+      sidebar_width: 340,
+      inline_sidebar_default: true,
+    }
+
     invokeMock.mockImplementation(async (cmd: string, _args?: unknown) => {
       switch (cmd) {
         case TauriCommands.GetChangedFilesFromMain:
@@ -40,11 +74,15 @@ describe('UnifiedDiffModal diff viewer preferences', () => {
         case TauriCommands.GetCommitComparisonInfo:
           return ['abc123', 'def456']
         case TauriCommands.GetDiffViewPreferences:
-          return {
-            continuous_scroll: false,
-            compact_diffs: true,
-            sidebar_width: 340
+          return diffPrefs
+        case TauriCommands.SetDiffViewPreferences: {
+          const next = (_args as { preferences?: Partial<typeof diffPrefs> } | undefined)?.preferences
+          diffPrefs = {
+            ...diffPrefs,
+            ...next,
           }
+          return null
+        }
         case TauriCommands.GetSessionPreferences:
           return { skip_confirmation_modals: false }
         case TauriCommands.ListAvailableOpenApps:
@@ -100,6 +138,39 @@ describe('UnifiedDiffModal diff viewer preferences', () => {
       expect(invokeMock).toHaveBeenCalledWith(TauriCommands.SetDiffViewPreferences, expect.objectContaining({
         preferences: expect.objectContaining({ sidebar_width: 480 })
       }))
+    })
+  })
+
+  it('does not overwrite inline diff preference when persisting other diff viewer prefs', async () => {
+    const Wrapper = ({ inlineValue }: { inlineValue: boolean }) => (
+      <TestProviders>
+        <InlineDiffPreferenceController value={inlineValue} />
+        <UnifiedDiffModal filePath={null} isOpen={true} onClose={() => {}} />
+      </TestProviders>
+    )
+
+    const { rerender } = render(<Wrapper inlineValue={true} />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Git Diff Viewer')).toBeInTheDocument()
+    })
+
+    rerender(<Wrapper inlineValue={false} />)
+
+    await waitFor(() => {
+      expect(diffPrefs.inline_sidebar_default).toBe(false)
+    })
+
+    const toggle = screen.getByTitle('Switch to continuous scroll')
+    fireEvent.click(toggle)
+
+    await waitFor(() => {
+      const setCalls = invokeMock.mock.calls.filter(call => call[0] === TauriCommands.SetDiffViewPreferences)
+      const last = setCalls.at(-1)
+      expect(last).toBeTruthy()
+      const payload = last?.[1] as { preferences?: Record<string, unknown> } | undefined
+      expect(payload?.preferences?.continuous_scroll).toBe(true)
+      expect(payload?.preferences?.inline_sidebar_default).toBe(false)
     })
   })
 
