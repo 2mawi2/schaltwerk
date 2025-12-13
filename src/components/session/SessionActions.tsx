@@ -21,6 +21,8 @@ import type { MergeStatus } from '../../store/atoms/sessions';
 import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
 import { useToast } from '../../common/toast/ToastProvider'
 import { usePrComments } from '../../hooks/usePrComments'
+import type { Epic } from '../../types/session'
+import { EpicSelect } from '../shared/EpicSelect'
 
 const spinnerIcon = (
   <span className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
@@ -59,11 +61,14 @@ interface SessionActionsProps {
   isMarkReadyDisabled?: boolean;
   mergeConflictingPaths?: string[];
   onLinkPr?: (sessionId: string, prNumber: number, prUrl: string) => void;
+  epic?: Epic | null;
+  onEpicChange?: (epicId: string | null) => void;
+  epicDisabled?: boolean;
 }
 
 export function SessionActions({
   sessionState,
-  isReadyToMerge = false,
+  isReadyToMerge: _isReadyToMerge = false,
   sessionId,
   hasUncommittedChanges = false,
   showPromoteIcon = false,
@@ -89,12 +94,14 @@ export function SessionActions({
   isMarkReadyDisabled = false,
   mergeConflictingPaths,
   onLinkPr: _onLinkPr,
+  epic,
+  onEpicChange,
+  epicDisabled = false,
 }: SessionActionsProps) {
   const github = useGithubIntegrationContext()
   const { pushToast } = useToast()
   const { fetchingComments, fetchAndCopyToClipboard } = usePrComments()
-  // Use moderate spacing for medium-sized buttons
-  const spacing = sessionState === 'spec' ? 'gap-1' : 'gap-0.5';
+  const spacing = 'gap-0.5';
   const conflictCount = mergeConflictingPaths?.length ?? 0;
   const conflictLabel = conflictCount > 0 ? `Resolve conflicts (${conflictCount})` : 'Resolve conflicts';
   const conflictTooltip = conflictCount > 0
@@ -127,6 +134,15 @@ export function SessionActions({
       {/* Spec state actions */}
       {sessionState === 'spec' && (
         <>
+          {onEpicChange && (
+            <EpicSelect
+              value={epic ?? null}
+              onChange={onEpicChange}
+              disabled={epicDisabled}
+              stopPropagation
+              variant="icon"
+            />
+          )}
           {onRefineSpec && (
             <IconButton
               icon={<VscBeaker />}
@@ -157,8 +173,17 @@ export function SessionActions({
       )}
 
       {/* Running state actions */}
-      {sessionState === 'running' && !isReadyToMerge && (
+      {sessionState === 'running' && (
         <>
+          {onEpicChange && (
+            <EpicSelect
+              value={epic ?? null}
+              onChange={onEpicChange}
+              disabled={epicDisabled}
+              stopPropagation
+              variant="icon"
+            />
+          )}
           <IconButton
             icon={<FaGithub />}
             onClick={handleOpenPullRequest}
@@ -238,8 +263,17 @@ export function SessionActions({
       )}
 
       {/* Reviewed state actions */}
-      {isReadyToMerge && (
+      {sessionState === 'reviewed' && (
         <>
+          {onEpicChange && (
+            <EpicSelect
+              value={epic ?? null}
+              onChange={onEpicChange}
+              disabled={epicDisabled}
+              stopPropagation
+              variant="icon"
+            />
+          )}
           {prNumber && (
             <IconButton
               icon={fetchingComments ? spinnerIcon : <VscComment />}
@@ -247,7 +281,6 @@ export function SessionActions({
               ariaLabel="Copy PR comments"
               tooltip={`Fetch & copy PR #${prNumber} review comments to clipboard`}
               disabled={fetchingComments}
-              variant="success"
             />
           )}
           <IconButton
@@ -301,6 +334,38 @@ export function SessionActions({
               />
             )
           )}
+          {showPromoteIcon && onPromoteVersion && (
+            <div
+              onMouseEnter={onPromoteVersionHover}
+              onMouseLeave={onPromoteVersionHoverEnd}
+              className="inline-block"
+            >
+              <IconButton
+                icon={<VscStarFull />}
+                onClick={onPromoteVersion}
+                ariaLabel="Promote as best version"
+                tooltip="Promote as best version and delete others (⌘B)"
+                variant="warning"
+              />
+            </div>
+          )}
+          {onSwitchModel && (
+            <IconButton
+              icon={<VscCode />}
+              onClick={() => onSwitchModel(sessionId)}
+              ariaLabel="Switch model"
+              tooltip="Switch model (⌘P)"
+            />
+          )}
+          {onReset && (
+            <IconButton
+              icon={<VscRefresh />}
+              onClick={() => onReset(sessionId)}
+              ariaLabel="Reset session"
+              tooltip="Reset session (⌘Y)"
+              disabled={isResetting}
+            />
+          )}
           {onUnmarkReviewed && (
             <IconButton
               icon={<VscDiscard />}
@@ -310,12 +375,20 @@ export function SessionActions({
               disabled={isMarkReadyDisabled}
             />
           )}
+          {onConvertToSpec && (
+            <IconButton
+              icon={<VscArchive />}
+              onClick={() => onConvertToSpec(sessionId)}
+              ariaLabel="Move to spec"
+              tooltip="Move to spec (⌘S)"
+            />
+          )}
           {onCancel && (
             <IconButton
               icon={<VscClose />}
               onClick={() => { void onCancel(sessionId, hasUncommittedChanges) }}
               ariaLabel="Cancel session"
-              tooltip="Cancel session"
+              tooltip="Cancel session (⌘D)"
               variant="danger"
             />
           )}
