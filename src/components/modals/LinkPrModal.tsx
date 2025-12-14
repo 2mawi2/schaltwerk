@@ -63,6 +63,8 @@ export function LinkPrModal({
       <div
         className="bg-slate-900 border border-slate-700 rounded-lg w-full max-w-lg mx-4 flex flex-col"
         style={{ maxHeight: '70vh' }}
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="p-4 border-b border-slate-700">
           <h2 className="text-lg font-semibold text-slate-100 mb-3">Link to GitHub PR</h2>

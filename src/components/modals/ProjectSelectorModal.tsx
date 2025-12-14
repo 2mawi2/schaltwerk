@@ -89,6 +89,7 @@ export function ProjectSelectorModal({ open: isOpen, onClose, onOpenProject, ope
           backgroundColor: theme.colors.background.primary,
           border: `1px solid ${theme.colors.border.default}`
         }}
+        onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderBottomColor: theme.colors.border.default }}>

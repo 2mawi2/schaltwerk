@@ -205,6 +205,8 @@ export function MergeSessionModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="merge-session-title"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
           <div className="flex justify-between items-start gap-4 border-b px-6 py-4" style={{ borderColor: theme.colors.border.subtle }}>
           <div>
