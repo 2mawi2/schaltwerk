@@ -130,9 +130,9 @@ jobs:
   build-macos:
     name: Build macOS Universal Binary
     runs-on: macos-latest
-    # Depend on test job for tag pushes, run directly for manual dispatch
-    needs: [test]
-    if: always() && (needs.test.result == 'success' || needs.test.result == 'skipped')
+    # Run in parallel with tests - both depend only on tag-check
+    needs: [tag-check]
+    if: always() && (needs.tag-check.result == 'success' || needs.tag-check.result == 'skipped')
     env:
       SCHALTWERK_PM: bun
     
@@ -388,8 +388,13 @@ jobs:
 
   create-release:
     name: Create GitHub Release
-    needs: build-macos
+    needs: [test, build-macos]
     runs-on: ubuntu-latest
+    # Only create release if both test and build succeeded (or were skipped for manual dispatch)
+    if: |
+      always() &&
+      (needs.test.result == 'success' || needs.test.result == 'skipped') &&
+      (needs.build-macos.result == 'success')
     permissions:
       contents: write
     
