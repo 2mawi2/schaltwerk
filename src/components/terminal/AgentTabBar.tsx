@@ -1,29 +1,24 @@
-import React, { useState, useMemo } from 'react'
-import { VscDiscard, VscSettingsGear, VscWarning } from 'react-icons/vsc'
+import React from 'react'
+import { VscDiscard } from 'react-icons/vsc'
 import { getAgentColorScheme, theme } from '../../common/theme'
 import { AgentTab, MAX_AGENT_TABS } from '../../store/atoms/agentTabs'
-import { Dropdown, DropdownItem } from '../inputs/Dropdown'
-import { AGENT_TYPES, AgentType } from '../../types/session'
-import { displayNameForAgent } from '../shared/agentDefaults'
 import { UnifiedTab } from '../UnifiedTab'
 import { AddTabButton } from '../AddTabButton'
 import { HeaderActionConfig } from '../../types/actionButton'
 import { getActionButtonColorClasses } from '../../constants/actionButtonColors'
 import { getAgentColorKey } from '../../utils/agentColors'
-import { useAgentAvailability } from '../../hooks/useAgentAvailability'
 
 interface AgentTabBarProps {
     tabs: AgentTab[]
     activeTab: number
     onTabSelect: (index: number) => void
     onTabClose?: (index: number) => void
-    onTabAdd?: (agentType: AgentType) => void
+    onTabAdd?: () => void
     onReset?: () => void
     isFocused?: boolean
     actionButtons?: HeaderActionConfig[]
     onAction?: (action: HeaderActionConfig) => void
     shortcutLabel?: string
-    onConfigureAgents?: () => void
 }
 
 export const AgentTabBar: React.FC<AgentTabBarProps> = ({
@@ -37,58 +32,7 @@ export const AgentTabBar: React.FC<AgentTabBarProps> = ({
     actionButtons = [],
     onAction,
     shortcutLabel,
-    onConfigureAgents,
 }) => {
-    const [dropdownOpen, setDropdownOpen] = useState(false)
-    const { isAvailable, loading } = useAgentAvailability()
-
-    const renderDropdownLabel = (agentType: string, label: string, available: boolean) => {
-        const colorScheme = getAgentColorScheme(getAgentColorKey(agentType))
-        return (
-            <div className={`flex items-center gap-2.5 ${!available ? 'opacity-50' : ''}`}>
-                <span
-                    className="w-2 h-2 rounded-full shadow-sm"
-                    style={{ backgroundColor: colorScheme.DEFAULT }}
-                />
-                <span className={`font-medium ${available ? 'text-slate-200' : 'text-slate-400'}`}>
-                    {label}
-                </span>
-                {!available && (
-                    <VscWarning
-                        className="w-3.5 h-3.5 ml-auto"
-                        style={{ color: theme.colors.status.warning }}
-                        title={`${label} is not installed`}
-                    />
-                )}
-            </div>
-        )
-    }
-
-    const agentItems: DropdownItem[] = useMemo(() => {
-        const items: DropdownItem[] = AGENT_TYPES.filter((a) => a !== 'terminal').map((agent) => {
-            const available = loading || isAvailable(agent)
-            return {
-                key: agent,
-                label: renderDropdownLabel(agent, displayNameForAgent(agent), available),
-                disabled: !available,
-            }
-        })
-
-        if (onConfigureAgents) {
-            items.push({
-                key: 'SCHALTWERK_CONFIGURE_AGENTS',
-                label: (
-                    <div className="flex items-center gap-2.5 pt-1 mt-1 border-t border-slate-700/50 text-slate-400 group-hover:text-slate-200 transition-colors">
-                        <VscSettingsGear className="w-3.5 h-3.5" />
-                        <span>Configure Agents...</span>
-                    </div>
-                ),
-            })
-        }
-
-        return items
-    }, [onConfigureAgents, isAvailable, loading])
-
     const canAddTab = onTabAdd && tabs.length < MAX_AGENT_TABS
 
     const renderAgentLabel = (tab: AgentTab) => {
@@ -162,37 +106,16 @@ export const AgentTabBar: React.FC<AgentTabBarProps> = ({
                         )
                     })}
 
-                    {/* Add Button with Dropdown */}
+                    {/* Add Button */}
                     {canAddTab && (
-                        <Dropdown
-                            open={dropdownOpen}
-                            onOpenChange={setDropdownOpen}
-                            items={agentItems}
-                            onSelect={(key) => {
-                                if (key === 'SCHALTWERK_CONFIGURE_AGENTS') {
-                                    onConfigureAgents?.()
-                                    setDropdownOpen(false)
-                                } else {
-                                    const agentKey = key as AgentType
-                                    if (loading || isAvailable(agentKey)) {
-                                        onTabAdd?.(agentKey)
-                                    }
-                                }
+                        <AddTabButton
+                            onClick={(e) => {
+                                e.stopPropagation()
+                                onTabAdd?.()
                             }}
-                            align="left"
-                            minWidth={200}
-                        >
-                            {({ toggle }) => (
-                                <AddTabButton
-                                    onClick={(e) => {
-                                        e.stopPropagation()
-                                        toggle()
-                                    }}
-                                    title="Add Agent Tab"
-                                    className="ml-1 flex-shrink-0"
-                                />
-                            )}
-                        </Dropdown>
+                            title="Add Agent Tab (⌘⇧A)"
+                            className="ml-1 flex-shrink-0"
+                        />
                     )}
                 </div>
             </div>

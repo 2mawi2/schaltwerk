@@ -92,6 +92,9 @@ export const KEYBOARD_SHORTCUT_SECTIONS: ShortcutSection[] = [
       { action: KeyboardShortcutAction.InsertTerminalNewLine, label: 'Insert new line in terminal' },
       { action: KeyboardShortcutAction.ToggleRunMode, label: 'Toggle run mode' },
       { action: KeyboardShortcutAction.OpenTerminalSearch, label: 'Open terminal search' },
+      { action: KeyboardShortcutAction.SelectPrevTab, label: 'Previous agent tab' },
+      { action: KeyboardShortcutAction.SelectNextTab, label: 'Next agent tab' },
+      { action: KeyboardShortcutAction.AddAgentTab, label: 'Add agent tab' },
     ],
   },
 ]
