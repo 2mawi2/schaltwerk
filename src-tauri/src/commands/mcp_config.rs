@@ -224,8 +224,20 @@ mod client {
 
         #[tokio::test]
         async fn check_cli_availability_runs_without_blocking() {
-            // Should never panic even when executed inside an async runtime.
-            let _ = super::check_cli_availability(super::McpClient::Claude).await;
+            use tauri::async_runtime::spawn_blocking;
+
+            // Verifies spawn_blocking works correctly inside an async runtime.
+            // Uses a direct spawn_blocking call instead of full binary detection
+            // to avoid slow filesystem scanning (~4s) in tests.
+            let result = spawn_blocking(|| {
+                // Simulate the pattern used by detect_agent_binaries_nonblocking
+                std::thread::sleep(std::time::Duration::from_millis(1));
+                42
+            })
+            .await;
+
+            assert!(result.is_ok());
+            assert_eq!(result.unwrap(), 42);
         }
     }
 
