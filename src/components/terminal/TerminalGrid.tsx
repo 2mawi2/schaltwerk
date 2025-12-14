@@ -38,8 +38,6 @@ import {
   removeTabActionAtom,
   setActiveTabActionAtom,
   resetTerminalTabsActionAtom,
-  attachTerminalActionAtom,
-  detachTerminalActionAtom,
 } from '../../store/atoms/terminal'
 import { buildPreviewKey } from '../../store/atoms/preview'
 import { useShortcutDisplay } from '../../keyboardShortcuts/useShortcutDisplay'
@@ -133,10 +131,6 @@ const TerminalGridComponent = () => {
         setAgentTypeCache({ sessionId: sessionKey, agentType: type })
     }, [sessionKey, setAgentTypeCache])
 
-    // Terminal lifecycle actions for explicit attach/detach coordination
-    const attachTerminal = useSetAtom(attachTerminalActionAtom)
-    const detachTerminal = useSetAtom(detachTerminalActionAtom)
-
     // Agent tabs state for multiple agents in top terminal
     const agentTabScopeId = selection.kind === 'session' ? (selection.payload ?? null) : selection.kind === 'orchestrator' ? 'orchestrator' : null
     const orchestratorTabStarter = useCallback(async ({ terminalId }: { sessionId: string; terminalId: string; agentType: string }) => {
@@ -193,38 +187,16 @@ const TerminalGridComponent = () => {
     const previousTabsBaseRef = useRef<string | null>(terminals.bottomBase)
     const previousTopTerminalRef = useRef<string | null>(terminals.top)
 
-    // Handle terminal lifecycle coordination for scroll state preservation.
-    // When the top terminal changes, we explicitly detach the old one (save scroll state)
-    // and attach the new one (restore scroll state when ready).
+    // Handle scroll state preservation when switching top terminals
     useEffect(() => {
         if (previousTopTerminalRef.current && previousTopTerminalRef.current !== terminals.top) {
-            // Top terminal ID has changed
-            const oldTerminalId = previousTopTerminalRef.current
-
-            // Detach old terminal: save scroll state
-            detachTerminal({
-                terminalId: oldTerminalId,
-                callback: () => {
-                    if (claudeTerminalRef.current && typeof claudeTerminalRef.current.saveScrollState === 'function') {
-                        claudeTerminalRef.current.saveScrollState()
-                    }
-                },
-            })
-
-            // Attach new terminal: prepare to restore scroll state when ready
-            if (terminals.top) {
-                attachTerminal({
-                    terminalId: terminals.top,
-                })
+            // Top terminal ID has changed - save scroll state from the old terminal
+            if (claudeTerminalRef.current && typeof claudeTerminalRef.current.saveScrollState === 'function') {
+                claudeTerminalRef.current.saveScrollState()
             }
-        } else if (terminals.top && !previousTopTerminalRef.current) {
-            // Initial attachment of top terminal
-            attachTerminal({
-                terminalId: terminals.top,
-            })
         }
         previousTopTerminalRef.current = terminals.top
-    }, [terminals.top, attachTerminal, detachTerminal])
+    }, [terminals.top])
 
     // Helper to apply tab state changes (replaces the old applyTabsState)
     const applyTabsState = useCallback(
