@@ -51,6 +51,9 @@ export enum KeyboardShortcutAction {
   OpenTerminalSearch = 'openTerminalSearch',
   OpenInApp = 'openInApp',
   FocusSpecsTab = 'focusSpecsTab',
+  SelectPrevTab = 'selectPrevTab',
+  SelectNextTab = 'selectNextTab',
+  AddAgentTab = 'addAgentTab',
 }
 
 export type KeyboardShortcutConfig = Record<KeyboardShortcutAction, string[]>
@@ -121,6 +124,9 @@ export const defaultShortcutConfig: KeyboardShortcutConfig = {
   [KeyboardShortcutAction.OpenTerminalSearch]: createNormalizedBindings(['Mod+F']),
   [KeyboardShortcutAction.OpenInApp]: createNormalizedBindings(['Mod+Shift+O']),
   [KeyboardShortcutAction.FocusSpecsTab]: createNormalizedBindings(['Mod+Shift+S']),
+  [KeyboardShortcutAction.SelectPrevTab]: createNormalizedBindings(['Mod+[']),
+  [KeyboardShortcutAction.SelectNextTab]: createNormalizedBindings(['Mod+]']),
+  [KeyboardShortcutAction.AddAgentTab]: createNormalizedBindings(['Mod+Shift+A']),
 }
 
 export const mergeShortcutConfig = (

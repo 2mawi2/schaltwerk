@@ -790,6 +790,36 @@ const TerminalGridComponent = () => {
                 setPendingRunToggle(true)
             }
             
+            // Agent tab navigation shortcuts (top terminal)
+            if (isShortcutForAction(event, KeyboardShortcutAction.SelectPrevTab, keyboardShortcutConfig, { platform })) {
+                event.preventDefault()
+                if (!agentTabsState || agentTabsState.tabs.length <= 1) return
+
+                const totalTabs = agentTabsState.tabs.length
+                const prevIndex = agentTabsState.activeTab === 0 ? totalTabs - 1 : agentTabsState.activeTab - 1
+                setActiveAgentTab(prevIndex)
+                return
+            }
+
+            if (isShortcutForAction(event, KeyboardShortcutAction.SelectNextTab, keyboardShortcutConfig, { platform })) {
+                event.preventDefault()
+                if (!agentTabsState || agentTabsState.tabs.length <= 1) return
+
+                const totalTabs = agentTabsState.tabs.length
+                const nextIndex = agentTabsState.activeTab === totalTabs - 1 ? 0 : agentTabsState.activeTab + 1
+                setActiveAgentTab(nextIndex)
+                return
+            }
+
+            // Add agent tab shortcut
+            if (isShortcutForAction(event, KeyboardShortcutAction.AddAgentTab, keyboardShortcutConfig, { platform })) {
+                event.preventDefault()
+                if (selection.kind === 'session') {
+                    setCustomAgentModalOpen(true)
+                }
+                return
+            }
+
             // Cmd+/ for Terminal Focus (Mac only)
             if (event.metaKey && event.key === '/') {
                 event.preventDefault()
@@ -863,26 +893,31 @@ const TerminalGridComponent = () => {
             document.removeEventListener('keydown', handleKeyDown)
         }
     }, [
-        hasRunScripts, 
-        isBottomCollapsed, 
-        runModeActive, 
-        terminalTabsState.activeTab, 
-        sessionKey, 
-        getFocusForSession, 
-        setFocusForSession, 
-        isAnyModalOpen, 
-        activeTabKey, 
-        RUN_TAB_INDEX, 
-        getSessionKey, 
-        applyTabsState, 
-        persistRunModeState, 
-        localFocus, 
-        setLocalFocus, 
+        hasRunScripts,
+        isBottomCollapsed,
+        runModeActive,
+        terminalTabsState.activeTab,
+        sessionKey,
+        getFocusForSession,
+        setFocusForSession,
+        isAnyModalOpen,
+        activeTabKey,
+        RUN_TAB_INDEX,
+        getSessionKey,
+        applyTabsState,
+        persistRunModeState,
+        localFocus,
+        setLocalFocus,
         setIsBottomCollapsed,
         lastExpandedBottomPercent,
         setSizes,
         collapsedPercent,
-        toggleTerminalCollapsed
+        toggleTerminalCollapsed,
+        keyboardShortcutConfig,
+        platform,
+        agentTabsState,
+        setActiveAgentTab,
+        selection.kind,
     ])
 
     // Handle pending run toggle after RunTerminal mounts with proper timing
@@ -1272,13 +1307,12 @@ const TerminalGridComponent = () => {
                             activeTab={agentTabsState.activeTab}
                             onTabSelect={setActiveAgentTab}
                             onTabClose={selection.kind === 'session' ? closeAgentTab : undefined}
-                            onTabAdd={selection.kind === 'session' ? addAgentTab : undefined}
+                            onTabAdd={selection.kind === 'session' ? () => setCustomAgentModalOpen(true) : undefined}
                             onReset={selection.kind === 'session' ? () => setConfirmResetOpen(true) : undefined}
                             isFocused={localFocus === 'claude'}
                             actionButtons={shouldShowActionButtons ? actionButtons : []}
                             onAction={handleActionButtonInvoke}
                             shortcutLabel={focusClaudeShortcut || '⌘T'}
-                            onConfigureAgents={selection.kind === 'session' ? () => setCustomAgentModalOpen(true) : undefined}
                         />
                     ) : (
                     <div

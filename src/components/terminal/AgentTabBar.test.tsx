@@ -6,46 +6,6 @@ import { AgentTabBar } from './AgentTabBar'
 import { AgentTab } from '../../store/atoms/agentTabs'
 import { AgentType } from '../../types/session'
 
-vi.mock('../../hooks/useAgentAvailability', () => ({
-    useAgentAvailability: () => ({
-        isAvailable: () => true,
-        loading: false,
-        availability: {},
-        getRecommendedPath: () => null,
-        getInstallationMethod: () => null,
-    }),
-}))
-
-vi.mock('../inputs/Dropdown', () => {
-    type Item = { key: string; label: string }
-    type DropdownProps = {
-        children: (helpers: { toggle: () => void }) => React.ReactNode
-        items: Item[]
-        onSelect: (key: string) => void
-        open?: boolean
-        onOpenChange?: (open: boolean) => void
-        align?: string
-        minWidth?: number
-    }
-    const Dropdown = ({ children, items, onSelect }: DropdownProps) => (
-        <div data-testid="mock-dropdown">
-            {children({ toggle: () => {} })}
-            <div data-testid="dropdown-content">
-                {items.map((item) => (
-                    <button
-                        key={item.key}
-                        onClick={() => onSelect(item.key)}
-                        data-testid={`agent-option-${item.key}`}
-                    >
-                        {item.label}
-                    </button>
-                ))}
-            </div>
-        </div>
-    )
-    return { Dropdown, DropdownItem: {} }
-})
-
 vi.mock('../UnifiedTab', () => {
     type UnifiedTabProps = {
         label: string
@@ -119,7 +79,6 @@ describe('AgentTabBar', () => {
         actionButtons: [],
         onAction: vi.fn(),
         shortcutLabel: '⌘T',
-        onConfigureAgents: vi.fn(),
     }
 
     it('renders all tabs using UnifiedTab', () => {
@@ -151,12 +110,11 @@ describe('AgentTabBar', () => {
         expect(defaultProps.onTabClose).toHaveBeenCalledWith(1)
     })
 
-    it('renders AddTabButton and calls onTabAdd on selection', () => {
+    it('renders AddTabButton and calls onTabAdd on click', () => {
         render(<AgentTabBar {...defaultProps} />)
         const addButton = screen.getByTestId('add-tab-button')
         fireEvent.click(addButton)
-        fireEvent.click(screen.getByTestId('agent-option-claude'))
-        expect(defaultProps.onTabAdd).toHaveBeenCalledWith('claude')
+        expect(defaultProps.onTabAdd).toHaveBeenCalled()
     })
 
     it('renders agent badges per tab', () => {
