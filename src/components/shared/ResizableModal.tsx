@@ -162,6 +162,7 @@ export const ResizableModal: React.FC<ResizableModalProps> = ({
           border: '1px solid',
           userSelect: isResizing ? 'none' : 'auto'
         }}
+        onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
         <div

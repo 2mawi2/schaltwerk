@@ -83,7 +83,11 @@ export function ConfirmModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" role="dialog" aria-modal="true">
-      <div className="bg-slate-900 border border-slate-700 rounded-lg p-6 max-w-md w-full mx-4">
+      <div
+        className="bg-slate-900 border border-slate-700 rounded-lg p-6 max-w-md w-full mx-4"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+      >
         <h2 className="text-lg font-semibold mb-4 text-slate-100">{title}</h2>
         {body && <div className="mb-6">{body}</div>}
         <div className="flex gap-3 justify-end">

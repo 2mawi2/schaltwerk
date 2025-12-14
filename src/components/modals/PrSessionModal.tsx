@@ -215,6 +215,8 @@ export function PrSessionModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="pr-session-title"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-start gap-4 border-b px-6 py-4 flex-shrink-0" style={{ borderColor: theme.colors.border.subtle }}>
           <div>

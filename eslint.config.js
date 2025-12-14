@@ -6,6 +6,7 @@ import tsparser from '@typescript-eslint/parser';
 import reactHooks from 'eslint-plugin-react-hooks';
 import noEmptyCatchHandlers from './eslint-rules/no-empty-catch-handlers.js';
 import noTailwindFontSizes from './eslint-rules/no-tailwind-font-sizes.js';
+import modalFocusProtection from './eslint-rules/modal-focus-protection.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,6 +15,7 @@ const localPlugin = {
   rules: {
     'no-empty-catch-handlers': noEmptyCatchHandlers,
     'no-tailwind-font-sizes': noTailwindFontSizes,
+    'modal-focus-protection': modalFocusProtection,
   },
 };
 
@@ -111,6 +113,15 @@ export default [
     ],
     rules: {
       'local/no-tailwind-font-sizes': 'error',
+    },
+  },
+  {
+    files: [
+      'src/components/modals/**/*.tsx',
+      'src/components/shared/ResizableModal.tsx',
+    ],
+    rules: {
+      'local/modal-focus-protection': 'error',
     },
   },
   {
