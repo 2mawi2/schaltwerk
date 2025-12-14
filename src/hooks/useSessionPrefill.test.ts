@@ -102,6 +102,7 @@ describe('useSessionPrefill', () => {
         lockName: false,
         fromDraft: true,
         originalSpecName: 'test-session',
+        epicId: null,
       })
 
       expect(invoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreGetSpec, { name: 'test-session' })
