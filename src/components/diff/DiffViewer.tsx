@@ -475,7 +475,7 @@ export function DiffViewer({
   if (!selectedFile && files.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <AnimatedText text="loading" size="md" />
+        <AnimatedText text="loading" />
       </div>
     )
   }
