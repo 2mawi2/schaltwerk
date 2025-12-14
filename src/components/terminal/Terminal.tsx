@@ -18,6 +18,7 @@ import { sessionTerminalBase } from '../../common/terminalIdentity'
 import { UnlistenFn } from '@tauri-apps/api/event';
 import { useAtomValue, useSetAtom } from 'jotai'
 import { previewStateAtom, setPreviewUrlActionAtom } from '../../store/atoms/preview'
+import { terminalLifecycleAtomFamily } from '../../store/atoms/terminal'
 import { LocalPreviewWatcher } from '../../features/preview/localPreview'
 import type { AutoPreviewConfig } from '../../utils/runScriptPreviewConfig'
 import { useCleanupRegistry } from '../../hooks/useCleanupRegistry';
@@ -1264,6 +1265,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         // Use IntersectionObserver to catch hidden->visible transitions (e.g., collapsed panels)
         // and trigger a definitive fit+resize when the terminal becomes visible.
         // Skip for background terminals since they're always hidden
+        // NOTE: IntersectionObserver now ONLY handles layout concerns (fit, scrollbar refresh).
+        // Scroll positioning is handled by explicit lifecycle atoms to avoid race conditions.
         let visibilityObserver: IntersectionObserver | null = null;
         if (!isBackground && typeof IntersectionObserver !== 'undefined' && termRef.current) {
             visibilityObserver = new IntersectionObserver((entries) => {
@@ -1278,9 +1281,12 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                     logger.debug(`[Terminal ${terminalId}] Visibility pre-fit failure`, e);
                 }
                 resizeCoordinatorRef.current?.flush('visibility');
-                
-                // Ensure viewport is synced (scroll lock + refresh)
-                viewportControllerRef.current?.onVisibilityChange(true);
+
+                // Only refresh layout for standard terminals during visibility change
+                // TUI terminals use alternate buffer and manage their own viewport
+                if (!xtermWrapperRef.current?.isTuiMode()) {
+                    viewportControllerRef.current?.onVisibilityChange(true);
+                }
 
                 try {
                     requestResizeRef.current?.('visibility', { immediate: true, force: true });
@@ -1656,6 +1662,17 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         gpuEnabledForTerminal,
         gpuRenderer,
     ]);
+
+    // Handle explicit terminal attachment lifecycle for scroll state restoration.
+    // This ensures scroll state is restored when all app state (agentType, uiMode, config)
+    // is guaranteed to be ready, not when DOM events (IntersectionObserver) fire.
+    const lifecycleState = useAtomValue(terminalLifecycleAtomFamily(terminalId));
+
+    useEffect(() => {
+        if (lifecycleState.isAttached && xtermWrapperRef.current) {
+            xtermWrapperRef.current.restoreScrollState();
+        }
+    }, [lifecycleState.isAttached, terminalId]);
 
     const configEffectInitializedRef = useRef(false);
     useEffect(() => {
