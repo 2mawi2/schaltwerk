@@ -82,7 +82,7 @@ pub struct GeminiAdapter;
 
 impl AgentAdapter for GeminiAdapter {
     fn find_session(&self, path: &Path) -> Option<String> {
-        super::gemini::find_gemini_session(path)
+        super::gemini::find_resumable_gemini_session_fast(path)
     }
 
     fn build_launch_spec(&self, ctx: AgentLaunchContext) -> AgentLaunchSpec {
@@ -95,7 +95,7 @@ impl AgentAdapter for GeminiAdapter {
         };
         let command = super::gemini::build_gemini_command_with_config(
             ctx.worktree_path,
-            None,
+            ctx.session_id,
             ctx.initial_prompt,
             ctx.skip_permissions,
             Some(&config),
