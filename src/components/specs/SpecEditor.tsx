@@ -263,7 +263,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
-        <AnimatedText text="loading" size="md" />
+        <AnimatedText text="loading" />
       </div>
     )
   }

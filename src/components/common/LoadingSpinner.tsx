@@ -12,12 +12,12 @@ export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
   message = 'Loading...',
   className = ''
 }) => {
-  const animatedTextSize = size === 'sm' ? 'xs' : size === 'lg' ? 'lg' : 'md'
+  const animatedTextSize = size === 'sm' ? 'xs' as const : size === 'lg' ? 'lg' as const : undefined
 
   return (
     <div className={`flex flex-col items-center justify-center ${className}`}>
-      <AnimatedText 
-        text={message.toLowerCase().replace(/[^\w\s]/g, '')} 
+      <AnimatedText
+        text={message.toLowerCase().replace(/[^\w\s]/g, '')}
         size={animatedTextSize}
       />
     </div>

@@ -105,7 +105,7 @@ function stringToSimpleAscii(text: string): string {
 
 export const AnimatedText: React.FC<AnimatedTextProps> = ({
   text,
-  size = 'sm',
+  size,
   paused = false,
   className = '',
   idleMode = 'artifact',
@@ -113,7 +113,7 @@ export const AnimatedText: React.FC<AnimatedTextProps> = ({
   speedMultiplier = 1,
   colorClassName,
 }) => {
-  const sizeClasses = {
+  const sizeClasses: Record<string, string> = {
     xs: 'text-[3px]',
     sm: 'text-[4px]',
     md: 'text-[5px]',
@@ -154,7 +154,7 @@ export const AnimatedText: React.FC<AnimatedTextProps> = ({
         idleArtifactMagnitude={2.8}
         idleArtifactMinDelayMs={1200 / speedMultiplier}
         idleArtifactMaxDelayMs={2000 / speedMultiplier}
-        textSizeClass={sizeClasses[size]}
+        textSizeClass={size ? sizeClasses[size] : undefined}
       />
     </div>
   )
