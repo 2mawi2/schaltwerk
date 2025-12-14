@@ -14,6 +14,7 @@ import { terminalFontSizeAtom } from '../store/atoms/fontSize'
 const DEFAULT_SCROLLBACK_LINES = 10000
 const BACKGROUND_SCROLLBACK_LINES = 5000
 const AGENT_SCROLLBACK_LINES = 20000
+const TUI_SCROLLBACK_LINES = 2000
 const ATLAS_CONTRAST_BASE = 1.1
 const DEFAULT_FONT_FAMILY = 'Menlo, Monaco, ui-monospace, SFMono-Regular, monospace'
 
@@ -21,6 +22,7 @@ interface TerminalConfigOptions {
   isBackground: boolean
   isAgentTopTerminal: boolean
   readOnly: boolean
+  agentType?: string
 }
 
 export interface TerminalConfig {
@@ -49,7 +51,7 @@ export interface UseTerminalConfigResult {
 }
 
 export function useTerminalConfig(options: TerminalConfigOptions): UseTerminalConfigResult {
-  const { isBackground, isAgentTopTerminal, readOnly } = options
+  const { isBackground, isAgentTopTerminal, readOnly, agentType } = options
 
   const resolvedFontFamily = useAtomValue(resolvedFontFamilyAtom)
   const customFontFamily = useAtomValue(customFontFamilyAtom)
@@ -84,7 +86,7 @@ export function useTerminalConfig(options: TerminalConfigOptions): UseTerminalCo
     if (isBackground) {
       scrollbackLines = BACKGROUND_SCROLLBACK_LINES
     } else if (isAgentTopTerminal) {
-      scrollbackLines = AGENT_SCROLLBACK_LINES
+      scrollbackLines = agentType === 'kilocode' ? TUI_SCROLLBACK_LINES : AGENT_SCROLLBACK_LINES
     }
 
     return {
@@ -98,6 +100,7 @@ export function useTerminalConfig(options: TerminalConfigOptions): UseTerminalCo
   }, [
     isBackground,
     isAgentTopTerminal,
+    agentType,
     terminalFontSize,
     resolvedFontFamily,
     readOnly,
