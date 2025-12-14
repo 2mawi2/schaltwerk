@@ -1109,6 +1109,7 @@ fn main() {
             schaltwerk_core_update_spec_content,
             schaltwerk_core_append_spec_content,
             schaltwerk_core_link_session_to_pr,
+            schaltwerk_core_unlink_session_from_pr,
             schaltwerk_core_rename_draft_session,
             schaltwerk_core_rename_session_display_name,
             schaltwerk_core_list_sessions_by_state,

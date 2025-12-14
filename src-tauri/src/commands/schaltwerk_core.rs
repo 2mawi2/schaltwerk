@@ -2499,6 +2499,29 @@ pub async fn schaltwerk_core_link_session_to_pr(
 }
 
 #[tauri::command]
+pub async fn schaltwerk_core_unlink_session_from_pr(
+    app: tauri::AppHandle,
+    name: String,
+) -> Result<(), String> {
+    log::info!("Unlinking PR from session '{name}'");
+
+    let core = get_core_write().await?;
+    let manager = core.session_manager();
+
+    let session = manager
+        .get_session(&name)
+        .map_err(|e| format!("Session not found: {e}"))?;
+
+    core.db
+        .update_session_pr_info(&session.id, None, None)
+        .map_err(|e| format!("Failed to unlink PR from session: {e}"))?;
+
+    events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SpecSync);
+
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn schaltwerk_core_list_sessions_by_state(state: String) -> Result<Vec<Session>, String> {
     log::info!("Listing sessions by state: {state}");
 

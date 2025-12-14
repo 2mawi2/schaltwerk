@@ -128,6 +128,7 @@ export const TauriCommands = {
   SchaltwerkCoreListCodexModels: 'schaltwerk_core_list_codex_models',
   SchaltwerkCoreListSessionsByState: 'schaltwerk_core_list_sessions_by_state',
   SchaltwerkCoreLinkSessionToPr: 'schaltwerk_core_link_session_to_pr',
+  SchaltwerkCoreUnlinkSessionFromPr: 'schaltwerk_core_unlink_session_from_pr',
   SchaltwerkCoreLogFrontendMessage: 'schaltwerk_core_log_frontend_message',
   SchaltwerkCoreMarkReady: 'schaltwerk_core_mark_ready',
   SchaltwerkCoreMarkSessionReady: 'schaltwerk_core_mark_session_ready',

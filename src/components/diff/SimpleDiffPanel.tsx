@@ -12,7 +12,8 @@ import {
   VscCircleFilled,
   VscVerified,
   VscRequestChanges,
-  VscAccount
+  VscAccount,
+  VscClose
 } from 'react-icons/vsc'
 import { useReview } from '../../contexts/ReviewContext'
 import { useReviewComments } from '../../hooks/useReviewComments'
@@ -221,6 +222,20 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
     }
   }, [sessionName, reloadSessions, pushToast])
 
+  const handleUnlinkPr = useCallback(async () => {
+    if (!sessionName || !prNumber) return
+    try {
+      await invoke(TauriCommands.SchaltwerkCoreUnlinkSessionFromPr, {
+        name: sessionName
+      })
+      await reloadSessions()
+      pushToast({ tone: 'success', title: 'PR unlinked', description: `PR #${prNumber} unlinked from session` })
+    } catch (error) {
+      logger.error('Failed to unlink PR from session:', error)
+      pushToast({ tone: 'error', title: 'Failed to unlink PR', description: String(error) })
+    }
+  }, [sessionName, prNumber, reloadSessions, pushToast])
+
   const handleFetchAndPasteComments = useCallback(async () => {
     if (!prNumber) return
     await fetchAndPasteToTerminal(prNumber)
@@ -382,6 +397,13 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
                     <VscLinkExternal />
                   </button>
                 )}
+                <button
+                  onClick={() => { void handleUnlinkPr() }}
+                  className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-slate-200 transition-colors"
+                  title={`Unlink PR #${prNumber} from this session`}
+                >
+                  <VscClose />
+                </button>
               </>
             ) : (
               <button
