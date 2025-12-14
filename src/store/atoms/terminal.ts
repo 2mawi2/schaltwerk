@@ -278,76 +278,9 @@ export const setWebglEnabledActionAtom = atom(
   }
 )
 
-// Terminal lifecycle state: manages explicit attach/detach for scroll preservation
-// This ensures scroll state changes happen when all app state is ready,
-// not when DOM events (IntersectionObserver) fire asynchronously.
-export interface TerminalLifecycleState {
-  isAttached: boolean
-}
-
-const DEFAULT_LIFECYCLE: TerminalLifecycleState = {
-  isAttached: false,
-}
-
-export const terminalLifecycleAtomFamily = atomFamily(
-  (_terminalId: string) => atom<TerminalLifecycleState>({ ...DEFAULT_LIFECYCLE }),
-  (a, b) => a === b,
-)
-
-/**
- * Action atom to explicitly attach a terminal.
- * Call this when a terminal is being activated and attached to DOM.
- * All app state (agentType, uiMode, config) is guaranteed to be ready.
- *
- * This ensures scroll state restoration happens at the right time,
- * not at the mercy of IntersectionObserver timing.
- */
-export const attachTerminalActionAtom = atom(
-  null,
-  (
-    _get,
-    set,
-    params: {
-      terminalId: string
-      callback?: () => void
-    },
-  ) => {
-    const { terminalId, callback } = params
-    const lifecycleAtom = terminalLifecycleAtomFamily(terminalId)
-
-    set(lifecycleAtom, { isAttached: true })
-    callback?.()
-  },
-)
-
-/**
- * Action atom to explicitly detach a terminal.
- * Call this when a terminal is being deactivated and removed from active use.
- * This saves scroll state before the terminal loses focus.
- */
-export const detachTerminalActionAtom = atom(
-  null,
-  (
-    _get,
-    set,
-    params: {
-      terminalId: string
-      callback?: () => void
-    },
-  ) => {
-    const { terminalId, callback } = params
-    const lifecycleAtom = terminalLifecycleAtomFamily(terminalId)
-
-    set(lifecycleAtom, { isAttached: false })
-    callback?.()
-  },
-)
-
 export function __resetTerminalAtomsForTest(): void {
   terminalTabsAtomFamily.setShouldRemove(() => true)
   terminalTabsAtomFamily.setShouldRemove(null)
   runModeActiveAtomFamily.setShouldRemove(() => true)
   runModeActiveAtomFamily.setShouldRemove(null)
-  terminalLifecycleAtomFamily.setShouldRemove(() => true)
-  terminalLifecycleAtomFamily.setShouldRemove(null)
 }
