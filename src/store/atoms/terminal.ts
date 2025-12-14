@@ -278,9 +278,125 @@ export const setWebglEnabledActionAtom = atom(
   }
 )
 
+// Terminal lifecycle state: manages explicit attach/detach for scroll preservation
+// This ensures scroll state changes happen when all app state is ready,
+// not when DOM events (IntersectionObserver) fire asynchronously.
+export interface TerminalLifecycleState {
+  isAttached: boolean
+}
+
+const DEFAULT_LIFECYCLE: TerminalLifecycleState = {
+  isAttached: false,
+}
+
+export const terminalLifecycleAtomFamily = atomFamily(
+  (_terminalId: string) => atom<TerminalLifecycleState>({ ...DEFAULT_LIFECYCLE }),
+  (a, b) => a === b,
+)
+
+/**
+ * Terminal streaming state atom: tracks whether a terminal is actively streaming output.
+ * Updated via output callbacks from the terminal registry.
+ * This allows Jotai to properly notify dependents when streaming state changes.
+ */
+export const terminalStreamingAtomFamily = atomFamily(
+  (_terminalId: string) => atom<boolean>(false),
+  (a, b) => a === b,
+)
+
+/**
+ * Action atom to update terminal streaming state.
+ * Called internally when output callbacks fire to sync streaming status with Jotai.
+ */
+export const updateTerminalStreamingStateActionAtom = atom(
+  null,
+  (
+    _get,
+    set,
+    params: {
+      terminalId: string
+      isStreaming: boolean
+    },
+  ) => {
+    const { terminalId, isStreaming } = params
+    const streamingAtom = terminalStreamingAtomFamily(terminalId)
+    set(streamingAtom, isStreaming)
+  },
+)
+
+/**
+ * Derived atom: whether a terminal's scroll state should be restored.
+ * True when terminal is explicitly attached AND not actively streaming output.
+ * This is the single source of truth for "should restore scroll now?".
+ * Reads from the streaming atom instead of calling the registry function,
+ * ensuring Jotai properly notifies when streaming state changes.
+ */
+export const shouldRestoreTerminalScrollAtomFamily = atomFamily(
+  (terminalId: string) =>
+    atom((get) => {
+      const lifecycle = get(terminalLifecycleAtomFamily(terminalId))
+      const isStreaming = get(terminalStreamingAtomFamily(terminalId))
+      return lifecycle.isAttached && !isStreaming
+    }),
+  (a, b) => a === b,
+)
+
+/**
+ * Action atom to explicitly attach a terminal.
+ * Call this when a terminal is being activated and attached to DOM.
+ * All app state (agentType, uiMode, config) is guaranteed to be ready.
+ *
+ * This ensures scroll state restoration happens at the right time,
+ * not at the mercy of IntersectionObserver timing.
+ */
+export const attachTerminalActionAtom = atom(
+  null,
+  (
+    _get,
+    set,
+    params: {
+      terminalId: string
+      callback?: () => void
+    },
+  ) => {
+    const { terminalId, callback } = params
+    const lifecycleAtom = terminalLifecycleAtomFamily(terminalId)
+
+    set(lifecycleAtom, { isAttached: true })
+    callback?.()
+  },
+)
+
+/**
+ * Action atom to explicitly detach a terminal.
+ * Call this when a terminal is being deactivated and removed from active use.
+ * This saves scroll state before the terminal loses focus.
+ */
+export const detachTerminalActionAtom = atom(
+  null,
+  (
+    _get,
+    set,
+    params: {
+      terminalId: string
+      callback?: () => void
+    },
+  ) => {
+    const { terminalId, callback } = params
+    const lifecycleAtom = terminalLifecycleAtomFamily(terminalId)
+
+    set(lifecycleAtom, { isAttached: false })
+    callback?.()
+  },
+)
+
 export function __resetTerminalAtomsForTest(): void {
   terminalTabsAtomFamily.setShouldRemove(() => true)
   terminalTabsAtomFamily.setShouldRemove(null)
   runModeActiveAtomFamily.setShouldRemove(() => true)
   runModeActiveAtomFamily.setShouldRemove(null)
+  terminalLifecycleAtomFamily.setShouldRemove(() => true)
+  terminalLifecycleAtomFamily.setShouldRemove(null)
+  terminalStreamingAtomFamily.setShouldRemove(() => true)
+  terminalStreamingAtomFamily.setShouldRemove(null)
 }

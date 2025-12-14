@@ -38,6 +38,8 @@ import {
   removeTabActionAtom,
   setActiveTabActionAtom,
   resetTerminalTabsActionAtom,
+  attachTerminalActionAtom,
+  detachTerminalActionAtom,
 } from '../../store/atoms/terminal'
 import { buildPreviewKey } from '../../store/atoms/preview'
 import { useShortcutDisplay } from '../../keyboardShortcuts/useShortcutDisplay'
@@ -131,6 +133,10 @@ const TerminalGridComponent = () => {
         setAgentTypeCache({ sessionId: sessionKey, agentType: type })
     }, [sessionKey, setAgentTypeCache])
 
+    // Terminal lifecycle actions for explicit attach/detach coordination
+    const attachTerminal = useSetAtom(attachTerminalActionAtom)
+    const detachTerminal = useSetAtom(detachTerminalActionAtom)
+
     // Agent tabs state for multiple agents in top terminal
     const agentTabScopeId = selection.kind === 'session' ? (selection.payload ?? null) : selection.kind === 'orchestrator' ? 'orchestrator' : null
     const orchestratorTabStarter = useCallback(async ({ terminalId }: { sessionId: string; terminalId: string; agentType: string }) => {
@@ -187,16 +193,26 @@ const TerminalGridComponent = () => {
     const previousTabsBaseRef = useRef<string | null>(terminals.bottomBase)
     const previousTopTerminalRef = useRef<string | null>(terminals.top)
 
-    // Handle scroll state preservation when switching top terminals
+    // Handle terminal lifecycle coordination for scroll state preservation.
+    // When the top terminal changes: save scroll from old terminal, detach it, then attach new one.
     useEffect(() => {
         if (previousTopTerminalRef.current && previousTopTerminalRef.current !== terminals.top) {
-            // Top terminal ID has changed - save scroll state from the old terminal
-            if (claudeTerminalRef.current && typeof claudeTerminalRef.current.saveScrollState === 'function') {
-                claudeTerminalRef.current.saveScrollState()
+            // Save scroll state from old terminal before detaching
+            claudeTerminalRef.current?.saveScrollState()
+
+            // Detach old terminal
+            detachTerminal({ terminalId: previousTopTerminalRef.current })
+
+            // Attach new terminal (will trigger restore when streaming stops)
+            if (terminals.top) {
+                attachTerminal({ terminalId: terminals.top })
             }
+        } else if (terminals.top && !previousTopTerminalRef.current) {
+            // Initial attachment of top terminal
+            attachTerminal({ terminalId: terminals.top })
         }
         previousTopTerminalRef.current = terminals.top
-    }, [terminals.top])
+    }, [terminals.top, attachTerminal, detachTerminal])
 
     // Helper to apply tab state changes (replaces the old applyTabsState)
     const applyTabsState = useCallback(

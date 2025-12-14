@@ -242,15 +242,18 @@ export class XtermTerminal {
       viewportY: buffer.viewportY,
       baseY: buffer.baseY,
     }
+    logger.debug(`[XtermTerminal ${this.terminalId}] Saved scroll state: viewportY=${this.savedScrollState.viewportY}, baseY=${this.savedScrollState.baseY}`)
   }
 
   restoreScrollState(): void {
     if (!this.savedScrollState) {
+      logger.debug(`[XtermTerminal ${this.terminalId}] Restore skipped: no saved state`)
       return
     }
 
     const buffer = this.raw.buffer?.active
     if (!buffer) {
+      logger.debug(`[XtermTerminal ${this.terminalId}] Restore skipped: no active buffer`)
       this.savedScrollState = null
       return
     }
@@ -259,7 +262,17 @@ export class XtermTerminal {
     const bufferGrowth = buffer.baseY - savedBaseY
     const targetY = Math.min(savedViewportY + Math.max(0, bufferGrowth), buffer.baseY)
 
+    // Don't restore if target is already near bottom (within snap-to-bottom threshold)
+    // This prevents oscillation between restore and snap-to-bottom logic
+    const distanceFromBottom = buffer.baseY - targetY
+    if (distanceFromBottom <= 5) {
+      logger.debug(`[XtermTerminal ${this.terminalId}] Restore skipped (near-bottom): saved=${savedViewportY} baseY=${savedBaseY} → target=${targetY} distance=${distanceFromBottom}`)
+      this.savedScrollState = null
+      return
+    }
+
     if (buffer.viewportY !== targetY) {
+      logger.debug(`[XtermTerminal ${this.terminalId}] Restoring scroll: saved=${savedViewportY} baseY=${savedBaseY} growth=${bufferGrowth} → target=${targetY}`)
       try {
         this.raw.scrollToLine(targetY)
       } catch (error) {
