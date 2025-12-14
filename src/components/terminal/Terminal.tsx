@@ -120,6 +120,8 @@ export interface TerminalHandle {
     scrollPageUp: () => void;
     scrollPageDown: () => void;
     scrollToTop: () => void;
+    saveScrollState: () => void;
+    restoreScrollState: () => void;
 }
 
 type TerminalFileLinkHandler = (text: string) => Promise<boolean> | boolean;
@@ -692,6 +694,12 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         scrollPageUp: () => scrollPages(-1),
         scrollPageDown: () => scrollPages(1),
         scrollToTop: scrollToTopInstant,
+        saveScrollState: () => {
+            xtermWrapperRef.current?.saveScrollState();
+        },
+        restoreScrollState: () => {
+            xtermWrapperRef.current?.restoreScrollState();
+        },
     }), [isAnyModalOpen, isSearchVisible, focusSearchInput, scrollToBottomInstant, scrollLines, scrollPages, scrollToTopInstant]);
 
     useEffect(() => {

@@ -185,6 +185,18 @@ const TerminalGridComponent = () => {
 
     const previousTerminalKeyRef = useRef<number>(terminalKey)
     const previousTabsBaseRef = useRef<string | null>(terminals.bottomBase)
+    const previousTopTerminalRef = useRef<string | null>(terminals.top)
+
+    // Handle scroll state preservation when switching top terminals
+    useEffect(() => {
+        if (previousTopTerminalRef.current && previousTopTerminalRef.current !== terminals.top) {
+            // Top terminal ID has changed - save scroll state from the old terminal
+            if (claudeTerminalRef.current && typeof claudeTerminalRef.current.saveScrollState === 'function') {
+                claudeTerminalRef.current.saveScrollState()
+            }
+        }
+        previousTopTerminalRef.current = terminals.top
+    }, [terminals.top])
 
     // Helper to apply tab state changes (replaces the old applyTabsState)
     const applyTabsState = useCallback(
