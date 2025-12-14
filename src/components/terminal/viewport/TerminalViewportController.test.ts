@@ -70,6 +70,32 @@ describe('TerminalViewportController', () => {
 
       expect(terminal.raw.refresh).toHaveBeenCalledTimes(1)
     })
+
+    it('never calls forceScrollbarRefresh during output (VS Code pattern)', async () => {
+      const { terminal } = buildMockTerminal({ baseY: 100, viewportY: 50 })
+      const controller = new TerminalViewportController({
+        terminal: terminal as any,
+        terminalId: TEST_TERMINAL_ID,
+      })
+
+      controller.onOutput()
+      await vi.runAllTimersAsync()
+
+      expect(terminal.forceScrollbarRefresh).not.toHaveBeenCalled()
+    })
+
+    it('never calls forceScrollbarRefresh during output even at bottom', async () => {
+      const { terminal } = buildMockTerminal({ baseY: 100, viewportY: 100 })
+      const controller = new TerminalViewportController({
+        terminal: terminal as any,
+        terminalId: TEST_TERMINAL_ID,
+      })
+
+      controller.onOutput()
+      await vi.runAllTimersAsync()
+
+      expect(terminal.forceScrollbarRefresh).not.toHaveBeenCalled()
+    })
   })
 
   describe('onClear', () => {
