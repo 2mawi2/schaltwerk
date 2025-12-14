@@ -32,6 +32,11 @@ type TerminalTheme = NonNullable<ITerminalOptions['theme']>
 type FileLinkHandler = (text: string) => Promise<boolean> | boolean
 export type TerminalUiMode = 'standard' | 'tui'
 
+interface ScrollState {
+  viewportY: number
+  baseY: number
+}
+
 interface IXtermCore {
   viewport?: {
     _innerRefresh(): void
@@ -109,7 +114,7 @@ export class XtermTerminal {
   private readonly terminalId: string
   private fileLinkHandler: FileLinkHandler | null = null
   private linkHandler: ((uri: string) => boolean | Promise<boolean>) | null = null
-  private wasAtBottomOnDetach: boolean | undefined
+  private savedScrollState: ScrollState | null = null
   private uiMode: TerminalUiMode
 
   constructor(options: XtermTerminalOptions) {
@@ -218,20 +223,52 @@ export class XtermTerminal {
     }
     this.container.style.display = 'block'
 
-    // Sync scrollbar with buffer state after reattachment
     this.syncViewport()
+    this.restoreScrollState()
+  }
 
-    // If we left the terminal at bottom, restore that position after reattach
+  saveScrollState(): void {
     const buffer = this.raw.buffer?.active
-    if (this.wasAtBottomOnDetach && buffer) {
+    if (!buffer) {
+      this.savedScrollState = null
+      return
+    }
+    this.savedScrollState = {
+      viewportY: buffer.viewportY,
+      baseY: buffer.baseY,
+    }
+  }
+
+  restoreScrollState(): void {
+    if (!this.savedScrollState) {
+      return
+    }
+
+    const buffer = this.raw.buffer?.active
+    if (!buffer) {
+      this.savedScrollState = null
+      return
+    }
+
+    const { viewportY: savedViewportY, baseY: savedBaseY } = this.savedScrollState
+    const bufferGrowth = buffer.baseY - savedBaseY
+    const targetY = Math.min(savedViewportY + Math.max(0, bufferGrowth), buffer.baseY)
+
+    if (buffer.viewportY !== targetY) {
       try {
-        this.raw.scrollToBottom()
+        this.raw.scrollToLine(targetY)
       } catch (error) {
-        logger.debug(`[XtermTerminal ${this.terminalId}] scrollToBottom failed after attach`, error)
+        logger.debug(`[XtermTerminal ${this.terminalId}] scrollToLine failed after attach`, error)
       }
     }
 
-    this.wasAtBottomOnDetach = undefined
+    this.savedScrollState = null
+  }
+
+  isAtBottom(): boolean {
+    const buffer = this.raw.buffer?.active
+    if (!buffer) return true
+    return buffer.baseY - buffer.viewportY <= 1
   }
 
   private applyTuiMode(): void {
@@ -291,12 +328,7 @@ export class XtermTerminal {
   }
 
   detach(): void {
-    const buffer = this.raw.buffer?.active
-    if (buffer) {
-      this.wasAtBottomOnDetach = buffer.baseY - buffer.viewportY <= 1
-    } else {
-      this.wasAtBottomOnDetach = true
-    }
+    this.saveScrollState()
     this.container.style.display = 'none'
   }
 

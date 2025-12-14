@@ -15,6 +15,7 @@ vi.mock('@xterm/xterm', () => {
     dispose = vi.fn()
     registerLinkProvider = vi.fn(() => ({ dispose: vi.fn() }))
     scrollToBottom = vi.fn()
+    scrollToLine = vi.fn()
     scrollLines = vi.fn()
     buffer: { active: { baseY: number; viewportY: number } } | undefined = {
       active: { baseY: 0, viewportY: 0 },
@@ -128,7 +129,7 @@ describe('XtermTerminal wrapper', () => {
     expect(instance.open).toHaveBeenCalledTimes(1)
   })
 
-  it('restores scroll to bottom after reattach when it was at bottom on detach', async () => {
+  it('restores exact scroll position after reattach', async () => {
     const { XtermTerminal } = await import('./XtermTerminal')
     const wrapper = new XtermTerminal({
       terminalId: 'scroll-restore',
@@ -143,24 +144,59 @@ describe('XtermTerminal wrapper', () => {
     })
 
     const { Terminal: MockTerminal } = await import('@xterm/xterm') as unknown as {
-      Terminal: { __instances: Array<{ buffer: { active: { baseY: number; viewportY: number } }; scrollToBottom: ReturnType<typeof vi.fn>; scrollLines: ReturnType<typeof vi.fn> }> }
+      Terminal: { __instances: Array<{ buffer: { active: { baseY: number; viewportY: number } }; scrollToLine: ReturnType<typeof vi.fn>; scrollLines: ReturnType<typeof vi.fn> }> }
     }
     const instance = MockTerminal.__instances.at(-1)!
-    instance.buffer.active.baseY = 20
-    instance.buffer.active.viewportY = 20 // at bottom
+    instance.buffer.active.baseY = 100
+    instance.buffer.active.viewportY = 42
 
     const container = document.createElement('div')
     wrapper.attach(container)
 
     wrapper.detach()
-    expect(instance.scrollToBottom).not.toHaveBeenCalled()
+    expect(instance.scrollToLine).not.toHaveBeenCalled()
+
+    instance.buffer.active.viewportY = 0
 
     wrapper.attach(container)
 
-    expect(instance.scrollToBottom).toHaveBeenCalledTimes(1)
+    expect(instance.scrollToLine).toHaveBeenCalledWith(42)
   })
 
-  it('does not force scroll when user was not at bottom on detach', async () => {
+  it('accounts for buffer growth when restoring scroll position', async () => {
+    const { XtermTerminal } = await import('./XtermTerminal')
+    const wrapper = new XtermTerminal({
+      terminalId: 'scroll-growth',
+      config: {
+        scrollback: 5000,
+        fontSize: 12,
+        fontFamily: 'Menlo',
+        readOnly: false,
+        minimumContrastRatio: 1,
+        smoothScrolling: false,
+      },
+    })
+
+    const { Terminal: MockTerminal } = await import('@xterm/xterm') as unknown as {
+      Terminal: { __instances: Array<{ buffer: { active: { baseY: number; viewportY: number } }; scrollToLine: ReturnType<typeof vi.fn> }> }
+    }
+    const instance = MockTerminal.__instances.at(-1)!
+    instance.buffer.active.baseY = 100
+    instance.buffer.active.viewportY = 42
+
+    const container = document.createElement('div')
+    wrapper.attach(container)
+    wrapper.detach()
+
+    instance.buffer.active.baseY = 120
+    instance.buffer.active.viewportY = 80
+
+    wrapper.attach(container)
+
+    expect(instance.scrollToLine).toHaveBeenCalledWith(62)
+  })
+
+  it('does not scroll when already at saved position', async () => {
     const { XtermTerminal } = await import('./XtermTerminal')
     const wrapper = new XtermTerminal({
       terminalId: 'scroll-preserve',
@@ -175,11 +211,11 @@ describe('XtermTerminal wrapper', () => {
     })
 
     const { Terminal: MockTerminal } = await import('@xterm/xterm') as unknown as {
-      Terminal: { __instances: Array<{ buffer: { active: { baseY: number; viewportY: number } }; scrollToBottom: ReturnType<typeof vi.fn> }> }
+      Terminal: { __instances: Array<{ buffer: { active: { baseY: number; viewportY: number } }; scrollToLine: ReturnType<typeof vi.fn> }> }
     }
     const instance = MockTerminal.__instances.at(-1)!
     instance.buffer.active.baseY = 50
-    instance.buffer.active.viewportY = 40 // scrolled up
+    instance.buffer.active.viewportY = 40
 
     const container = document.createElement('div')
     wrapper.attach(container)
@@ -187,7 +223,7 @@ describe('XtermTerminal wrapper', () => {
     wrapper.detach()
     wrapper.attach(container)
 
-    expect(instance.scrollToBottom).not.toHaveBeenCalled()
+    expect(instance.scrollToLine).not.toHaveBeenCalled()
   })
 
   it('updates underlying xterm options via updateOptions', async () => {
