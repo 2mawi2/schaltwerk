@@ -201,7 +201,7 @@ jobs:
           cd src-tauri
           cargo clippy --all-features -- -D warnings
           cargo shear
-          cargo nextest run --all-features --status-level fail --failure-output immediate
+          cargo nextest run --profile ci --all-features --status-level fail --failure-output immediate
           cargo build
 
       - name: Save cargo home cache

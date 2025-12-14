@@ -1,13 +1,10 @@
 [build]
 jobs = 8
-incremental = true
-# Use sccache for faster rebuilds (install: brew install sccache / apt install sccache)
-# Comment out if sccache is not installed
+# sccache caches compiled crates across worktrees (install: brew install sccache / apt install sccache)
+# NOTE: incremental=false is required for sccache to work effectively
+# Comment out rustc-wrapper if sccache is not installed
 rustc-wrapper = "sccache"
-# Each worktree will have its own target directory
-# This allows parallel builds but uses more disk space
-# Uncomment the line below to re-enable shared cache:
-# target-dir = "/tmp/schaltwerk-shared-target"
+incremental = false
 
 # macOS Intel
 [target.x86_64-apple-darwin]
