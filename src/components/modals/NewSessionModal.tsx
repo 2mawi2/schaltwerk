@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
 import { generateDockerStyleName } from '../../utils/dockerNames'
+import { promptToSessionName } from '../../utils/promptToSessionName'
 import { titleToSessionName } from '../../utils/titleToSessionName'
 import { invoke } from '@tauri-apps/api/core'
 import { SessionConfigurationPanel } from '../shared/SessionConfigurationPanel'
@@ -174,6 +175,10 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
             setManualPromptDraft(value)
             setTaskContent(value)
             onPromptChange?.(value)
+            if (!wasEditedRef.current && value.trim()) {
+                const derivedName = promptToSessionName(value)
+                setName(derivedName)
+            }
         },
         [onPromptChange]
     )
@@ -495,8 +500,8 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
         if (creating) return
         // Read directly from input when available to avoid any stale state in tests
         const currentValue = nameInputRef.current?.value ?? name
-        // Generate new name if current value is empty
-        let finalName = currentValue.trim() || generateDockerStyleName()
+        // Generate name from prompt if available, fallback to Docker style
+        let finalName = currentValue.trim() || (taskContent.trim() ? promptToSessionName(taskContent) : generateDockerStyleName())
         
         const error = validateSessionName(finalName)
         if (error) {
@@ -840,16 +845,18 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
             }
             
             setCreating(false)
-            // Generate a fresh Docker-style name each time the modal opens
-            const gen = generateDockerStyleName()
+            // Generate initial name - prefer prompt-based if cached prompt exists, fallback to Docker style
+            const gen = cachedPrompt?.trim()
+                ? promptToSessionName(cachedPrompt)
+                : generateDockerStyleName()
             initialGeneratedNameRef.current = gen
-            
+
             // Reset state if:
             // 1. We're not expecting prefill data AND don't already have it AND modal wasn't already open, OR
             // 2. The initialIsDraft prop changed (component re-rendered with different props)
             const initialIsDraftChanged = lastInitialIsDraftRef.current !== undefined && lastInitialIsDraftRef.current !== initialIsDraft
             const shouldReset = (!isPrefillPending && !hasPrefillData && !wasOpenRef.current) || initialIsDraftChanged
-            
+
             if (shouldReset) {
                 logger.info('[NewSessionModal] Resetting modal state - reason:', {
                     noPrefillAndWasntOpen: !isPrefillPending && !hasPrefillData && !wasOpenRef.current,
