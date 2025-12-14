@@ -370,6 +370,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         isBackground,
         isAgentTopTerminal,
         readOnly,
+        agentType,
     });
     // Drag-selection suppression for run terminals
     const suppressNextClickRef = useRef<boolean>(false);

@@ -224,10 +224,15 @@ export class XtermTerminal {
     this.container.style.display = 'block'
 
     this.syncViewport()
-    this.restoreScrollState()
+    if (this.uiMode !== 'tui') {
+      this.restoreScrollState()
+    }
   }
 
   saveScrollState(): void {
+    if (this.uiMode === 'tui') {
+      return
+    }
     const buffer = this.raw.buffer?.active
     if (!buffer) {
       this.savedScrollState = null
@@ -301,6 +306,11 @@ export class XtermTerminal {
   }
 
   private syncViewport(): void {
+    // For TUI mode, skip viewport sync operations entirely - the TUI app manages its own display
+    if (this.uiMode === 'tui') {
+      return
+    }
+
     // Refresh the renderer to sync with current buffer state
     const rawWithRefresh = this.raw as unknown as { refresh?: (start: number, end: number) => void }
     if (typeof rawWithRefresh.refresh === 'function') {
