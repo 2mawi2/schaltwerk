@@ -29,8 +29,8 @@ pub use crate::domains::git::{
     github_cli::{
         CommandOutput, CommandRunner, CreatePrOptions, CreateSessionPrOptions, GitHubCli,
         GitHubCliError, GitHubIssueComment, GitHubIssueDetails, GitHubIssueLabel,
-        GitHubIssueSummary, GitHubPrDetails, GitHubPrReviewComment, GitHubPrSummary,
-        PrCommitMode, PrContent, sanitize_branch_name,
+        GitHubIssueSummary, GitHubPrDetails, GitHubPrReview, GitHubPrReviewComment,
+        GitHubPrSummary, GitHubStatusCheck, PrCommitMode, PrContent, sanitize_branch_name,
     },
 };
 pub use crate::domains::git::{repository, worktrees};

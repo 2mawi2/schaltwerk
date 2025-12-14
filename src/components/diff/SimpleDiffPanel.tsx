@@ -1,7 +1,19 @@
 import { useCallback, useEffect, useState, type ChangeEvent } from 'react'
 import { DiffFileList } from './DiffFileList'
 import { UnifiedDiffView } from './UnifiedDiffView'
-import { VscScreenFull, VscChevronLeft, VscLink, VscComment, VscLinkExternal } from 'react-icons/vsc'
+import {
+  VscScreenFull,
+  VscChevronLeft,
+  VscLink,
+  VscComment,
+  VscLinkExternal,
+  VscPass,
+  VscError,
+  VscCircleFilled,
+  VscVerified,
+  VscRequestChanges,
+  VscAccount
+} from 'react-icons/vsc'
 import { useReview } from '../../contexts/ReviewContext'
 import { useReviewComments } from '../../hooks/useReviewComments'
 import { useSelection } from '../../hooks/useSelection'
@@ -20,6 +32,8 @@ import { useClaudeSession } from '../../hooks/useClaudeSession'
 import { LinkPrModal } from '../modals/LinkPrModal'
 import { useToast } from '../../common/toast/ToastProvider'
 import { usePrComments } from '../../hooks/usePrComments'
+import { useGithubPrSearch } from '../../hooks/useGithubPrSearch'
+import type { GithubPrDetails } from '../../types/githubIssues'
 
 interface SimpleDiffPanelProps {
   mode: 'list' | 'review'
@@ -68,6 +82,27 @@ export function SimpleDiffPanel({
   const prNumber = currentSession?.info.pr_number
   const prUrl = currentSession?.info.pr_url
   const sessionName = currentSession?.info.session_id
+
+  const [prDetails, setPrDetails] = useState<GithubPrDetails | null>(null)
+  const { fetchDetails } = useGithubPrSearch({ enabled: false })
+
+  useEffect(() => {
+    if (!prNumber) {
+      setPrDetails(null)
+      return
+    }
+    
+    let mounted = true
+    fetchDetails(prNumber)
+        .then(details => {
+            if (mounted) setPrDetails(details)
+        })
+        .catch(err => {
+            logger.error("Failed to fetch PR details", err)
+        })
+    
+    return () => { mounted = false }
+  }, [prNumber, fetchDetails])
 
   const handleSelectFile = useCallback((filePath: string) => {
     onActiveFileChange(filePath)
@@ -306,6 +341,30 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
           {currentSession && (
             prNumber ? (
               <>
+                {prDetails && (
+                  <div className="flex items-center gap-2 mr-1 border-r border-slate-800 pr-2">
+                    {prDetails.statusCheckState && (
+                      <div title={`CI Status: ${prDetails.statusCheckState}`} className="flex items-center">
+                        {prDetails.statusCheckState === 'SUCCESS' && <VscPass className="text-green-500" />}
+                        {prDetails.statusCheckState === 'FAILURE' && <VscError className="text-red-500" />}
+                        {prDetails.statusCheckState === 'PENDING' && <VscCircleFilled className="text-yellow-500" />}
+                      </div>
+                    )}
+                    {prDetails.reviewDecision && (
+                      <div title={`Review: ${prDetails.reviewDecision}${prDetails.latestReviews.length > 0 ? ` by ${prDetails.latestReviews.map(r => r.author ?? 'Unknown').join(', ')}` : ''}`} className="flex items-center gap-1">
+                        {prDetails.reviewDecision === 'APPROVED' && <VscVerified className="text-green-500" />}
+                        {prDetails.reviewDecision === 'CHANGES_REQUESTED' && <VscRequestChanges className="text-red-500" />}
+                        {prDetails.reviewDecision === 'REVIEW_REQUIRED' && <VscCircleFilled className="text-slate-500" />}
+                        {prDetails.latestReviews.length > 0 && (
+                          <span className="text-xs text-slate-400 flex items-center gap-0.5">
+                            <VscAccount className="text-slate-500" />
+                            {prDetails.latestReviews.length}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
                 <button
                   onClick={() => { void handleFetchAndPasteComments() }}
                   className="p-1 hover:bg-slate-800 rounded text-blue-400 hover:text-blue-300 transition-colors disabled:opacity-50"

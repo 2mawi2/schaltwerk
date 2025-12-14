@@ -126,6 +126,22 @@ pub struct GitHubPrDetails {
     pub labels: Vec<GitHubIssueLabel>,
     pub comments: Vec<GitHubIssueComment>,
     pub head_ref_name: String,
+    pub review_decision: Option<String>,
+    pub status_check_rollup: Vec<GitHubStatusCheck>,
+    pub latest_reviews: Vec<GitHubPrReview>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GitHubPrReview {
+    pub author_login: Option<String>,
+    pub state: String,
+    pub submitted_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GitHubStatusCheck {
+    pub status: Option<String>,
+    pub conclusion: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -747,7 +763,7 @@ impl<R: CommandRunner> GitHubCli<R> {
             "view".to_string(),
             number.to_string(),
             "--json".to_string(),
-            "number,title,body,url,labels,comments,headRefName".to_string(),
+            "number,title,body,url,labels,comments,headRefName,reviewDecision,statusCheckRollup,latestReviews".to_string(),
         ];
 
         let arg_refs: Vec<&str> = args_vec.iter().map(|entry| entry.as_str()).collect();
@@ -797,6 +813,27 @@ impl<R: CommandRunner> GitHubCli<R> {
             })
             .collect();
 
+        let status_check_rollup = parsed
+            .status_check_rollup
+            .unwrap_or_default()
+            .into_iter()
+            .map(|check| GitHubStatusCheck {
+                status: check.status,
+                conclusion: check.conclusion,
+            })
+            .collect();
+
+        let latest_reviews = parsed
+            .latest_reviews
+            .unwrap_or_default()
+            .into_iter()
+            .map(|review| GitHubPrReview {
+                author_login: review.author.and_then(|a| a.login),
+                state: review.state,
+                submitted_at: review.submitted_at.unwrap_or_default(),
+            })
+            .collect();
+
         Ok(GitHubPrDetails {
             number: parsed.number,
             title: parsed.title,
@@ -805,6 +842,9 @@ impl<R: CommandRunner> GitHubCli<R> {
             labels,
             comments,
             head_ref_name: parsed.head_ref_name,
+            review_decision: parsed.review_decision,
+            status_check_rollup,
+            latest_reviews,
         })
     }
 
@@ -1855,6 +1895,26 @@ struct PrDetailsResponse {
     comments: Option<IssueComments>,
     #[serde(rename = "headRefName")]
     head_ref_name: String,
+    #[serde(rename = "reviewDecision")]
+    review_decision: Option<String>,
+    #[serde(rename = "statusCheckRollup")]
+    status_check_rollup: Option<Vec<StatusCheckRollupNode>>,
+    #[serde(rename = "latestReviews")]
+    latest_reviews: Option<Vec<LatestReviewsNode>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct StatusCheckRollupNode {
+    status: Option<String>,
+    conclusion: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct LatestReviewsNode {
+    author: Option<IssueActor>,
+    state: String,
+    #[serde(rename = "submittedAt")]
+    submitted_at: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

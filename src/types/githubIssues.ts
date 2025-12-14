@@ -44,6 +44,12 @@ export interface GithubPrSummary {
   headRefName: string
 }
 
+export interface GithubPrReview {
+  author?: string | null
+  state: string
+  submittedAt: string
+}
+
 export interface GithubPrDetails {
   number: number
   title: string
@@ -52,6 +58,9 @@ export interface GithubPrDetails {
   labels: GithubIssueLabel[]
   comments: GithubIssueComment[]
   headRefName: string
+  reviewDecision?: string | null
+  statusCheckState?: string | null
+  latestReviews: GithubPrReview[]
 }
 
 export interface GithubPrSelectionResult {
