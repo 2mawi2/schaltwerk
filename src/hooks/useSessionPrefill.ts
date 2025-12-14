@@ -10,6 +10,7 @@ export interface SessionPrefillData {
   lockName?: boolean
   fromDraft?: boolean
   originalSpecName?: string
+  epicId?: string | null
 }
 
 export interface SessionData {
@@ -23,6 +24,7 @@ interface SpecData {
   name: string
   content: string
   display_name?: string | null
+  epic_id?: string | null
 }
 
 /**
@@ -60,12 +62,14 @@ export function useSessionPrefill() {
       })
 
       let displayName: string | undefined
+      let epicId: string | null = null
 
       if (spec) {
         sessionData = {
           spec_content: spec.content,
         }
         displayName = spec.display_name ?? undefined
+        epicId = spec.epic_id ?? null
         logger.info('[useSessionPrefill] Raw spec data:', spec)
       } else {
         sessionData = await invoke<SessionData>(TauriCommands.SchaltwerkCoreGetSession, { name: sessionName })
@@ -78,13 +82,14 @@ export function useSessionPrefill() {
       const baseBranch = sessionData?.parent_branch || undefined
       logger.info('[useSessionPrefill] Base branch:', baseBranch)
 
-      const prefillData = {
+      const prefillData: SessionPrefillData = {
         name: displayName || sessionName,
         taskContent,
         baseBranch,
         lockName: false,
         fromDraft: true,
         originalSpecName: sessionName,
+        epicId,
       }
       logger.info('[useSessionPrefill] Returning prefill data:', prefillData)
       return prefillData

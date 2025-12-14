@@ -1003,11 +1003,11 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
             const fromDraft: boolean | undefined = detail.fromDraft
             const baseBranchFromDraft: string | undefined = detail.baseBranch
             const originalSpecNameFromDraft: string | undefined = detail.originalSpecName
+            const epicIdFromDraft: string | null | undefined = detail.epicId
 
             if (nameFromDraft) {
                 logger.info('[NewSessionModal] Setting name from prefill:', nameFromDraft)
                 setName(nameFromDraft)
-                // Treat this as user-provided name to avoid regen
                 wasEditedRef.current = true
                 setWasEdited(true)
                 setNameLocked(!!lockName)
@@ -1030,13 +1030,15 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                 logger.info('[NewSessionModal] Setting original spec name from prefill:', originalSpecNameFromDraft)
                 setOriginalSpecName(originalSpecNameFromDraft)
             }
-            // If running from an existing spec, don't create another spec
-             if (fromDraft) {
+            if (epicIdFromDraft !== undefined) {
+                logger.info('[NewSessionModal] Setting epic from prefill:', epicIdFromDraft)
+                setEpicId(epicIdFromDraft)
+            }
+            if (fromDraft) {
                  logger.info('[NewSessionModal] Running from existing spec - forcing createAsDraft to false')
                  setCreateAsDraft(false)
              }
-            
-            // Clear the prefill pending flag and mark that we have data
+
             setIsPrefillPending(false)
             setHasPrefillData(true)
             logger.info('[NewSessionModal] Prefill data processed, hasPrefillData set to true')

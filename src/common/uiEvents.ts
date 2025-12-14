@@ -100,6 +100,7 @@ export interface NewSessionPrefillDetail {
   lockName?: boolean
   fromDraft?: boolean
   originalSpecName?: string
+  epicId?: string | null
 }
 
 export interface SessionCreatedDetail {
