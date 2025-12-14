@@ -6,8 +6,8 @@ use schaltwerk::schaltwerk_core::db_project_config::{ProjectConfigMethods, Proje
 use schaltwerk::services::{
     CommandRunner, CreatePrOptions, CreateSessionPrOptions, GitHubCli, GitHubCliError,
     GitHubIssueComment, GitHubIssueDetails, GitHubIssueLabel, GitHubIssueSummary,
-    GitHubPrDetails, GitHubPrReviewComment, GitHubPrSummary, MergeMode, PrCommitMode,
-    PrContent, sanitize_branch_name,
+    GitHubPrDetails, GitHubPrReview, GitHubPrReviewComment, GitHubPrSummary, GitHubStatusCheck,
+    MergeMode, PrCommitMode, PrContent, sanitize_branch_name,
 };
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -92,6 +92,14 @@ pub struct GitHubPrSummaryPayload {
 
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct GitHubPrReviewPayload {
+    pub author: Option<String>,
+    pub state: String,
+    pub submitted_at: String,
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct GitHubPrDetailsPayload {
     pub number: u64,
     pub title: String,
@@ -100,6 +108,9 @@ pub struct GitHubPrDetailsPayload {
     pub labels: Vec<GitHubIssueLabelPayload>,
     pub comments: Vec<GitHubIssueCommentPayload>,
     pub head_ref_name: String,
+    pub review_decision: Option<String>,
+    pub status_check_state: Option<String>,
+    pub latest_reviews: Vec<GitHubPrReviewPayload>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -843,7 +854,17 @@ fn map_pr_summary_payload(pr: GitHubPrSummary) -> GitHubPrSummaryPayload {
     }
 }
 
+fn map_pr_review_payload(review: GitHubPrReview) -> GitHubPrReviewPayload {
+    GitHubPrReviewPayload {
+        author: review.author_login,
+        state: review.state,
+        submitted_at: review.submitted_at,
+    }
+}
+
 fn map_pr_details_payload(details: GitHubPrDetails) -> GitHubPrDetailsPayload {
+    let status_check_state = calculate_status_check_state(&details.status_check_rollup);
+
     GitHubPrDetailsPayload {
         number: details.number,
         title: details.title,
@@ -860,6 +881,48 @@ fn map_pr_details_payload(details: GitHubPrDetails) -> GitHubPrDetailsPayload {
             .map(map_issue_comment_payload)
             .collect(),
         head_ref_name: details.head_ref_name,
+        review_decision: details.review_decision,
+        status_check_state,
+        latest_reviews: details
+            .latest_reviews
+            .into_iter()
+            .map(map_pr_review_payload)
+            .collect(),
+    }
+}
+
+fn calculate_status_check_state(checks: &[GitHubStatusCheck]) -> Option<String> {
+    if checks.is_empty() {
+        return None;
+    }
+
+    let mut has_failure = false;
+    let mut has_pending = false;
+
+    for check in checks {
+        match check.conclusion.as_deref() {
+            Some("FAILURE") | Some("TIMED_OUT") | Some("ACTION_REQUIRED") | Some("CANCELLED") => {
+                has_failure = true;
+            }
+            Some("SUCCESS") | Some("NEUTRAL") | Some("SKIPPED") => {}
+            _ => {
+                if check
+                    .status
+                    .as_deref()
+                    .is_some_and(|status| status != "COMPLETED")
+                {
+                    has_pending = true;
+                }
+            }
+        }
+    }
+
+    if has_failure {
+        Some("FAILURE".to_string())
+    } else if has_pending {
+        Some("PENDING".to_string())
+    } else {
+        Some("SUCCESS".to_string())
     }
 }
 
