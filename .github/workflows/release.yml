@@ -22,11 +22,6 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install jq
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
-
       - name: Validate tag
         run: |
           set -euo pipefail
@@ -77,6 +72,9 @@ jobs:
             clang \
             sccache
 
+      - name: Setup sccache cache
+        uses: Mozilla-Actions/sccache-action@v0.0.9
+
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
@@ -101,7 +99,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             src-tauri/target/
-          key: ${{ runner.os }}-cargo-${{ github.sha }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
 
@@ -158,6 +156,9 @@ jobs:
       - name: Install sccache
         run: brew install sccache
 
+      - name: Setup sccache cache
+        uses: Mozilla-Actions/sccache-action@v0.0.9
+
       - name: Cache Rust dependencies
         uses: actions/cache@v5
         with:
@@ -167,7 +168,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             src-tauri/target/
-          key: ${{ runner.os }}-cargo-ci-${{ github.sha }}
+          key: ${{ runner.os }}-cargo-ci-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-ci-
             ${{ runner.os }}-cargo-
