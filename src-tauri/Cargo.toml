@@ -114,11 +114,11 @@ lto = "thin"
 codegen-units = 16
 
 # Standard dev profile - optimized for fast compilation
+# NOTE: incremental is disabled globally in .cargo/config.toml for sccache compatibility
 [profile.dev]
 opt-level = 0
 debug = 0
 split-debuginfo = "unpacked"
-incremental = true
 overflow-checks = false
 
 # Dependencies get minimal optimization for fastest compile
@@ -136,7 +136,6 @@ inherits = "dev"
 opt-level = 1
 debug = 0
 split-debuginfo = "unpacked"
-incremental = true
 overflow-checks = false
 
 # Dependencies get high optimization for better runtime performance
@@ -153,7 +152,6 @@ debug = false
 opt-level = 0
 debug = 0
 split-debuginfo = "unpacked"
-incremental = true
 overflow-checks = false
 
 [profile.test.package."*"]
