@@ -286,21 +286,23 @@ export class TerminalViewportController {
 
   /**
    * Refresh viewport without changing scroll position.
-   * Uses _innerRefresh() like VS Code to sync scrollbar without affecting position.
+   *
+   * VS Code pattern: During output, only call refresh() to re-render visible lines.
+   * Do NOT call forceScrollbarRefresh() / _innerRefresh() during output at all.
+   *
+   * xterm.js naturally handles scrollbar updates when the buffer changes. Calling
+   * _innerRefresh() during output can cause scroll jumping because it recalculates
+   * scrollTop based on buffer.ydisp, which may change mid-stream for large writes.
+   *
+   * The scrollbar will sync naturally on:
+   * - User scroll actions
+   * - Visibility changes
+   * - Resize operations
+   * - Focus events
    */
   private _refreshViewportOnly(): void {
     try {
       this._terminal.refresh()
-
-      const buf = this._terminal.raw?.buffer?.active
-      if (!buf || buf.type === 'alternate') return
-
-      // Use forceScrollbarRefresh instead of scrollLines(0) to avoid position drift
-      // in large buffers. This calls xterm's internal _innerRefresh() which only
-      // recalculates scrollbar dimensions without changing viewport position.
-      if (buf.baseY > 0) {
-        this._terminal.forceScrollbarRefresh()
-      }
     } catch (e) {
       logger.error(`[TerminalViewportController] Error during refresh: ${String(e)}`)
     }
