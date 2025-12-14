@@ -104,17 +104,10 @@ impl Database {
             return Ok(Vec::new());
         }
 
-        let mut all_ids = Vec::with_capacity(summaries.len());
-        let mut spec_ids = Vec::new();
-        for summary in &summaries {
-            all_ids.push(summary.id.clone());
-            if summary.session_state == SessionState::Spec {
-                spec_ids.push(summary.id.clone());
-            }
-        }
+        let all_ids: Vec<String> = summaries.iter().map(|s| s.id.clone()).collect();
 
         let initial_prompts = Self::fetch_text_column_with_conn(conn, &all_ids, "initial_prompt")?;
-        let spec_contents = Self::fetch_text_column_with_conn(conn, &spec_ids, "spec_content")?;
+        let spec_contents = Self::fetch_text_column_with_conn(conn, &all_ids, "spec_content")?;
 
         Ok(summaries
             .into_iter()
@@ -1046,5 +1039,60 @@ mod tests {
                 "query plan unexpectedly uses a temp B-tree: {detail}"
             );
         }
+    }
+
+    #[test]
+    fn test_spec_content_returned_for_running_sessions() {
+        let db = Database::new_in_memory().expect("failed to build in-memory database");
+        let repo_path = PathBuf::from("/tmp/repo");
+
+        let session = Session {
+            id: "running-with-spec".to_string(),
+            name: "running-with-spec".to_string(),
+            display_name: None,
+            version_group_id: None,
+            version_number: None,
+            epic_id: None,
+            repository_path: repo_path.clone(),
+            repository_name: "repo".to_string(),
+            branch: "schaltwerk/running-with-spec".to_string(),
+            parent_branch: "main".to_string(),
+            original_parent_branch: Some("main".to_string()),
+            worktree_path: PathBuf::from("/tmp/repo/.schaltwerk/worktrees/running-with-spec"),
+            status: SessionStatus::Active,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            last_activity: None,
+            initial_prompt: Some("Initial prompt text".to_string()),
+            ready_to_merge: false,
+            original_agent_type: Some("claude".to_string()),
+            original_skip_permissions: None,
+            pending_name_generation: false,
+            was_auto_generated: false,
+            spec_content: Some("# Spec Content\nThis is the spec description".to_string()),
+            session_state: SessionState::Running,
+            resume_allowed: true,
+            amp_thread_id: None,
+            pr_number: None,
+            pr_url: None,
+        };
+
+        db.create_session(&session).expect("failed to create session");
+
+        let sessions = db.list_sessions(&repo_path).expect("failed to list sessions");
+        assert_eq!(sessions.len(), 1);
+
+        let loaded = &sessions[0];
+        assert_eq!(loaded.session_state, SessionState::Running);
+        assert_eq!(
+            loaded.spec_content,
+            Some("# Spec Content\nThis is the spec description".to_string()),
+            "spec_content should be returned for running sessions, not just specs"
+        );
+        assert_eq!(
+            loaded.initial_prompt,
+            Some("Initial prompt text".to_string()),
+            "initial_prompt should also be returned"
+        );
     }
 }
