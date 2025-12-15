@@ -29,7 +29,6 @@ export default defineConfig({
     coverage: {
       reporter: ['text', 'json', 'json-summary', 'html'],
       reportsDirectory: './coverage',
-      // Include all source files even if not imported by tests
       all: true,
       include: ['src/**/*.{ts,tsx}'],
       exclude: [
@@ -37,6 +36,12 @@ export default defineConfig({
         'src/test/**',
         'src/**/__mocks__/**'
       ],
+    },
+    onConsoleLog(log) {
+      if (log.includes('--localstorage-file')) return false
+      if (log.includes('baseline-browser-mapping')) return false
+      if (log.includes('trace-warnings')) return false
+      return true
     },
   },
   resolve: {

@@ -441,26 +441,44 @@ run-build:
 test:
     #!/usr/bin/env bash
     set -euo pipefail
+
+    step() { printf '\n\033[1;36m→ %s\033[0m\n' "$1"; }
+    ok() { printf '\033[1;32m✓ %s\033[0m\n' "$1"; }
+
     if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-        echo "Running full test suite on Linux..."
         just _ensure-linux-rust-deps
-    elif [[ "$OSTYPE" == "darwin"* ]]; then
-        echo "Running full test suite on macOS..."
-    else
-        echo "Unsupported platform for testing: $OSTYPE"
-        echo "   Supported: Linux, macOS"
+    elif [[ "$OSTYPE" != "darwin"* ]]; then
+        echo "Unsupported platform: $OSTYPE (use Linux or macOS)"
         exit 1
     fi
-    {{pm}} run lint
-    {{pm}} run lint:ts
-    {{pm}} run lint:mcp
-    {{pm}} run lint:rust
-    {{pm}} run deps:rust
-    {{pm}} run deps:check
-    {{pm}} run test:frontend
-    {{pm}} run test:mcp
-    just test-rust
-    {{pm}} run build:rust
+
+    step "Lint: TypeScript"
+    {{pm}} run lint && ok "ESLint passed"
+    {{pm}} run lint:ts && ok "TypeScript passed"
+
+    step "Lint: MCP Server"
+    {{pm}} run lint:mcp && ok "MCP lint passed"
+
+    step "Lint: Rust"
+    {{pm}} run lint:rust && ok "Clippy passed"
+
+    step "Dependencies"
+    {{pm}} run deps:rust && ok "Cargo shear passed"
+    {{pm}} run deps:check && ok "Knip passed"
+
+    step "Test: Frontend"
+    {{pm}} run test:frontend && ok "Frontend tests passed"
+
+    step "Test: MCP Server"
+    {{pm}} run test:mcp && ok "MCP tests passed"
+
+    step "Test: Rust"
+    just test-rust && ok "Rust tests passed"
+
+    step "Build: Rust"
+    {{pm}} run build:rust && ok "Rust build passed"
+
+    printf '\n\033[1;32m✓ All checks passed\033[0m\n'
 
 
 # Run only frontend tests (TypeScript, linting, unit tests)

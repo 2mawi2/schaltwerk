@@ -146,57 +146,39 @@ static SESSION_INDEX: OnceLock<KilocodeIndex> = OnceLock::new();
 
 /// Find a Kilocode session by matching worktree path
 pub fn find_kilocode_session(worktree_path: &Path) -> Option<String> {
-    debug!(
-        "find_kilocode_session: looking for worktree_path={:?}",
-        worktree_path
-    );
+    debug!("find_kilocode_session: looking for worktree_path={worktree_path:?}");
 
     let home = dirs::home_dir()?;
     let kilocode_tasks_dir = home.join(".kilocode/cli/global/tasks");
 
     if !kilocode_tasks_dir.exists() {
-        debug!(
-            "find_kilocode_session: tasks dir does not exist: {:?}",
-            kilocode_tasks_dir
-        );
+        debug!("find_kilocode_session: tasks dir does not exist: {kilocode_tasks_dir:?}");
         return None;
     }
 
     let normalized_worktree = normalize_path(worktree_path);
-    debug!(
-        "find_kilocode_session: normalized_worktree={:?}",
-        normalized_worktree
-    );
+    debug!("find_kilocode_session: normalized_worktree={normalized_worktree:?}");
 
     let normalized_worktree = normalized_worktree?;
 
     let index_cache = SESSION_INDEX.get_or_init(KilocodeIndex::new);
     let index = index_cache.get_or_rebuild(&kilocode_tasks_dir);
 
-    debug!(
-        "find_kilocode_session: index has {} entries",
-        index.len()
-    );
+    let len = index.len();
+    debug!("find_kilocode_session: index has {len} entries");
     for (path, session) in &index {
-        trace!(
-            "find_kilocode_session: index entry: path={:?} -> session={:?}",
-            path,
-            session
-        );
+        trace!("find_kilocode_session: index entry: path={path:?} -> session={session:?}");
     }
 
     let result = index.get(&normalized_worktree).cloned();
-    debug!(
-        "find_kilocode_session: lookup result for {:?} = {:?}",
-        normalized_worktree, result
-    );
+    debug!("find_kilocode_session: lookup result for {normalized_worktree:?} = {result:?}");
     result
 }
 
 /// Build the session index by scanning Kilocode workspaces
 /// Maps normalized CWD paths to the workspace's lastSession.sessionId
 fn build_kilocode_session_index(tasks_dir: &Path) -> HashMap<String, String> {
-    debug!("build_kilocode_session_index: tasks_dir={:?}", tasks_dir);
+    debug!("build_kilocode_session_index: tasks_dir={tasks_dir:?}");
     let mut index = HashMap::new();
 
     if !tasks_dir.exists() {
@@ -211,10 +193,7 @@ fn build_kilocode_session_index(tasks_dir: &Path) -> HashMap<String, String> {
 
     let workspaces_dir = home.join(".kilocode/cli/workspaces");
     if !workspaces_dir.exists() {
-        debug!(
-            "build_kilocode_session_index: workspaces_dir does not exist: {:?}",
-            workspaces_dir
-        );
+        debug!("build_kilocode_session_index: workspaces_dir does not exist: {workspaces_dir:?}");
         return index;
     }
 
@@ -230,54 +209,34 @@ fn build_kilocode_session_index(tasks_dir: &Path) -> HashMap<String, String> {
         }
 
         let session_file = workspace_dir.join("session.json");
-        debug!(
-            "build_kilocode_session_index: checking workspace {:?}",
-            workspace_dir
-        );
+        debug!("build_kilocode_session_index: checking workspace {workspace_dir:?}");
 
         if let Some((last_session_id, task_ids)) = read_workspace_session_info(&session_file) {
-            debug!(
-                "build_kilocode_session_index: workspace has lastSession={}, {} tasks",
-                last_session_id,
-                task_ids.len()
-            );
+            let task_count = task_ids.len();
+            debug!("build_kilocode_session_index: workspace has lastSession={last_session_id}, {task_count} tasks");
 
             for task_id in task_ids {
                 let task_history = tasks_dir.join(&task_id).join("api_conversation_history.json");
                 let cwd = extract_cwd_from_task_history(&task_history);
-                debug!(
-                    "build_kilocode_session_index: task {} -> cwd={:?}",
-                    task_id, cwd
-                );
+                debug!("build_kilocode_session_index: task {task_id} -> cwd={cwd:?}");
 
                 if let Some(cwd) = cwd {
                     let normalized_cwd = normalize_path(Path::new(&cwd));
-                    debug!(
-                        "build_kilocode_session_index: normalized cwd={:?}",
-                        normalized_cwd
-                    );
+                    debug!("build_kilocode_session_index: normalized cwd={normalized_cwd:?}");
 
                     if let Some(normalized_cwd) = normalized_cwd {
                         index.insert(normalized_cwd.clone(), last_session_id.clone());
-                        debug!(
-                            "build_kilocode_session_index: added index entry: {} -> {}",
-                            normalized_cwd, last_session_id
-                        );
+                        debug!("build_kilocode_session_index: added index entry: {normalized_cwd} -> {last_session_id}");
                     }
                 }
             }
         } else {
-            debug!(
-                "build_kilocode_session_index: no session info in {:?}",
-                session_file
-            );
+            debug!("build_kilocode_session_index: no session info in {session_file:?}");
         }
     }
 
-    debug!(
-        "build_kilocode_session_index: built index with {} entries",
-        index.len()
-    );
+    let len = index.len();
+    debug!("build_kilocode_session_index: built index with {len} entries");
     index
 }
 

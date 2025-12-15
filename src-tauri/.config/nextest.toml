@@ -1,13 +1,13 @@
 [profile.default]
-# Run tests with high parallelism
 test-threads = "num-cpus"
-# Fail fast on first failure in CI
 fail-fast = false
-# Show slow tests
 slow-timeout = { period = "5s", terminate-after = 3 }
+status-level = "fail"
+final-status-level = "fail"
+failure-output = "immediate-final"
 
 [profile.ci]
-# CI-specific settings
 fail-fast = true
-# Retry flaky tests once
 retries = 1
+status-level = "fail"
+final-status-level = "fail"
