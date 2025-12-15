@@ -39,7 +39,7 @@ pub fn build_kilocode_command_with_config(
     let mut cmd = format!("cd {cwd_quoted} && {binary_invocation}");
 
     if skip_permissions {
-        cmd.push_str(" --auto");
+        cmd.push_str(" --yolo");
     }
 
     if let Some(prompt) = initial_prompt {
@@ -70,7 +70,7 @@ mod tests {
             true,
             Some(&config),
         );
-        assert!(cmd.ends_with("kilocode --auto \"implement feature X\""));
+        assert!(cmd.ends_with("kilocode --yolo \"implement feature X\""));
     }
 
     #[test]
