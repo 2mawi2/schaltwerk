@@ -3,6 +3,7 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { SchaltEvent, listenEvent } from '../../common/eventSystem'
 import { UiEvent, emitUiEvent, listenUiEvent } from '../../common/uiEvents'
 import {
+  isTerminalStartingOrStarted,
   markTerminalStarted,
   clearTerminalStartState,
 } from '../../common/terminalStartState'
@@ -1631,9 +1632,17 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         }
         xtermWrapperRef.current.applyConfig(terminalConfig);
         xtermWrapperRef.current.setSmoothScrolling(terminalConfig.smoothScrolling && isPhysicalWheelRef.current);
-        if (fitAddon.current) {
-            return
-        }
+    }, [terminalConfig, terminalId]);
+
+    useEffect(() => {
+        if (!terminal.current) return;
+        if (agentType === 'terminal') return;
+        if (!terminalId.endsWith('-top')) return;
+        if (isTerminalStartingOrStarted(terminalId)) return;
+        if (agentStopped) return;
+
+        const isOrchestratorTop = isCommander || (terminalId.includes('orchestrator') && terminalId.endsWith('-top'));
+        if (!isOrchestratorTop) return;
 
         const start = async () => {
             if (startingTerminals.current.get(terminalId)) {
@@ -1642,84 +1651,64 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             startingTerminals.current.set(terminalId, true);
             setAgentLoading(true);
             try {
-                    // OPTIMIZATION: Skip terminal_exists check - trust that hydrated terminals are ready
-                      try {
-                            // Provide initial size at spawn to avoid early overflow in TUI apps
-                            let measured: { cols?: number; rows?: number } | undefined
-                            try {
-                                if (fitAddon.current && terminal.current) {
-                                    const proposer = fitAddon.current as unknown as { proposeDimensions?: () => { cols: number; rows: number } | undefined };
-                                    const proposed = proposer.proposeDimensions?.();
-                                    if (proposed) {
-                                        const mCols = calculateEffectiveColumns(proposed.cols);
-                                        measured = { cols: mCols, rows: proposed.rows };
-                                    }
-                                }
-                            } catch (e) {
-                                logger.warn(`[Terminal ${terminalId}] Failed to measure size before orchestrator start:`, e);
-                            }
-                            logger.info(`[Terminal ${terminalId}] Auto-starting Claude orchestrator at ${new Date().toISOString()}`);
-                            await startOrchestratorTop({ terminalId, measured });
-                            // Mark that this terminal has been started at least once
-                            terminalEverStartedRef.current = true;
-                            // OPTIMIZATION: Immediate focus and loading state update (modal-safe)
-                            safeTerminalFocusImmediate(() => {
-                                terminal.current?.focus();
-                            }, isAnyModalOpen);
-                            setAgentLoading(false);
-                      } catch (e) {
-                         // Roll back start flags on failure to allow retry
-                         clearTerminalStartState([terminalId]);
-                         logger.error(`[Terminal ${terminalId}] Failed to start Claude:`, e);
-                        
-                        // Check if it's a permission error and dispatch event
-                        const errorMessage = String(e);
-                        if (errorMessage.includes('No project is currently open')) {
-                            logger.error(`[Terminal ${terminalId}] No project open:`, errorMessage);
-                            emitUiEvent(UiEvent.NoProjectError, { error: errorMessage, terminalId });
-                        } else if (errorMessage.includes('Permission required for folder:')) {
-                            emitUiEvent(UiEvent.PermissionError, { error: errorMessage });
-                        } else if (errorMessage.includes('Failed to spawn command')) {
-                            logger.error(`[Terminal ${terminalId}] Spawn failure details:`, errorMessage);
-                            emitUiEvent(UiEvent.SpawnError, { error: errorMessage, terminalId });
-                        } else if (errorMessage.includes(AGENT_START_TIMEOUT_MESSAGE)) {
-                            emitUiEvent(UiEvent.SpawnError, { error: errorMessage, terminalId });
-                            terminalEverStartedRef.current = true;
-                            setAgentStopped(true);
-                            sessionStorage.setItem(`schaltwerk:agent-stopped:${terminalId}`, 'true');
-                            clearTerminalStartedTracking([terminalId]);
-                         } else if (errorMessage.includes('not a git repository')) {
-                             logger.error(`[Terminal ${terminalId}] Not a git repository:`, errorMessage);
-                             emitUiEvent(UiEvent.NotGitError, { error: errorMessage, terminalId });
-                         }
-                         throw e;
-                     }
-                     // OPTIMIZATION: Immediate state reset
-                     setAgentLoading(false);
-                     startingTerminals.current.set(terminalId, false);
-              } catch (error) {
-                  logger.error(`[Terminal ${terminalId}] Failed to auto-start Claude:`, error);
-                  // Ensure terminal state is properly reset
-                  requestAnimationFrame(() => {
-                      requestAnimationFrame(() => {
-                          setAgentLoading(false);
-                      });
-                  });
-                  startingTerminals.current.set(terminalId, false);
-              }
+                let measured: { cols?: number; rows?: number } | undefined;
+                try {
+                    if (fitAddon.current && terminal.current) {
+                        const proposer = fitAddon.current as unknown as { proposeDimensions?: () => { cols: number; rows: number } | undefined };
+                        const proposed = proposer.proposeDimensions?.();
+                        if (proposed) {
+                            const mCols = calculateEffectiveColumns(proposed.cols);
+                            measured = { cols: mCols, rows: proposed.rows };
+                        }
+                    }
+                } catch (e) {
+                    logger.warn(`[Terminal ${terminalId}] Failed to measure size before orchestrator start:`, e);
+                }
+                logger.info(`[Terminal ${terminalId}] Auto-starting Claude orchestrator at ${new Date().toISOString()}`);
+                await startOrchestratorTop({ terminalId, measured });
+                terminalEverStartedRef.current = true;
+                safeTerminalFocusImmediate(() => {
+                    terminal.current?.focus();
+                }, isAnyModalOpen);
+                setAgentLoading(false);
+            } catch (e) {
+                clearTerminalStartState([terminalId]);
+                logger.error(`[Terminal ${terminalId}] Failed to start Claude:`, e);
+
+                const errorMessage = String(e);
+                if (errorMessage.includes('No project is currently open')) {
+                    logger.error(`[Terminal ${terminalId}] No project open:`, errorMessage);
+                    emitUiEvent(UiEvent.NoProjectError, { error: errorMessage, terminalId });
+                } else if (errorMessage.includes('Permission required for folder:')) {
+                    emitUiEvent(UiEvent.PermissionError, { error: errorMessage });
+                } else if (errorMessage.includes('Failed to spawn command')) {
+                    logger.error(`[Terminal ${terminalId}] Spawn failure details:`, errorMessage);
+                    emitUiEvent(UiEvent.SpawnError, { error: errorMessage, terminalId });
+                } else if (errorMessage.includes(AGENT_START_TIMEOUT_MESSAGE)) {
+                    emitUiEvent(UiEvent.SpawnError, { error: errorMessage, terminalId });
+                    terminalEverStartedRef.current = true;
+                    setAgentStopped(true);
+                    sessionStorage.setItem(`schaltwerk:agent-stopped:${terminalId}`, 'true');
+                    clearTerminalStartedTracking([terminalId]);
+                } else if (errorMessage.includes('not a git repository')) {
+                    logger.error(`[Terminal ${terminalId}] Not a git repository:`, errorMessage);
+                    emitUiEvent(UiEvent.NotGitError, { error: errorMessage, terminalId });
+                }
+                setAgentLoading(false);
+                startingTerminals.current.set(terminalId, false);
+            }
         };
 
-        // Delay a tick to ensure xterm is laid out
         let cancelled = false;
         requestAnimationFrame(() => {
             if (!cancelled) {
                 void start();
             }
         });
-         return () => {
-             cancelled = true;
-         };
-     }, [agentType, hydrated, terminalId, isCommander, isAnyModalOpen, agentStopped]);
+        return () => {
+            cancelled = true;
+        };
+    }, [agentType, hydrated, terminalId, isCommander, isAnyModalOpen, agentStopped]);
 
     useEffect(() => {
         if (!terminal.current || !resolvedFontFamily) {
