@@ -1,4 +1,5 @@
-export const MIN_TERMINAL_COLUMNS = 2
+export const MIN_TERMINAL_COLUMNS = 20
+export const MIN_TERMINAL_ROWS = 2
 export const MIN_TERMINAL_MEASURE_WIDTH_PX = 120
 export const MIN_TERMINAL_MEASURE_HEIGHT_PX = 60
 export const MIN_PROPOSED_COLUMNS = 8

@@ -36,13 +36,25 @@ export interface TerminalResizeCoordinatorOptions {
    */
   isVisible: () => boolean
   /**
+   * Returns the terminal's current column count.
+   */
+  getCurrentCols: () => number
+  /**
+   * Returns the terminal's current row count.
+   */
+  getCurrentRows: () => number
+  /**
    * Applies both columns and rows immediately.
    */
   applyResize: (cols: number, rows: number, context: TerminalResizeDispatchContext) => void
   /**
-   * Applies row updates (columns stay unchanged until the debounced resize fires).
+   * Applies row updates only (uses current terminal cols to avoid reflow).
    */
-  applyRows: (cols: number, rows: number, context: TerminalResizeDispatchContext) => void
+  applyRowsOnly: (rows: number, context: TerminalResizeDispatchContext) => void
+  /**
+   * Applies column updates only (uses current terminal rows).
+   */
+  applyColsOnly: (cols: number, context: TerminalResizeDispatchContext) => void
   /**
    * Optional idle scheduler overrides (primarily to aid testing).
    */
@@ -152,13 +164,24 @@ export class TerminalResizeCoordinator {
     if (this._latestRows === null) return
     if (this._lastAppliedRows === this._latestRows) return
 
-    const cols = this._lastAppliedCols ?? this._latestCols ?? 0
-    this._options.applyRows(cols, this._latestRows, {
+    this._options.applyRowsOnly(this._latestRows, {
       reason,
       force: true,
       source: 'rows',
     })
     this._lastAppliedRows = this._latestRows
+  }
+
+  private _dispatchCols(reason: string) {
+    if (this._latestCols === null) return
+    if (this._lastAppliedCols === this._latestCols) return
+
+    this._options.applyColsOnly(this._latestCols, {
+      reason,
+      force: true,
+      source: 'debounce',
+    })
+    this._lastAppliedCols = this._latestCols
   }
 
   private _dispatchBoth(reason: string, source: ResizeSource) {
@@ -183,7 +206,7 @@ export class TerminalResizeCoordinator {
     this._debounceReason = reason
     this._debounceHandle = window.setTimeout(() => {
       this._debounceHandle = null
-      this._dispatchBoth(this._debounceReason ?? reason, 'debounce')
+      this._dispatchCols(this._debounceReason ?? reason)
     }, this._debounceDelay)
   }
 

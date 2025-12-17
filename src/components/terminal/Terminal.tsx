@@ -3,7 +3,6 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { SchaltEvent, listenEvent } from '../../common/eventSystem'
 import { UiEvent, emitUiEvent, listenUiEvent } from '../../common/uiEvents'
 import {
-  isTerminalStartingOrStarted,
   markTerminalStarted,
   clearTerminalStartState,
 } from '../../common/terminalStartState'
@@ -18,16 +17,12 @@ import { sessionTerminalBase } from '../../common/terminalIdentity'
 import { UnlistenFn } from '@tauri-apps/api/event';
 import { useAtomValue, useSetAtom } from 'jotai'
 import { previewStateAtom, setPreviewUrlActionAtom } from '../../store/atoms/preview'
-import {
-  shouldRestoreTerminalScrollAtomFamily,
-  updateTerminalStreamingStateActionAtom,
-} from '../../store/atoms/terminal'
-import { isTerminalStreaming } from '../../terminal/registry/terminalRegistry'
 import { LocalPreviewWatcher } from '../../features/preview/localPreview'
 import type { AutoPreviewConfig } from '../../utils/runScriptPreviewConfig'
 import { useCleanupRegistry } from '../../hooks/useCleanupRegistry';
 import { useTerminalConfig } from '../../hooks/useTerminalConfig';
 import { theme } from '../../common/theme';
+import { isTuiAgent } from '../../types/session';
 import '@xterm/xterm/css/xterm.css';
 import './xtermOverrides.css';
 import { logger } from '../../utils/logger'
@@ -42,10 +37,6 @@ import {
     acquireTerminalInstance,
     detachTerminalInstance,
     hasTerminalInstance,
-    addTerminalOutputCallback,
-    removeTerminalOutputCallback,
-    addTerminalClearCallback,
-    removeTerminalClearCallback,
     isTerminalBracketedPasteEnabled,
 } from '../../terminal/registry/terminalRegistry'
 import { XtermTerminal } from '../../terminal/xterm/XtermTerminal'
@@ -55,14 +46,13 @@ import { TerminalResizeCoordinator } from './resize/TerminalResizeCoordinator'
 import {
     calculateEffectiveColumns,
     MIN_TERMINAL_COLUMNS,
+    MIN_TERMINAL_ROWS,
     MIN_PROPOSED_COLUMNS,
     isMeasurementTooSmall,
 } from './terminalSizing'
 import { shouldEmitControlPaste, shouldEmitControlNewline } from './terminalKeybindings'
-import { hydrateReusedTerminal } from './hydration'
 import { parseTerminalFileReference, resolveTerminalFileReference } from '../../terminal/xterm/fileLinks/terminalFileLinks'
 
-import { TerminalViewportController } from './viewport/TerminalViewportController'
 import { TERMINAL_FILE_DRAG_TYPE, type TerminalFileDragPayload } from '../../common/dragTypes'
 import { TerminalScrollButton } from './TerminalScrollButton'
 
@@ -125,8 +115,6 @@ export interface TerminalHandle {
     scrollPageUp: () => void;
     scrollPageDown: () => void;
     scrollToTop: () => void;
-    saveScrollState: () => void;
-    restoreScrollState: () => void;
 }
 
 type TerminalFileLinkHandler = (text: string) => Promise<boolean> | boolean;
@@ -168,6 +156,30 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     }, [readDimensions]);
     const xtermWrapperRef = useRef<XtermTerminal | null>(null);
     const fileLinkHandlerRef = useRef<TerminalFileLinkHandler | null>(null);
+    const scrollDebugRef = useRef<{ lastY: number; lastTime: number; changes: number[] }>({ lastY: -1, lastTime: 0, changes: [] });
+    const logScrollChange = useCallback((source: string) => {
+        const term = terminal.current;
+        if (!term) return;
+        const viewportY = term.buffer.active.viewportY;
+        const baseY = term.buffer.active.baseY;
+        const now = performance.now();
+        const debug = scrollDebugRef.current;
+        const delta = debug.lastY >= 0 ? viewportY - debug.lastY : 0;
+        const timeDelta = debug.lastTime > 0 ? now - debug.lastTime : 0;
+        if (Math.abs(delta) > 0 && timeDelta < 500) {
+            debug.changes.push(delta);
+            if (debug.changes.length > 10) debug.changes.shift();
+            const hasOscillation = debug.changes.length >= 4 &&
+                debug.changes.slice(-4).some((d, i, arr) => i > 0 && Math.sign(d) !== Math.sign(arr[i-1]));
+            if (hasOscillation) {
+                logger.warn(`[Terminal ${terminalId}] OSCILLATION DETECTED source=${source} viewportY=${viewportY} baseY=${baseY} delta=${delta} timeDelta=${timeDelta.toFixed(0)}ms changes=[${debug.changes.join(',')}]`);
+            } else if (Math.abs(delta) > 5) {
+                logger.debug(`[Terminal ${terminalId}] Scroll jump source=${source} viewportY=${viewportY} baseY=${baseY} delta=${delta} timeDelta=${timeDelta.toFixed(0)}ms`);
+            }
+        }
+        debug.lastY = viewportY;
+        debug.lastTime = now;
+    }, [terminalId]);
     const getPreviewState = useAtomValue(previewStateAtom)
     const setPreviewUrl = useSetAtom(setPreviewUrlActionAtom)
     const previewWatcherRef = useRef<LocalPreviewWatcher | null>(null)
@@ -275,12 +287,12 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
     const terminal = useRef<XTerm | null>(null);
     const onDataDisposableRef = useRef<IDisposable | null>(null);
+    const onScrollDisposableRef = useRef<IDisposable | null>(null);
     const fitAddon = useRef<FitAddon | null>(null);
     const searchAddon = useRef<SearchAddon | null>(null);
     const lastSize = useRef<{ cols: number; rows: number }>({ cols: 80, rows: 24 });
     const lastEffectiveRef = useRef<{ cols: number; rows: number }>(lastEffectiveRefInit);
     const resizeCoordinatorRef = useRef<TerminalResizeCoordinator | null>(null);
-    const viewportControllerRef = useRef<TerminalViewportController | null>(null);
     const existingInstance = hasTerminalInstance(terminalId);
     const [hydrated, setHydrated] = useState(existingInstance);
     const hydratedRef = useRef<boolean>(existingInstance);
@@ -315,39 +327,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const terminalIdRef = useRef(terminalId);
     terminalIdRef.current = terminalId;
 
-    const setupViewportController = useCallback((instance: XtermTerminal | null) => {
-        const current = viewportControllerRef.current;
-        if (current) {
-            try {
-                current.dispose();
-            } catch (e) {
-                logger.debug(`[Terminal ${terminalIdRef.current}] Failed to dispose previous viewport controller`, e);
-            }
-        }
-        viewportControllerRef.current = null;
-
-        if (!instance) {
-            return;
-        }
-
-        // Mirror VS Code's attach path: ensure renderer/viewport is refreshed on reattach so
-        // buffer + scroll state are in sync before we (re)apply snap-to-bottom logic.
-        if (typeof instance.refresh === 'function') {
-            try {
-                instance.refresh();
-            } catch (e) {
-                logger.debug(`[Terminal ${terminalIdRef.current}] Viewport refresh during controller setup failed`, e);
-            }
-        }
-
-        viewportControllerRef.current = new TerminalViewportController({
-            terminal: instance,
-            terminalId: terminalIdRef.current,
-            logger: termDebug() ? (msg) => logger.debug(`[Terminal ${terminalIdRef.current}] ${msg}`) : undefined,
-        });
-    }, []);
-    const outputCallbackRef = useRef<(() => void) | null>(null);
-    const clearCallbackRef = useRef<(() => void) | null>(null);
     const mountedRef = useRef<boolean>(false);
     const startingTerminals = useRef<Map<string, boolean>>(new Map());
     const previousTerminalId = useRef<string>(terminalId);
@@ -417,14 +396,12 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
      }, [isAgentTopTerminal, terminalId]);
 
     const applySizeUpdate = useCallback((cols: number, rows: number, reason: string, _force = false) => {
-        const MIN_DIMENSION = MIN_TERMINAL_COLUMNS;
         if (!terminal.current) return false;
-        // Step 1: only apply resize thrash suppression (no right-edge margin yet)
-        if (cols < MIN_DIMENSION || rows < MIN_DIMENSION) {
+        if (cols < MIN_TERMINAL_COLUMNS || rows < MIN_TERMINAL_ROWS) {
             logger.debug(`[Terminal ${terminalId}] Skipping ${reason} resize due to tiny dimensions ${cols}x${rows}`);
             const prevCols = lastSize.current.cols;
             const prevRows = lastSize.current.rows;
-            if (prevCols >= MIN_DIMENSION && prevRows >= MIN_DIMENSION) {
+            if (prevCols >= MIN_TERMINAL_COLUMNS && prevRows >= MIN_TERMINAL_ROWS) {
                 requestAnimationFrame(() => {
                     try {
                         terminal.current?.resize(prevCols, prevRows);
@@ -439,20 +416,15 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         const effectiveCols = calculateEffectiveColumns(cols);
         lastSize.current = { cols, rows };
 
+        const term = terminal.current;
         try {
-            viewportControllerRef.current?.beforeResize();
-            terminal.current.resize(effectiveCols, rows);
-            (terminal.current as unknown as { refresh?: (start: number, end: number) => void })?.refresh?.(0, Math.max(0, rows - 1));
-
-            requestAnimationFrame(() => {
+            term.resize(effectiveCols, rows);
+            if (xtermWrapperRef.current?.shouldFollowOutput()) {
                 requestAnimationFrame(() => {
-                    try {
-                        viewportControllerRef.current?.onResize();
-                    } catch (e) {
-                        logger.debug(`[Terminal ${terminalId}] Failed to scroll to bottom after resize`, e);
-                    }
+                    term.scrollToLine(term.buffer.active.baseY);
+                    logScrollChange('applySizeUpdate');
                 });
-            });
+            }
         } catch (e) {
             logger.debug(`[Terminal ${terminalId}] Failed to apply frontend resize to ${effectiveCols}x${rows}`, e);
         }
@@ -462,7 +434,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         lastEffectiveRef.current = { cols: effectiveCols, rows };
         rememberDimensions();
         return true;
-    }, [terminalId, rememberDimensions]);
+    }, [terminalId, rememberDimensions, logScrollChange]);
 
     useEffect(() => {
         const coordinator = new TerminalResizeCoordinator({
@@ -483,11 +455,53 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 }
                 return el.getClientRects().length > 0;
             },
+            getCurrentCols: () => terminal.current?.cols ?? 80,
+            getCurrentRows: () => terminal.current?.rows ?? 24,
             applyResize: (cols, rows, context) => {
                 applySizeUpdate(cols, rows, context.reason, context.force);
             },
-            applyRows: (cols, rows, context) => {
-                applySizeUpdate(cols, rows, context.reason, context.force);
+            applyRowsOnly: (rows, _context) => {
+                if (!terminal.current) return;
+                const currentCols = terminal.current.cols;
+                if (rows < MIN_TERMINAL_ROWS) return;
+                const term = terminal.current;
+                try {
+                    term.resize(currentCols, rows);
+                    if (xtermWrapperRef.current?.shouldFollowOutput()) {
+                        requestAnimationFrame(() => {
+                            term.scrollToLine(term.buffer.active.baseY);
+                            logScrollChange('applyRowsOnly');
+                        });
+                    }
+                } catch (e) {
+                    logger.debug(`[Terminal ${terminalId}] Failed to apply rows-only resize to ${currentCols}x${rows}`, e);
+                }
+                lastSize.current = { cols: currentCols, rows };
+                recordTerminalSize(terminalId, currentCols, rows);
+                schedulePtyResize(terminalId, { cols: currentCols, rows });
+                lastEffectiveRef.current = { cols: currentCols, rows };
+            },
+            applyColsOnly: (cols, _context) => {
+                if (!terminal.current) return;
+                const currentRows = terminal.current.rows;
+                const effectiveCols = calculateEffectiveColumns(cols);
+                if (effectiveCols < MIN_TERMINAL_COLUMNS) return;
+                const term = terminal.current;
+                try {
+                    term.resize(effectiveCols, currentRows);
+                    if (xtermWrapperRef.current?.shouldFollowOutput()) {
+                        requestAnimationFrame(() => {
+                            term.scrollToLine(term.buffer.active.baseY);
+                            logScrollChange('applyColsOnly');
+                        });
+                    }
+                } catch (e) {
+                    logger.debug(`[Terminal ${terminalId}] Failed to apply cols-only resize to ${effectiveCols}x${currentRows}`, e);
+                }
+                lastSize.current = { cols: effectiveCols, rows: currentRows };
+                recordTerminalSize(terminalId, effectiveCols, currentRows);
+                schedulePtyResize(terminalId, { cols: effectiveCols, rows: currentRows });
+                lastEffectiveRef.current = { cols: effectiveCols, rows: currentRows };
             },
         });
         resizeCoordinatorRef.current = coordinator;
@@ -495,7 +509,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             coordinator.dispose();
             resizeCoordinatorRef.current = null;
         };
-    }, [applySizeUpdate]);
+    }, [applySizeUpdate, terminalId]);
 
     const {
         gpuRenderer,
@@ -657,9 +671,12 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                  let measured: { cols?: number; rows?: number } | undefined;
                  try {
                      if (fitAddon.current && terminal.current) {
-                         fitAddon.current.fit();
-                         const mCols = calculateEffectiveColumns(terminal.current.cols);
-                         measured = { cols: mCols, rows: terminal.current.rows };
+                         const proposer = fitAddon.current as unknown as { proposeDimensions?: () => { cols: number; rows: number } | undefined };
+                         const proposed = proposer.proposeDimensions?.();
+                         if (proposed) {
+                             const mCols = calculateEffectiveColumns(proposed.cols);
+                             measured = { cols: mCols, rows: proposed.rows };
+                         }
                      }
                  } catch (e) {
                      logger.warn(`[Terminal ${terminalId}] Failed to measure before restart:`, e);
@@ -699,12 +716,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         scrollPageUp: () => scrollPages(-1),
         scrollPageDown: () => scrollPages(1),
         scrollToTop: scrollToTopInstant,
-        saveScrollState: () => {
-            xtermWrapperRef.current?.saveScrollState();
-        },
-        restoreScrollState: () => {
-            xtermWrapperRef.current?.restoreScrollState();
-        },
     }), [isAnyModalOpen, isSearchVisible, focusSearchInput, scrollToBottomInstant, scrollLines, scrollPages, scrollToTopInstant]);
 
     useEffect(() => {
@@ -765,9 +776,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 return;
             }
 
-            // Fix for stuck scrolling: refresh viewport and re-engage scroll lock if close to bottom
-            // This mirrors the resize fix but triggers on focus/interaction
-            viewportControllerRef.current?.onFocusOrClick();
             onTerminalClick();
         };
 
@@ -866,41 +874,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             }
           };
       }, [isAgentTopTerminal, terminalId]);
-
-    // Listen for force scroll events (e.g., after review comment paste)
-    useEffect(() => {
-        let unlistenForceScroll: UnlistenFn | null = null;
-        
-        const setupForceScrollListener = async () => {
-            try {
-                unlistenForceScroll = await listenEvent(SchaltEvent.TerminalForceScroll, (payload) => {
-                    if (payload.terminal_id === terminalId) {
-                        logger.info(`[Terminal] Force scrolling terminal ${terminalId} to bottom`);
-                        // Use controller if available for consistent logging/behavior, fallback to direct call
-                        if (viewportControllerRef.current) {
-                            viewportControllerRef.current.onResize(); // onResize forces scroll to bottom
-                        } else {
-                            scrollToBottomInstant();
-                        }
-                    }
-                });
-            } catch (e) {
-                logger.error('[Terminal] Failed to set up force scroll listener:', e);
-            }
-        };
-        
-        void setupForceScrollListener();
-        
-        return () => {
-            if (unlistenForceScroll) {
-                try {
-                    unlistenForceScroll();
-                } catch (error) {
-                    logger.warn(`[Terminal ${terminalId}] Failed to remove force scroll listener`, error);
-                }
-            }
-        };
-    }, [terminalId, scrollToBottomInstant]);
 
     // Workaround: force-fit and send PTY resize when session search runs for OpenCode
     useEffect(() => {
@@ -1090,6 +1063,19 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         return () => window.removeEventListener(String(UiEvent.TerminalResizeRequest), handler as EventListener)
     }, [terminalId, requestResize])
 
+    // Sync UI mode when agent type changes (e.g., late hydration or session switch)
+    useEffect(() => {
+        const instance = xtermWrapperRef.current;
+        if (instance && agentType) {
+            const mode = isTuiAgent(agentType) ? 'tui' : 'standard';
+            const currentMode = instance.isTuiMode() ? 'tui' : 'standard';
+            if (currentMode !== mode) {
+                logger.info(`[Terminal ${terminalId}] Syncing UI mode: ${currentMode} → ${mode} (agentType=${agentType})`);
+                instance.setUiMode(mode);
+            }
+        }
+    }, [agentType, terminalId]);
+
     useEffect(() => {
         mountedRef.current = true;
         let cancelled = false;
@@ -1101,47 +1087,30 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
         const currentConfig = terminalConfigRef.current;
 
+        const initialUiMode = isTuiAgent(agentTypeRef.current) ? 'tui' : 'standard';
+        logger.debug(`[Terminal ${terminalId}] Creating terminal: agentTypeRef.current=${agentTypeRef.current}, initialUiMode=${initialUiMode}`);
         const { record, isNew } = acquireTerminalInstance(terminalId, () => new XtermTerminal({
             terminalId,
             config: currentConfig,
-            uiMode: agentTypeRef.current === 'kilocode' ? 'tui' : 'standard',
+            uiMode: initialUiMode,
             onLinkClick: (uri: string) => handleLinkClickRef.current?.(uri) ?? false,
         }));
 
+        // Always start with hydrated=false and let onRender set it to true
+        // This prevents the flash where CSS shows opacity-100 before xterm renders
+        setHydrated(false);
+        hydratedRef.current = false;
         if (isNew) {
-            setHydrated(false);
-            hydratedRef.current = false;
             hydratedOnceRef.current = false;
-        } else {
-            hydrateReusedTerminal({
-                isNew,
-                hydratedRef,
-                hydratedOnceRef,
-                setHydrated,
-                onReady: onReadyRef.current,
-            });
         }
         const instance = record.xterm;
         if (!isNew) {
             instance.applyConfig(currentConfig);
         }
-        instance.setUiMode(agentTypeRef.current === 'kilocode' ? 'tui' : 'standard');
+        instance.setUiMode(isTuiAgent(agentTypeRef.current) ? 'tui' : 'standard');
         instance.setLinkHandler((uri: string) => handleLinkClickRef.current?.(uri) ?? false);
         instance.setSmoothScrolling(currentConfig.smoothScrolling && isPhysicalWheelRef.current);
         xtermWrapperRef.current = instance;
-        setupViewportController(instance);
-
-        const outputCallback = () => {
-            viewportControllerRef.current?.onOutput();
-        };
-        outputCallbackRef.current = outputCallback;
-        addTerminalOutputCallback(terminalId, outputCallback);
-
-        const clearCallback = () => {
-            viewportControllerRef.current?.onClear();
-        };
-        clearCallbackRef.current = clearCallback;
-        addTerminalClearCallback(terminalId, clearCallback);
 
         if (fileLinkHandlerRef.current) {
             instance.setFileLinkHandler(fileLinkHandlerRef.current);
@@ -1172,7 +1141,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             }
 
             try {
-                fitAddon.current.fit();
                 requestResizeRef.current?.('initial-fit', { immediate: true, force: true });
                 const { cols, rows } = terminal.current;
                 logger.info(`[Terminal ${terminalId}] Initial fit: ${cols}x${rows} (container: ${containerWidth}x${containerHeight})`);
@@ -1192,8 +1160,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             if (termRef.current.clientWidth > 0 && termRef.current.clientHeight > 0) {
                 rendererInitialized = true;
                 try {
-                    if (fitAddon.current && terminal.current) {
-                        fitAddon.current.fit();
+                    if (terminal.current) {
                         try {
                             requestResizeRef.current?.('renderer-init', { immediate: true, force: true });
                         } catch (e) {
@@ -1208,9 +1175,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                     rendererReadyRef.current = true;
 
                     requestAnimationFrame(() => {
-                        if (fitAddon.current && terminal.current) {
+                        if (terminal.current) {
                             try {
-                                fitAddon.current.fit();
                                 requestResizeRef.current?.('post-init', { immediate: true, force: true });
                             } catch (e) {
                                 logger.warn(`[Terminal ${terminalId}] Post-init fit failed:`, e);
@@ -1279,30 +1245,13 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 if (!fitAddon.current || !terminal.current || !termRef.current) return;
                 const el = termRef.current;
                 if (!el.isConnected || el.clientWidth === 0 || el.clientHeight === 0) return;
-                try {
-                    fitAddon.current.fit();
-                } catch (e) {
-                    logger.debug(`[Terminal ${terminalId}] Visibility pre-fit failure`, e);
-                }
                 resizeCoordinatorRef.current?.flush('visibility');
-
-                // Only refresh layout for standard terminals during visibility change
-                // TUI terminals use alternate buffer and manage their own viewport
-                if (!xtermWrapperRef.current?.isTuiMode()) {
-                    viewportControllerRef.current?.onVisibilityChange(true);
-                }
 
                 try {
                     requestResizeRef.current?.('visibility', { immediate: true, force: true });
                 } catch (e) {
                     logger.warn(`[Terminal ${terminalId}] Visibility fit failed:`, e);
                 }
-
-                // Force scrollbar refresh after layout is stable. xterm's internal viewport
-                // needs to recalculate scroll dimensions after the container becomes visible.
-                requestAnimationFrame(() => {
-                    xtermWrapperRef.current?.forceScrollbarRefresh();
-                });
             }, { threshold: 0.01 });
             visibilityObserver.observe(termRef.current);
         }
@@ -1387,9 +1336,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         // Do an initial fit via RAF once container is measurable
         const scheduleInitialFit = () => {
             requestAnimationFrame(() => {
-                if (!isReadyForFit() || !fitAddon.current || !terminal.current) return;
+                if (!isReadyForFit() || !terminal.current) return;
                 try {
-                    fitAddon.current.fit();
                     requestResizeRef.current?.('initial-raf', { immediate: true, force: true });
                 } catch {
                     // ignore single-shot fit error; RO will retry
@@ -1409,9 +1357,9 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 const disposable = renderHandler.call(terminal.current, () => {
                     if (!hydratedRef.current) {
                         hydratedRef.current = true;
+                        setHydrated(true);
                         if (!hydratedOnceRef.current) {
                             hydratedOnceRef.current = true;
-                            setHydrated(true);
                             onReadyRef.current?.();
                         }
                     }
@@ -1451,10 +1399,9 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             fontSizeRafPending = true;
             requestAnimationFrame(() => {
                 fontSizeRafPending = false;
-                if (!fitAddon.current || !terminal.current || !mountedRef.current) return;
+                if (!terminal.current || !mountedRef.current) return;
 
                 try {
-                    fitAddon.current.fit();
                     requestResizeRef.current?.('font-size-change', { immediate: true, force: true });
                 } catch (e) {
                     logger.warn(`[Terminal ${terminalId}] Font size change fit failed:`, e);
@@ -1532,7 +1479,19 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             writeTerminalBackend(terminalId, data).catch(err => logger.debug('[Terminal] write ignored (backend not ready yet)', err));
             });
         }
-        
+
+        if (onScrollDisposableRef.current) {
+            try {
+                onScrollDisposableRef.current.dispose();
+            } catch (error) {
+                logger.debug(`[Terminal ${terminalId}] Failed to dispose previous onScroll listener`, error);
+            }
+            onScrollDisposableRef.current = null;
+        }
+        onScrollDisposableRef.current = terminal.current.onScroll(() => {
+            logScrollChange('onScroll');
+        });
+
         // Send initialization sequence to ensure proper terminal mode
         // This helps with arrow key handling in some shells
         requestAnimationFrame(() => {
@@ -1585,13 +1544,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             try {
                 if (fitAddon.current && terminal.current && termRef.current) {
                     requestAnimationFrame(() => {
-                        if (!fitAddon.current || !terminal.current) return;
+                        if (!terminal.current) return;
 
-                        try {
-                            fitAddon.current.fit();
-                        } catch (err) {
-                            logger.debug(`[Terminal ${terminalId}] Split-final pre-fit failed`, err);
-                        }
                         resizeCoordinatorRef.current?.flush('split-final');
                         requestResizeRef.current?.('split-final', { immediate: true, force: true });
                     });
@@ -1637,16 +1591,15 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 onDataDisposableRef.current = null;
             }
 
-            if (outputCallbackRef.current) {
-                removeTerminalOutputCallback(terminalId, outputCallbackRef.current);
-                outputCallbackRef.current = null;
-            }
-            if (clearCallbackRef.current) {
-                removeTerminalClearCallback(terminalId, clearCallbackRef.current);
-                clearCallbackRef.current = null;
+            if (onScrollDisposableRef.current) {
+                try {
+                    onScrollDisposableRef.current.dispose();
+                } catch (error) {
+                    logger.debug(`[Terminal ${terminalId}] onScroll listener cleanup error:`, error);
+                }
+                onScrollDisposableRef.current = null;
             }
 
-            setupViewportController(null);
             detachTerminalInstance(terminalId);
             xtermWrapperRef.current = null;
             gpuRenderer.current = null;
@@ -1662,74 +1615,10 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         terminalId,
         addEventListener,
         addResizeObserver,
-        setupViewportController,
         gpuEnabledForTerminal,
         gpuRenderer,
     ]);
 
-    // Handle explicit terminal attachment lifecycle for scroll state restoration.
-    // This ensures scroll state is restored when all app state (agentType, uiMode, config)
-    // is guaranteed to be ready, not when DOM events (IntersectionObserver) fire.
-    // Uses derived atom (shouldRestoreTerminalScrollAtomFamily) as single source of truth:
-    // only restores when attached AND not streaming.
-    // Debounces restoration to prevent oscillation during rapid output bursts.
-    const shouldRestoreScroll = useAtomValue(shouldRestoreTerminalScrollAtomFamily(terminalId));
-    const updateStreamingState = useSetAtom(updateTerminalStreamingStateActionAtom);
-    const restoreTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-    useEffect(() => {
-        // Clear any pending restore timeout
-        if (restoreTimeoutRef.current) {
-            clearTimeout(restoreTimeoutRef.current);
-            restoreTimeoutRef.current = null;
-        }
-
-        // Only restore if condition is true
-        if (shouldRestoreScroll && xtermWrapperRef.current) {
-            // Debounce: wait 50ms to ensure streaming state has stabilized
-            // This prevents oscillation when streaming state flips rapidly
-            restoreTimeoutRef.current = setTimeout(() => {
-                if (shouldRestoreScroll && xtermWrapperRef.current) {
-                    logger.debug(`[Terminal ${terminalId}] Executing debounced scroll restore`);
-                    xtermWrapperRef.current.restoreScrollState();
-                }
-                restoreTimeoutRef.current = null;
-            }, 50);
-        }
-
-        return () => {
-            if (restoreTimeoutRef.current) {
-                clearTimeout(restoreTimeoutRef.current);
-                restoreTimeoutRef.current = null;
-            }
-        };
-    }, [shouldRestoreScroll, terminalId]);
-
-    // Register output callback to sync streaming state with Jotai atom.
-    // CRITICAL: Only update atom when streaming state ACTUALLY CHANGES.
-    // This prevents rapid oscillation when output callbacks fire frequently.
-    // We use a ref to track the last notified state and skip updates when it hasn't changed.
-    const lastNotifiedStreamingStateRef = useRef<boolean | null>(null);
-    useEffect(() => {
-        const callback = () => {
-            const isNowStreaming = isTerminalStreaming(terminalId);
-            // Only update if state actually changed
-            if (lastNotifiedStreamingStateRef.current !== isNowStreaming) {
-                logger.debug(`[Terminal ${terminalId}] Streaming state changed: ${lastNotifiedStreamingStateRef.current} → ${isNowStreaming}`);
-                lastNotifiedStreamingStateRef.current = isNowStreaming;
-                // Only dispatch action when state actually changes
-                updateStreamingState({ terminalId, isStreaming: isNowStreaming });
-            }
-        };
-
-        if (xtermWrapperRef.current) {
-            addTerminalOutputCallback(terminalId, callback);
-
-            return () => {
-                removeTerminalOutputCallback(terminalId, callback);
-            };
-        }
-    }, [terminalId, updateStreamingState]);
 
     const configEffectInitializedRef = useRef(false);
     useEffect(() => {
@@ -1743,26 +1632,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         xtermWrapperRef.current.applyConfig(terminalConfig);
         xtermWrapperRef.current.setSmoothScrolling(terminalConfig.smoothScrolling && isPhysicalWheelRef.current);
         if (fitAddon.current) {
-            try {
-                fitAddon.current.fit();
-            } catch (e) {
-                logger.debug(`[Terminal ${terminalId}] Config update fit failed`, e);
-            }
-        }
-    }, [terminalConfig, terminalId]);
-
-
-     // Automatically start Claude for top terminals when terminal instance is ready
-     useEffect(() => {
-        if (!terminal.current) return;
-        if (agentType === 'terminal') return;
-         if (!terminalId.endsWith('-top')) return;
-         if (isTerminalStartingOrStarted(terminalId)) return;
-         if (agentStopped) return;
-
-        const isOrchestratorTop = isCommander || (terminalId.includes('orchestrator') && terminalId.endsWith('-top'))
-        // Session agents are started by the sessions domain (background auto-start), not by terminal mount.
-        if (!isOrchestratorTop) {
             return
         }
 
@@ -1779,9 +1648,12 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                             let measured: { cols?: number; rows?: number } | undefined
                             try {
                                 if (fitAddon.current && terminal.current) {
-                                    fitAddon.current.fit();
-                                    const mCols = calculateEffectiveColumns(terminal.current.cols);
-                                    measured = { cols: mCols, rows: terminal.current.rows };
+                                    const proposer = fitAddon.current as unknown as { proposeDimensions?: () => { cols: number; rows: number } | undefined };
+                                    const proposed = proposer.proposeDimensions?.();
+                                    if (proposed) {
+                                        const mCols = calculateEffectiveColumns(proposed.cols);
+                                        measured = { cols: mCols, rows: proposed.rows };
+                                    }
                                 }
                             } catch (e) {
                                 logger.warn(`[Terminal ${terminalId}] Failed to measure size before orchestrator start:`, e);
@@ -1860,10 +1732,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         try {
             if (terminal.current.options.fontFamily !== resolvedFontFamily) {
                 xtermWrapperRef.current?.updateOptions({ fontFamily: resolvedFontFamily })
-                if (fitAddon.current) {
-                    fitAddon.current.fit()
-                    requestResize('font-family', { immediate: true, force: true })
-                }
+                requestResize('font-family', { immediate: true, force: true })
                 refreshGpuFontRendering()
             }
         } catch (e) {
@@ -1975,6 +1844,10 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         const checkState = () => {
              if (!term.buffer?.active) return;
              const buffer = term.buffer.active;
+             if (buffer.type === 'alternate') {
+                 setShowScrollBottom(false);
+                 return;
+             }
              const distance = buffer.baseY - buffer.viewportY;
              const shouldShow = distance > 0;
              setShowScrollBottom(prev => {

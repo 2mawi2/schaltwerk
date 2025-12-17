@@ -35,8 +35,18 @@ fn analyze_control_sequence(
             }
         }
         b'c' => match prefix {
-            Some(b'>') => ControlSequenceAction::Respond(b"\x1b[>0;95;0c"),
-            Some(b'?') => ControlSequenceAction::Respond(b"\x1b[?1;2c"),
+            // Secondary DA: \x1b[>c or \x1b[>0c is a query, \x1b[>0;95;0c is a response
+            Some(b'>') => {
+                if params.is_empty() || params == b"0" {
+                    ControlSequenceAction::Respond(b"\x1b[>0;95;0c")
+                } else {
+                    // It's a response (has params) - drop to prevent loops
+                    ControlSequenceAction::Drop
+                }
+            }
+            // Primary DA response \x1b[?...c - always drop (queries don't have ? prefix)
+            Some(b'?') => ControlSequenceAction::Drop,
+            // Primary DA query \x1b[c or \x1b[0c - respond
             None => ControlSequenceAction::Respond(b"\x1b[?1;2c"),
             _ => ControlSequenceAction::Pass,
         },
@@ -126,6 +136,15 @@ pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
                         i = cursor + 1;
                     }
                     ControlSequenceAction::Pass => {
+                        const KNOWN_TERMINATORS: &[u8] = b"mHJKABCDrhls@PLMGdfSTtuXZ";
+                        if !KNOWN_TERMINATORS.contains(&terminator) {
+                            log::debug!(
+                                "Unknown CSI sequence passing through: prefix={:?} params={:?} terminator={:?}",
+                                prefix.map(|b| b as char),
+                                std::str::from_utf8(params).unwrap_or("<invalid utf8>"),
+                                terminator as char
+                            );
+                        }
                         data.extend_from_slice(&input[i..=cursor]);
                         i = cursor + 1;
                     }
@@ -171,7 +190,11 @@ pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
                             data.extend_from_slice(&input[i..=term_idx + terminator_len - 1]);
                             i = term_idx + terminator_len;
                         } else {
-                            log::trace!("Passing through OSC sequence {text:?}");
+                            let osc_code = text.split(';').next().and_then(|s| s.parse::<u32>().ok());
+                            const KNOWN_OSC_CODES: &[u32] = &[0, 1, 2, 4, 7, 9, 52, 133, 1337];
+                            if !osc_code.map(|c| KNOWN_OSC_CODES.contains(&c)).unwrap_or(false) {
+                                log::debug!("Unknown OSC sequence passing through: {text:?}");
+                            }
                             data.extend_from_slice(&input[i..=term_idx + terminator_len - 1]);
                             i = term_idx + terminator_len;
                         }
@@ -186,6 +209,13 @@ pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
                 continue;
             }
             _ => {
+                const KNOWN_ESC_KINDS: &[u8] = b"78MDEc=>()";
+                if !KNOWN_ESC_KINDS.contains(&kind) {
+                    log::debug!(
+                        "Unknown escape sequence passing through: ESC {:?}",
+                        kind as char
+                    );
+                }
                 data.push(input[i]);
                 i += 1;
                 continue;
@@ -216,19 +246,6 @@ mod tests {
                 cursor_query_offsets: vec![3],
                 responses: Vec::new(),
             }
-        );
-    }
-
-    #[test]
-    fn handles_device_attributes_queries() {
-        let result = sanitize_control_sequences(b"pre\x1b[?1;2cpost");
-        assert_eq!(result.data, b"prepost");
-        assert_eq!(result.remainder, None);
-        assert!(result.cursor_query_offsets.is_empty());
-        assert_eq!(result.responses.len(), 1);
-        assert_eq!(
-            result.responses[0],
-            SequenceResponse::Immediate(b"\x1b[?1;2c".to_vec())
         );
     }
 
@@ -364,5 +381,83 @@ mod tests {
         assert!(result.remainder.is_none());
         assert!(result.cursor_query_offsets.is_empty());
         assert!(result.responses.is_empty());
+    }
+
+    #[test]
+    fn responds_to_primary_da_query() {
+        // \x1b[c is a primary DA query - we should respond
+        let result = sanitize_control_sequences(b"pre\x1b[cpost");
+        assert_eq!(result.data, b"prepost");
+        assert!(result.remainder.is_none());
+        assert!(result.cursor_query_offsets.is_empty());
+        assert_eq!(result.responses.len(), 1);
+        assert_eq!(
+            result.responses[0],
+            SequenceResponse::Immediate(b"\x1b[?1;2c".to_vec())
+        );
+    }
+
+    #[test]
+    fn responds_to_primary_da_query_with_zero_param() {
+        // \x1b[0c is also a primary DA query - we should respond
+        let result = sanitize_control_sequences(b"pre\x1b[0cpost");
+        assert_eq!(result.data, b"prepost");
+        assert!(result.remainder.is_none());
+        assert!(result.cursor_query_offsets.is_empty());
+        assert_eq!(result.responses.len(), 1);
+        assert_eq!(
+            result.responses[0],
+            SequenceResponse::Immediate(b"\x1b[?1;2c".to_vec())
+        );
+    }
+
+    #[test]
+    fn drops_da_response_to_prevent_loop() {
+        // \x1b[?1;2c is a DA RESPONSE, not a query
+        // We must drop it to prevent infinite response loops
+        let result = sanitize_control_sequences(b"pre\x1b[?1;2cpost");
+        assert_eq!(result.data, b"prepost");
+        assert!(result.remainder.is_none());
+        assert!(result.cursor_query_offsets.is_empty());
+        // Should NOT generate a response - that would cause a loop!
+        assert!(result.responses.is_empty());
+    }
+
+    #[test]
+    fn drops_secondary_da_response() {
+        // \x1b[>0;95;0c is a secondary DA response - drop it
+        let result = sanitize_control_sequences(b"pre\x1b[>0;95;0cpost");
+        assert_eq!(result.data, b"prepost");
+        assert!(result.remainder.is_none());
+        assert!(result.cursor_query_offsets.is_empty());
+        assert!(result.responses.is_empty());
+    }
+
+    #[test]
+    fn responds_to_secondary_da_query() {
+        // \x1b[>c is a secondary DA query - we should respond
+        let result = sanitize_control_sequences(b"pre\x1b[>cpost");
+        assert_eq!(result.data, b"prepost");
+        assert!(result.remainder.is_none());
+        assert!(result.cursor_query_offsets.is_empty());
+        assert_eq!(result.responses.len(), 1);
+        assert_eq!(
+            result.responses[0],
+            SequenceResponse::Immediate(b"\x1b[>0;95;0c".to_vec())
+        );
+    }
+
+    #[test]
+    fn responds_to_secondary_da_query_with_zero_param() {
+        // \x1b[>0c is also a secondary DA query - we should respond
+        let result = sanitize_control_sequences(b"pre\x1b[>0cpost");
+        assert_eq!(result.data, b"prepost");
+        assert!(result.remainder.is_none());
+        assert!(result.cursor_query_offsets.is_empty());
+        assert_eq!(result.responses.len(), 1);
+        assert_eq!(
+            result.responses[0],
+            SequenceResponse::Immediate(b"\x1b[>0;95;0c".to_vec())
+        );
     }
 }

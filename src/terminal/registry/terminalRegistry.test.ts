@@ -2,8 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   acquireTerminalInstance,
   removeTerminalInstance,
-  addTerminalClearCallback,
-  removeTerminalClearCallback,
   isTerminalBracketedPasteEnabled,
   addTerminalOutputCallback,
   removeTerminalOutputCallback,
@@ -65,6 +63,7 @@ describe('terminalRegistry stream flushing', () => {
           },
         },
         shouldFollowOutput: () => true,
+        isTuiMode: () => false,
         attach: vi.fn(),
         detach: vi.fn(),
         dispose: vi.fn(),
@@ -111,15 +110,13 @@ describe('terminalRegistry stream flushing', () => {
           },
         },
         shouldFollowOutput: () => true,
+        isTuiMode: () => false,
         attach: vi.fn(),
         detach: vi.fn(),
         dispose: vi.fn(),
       } as unknown as import('../xterm/XtermTerminal').XtermTerminal)
 
     acquireTerminalInstance('clear-test', factory)
-
-    const clearCb = vi.fn()
-    addTerminalClearCallback('clear-test', clearCb)
 
     const listener = addListenerMock.mock.calls[0][1] as (chunk: string) => void
 
@@ -132,13 +129,7 @@ describe('terminalRegistry stream flushing', () => {
     // Only the clear sequence should be written (old content cleared)
     expect(rawWrite).toHaveBeenCalledTimes(1)
     expect(rawWrite).toHaveBeenCalledWith('\x1b[3J', expect.any(Function))
-    expect(clearCb).not.toHaveBeenCalled()
 
-    const writeCallback = rawWrite.mock.calls[0][1] as unknown as () => void
-    writeCallback()
-    expect(clearCb).toHaveBeenCalledTimes(1)
-
-    removeTerminalClearCallback('clear-test', clearCb)
     removeTerminalInstance('clear-test')
   })
 
@@ -157,6 +148,7 @@ describe('terminalRegistry stream flushing', () => {
           },
         },
         shouldFollowOutput: () => true,
+        isTuiMode: () => false,
         attach: vi.fn(),
         detach: vi.fn(),
         dispose: vi.fn(),
@@ -198,6 +190,7 @@ describe('terminalRegistry stream flushing', () => {
           },
         },
         shouldFollowOutput: () => true,
+        isTuiMode: () => false,
         attach: vi.fn(),
         detach: vi.fn(),
         dispose: vi.fn(),
@@ -238,6 +231,7 @@ describe('terminalRegistry stream flushing', () => {
           },
         },
         shouldFollowOutput: () => true,
+        isTuiMode: () => false,
         attach: vi.fn(),
         detach: vi.fn(),
         dispose: vi.fn(),
@@ -276,6 +270,7 @@ describe('terminalRegistry stream flushing', () => {
           },
         },
         shouldFollowOutput: () => false,
+        isTuiMode: () => true,
         attach: vi.fn(),
         detach: vi.fn(),
         dispose: vi.fn(),
@@ -297,6 +292,41 @@ describe('terminalRegistry stream flushing', () => {
     removeTerminalInstance('tui-follow-test')
   })
 
+  it('strips clear scrollback sequence in TUI mode to prevent viewport jumps', async () => {
+    const rawWrite = vi.fn()
+    const factory = () =>
+      ({
+        raw: {
+          write: rawWrite,
+          scrollToBottom: vi.fn(),
+          buffer: {
+            active: {
+              baseY: 10,
+              viewportY: 10,
+            },
+          },
+        },
+        shouldFollowOutput: () => false,
+        isTuiMode: () => true,
+        attach: vi.fn(),
+        detach: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as import('../xterm/XtermTerminal').XtermTerminal)
+
+    acquireTerminalInstance('tui-clear-test', factory)
+
+    const listener = addListenerMock.mock.calls[0][1] as (chunk: string) => void
+
+    listener('some content\x1b[3Jmore content')
+
+    await vi.runAllTimersAsync()
+
+    expect(rawWrite).toHaveBeenCalledTimes(1)
+    expect(rawWrite).toHaveBeenCalledWith('some contentmore content', expect.any(Function))
+
+    removeTerminalInstance('tui-clear-test')
+  })
+
   it('fires output callbacks after write flush completes', async () => {
     const rawWrite = vi.fn()
     const factory = () =>
@@ -312,6 +342,7 @@ describe('terminalRegistry stream flushing', () => {
           },
         },
         shouldFollowOutput: () => true,
+        isTuiMode: () => false,
         attach: vi.fn(),
         detach: vi.fn(),
         dispose: vi.fn(),

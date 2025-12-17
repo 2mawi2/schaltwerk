@@ -3,15 +3,19 @@ import { TerminalResizeCoordinator } from './resize/TerminalResizeCoordinator'
 
 function createCoordinator(overrides: Partial<ConstructorParameters<typeof TerminalResizeCoordinator>[0]> = {}) {
   const applyResize = vi.fn()
-  const applyRows = vi.fn()
+  const applyRowsOnly = vi.fn()
+  const applyColsOnly = vi.fn()
   const idleCallbacks: Array<() => void> = []
   const coordinator = new TerminalResizeCoordinator({
     debounceDelay: 100,
     smallBufferThreshold: 200,
     getBufferLength: () => 500,
     isVisible: () => true,
+    getCurrentCols: () => 80,
+    getCurrentRows: () => 24,
     applyResize,
-    applyRows,
+    applyRowsOnly,
+    applyColsOnly,
     scheduleIdle: (cb) => {
       idleCallbacks.push(cb)
       return idleCallbacks.length - 1
@@ -21,7 +25,7 @@ function createCoordinator(overrides: Partial<ConstructorParameters<typeof Termi
     },
     ...overrides,
   })
-  return { coordinator, applyResize, applyRows, idleCallbacks }
+  return { coordinator, applyResize, applyRowsOnly, applyColsOnly, idleCallbacks }
 }
 
 describe('TerminalResizeCoordinator', () => {
@@ -34,7 +38,7 @@ describe('TerminalResizeCoordinator', () => {
   })
 
   it('bypasses debounce when immediate is true', () => {
-    const { coordinator, applyResize, applyRows } = createCoordinator()
+    const { coordinator, applyResize, applyRowsOnly } = createCoordinator()
 
     coordinator.resize({ cols: 120, rows: 40, reason: 'immediate', immediate: true })
 
@@ -44,36 +48,38 @@ describe('TerminalResizeCoordinator', () => {
       force: true,
       source: 'both'
     }))
-    expect(applyRows).not.toHaveBeenCalled()
+    expect(applyRowsOnly).not.toHaveBeenCalled()
   })
 
   it('dispatches rows immediately and columns after debounce when visible', () => {
-    const { coordinator, applyResize, applyRows } = createCoordinator()
+    const { coordinator, applyResize, applyRowsOnly, applyColsOnly } = createCoordinator()
 
     coordinator.resize({ cols: 150, rows: 60, reason: 'visible' })
 
-    expect(applyRows).toHaveBeenCalledTimes(1)
-    expect(applyRows).toHaveBeenCalledWith(150, 60, expect.objectContaining({
+    expect(applyRowsOnly).toHaveBeenCalledTimes(1)
+    expect(applyRowsOnly).toHaveBeenCalledWith(60, expect.objectContaining({
       reason: 'visible',
       force: true,
       source: 'rows'
     }))
     expect(applyResize).not.toHaveBeenCalled()
+    expect(applyColsOnly).not.toHaveBeenCalled()
 
     vi.advanceTimersByTime(50)
-    expect(applyResize).not.toHaveBeenCalled()
+    expect(applyColsOnly).not.toHaveBeenCalled()
 
     vi.advanceTimersByTime(50)
-    expect(applyResize).toHaveBeenCalledTimes(1)
-    expect(applyResize).toHaveBeenCalledWith(150, 60, expect.objectContaining({
+    expect(applyColsOnly).toHaveBeenCalledTimes(1)
+    expect(applyColsOnly).toHaveBeenCalledWith(150, expect.objectContaining({
       reason: 'visible',
       force: true,
       source: 'debounce'
     }))
+    expect(applyResize).not.toHaveBeenCalled()
   })
 
   it('applies resize immediately when buffer is below threshold', () => {
-    const { coordinator, applyResize, applyRows } = createCoordinator({
+    const { coordinator, applyResize, applyRowsOnly } = createCoordinator({
       getBufferLength: () => 10
     })
 
@@ -85,12 +91,12 @@ describe('TerminalResizeCoordinator', () => {
       force: true,
       source: 'both'
     }))
-    expect(applyRows).not.toHaveBeenCalled()
+    expect(applyRowsOnly).not.toHaveBeenCalled()
   })
 
   it('schedules resize on idle when not visible', () => {
     const idleCallbacks: Array<() => void> = []
-    const { coordinator, applyResize, applyRows } = createCoordinator({
+    const { coordinator, applyResize, applyRowsOnly } = createCoordinator({
       isVisible: () => false,
       scheduleIdle: (cb) => {
         idleCallbacks.push(cb)
@@ -103,7 +109,7 @@ describe('TerminalResizeCoordinator', () => {
 
     coordinator.resize({ cols: 140, rows: 55, reason: 'hidden' })
 
-    expect(applyRows).not.toHaveBeenCalled()
+    expect(applyRowsOnly).not.toHaveBeenCalled()
     expect(applyResize).not.toHaveBeenCalled()
     expect(idleCallbacks.length).toBe(1)
 

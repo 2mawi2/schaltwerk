@@ -1186,10 +1186,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         onFocusClaude: () => {
             const sessionKey = selection.kind === 'orchestrator' ? 'orchestrator' : (selection.payload || 'unknown')
             setFocusForSession(sessionKey, 'claude')
-            // Set flag to indicate this is from Cmd+T shortcut - should scroll to bottom
-            window.__cmdTPressed = true
             setCurrentFocus('claude')
-            // This will trigger TerminalGrid's currentFocus effect immediately
         },
         onOpenDiffViewer: () => {
             if (selection.kind !== 'session' && selection.kind !== 'orchestrator') return

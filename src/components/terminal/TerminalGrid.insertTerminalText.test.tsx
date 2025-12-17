@@ -30,7 +30,7 @@ const orchestratorTerminalIdRef: { current: string | null } = { current: null }
 
 vi.mock('./Terminal', () => {
   const TerminalMock = forwardRef<
-    { focus: ReturnType<typeof vi.fn>; showSearch: ReturnType<typeof vi.fn>; scrollToBottom: ReturnType<typeof vi.fn>; saveScrollState: ReturnType<typeof vi.fn> },
+    { focus: ReturnType<typeof vi.fn>; showSearch: ReturnType<typeof vi.fn>; scrollToBottom: ReturnType<typeof vi.fn> },
     { terminalId: string; isCommander?: boolean }
   >(function TerminalMock(props, ref) {
     const { terminalId, isCommander } = props
@@ -43,7 +43,6 @@ vi.mock('./Terminal', () => {
       focus: focusSpyRef.current!,
       showSearch: vi.fn(),
       scrollToBottom: vi.fn(),
-      saveScrollState: vi.fn()
     }), [])
 
     useEffect(() => {

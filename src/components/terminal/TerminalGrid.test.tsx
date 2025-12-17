@@ -31,7 +31,6 @@ interface MockTerminalRef {
   focus: () => void
   showSearch: () => void
   scrollToBottom: () => void
-  saveScrollState: () => void
 }
 
 interface MockTerminalTabsRef {
@@ -128,7 +127,6 @@ vi.mock('./Terminal', () => {
       focus: focusRef.current!,
       showSearch: vi.fn(),
       scrollToBottom: vi.fn(),
-      saveScrollState: vi.fn()
     }), [])
 
     const handleClick = () => {
@@ -228,7 +226,6 @@ vi.mock('./TerminalTabs', () => {
         scrollPageUp: vi.fn(),
         scrollPageDown: vi.fn(),
         scrollToTop: vi.fn(),
-        saveScrollState: vi.fn(),
       })),
       getTabsState: () => ({
         tabs: [{ index: 0, terminalId, label: 'Terminal 1' }],

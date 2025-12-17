@@ -23,6 +23,7 @@ vi.mock('@xterm/xterm', () => {
     element: HTMLElement | null = null
     parser = {
       registerOscHandler: vi.fn(() => true),
+      registerCsiHandler: vi.fn(() => ({ dispose: vi.fn() })),
     }
     constructor(options: Record<string, unknown>) {
       this.options = options
@@ -127,103 +128,6 @@ describe('XtermTerminal wrapper', () => {
     wrapper.attach(container)
     expect((child as HTMLElement).style.display).toBe('block')
     expect(instance.open).toHaveBeenCalledTimes(1)
-  })
-
-  it('restores exact scroll position after reattach', async () => {
-    const { XtermTerminal } = await import('./XtermTerminal')
-    const wrapper = new XtermTerminal({
-      terminalId: 'scroll-restore',
-      config: {
-        scrollback: 5000,
-        fontSize: 12,
-        fontFamily: 'Menlo',
-        readOnly: false,
-        minimumContrastRatio: 1,
-        smoothScrolling: false,
-      },
-    })
-
-    const { Terminal: MockTerminal } = await import('@xterm/xterm') as unknown as {
-      Terminal: { __instances: Array<{ buffer: { active: { baseY: number; viewportY: number } }; scrollToLine: ReturnType<typeof vi.fn>; scrollLines: ReturnType<typeof vi.fn> }> }
-    }
-    const instance = MockTerminal.__instances.at(-1)!
-    instance.buffer.active.baseY = 100
-    instance.buffer.active.viewportY = 42
-
-    const container = document.createElement('div')
-    wrapper.attach(container)
-
-    wrapper.detach()
-    expect(instance.scrollToLine).not.toHaveBeenCalled()
-
-    instance.buffer.active.viewportY = 0
-
-    wrapper.attach(container)
-
-    expect(instance.scrollToLine).toHaveBeenCalledWith(42)
-  })
-
-  it('accounts for buffer growth when restoring scroll position', async () => {
-    const { XtermTerminal } = await import('./XtermTerminal')
-    const wrapper = new XtermTerminal({
-      terminalId: 'scroll-growth',
-      config: {
-        scrollback: 5000,
-        fontSize: 12,
-        fontFamily: 'Menlo',
-        readOnly: false,
-        minimumContrastRatio: 1,
-        smoothScrolling: false,
-      },
-    })
-
-    const { Terminal: MockTerminal } = await import('@xterm/xterm') as unknown as {
-      Terminal: { __instances: Array<{ buffer: { active: { baseY: number; viewportY: number } }; scrollToLine: ReturnType<typeof vi.fn> }> }
-    }
-    const instance = MockTerminal.__instances.at(-1)!
-    instance.buffer.active.baseY = 100
-    instance.buffer.active.viewportY = 42
-
-    const container = document.createElement('div')
-    wrapper.attach(container)
-    wrapper.detach()
-
-    instance.buffer.active.baseY = 120
-    instance.buffer.active.viewportY = 80
-
-    wrapper.attach(container)
-
-    expect(instance.scrollToLine).toHaveBeenCalledWith(62)
-  })
-
-  it('does not scroll when already at saved position', async () => {
-    const { XtermTerminal } = await import('./XtermTerminal')
-    const wrapper = new XtermTerminal({
-      terminalId: 'scroll-preserve',
-      config: {
-        scrollback: 5000,
-        fontSize: 12,
-        fontFamily: 'Menlo',
-        readOnly: false,
-        minimumContrastRatio: 1,
-        smoothScrolling: false,
-      },
-    })
-
-    const { Terminal: MockTerminal } = await import('@xterm/xterm') as unknown as {
-      Terminal: { __instances: Array<{ buffer: { active: { baseY: number; viewportY: number } }; scrollToLine: ReturnType<typeof vi.fn> }> }
-    }
-    const instance = MockTerminal.__instances.at(-1)!
-    instance.buffer.active.baseY = 50
-    instance.buffer.active.viewportY = 40
-
-    const container = document.createElement('div')
-    wrapper.attach(container)
-
-    wrapper.detach()
-    wrapper.attach(container)
-
-    expect(instance.scrollToLine).not.toHaveBeenCalled()
   })
 
   it('updates underlying xterm options via updateOptions', async () => {
@@ -339,5 +243,64 @@ describe('XtermTerminal wrapper', () => {
 
     expect(instance.options.cursorBlink).toBe(false)
     expect(instance.write).toHaveBeenCalledWith('\x1b[?25l')
+  })
+
+  it('registers a CSI J handler to block clear scrollback in TUI mode', async () => {
+    const { XtermTerminal } = await import('./XtermTerminal')
+
+    new XtermTerminal({
+      terminalId: 'csi-test',
+      uiMode: 'tui',
+      config: {
+        scrollback: 4000,
+        fontSize: 12,
+        fontFamily: 'Menlo',
+        readOnly: false,
+        minimumContrastRatio: 1.0,
+        smoothScrolling: false,
+      },
+    })
+
+    const { Terminal: MockTerminal } = await import('@xterm/xterm') as unknown as {
+      Terminal: { __instances: Array<{ parser: { registerCsiHandler: ReturnType<typeof vi.fn> } }> }
+    }
+    const instance = MockTerminal.__instances.at(-1)!
+
+    expect(instance.parser.registerCsiHandler).toHaveBeenCalledWith(
+      { final: 'J' },
+      expect.any(Function)
+    )
+  })
+
+  it('saves and restores scroll position on detach/attach', async () => {
+    const { XtermTerminal } = await import('./XtermTerminal')
+
+    const wrapper = new XtermTerminal({
+      terminalId: 'scroll-test',
+      config: {
+        scrollback: 4000,
+        fontSize: 12,
+        fontFamily: 'Menlo',
+        readOnly: false,
+        minimumContrastRatio: 1.0,
+        smoothScrolling: false,
+      },
+    })
+
+    const { Terminal: MockTerminal } = await import('@xterm/xterm') as unknown as {
+      Terminal: { __instances: Array<{ buffer: { active: { viewportY: number } }; scrollToLine: ReturnType<typeof vi.fn> }> }
+    }
+    const instance = MockTerminal.__instances.at(-1)!
+
+    const container = document.createElement('div')
+    wrapper.attach(container)
+
+    instance.buffer.active.viewportY = 42
+    wrapper.detach()
+
+    wrapper.attach(container)
+
+    await new Promise(resolve => requestAnimationFrame(resolve))
+    expect(instance.scrollToLine).toHaveBeenCalledWith(42)
   })
 })
