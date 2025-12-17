@@ -6,7 +6,6 @@ declare module '@tauri-apps/plugin-os' {
 
 declare global {
     interface Window {
-        __cmdTPressed?: boolean
         __TAURI__?: boolean
     }
 }

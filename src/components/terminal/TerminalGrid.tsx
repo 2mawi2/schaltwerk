@@ -38,8 +38,6 @@ import {
   removeTabActionAtom,
   setActiveTabActionAtom,
   resetTerminalTabsActionAtom,
-  attachTerminalActionAtom,
-  detachTerminalActionAtom,
 } from '../../store/atoms/terminal'
 import { buildPreviewKey } from '../../store/atoms/preview'
 import { useShortcutDisplay } from '../../keyboardShortcuts/useShortcutDisplay'
@@ -133,10 +131,6 @@ const TerminalGridComponent = () => {
         setAgentTypeCache({ sessionId: sessionKey, agentType: type })
     }, [sessionKey, setAgentTypeCache])
 
-    // Terminal lifecycle actions for explicit attach/detach coordination
-    const attachTerminal = useSetAtom(attachTerminalActionAtom)
-    const detachTerminal = useSetAtom(detachTerminalActionAtom)
-
     // Agent tabs state for multiple agents in top terminal
     const agentTabScopeId = selection.kind === 'session' ? (selection.payload ?? null) : selection.kind === 'orchestrator' ? 'orchestrator' : null
     const orchestratorTabStarter = useCallback(async ({ terminalId }: { sessionId: string; terminalId: string; agentType: string }) => {
@@ -193,26 +187,10 @@ const TerminalGridComponent = () => {
     const previousTabsBaseRef = useRef<string | null>(terminals.bottomBase)
     const previousTopTerminalRef = useRef<string | null>(terminals.top)
 
-    // Handle terminal lifecycle coordination for scroll state preservation.
-    // When the top terminal changes: save scroll from old terminal, detach it, then attach new one.
+    // Track top terminal changes
     useEffect(() => {
-        if (previousTopTerminalRef.current && previousTopTerminalRef.current !== terminals.top) {
-            // Save scroll state from old terminal before detaching
-            claudeTerminalRef.current?.saveScrollState()
-
-            // Detach old terminal
-            detachTerminal({ terminalId: previousTopTerminalRef.current })
-
-            // Attach new terminal (will trigger restore when streaming stops)
-            if (terminals.top) {
-                attachTerminal({ terminalId: terminals.top })
-            }
-        } else if (terminals.top && !previousTopTerminalRef.current) {
-            // Initial attachment of top terminal
-            attachTerminal({ terminalId: terminals.top })
-        }
         previousTopTerminalRef.current = terminals.top
-    }, [terminals.top, attachTerminal, detachTerminal])
+    }, [terminals.top])
 
     // Helper to apply tab state changes (replaces the old applyTabsState)
     const applyTabsState = useCallback(
@@ -746,11 +724,6 @@ const TerminalGridComponent = () => {
             setLocalFocus('claude')
             safeTerminalFocus(() => {
                 claudeTerminalRef.current?.focus()
-                // Only scroll to bottom if this is from Cmd+T shortcut
-                if (window.__cmdTPressed) {
-                    claudeTerminalRef.current?.scrollToBottom()
-                    delete window.__cmdTPressed
-                }
             }, isAnyModalOpen)
             lastAppliedGlobalFocusRef.current = 'claude'
         } else if (currentFocus === 'terminal') {

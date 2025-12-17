@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, waitFor, cleanup, act, fireEvent, type RenderOptions } from '@testing-library/react'
 import { Terminal, type TerminalProps } from './Terminal'
-import { listenEvent, SchaltEvent } from '../../common/eventSystem'
+import { listenEvent } from '../../common/eventSystem'
 import { startSessionTop } from '../../common/agentSpawn'
 import { writeTerminalBackend } from '../../terminal/transport/backend'
 import { TERMINAL_FILE_DRAG_TYPE } from '../../common/dragTypes'
@@ -32,48 +32,6 @@ const cleanupRegistryMock = vi.hoisted(() => ({
   addTimeout: vi.fn(),
   addInterval: vi.fn(),
 }))
-
-const viewportControllerMocks = vi.hoisted(() => {
-  const instances: Array<{
-    options: { terminal?: unknown }
-    api: {
-      beforeResize: ReturnType<typeof vi.fn>
-      onResize: ReturnType<typeof vi.fn>
-      onFocusOrClick: ReturnType<typeof vi.fn>
-      onVisibilityChange: ReturnType<typeof vi.fn>
-      onOutput: ReturnType<typeof vi.fn>
-      dispose: ReturnType<typeof vi.fn>
-    }
-  }> = []
-
-  const factory = vi.fn((options: { terminal: unknown }) => {
-    const api = {
-      beforeResize: vi.fn(),
-      onResize: vi.fn(() => {
-        try {
-          const raw = (options?.terminal as { raw?: HarnessInstance['raw'] } | undefined)?.raw
-          const buf = raw?.buffer?.active
-          if (buf) {
-            const distance = buf.baseY - buf.viewportY
-            if (distance < 5 && typeof raw?.scrollToBottom === 'function') {
-              raw.scrollToBottom()
-            }
-          }
-        } catch {
-          // ignore test-time snap failures
-        }
-      }),
-      onFocusOrClick: vi.fn(),
-      onVisibilityChange: vi.fn(),
-      onOutput: vi.fn(),
-      dispose: vi.fn(),
-    }
-    instances.push({ options, api })
-    return api
-  })
-
-  return { factory, instances }
-})
 
 type HarnessConfig = {
   scrollback: number
@@ -292,24 +250,12 @@ vi.mock('../../terminal/registry/terminalRegistry', () => {
     hasTerminalInstance: registryMocks.hasTerminalInstance,
     addTerminalOutputCallback: vi.fn(),
     removeTerminalOutputCallback: vi.fn(),
-    addTerminalClearCallback: vi.fn(),
-    removeTerminalClearCallback: vi.fn(),
   }
 })
 
 vi.mock('../../terminal/xterm/XtermTerminal', () => {
   const { MockXtermTerminal } = terminalHarness
   return { XtermTerminal: MockXtermTerminal }
-})
-
-vi.mock('./viewport/TerminalViewportController', () => {
-  const { factory } = viewportControllerMocks
-  const Ctor = vi.fn(function TerminalViewportController(options: unknown) {
-    return factory(options as { terminal: unknown })
-  })
-  return {
-    TerminalViewportController: Ctor,
-  }
 })
 
 vi.mock('../../terminal/stream/terminalOutputManager', () => ({
@@ -332,7 +278,6 @@ vi.mock('../../common/eventSystem', () => ({
     TerminalFocusRequested: 'TerminalFocusRequested',
     TerminalAgentStarted: 'TerminalAgentStarted',
     TerminalClosed: 'TerminalClosed',
-    TerminalForceScroll: 'TerminalForceScroll',
   },
 }))
 
@@ -412,8 +357,6 @@ beforeEach(() => {
   cleanupRegistryMock.addResizeObserver.mockClear()
   cleanupRegistryMock.addTimeout.mockClear()
   cleanupRegistryMock.addInterval.mockClear()
-  viewportControllerMocks.factory.mockClear()
-  viewportControllerMocks.instances.length = 0
   const navigatorAny = navigator as Navigator & { userAgent?: string }
   Object.defineProperty(navigatorAny, 'userAgent', {
     value: 'Macintosh',
@@ -483,6 +426,30 @@ describe('Terminal', () => {
     expect(instance.config.minimumContrastRatio).toBeCloseTo(ATLAS_CONTRAST_BASE)
   })
 
+  it('uses reduced scrollback for TUI-based agents (kilocode)', async () => {
+    renderTerminal({ terminalId: 'session-kilocode-top', sessionName: 'kilocode', agentType: 'kilocode' })
+
+    await waitFor(() => {
+      expect(terminalHarness.acquireMock).toHaveBeenCalled()
+      expect(terminalHarness.instances.length).toBeGreaterThan(0)
+    })
+
+    const instance = terminalHarness.instances[0] as HarnessInstance
+    expect(instance.config.scrollback).toBe(2000)
+  })
+
+  it('uses reduced scrollback for TUI-based agents (claude)', async () => {
+    renderTerminal({ terminalId: 'session-claude-top', sessionName: 'claude', agentType: 'claude' })
+
+    await waitFor(() => {
+      expect(terminalHarness.acquireMock).toHaveBeenCalled()
+      expect(terminalHarness.instances.length).toBeGreaterThan(0)
+    })
+
+    const instance = terminalHarness.instances[0] as HarnessInstance
+    expect(instance.config.scrollback).toBe(2000)
+  })
+
   it('treats terminal-only top terminals as regular shells and skips agent startup', async () => {
     renderTerminal({ terminalId: 'session-terminal-top', sessionName: 'terminal', agentType: 'terminal' })
 
@@ -529,23 +496,6 @@ describe('Terminal', () => {
     expect(instance.applyConfig).toHaveBeenCalledWith(expect.objectContaining({
       readOnly: true,
     }))
-  })
-
-  it('initializes the viewport controller when reusing an existing terminal instance', async () => {
-    terminalHarness.setNextIsNew(false)
-    registryMocks.hasTerminalInstance.mockReturnValue(true)
-
-    renderTerminal({ terminalId: 'session-reuse-viewport-top', sessionName: 'reuse-viewport' })
-
-    await waitFor(() => {
-      expect(terminalHarness.acquireMock).toHaveBeenCalled()
-      expect(viewportControllerMocks.factory).toHaveBeenCalled()
-    })
-
-    const controllerRecord = viewportControllerMocks.instances[viewportControllerMocks.instances.length - 1]
-    const instance = terminalHarness.instances[terminalHarness.instances.length - 1] as HarnessInstance
-
-    expect(controllerRecord?.options?.terminal).toBe(instance)
   })
 
   it('ignores duplicate resize observer measurements', async () => {
@@ -603,86 +553,6 @@ describe('Terminal', () => {
       expect(terminalHarness.acquireMock).toHaveBeenCalled()
       expect(queryByLabelText('Terminal loading')).toBeNull()
     })
-  })
-
-  it('scrolls to the bottom when a TerminalForceScroll event targets the terminal', async () => {
-    const listeners = new Map<string, (payload: { terminal_id: string }) => void>()
-    const originalImplementation = vi.mocked(listenEvent).getMockImplementation()
-    vi.mocked(listenEvent).mockImplementation(async (event, handler) => {
-      listeners.set(String(event), handler as (payload: { terminal_id: string }) => void)
-      return () => {
-        listeners.delete(String(event))
-      }
-    })
-
-    try {
-      renderTerminal({ terminalId: 'session-force-scroll', sessionName: 'force-scroll' })
-
-      await waitFor(() => {
-        expect(terminalHarness.acquireMock).toHaveBeenCalled()
-        expect(terminalHarness.instances.length).toBeGreaterThan(0)
-      })
-
-      await waitFor(() => {
-        expect(listeners.get(String(SchaltEvent.TerminalForceScroll))).toBeDefined()
-      })
-
-      const instance = terminalHarness.instances[terminalHarness.instances.length - 1] as HarnessInstance
-      instance.raw.scrollToBottom.mockClear()
-
-      const handler = listeners.get(String(SchaltEvent.TerminalForceScroll))
-      expect(handler).toBeDefined()
-
-      await act(async () => {
-        handler?.({ terminal_id: 'session-force-scroll' })
-      })
-
-      await waitFor(() => {
-        expect(instance.raw.scrollToBottom).toHaveBeenCalled()
-      })
-    } finally {
-      vi.mocked(listenEvent).mockImplementation(originalImplementation ?? (async () => () => {}))
-    }
-  })
-
-  it('ignores TerminalForceScroll events for other terminals', async () => {
-    const listeners = new Map<string, (payload: { terminal_id: string }) => void>()
-    const originalImplementation = vi.mocked(listenEvent).getMockImplementation()
-    vi.mocked(listenEvent).mockImplementation(async (event, handler) => {
-      listeners.set(String(event), handler as (payload: { terminal_id: string }) => void)
-      return () => {
-        listeners.delete(String(event))
-      }
-    })
-
-    try {
-      renderTerminal({ terminalId: 'session-force-ignore', sessionName: 'force-ignore' })
-
-      await waitFor(() => {
-        expect(terminalHarness.acquireMock).toHaveBeenCalled()
-        expect(terminalHarness.instances.length).toBeGreaterThan(0)
-      })
-
-      await waitFor(() => {
-        expect(listeners.get(String(SchaltEvent.TerminalForceScroll))).toBeDefined()
-      })
-
-      const instance = terminalHarness.instances[terminalHarness.instances.length - 1] as HarnessInstance
-      instance.raw.scrollToBottom.mockClear()
-
-      const handler = listeners.get(String(SchaltEvent.TerminalForceScroll))
-      expect(handler).toBeDefined()
-
-      await act(async () => {
-        handler?.({ terminal_id: 'other-terminal' })
-      })
-
-      await waitFor(() => {
-        expect(instance.raw.scrollToBottom).not.toHaveBeenCalled()
-      })
-    } finally {
-      vi.mocked(listenEvent).mockImplementation(originalImplementation ?? (async () => () => {}))
-    }
   })
 
   it('pastes dropped file paths into the terminal input', async () => {

@@ -32,19 +32,16 @@ type TerminalTheme = NonNullable<ITerminalOptions['theme']>
 type FileLinkHandler = (text: string) => Promise<boolean> | boolean
 export type TerminalUiMode = 'standard' | 'tui'
 
-interface ScrollState {
-  viewportY: number
-  baseY: number
+interface IXtermViewport {
+  _innerRefresh(): void
 }
 
 interface IXtermCore {
-  viewport?: {
-    _innerRefresh(): void
-  }
+  viewport?: IXtermViewport
 }
 
-interface ITerminalWithCore {
-  _core: IXtermCore
+interface ITerminalWithCore extends XTerm {
+  _core?: IXtermCore
 }
 
 function buildTheme(): TerminalTheme {
@@ -114,8 +111,8 @@ export class XtermTerminal {
   private readonly terminalId: string
   private fileLinkHandler: FileLinkHandler | null = null
   private linkHandler: ((uri: string) => boolean | Promise<boolean>) | null = null
-  private savedScrollState: ScrollState | null = null
   private uiMode: TerminalUiMode
+  private savedViewportY: number | null = null
 
   constructor(options: XtermTerminalOptions) {
     this.terminalId = options.terminalId
@@ -181,6 +178,7 @@ export class XtermTerminal {
     this.container.style.boxSizing = 'border-box'
 
     this.registerOscHandlers()
+    this.registerCsiHandlers()
   }
 
   isTuiMode(): boolean {
@@ -223,64 +221,18 @@ export class XtermTerminal {
     }
     this.container.style.display = 'block'
 
-    this.syncViewport()
-    if (this.uiMode !== 'tui') {
-      this.restoreScrollState()
+    if (this.savedViewportY !== null) {
+      const targetY = this.savedViewportY
+      this.savedViewportY = null
+      requestAnimationFrame(() => {
+        try {
+          this.raw.scrollToLine(targetY)
+          this.forceScrollbarRefresh()
+        } catch (error) {
+          logger.debug(`[XtermTerminal ${this.terminalId}] Failed to restore scroll position`, error)
+        }
+      })
     }
-  }
-
-  saveScrollState(): void {
-    if (this.uiMode === 'tui') {
-      return
-    }
-    const buffer = this.raw.buffer?.active
-    if (!buffer) {
-      this.savedScrollState = null
-      return
-    }
-    this.savedScrollState = {
-      viewportY: buffer.viewportY,
-      baseY: buffer.baseY,
-    }
-    logger.debug(`[XtermTerminal ${this.terminalId}] Saved scroll state: viewportY=${this.savedScrollState.viewportY}, baseY=${this.savedScrollState.baseY}`)
-  }
-
-  restoreScrollState(): void {
-    if (!this.savedScrollState) {
-      logger.debug(`[XtermTerminal ${this.terminalId}] Restore skipped: no saved state`)
-      return
-    }
-
-    const buffer = this.raw.buffer?.active
-    if (!buffer) {
-      logger.debug(`[XtermTerminal ${this.terminalId}] Restore skipped: no active buffer`)
-      this.savedScrollState = null
-      return
-    }
-
-    const { viewportY: savedViewportY, baseY: savedBaseY } = this.savedScrollState
-    const bufferGrowth = buffer.baseY - savedBaseY
-    const targetY = Math.min(savedViewportY + Math.max(0, bufferGrowth), buffer.baseY)
-
-    // Don't restore if target is already near bottom (within snap-to-bottom threshold)
-    // This prevents oscillation between restore and snap-to-bottom logic
-    const distanceFromBottom = buffer.baseY - targetY
-    if (distanceFromBottom <= 5) {
-      logger.debug(`[XtermTerminal ${this.terminalId}] Restore skipped (near-bottom): saved=${savedViewportY} baseY=${savedBaseY} → target=${targetY} distance=${distanceFromBottom}`)
-      this.savedScrollState = null
-      return
-    }
-
-    if (buffer.viewportY !== targetY) {
-      logger.debug(`[XtermTerminal ${this.terminalId}] Restoring scroll: saved=${savedViewportY} baseY=${savedBaseY} growth=${bufferGrowth} → target=${targetY}`)
-      try {
-        this.raw.scrollToLine(targetY)
-      } catch (error) {
-        logger.debug(`[XtermTerminal ${this.terminalId}] scrollToLine failed after attach`, error)
-      }
-    }
-
-    this.savedScrollState = null
   }
 
   isAtBottom(): boolean {
@@ -318,40 +270,11 @@ export class XtermTerminal {
     }
   }
 
-  private syncViewport(): void {
-    // For TUI mode, skip viewport sync operations entirely - the TUI app manages its own display
-    if (this.uiMode === 'tui') {
-      return
-    }
-
-    // Refresh the renderer to sync with current buffer state
-    const rawWithRefresh = this.raw as unknown as { refresh?: (start: number, end: number) => void }
-    if (typeof rawWithRefresh.refresh === 'function') {
-      rawWithRefresh.refresh(0, this.raw.rows - 1)
-    }
-
-    // Force xterm's internal viewport to recalculate scrollbar dimensions.
-    // This is the same approach VS Code uses - accessing the private _core.viewport API.
-    this.forceScrollbarRefresh()
-
-    // Force scrollbar to recalc when there is existing scrollback
-    const buffer = this.raw.buffer?.active
-    if (buffer && buffer.baseY > 0) {
-      this.raw.scrollLines(0)
-    }
-  }
-
-  forceScrollbarRefresh(): void {
-    try {
-      const terminalWithCore = this.raw as unknown as ITerminalWithCore
-      terminalWithCore._core?.viewport?._innerRefresh()
-    } catch (error) {
-      logger.debug(`[XtermTerminal ${this.terminalId}] forceScrollbarRefresh failed`, error)
-    }
-  }
-
   detach(): void {
-    this.saveScrollState()
+    const buffer = this.raw.buffer?.active
+    if (buffer) {
+      this.savedViewportY = buffer.viewportY
+    }
     this.container.style.display = 'none'
   }
 
@@ -433,6 +356,11 @@ export class XtermTerminal {
     }
   }
 
+  forceScrollbarRefresh(): void {
+    const terminal = this.raw as ITerminalWithCore
+    terminal._core?.viewport?._innerRefresh()
+  }
+
   setSmoothScrolling(enabled: boolean): void {
     this.raw.options.smoothScrollDuration = enabled ? DEFAULT_SMOOTH_SCROLL_DURATION_MS : 0
   }
@@ -472,6 +400,24 @@ export class XtermTerminal {
       } catch (error) {
         logger.debug(`[XtermTerminal ${this.terminalId}] OSC handler registration failed for code ${code}`, error)
       }
+    }
+  }
+
+  private registerCsiHandlers(): void {
+    try {
+      this.raw.parser.registerCsiHandler({ final: 'J' }, (params) => {
+        const param = params.length > 0 ? params[0] : 0
+        const isClearScrollback = param === 3
+
+        if (isClearScrollback && this.isTuiMode()) {
+          logger.debug(`[XtermTerminal ${this.terminalId}] Blocked CSI 3J (clear scrollback) in TUI mode`)
+          return true
+        }
+
+        return false
+      })
+    } catch (error) {
+      logger.debug(`[XtermTerminal ${this.terminalId}] CSI J handler registration failed`, error)
     }
   }
 }

@@ -321,14 +321,25 @@ class TerminalInstanceRegistry {
         Math.max(0, combinedControl.length - CONTROL_SEQUENCE_TAIL_MAX),
       );
 
-      // If a clear scrollback sequence arrives, drop any buffered chunks so we don't
-      // momentarily render stale content before the clear is applied.
+      // Handle clear scrollback sequence (\x1b[3J).
+      // For TUI terminals (Kilocode/Ink, Claude Code), this sequence causes viewport jumps because
+      // xterm.js resets baseY/viewportY when clearing scrollback. TUI apps don't need scrollback
+      // so we strip it out entirely. For standard terminals, we keep existing behavior.
+      let processedChunk = chunk;
       if (chunk.includes(CLEAR_SCROLLBACK_SEQ)) {
-        record.pendingChunks = [];
-        record.hadClearInBatch = true;
+        if (record.xterm.isTuiMode()) {
+          processedChunk = chunk.split(CLEAR_SCROLLBACK_SEQ).join('');
+          logger.debug(`[Registry ${record.id}] Stripped CLEAR_SCROLLBACK_SEQ for TUI terminal`);
+        } else {
+          logger.debug(`[Registry ${record.id}] CLEAR_SCROLLBACK_SEQ detected`);
+          record.pendingChunks = [];
+          record.hadClearInBatch = true;
+        }
       }
 
-      record.pendingChunks.push(chunk);
+      if (processedChunk.length > 0) {
+        record.pendingChunks.push(processedChunk);
+      }
 
       if (!record.rafScheduled) {
         record.rafScheduled = true;
@@ -433,26 +444,10 @@ export function isTerminalBracketedPasteEnabled(id: string): boolean {
   return registry.isBracketedPasteEnabled(id);
 }
 
-export function isTerminalFullyParsed(id: string): boolean {
-  return registry.isFullyParsed(id);
-}
-
-export function isTerminalStreaming(id: string): boolean {
-  return registry.isStreaming(id);
-}
-
 export function addTerminalOutputCallback(id: string, callback: () => void): void {
   registry.addOutputCallback(id, callback);
 }
 
 export function removeTerminalOutputCallback(id: string, callback: () => void): void {
   registry.removeOutputCallback(id, callback);
-}
-
-export function addTerminalClearCallback(id: string, callback: () => void): void {
-  registry.addClearCallback(id, callback);
-}
-
-export function removeTerminalClearCallback(id: string, callback: () => void): void {
-  registry.removeClearCallback(id, callback);
 }

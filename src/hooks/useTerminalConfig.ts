@@ -10,6 +10,7 @@ import {
   setTerminalFontFamilyActionAtom,
 } from '../store/atoms/terminal'
 import { terminalFontSizeAtom } from '../store/atoms/fontSize'
+import { isTuiAgent } from '../types/session'
 
 const DEFAULT_SCROLLBACK_LINES = 10000
 const BACKGROUND_SCROLLBACK_LINES = 5000
@@ -86,7 +87,7 @@ export function useTerminalConfig(options: TerminalConfigOptions): UseTerminalCo
     if (isBackground) {
       scrollbackLines = BACKGROUND_SCROLLBACK_LINES
     } else if (isAgentTopTerminal) {
-      scrollbackLines = agentType === 'kilocode' ? TUI_SCROLLBACK_LINES : AGENT_SCROLLBACK_LINES
+      scrollbackLines = isTuiAgent(agentType) ? TUI_SCROLLBACK_LINES : AGENT_SCROLLBACK_LINES
     }
 
     return {
