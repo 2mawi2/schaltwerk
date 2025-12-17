@@ -16,7 +16,6 @@ interface TerminalTabsProps {
   sessionName?: string
   isCommander?: boolean
   maxTabs?: number
-  agentType?: string
   onTerminalClick?: () => void
   headless?: boolean
   bootstrapTopTerminalId?: string
@@ -47,7 +46,6 @@ const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(
   sessionName,
   isCommander = false,
   maxTabs = 6,
-  agentType,
   onTerminalClick,
   headless = false,
   bootstrapTopTerminalId,
@@ -125,7 +123,6 @@ const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(
                   className="h-full w-full"
                   sessionName={sessionName}
                   isCommander={isCommander}
-                  agentType={agentType}
                   onTerminalClick={onTerminalClick}
                   workingDirectory={workingDirectory}
                   previewKey={previewKey}
@@ -207,7 +204,6 @@ const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(
                 className="h-full w-full"
                 sessionName={sessionName}
                 isCommander={isCommander}
-                agentType={agentType}
                 onTerminalClick={onTerminalClick}
                 workingDirectory={workingDirectory}
                 previewKey={previewKey}
