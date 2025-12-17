@@ -112,7 +112,7 @@ export class XtermTerminal {
   private fileLinkHandler: FileLinkHandler | null = null
   private linkHandler: ((uri: string) => boolean | Promise<boolean>) | null = null
   private uiMode: TerminalUiMode
-  private savedViewportY: number | null = null
+  private savedDistanceFromBottom: number | null = null
 
   constructor(options: XtermTerminalOptions) {
     this.terminalId = options.terminalId
@@ -221,13 +221,17 @@ export class XtermTerminal {
     }
     this.container.style.display = 'block'
 
-    if (this.savedViewportY !== null) {
-      const targetY = this.savedViewportY
-      this.savedViewportY = null
+    if (this.savedDistanceFromBottom !== null) {
+      const distance = this.savedDistanceFromBottom
+      this.savedDistanceFromBottom = null
       requestAnimationFrame(() => {
         try {
-          this.raw.scrollToLine(targetY)
-          this.forceScrollbarRefresh()
+          const buffer = this.raw.buffer?.active
+          if (buffer) {
+            const targetY = Math.max(0, buffer.baseY - distance)
+            this.raw.scrollToLine(targetY)
+            this.forceScrollbarRefresh()
+          }
         } catch (error) {
           logger.debug(`[XtermTerminal ${this.terminalId}] Failed to restore scroll position`, error)
         }
@@ -273,7 +277,7 @@ export class XtermTerminal {
   detach(): void {
     const buffer = this.raw.buffer?.active
     if (buffer) {
-      this.savedViewportY = buffer.viewportY
+      this.savedDistanceFromBottom = buffer.baseY - buffer.viewportY
     }
     this.container.style.display = 'none'
   }
