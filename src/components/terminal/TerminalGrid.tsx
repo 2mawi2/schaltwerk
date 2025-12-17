@@ -1612,7 +1612,6 @@ const TerminalGridComponent = () => {
                                     className="h-full"
                                     sessionName={selection.kind === 'session' ? selection.payload ?? undefined : undefined}
                                     isCommander={selection.kind === 'orchestrator'}
-                                    agentType={agentType}
                                     onTerminalClick={handleTerminalClick}
                                     previewKey={previewKey ?? undefined}
                                     autoPreviewConfig={autoPreviewConfig}
