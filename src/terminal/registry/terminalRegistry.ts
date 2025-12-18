@@ -46,11 +46,9 @@ class TerminalInstanceRegistry {
   acquire(id: string, factory: TerminalInstanceFactory): AcquireTerminalResult {
     const existing = this.instances.get(id);
     if (existing) {
-      const buffer = existing.xterm.raw.buffer?.active;
-      logger.debug(`[Registry] Reusing existing terminal ${id}: isTUI=${existing.xterm.isTuiMode()}, attached=${existing.attached}, baseY=${buffer?.baseY}, viewportY=${buffer?.viewportY}`);
-      // Don't set attached=true here - wait for actual attach() call.
-      // This ensures TUI terminals skip accumulating content until truly attached.
+      existing.attached = true;
       this.ensureStream(existing);
+      logger.debug(`[Registry] Reusing existing terminal ${id}`);
       return { record: existing, isNew: false };
     }
 
@@ -108,14 +106,9 @@ class TerminalInstanceRegistry {
       return;
     }
 
-    const bufBefore = record.xterm.raw.buffer?.active;
-    logger.debug(`[Registry] Attaching terminal ${id}: isTUI=${record.xterm.isTuiMode()}, wasAttached=${record.attached}, pendingChunks=${record.pendingChunks?.length ?? 0}, baseY=${bufBefore?.baseY}, viewportY=${bufBefore?.viewportY}`);
-
     record.xterm.attach(container);
     record.attached = true;
-
-    const bufAfter = record.xterm.raw.buffer?.active;
-    logger.debug(`[Registry] Attached terminal ${id}: baseY=${bufAfter?.baseY}, viewportY=${bufAfter?.viewportY}`);
+    logger.debug(`[Registry] Attached terminal ${id} to container`);
   }
 
   detach(id: string): void {
@@ -125,11 +118,9 @@ class TerminalInstanceRegistry {
       return;
     }
 
-    const buffer = record.xterm.raw.buffer?.active;
-    logger.debug(`[Registry] Detaching terminal ${id}: isTUI=${record.xterm.isTuiMode()}, baseY=${buffer?.baseY}, viewportY=${buffer?.viewportY}`);
-
     record.xterm.detach();
     record.attached = false;
+    logger.debug(`[Registry] Detached terminal ${id} from DOM`);
   }
 
   updateLastSeq(id: string, seq: number | null): void {
@@ -296,19 +287,10 @@ class TerminalInstanceRegistry {
       // This allows checking if all buffered data has been processed.
       const writeId = ++record.latestWriteId;
 
-      const bufBefore = record.xterm.raw.buffer?.active;
-      const baseYBefore = bufBefore?.baseY;
-      const viewportYBefore = bufBefore?.viewportY;
-
       try {
         record.xterm.raw.write(combined, () => {
           // Mark this write as fully parsed by xterm
           record.latestParseId = writeId;
-
-          const bufAfter = record.xterm.raw.buffer?.active;
-          if (bufAfter && (bufAfter.baseY !== baseYBefore || bufAfter.viewportY !== viewportYBefore)) {
-            logger.debug(`[Registry ${record.id}] Viewport changed after write: baseY ${baseYBefore}→${bufAfter.baseY}, viewportY ${viewportYBefore}→${bufAfter.viewportY}`);
-          }
 
           if (hadClear) {
             this.notifyClearCallbacks(record);
@@ -344,21 +326,12 @@ class TerminalInstanceRegistry {
       // xterm.js resets baseY/viewportY when clearing scrollback. TUI apps don't need scrollback
       // so we strip it out entirely. For standard terminals, we keep existing behavior.
       let processedChunk = chunk;
-      const has3J = chunk.includes(CLEAR_SCROLLBACK_SEQ);
-      const has2J = chunk.includes('\x1b[2J');
-      const hasH = chunk.includes('\x1b[H');
-
-      if (has3J || has2J || hasH) {
-        const buffer = record.xterm.raw.buffer?.active;
-        logger.debug(`[Registry ${record.id}] Control sequences: 3J=${has3J}, 2J=${has2J}, H=${hasH}, isTUI=${record.xterm.isTuiMode()}, baseY=${buffer?.baseY}, viewportY=${buffer?.viewportY}`);
-      }
-
-      if (has3J) {
+      if (chunk.includes(CLEAR_SCROLLBACK_SEQ)) {
         if (record.xterm.isTuiMode()) {
           processedChunk = chunk.split(CLEAR_SCROLLBACK_SEQ).join('');
           logger.debug(`[Registry ${record.id}] Stripped CLEAR_SCROLLBACK_SEQ for TUI terminal`);
         } else {
-          logger.debug(`[Registry ${record.id}] CLEAR_SCROLLBACK_SEQ detected - clearing pending chunks`);
+          logger.debug(`[Registry ${record.id}] CLEAR_SCROLLBACK_SEQ detected`);
           record.pendingChunks = [];
           record.hadClearInBatch = true;
         }
