@@ -186,12 +186,12 @@ jobs:
           path: src-tauri/target/
           key: cargo-target-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
 
-      - uses: taiki-e/install-action@073d46cba2cde38f6698c798566c1b3e24feeb44
+      - uses: taiki-e/install-action@69e777b377e4ec209ddad9426ae3e0c1008b0ef3
         with:
           tool: cargo-shear
           version: 1.5.2
 
-      - uses: taiki-e/install-action@073d46cba2cde38f6698c798566c1b3e24feeb44
+      - uses: taiki-e/install-action@69e777b377e4ec209ddad9426ae3e0c1008b0ef3
         with:
           tool: nextest
           version: 0.9.108
