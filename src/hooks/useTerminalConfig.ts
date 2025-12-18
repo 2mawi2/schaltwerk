@@ -15,7 +15,7 @@ import { isTuiAgent } from '../types/session'
 const DEFAULT_SCROLLBACK_LINES = 10000
 const BACKGROUND_SCROLLBACK_LINES = 5000
 const AGENT_SCROLLBACK_LINES = 20000
-const TUI_SCROLLBACK_LINES = 2000
+const TUI_SCROLLBACK_LINES = 0
 const ATLAS_CONTRAST_BASE = 1.1
 const DEFAULT_FONT_FAMILY = 'Menlo, Monaco, ui-monospace, SFMono-Regular, monospace'
 
