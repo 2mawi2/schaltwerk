@@ -441,5 +441,31 @@ export class XtermTerminal {
     } catch (error) {
       logger.debug(`[XtermTerminal ${this.terminalId}] CSI J handler registration failed`, error)
     }
+
+    this.registerSynchronizedOutputHandlers()
+  }
+
+  private registerSynchronizedOutputHandlers(): void {
+    const SYNC_MODE = 2026
+
+    try {
+      this.raw.parser.registerCsiHandler({ prefix: '?', final: 'h' }, (params) => {
+        if (params.length > 0 && params[0] === SYNC_MODE) {
+          logger.debug(`[XtermTerminal ${this.terminalId}] Synchronized output enabled`)
+          return true
+        }
+        return false
+      })
+
+      this.raw.parser.registerCsiHandler({ prefix: '?', final: 'l' }, (params) => {
+        if (params.length > 0 && params[0] === SYNC_MODE) {
+          logger.debug(`[XtermTerminal ${this.terminalId}] Synchronized output disabled`)
+          return true
+        }
+        return false
+      })
+    } catch (error) {
+      logger.debug(`[XtermTerminal ${this.terminalId}] Synchronized output handler registration failed`, error)
+    }
   }
 }
