@@ -4,6 +4,8 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { UnifiedDiffModal } from './UnifiedDiffModal'
 import { useReview } from '../../contexts/ReviewContext'
 import { TestProviders, createChangedFile } from '../../tests/test-utils'
+import { useSelection } from '../../hooks/useSelection'
+import { __resetTerminalTargetingForTest, setActiveAgentTerminalId } from '../../common/terminalTargeting'
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
 
@@ -30,9 +32,23 @@ function SeedOrchestratorReview() {
   return null
 }
 
+function SeedOrchestratorActiveAgentTab() {
+  const { selection, terminals } = useSelection()
+
+  React.useEffect(() => {
+    if (selection.kind !== 'orchestrator') return
+    if (!terminals.top) return
+
+    setActiveAgentTerminalId('orchestrator', `${terminals.top}-1`)
+  }, [selection.kind, terminals.top])
+
+  return null
+}
+
 describe('UnifiedDiffModal orchestrator review submit', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    __resetTerminalTargetingForTest()
   })
 
   it('pastes review into orchestrator terminal when finishing review', async () => {
@@ -81,6 +97,57 @@ describe('UnifiedDiffModal orchestrator review submit', () => {
       expect(vi.mocked(invoke)).toHaveBeenCalledWith(
         TauriCommands.PasteAndSubmitTerminal,
         expect.objectContaining({ id: expect.stringMatching(/orchestrator-.*-top/) })
+      )
+    })
+  })
+
+  it('pastes review into active orchestrator agent tab when finishing review', async () => {
+    vi.mocked(invoke).mockImplementation(async (cmd: string, _args?: unknown) => {
+      switch (cmd) {
+        case TauriCommands.GetOrchestratorWorkingChanges:
+          return [createChangedFile({ path: 'main.rs', change_type: 'modified', additions: 4, deletions: 2 })]
+        case TauriCommands.ComputeUnifiedDiffBackend:
+          return { lines: [], stats: { additions: 0, deletions: 0 }, fileInfo: { sizeBytes: 0 }, isLargeFile: false }
+        case TauriCommands.GetCurrentBranchName:
+          return 'main'
+        case TauriCommands.GetBaseBranchName:
+          return 'main'
+        case TauriCommands.GetCommitComparisonInfo:
+          return ['abc1234', 'def5678']
+        case TauriCommands.GetDiffViewPreferences:
+          return { continuous_scroll: false, compact_diffs: true }
+        case TauriCommands.GetFileDiffFromMain:
+          return ['fn main() {}\n', 'fn main() {}\n']
+        case TauriCommands.PasteAndSubmitTerminal:
+          return undefined
+        case TauriCommands.ListAvailableOpenApps:
+          return []
+        case TauriCommands.GetDefaultOpenApp:
+          return 'finder'
+        default:
+          return undefined
+      }
+    })
+
+    render(
+      <TestProviders>
+        <SeedOrchestratorReview />
+        <SeedOrchestratorActiveAgentTab />
+        <UnifiedDiffModal filePath={null} isOpen={true} onClose={() => {}} />
+      </TestProviders>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Git Diff Viewer')).toBeInTheDocument()
+    })
+
+    const finishBtn = await screen.findByText(/Finish Review \(1 comment\)/)
+    fireEvent.click(finishBtn)
+
+    await waitFor(() => {
+      expect(vi.mocked(invoke)).toHaveBeenCalledWith(
+        TauriCommands.PasteAndSubmitTerminal,
+        expect.objectContaining({ id: expect.stringMatching(/orchestrator-.*-top-1/) })
       )
     })
   })

@@ -53,6 +53,7 @@ import type { Platform } from "../../keyboardShortcuts/matcher";
 import { useHighlightWorker } from "../../hooks/useHighlightWorker";
 import { hashSegments } from "../../utils/hashSegments";
 import { stableSessionTerminalId } from "../../common/terminalIdentity";
+import { getActiveAgentTerminalId } from "../../common/terminalTargeting";
 import { ReviewCommentThread, ReviewComment } from "../../types/review";
 import { listenEvent, SchaltEvent } from "../../common/eventSystem";
 import { ORCHESTRATOR_SESSION_NAME } from "../../constants/sessions";
@@ -2663,7 +2664,8 @@ export function UnifiedDiffView({
 
     try {
       if (selectedKind === "orchestrator") {
-        const terminalId = terminalTop || "orchestrator-top";
+        const baseTerminalId = terminalTop || "orchestrator-top";
+        const terminalId = getActiveAgentTerminalId("orchestrator") ?? baseTerminalId;
         await invoke(TauriCommands.PasteAndSubmitTerminal, {
           id: terminalId,
           data: reviewText,
@@ -2673,7 +2675,8 @@ export function UnifiedDiffView({
         await setSelection({ kind: "orchestrator" });
         setCurrentFocus("claude");
       } else if (sessionName) {
-        const terminalId = stableSessionTerminalId(sessionName, "top");
+        const baseTerminalId = terminalTop || stableSessionTerminalId(sessionName, "top");
+        const terminalId = getActiveAgentTerminalId(sessionName) ?? baseTerminalId;
         await invoke(TauriCommands.PasteAndSubmitTerminal, {
           id: terminalId,
           data: reviewText,

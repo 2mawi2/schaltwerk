@@ -13,6 +13,11 @@ import { displayNameForAgent } from '../components/shared/agentDefaults'
 import { AgentType } from '../types/session'
 import { clearTerminalStartState } from '../common/terminalStartState'
 import { removeTerminalInstance } from '../terminal/registry/terminalRegistry'
+import {
+    clearActiveAgentTerminalId,
+    resolveActiveAgentTerminalId,
+    setActiveAgentTerminalId,
+} from '../common/terminalTargeting'
 
 type StartAgentFn = (params: {
     sessionId: string
@@ -40,9 +45,12 @@ export const useAgentTabs = (
         (initialAgentType: AgentType = 'claude') => {
             if (!sessionId || !baseTerminalId) return
 
+            let nextActiveTerminalId: string | null = null
+
             setAgentTabsMap((prev) => {
                 const existing = prev.get(sessionId)
                 if (existing) {
+                    nextActiveTerminalId = resolveActiveAgentTerminalId(existing, baseTerminalId)
                     const currentBaseId = existing.tabs[0]?.terminalId
                     if (currentBaseId === baseTerminalId) return prev
 
@@ -58,6 +66,10 @@ export const useAgentTabs = (
                         ...existing,
                         tabs: updatedTabs,
                     })
+                    nextActiveTerminalId = resolveActiveAgentTerminalId(
+                        next.get(sessionId) ?? null,
+                        baseTerminalId
+                    )
                     return next
                 }
 
@@ -73,8 +85,13 @@ export const useAgentTabs = (
                     ],
                     activeTab: 0,
                 })
+                nextActiveTerminalId = baseTerminalId
                 return next
             })
+
+            if (nextActiveTerminalId) {
+                setActiveAgentTerminalId(sessionId, nextActiveTerminalId)
+            }
         },
         [sessionId, baseTerminalId, setAgentTabsMap, parseTabNumericIndex]
     )
@@ -137,6 +154,10 @@ export const useAgentTabs = (
             })
 
             if (newTerminalId) {
+                setActiveAgentTerminalId(sessionId, newTerminalId)
+            }
+
+            if (newTerminalId) {
                 logger.info(
                     `[useAgentTabs] Starting new agent tab ${newTabArrayIndex} (idx=${newTabNumericIndex}) with ${agentType} in ${newTerminalId}, skipPermissions=${options?.skipPermissions}`
                 )
@@ -158,6 +179,7 @@ export const useAgentTabs = (
                         `[useAgentTabs] Failed to start agent for tab ${newTabArrayIndex}:`,
                         err
                     )
+                    let nextActiveTerminalId: string | null = null
                     setAgentTabsMap((prev) => {
                         const next = new Map(prev)
                         const current = next.get(sessionId)
@@ -171,8 +193,15 @@ export const useAgentTabs = (
                             tabs: newTabs,
                             activeTab: Math.max(0, current.activeTab - 1),
                         })
+                        nextActiveTerminalId = resolveActiveAgentTerminalId(
+                            next.get(sessionId) ?? null,
+                            baseTerminalId
+                        )
                         return next
                     })
+                    if (nextActiveTerminalId) {
+                        setActiveAgentTerminalId(sessionId, nextActiveTerminalId)
+                    }
                 })
             }
         },
@@ -182,6 +211,7 @@ export const useAgentTabs = (
     const setActiveTab = useCallback(
         (index: number) => {
             if (!sessionId || !baseTerminalId) return
+            let nextActiveTerminalId: string | null = null
             setAgentTabsMap((prev) => {
                 const current = prev.get(sessionId)
                 if (!current || current.activeTab === index) return prev
@@ -191,8 +221,15 @@ export const useAgentTabs = (
                     ...current,
                     activeTab: index,
                 })
+                nextActiveTerminalId = resolveActiveAgentTerminalId(
+                    next.get(sessionId) ?? null,
+                    baseTerminalId
+                )
                 return next
             })
+            if (nextActiveTerminalId) {
+                setActiveAgentTerminalId(sessionId, nextActiveTerminalId)
+            }
         },
         [sessionId, baseTerminalId, setAgentTabsMap]
     )
@@ -200,6 +237,8 @@ export const useAgentTabs = (
     const closeTab = useCallback(
         (index: number) => {
             if (!sessionId || !baseTerminalId || index === 0) return
+
+            let nextActiveTerminalId: string | null = null
 
             setAgentTabsMap((prev) => {
                 const next = new Map(prev)
@@ -234,8 +273,16 @@ export const useAgentTabs = (
                     activeTab: newActiveTab,
                 })
 
+                nextActiveTerminalId = resolveActiveAgentTerminalId(
+                    next.get(sessionId) ?? null,
+                    baseTerminalId
+                )
                 return next
             })
+
+            if (nextActiveTerminalId) {
+                setActiveAgentTerminalId(sessionId, nextActiveTerminalId)
+            }
         },
         [sessionId, baseTerminalId, setAgentTabsMap]
     )
@@ -244,6 +291,7 @@ export const useAgentTabs = (
         if (!sessionId || !baseTerminalId) return
 
         const current = agentTabsMap.get(sessionId)
+        const primaryTerminalId = current?.tabs[0]?.terminalId ?? baseTerminalId
         if (current) {
             current.tabs.forEach((tab, index) => {
                 if (index > 0) {
@@ -258,6 +306,8 @@ export const useAgentTabs = (
                 }
             })
         }
+
+        setActiveAgentTerminalId(sessionId, primaryTerminalId)
 
         setAgentTabsMap((prev) => {
             const next = new Map(prev)
@@ -313,6 +363,7 @@ export const useAgentTabs = (
     const clearSession = useCallback(() => {
         if (!sessionId) return
 
+        clearActiveAgentTerminalId(sessionId)
         setAgentTabsMap((prev) => {
             if (!prev.has(sessionId)) return prev
             const next = new Map(prev)

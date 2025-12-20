@@ -63,6 +63,7 @@ import { SwitchOrchestratorModal } from '../modals/SwitchOrchestratorModal'
 import { CustomAgentModal } from '../modals/CustomAgentModal'
 import { useSessionManagement } from '../../hooks/useSessionManagement'
 import { startOrchestratorTop } from '../../common/agentSpawn'
+import { getActiveAgentTerminalId } from '../../common/terminalTargeting'
 
 type TerminalTabDescriptor = { index: number; terminalId: string; label: string }
 type TerminalTabsUiState = {
@@ -1077,8 +1078,10 @@ const TerminalGridComponent = () => {
     const handleActionButtonInvoke = useCallback((action: HeaderActionConfig) => {
         const run = async () => {
             try {
+                const sessionKey = getSessionKey()
+                const terminalId = getActiveAgentTerminalId(sessionKey) ?? terminals.top
                 await invoke(TauriCommands.PasteAndSubmitTerminal, {
-                    id: terminals.top,
+                    id: terminalId,
                     data: action.prompt,
                     useBracketedPaste: shouldUseBracketedPaste(agentType),
                     needsDelayedSubmit: needsDelayedSubmitForAgent(agentType),
@@ -1099,7 +1102,7 @@ const TerminalGridComponent = () => {
         }
 
         void run()
-    }, [agentType, isAnyModalOpen, localFocus, terminals.top])
+    }, [agentType, getSessionKey, isAnyModalOpen, localFocus, terminals.top])
 
     const handleTerminalClick = useCallback((e?: React.MouseEvent) => {
         // Prevent event from bubbling if called from child
@@ -1144,12 +1147,13 @@ const TerminalGridComponent = () => {
 
         const isOrchestrator = selection.kind === 'orchestrator'
         const sessionKey = selection.kind === 'session' && selection.payload ? selection.payload : 'orchestrator'
+        const targetTerminalId = getActiveAgentTerminalId(sessionKey) ?? terminalId
 
         try {
-            const exists = await invoke<boolean>(TauriCommands.TerminalExists, { id: terminalId })
+            const exists = await invoke<boolean>(TauriCommands.TerminalExists, { id: targetTerminalId })
             if (!exists) {
                 pendingInsertTextRef.current = null
-                logger.warn('[TerminalGrid] Terminal not available for text insert', { terminalId, selectionKind: selection.kind })
+                logger.warn('[TerminalGrid] Terminal not available for text insert', { terminalId: targetTerminalId, selectionKind: selection.kind })
                 pushToast({
                     tone: 'error',
                     title: 'Terminal unavailable',
@@ -1161,11 +1165,11 @@ const TerminalGridComponent = () => {
             }
 
             try {
-                await invoke(TauriCommands.WriteTerminal, { id: terminalId, data: '\u0015' })
+                await invoke(TauriCommands.WriteTerminal, { id: targetTerminalId, data: '\u0015' })
             } catch (err) {
                 logger.debug('[TerminalGrid] Failed to clear existing terminal input before insert', err)
             }
-            await invoke(TauriCommands.WriteTerminal, { id: terminalId, data: `${pendingText} ` })
+            await invoke(TauriCommands.WriteTerminal, { id: targetTerminalId, data: `${pendingText} ` })
             pendingInsertTextRef.current = null
             setFocusForSession(sessionKey, 'claude')
             setLocalFocus('claude')
