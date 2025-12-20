@@ -7,6 +7,10 @@ import type { ChangedFile } from '../../common/events'
 import { CopyContextBar } from './CopyContextBar'
 import { Provider, createStore } from 'jotai'
 import { projectPathAtom } from '../../store/atoms/project'
+import {
+  buildCopyContextChangedFilesSelectionKey,
+  copyContextChangedFilesSelectionAtomFamily
+} from '../../store/atoms/copyContextSelection'
 
 const countTokensMock = vi.hoisted(() => vi.fn<(text: string) => number>())
 const listenEventMock = vi.hoisted(() => vi.fn(async () => () => { }))
@@ -194,6 +198,73 @@ describe('CopyContextBar', () => {
 
     await waitFor(() => {
       expect(pushToastMock).toHaveBeenCalledWith(expect.objectContaining({ title: 'Copied to clipboard' }))
+    })
+  })
+
+  it('copies diff/files only for selected changed files', async () => {
+    let clipboardText: string | null = null
+
+    mockInvoke.mockImplementation(async (cmd: string, args?: unknown) => {
+      switch (cmd) {
+        case TauriCommands.SchaltwerkCoreGetSessionAgentContent:
+          return ['# Spec content', null]
+        case TauriCommands.GetChangedFilesFromMain:
+          return [
+            makeChangedFile({ path: 'file1.txt', change_type: 'modified' }),
+            makeChangedFile({ path: 'file2.txt', change_type: 'modified' })
+          ]
+        case TauriCommands.ComputeUnifiedDiffBackend:
+          return {
+            lines: [
+              { content: 'line one', type: 'unchanged' },
+              { content: 'added line', type: 'added' }
+            ],
+            isBinary: false
+          }
+        case TauriCommands.GetFileDiffFromMain:
+          return ['old contents', 'new contents']
+        case TauriCommands.ClipboardWriteText:
+          clipboardText = (args as { text?: string } | undefined)?.text ?? null
+          return undefined
+        default:
+          return undefined
+      }
+    })
+
+    const sessionName = 's-selected'
+    const store = createStore()
+    store.set(projectPathAtom, '/test/project')
+    void store.set(
+      copyContextChangedFilesSelectionAtomFamily(
+        buildCopyContextChangedFilesSelectionKey('/test/project', sessionName)
+      ),
+      { selectedFilePaths: ['file1.txt'] }
+    )
+
+    render(
+      <Provider store={store}>
+        <CopyContextBar sessionName={sessionName} />
+      </Provider>
+    )
+
+    const diffPill = await screen.findByText('Diff')
+    const filesPill = await screen.findByText('Files')
+
+    await act(async () => {
+      await user.click(diffPill)
+      await user.click(filesPill)
+    })
+
+    const button = await screen.findByRole('button', { name: /copy context/i })
+    await waitFor(() => expect(button).toBeEnabled())
+
+    await act(async () => {
+      await user.click(button)
+    })
+
+    await waitFor(() => {
+      expect(clipboardText).toContain('### file1.txt (modified)')
+      expect(clipboardText).not.toContain('### file2.txt (modified)')
     })
   })
 
