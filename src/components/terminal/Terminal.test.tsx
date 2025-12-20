@@ -426,7 +426,7 @@ describe('Terminal', () => {
     expect(instance.config.minimumContrastRatio).toBeCloseTo(ATLAS_CONTRAST_BASE)
   })
 
-  it('uses reduced scrollback for TUI-based agents (kilocode)', async () => {
+  it('uses TUI scrollback for TUI-based agents (kilocode)', async () => {
     renderTerminal({ terminalId: 'session-kilocode-top', sessionName: 'kilocode', agentType: 'kilocode' })
 
     await waitFor(() => {
@@ -435,10 +435,10 @@ describe('Terminal', () => {
     })
 
     const instance = terminalHarness.instances[0] as HarnessInstance
-    expect(instance.config.scrollback).toBe(2000)
+    expect(instance.config.scrollback).toBe(10000)
   })
 
-  it('uses reduced scrollback for TUI-based agents (claude)', async () => {
+  it('uses TUI scrollback for TUI-based agents (claude)', async () => {
     renderTerminal({ terminalId: 'session-claude-top', sessionName: 'claude', agentType: 'claude' })
 
     await waitFor(() => {
@@ -447,7 +447,7 @@ describe('Terminal', () => {
     })
 
     const instance = terminalHarness.instances[0] as HarnessInstance
-    expect(instance.config.scrollback).toBe(2000)
+    expect(instance.config.scrollback).toBe(10000)
   })
 
   it('treats terminal-only top terminals as regular shells and skips agent startup', async () => {
