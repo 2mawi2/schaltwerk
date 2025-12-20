@@ -69,7 +69,7 @@ vi.mock('../shared/SessionConfigurationPanel', () => ({
         codexReasoningEffort?: string
         onCodexReasoningChange?: (effort: string) => void
     }) => {
-        const resolvedModel = codexModel || codexModelOptions?.[0] || 'gpt-5.1-codex'
+        const resolvedModel = codexModel || codexModelOptions?.[0] || 'gpt-5.2-codex'
         const modelMeta = getCodexModelMetadata(resolvedModel)
         const reasoningIds = modelMeta?.reasoningOptions?.map(option => option.id) ?? []
         const nextModel = (() => {
@@ -77,7 +77,7 @@ vi.mock('../shared/SessionConfigurationPanel', () => ({
                 const found = codexModelOptions.find(option => option !== resolvedModel)
                 return found ?? codexModelOptions[0]
             }
-            return resolvedModel === 'gpt-5.1-codex' ? 'gpt-5.1' : 'gpt-5.1-codex'
+            return resolvedModel === 'gpt-5.2-codex' ? 'gpt-5.2' : 'gpt-5.2-codex'
         })()
         const nextReasoning = reasoningIds.includes('high') ? 'high' : reasoningIds[0] ?? 'medium'
 
@@ -186,8 +186,8 @@ function defaultInvokeHandler(command: string, args?: unknown) {
             return Promise.resolve({
                 models: [
                     {
-                        id: 'gpt-5.1-codex',
-                        label: 'GPT-5.1 Codex',
+                        id: 'gpt-5.2-codex',
+                        label: 'GPT-5.2 Codex',
                         description: 'Optimized for Codex automations',
                         defaultReasoning: 'medium',
                         reasoningOptions: [
@@ -198,8 +198,8 @@ function defaultInvokeHandler(command: string, args?: unknown) {
                         isDefault: true
                     },
                     {
-                        id: 'gpt-5.1-codex-mini',
-                        label: 'GPT-5.1 Codex Mini',
+                        id: 'gpt-5.2-codex-mini',
+                        label: 'GPT-5.2 Codex Mini',
                         description: 'Cheaper, faster variant',
                         defaultReasoning: 'medium',
                         reasoningOptions: [
@@ -209,8 +209,8 @@ function defaultInvokeHandler(command: string, args?: unknown) {
                         isDefault: false
                     },
                     {
-                        id: 'gpt-5.1',
-                        label: 'GPT-5.1',
+                        id: 'gpt-5.2',
+                        label: 'GPT-5.2',
                         description: 'Generalist model',
                         defaultReasoning: 'medium',
                         reasoningOptions: [
@@ -222,7 +222,7 @@ function defaultInvokeHandler(command: string, args?: unknown) {
                         isDefault: false
                     }
                 ],
-                defaultModelId: 'gpt-5.1-codex'
+                defaultModelId: 'gpt-5.2-codex'
             })
         case TauriCommands.SetAgentEnvVars:
         case TauriCommands.SetAgentCliArgs:
@@ -354,7 +354,7 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
             const latest = codexPreferenceCalls.at(-1)
             expect(latest).toBeTruthy()
             const payload = latest?.[1] as { preferences?: { model?: string; reasoning_effort?: string } }
-            expect(payload?.preferences?.model).toBe('gpt-5.1-codex')
+            expect(payload?.preferences?.model).toBe('gpt-5.2-codex')
             expect(payload?.preferences?.reasoning_effort).toBe('medium')
         })
     })
@@ -373,7 +373,7 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
         await fireAsync(() => fireEvent.click(screen.getByTestId('change-agent-codex')))
 
         await waitFor(() => {
-            expect(screen.getByTestId('codex-model-value').textContent).toBe('gpt-5.1-codex')
+            expect(screen.getByTestId('codex-model-value').textContent).toBe('gpt-5.2-codex')
             expect(screen.getByTestId('codex-reasoning-value').textContent).toBe('medium')
         })
 
@@ -386,14 +386,14 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
             expect(lastCall[1]).toEqual({
                 agentType: 'codex',
                 preferences: {
-                    model: 'gpt-5.1-codex-mini',
+                    model: 'gpt-5.2-codex-mini',
                     reasoning_effort: 'medium',
                 },
             })
         })
 
         await waitFor(() => {
-            expect(screen.getByTestId('codex-model-value').textContent).toBe('gpt-5.1-codex-mini')
+            expect(screen.getByTestId('codex-model-value').textContent).toBe('gpt-5.2-codex-mini')
             expect(screen.getByTestId('codex-reasoning-value').textContent).toBe('medium')
         })
 
@@ -405,7 +405,7 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
             expect(lastCall[1]).toEqual({
                 agentType: 'codex',
                 preferences: {
-                    model: 'gpt-5.1-codex-mini',
+                    model: 'gpt-5.2-codex-mini',
                     reasoning_effort: 'high',
                 },
             })
@@ -430,20 +430,20 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
         await fireAsync(() => fireEvent.click(screen.getByTestId('change-agent-codex')))
 
         await waitFor(() => {
-            expect(screen.getByTestId('codex-model-value').textContent).toBe('gpt-5.1-codex')
+            expect(screen.getByTestId('codex-model-value').textContent).toBe('gpt-5.2-codex')
         })
 
         await fireAsync(() => fireEvent.keyDown(window, { key: 'ArrowRight', metaKey: true }))
 
         await waitFor(() => {
-            expect(screen.getByTestId('codex-model-value').textContent).toBe('gpt-5.1-codex')
+            expect(screen.getByTestId('codex-model-value').textContent).toBe('gpt-5.2-codex')
             expect(screen.getByTestId('codex-reasoning-value').textContent).toBe('high')
         })
 
         await fireAsync(() => fireEvent.keyDown(window, { key: 'ArrowLeft', metaKey: true }))
 
         await waitFor(() => {
-            expect(screen.getByTestId('codex-model-value').textContent).toBe('gpt-5.1-codex')
+            expect(screen.getByTestId('codex-model-value').textContent).toBe('gpt-5.2-codex')
             expect(screen.getByTestId('codex-reasoning-value').textContent).toBe('medium')
         })
 
