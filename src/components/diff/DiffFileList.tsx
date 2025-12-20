@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, type DragEvent } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef, type DragEvent } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
@@ -15,13 +15,20 @@ import type { ChangedFile } from '../../common/events'
 import { DiffChangeBadges } from './DiffChangeBadges'
 import { ORCHESTRATOR_SESSION_NAME } from '../../constants/sessions'
 import { theme } from '../../common/theme'
-import { useAtomValue } from 'jotai'
+import { useAtom, useAtomValue } from 'jotai'
 import { projectPathAtom } from '../../store/atoms/project'
 import { getErrorMessage, isSessionMissingError } from '../../types/errors'
 import { FileTree } from './FileTree'
-import type { FileNode } from '../../utils/folderTree'
+import type { FileNode, FolderNode, TreeNode } from '../../utils/folderTree'
 import { TERMINAL_FILE_DRAG_TYPE, type TerminalFileDragPayload } from '../../common/dragTypes'
 import { BranchSelectorPopover } from './BranchSelectorPopover'
+import {
+  buildCopyContextChangedFilesSelectionKey,
+  buildCopyContextBundleSelectionKey,
+  copyContextBundleSelectionAtomFamily,
+  copyContextChangedFilesSelectionAtomFamily,
+  type CopyContextChangedFilesSelection,
+} from '../../store/atoms/copyContextSelection'
 
 interface DiffFileListProps {
   onFileSelect: (filePath: string) => void
@@ -54,6 +61,28 @@ const safeUnlisten = (unlisten: (() => void) | null, label: string) => {
   } catch (error) {
     logger.warn(`[DiffFileList] Failed to unlisten ${label}`, error)
   }
+}
+
+const isPromiseLike = <T,>(value: unknown): value is PromiseLike<T> => {
+  return Boolean(value) && typeof (value as PromiseLike<T>).then === 'function'
+}
+
+const collectFilePathsFromTreeNode = (node: TreeNode, result: string[]) => {
+  if (node.type === 'file') {
+    result.push(node.path)
+    return
+  }
+  for (const child of node.children) {
+    collectFilePathsFromTreeNode(child, result)
+  }
+}
+
+const collectFilePathsFromFolder = (folder: FolderNode): string[] => {
+  const result: string[] = []
+  for (const child of folder.children) {
+    collectFilePathsFromTreeNode(child, result)
+  }
+  return result
 }
 
 export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, getCommentCountForFile, selectedFilePath, onFilesChange }: DiffFileListProps) {
@@ -96,6 +125,132 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
   projectPathRef.current = currentProjectPath
   const activeLoadPromiseRef = useRef<Promise<void> | null>(null)
   const activeLoadSessionRef = useRef<string | null>(null)
+
+  const copyContextSelectionEnabled = Boolean(sessionName && !isCommander)
+  const bundleSelectionKey = useMemo(() => {
+    return buildCopyContextBundleSelectionKey(currentProjectPath, sessionName ?? 'no-session')
+  }, [currentProjectPath, sessionName])
+  const bundleSelection = useAtomValue(copyContextBundleSelectionAtomFamily(bundleSelectionKey))
+  const showCopyContextControls = copyContextSelectionEnabled && (bundleSelection.diff || bundleSelection.files)
+
+  const copyContextSelectionKey = useMemo(() => {
+    return buildCopyContextChangedFilesSelectionKey(currentProjectPath, sessionName ?? 'no-session')
+  }, [currentProjectPath, sessionName])
+
+  const [copyContextSelection, setCopyContextSelection] = useAtom(
+    copyContextChangedFilesSelectionAtomFamily(copyContextSelectionKey)
+  )
+
+  const allFilePaths = useMemo(() => files.map((file) => file.path), [files])
+
+  const selectedFilePathSet = useMemo(() => {
+    if (copyContextSelection.selectedFilePaths === null) return null
+    return new Set(copyContextSelection.selectedFilePaths)
+  }, [copyContextSelection.selectedFilePaths])
+
+  const selectedForCopyCount = useMemo(() => {
+    if (!showCopyContextControls) return 0
+    if (copyContextSelection.selectedFilePaths === null) return allFilePaths.length
+    if (!selectedFilePathSet) return 0
+    let count = 0
+    for (const path of allFilePaths) {
+      if (selectedFilePathSet.has(path)) count += 1
+    }
+    return count
+  }, [allFilePaths, copyContextSelection.selectedFilePaths, selectedFilePathSet, showCopyContextControls])
+
+  const copyContextMasterCheckboxRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!showCopyContextControls) return
+    const el = copyContextMasterCheckboxRef.current
+    if (!el) return
+    const total = allFilePaths.length
+    const some = selectedForCopyCount > 0
+    const all = total > 0 && selectedForCopyCount === total
+    el.indeterminate = some && !all
+  }, [allFilePaths.length, selectedForCopyCount, showCopyContextControls])
+
+  const isSelectedForCopyContext = useCallback((filePath: string) => {
+    if (!showCopyContextControls) return true
+    if (copyContextSelection.selectedFilePaths === null) return true
+    return Boolean(selectedFilePathSet?.has(filePath))
+  }, [copyContextSelection.selectedFilePaths, selectedFilePathSet, showCopyContextControls])
+
+  const setAllSelectedForCopyContext = useCallback((enabled: boolean) => {
+    if (!showCopyContextControls) return
+    void setCopyContextSelection({ selectedFilePaths: enabled ? null : [] })
+  }, [setCopyContextSelection, showCopyContextControls])
+
+  const normalizeSelectedForCopyContext = useCallback((paths: Set<string>) => {
+    if (paths.size === allFilePaths.length) return null
+    return allFilePaths.filter((path) => paths.has(path))
+  }, [allFilePaths])
+
+  const toggleSelectedForCopyContext = useCallback((filePath: string) => {
+    if (!showCopyContextControls) return
+
+    void setCopyContextSelection((prev) => {
+      const previous = isPromiseLike<CopyContextChangedFilesSelection>(prev)
+        ? { selectedFilePaths: null }
+        : (prev as CopyContextChangedFilesSelection)
+
+      const prevSelected = previous.selectedFilePaths
+      if (prevSelected === null) {
+        return { selectedFilePaths: allFilePaths.filter((path) => path !== filePath) }
+      }
+
+      const next = new Set(prevSelected)
+      if (next.has(filePath)) {
+        next.delete(filePath)
+      } else {
+        next.add(filePath)
+      }
+
+      return { selectedFilePaths: normalizeSelectedForCopyContext(next) }
+    })
+  }, [allFilePaths, normalizeSelectedForCopyContext, setCopyContextSelection, showCopyContextControls])
+
+  const setManySelectedForCopyContext = useCallback((filePaths: string[], enabled: boolean) => {
+    if (!showCopyContextControls) return
+
+    const filePathSet = new Set(filePaths)
+
+    void setCopyContextSelection((prev) => {
+      const previous = isPromiseLike<CopyContextChangedFilesSelection>(prev)
+        ? { selectedFilePaths: null }
+        : (prev as CopyContextChangedFilesSelection)
+
+      const prevSelected = previous.selectedFilePaths
+
+      if (enabled) {
+        if (prevSelected === null) {
+          return previous
+        }
+
+        const next = new Set(prevSelected)
+        for (const path of allFilePaths) {
+          if (filePathSet.has(path)) next.add(path)
+        }
+        return { selectedFilePaths: normalizeSelectedForCopyContext(next) }
+      }
+
+      if (prevSelected === null) {
+        const next = new Set(allFilePaths)
+        for (const path of allFilePaths) {
+          if (filePathSet.has(path)) next.delete(path)
+        }
+        return { selectedFilePaths: normalizeSelectedForCopyContext(next) }
+      }
+
+      const next = new Set(prevSelected)
+      for (const path of prevSelected) {
+        if (filePathSet.has(path)) next.delete(path)
+      }
+
+      return { selectedFilePaths: normalizeSelectedForCopyContext(next) }
+    })
+  }, [allFilePaths, normalizeSelectedForCopyContext, setCopyContextSelection, showCopyContextControls])
   
   // Use refs to track current values without triggering effect recreations
   const currentPropsRef = useRef({ sessionNameOverride, selection, isCommander })
@@ -694,12 +849,13 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
     const totalChanges = node.file.changes ?? additions + deletions
     const isBinary = node.file.is_binary ?? (node.file.change_type !== 'deleted' && isBinaryFileByExtension(node.file.path))
     const commentCount = getCommentCountForFile ? getCommentCountForFile(node.file.path) : 0
+    const copySelected = isSelectedForCopyContext(node.file.path)
 
     return (
       <div
         key={node.path}
         className={clsx(
-          'flex items-start gap-3 rounded cursor-pointer',
+          'group flex items-start gap-3 rounded cursor-pointer',
           'hover:bg-slate-800/50',
           selectedFile === node.file.path && 'bg-slate-800/30'
         )}
@@ -741,36 +897,49 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
             </div>
           </div>
         </div>
-        <button
-          title="Open file in editor"
-          aria-label={`Open ${node.file.path}`}
-          className="ml-2 p-1 rounded hover:bg-slate-800"
-          style={{ color: theme.colors.text.secondary }}
-          onClick={(e) => {
-            e.stopPropagation()
-            void handleOpenFile(node.file.path)
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = theme.colors.text.primary
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = theme.colors.text.secondary
-          }}
-        >
-          <VscFolder className="text-base" />
-        </button>
-        <button
-          title="Discard changes for this file"
-          aria-label={`Discard ${node.file.path}`}
-          className="p-1 rounded hover:bg-slate-800 text-slate-300"
-          onClick={(e) => {
-            e.stopPropagation()
-            setPendingDiscardFile(node.file.path)
-            setDiscardOpen(true)
-          }}
-        >
-          <VscDiscard className="text-base" />
-        </button>
+        <div className="ml-2 flex items-center justify-end gap-1 shrink-0">
+          <button
+            title="Open file in editor"
+            aria-label={`Open ${node.file.path}`}
+            className="p-1 rounded hover:bg-slate-800"
+            style={{ color: theme.colors.text.secondary }}
+            onClick={(e) => {
+              e.stopPropagation()
+              void handleOpenFile(node.file.path)
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = theme.colors.text.primary
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = theme.colors.text.secondary
+            }}
+          >
+            <VscFolder className="text-base" />
+          </button>
+          <button
+            title="Discard changes for this file"
+            aria-label={`Discard ${node.file.path}`}
+            className="p-1 rounded hover:bg-slate-800 text-slate-300"
+            onClick={(e) => {
+              e.stopPropagation()
+              setPendingDiscardFile(node.file.path)
+              setDiscardOpen(true)
+            }}
+          >
+            <VscDiscard className="text-base" />
+          </button>
+          {showCopyContextControls && (
+            <input
+              type="checkbox"
+              aria-label={`Include ${node.file.path} in copied context`}
+              checked={copySelected}
+              onChange={() => toggleSelectedForCopyContext(node.file.path)}
+              onClick={(e) => e.stopPropagation()}
+              className="ml-1 mt-[3px] shrink-0 scale-90 opacity-25 hover:opacity-70 transition-opacity"
+              style={{ accentColor: theme.colors.accent.blue.DEFAULT }}
+            />
+          )}
+        </div>
       </div>
     )
   }
@@ -813,6 +982,25 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
                 {files.length} files changed
               </div>
             )}
+            {showCopyContextControls && files.length > 0 && (
+              <label
+                className="flex items-center gap-2 text-xs"
+                title="Select which changed files are included when copying Diff/Files context"
+              >
+                <input
+                  ref={copyContextMasterCheckboxRef}
+                  type="checkbox"
+                  aria-label="Select all changed files for copied context"
+                  checked={files.length > 0 && selectedForCopyCount === files.length}
+                  onChange={(e) => setAllSelectedForCopyContext(e.target.checked)}
+                  className="shrink-0 scale-90 opacity-35 hover:opacity-70 transition-opacity"
+                  style={{ accentColor: theme.colors.accent.blue.DEFAULT }}
+                />
+                <span style={{ color: theme.colors.text.muted }}>
+                  ({selectedForCopyCount}/{files.length})
+                </span>
+              </label>
+            )}
             {sessionName && !isCommander && (
               <div>
                 {isResetting ? (
@@ -844,7 +1032,49 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
       ) : files.length > 0 ? (
         <div className="flex-1 overflow-y-auto">
           <div className="px-2">
-            <FileTree files={files} renderFileNode={renderFileNode} />
+            <FileTree
+              files={files}
+              renderFileNode={renderFileNode}
+              renderFolderContent={(folder) => {
+                if (!showCopyContextControls) {
+                  return (
+                    <span className="text-xs flex-shrink-0" style={{ color: theme.colors.text.muted }}>
+                      ({folder.fileCount})
+                    </span>
+                  )
+                }
+
+                const folderFilePaths = collectFilePathsFromFolder(folder)
+                const total = folderFilePaths.length
+                let selectedCount = 0
+                for (const filePath of folderFilePaths) {
+                  if (isSelectedForCopyContext(filePath)) selectedCount += 1
+                }
+                const isAll = total > 0 && selectedCount === total
+                const isSome = selectedCount > 0 && selectedCount < total
+
+                return (
+                  <div className="flex-1 flex items-center justify-between min-w-0">
+                    <span className="text-xs flex-shrink-0" style={{ color: theme.colors.text.muted }}>
+                      ({folder.fileCount})
+                    </span>
+                    <input
+                      type="checkbox"
+                      aria-label={`Include folder ${folder.path} in copied context`}
+                      checked={isAll}
+                      ref={(el) => {
+                        if (!el) return
+                        el.indeterminate = isSome
+                      }}
+                      onChange={(e) => setManySelectedForCopyContext(folderFilePaths, e.target.checked)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="shrink-0 scale-90 opacity-25 hover:opacity-70 transition-opacity"
+                      style={{ accentColor: theme.colors.accent.blue.DEFAULT }}
+                    />
+                  </div>
+                )
+              }}
+            />
           </div>
         </div>
       ) : (

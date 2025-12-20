@@ -8,9 +8,15 @@ import type { ChangedFile, SessionsRefreshedEventPayload } from '../../common/ev
 import { logger } from '../../utils/logger'
 import type { DiffResponse } from '../../types/diff'
 import { writeClipboard } from '../../utils/clipboard'
-import { useAtomValue } from 'jotai'
+import { useAtom, useAtomValue } from 'jotai'
 import { projectPathAtom } from '../../store/atoms/project'
 import { isSessionMissingError } from '../../types/errors'
+import {
+  buildCopyContextChangedFilesSelectionKey,
+  buildCopyContextBundleSelectionKey,
+  copyContextBundleSelectionAtomFamily,
+  copyContextChangedFilesSelectionAtomFamily
+} from '../../store/atoms/copyContextSelection'
 
 import {
   wrapBlock,
@@ -80,8 +86,6 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
 
   const [availability, setAvailability] = useState<AvailabilityState>({ spec: false, diff: false, files: false })
   const [changedFiles, setChangedFiles] = useState<ChangedFile[]>([])
-  const [fileCount, setFileCount] = useState<number>(0)
-  const [selection, setSelection] = useState<SelectionState>({ spec: false, diff: false, files: false })
   const [isCopying, setIsCopying] = useState(false)
   const [tokenCount, setTokenCount] = useState<number | null>(null)
   const [hasLoadedInitial, setHasLoadedInitial] = useState(false)
@@ -91,10 +95,27 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
   const fileCacheRef = useRef<Map<string, { base: string; head: string }>>(new Map())
   const tokenJobRef = useRef(0)
 
-  const storageKey = useMemo(() => {
-    const projectKey = projectPath ?? 'unknown-project'
-    return `copy-bundle:${projectKey}:${sessionName}`
+  const bundleSelectionKey = useMemo(() => {
+    return buildCopyContextBundleSelectionKey(projectPath, sessionName)
   }, [projectPath, sessionName])
+
+  const [selection, setSelection] = useAtom(copyContextBundleSelectionAtomFamily(bundleSelectionKey))
+
+  const changedFilesSelectionKey = useMemo(() => {
+    return buildCopyContextChangedFilesSelectionKey(projectPath, sessionName)
+  }, [projectPath, sessionName])
+
+  const changedFilesSelection = useAtomValue(copyContextChangedFilesSelectionAtomFamily(changedFilesSelectionKey))
+
+  const selectedChangedFiles = useMemo(() => {
+    const selectedFilePaths = changedFilesSelection.selectedFilePaths
+    if (selectedFilePaths === null) return changedFiles
+    const selected = new Set(selectedFilePaths)
+    return changedFiles.filter((file) => selected.has(file.path))
+  }, [changedFiles, changedFilesSelection.selectedFilePaths])
+
+  const totalChangedFilesCount = changedFiles.length
+  const selectedChangedFilesCount = selectedChangedFiles.length
 
   const nothingSelected = !selection.spec && !selection.diff && !selection.files
   const availabilitySnapshot = useMemo(() => ({
@@ -162,7 +183,7 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
 
     if (selection.diff && availability.diff) {
       try {
-        const diffSections = await buildDiffSections(changedFiles, fetchDiff)
+        const diffSections = await buildDiffSections(selectedChangedFiles, fetchDiff)
         if (diffSections.length > 0) {
           const diffBlocks = diffSections.map(section => wrapBlock(section.header, section.body, section.fence))
           sections.push(['## Diff', '', diffBlocks.join('\n\n')].join('\n'))
@@ -175,7 +196,7 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
 
     if (selection.files && availability.files) {
       try {
-        const fileSections = await buildFileSections(changedFiles, fetchFileContents)
+        const fileSections = await buildFileSections(selectedChangedFiles, fetchFileContents)
         if (fileSections.length > 0) {
           const fileBlocks = fileSections.map(section => wrapBlock(section.header, section.body, section.fence))
           sections.push(['## Touched files', '', fileBlocks.join('\n\n')].join('\n'))
@@ -191,7 +212,7 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
     const sizeBytes = encoder ? encoder.encode(text).length : text.length
 
     return { text, included, sizeBytes }
-  }, [availability.diff, availability.files, availability.spec, changedFiles, fetchDiff, fetchFileContents, fetchSpecText, selection])
+  }, [availability.diff, availability.files, availability.spec, fetchDiff, fetchFileContents, fetchSpecText, selection, selectedChangedFiles])
 
   const loadInitialData = useCallback(async () => {
     try {
@@ -207,7 +228,6 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
 
       setAvailability({ spec: hasSpec, diff: diffAvailable, files: diffAvailable })
       setChangedFiles(files)
-      setFileCount(files.length)
       setHasLoadedInitial(true)
     } catch (err) {
       if (isSessionMissingError(err)) {
@@ -217,7 +237,6 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
       }
       setAvailability({ spec: false, diff: false, files: false })
       setChangedFiles([])
-      setFileCount(0)
       setHasLoadedInitial(true)
     }
   }, [sessionName])
@@ -234,7 +253,6 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
         const unlisten = await listenEvent(SchaltEvent.FileChanges, (payload) => {
           if (disposed || payload.session_name !== sessionName) return
           setChangedFiles(payload.changed_files ?? [])
-          setFileCount((payload.changed_files ?? []).length)
           const hasDiff = (payload.changed_files ?? []).length > 0
           setAvailability(prev => ({ ...prev, diff: hasDiff, files: hasDiff }))
           diffCacheRef.current.clear()
@@ -332,37 +350,12 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
 
   useEffect(() => {
     if (!hasLoadedInitial) return
-
-    let stored: SelectionState | null = null
-    try {
-      const raw = localStorage.getItem(storageKey)
-      if (raw) stored = JSON.parse(raw) as SelectionState
-    } catch (err) {
-      logger.warn('[CopyContextBar] Failed to read persisted selection', err)
+    const next = sanitizeSelection(selection, availabilitySnapshot)
+    if (selection.spec === next.spec && selection.diff === next.diff && selection.files === next.files) {
+      return
     }
-
-    const base = stored ?? deriveDefaultSelection(availabilitySnapshot)
-    setSelection((prev) => {
-      const sanitized = sanitizeSelection(base, availabilitySnapshot)
-      if (
-        prev.spec === sanitized.spec &&
-        prev.diff === sanitized.diff &&
-        prev.files === sanitized.files
-      ) {
-        return prev
-      }
-      return sanitized
-    })
-  }, [availabilitySnapshot, hasLoadedInitial, storageKey])
-
-  useEffect(() => {
-    if (!hasLoadedInitial) return
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(selection))
-    } catch (err) {
-      logger.warn('[CopyContextBar] Failed to persist selection', err)
-    }
-  }, [selection, storageKey, hasLoadedInitial])
+    void setSelection(next)
+  }, [availabilitySnapshot, hasLoadedInitial, selection, setSelection])
 
   useEffect(() => {
     if (!hasLoadedInitial) return
@@ -399,8 +392,8 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
   }, [assembleBundle, hasLoadedInitial, nothingSelected])
 
   const handleToggle = useCallback((key: keyof SelectionState, value: boolean) => {
-    setSelection((prev) => ({ ...prev, [key]: value }))
-  }, [])
+    void setSelection({ ...selection, [key]: value })
+  }, [selection, setSelection])
 
 
 
@@ -428,7 +421,7 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
       pushToast({
         tone: 'success',
         title: 'Copied to clipboard',
-        description: formatSectionSummary(included, fileCount),
+        description: formatSectionSummary(included, selectedChangedFilesCount),
       })
 
       if (sizeBytes > LARGE_BUNDLE_BYTES) {
@@ -445,7 +438,7 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
     } finally {
       setIsCopying(false)
     }
-  }, [assembleBundle, fileCount, nothingSelected, pushToast])
+  }, [assembleBundle, nothingSelected, pushToast, selectedChangedFilesCount])
 
   const pillBaseStyle = "flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer select-none border"
 
@@ -532,7 +525,11 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
             e.currentTarget.style.color = style.color as string
             e.currentTarget.style.borderColor = style.borderColor as string
           }}
-          title={availability.diff ? `Include diff (${fileCount})` : 'No diff available'}
+          title={availability.diff
+            ? (selectedChangedFilesCount === totalChangedFilesCount
+              ? `Include diff (${totalChangedFilesCount})`
+              : `Include diff (${selectedChangedFilesCount} selected of ${totalChangedFilesCount})`)
+            : 'No diff available'}
         >
           <span>Diff</span>
           {availability.diff && (
@@ -543,7 +540,7 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
                 color: selection.diff ? theme.colors.background.primary : theme.colors.text.muted,
               }}
             >
-              {fileCount}
+              {selectedChangedFilesCount}
             </span>
           )}
         </div>
@@ -563,7 +560,11 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
             e.currentTarget.style.color = style.color as string
             e.currentTarget.style.borderColor = style.borderColor as string
           }}
-          title={availability.files ? `Include file contents (${fileCount})` : 'No touched files'}
+          title={availability.files
+            ? (selectedChangedFilesCount === totalChangedFilesCount
+              ? `Include file contents (${totalChangedFilesCount})`
+              : `Include file contents (${selectedChangedFilesCount} selected of ${totalChangedFilesCount})`)
+            : 'No touched files'}
         >
           <span>Files</span>
           {availability.files && (
@@ -574,7 +575,7 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
                 color: selection.files ? theme.colors.background.primary : theme.colors.text.muted,
               }}
             >
-              {fileCount}
+              {selectedChangedFilesCount}
             </span>
           )}
         </div>

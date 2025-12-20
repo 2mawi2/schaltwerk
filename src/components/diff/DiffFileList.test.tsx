@@ -12,6 +12,10 @@ import * as loggerModule from '../../utils/logger'
 import { useSetAtom } from 'jotai'
 import { projectPathAtom } from '../../store/atoms/project'
 import { TERMINAL_FILE_DRAG_TYPE } from '../../common/dragTypes'
+import {
+  buildCopyContextBundleSelectionKey,
+  copyContextBundleSelectionAtomFamily,
+} from '../../store/atoms/copyContextSelection'
 
 type MockChangedFile = {
   path: string
@@ -86,31 +90,37 @@ vi.mock('@tauri-apps/api/event', () => ({
 function TestWrapper({ 
   children, 
   sessionName,
-  projectPath = '/test/project'
+  projectPath = '/test/project',
+  copyContextBundleSelection = { spec: true, diff: false, files: false },
 }: { 
   children: React.ReactNode
   sessionName?: string
   projectPath?: string 
+  copyContextBundleSelection?: { spec: boolean; diff: boolean; files: boolean }
 }) {
   const setProjectPath = useSetAtom(projectPathAtom)
+  const setBundleSelection = useSetAtom(
+    copyContextBundleSelectionAtomFamily(buildCopyContextBundleSelectionKey(projectPath, sessionName ?? 'no-session'))
+  )
   const { setSelection } = useSelection()
   
   useLayoutEffect(() => {
     // Set a test project path immediately
     setProjectPath(projectPath)
+    void setBundleSelection(copyContextBundleSelection)
     // Set the selection if a session name is provided
     if (sessionName) {
       void setSelection({ kind: 'session', payload: sessionName })
     }
-  }, [projectPath, setProjectPath, setSelection, sessionName])
+  }, [copyContextBundleSelection, projectPath, setBundleSelection, setProjectPath, setSelection, sessionName])
   
   return <>{children}</>
 }
 
-function Wrapper({ children, sessionName, projectPath }: { children: React.ReactNode, sessionName?: string; projectPath?: string }) {
+function Wrapper({ children, sessionName, projectPath, copyContextBundleSelection }: { children: React.ReactNode, sessionName?: string; projectPath?: string; copyContextBundleSelection?: { spec: boolean; diff: boolean; files: boolean } }) {
   return (
     <TestProviders>
-      <TestWrapper sessionName={sessionName} projectPath={projectPath}>
+      <TestWrapper sessionName={sessionName} projectPath={projectPath} copyContextBundleSelection={copyContextBundleSelection}>
         {children}
       </TestWrapper>
     </TestProviders>
@@ -146,6 +156,102 @@ describe('DiffFileList', () => {
     expect(screen.getAllByText('-0').length).toBeGreaterThan(0)
     expect(screen.queryByText('Σ5')).toBeNull()
     expect(screen.getByText('Binary')).toBeInTheDocument()
+  })
+
+  it('allows selecting which files are included in Copy Context', async () => {
+    render(
+      <Wrapper sessionName="demo" copyContextBundleSelection={{ spec: true, diff: true, files: false }}>
+        <DiffFileList onFileSelect={() => {}} />
+      </Wrapper>
+    )
+
+    expect(await screen.findByText('a.ts')).toBeInTheDocument()
+
+    const master = screen.getByRole('checkbox', { name: /select all changed files for copied context/i }) as HTMLInputElement
+    expect(master.checked).toBe(true)
+
+    const aCheckbox = screen.getByRole('checkbox', { name: /include src\/a\.ts in copied context/i }) as HTMLInputElement
+    expect(aCheckbox.checked).toBe(true)
+
+    fireEvent.click(aCheckbox)
+
+    await waitFor(() => {
+      expect(aCheckbox.checked).toBe(false)
+      expect(master.indeterminate).toBe(true)
+      expect(screen.getByText('(4/5)')).toBeInTheDocument()
+    })
+
+    fireEvent.click(master)
+
+    await waitFor(() => {
+      expect(aCheckbox.checked).toBe(true)
+      expect(master.indeterminate).toBe(false)
+      expect(master.checked).toBe(true)
+      expect(screen.getByText('(5/5)')).toBeInTheDocument()
+    })
+
+    fireEvent.click(master)
+
+    await waitFor(() => {
+      expect(master.checked).toBe(false)
+      expect(screen.getByText('(0/5)')).toBeInTheDocument()
+    })
+  })
+
+  it('allows selecting/unselecting folders for Copy Context', async () => {
+    render(
+      <Wrapper sessionName="demo" copyContextBundleSelection={{ spec: true, diff: true, files: false }}>
+        <DiffFileList onFileSelect={() => {}} />
+      </Wrapper>
+    )
+
+    expect(await screen.findByText('a.ts')).toBeInTheDocument()
+
+    const master = screen.getByRole('checkbox', { name: /select all changed files for copied context/i }) as HTMLInputElement
+    const srcFolder = screen.getByRole('checkbox', { name: /include folder src in copied context/i }) as HTMLInputElement
+    const aCheckbox = screen.getByRole('checkbox', { name: /include src\/a\.ts in copied context/i }) as HTMLInputElement
+
+    expect(master.checked).toBe(true)
+    expect(srcFolder.checked).toBe(true)
+    expect(aCheckbox.checked).toBe(true)
+
+    fireEvent.click(srcFolder)
+
+    await waitFor(() => {
+      expect(srcFolder.checked).toBe(false)
+      expect(aCheckbox.checked).toBe(false)
+      expect(master.indeterminate).toBe(true)
+      expect(screen.getByText('(2/5)')).toBeInTheDocument()
+    })
+
+    fireEvent.click(srcFolder)
+
+    await waitFor(() => {
+      expect(srcFolder.checked).toBe(true)
+      expect(master.indeterminate).toBe(false)
+      expect(master.checked).toBe(true)
+      expect(screen.getByText('(5/5)')).toBeInTheDocument()
+    })
+
+    fireEvent.click(aCheckbox)
+
+    await waitFor(() => {
+      expect(srcFolder.indeterminate).toBe(true)
+    })
+  })
+
+  it('hides copy-context selectors when only Spec is selected', async () => {
+    render(
+      <Wrapper sessionName="demo" copyContextBundleSelection={{ spec: true, diff: false, files: false }}>
+        <DiffFileList onFileSelect={() => {}} />
+      </Wrapper>
+    )
+
+    expect(await screen.findByText('a.ts')).toBeInTheDocument()
+
+    expect(screen.queryByRole('checkbox', { name: /select all changed files for copied context/i })).toBeNull()
+    expect(screen.queryByRole('checkbox', { name: /include src\/a\.ts in copied context/i })).toBeNull()
+    expect(screen.queryByRole('checkbox', { name: /include folder src in copied context/i })).toBeNull()
   })
 
   it('invokes onFileSelect and highlights selection when clicking an item', async () => {
