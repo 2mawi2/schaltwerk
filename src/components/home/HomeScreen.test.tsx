@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react'
+import { act, screen, waitFor } from '@testing-library/react'
 import { TauriCommands } from '../../common/tauriCommands'
 import userEvent from '@testing-library/user-event'
 import { HomeScreen } from './HomeScreen'
@@ -242,6 +242,29 @@ describe('HomeScreen', () => {
     await user.click(await screen.findByRole('button', { name: /confirm clone/i }))
 
     expect(onOpenProject).toHaveBeenCalledWith('/mock/cloned')
+  })
+
+  it('keyboard: Cmd+Digit1 opens the first recent project even when event.key is non-numeric', async () => {
+    const recent = [
+      { path: '/repo/a', name: 'Project A', lastOpened: 2 },
+      { path: '/repo/b', name: 'Project B', lastOpened: 1 },
+    ]
+    const { onOpenProject } = setup({ get_recent_projects: recent })
+
+    await screen.findByText('Project A')
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', {
+        key: '&',
+        code: 'Digit1',
+        metaKey: true,
+        bubbles: true,
+      }))
+    })
+
+    await waitFor(() => {
+      expect(onOpenProject).toHaveBeenCalledWith('/repo/a')
+    })
   })
 
 })

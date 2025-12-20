@@ -52,11 +52,12 @@ export function HomeScreen({ onOpenProject, initialError, onClearInitialError }:
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.metaKey && !event.shiftKey && !event.altKey && !event.ctrlKey) {
-        const key = event.key
-        const num = parseInt(key, 10)
+        const num = Number.parseInt(event.key, 10)
+        const fallback = event.code?.match(/^(?:Digit|Numpad)([1-9])$/)
+        const resolvedNum = Number.isNaN(num) ? (fallback ? Number.parseInt(fallback[1], 10) : NaN) : num
 
-        if (num >= 1 && num <= 9) {
-          const projectIndex = num - 1
+        if (resolvedNum >= 1 && resolvedNum <= 9) {
+          const projectIndex = resolvedNum - 1
           if (projectIndex < recentProjects.length) {
             event.preventDefault()
             void handleOpenRecent(recentProjects[projectIndex])
@@ -65,8 +66,8 @@ export function HomeScreen({ onOpenProject, initialError, onClearInitialError }:
       }
     }
 
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+    window.addEventListener('keydown', handleKeyDown, true)
+    return () => window.removeEventListener('keydown', handleKeyDown, true)
   }, [recentProjects, handleOpenRecent])
 
   const handleProjectCreated = async (projectPath: string) => {
