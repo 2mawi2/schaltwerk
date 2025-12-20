@@ -236,7 +236,7 @@ function buildCodexModelSuggestions(): AgentPreferenceMetadataOption[] {
 }
 
 const CODEX_MODEL_SUGGESTIONS = buildCodexModelSuggestions()
-const CODEX_MODEL_PLACEHOLDER = CODEX_MODEL_SUGGESTIONS[0]?.value ?? 'gpt-5.1-codex medium'
+const CODEX_MODEL_PLACEHOLDER = CODEX_MODEL_SUGGESTIONS[0]?.value ?? 'gpt-5.2-codex medium'
 
 const CODEX_REASONING_OPTIONS: AgentPreferenceMetadataOption[] = [
     { value: 'minimal', label: 'Minimal' },

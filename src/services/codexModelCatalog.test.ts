@@ -19,8 +19,8 @@ describe('codexModelCatalog', () => {
         mockInvoke.mockResolvedValue({
             models: [
                 {
-                    id: 'gpt-5.1-codex',
-                    label: 'GPT-5.1 Codex',
+                    id: 'gpt-5.2-codex',
+                    label: 'GPT-5.2 Codex',
                     description: 'General purpose',
                     defaultReasoning: 'medium',
                     reasoningOptions: [
@@ -28,15 +28,15 @@ describe('codexModelCatalog', () => {
                     ]
                 }
             ],
-            defaultModelId: 'gpt-5.1-codex'
+            defaultModelId: 'gpt-5.2-codex'
         })
 
         const catalog = await loadCodexModelCatalog()
 
         expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreListCodexModels)
-        expect(catalog.defaultModelId).toBe('gpt-5.1-codex')
+        expect(catalog.defaultModelId).toBe('gpt-5.2-codex')
         expect(catalog.models).toHaveLength(1)
-        expect(catalog.models[0].id).toBe('gpt-5.1-codex')
+        expect(catalog.models[0].id).toBe('gpt-5.2-codex')
         expect(catalog.models[0].reasoningOptions[0].id).toBe('low')
     })
 
@@ -47,15 +47,15 @@ describe('codexModelCatalog', () => {
 
         expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreListCodexModels)
         expect(catalog.models.length).toBeGreaterThan(0)
-        expect(catalog.models[0]?.id).toBe('gpt-5.1-codex')
+        expect(catalog.models[0]?.id).toBe('gpt-5.2-codex')
         expect(catalog.defaultModelId).toBe(catalog.models[0]?.id ?? '')
     })
 
-    test('fallback catalog includes gpt-5.1-codex-max with extra high reasoning', async () => {
+    test('fallback catalog includes gpt-5.2-codex-max with extra high reasoning', async () => {
         mockInvoke.mockRejectedValue(new Error('backend unavailable'))
 
         const catalog = await loadCodexModelCatalog()
-        const max = catalog.models.find(model => model.id === 'gpt-5.1-codex-max')
+        const max = catalog.models.find(model => model.id === 'gpt-5.2-codex-max')
 
         expect(max).toBeDefined()
         expect(max?.defaultReasoning).toBe('medium')
