@@ -193,11 +193,20 @@ export class XtermTerminal {
     if (mode === this.uiMode) {
       return
     }
+    const wasStandard = this.uiMode === 'standard'
     this.uiMode = mode
     if (!this.opened) {
       return
     }
     if (this.uiMode === 'tui') {
+      if (wasStandard) {
+        logger.debug(`[XtermTerminal ${this.terminalId}] Transitioning to TUI mode - switching to alternate screen buffer`)
+        try {
+          this.raw.write('\x1b[?1049h')
+        } catch (error) {
+          logger.debug(`[XtermTerminal ${this.terminalId}] Failed to switch to alternate screen buffer`, error)
+        }
+      }
       this.applyTuiMode()
     } else {
       this.applyStandardMode()
@@ -209,9 +218,13 @@ export class XtermTerminal {
   }
 
   attach(target: HTMLElement): void {
+    const buffer = this.raw.buffer?.active
+    logger.debug(`[XtermTerminal ${this.terminalId}] attach(): uiMode=${this.uiMode}, opened=${this.opened}, baseY=${buffer?.baseY}, viewportY=${buffer?.viewportY}`)
+
     if (!this.opened) {
       this.raw.open(this.container)
       this.opened = true
+      logger.debug(`[XtermTerminal ${this.terminalId}] Opened terminal (first attach)`)
     }
     if (this.uiMode === 'tui') {
       this.applyTuiMode()
@@ -221,14 +234,16 @@ export class XtermTerminal {
     }
     this.container.style.display = 'block'
 
-    if (this.savedDistanceFromBottom !== null) {
+    if (this.savedDistanceFromBottom !== null && this.uiMode !== 'tui') {
       const distance = this.savedDistanceFromBottom
       this.savedDistanceFromBottom = null
+      logger.debug(`[XtermTerminal ${this.terminalId}] Restoring scroll position: distance=${distance}`)
       requestAnimationFrame(() => {
         try {
-          const buffer = this.raw.buffer?.active
-          if (buffer) {
-            const targetY = Math.max(0, buffer.baseY - distance)
+          const buf = this.raw.buffer?.active
+          if (buf) {
+            const targetY = Math.max(0, buf.baseY - distance)
+            logger.debug(`[XtermTerminal ${this.terminalId}] Scroll restore RAF: baseY=${buf.baseY}, targetY=${targetY}`)
             this.raw.scrollToLine(targetY)
             this.forceScrollbarRefresh()
           }
@@ -236,6 +251,8 @@ export class XtermTerminal {
           logger.debug(`[XtermTerminal ${this.terminalId}] Failed to restore scroll position`, error)
         }
       })
+    } else if (this.uiMode === 'tui') {
+      this.savedDistanceFromBottom = null
     }
   }
 
@@ -246,6 +263,9 @@ export class XtermTerminal {
   }
 
   private applyTuiMode(): void {
+    const buffer = this.raw.buffer?.active
+    logger.debug(`[XtermTerminal ${this.terminalId}] applyTuiMode(): baseY=${buffer?.baseY}, viewportY=${buffer?.viewportY}`)
+
     try {
       this.raw.options.cursorBlink = false
     } catch (error) {
@@ -253,7 +273,6 @@ export class XtermTerminal {
     }
 
     try {
-      // Ink TUIs often render their own caret; hide the terminal cursor to prevent flicker.
       this.raw.write('\x1b[?25l')
     } catch (error) {
       logger.debug(`[XtermTerminal ${this.terminalId}] Failed to hide cursor for TUI mode`, error)
@@ -261,6 +280,13 @@ export class XtermTerminal {
   }
 
   private applyStandardMode(): void {
+    logger.debug(`[XtermTerminal ${this.terminalId}] Switching back to main screen buffer`)
+    try {
+      this.raw.write('\x1b[?1049l')
+    } catch (error) {
+      logger.debug(`[XtermTerminal ${this.terminalId}] Failed to switch to main screen buffer`, error)
+    }
+
     try {
       this.raw.options.cursorBlink = true
     } catch (error) {
@@ -276,8 +302,11 @@ export class XtermTerminal {
 
   detach(): void {
     const buffer = this.raw.buffer?.active
-    if (buffer) {
+    if (buffer && this.uiMode !== 'tui') {
       this.savedDistanceFromBottom = buffer.baseY - buffer.viewportY
+      logger.debug(`[XtermTerminal ${this.terminalId}] detach(): Saved scroll distance=${this.savedDistanceFromBottom}, baseY=${buffer.baseY}, viewportY=${buffer.viewportY}`)
+    } else {
+      logger.debug(`[XtermTerminal ${this.terminalId}] detach(): TUI mode - not saving scroll position`)
     }
     this.container.style.display = 'none'
   }
@@ -412,10 +441,15 @@ export class XtermTerminal {
       this.raw.parser.registerCsiHandler({ final: 'J' }, (params) => {
         const param = params.length > 0 ? params[0] : 0
         const isClearScrollback = param === 3
+        const buffer = this.raw.buffer?.active
 
-        if (isClearScrollback && this.isTuiMode()) {
-          logger.debug(`[XtermTerminal ${this.terminalId}] Blocked CSI 3J (clear scrollback) in TUI mode`)
-          return true
+        if (isClearScrollback) {
+          if (this.isTuiMode()) {
+            logger.debug(`[XtermTerminal ${this.terminalId}] BLOCKED CSI 3J in TUI mode (baseY=${buffer?.baseY}, viewportY=${buffer?.viewportY})`)
+            return true
+          } else {
+            logger.debug(`[XtermTerminal ${this.terminalId}] ALLOWING CSI 3J in standard mode (baseY=${buffer?.baseY}, viewportY=${buffer?.viewportY})`)
+          }
         }
 
         return false
