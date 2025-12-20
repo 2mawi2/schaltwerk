@@ -193,20 +193,11 @@ export class XtermTerminal {
     if (mode === this.uiMode) {
       return
     }
-    const wasStandard = this.uiMode === 'standard'
     this.uiMode = mode
     if (!this.opened) {
       return
     }
     if (this.uiMode === 'tui') {
-      if (wasStandard) {
-        logger.debug(`[XtermTerminal ${this.terminalId}] Transitioning to TUI mode - switching to alternate screen buffer`)
-        try {
-          this.raw.write('\x1b[?1049h')
-        } catch (error) {
-          logger.debug(`[XtermTerminal ${this.terminalId}] Failed to switch to alternate screen buffer`, error)
-        }
-      }
       this.applyTuiMode()
     } else {
       this.applyStandardMode()
@@ -280,13 +271,6 @@ export class XtermTerminal {
   }
 
   private applyStandardMode(): void {
-    logger.debug(`[XtermTerminal ${this.terminalId}] Switching back to main screen buffer`)
-    try {
-      this.raw.write('\x1b[?1049l')
-    } catch (error) {
-      logger.debug(`[XtermTerminal ${this.terminalId}] Failed to switch to main screen buffer`, error)
-    }
-
     try {
       this.raw.options.cursorBlink = true
     } catch (error) {
