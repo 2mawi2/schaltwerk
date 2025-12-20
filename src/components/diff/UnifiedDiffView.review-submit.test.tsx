@@ -5,6 +5,7 @@ import { UnifiedDiffModal } from './UnifiedDiffModal'
 import { SimpleDiffPanel } from './SimpleDiffPanel'
 import { TestProviders } from '../../tests/test-utils'
 import { useReview } from '../../contexts/ReviewContext'
+import { __resetTerminalTargetingForTest, setActiveAgentTerminalId } from '../../common/terminalTargeting'
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
 import type { EnrichedSession } from '../../types/session'
@@ -74,9 +75,18 @@ function SeedSessionReview() {
   return null
 }
 
+function SeedSessionActiveAgentTab() {
+  React.useEffect(() => {
+    setActiveAgentTerminalId(sessionName, `${topTerminalId}-1`)
+  }, [])
+
+  return null
+}
+
 describe('UnifiedDiffView review submission behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    __resetTerminalTargetingForTest()
 
     vi.mocked(invoke).mockImplementation(async (cmd: string) => {
       switch (cmd) {
@@ -132,6 +142,42 @@ describe('UnifiedDiffView review submission behavior', () => {
         TauriCommands.PasteAndSubmitTerminal,
         expect.objectContaining({
           id: topTerminalId,
+        })
+      )
+    })
+
+    await waitFor(() => {
+      expect(onCloseMock).toHaveBeenCalled()
+    })
+  })
+
+  it('submits review into active agent tab terminal', async () => {
+    const onCloseMock = vi.fn()
+
+    render(
+      <TestProviders>
+        <SeedSessionReview />
+        <SeedSessionActiveAgentTab />
+        <UnifiedDiffModal
+          filePath="src/test.ts"
+          isOpen={true}
+          onClose={onCloseMock}
+        />
+      </TestProviders>
+    )
+
+    await waitFor(() => {
+      expect(screen.queryByText(/src\/test\.ts/i)).toBeInTheDocument()
+    })
+
+    const finishButton = await screen.findByRole('button', { name: /finish review/i })
+    fireEvent.click(finishButton)
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith(
+        TauriCommands.PasteAndSubmitTerminal,
+        expect.objectContaining({
+          id: `${topTerminalId}-1`,
         })
       )
     })

@@ -21,6 +21,7 @@ import { useSelection } from '../../hooks/useSelection'
 import { useFocus } from '../../contexts/FocusContext'
 import { useSessions } from '../../hooks/useSessions'
 import { stableSessionTerminalId } from '../../common/terminalIdentity'
+import { getActiveAgentTerminalId } from '../../common/terminalTargeting'
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
 import { logger } from '../../utils/logger'
@@ -169,7 +170,8 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
 
     try {
       if (selection.kind === 'orchestrator') {
-        const terminalId = terminals.top || 'orchestrator-top'
+        const baseTerminalId = terminals.top || 'orchestrator-top'
+        const terminalId = getActiveAgentTerminalId('orchestrator') ?? baseTerminalId
         await invoke(TauriCommands.PasteAndSubmitTerminal, {
           id: terminalId,
           data: reviewText,
@@ -179,7 +181,8 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
         await setSelection({ kind: 'orchestrator' })
         setCurrentFocus('claude')
       } else if (selection.kind === 'session' && typeof selection.payload === 'string') {
-        const terminalId = stableSessionTerminalId(selection.payload, 'top')
+        const baseTerminalId = terminals.top || stableSessionTerminalId(selection.payload, 'top')
+        const terminalId = getActiveAgentTerminalId(selection.payload) ?? baseTerminalId
         await invoke(TauriCommands.PasteAndSubmitTerminal, {
           id: terminalId,
           data: reviewText,
