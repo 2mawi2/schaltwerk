@@ -171,8 +171,8 @@ describe('SessionConfigurationPanel', () => {
                 onAgentTypeChange={vi.fn()}
                 onSkipPermissionsChange={vi.fn()}
                 initialAgentType="codex"
-                codexModel="gpt-5.1-codex"
-                codexModelOptions={['gpt-5.1-codex', 'gpt-5.1-codex-mini', 'gpt-5.1']}
+                codexModel="gpt-5.2-codex"
+                codexModelOptions={['gpt-5.2-codex', 'gpt-5.1-codex-mini', 'gpt-5.2']}
                 codexModels={FALLBACK_CODEX_MODELS}
                 onCodexModelChange={onCodexModelChange}
                 codexReasoningEffort="medium"
@@ -188,10 +188,10 @@ describe('SessionConfigurationPanel', () => {
         expect(screen.getByText('⌘← · ⌘→')).toBeInTheDocument()
 
         fireEvent.click(screen.getByTestId('codex-model-selector'))
-        const option = await screen.findByText('GPT-5.1')
+        const option = await screen.findByText('GPT-5.2')
         fireEvent.click(option)
 
-        expect(onCodexModelChange).toHaveBeenCalledWith('gpt-5.1')
+        expect(onCodexModelChange).toHaveBeenCalledWith('gpt-5.2')
 
         fireEvent.click(screen.getByTestId('codex-reasoning-selector'))
         const reasoningOption = await screen.findByText('High')

@@ -198,9 +198,22 @@ function defaultInvokeHandler(command: string, args?: unknown) {
                         isDefault: true
                     },
                     {
-                        id: 'gpt-5.2-codex-mini',
-                        label: 'GPT-5.2 Codex Mini',
-                        description: 'Cheaper, faster variant',
+                        id: 'gpt-5.1-codex-max',
+                        label: 'GPT-5.1 Codex Max',
+                        description: 'Codex flagship model',
+                        defaultReasoning: 'medium',
+                        reasoningOptions: [
+                            { id: 'low', label: 'Low', description: 'Low effort' },
+                            { id: 'medium', label: 'Medium', description: 'Balanced' },
+                            { id: 'high', label: 'High', description: 'Deep reasoning' },
+                            { id: 'xhigh', label: 'Extra high', description: 'Maximum reasoning depth' }
+                        ],
+                        isDefault: false
+                    },
+                    {
+                        id: 'gpt-5.1-codex-mini',
+                        label: 'GPT-5.1 Codex Mini',
+                        description: 'Cheaper, faster Codex variant',
                         defaultReasoning: 'medium',
                         reasoningOptions: [
                             { id: 'medium', label: 'Medium', description: 'Balanced' },
@@ -214,10 +227,10 @@ function defaultInvokeHandler(command: string, args?: unknown) {
                         description: 'Generalist model',
                         defaultReasoning: 'medium',
                         reasoningOptions: [
-                            { id: 'minimal', label: 'Minimal', description: 'Minimal effort' },
                             { id: 'low', label: 'Low', description: 'Low effort' },
                             { id: 'medium', label: 'Medium', description: 'Balanced' },
-                            { id: 'high', label: 'High', description: 'Deep reasoning' }
+                            { id: 'high', label: 'High', description: 'Deep reasoning' },
+                            { id: 'xhigh', label: 'Extra high', description: 'Maximum reasoning depth' }
                         ],
                         isDefault: false
                     }
@@ -386,14 +399,14 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
             expect(lastCall[1]).toEqual({
                 agentType: 'codex',
                 preferences: {
-                    model: 'gpt-5.2-codex-mini',
+                    model: 'gpt-5.1-codex-max',
                     reasoning_effort: 'medium',
                 },
             })
         })
 
         await waitFor(() => {
-            expect(screen.getByTestId('codex-model-value').textContent).toBe('gpt-5.2-codex-mini')
+            expect(screen.getByTestId('codex-model-value').textContent).toBe('gpt-5.1-codex-max')
             expect(screen.getByTestId('codex-reasoning-value').textContent).toBe('medium')
         })
 
@@ -405,7 +418,7 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
             expect(lastCall[1]).toEqual({
                 agentType: 'codex',
                 preferences: {
-                    model: 'gpt-5.2-codex-mini',
+                    model: 'gpt-5.1-codex-max',
                     reasoning_effort: 'high',
                 },
             })

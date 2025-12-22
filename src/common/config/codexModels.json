@@ -5,7 +5,7 @@
       {
         "id": "gpt-5.2-codex",
         "label": "GPT-5.2 Codex",
-        "description": "Optimized for Codex agents with richer tool usage.",
+        "description": "Latest frontier agentic coding model.",
         "defaultReasoning": "medium",
         "isDefault": true,
         "reasoningOptions": [
@@ -27,110 +27,9 @@
         ]
       },
       {
-        "id": "gpt-5.2-codex-max",
-        "label": "GPT-5.2 Codex Max",
-        "description": "Maximum-capability Codex model for complex coding problems.",
-        "defaultReasoning": "medium",
-        "isDefault": false,
-        "reasoningOptions": [
-          {
-            "id": "low",
-            "label": "Low",
-            "description": "Fast responses with lighter reasoning"
-          },
-          {
-            "id": "medium",
-            "label": "Medium",
-            "description": "Balances speed and reasoning depth for everyday tasks"
-          },
-          {
-            "id": "high",
-            "label": "High",
-            "description": "Maximizes reasoning depth for complex problems"
-          },
-          {
-            "id": "xhigh",
-            "label": "Extra high",
-            "description": "Extra high reasoning depth for complex problems"
-          }
-        ]
-      },
-      {
-        "id": "gpt-5.2-codex-mini",
-        "label": "GPT-5.2 Codex Mini",
-        "description": "Cheaper, faster Codex variant for lighter tasks.",
-        "defaultReasoning": "medium",
-        "isDefault": false,
-        "reasoningOptions": [
-          {
-            "id": "medium",
-            "label": "Medium",
-            "description": "Balanced latency and reasoning depth"
-          },
-          {
-            "id": "high",
-            "label": "High",
-            "description": "Extra depth for tougher tasks with minimal latency impact"
-          }
-        ]
-      },
-      {
-        "id": "gpt-5.2",
-        "label": "GPT-5.2",
-        "description": "Next-generation model with improved world knowledge and reasoning.",
-        "defaultReasoning": "medium",
-        "isDefault": false,
-        "reasoningOptions": [
-          {
-            "id": "low",
-            "label": "Low",
-            "description": "Fast responses with lighter reasoning"
-          },
-          {
-            "id": "medium",
-            "label": "Medium",
-            "description": "Balanced speed and reasoning depth"
-          },
-          {
-            "id": "high",
-            "label": "High",
-            "description": "Deep reasoning for complex problems"
-          },
-          {
-            "id": "xhigh",
-            "label": "Extra high",
-            "description": "Maximum reasoning depth for the most difficult tasks"
-          }
-        ]
-      },
-      {
-        "id": "gpt-5.1-codex",
-        "label": "GPT-5.1 Codex",
-        "description": "Optimized for Codex agents with richer tool usage.",
-        "defaultReasoning": "medium",
-        "isDefault": false,
-        "reasoningOptions": [
-          {
-            "id": "low",
-            "label": "Low",
-            "description": "Fastest responses with limited reasoning"
-          },
-          {
-            "id": "medium",
-            "label": "Medium",
-            "description": "Balances speed with adaptive reasoning"
-          },
-          {
-            "id": "high",
-            "label": "High",
-            "description": "Maximizes reasoning depth for complex or ambiguous problems"
-          }
-        ]
-      },
-      {
         "id": "gpt-5.1-codex-max",
         "label": "GPT-5.1 Codex Max",
-        "description": "Maximum-capability Codex model for complex coding problems.",
+        "description": "Codex-optimized flagship for deep and fast reasoning.",
         "defaultReasoning": "medium",
         "isDefault": false,
         "reasoningOptions": [
@@ -159,7 +58,7 @@
       {
         "id": "gpt-5.1-codex-mini",
         "label": "GPT-5.1 Codex Mini",
-        "description": "Cheaper, faster Codex variant for lighter tasks.",
+        "description": "Optimized for Codex. Cheaper, faster, but less capable.",
         "defaultReasoning": "medium",
         "isDefault": false,
         "reasoningOptions": [
@@ -176,31 +75,31 @@
         ]
       },
       {
-        "id": "gpt-5.1",
-        "label": "GPT-5.1",
-        "description": "Broad world knowledge with strong general reasoning.",
+        "id": "gpt-5.2",
+        "label": "GPT-5.2",
+        "description": "Latest frontier model with improvements across knowledge, reasoning and coding.",
         "defaultReasoning": "medium",
         "isDefault": false,
         "reasoningOptions": [
           {
-            "id": "minimal",
-            "label": "Minimal",
-            "description": "Fastest responses with little reasoning"
-          },
-          {
             "id": "low",
             "label": "Low",
-            "description": "Balances speed with some reasoning; great for straightforward queries"
+            "description": "Fast responses with lighter reasoning"
           },
           {
             "id": "medium",
             "label": "Medium",
-            "description": "Solid balance of reasoning depth and latency for general-purpose tasks"
+            "description": "Balanced speed and reasoning depth"
           },
           {
             "id": "high",
             "label": "High",
-            "description": "Maximizes reasoning depth for complex or ambiguous problems"
+            "description": "Deep reasoning for complex problems"
+          },
+          {
+            "id": "xhigh",
+            "label": "Extra high",
+            "description": "Maximum reasoning depth for the most difficult tasks"
           }
         ]
       }
