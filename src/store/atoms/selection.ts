@@ -137,7 +137,7 @@ function computeTerminals(selection: Selection, projectPath: string | null): Ter
   }
 
   const group = sessionTerminalGroup(selection.payload)
-  const workingDirectory = selection.sessionState === 'running' && selection.worktreePath
+  const workingDirectory = (selection.sessionState === 'running' || selection.sessionState === 'reviewed') && selection.worktreePath
     ? selection.worktreePath
     : ''
 

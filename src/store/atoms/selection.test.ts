@@ -270,6 +270,32 @@ describe('selection atoms', () => {
     })
   })
 
+  it('allocates terminals for reviewed sessions with a worktree', async () => {
+    await withNodeEnv('development', async () => {
+      const backend = await import('../../terminal/transport/backend')
+
+      await setProjectPath('/projects/alpha')
+
+      vi.mocked(backend.createTerminalBackend).mockClear()
+
+      await store.set(setSelectionActionAtom, {
+        selection: {
+          kind: 'session',
+          payload: 'reviewed-1',
+          sessionState: 'reviewed',
+          worktreePath: '/tmp/worktrees/reviewed-1',
+        },
+      })
+
+      const terminals = store.get(terminalsAtom)
+      expect(terminals.workingDirectory).toBe('/tmp/worktrees/reviewed-1')
+      expect(terminals.top).toMatch(/^session-reviewed-1~[0-9a-f]{8}-top$/)
+      expect(vi.mocked(backend.createTerminalBackend)).toHaveBeenCalledTimes(2)
+      const cwdCalls = vi.mocked(backend.createTerminalBackend).mock.calls.map(([arg]) => arg.cwd)
+      expect(cwdCalls).toEqual(['/tmp/worktrees/reviewed-1', '/tmp/worktrees/reviewed-1'])
+    })
+  })
+
   it('does not force-recreate orchestrator terminals when falling back after missing snapshot', async () => {
     await withNodeEnv('development', async () => {
       const backend = await import('../../terminal/transport/backend')
