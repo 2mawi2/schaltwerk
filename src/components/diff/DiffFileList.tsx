@@ -935,7 +935,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
               checked={copySelected}
               onChange={() => toggleSelectedForCopyContext(node.file.path)}
               onClick={(e) => e.stopPropagation()}
-              className="ml-1 mt-[3px] shrink-0 scale-90 opacity-25 hover:opacity-70 transition-opacity"
+              className="ml-1 mt-[3px] shrink-0 w-4 h-4 opacity-60 hover:opacity-100 transition-opacity cursor-pointer"
               style={{ accentColor: theme.colors.accent.blue.DEFAULT }}
             />
           )}
@@ -993,7 +993,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
                   aria-label="Select all changed files for copied context"
                   checked={files.length > 0 && selectedForCopyCount === files.length}
                   onChange={(e) => setAllSelectedForCopyContext(e.target.checked)}
-                  className="shrink-0 scale-90 opacity-35 hover:opacity-70 transition-opacity"
+                  className="shrink-0 w-4 h-4 opacity-70 hover:opacity-100 transition-opacity cursor-pointer"
                   style={{ accentColor: theme.colors.accent.blue.DEFAULT }}
                 />
                 <span style={{ color: theme.colors.text.muted }}>
@@ -1068,7 +1068,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
                       }}
                       onChange={(e) => setManySelectedForCopyContext(folderFilePaths, e.target.checked)}
                       onClick={(e) => e.stopPropagation()}
-                      className="shrink-0 scale-90 opacity-25 hover:opacity-70 transition-opacity"
+                      className="shrink-0 w-4 h-4 opacity-60 hover:opacity-100 transition-opacity cursor-pointer"
                       style={{ accentColor: theme.colors.accent.blue.DEFAULT }}
                     />
                   </div>
