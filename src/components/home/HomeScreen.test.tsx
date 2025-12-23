@@ -245,6 +245,13 @@ describe('HomeScreen', () => {
   })
 
   it('keyboard: Cmd+Digit1 opens the first recent project even when event.key is non-numeric', async () => {
+    const prevUserAgent = window.navigator.userAgent
+    Object.defineProperty(window.navigator, 'userAgent', {
+      value: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15',
+      configurable: true,
+    })
+
+    try {
     const recent = [
       { path: '/repo/a', name: 'Project A', lastOpened: 2 },
       { path: '/repo/b', name: 'Project B', lastOpened: 1 },
@@ -265,6 +272,48 @@ describe('HomeScreen', () => {
     await waitFor(() => {
       expect(onOpenProject).toHaveBeenCalledWith('/repo/a')
     })
+    } finally {
+      Object.defineProperty(window.navigator, 'userAgent', {
+        value: prevUserAgent,
+        configurable: true,
+      })
+    }
+  })
+
+  it('keyboard: Ctrl+Digit1 opens the first recent project on non-mac platforms', async () => {
+    const prevUserAgent = window.navigator.userAgent
+    Object.defineProperty(window.navigator, 'userAgent', {
+      value: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36',
+      configurable: true,
+    })
+
+    try {
+      const recent = [
+        { path: '/repo/a', name: 'Project A', lastOpened: 2 },
+        { path: '/repo/b', name: 'Project B', lastOpened: 1 },
+      ]
+      const { onOpenProject } = setup({ get_recent_projects: recent })
+
+      await screen.findByText('Project A')
+
+      act(() => {
+        window.dispatchEvent(new KeyboardEvent('keydown', {
+          key: '1',
+          code: 'Digit1',
+          ctrlKey: true,
+          bubbles: true,
+        }))
+      })
+
+      await waitFor(() => {
+        expect(onOpenProject).toHaveBeenCalledWith('/repo/a')
+      })
+    } finally {
+      Object.defineProperty(window.navigator, 'userAgent', {
+        value: prevUserAgent,
+        configurable: true,
+      })
+    }
   })
 
 })

@@ -51,15 +51,31 @@ export function HomeScreen({ onOpenProject, initialError, onClearInitialError }:
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.metaKey && !event.shiftKey && !event.altKey && !event.ctrlKey) {
+      const modPressed = event.metaKey || event.ctrlKey
+      if (modPressed && !event.shiftKey && !event.altKey) {
         const num = Number.parseInt(event.key, 10)
         const fallback = event.code?.match(/^(?:Digit|Numpad)([1-9])$/)
-        const resolvedNum = Number.isNaN(num) ? (fallback ? Number.parseInt(fallback[1], 10) : NaN) : num
+        const fallbackKeyCode =
+          typeof event.keyCode === 'number' && event.keyCode >= 49 && event.keyCode <= 57
+            ? event.keyCode - 48
+            : typeof event.keyCode === 'number' && event.keyCode >= 97 && event.keyCode <= 105
+              ? event.keyCode - 96
+              : NaN
+
+        const resolvedNum = Number.isNaN(num)
+          ? Number.isNaN(fallbackKeyCode)
+            ? (fallback ? Number.parseInt(fallback[1], 10) : NaN)
+            : fallbackKeyCode
+          : num
 
         if (resolvedNum >= 1 && resolvedNum <= 9) {
           const projectIndex = resolvedNum - 1
           if (projectIndex < recentProjects.length) {
             event.preventDefault()
+            event.stopPropagation()
+            if (typeof event.stopImmediatePropagation === 'function') {
+              event.stopImmediatePropagation()
+            }
             void handleOpenRecent(recentProjects[projectIndex])
           }
         }

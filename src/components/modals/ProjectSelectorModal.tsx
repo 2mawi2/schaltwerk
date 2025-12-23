@@ -53,12 +53,25 @@ export function ProjectSelectorModal({ open: isOpen, onClose, onOpenProject, ope
         return
       }
 
-      if (event.metaKey && !event.shiftKey && !event.altKey && !event.ctrlKey) {
-        const key = event.key
-        const num = parseInt(key, 10)
+      const modPressed = event.metaKey || event.ctrlKey
+      if (modPressed && !event.shiftKey && !event.altKey) {
+        const num = Number.parseInt(event.key, 10)
+        const fallback = event.code?.match(/^(?:Digit|Numpad)([1-9])$/)
+        const fallbackKeyCode =
+          typeof event.keyCode === 'number' && event.keyCode >= 49 && event.keyCode <= 57
+            ? event.keyCode - 48
+            : typeof event.keyCode === 'number' && event.keyCode >= 97 && event.keyCode <= 105
+              ? event.keyCode - 96
+              : NaN
 
-        if (num >= 1 && num <= 9) {
-          const projectIndex = num - 1
+        const resolvedNum = Number.isNaN(num)
+          ? Number.isNaN(fallbackKeyCode)
+            ? (fallback ? Number.parseInt(fallback[1], 10) : NaN)
+            : fallbackKeyCode
+          : num
+
+        if (resolvedNum >= 1 && resolvedNum <= 9) {
+          const projectIndex = resolvedNum - 1
           if (projectIndex < availableProjects.length) {
             event.preventDefault()
             event.stopPropagation()
