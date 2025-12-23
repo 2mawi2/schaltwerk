@@ -41,6 +41,7 @@ use schaltwerk::shared::terminal_id::{
     legacy_terminal_id_for_session_top, previous_hashed_terminal_id_for_session_top,
     previous_tilde_hashed_terminal_id_for_session_top, terminal_id_for_session_top,
 };
+use schaltwerk::domains::terminal::submission::submission_options_for_agent;
 use schaltwerk::utils::env_adapter::EnvAdapter;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex as StdMutex};
@@ -709,8 +710,21 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                             });
 
                         // Move reviewed sessions back to running upon follow-up (only if reviewed)
+                        let mut agent_type: Option<String> = None;
                         if let Ok(core) = get_core_write().await {
                             let manager = core.session_manager();
+
+                            match manager.get_session(session_name) {
+                                Ok(session) => {
+                                    agent_type = session.original_agent_type.clone();
+                                }
+                                Err(e) => {
+                                    log::debug!(
+                                        "Failed to load session info for follow-up message to '{session_name}': {e}"
+                                    );
+                                }
+                            }
+
                             match manager.unmark_reviewed_on_follow_up(session_name) {
                                 Ok(true) => {
                                     log::info!(
@@ -754,6 +768,9 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                         let mut delivered_terminal_id = primary_terminal_id.clone();
                         let mut delivered = false;
 
+                        let (use_bracketed_paste, needs_delayed_submit) =
+                            submission_options_for_agent(agent_type.as_deref());
+
                         if let Ok(manager) = get_terminal_manager().await {
                             for candidate in candidate_ids.iter() {
                                 match manager.terminal_exists(candidate).await {
@@ -762,8 +779,8 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                                             .paste_and_submit_terminal(
                                                 candidate.clone(),
                                                 message.as_bytes().to_vec(),
-                                                false,
-                                                true,
+                                                use_bracketed_paste,
+                                                needs_delayed_submit,
                                             )
                                             .await
                                         {

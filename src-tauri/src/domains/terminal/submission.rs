@@ -32,6 +32,18 @@ pub fn build_submission_payload(
     payload
 }
 
+/// Determine the submission mode to use for a given agent.
+///
+/// This mirrors the frontend "review paste" behavior:
+/// - Most agents get bracketed paste + immediate submit
+/// - Claude/Droid require direct paste + delayed submit
+pub fn submission_options_for_agent(agent_type: Option<&str>) -> (bool, bool) {
+    match agent_type {
+        Some("claude") | Some("droid") => (false, true),
+        _ => (true, false),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -74,5 +86,17 @@ mod tests {
     fn build_submission_payload_empty_data_delayed_submit() {
         let payload = build_submission_payload(b"", false, true);
         assert_eq!(payload, b"");
+    }
+
+    #[test]
+    fn submission_options_default_to_bracketed_immediate() {
+        assert_eq!(submission_options_for_agent(None), (true, false));
+        assert_eq!(submission_options_for_agent(Some("codex")), (true, false));
+    }
+
+    #[test]
+    fn submission_options_for_claude_and_droid_use_direct_delayed() {
+        assert_eq!(submission_options_for_agent(Some("claude")), (false, true));
+        assert_eq!(submission_options_for_agent(Some("droid")), (false, true));
     }
 }
