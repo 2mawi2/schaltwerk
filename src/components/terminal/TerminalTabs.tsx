@@ -120,6 +120,7 @@ const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(
                     }
                   }}
                   terminalId={tab.terminalId}
+                  readOnly={!isActive}
                   className="h-full w-full"
                   sessionName={sessionName}
                   isCommander={isCommander}
@@ -201,6 +202,7 @@ const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(
                   }
                 }}
                 terminalId={tab.terminalId}
+                readOnly={!isActive}
                 className="h-full w-full"
                 sessionName={sessionName}
                 isCommander={isCommander}

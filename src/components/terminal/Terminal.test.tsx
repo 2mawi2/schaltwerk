@@ -5,6 +5,7 @@ import { listenEvent } from '../../common/eventSystem'
 import { startSessionTop } from '../../common/agentSpawn'
 import { writeTerminalBackend } from '../../terminal/transport/backend'
 import { TERMINAL_FILE_DRAG_TYPE } from '../../common/dragTypes'
+import { __resetTerminalTargetingForTest, setActiveAgentTerminalId } from '../../common/terminalTargeting'
 import { Provider, createStore } from 'jotai'
 
 const ATLAS_CONTRAST_BASE = 1.1
@@ -367,6 +368,7 @@ beforeEach(() => {
   }))
   registryMocks.hasTerminalInstance.mockReturnValue(false)
   vi.mocked(startSessionTop).mockClear()
+  __resetTerminalTargetingForTest()
 })
 
 function renderTerminal(props: Partial<TerminalProps> & { terminalId: string }, options?: RenderOptions) {
@@ -496,6 +498,75 @@ describe('Terminal', () => {
     expect(instance.applyConfig).toHaveBeenCalledWith(expect.objectContaining({
       readOnly: true,
     }))
+  })
+
+  it('registers an onData handler even when readOnly is true', async () => {
+    renderTerminal({ terminalId: 'session-readonly-bottom', readOnly: true })
+
+    await waitFor(() => {
+      expect(terminalHarness.acquireMock).toHaveBeenCalled()
+      expect(terminalHarness.instances.length).toBeGreaterThan(0)
+    })
+
+    const instance = terminalHarness.instances[0] as HarnessInstance
+    expect(instance.raw.onData).toHaveBeenCalled()
+  })
+
+  it('only forwards input for the active agent tab terminal', async () => {
+    setActiveAgentTerminalId('demo', 'session-demo-top')
+
+    const createdById = new Map<string, HarnessInstance>()
+    type AcquireResult = ReturnType<typeof terminalHarness.acquireMock>
+    const originalAcquire = terminalHarness.acquireMock.getMockImplementation() as (
+      (id: string, factory: () => HarnessInstance) => AcquireResult
+    )
+
+    terminalHarness.acquireMock.mockImplementation((id: string, factory: () => HarnessInstance): AcquireResult => {
+      let created: HarnessInstance | undefined
+      const result = originalAcquire(id, () => {
+        const instance = factory()
+        created = instance
+        return instance
+      })
+      if (created) {
+        createdById.set(id, created)
+      }
+      return result
+    })
+
+    const store = createStore()
+    try {
+      render(
+        <Provider store={store}>
+          <Terminal terminalId="session-demo-top" sessionName="demo" />
+          <Terminal terminalId="session-demo-top-1" sessionName="demo" />
+        </Provider>
+      )
+
+      await waitFor(() => {
+        expect(createdById.has('session-demo-top')).toBe(true)
+        expect(createdById.has('session-demo-top-1')).toBe(true)
+      })
+
+      const primary = createdById.get('session-demo-top')!
+      const secondary = createdById.get('session-demo-top-1')!
+      const primaryOnData = primary.raw.onData.mock.calls[0]?.[0] as ((data: string) => void) | undefined
+      const secondaryOnData = secondary.raw.onData.mock.calls[0]?.[0] as ((data: string) => void) | undefined
+
+      expect(primaryOnData).toBeTypeOf('function')
+      expect(secondaryOnData).toBeTypeOf('function')
+
+      primaryOnData?.('\u001b')
+      secondaryOnData?.('\u001b')
+
+      expect(writeTerminalBackend).toHaveBeenCalledTimes(1)
+      expect(writeTerminalBackend).toHaveBeenCalledWith('session-demo-top', '\u001b')
+    } finally {
+      terminalHarness.acquireMock.mockReset()
+      if (originalAcquire) {
+        terminalHarness.acquireMock.mockImplementation(originalAcquire)
+      }
+    }
   })
 
   it('ignores duplicate resize observer measurements', async () => {

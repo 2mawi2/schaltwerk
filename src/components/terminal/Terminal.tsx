@@ -14,7 +14,8 @@ import type { SearchAddon } from '@xterm/addon-search';
 import { invoke } from '@tauri-apps/api/core'
 import { startOrchestratorTop, startSessionTop, AGENT_START_TIMEOUT_MESSAGE } from '../../common/agentSpawn'
 import { schedulePtyResize } from '../../common/ptyResizeScheduler'
-import { sessionTerminalBase } from '../../common/terminalIdentity'
+import { isTopTerminalId, sessionTerminalBase } from '../../common/terminalIdentity'
+import { getActiveAgentTerminalId } from '../../common/terminalTargeting'
 import { UnlistenFn } from '@tauri-apps/api/event';
 import { useAtomValue, useSetAtom } from 'jotai'
 import { previewStateAtom, setPreviewUrlActionAtom } from '../../store/atoms/preview'
@@ -327,6 +328,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const termDebug = () => (typeof window !== 'undefined' && localStorage.getItem('TERMINAL_DEBUG') === '1');
     const terminalIdRef = useRef(terminalId);
     terminalIdRef.current = terminalId;
+    const sessionScopeRef = useRef<string | null>(null);
+    sessionScopeRef.current = isCommander ? 'orchestrator' : (sessionName ?? null);
 
     const mountedRef = useRef<boolean>(false);
     const startingTerminals = useRef<Map<string, boolean>>(new Map());
@@ -342,8 +345,33 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         if (isTerminalOnlyAgent) {
             return false;
         }
-        return terminalId.endsWith('-top') && (terminalId.startsWith('session-') || terminalId.startsWith('orchestrator-'));
+        if (!isTopTerminalId(terminalId)) {
+            return false;
+        }
+        return terminalId.startsWith('session-') || terminalId.startsWith('orchestrator-');
     }, [terminalId, isTerminalOnlyAgent]);
+
+    const shouldAcceptInputForAgentTab = useCallback((): boolean => {
+        const id = terminalIdRef.current;
+        if (!isTopTerminalId(id)) {
+            return true;
+        }
+        if (!(id.startsWith('session-') || id.startsWith('orchestrator-'))) {
+            return true;
+        }
+
+        const scope = sessionScopeRef.current;
+        if (!scope) {
+            return true;
+        }
+
+        const active = getActiveAgentTerminalId(scope);
+        if (!active) {
+            return true;
+        }
+
+        return active === id;
+    }, []);
 
     const {
         config: terminalConfig,
@@ -1268,6 +1296,13 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
         // Intercept global shortcuts before xterm.js processes them
         terminal.current.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+            // When multiple agent tabs exist, ensure only the active tab's terminal handles stdin
+            // and global shortcuts. This prevents keystrokes (including Escape) from being sent to
+            // multiple agent PTYs.
+            if (!shouldAcceptInputForAgentTab()) {
+                return true
+            }
+
             if (!readOnlyRef.current && shouldEmitControlPaste(event)) {
                 event.preventDefault()
                 writeTerminalBackend(terminalId, '\x16').catch(err => logger.debug('[Terminal] ctrl+v ignored (backend not ready yet)', err))
@@ -1447,39 +1482,50 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         // single bracketed paste payload to the PTY.
         addEventListener(containerRef.current, 'paste', handlePaste as EventListener, { capture: true })
 
-     // Send input to backend (disabled for readOnly terminals)
-        if (!terminalConfigRef.current.readOnly) {
-            if (onDataDisposableRef.current) {
-                try {
-                    onDataDisposableRef.current.dispose();
-                } catch (error) {
-                    logger.debug(`[Terminal ${terminalId}] Failed to dispose previous onData listener`, error);
-                }
-                onDataDisposableRef.current = null;
+        // Send input to backend.
+        //
+        // Important: even when `readOnly` is true (e.g., background terminals in tab sets), we still
+        // register the `onData` handler so the terminal can become writable later without a full
+        // remount. Input is gated by `readOnlyRef.current` at call time.
+        if (onDataDisposableRef.current) {
+            try {
+                onDataDisposableRef.current.dispose();
+            } catch (error) {
+                logger.debug(`[Terminal ${terminalId}] Failed to dispose previous onData listener`, error);
+            }
+            onDataDisposableRef.current = null;
+        }
+
+        onDataDisposableRef.current = terminal.current.onData((data) => {
+            if (readOnlyRef.current) {
+                return;
             }
 
-            onDataDisposableRef.current = terminal.current.onData((data) => {
-                if (finalizeClaudeShiftEnterRef.current?.(data)) {
-                    return;
-                }
-             const filter = inputFilterRef.current;
-             if (filter && !filter(data)) {
-                 if (termDebug()) {
-                     logger.debug(`[Terminal ${terminalId}] blocked input: ${JSON.stringify(data)}`);
-                 }
-                 return;
-             }
+            if (!shouldAcceptInputForAgentTab()) {
+                return;
+            }
 
-             if (isAgentTopTerminal && data === '\u0003') {
-                 lastSigintAtRef.current = Date.now();
-                 const platform = detectPlatformSafe()
-                 const keyCombo = platform === 'mac' ? 'Cmd+C' : 'Ctrl+C'
-                 logger.debug(`[Terminal ${terminalId}] Interrupt signal detected (${keyCombo})`);
-             }
+            if (finalizeClaudeShiftEnterRef.current?.(data)) {
+                return;
+            }
+
+            const filter = inputFilterRef.current;
+            if (filter && !filter(data)) {
+                if (termDebug()) {
+                    logger.debug(`[Terminal ${terminalId}] blocked input: ${JSON.stringify(data)}`);
+                }
+                return;
+            }
+
+            if (isAgentTopTerminal && data === '\u0003') {
+                lastSigintAtRef.current = Date.now();
+                const platform = detectPlatformSafe()
+                const keyCombo = platform === 'mac' ? 'Cmd+C' : 'Ctrl+C'
+                logger.debug(`[Terminal ${terminalId}] Interrupt signal detected (${keyCombo})`);
+            }
 
             writeTerminalBackend(terminalId, data).catch(err => logger.debug('[Terminal] write ignored (backend not ready yet)', err));
-            });
-        }
+        });
 
         if (onScrollDisposableRef.current) {
             try {
