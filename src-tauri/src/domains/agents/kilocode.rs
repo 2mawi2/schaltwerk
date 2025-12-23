@@ -1,50 +1,157 @@
 use super::escape_prompt_for_shell;
 use super::format_binary_invocation;
-use log::{debug, trace};
+use log::debug;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
-use std::path::Path;
-use std::sync::{OnceLock, RwLock};
-use std::time::SystemTime;
+use std::io::{BufReader, Read, Write};
+use std::path::{Path, PathBuf};
+use std::sync::{LazyLock, OnceLock, RwLock};
+use std::time::{Duration, Instant, SystemTime};
 
 #[derive(Debug, Clone, Default)]
 pub struct KilocodeConfig {
     pub binary_path: Option<String>,
 }
 
-/// Directory signature for cache invalidation
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 struct DirSignature {
-    mtime_millis: Option<u128>,
-    task_count: u64,
+    root_millis: Option<u128>,
+    dir_count: u64,
+    latest_dir_millis: Option<u128>,
+    latest_file_millis: Option<u128>,
+    file_count: u64,
 }
 
 impl DirSignature {
-    fn compute(dir: &Path) -> Option<Self> {
-        if !dir.exists() {
-            return Some(Self {
-                mtime_millis: None,
-                task_count: 0,
-            });
+    fn compute_tasks(tasks_dir: &Path) -> Option<Self> {
+        if !tasks_dir.exists() {
+            return Some(Self::default());
         }
 
-        let mtime = fs::metadata(dir)
-            .ok()?
-            .modified()
-            .ok()?
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .ok()?
-            .as_millis();
+        let root_millis = fs::metadata(tasks_dir)
+            .ok()
+            .and_then(|meta| meta.modified().ok())
+            .and_then(|ts| ts.duration_since(SystemTime::UNIX_EPOCH).ok())
+            .map(|dur| dur.as_millis());
 
-        let task_count = fs::read_dir(dir)
-            .ok()?
-            .filter_map(|e| e.ok())
-            .filter(|e| e.path().is_dir())
-            .count() as u64;
+        let mut dir_count: u64 = 0;
+        let mut latest_dir_millis: Option<u128> = None;
+        let mut latest_file_millis: Option<u128> = None;
+        let mut file_count: u64 = 0;
+
+        let read_dir = fs::read_dir(tasks_dir).ok()?;
+        for entry in read_dir.flatten() {
+            let task_dir = entry.path();
+            if !task_dir.is_dir() {
+                continue;
+            }
+            dir_count += 1;
+
+            if let Ok(meta) = entry.metadata()
+                && let Ok(modified) = meta.modified()
+                && let Ok(millis) = modified.duration_since(SystemTime::UNIX_EPOCH).map(|d| d.as_millis())
+                && latest_dir_millis
+                    .map(|current| millis > current)
+                    .unwrap_or(true)
+            {
+                latest_dir_millis = Some(millis);
+            }
+
+            let history_path = task_dir.join("api_conversation_history.json");
+            if let Ok(meta) = fs::metadata(&history_path)
+                && let Ok(modified) = meta.modified()
+                && let Ok(millis) = modified.duration_since(SystemTime::UNIX_EPOCH).map(|d| d.as_millis())
+            {
+                file_count += 1;
+                if latest_file_millis
+                    .map(|current| millis > current)
+                    .unwrap_or(true)
+                {
+                    latest_file_millis = Some(millis);
+                }
+            }
+        }
 
         Some(Self {
-            mtime_millis: Some(mtime),
-            task_count,
+            root_millis,
+            dir_count,
+            latest_dir_millis,
+            latest_file_millis,
+            file_count,
+        })
+    }
+
+    fn compute_workspaces(workspaces_dir: &Path) -> Option<Self> {
+        if !workspaces_dir.exists() {
+            return Some(Self::default());
+        }
+
+        let root_millis = fs::metadata(workspaces_dir)
+            .ok()
+            .and_then(|meta| meta.modified().ok())
+            .and_then(|ts| ts.duration_since(SystemTime::UNIX_EPOCH).ok())
+            .map(|dur| dur.as_millis());
+
+        let mut dir_count: u64 = 0;
+        let mut latest_dir_millis: Option<u128> = None;
+        let mut latest_file_millis: Option<u128> = None;
+        let mut file_count: u64 = 0;
+
+        let read_dir = fs::read_dir(workspaces_dir).ok()?;
+        for entry in read_dir.flatten() {
+            let workspace_dir = entry.path();
+            if !workspace_dir.is_dir() {
+                continue;
+            }
+            dir_count += 1;
+
+            if let Ok(meta) = entry.metadata()
+                && let Ok(modified) = meta.modified()
+                && let Ok(millis) = modified.duration_since(SystemTime::UNIX_EPOCH).map(|d| d.as_millis())
+                && latest_dir_millis
+                    .map(|current| millis > current)
+                    .unwrap_or(true)
+            {
+                latest_dir_millis = Some(millis);
+            }
+
+            let session_path = workspace_dir.join("session.json");
+            if let Ok(meta) = fs::metadata(&session_path)
+                && let Ok(modified) = meta.modified()
+                && let Ok(millis) = modified.duration_since(SystemTime::UNIX_EPOCH).map(|d| d.as_millis())
+            {
+                file_count += 1;
+                if latest_file_millis
+                    .map(|current| millis > current)
+                    .unwrap_or(true)
+                {
+                    latest_file_millis = Some(millis);
+                }
+            }
+        }
+
+        Some(Self {
+            root_millis,
+            dir_count,
+            latest_dir_millis,
+            latest_file_millis,
+            file_count,
+        })
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+struct IndexSignature {
+    tasks: DirSignature,
+    workspaces: DirSignature,
+}
+
+impl IndexSignature {
+    fn compute(tasks_dir: &Path, workspaces_dir: &Path) -> Option<Self> {
+        Some(Self {
+            tasks: DirSignature::compute_tasks(tasks_dir)?,
+            workspaces: DirSignature::compute_workspaces(workspaces_dir)?,
         })
     }
 }
@@ -53,7 +160,9 @@ impl DirSignature {
 #[derive(Default)]
 struct IndexState {
     index: Option<HashMap<String, String>>,
-    signature: Option<DirSignature>,
+    signature: Option<IndexSignature>,
+    task_cache: HashMap<PathBuf, CachedTaskEntry>,
+    disk_cache_loaded: bool,
 }
 
 struct KilocodeIndex {
@@ -67,28 +176,96 @@ impl KilocodeIndex {
         }
     }
 
-    fn get_or_rebuild(&self, tasks_dir: &Path) -> HashMap<String, String> {
-        // Check current signature
-        let current_sig = DirSignature::compute(tasks_dir);
+    fn get_or_rebuild(&self, tasks_dir: &Path, workspaces_dir: &Path) -> HashMap<String, String> {
+        if *DISABLE_INDEXING {
+            debug!(
+                "KiloCode session indexing disabled via SCHALTWERK_DISABLE_KILOCODE_INDEX, skipping lookup"
+            );
+            self.clear();
+            return HashMap::new();
+        }
 
-        // Check if we have a cached index with matching signature
-        if let Ok(state) = self.state.read()
+        let (current_sig, signature_valid) =
+            if let Some(sig) = IndexSignature::compute(tasks_dir, workspaces_dir) {
+                (Some(sig), true)
+            } else {
+                (None, false)
+            };
+
+        let needs_refresh = !signature_valid;
+
+        if !needs_refresh
+            && let Ok(state) = self.state.read()
             && state.signature == current_sig
             && state.index.is_some()
         {
-            return state.index.clone().unwrap();
+            return state.index.clone().unwrap_or_default();
         }
 
-        // Signature mismatch or no cache - rebuild
-        let new_index = build_kilocode_session_index(tasks_dir);
+        let mut state = self.state.write().unwrap();
 
-        // Update cache
-        if let Ok(mut state) = self.state.write() {
-            state.index = Some(new_index.clone());
+        if !needs_refresh && state.signature == current_sig && state.index.is_some() {
+            return state.index.clone().unwrap_or_default();
+        }
+
+        if !state.disk_cache_loaded {
+            state.task_cache = load_disk_cache(tasks_dir);
+            state.disk_cache_loaded = true;
+        }
+
+        let start = Instant::now();
+        let (new_index, next_cache, stats) =
+            build_kilocode_session_index(tasks_dir, workspaces_dir, &state.task_cache);
+        let elapsed = start.elapsed();
+
+        if stats.scanned_files > 0 {
+            let level = if elapsed > Duration::from_millis(100) {
+                log::Level::Info
+            } else {
+                log::Level::Debug
+            };
+            log::log!(
+                level,
+                "KiloCode session index refresh scanned {} tasks in {}ms (cache hits: {}, misses: {}, skipped: {})",
+                stats.scanned_files,
+                elapsed.as_millis(),
+                stats.cached_hits,
+                stats.cache_misses,
+                stats.skipped_files
+            );
+            if stats.scanned_files > 5000 {
+                log::warn!(
+                    "KiloCode session index touched {} tasks; consider pruning old tasks if startup remains slow",
+                    stats.scanned_files
+                );
+            }
+        }
+
+        let should_persist = stats.cache_misses > 0
+            || stats.skipped_files > 0
+            || next_cache.len() != state.task_cache.len();
+        if should_persist {
+            persist_disk_cache(tasks_dir, &next_cache);
+        }
+
+        state.index = Some(new_index.clone());
+        if signature_valid {
             state.signature = current_sig;
+        } else {
+            state.signature = None;
         }
+        state.task_cache = next_cache;
 
         new_index
+    }
+
+    fn clear(&self) {
+        if let Ok(mut state) = self.state.write() {
+            state.index = None;
+            state.signature = None;
+            state.task_cache.clear();
+            state.disk_cache_loaded = false;
+        }
     }
 }
 
@@ -104,24 +281,23 @@ fn normalize_path(p: &Path) -> Option<String> {
 /// Extract CWD from Kilocode task history JSON
 /// Looks for pattern: "# Current Workspace Directory ({path})"
 fn extract_cwd_from_task_history(task_history_file: &Path) -> Option<String> {
-    let content = fs::read_to_string(task_history_file).ok()?;
-
-    // Kilocode stores history as a JSON array, not JSONL
-    let messages: Vec<serde_json::Value> = serde_json::from_str(&content).ok()?;
-
-    for message in messages {
-        if let Some(content_array) = message.get("content").and_then(|v| v.as_array()) {
-            for content_item in content_array.iter() {
-                if let Some(text) = content_item.get("text").and_then(|v| v.as_str())
-                    && let Some(cwd) = extract_cwd_from_text(text)
-                {
-                    return Some(cwd);
+    extract_cwd_from_task_history_fast(task_history_file).or_else(|| {
+        // Fallback for unexpected history formats.
+        let content = fs::read_to_string(task_history_file).ok()?;
+        let messages: Vec<serde_json::Value> = serde_json::from_str(&content).ok()?;
+        for message in messages {
+            if let Some(content_array) = message.get("content").and_then(|v| v.as_array()) {
+                for content_item in content_array.iter() {
+                    if let Some(text) = content_item.get("text").and_then(|v| v.as_str())
+                        && let Some(cwd) = extract_cwd_from_text(text)
+                    {
+                        return Some(cwd);
+                    }
                 }
             }
         }
-    }
-
-    None
+        None
+    })
 }
 
 /// Extract CWD from text containing "# Current Workspace Directory ({path})"
@@ -141,6 +317,62 @@ fn extract_cwd_from_text(text: &str) -> Option<String> {
     }
 }
 
+fn extract_cwd_from_task_history_fast(task_history_file: &Path) -> Option<String> {
+    bump_task_history_reads();
+
+    const PATTERN: &[u8] = b"# Current Workspace Directory (";
+    const MAX_CAPTURE_BYTES: usize = 4096;
+
+    let file = fs::File::open(task_history_file).ok()?;
+    let mut reader = BufReader::new(file);
+
+    let mut buf = [0u8; 8192];
+    let mut matched: usize = 0;
+    let mut capture: Vec<u8> = Vec::new();
+    let mut capturing = false;
+
+    loop {
+        let n = reader.read(&mut buf).ok()?;
+        if n == 0 {
+            break;
+        }
+
+        for &b in &buf[..n] {
+            if capturing {
+                if b == b')' {
+                    let cwd = String::from_utf8_lossy(&capture).trim().to_string();
+                    return if cwd.is_empty() { None } else { Some(cwd) };
+                }
+
+                if capture.len() >= MAX_CAPTURE_BYTES {
+                    // Avoid unbounded growth if the file is corrupt/unexpected.
+                    capture.clear();
+                    capturing = false;
+                    matched = 0;
+                    continue;
+                }
+
+                capture.push(b);
+                continue;
+            }
+
+            if b == PATTERN[matched] {
+                matched += 1;
+                if matched == PATTERN.len() {
+                    capturing = true;
+                    capture.clear();
+                    matched = 0;
+                }
+                continue;
+            }
+
+            matched = if b == PATTERN[0] { 1 } else { 0 };
+        }
+    }
+
+    None
+}
+
 /// Get or create the session index with cache invalidation
 static SESSION_INDEX: OnceLock<KilocodeIndex> = OnceLock::new();
 
@@ -150,9 +382,17 @@ pub fn find_kilocode_session(worktree_path: &Path) -> Option<String> {
 
     let home = dirs::home_dir()?;
     let kilocode_tasks_dir = home.join(".kilocode/cli/global/tasks");
+    let kilocode_workspaces_dir = home.join(".kilocode/cli/workspaces");
 
     if !kilocode_tasks_dir.exists() {
         debug!("find_kilocode_session: tasks dir does not exist: {kilocode_tasks_dir:?}");
+        return None;
+    }
+
+    if !kilocode_workspaces_dir.exists() {
+        debug!(
+            "find_kilocode_session: workspaces dir does not exist: {kilocode_workspaces_dir:?}"
+        );
         return None;
     }
 
@@ -162,44 +402,187 @@ pub fn find_kilocode_session(worktree_path: &Path) -> Option<String> {
     let normalized_worktree = normalized_worktree?;
 
     let index_cache = SESSION_INDEX.get_or_init(KilocodeIndex::new);
-    let index = index_cache.get_or_rebuild(&kilocode_tasks_dir);
-
-    let len = index.len();
-    debug!("find_kilocode_session: index has {len} entries");
-    for (path, session) in &index {
-        trace!("find_kilocode_session: index entry: path={path:?} -> session={session:?}");
-    }
+    let index = index_cache.get_or_rebuild(&kilocode_tasks_dir, &kilocode_workspaces_dir);
 
     let result = index.get(&normalized_worktree).cloned();
     debug!("find_kilocode_session: lookup result for {normalized_worktree:?} = {result:?}");
     result
 }
 
-/// Build the session index by scanning Kilocode workspaces
-/// Maps normalized CWD paths to the workspace's lastSession.sessionId
-fn build_kilocode_session_index(tasks_dir: &Path) -> HashMap<String, String> {
-    debug!("build_kilocode_session_index: tasks_dir={tasks_dir:?}");
-    let mut index = HashMap::new();
+#[derive(Clone, Default)]
+struct CachedTaskEntry {
+    modified_millis: Option<u128>,
+    cwd: Option<String>,
+}
 
-    if !tasks_dir.exists() {
-        debug!("build_kilocode_session_index: tasks_dir does not exist");
-        return index;
-    }
+#[derive(Default)]
+struct CacheStats {
+    cached_hits: usize,
+    cache_misses: usize,
+    skipped_files: usize,
+    scanned_files: usize,
+}
 
-    let Some(home) = dirs::home_dir() else {
-        debug!("build_kilocode_session_index: no home dir");
-        return index;
+#[derive(Serialize, Deserialize)]
+struct DiskTaskRecord {
+    path: String,
+    modified_millis: Option<u128>,
+    cwd: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct DiskCacheFile {
+    version: u8,
+    tasks: Vec<DiskTaskRecord>,
+}
+
+fn cache_file_path(tasks_dir: &Path) -> PathBuf {
+    tasks_dir.join("_schaltwerk_kilocode_index_cache.json")
+}
+
+fn load_disk_cache(tasks_dir: &Path) -> HashMap<PathBuf, CachedTaskEntry> {
+    let path = cache_file_path(tasks_dir);
+    let file = match fs::File::open(&path) {
+        Ok(file) => file,
+        Err(err) => {
+            if err.kind() != std::io::ErrorKind::NotFound {
+                debug!(
+                    "KiloCode session index: Failed to open cache file {}: {err}",
+                    path.display()
+                );
+            }
+            return HashMap::new();
+        }
     };
 
-    let workspaces_dir = home.join(".kilocode/cli/workspaces");
-    if !workspaces_dir.exists() {
-        debug!("build_kilocode_session_index: workspaces_dir does not exist: {workspaces_dir:?}");
-        return index;
+    let reader = BufReader::new(file);
+    match serde_json::from_reader::<_, DiskCacheFile>(reader) {
+        Ok(file) if file.version == 1 => {
+            let mut map = HashMap::with_capacity(file.tasks.len());
+            for entry in file.tasks {
+                let path_buf = PathBuf::from(entry.path);
+                if !path_buf.starts_with(tasks_dir) {
+                    continue;
+                }
+                map.insert(
+                    path_buf,
+                    CachedTaskEntry {
+                        modified_millis: entry.modified_millis,
+                        cwd: entry.cwd,
+                    },
+                );
+            }
+            debug!(
+                "KiloCode session index: Loaded {} cached task entries from {}",
+                map.len(),
+                path.display()
+            );
+            map
+        }
+        Ok(file) => {
+            log::info!(
+                "KiloCode session index: Ignoring cache {} with unsupported version {}",
+                path.display(),
+                file.version
+            );
+            HashMap::new()
+        }
+        Err(err) => {
+            log::warn!(
+                "KiloCode session index: Failed to deserialize cache {}: {err}",
+                path.display()
+            );
+            HashMap::new()
+        }
+    }
+}
+
+fn persist_disk_cache(tasks_dir: &Path, cache: &HashMap<PathBuf, CachedTaskEntry>) {
+    let path = cache_file_path(tasks_dir);
+    let tmp_path = path.with_extension("tmp");
+
+    if let Some(parent) = path.parent()
+        && let Err(err) = fs::create_dir_all(parent)
+    {
+        log::warn!(
+            "KiloCode session index: Failed to create cache directory {}: {err}",
+            parent.display()
+        );
+        return;
     }
 
-    let Ok(entries) = fs::read_dir(&workspaces_dir) else {
-        debug!("build_kilocode_session_index: cannot read workspaces_dir");
-        return index;
+    let tasks: Vec<DiskTaskRecord> = cache
+        .iter()
+        .map(|(path_buf, entry)| DiskTaskRecord {
+            path: path_buf.to_string_lossy().into_owned(),
+            modified_millis: entry.modified_millis,
+            cwd: entry.cwd.clone(),
+        })
+        .collect();
+
+    let payload = DiskCacheFile {
+        version: 1,
+        tasks,
+    };
+
+    match fs::File::create(&tmp_path) {
+        Ok(mut file) => {
+            if let Err(err) = serde_json::to_writer(&mut file, &payload) {
+                log::warn!(
+                    "KiloCode session index: Failed to serialize cache {}: {err}",
+                    tmp_path.display()
+                );
+                let _ = fs::remove_file(&tmp_path);
+                return;
+            }
+            if let Err(err) = file.flush() {
+                log::warn!(
+                    "KiloCode session index: Failed to flush cache {}: {err}",
+                    tmp_path.display()
+                );
+                let _ = fs::remove_file(&tmp_path);
+                return;
+            }
+            if let Err(err) = fs::rename(&tmp_path, &path) {
+                log::warn!(
+                    "KiloCode session index: Failed to persist cache {}: {err}",
+                    path.display()
+                );
+                let _ = fs::remove_file(&tmp_path);
+                return;
+            }
+            debug!(
+                "KiloCode session index: Persisted cache with {} task entries to {}",
+                payload.tasks.len(),
+                path.display()
+            );
+        }
+        Err(err) => {
+            log::warn!(
+                "KiloCode session index: Failed to create cache file {}: {err}",
+                tmp_path.display()
+            );
+        }
+    }
+}
+
+/// Build the session index by scanning KiloCode workspaces + tasks.
+/// Maps normalized CWD paths to the workspace's lastSession.sessionId.
+fn build_kilocode_session_index(
+    tasks_dir: &Path,
+    workspaces_dir: &Path,
+    previous_cache: &HashMap<PathBuf, CachedTaskEntry>,
+) -> (HashMap<String, String>, HashMap<PathBuf, CachedTaskEntry>, CacheStats) {
+    let mut index = HashMap::new();
+    let mut next_cache: HashMap<PathBuf, CachedTaskEntry> = HashMap::new();
+    let mut stats = CacheStats::default();
+
+    if !tasks_dir.exists() || !workspaces_dir.exists() {
+        return (index, next_cache, stats);
+    }
+
+    let Ok(entries) = fs::read_dir(workspaces_dir) else {
+        return (index, next_cache, stats);
     };
 
     for entry in entries.flatten() {
@@ -209,35 +592,55 @@ fn build_kilocode_session_index(tasks_dir: &Path) -> HashMap<String, String> {
         }
 
         let session_file = workspace_dir.join("session.json");
-        debug!("build_kilocode_session_index: checking workspace {workspace_dir:?}");
-
         if let Some((last_session_id, task_ids)) = read_workspace_session_info(&session_file) {
-            let task_count = task_ids.len();
-            debug!("build_kilocode_session_index: workspace has lastSession={last_session_id}, {task_count} tasks");
-
             for task_id in task_ids {
                 let task_history = tasks_dir.join(&task_id).join("api_conversation_history.json");
-                let cwd = extract_cwd_from_task_history(&task_history);
-                debug!("build_kilocode_session_index: task {task_id} -> cwd={cwd:?}");
+                stats.scanned_files += 1;
 
-                if let Some(cwd) = cwd {
-                    let normalized_cwd = normalize_path(Path::new(&cwd));
-                    debug!("build_kilocode_session_index: normalized cwd={normalized_cwd:?}");
+                let modified_millis = task_history
+                    .metadata()
+                    .ok()
+                    .and_then(|m| m.modified().ok())
+                    .and_then(|ts| ts.duration_since(SystemTime::UNIX_EPOCH).ok())
+                    .map(|dur| dur.as_millis());
 
-                    if let Some(normalized_cwd) = normalized_cwd {
-                        index.insert(normalized_cwd.clone(), last_session_id.clone());
-                        debug!("build_kilocode_session_index: added index entry: {normalized_cwd} -> {last_session_id}");
+                let cached = previous_cache.get(&task_history);
+                let cwd = if let Some(cached) = cached {
+                    if cached.modified_millis == modified_millis {
+                        stats.cached_hits += 1;
+                        cached.cwd.clone()
+                    } else {
+                        stats.cache_misses += 1;
+                        extract_cwd_from_task_history(&task_history)
                     }
+                } else {
+                    stats.cache_misses += 1;
+                    extract_cwd_from_task_history(&task_history)
+                };
+
+                if cwd.is_none() {
+                    stats.skipped_files += 1;
+                }
+
+                next_cache.insert(
+                    task_history.clone(),
+                    CachedTaskEntry {
+                        modified_millis,
+                        cwd: cwd.clone(),
+                    },
+                );
+
+                if let Some(normalized) = cwd
+                    .as_deref()
+                    .and_then(|cwd| normalize_path(Path::new(cwd)))
+                {
+                    index.insert(normalized, last_session_id.clone());
                 }
             }
-        } else {
-            debug!("build_kilocode_session_index: no session info in {session_file:?}");
         }
     }
 
-    let len = index.len();
-    debug!("build_kilocode_session_index: built index with {len} entries");
-    index
+    (index, next_cache, stats)
 }
 
 /// Read workspace session.json and return (lastSession.sessionId, list of task IDs)
@@ -259,6 +662,33 @@ fn read_workspace_session_info(session_file: &Path) -> Option<(String, Vec<Strin
 
     Some((last_session_id, task_ids))
 }
+
+static DISABLE_INDEXING: LazyLock<bool> =
+    LazyLock::new(|| match std::env::var("SCHALTWERK_DISABLE_KILOCODE_INDEX") {
+        Ok(value) => {
+            let normalized = value.trim().to_ascii_lowercase();
+            if normalized.is_empty() {
+                false
+            } else {
+                !matches!(normalized.as_str(), "0" | "false" | "no")
+            }
+        }
+        Err(_) => false,
+    });
+
+#[cfg(test)]
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+#[cfg(test)]
+static TASK_HISTORY_READS: AtomicUsize = AtomicUsize::new(0);
+
+#[cfg(test)]
+fn bump_task_history_reads() {
+    TASK_HISTORY_READS.fetch_add(1, Ordering::Relaxed);
+}
+
+#[cfg(not(test))]
+fn bump_task_history_reads() {}
 
 pub fn build_kilocode_command_with_config(
     worktree_path: &Path,
@@ -506,20 +936,40 @@ mod tests {
 
     #[test]
     fn test_build_kilocode_session_index_with_mapping() {
-        // This test verifies the session index building works correctly
-        // In real usage, this would use actual workspace and task directories
-        // For now, we test the core logic of building the mapping
-
         let temp_dir = TempDir::new().unwrap();
-        let tasks_dir = temp_dir.path();
+        let tasks_dir = temp_dir.path().join("tasks");
+        let workspaces_dir = temp_dir.path().join("workspaces");
+        fs::create_dir_all(&tasks_dir).unwrap();
+        fs::create_dir_all(&workspaces_dir).unwrap();
 
-        // The index building works with task → session mappings
-        // In production, these come from workspace session.json files
-        let index = build_kilocode_session_index(tasks_dir);
+        let workspace_dir = workspaces_dir.join("ws-1");
+        fs::create_dir_all(&workspace_dir).unwrap();
+        fs::write(
+            workspace_dir.join("session.json"),
+            "{\"lastSession\":{\"sessionId\":\"last-sess-123\"},\"taskSessionMap\":{\"task-1\":\"session-1\"}}",
+        )
+        .unwrap();
 
-        // If tasks_dir is empty or no valid workspaces, index should be empty
-        // This validates the function runs without errors
-        assert!(index.is_empty()); // Empty temp dir = empty index
+        let task_dir = tasks_dir.join("task-1");
+        fs::create_dir_all(&task_dir).unwrap();
+
+        let project_dir = temp_dir.path().join("project");
+        fs::create_dir_all(&project_dir).unwrap();
+        fs::write(
+            task_dir.join("api_conversation_history.json"),
+            format!(
+                "[{{\"content\":[{{\"text\":\"# Current Workspace Directory ({})\"}}]}}]",
+                project_dir.display()
+            ),
+        )
+        .unwrap();
+
+        let (index, _cache, _stats) =
+            build_kilocode_session_index(&tasks_dir, &workspaces_dir, &HashMap::new());
+        assert_eq!(
+            index.get(&normalize_path(&project_dir).unwrap()),
+            Some(&"last-sess-123".to_string())
+        );
     }
 
     #[test]
@@ -531,5 +981,55 @@ mod tests {
         let result = find_kilocode_session(&nonexistent);
         // Should return None for invalid worktree paths that can't be canonicalized
         assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_disk_cache_avoids_reparsing_unchanged_tasks() {
+        let temp_dir = TempDir::new().unwrap();
+        let tasks_dir = temp_dir.path().join("tasks");
+        let workspaces_dir = temp_dir.path().join("workspaces");
+        fs::create_dir_all(&tasks_dir).unwrap();
+        fs::create_dir_all(&workspaces_dir).unwrap();
+
+        let workspace_dir = workspaces_dir.join("ws-1");
+        fs::create_dir_all(&workspace_dir).unwrap();
+        fs::write(
+            workspace_dir.join("session.json"),
+            "{\"lastSession\":{\"sessionId\":\"last-sess-123\"},\"taskSessionMap\":{\"task-1\":\"session-1\"}}",
+        )
+        .unwrap();
+
+        let worktree_dir = temp_dir.path().join("project");
+        fs::create_dir_all(&worktree_dir).unwrap();
+
+        let task_dir = tasks_dir.join("task-1");
+        fs::create_dir_all(&task_dir).unwrap();
+        fs::write(
+            task_dir.join("api_conversation_history.json"),
+            format!(
+                "[{{\"content\":[{{\"text\":\"# Current Workspace Directory ({})\"}}]}}]",
+                worktree_dir.display()
+            ),
+        )
+        .unwrap();
+
+        TASK_HISTORY_READS.store(0, Ordering::Relaxed);
+        let indexer = KilocodeIndex::new();
+        let index1 = indexer.get_or_rebuild(&tasks_dir, &workspaces_dir);
+        assert_eq!(
+            index1.get(&normalize_path(&worktree_dir).unwrap()),
+            Some(&"last-sess-123".to_string())
+        );
+        assert_eq!(TASK_HISTORY_READS.load(Ordering::Relaxed), 1);
+
+        // New indexer simulates a new process: should load persisted cache and skip parsing.
+        TASK_HISTORY_READS.store(0, Ordering::Relaxed);
+        let indexer2 = KilocodeIndex::new();
+        let index2 = indexer2.get_or_rebuild(&tasks_dir, &workspaces_dir);
+        assert_eq!(
+            index2.get(&normalize_path(&worktree_dir).unwrap()),
+            Some(&"last-sess-123".to_string())
+        );
+        assert_eq!(TASK_HISTORY_READS.load(Ordering::Relaxed), 0);
     }
 }

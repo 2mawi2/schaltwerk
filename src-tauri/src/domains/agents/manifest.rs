@@ -73,7 +73,7 @@ mod tests {
         assert_eq!(kilocode.binary_name, "kilocode");
         assert_eq!(kilocode.default_binary_path, "kilocode");
         assert!(!kilocode.auto_send_initial_command);
-        assert!(!kilocode.supports_resume);
+        assert!(kilocode.supports_resume);
     }
 
     #[test]

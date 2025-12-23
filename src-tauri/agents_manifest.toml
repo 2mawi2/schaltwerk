@@ -32,7 +32,7 @@ display_name = "Gemini"
 binary_name = "gemini"
 default_binary_path = "gemini"
 auto_send_initial_command = false
-supports_resume = false
+supports_resume = true
 
 [agents.opencode]
 id = "opencode"
@@ -73,7 +73,7 @@ display_name = "Kilo Code"
 binary_name = "kilocode"
 default_binary_path = "kilocode"
 auto_send_initial_command = false
-supports_resume = false
+supports_resume = true
 
 [agents.terminal]
 id = "terminal"
