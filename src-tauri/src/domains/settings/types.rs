@@ -124,6 +124,14 @@ fn default_attention_mode() -> AttentionNotificationMode {
     AttentionNotificationMode::Dock
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum DiffLayout {
+    #[default]
+    Unified,
+    Split,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DiffViewPreferences {
     #[serde(default)]
@@ -134,6 +142,8 @@ pub struct DiffViewPreferences {
     pub sidebar_width: u32,
     #[serde(default = "default_true")]
     pub inline_sidebar_default: bool,
+    #[serde(default)]
+    pub diff_layout: DiffLayout,
 }
 
 impl Default for DiffViewPreferences {
@@ -143,6 +153,7 @@ impl Default for DiffViewPreferences {
             compact_diffs: true,
             sidebar_width: default_sidebar_width(),
             inline_sidebar_default: true,
+            diff_layout: DiffLayout::Unified,
         }
     }
 }

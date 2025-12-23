@@ -115,7 +115,10 @@ export async function loadFileDiff(
       fileInfo: splitResponse.fileInfo,
       isBinary: splitResponse.isBinary,
       unsupportedReason: splitResponse.unsupportedReason,
-      totalLineCount: splitResponse.splitResult.leftLines.length + splitResponse.splitResult.rightLines.length,
+      totalLineCount: Math.max(
+        splitResponse.splitResult.leftLines.length,
+        splitResponse.splitResult.rightLines.length
+      ),
     }
   }
 }

@@ -50,8 +50,28 @@ function InlineDiffPreferenceController({ value }: { value: boolean }) {
   return null
 }
 
+function DiffPreferencesInitializer() {
+  const initializePreference = useSetAtom(initializeInlineDiffPreferenceActionAtom)
+  const [initialized, setInitialized] = useState(false)
+
+  useEffect(() => {
+    void initializePreference().finally(() => {
+      setInitialized(true)
+    })
+  }, [initializePreference])
+
+  if (!initialized) return null
+  return <div data-testid="diff-preferences-initialized" />
+}
+
 describe('UnifiedDiffModal diff viewer preferences', () => {
-  let diffPrefs: { continuous_scroll: boolean; compact_diffs: boolean; sidebar_width: number; inline_sidebar_default: boolean }
+  let diffPrefs: {
+    continuous_scroll: boolean
+    compact_diffs: boolean
+    sidebar_width: number
+    inline_sidebar_default: boolean
+    diff_layout: 'unified' | 'split'
+  }
 
   beforeEach(() => {
     diffPrefs = {
@@ -59,6 +79,7 @@ describe('UnifiedDiffModal diff viewer preferences', () => {
       compact_diffs: true,
       sidebar_width: 340,
       inline_sidebar_default: true,
+      diff_layout: 'unified',
     }
 
     invokeMock.mockImplementation(async (cmd: string, _args?: unknown) => {
@@ -101,6 +122,7 @@ describe('UnifiedDiffModal diff viewer preferences', () => {
   const renderModal = () => {
     return render(
       <TestProviders>
+        <DiffPreferencesInitializer />
         <UnifiedDiffModal filePath={null} isOpen={true} onClose={() => {}} />
       </TestProviders>
     )
@@ -171,6 +193,23 @@ describe('UnifiedDiffModal diff viewer preferences', () => {
       const payload = last?.[1] as { preferences?: Record<string, unknown> } | undefined
       expect(payload?.preferences?.continuous_scroll).toBe(true)
       expect(payload?.preferences?.inline_sidebar_default).toBe(false)
+    })
+  })
+
+  it('persists diff layout toggle', async () => {
+    renderModal()
+
+    await waitFor(() => {
+      expect(screen.getByText('Git Diff Viewer')).toBeInTheDocument()
+    })
+
+    await screen.findByTestId('diff-preferences-initialized')
+
+    const toggle = await screen.findByTestId('diff-layout-toggle')
+    fireEvent.click(toggle)
+
+    await waitFor(() => {
+      expect(diffPrefs.diff_layout).toBe('split')
     })
   })
 

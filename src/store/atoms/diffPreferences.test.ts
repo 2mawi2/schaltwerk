@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { createStore } from 'jotai'
 import {
   inlineSidebarDefaultPreferenceAtom,
+  diffLayoutPreferenceAtom,
   initializeInlineDiffPreferenceActionAtom,
 } from './diffPreferences'
 import { TauriCommands } from '../../common/tauriCommands'
@@ -61,6 +62,7 @@ describe('diffPreferences atoms', () => {
             compact_diffs: true,
             sidebar_width: 320,
             inline_sidebar_default: true,
+            diff_layout: 'split',
           })
         }
         if (cmd === TauriCommands.SetDiffViewPreferences) {
@@ -87,6 +89,7 @@ describe('diffPreferences atoms', () => {
             compact_diffs: true,
             sidebar_width: 320,
             inline_sidebar_default: false,
+            diff_layout: 'split',
           },
         }
       )
@@ -120,6 +123,7 @@ describe('diffPreferences atoms', () => {
             compact_diffs: true,
             sidebar_width: 320,
             inline_sidebar_default: true,
+            diff_layout: 'split',
           })
         }
         if (cmd === TauriCommands.SetDiffViewPreferences) {
@@ -146,6 +150,7 @@ describe('diffPreferences atoms', () => {
             compact_diffs: true,
             sidebar_width: 320,
             inline_sidebar_default: false,
+            diff_layout: 'split',
           },
         }
       )
@@ -154,6 +159,60 @@ describe('diffPreferences atoms', () => {
         call => call[0] === TauriCommands.SetDiffViewPreferences
       )
       expect(setCalls).toHaveLength(1)
+    })
+  })
+
+  describe('diffLayoutPreferenceAtom', () => {
+    it('has default value of unified', () => {
+      const value = store.get(diffLayoutPreferenceAtom)
+      expect(value).toBe('unified')
+    })
+
+    it('can be set to split', () => {
+      store.set(diffLayoutPreferenceAtom, 'split')
+      expect(store.get(diffLayoutPreferenceAtom)).toBe('split')
+    })
+
+    it('does not persist before initialization', async () => {
+      store.set(diffLayoutPreferenceAtom, 'split')
+      await flushScheduledSave()
+
+      expect(invoke).not.toHaveBeenCalled()
+    })
+
+    it('persists changes after initialization and keeps inline default', async () => {
+      vi.mocked(invoke).mockImplementation((cmd: string) => {
+        if (cmd === TauriCommands.GetDiffViewPreferences) {
+          return Promise.resolve({
+            continuous_scroll: false,
+            compact_diffs: true,
+            sidebar_width: 320,
+            inline_sidebar_default: true,
+            diff_layout: 'unified',
+          })
+        }
+        if (cmd === TauriCommands.SetDiffViewPreferences) {
+          return Promise.resolve()
+        }
+        return Promise.reject(new Error(`Unknown command: ${cmd}`))
+      })
+
+      await store.set(initializeInlineDiffPreferenceActionAtom)
+      vi.clearAllMocks()
+
+      store.set(diffLayoutPreferenceAtom, 'split')
+      await flushScheduledSave()
+
+      expect(store.get(inlineSidebarDefaultPreferenceAtom)).toBe(true)
+      expect(vi.mocked(invoke)).toHaveBeenCalledWith(
+        TauriCommands.SetDiffViewPreferences,
+        {
+          preferences: expect.objectContaining({
+            inline_sidebar_default: true,
+            diff_layout: 'split',
+          }),
+        }
+      )
     })
   })
 
@@ -173,6 +232,21 @@ describe('diffPreferences atoms', () => {
       expect(store.get(inlineSidebarDefaultPreferenceAtom)).toBe(false)
     })
 
+    it('loads diff layout from backend', async () => {
+      vi.mocked(invoke).mockImplementation((cmd: string) => {
+        if (cmd === TauriCommands.GetDiffViewPreferences) {
+          return Promise.resolve({
+            diff_layout: 'split',
+          })
+        }
+        return Promise.reject(new Error(`Unknown command: ${cmd}`))
+      })
+
+      await store.set(initializeInlineDiffPreferenceActionAtom)
+
+      expect(store.get(diffLayoutPreferenceAtom)).toBe('split')
+    })
+
     it('defaults to true if preference not set', async () => {
       vi.mocked(invoke).mockImplementation((cmd: string) => {
         if (cmd === TauriCommands.GetDiffViewPreferences) {
@@ -184,6 +258,19 @@ describe('diffPreferences atoms', () => {
       await store.set(initializeInlineDiffPreferenceActionAtom)
 
       expect(store.get(inlineSidebarDefaultPreferenceAtom)).toBe(true)
+    })
+
+    it('defaults diff layout to unified if preference not set', async () => {
+      vi.mocked(invoke).mockImplementation((cmd: string) => {
+        if (cmd === TauriCommands.GetDiffViewPreferences) {
+          return Promise.resolve({})
+        }
+        return Promise.reject(new Error(`Unknown command: ${cmd}`))
+      })
+
+      await store.set(initializeInlineDiffPreferenceActionAtom)
+
+      expect(store.get(diffLayoutPreferenceAtom)).toBe('unified')
     })
 
     it('defaults to true on error', async () => {
@@ -199,6 +286,19 @@ describe('diffPreferences atoms', () => {
       expect(store.get(inlineSidebarDefaultPreferenceAtom)).toBe(true)
     })
 
+    it('defaults diff layout to unified on error', async () => {
+      vi.mocked(invoke).mockImplementation((cmd: string) => {
+        if (cmd === TauriCommands.GetDiffViewPreferences) {
+          return Promise.reject(new Error('Backend error'))
+        }
+        return Promise.reject(new Error(`Unknown command: ${cmd}`))
+      })
+
+      await store.set(initializeInlineDiffPreferenceActionAtom)
+
+      expect(store.get(diffLayoutPreferenceAtom)).toBe('unified')
+    })
+
     it('preserves other preferences when saving', async () => {
       vi.mocked(invoke).mockImplementation((cmd: string) => {
         if (cmd === TauriCommands.GetDiffViewPreferences) {
@@ -207,6 +307,7 @@ describe('diffPreferences atoms', () => {
             compact_diffs: false,
             sidebar_width: 400,
             inline_sidebar_default: true,
+            diff_layout: 'split',
           })
         }
         if (cmd === TauriCommands.SetDiffViewPreferences) {
@@ -230,6 +331,7 @@ describe('diffPreferences atoms', () => {
             compact_diffs: false,
             sidebar_width: 400,
             inline_sidebar_default: false,
+            diff_layout: 'split',
           },
         }
       )

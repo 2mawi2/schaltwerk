@@ -11,7 +11,8 @@ use schaltwerk::domains::git::stats::build_changed_files_from_diff;
 use schaltwerk::domains::sessions::entity::ChangedFile;
 use schaltwerk::domains::workspace::diff_engine::{
     DiffResponse, FileInfo, SplitDiffResponse, add_collapsible_sections, calculate_diff_stats,
-    calculate_split_diff_stats, compute_split_diff, compute_unified_diff, get_file_language,
+    add_collapsible_sections_split, calculate_split_diff_stats, compute_split_diff,
+    compute_unified_diff, get_file_language,
 };
 use schaltwerk::domains::workspace::file_utils;
 use serde::Serialize;
@@ -1383,6 +1384,11 @@ pub async fn compute_split_diff_backend(
     let split_result = compute_split_diff(&old_content, &new_content);
     let diff_duration = start_diff.elapsed();
 
+    // Profile collapsible sections
+    let start_collapse = Instant::now();
+    let split_result = add_collapsible_sections_split(split_result);
+    let collapse_duration = start_collapse.elapsed();
+
     // Profile stats calculation
     let start_stats = Instant::now();
     let stats = calculate_split_diff_stats(&split_result);
@@ -1399,11 +1405,12 @@ pub async fn compute_split_diff_backend(
     // Log performance metrics
     if total_duration.as_millis() > 100 || is_large_file {
         log::info!(
-            "Split diff performance for {}: total={}ms (load={}ms, diff={}ms, stats={}ms), size={}KB, lines={}+{}",
+            "Split diff performance for {}: total={}ms (load={}ms, diff={}ms, collapse={}ms, stats={}ms), size={}KB, lines={}+{}",
             file_path,
             total_duration.as_millis(),
             load_duration.as_millis(),
             diff_duration.as_millis(),
+            collapse_duration.as_millis(),
             stats_duration.as_millis(),
             new_content.len() / 1024,
             split_result.left_lines.len(),

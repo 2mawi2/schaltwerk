@@ -6,7 +6,7 @@ import {
   useRef,
   useLayoutEffect,
 } from "react";
-import { useAtomValue } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import { TauriCommands } from "../../common/tauriCommands";
 import { invoke } from "@tauri-apps/api/core";
 import { useSelection } from "../../hooks/useSelection";
@@ -33,6 +33,8 @@ import {
   VscListFlat,
   VscListSelection,
   VscCheck,
+  VscDiff,
+  VscSplitHorizontal,
 } from "react-icons/vsc";
 import { SearchBox } from "../common/SearchBox";
 import "../../styles/vscode-dark-theme.css";
@@ -61,11 +63,15 @@ import { createGuardedLoader } from "./guardedLoader";
 import { theme } from "../../common/theme";
 import { ResizableModal } from "../shared/ResizableModal";
 import { computeRenderOrder } from "./virtualization";
-import { HistoryDiffContext } from "../../types/diff";
+import type { HistoryDiffContext, LineInfo } from "../../types/diff";
 import type { OpenInAppRequest } from "../OpenInSplitButton";
 import { buildFolderTree, getVisualFileOrder } from "../../utils/folderTree";
 import { useClaudeSession } from "../../hooks/useClaudeSession";
-import { inlineSidebarDefaultPreferenceAtom } from "../../store/atoms/diffPreferences";
+import {
+  inlineSidebarDefaultPreferenceAtom,
+  diffLayoutPreferenceAtom,
+  type DiffLayoutMode,
+} from "../../store/atoms/diffPreferences";
 import {
   captureSidebarScroll,
   restoreSidebarScroll,
@@ -89,6 +95,7 @@ interface DiffViewPreferences {
   compact_diffs: boolean;
   sidebar_width?: number;
   inline_sidebar_default?: boolean;
+  diff_layout?: "unified" | "split";
 }
 
 export const shouldHandleFileChange = (
@@ -207,6 +214,8 @@ export function UnifiedDiffView({
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const sidebarWidthRef = useRef(320);
   const inlineSidebarDefault = useAtomValue(inlineSidebarDefaultPreferenceAtom);
+  const diffLayoutPreference = useAtomValue(diffLayoutPreferenceAtom);
+  const setDiffLayoutPreference = useSetAtom(diffLayoutPreferenceAtom);
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const sidebarDragStartRef = useRef<{ x: number; width: number } | null>(null);
   const resizeFrameRef = useRef<number | null>(null);
@@ -276,6 +285,8 @@ export function UnifiedDiffView({
 
   // Force continuous scroll in sidebar mode
   const isSidebarMode = viewMode === "sidebar";
+  const diffLayout: DiffLayoutMode =
+    mode === "history" || isSidebarMode ? "unified" : diffLayoutPreference;
   const effectiveContinuousScroll =
     mode === "history" || isSidebarMode ? true : continuousScroll;
   const isLargeDiffMode = useMemo(() => {
@@ -562,6 +573,7 @@ export function UnifiedDiffView({
         compact_diffs: partial.compact_diffs ?? compactDiffs,
         sidebar_width: partial.sidebar_width ?? sidebarWidthRef.current,
         inline_sidebar_default: inlineSidebarDefault,
+        diff_layout: diffLayoutPreference,
       };
 
       try {
@@ -572,7 +584,14 @@ export function UnifiedDiffView({
         logger.error("Failed to save diff view preference:", err);
       }
     },
-    [mode, isSidebarMode, continuousScroll, compactDiffs, inlineSidebarDefault],
+    [
+      mode,
+      isSidebarMode,
+      continuousScroll,
+      compactDiffs,
+      inlineSidebarDefault,
+      diffLayoutPreference,
+    ],
   );
 
   const toggleContinuousScroll = useCallback(async () => {
@@ -594,7 +613,7 @@ export function UnifiedDiffView({
       const file = files.find((f) => f.path === selectedFile);
       if (file) {
         try {
-          const diff = await loadFileDiff(sessionName, file, "unified");
+          const diff = await loadFileDiff(sessionName, file, diffLayout);
           setAllFileDiffs(new Map([[selectedFile, diff]]));
         } catch (e) {
           logger.error("Failed to reload selected file:", e);
@@ -610,6 +629,7 @@ export function UnifiedDiffView({
     selectedFile,
     files,
     sessionName,
+    diffLayout,
     persistDiffPreferences,
   ]);
 
@@ -620,6 +640,50 @@ export function UnifiedDiffView({
       return next;
     });
   }, [persistDiffPreferences]);
+
+  const toggleDiffLayout = useCallback(async () => {
+    if (mode === "history" || isSidebarMode) {
+      return;
+    }
+    const nextLayout: DiffLayoutMode =
+      diffLayoutPreference === "unified" ? "split" : "unified";
+    setDiffLayoutPreference(nextLayout);
+  }, [mode, isSidebarMode, diffLayoutPreference, setDiffLayoutPreference]);
+
+  useEffect(() => {
+    if (!isOpen || mode === "history" || isSidebarMode) {
+      return;
+    }
+
+    setAllFileDiffs(new Map());
+    setFileError(null);
+
+    if (!isLargeDiffMode || !selectedFile) {
+      return;
+    }
+
+    const file = files.find((f) => f.path === selectedFile);
+    if (!file) {
+      return;
+    }
+
+    void loadFileDiff(sessionName, file, diffLayout)
+      .then((diff) => {
+        setAllFileDiffs(new Map([[selectedFile, diff]]));
+      })
+      .catch((error) => {
+        logger.error("Failed to reload selected file:", error);
+      });
+  }, [
+    diffLayout,
+    files,
+    isLargeDiffMode,
+    isOpen,
+    isSidebarMode,
+    mode,
+    selectedFile,
+    sessionName,
+  ]);
 
   const handleCopyLineFromContext = useCallback(
     async ({
@@ -874,7 +938,7 @@ export function UnifiedDiffView({
             const primary = await loadFileDiff(
               sessionName,
               targetFile,
-              "unified",
+              diffLayout,
             );
             setAllFileDiffs((prev) => {
               const merged = new Map(prev);
@@ -917,6 +981,7 @@ export function UnifiedDiffView({
     filePath,
     sessionName,
     captureScrollAnchor,
+    diffLayout,
   ]);
 
   // Prevent overlapping loads; queue a single follow-up run if an event fires mid-load.
@@ -1084,7 +1149,7 @@ export function UnifiedDiffView({
                 historyLoadedRef.current.add(path);
               }
             } else {
-              diff = await loadFileDiff(sessionName, file, "unified");
+              diff = await loadFileDiff(sessionName, file, diffLayout);
             }
 
             if (diff) {
@@ -1167,6 +1232,7 @@ export function UnifiedDiffView({
     files,
     sessionName,
     allFileDiffs,
+    diffLayout,
     viewMode,
   ],
 );
@@ -1629,7 +1695,7 @@ export function UnifiedDiffView({
             return { path, diff };
           }
 
-          const diff = await loadFileDiff(sessionName, file, "unified");
+          const diff = await loadFileDiff(sessionName, file, diffLayout);
           return { path, diff };
         } catch (e) {
           logger.error(`Failed to load diff for ${path}:`, e);
@@ -1674,6 +1740,7 @@ export function UnifiedDiffView({
     isLargeDiffMode,
     isOpen,
     sessionName,
+    diffLayout,
     mode,
     historyContext,
   ]);
@@ -2126,12 +2193,32 @@ export function UnifiedDiffView({
 
   const { requestBlockHighlight, readBlockLine } = useHighlightWorker();
 
+  const highlightTargets = useMemo(() => {
+    if (!isOpen) {
+      return new Set<string>();
+    }
+
+    if (isLargeDiffMode) {
+      return selectedFile ? new Set([selectedFile]) : new Set<string>();
+    }
+
+    const targets = new Set(visibleFileSet);
+    if (selectedFile) {
+      targets.add(selectedFile);
+    }
+    return targets;
+  }, [isLargeDiffMode, isOpen, selectedFile, visibleFileSet]);
+
   const highlightPlans = useMemo(() => {
     const plans = new Map<string, FileHighlightPlan>();
 
     for (const file of files) {
+      if (!highlightTargets.has(file.path)) {
+        continue;
+      }
+
       const diff = allFileDiffs.get(file.path);
-      if (!diff || !("diffResult" in diff)) continue;
+      if (!diff) continue;
 
       const descriptors = collectLineDescriptors(file.path, diff);
       if (descriptors.length === 0) continue;
@@ -2162,7 +2249,7 @@ export function UnifiedDiffView({
     }
 
     return plans;
-  }, [files, allFileDiffs]);
+  }, [files, allFileDiffs, highlightTargets]);
 
   useEffect(() => {
     highlightPlans.forEach((plan) => {
@@ -2184,15 +2271,16 @@ export function UnifiedDiffView({
 
       const plan = highlightPlans.get(filePath);
       if (!plan || plan.bypass) {
-        return code;
+        return undefined;
       }
 
       const location = plan.lineMap.get(lineKey);
       if (!location) {
-        return code;
+        return undefined;
       }
 
-      return readBlockLine(location.cacheKey, location.index, code);
+      const candidate = readBlockLine(location.cacheKey, location.index, code);
+      return candidate === code ? undefined : candidate;
     },
     [highlightPlans, readBlockLine],
   );
@@ -3023,6 +3111,31 @@ export function UnifiedDiffView({
           compactDiffs ? "Show full context" : "Collapse unchanged lines"
         }
       ></button>
+      {!isSidebarMode && mode !== "history" && (
+        <button
+          onClick={() => {
+            void toggleDiffLayout();
+          }}
+          className="p-1.5 hover:bg-slate-800 rounded-lg"
+          title={
+            diffLayout === "unified"
+              ? "Switch to side-by-side diff"
+              : "Switch to unified diff"
+          }
+          aria-label={
+            diffLayout === "unified"
+              ? "Switch to side-by-side diff"
+              : "Switch to unified diff"
+          }
+          data-testid="diff-layout-toggle"
+        >
+          {diffLayout === "unified" ? (
+            <VscSplitHorizontal className="text-xl" />
+          ) : (
+            <VscDiff className="text-xl" />
+          )}
+        </button>
+      )}
       {!isSidebarMode && (
         <button
           onClick={() => {
@@ -3453,35 +3566,119 @@ interface LineDescriptor {
   content: string;
 }
 
+function isSplitUnchangedPair(
+  left?: LineInfo,
+  right?: LineInfo,
+): boolean {
+  if (!left || !right) {
+    return false;
+  }
+  return (
+    left.type === "unchanged" &&
+    right.type === "unchanged" &&
+    left.oldLineNumber !== undefined &&
+    right.newLineNumber !== undefined &&
+    left.content === right.content
+  );
+}
+
 function collectLineDescriptors(
   filePath: string,
   diff: FileDiffData,
 ): LineDescriptor[] {
-  if (!("diffResult" in diff)) {
-    return [];
-  }
-
   const descriptors: LineDescriptor[] = [];
 
-  diff.diffResult.forEach((line, index) => {
-    const baseKey = `${filePath}-${index}`;
+  if ("diffResult" in diff) {
+    diff.diffResult.forEach((line, index) => {
+      const baseKey = `${filePath}-${index}`;
 
-    if (line.isCollapsible) {
-      line.collapsedLines?.forEach((collapsedLine, collapsedIndex) => {
-        if (collapsedLine.content !== undefined) {
-          descriptors.push({
-            key: `${baseKey}-expanded-${collapsedIndex}`,
-            content: collapsedLine.content,
-          });
+      if (line.isCollapsible) {
+        line.collapsedLines?.forEach((collapsedLine, collapsedIndex) => {
+          if (collapsedLine.content !== undefined) {
+            descriptors.push({
+              key: `${baseKey}-expanded-${collapsedIndex}`,
+              content: collapsedLine.content,
+            });
+          }
+        });
+        return;
+      }
+
+      if (line.content !== undefined) {
+        descriptors.push({ key: baseKey, content: line.content });
+      }
+    });
+  } else if ("splitDiffResult" in diff) {
+    const { leftLines, rightLines } = diff.splitDiffResult;
+    const rowCount = Math.max(leftLines.length, rightLines.length);
+
+    for (let index = 0; index < rowCount; index += 1) {
+      const left = leftLines[index];
+      const right = rightLines[index];
+      if (!left && !right) {
+        continue;
+      }
+
+      const baseKey = `${filePath}-${index}`;
+      const isCollapsible = !!(left?.isCollapsible || right?.isCollapsible);
+
+      if (isCollapsible) {
+        const leftCollapsed = left?.collapsedLines ?? [];
+        const rightCollapsed = right?.collapsedLines ?? [];
+        const expandedCount = Math.max(
+          leftCollapsed.length,
+          rightCollapsed.length,
+        );
+
+        for (let collapsedIndex = 0; collapsedIndex < expandedCount; collapsedIndex += 1) {
+          const expandedLeft = leftCollapsed[collapsedIndex];
+          const expandedRight = rightCollapsed[collapsedIndex];
+          if (!expandedLeft && !expandedRight) {
+            continue;
+          }
+
+          const expandedBaseKey = `${baseKey}-expanded-${collapsedIndex}`;
+          if (isSplitUnchangedPair(expandedLeft, expandedRight)) {
+            if (expandedLeft?.content !== undefined) {
+              descriptors.push({
+                key: expandedBaseKey,
+                content: expandedLeft.content,
+              });
+            }
+            continue;
+          }
+
+          if (expandedLeft?.content !== undefined) {
+            descriptors.push({
+              key: `${baseKey}-left-expanded-${collapsedIndex}`,
+              content: expandedLeft.content,
+            });
+          }
+          if (expandedRight?.content !== undefined) {
+            descriptors.push({
+              key: `${baseKey}-right-expanded-${collapsedIndex}`,
+              content: expandedRight.content,
+            });
+          }
         }
-      });
-      return;
-    }
+        continue;
+      }
 
-    if (line.content !== undefined) {
-      descriptors.push({ key: baseKey, content: line.content });
+      if (isSplitUnchangedPair(left, right)) {
+        if (left?.content !== undefined) {
+          descriptors.push({ key: baseKey, content: left.content });
+        }
+        continue;
+      }
+
+      if (left?.content !== undefined) {
+        descriptors.push({ key: `${baseKey}-left`, content: left.content });
+      }
+      if (right?.content !== undefined) {
+        descriptors.push({ key: `${baseKey}-right`, content: right.content });
+      }
     }
-  });
+  }
 
   return descriptors;
 }

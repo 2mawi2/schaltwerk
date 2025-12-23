@@ -215,6 +215,182 @@ pub fn add_collapsible_sections(lines: Vec<DiffLine>) -> Vec<DiffLine> {
     processed_lines
 }
 
+fn is_split_unchanged_pair(left: &DiffLine, right: &DiffLine) -> bool {
+    matches!(left.line_type, LineType::Unchanged)
+        && matches!(right.line_type, LineType::Unchanged)
+        && left.old_line_number.is_some()
+        && right.new_line_number.is_some()
+}
+
+pub fn add_collapsible_sections_split(split: SplitDiffResult) -> SplitDiffResult {
+    let SplitDiffResult {
+        left_lines,
+        right_lines,
+    } = split;
+
+    if left_lines.is_empty() || right_lines.is_empty() {
+        return SplitDiffResult {
+            left_lines,
+            right_lines,
+        };
+    }
+
+    let total_len = left_lines.len().min(right_lines.len());
+    let mut left_processed = Vec::with_capacity(total_len);
+    let mut right_processed = Vec::with_capacity(total_len);
+    let mut i = 0;
+
+    while i < total_len {
+        let left = &left_lines[i];
+        let right = &right_lines[i];
+
+        if is_split_unchanged_pair(left, right) {
+            let mut j = i;
+            while j < total_len && is_split_unchanged_pair(&left_lines[j], &right_lines[j]) {
+                j += 1;
+            }
+
+            let unchanged_count = j - i;
+
+            if unchanged_count > COLLAPSE_THRESHOLD + 2 * CONTEXT_LINES {
+                for k in 0..CONTEXT_LINES {
+                    let idx = i + k;
+                    left_processed.push(left_lines[idx].clone());
+                    right_processed.push(right_lines[idx].clone());
+                }
+
+                let collapsed_start = i + CONTEXT_LINES;
+                let collapsed_end = j - CONTEXT_LINES;
+                let collapsed_count = collapsed_end - collapsed_start;
+
+                if collapsed_count > 0 {
+                    let collapsed_left =
+                        left_lines[collapsed_start..collapsed_end].to_vec();
+                    let collapsed_right =
+                        right_lines[collapsed_start..collapsed_end].to_vec();
+
+                    left_processed.push(DiffLine {
+                        content: String::new(),
+                        line_type: LineType::Unchanged,
+                        old_line_number: left_lines[collapsed_start].old_line_number,
+                        new_line_number: None,
+                        is_collapsible: Some(true),
+                        collapsed_count: Some(collapsed_count),
+                        collapsed_lines: Some(collapsed_left),
+                    });
+
+                    right_processed.push(DiffLine {
+                        content: String::new(),
+                        line_type: LineType::Unchanged,
+                        old_line_number: None,
+                        new_line_number: right_lines[collapsed_start].new_line_number,
+                        is_collapsible: Some(true),
+                        collapsed_count: Some(collapsed_count),
+                        collapsed_lines: Some(collapsed_right),
+                    });
+                }
+
+                for idx in collapsed_end..j {
+                    left_processed.push(left_lines[idx].clone());
+                    right_processed.push(right_lines[idx].clone());
+                }
+            } else {
+                for idx in i..j {
+                    left_processed.push(left_lines[idx].clone());
+                    right_processed.push(right_lines[idx].clone());
+                }
+            }
+
+            i = j;
+        } else {
+            left_processed.push(left.clone());
+            right_processed.push(right.clone());
+            i += 1;
+        }
+    }
+
+    SplitDiffResult {
+        left_lines: left_processed,
+        right_lines: right_processed,
+    }
+}
+
+fn flush_pending_split_changes(
+    left_lines: &mut Vec<DiffLine>,
+    right_lines: &mut Vec<DiffLine>,
+    pending_deletes: &mut Vec<(String, usize)>,
+    pending_inserts: &mut Vec<(String, usize)>,
+) {
+    let mut deletes = pending_deletes.drain(..);
+    let mut inserts = pending_inserts.drain(..);
+
+    loop {
+        match (deletes.next(), inserts.next()) {
+            (Some((deleted_content, deleted_line)), Some((inserted_content, inserted_line))) => {
+                left_lines.push(DiffLine {
+                    content: deleted_content,
+                    line_type: LineType::Removed,
+                    old_line_number: Some(deleted_line),
+                    new_line_number: None,
+                    is_collapsible: None,
+                    collapsed_count: None,
+                    collapsed_lines: None,
+                });
+                right_lines.push(DiffLine {
+                    content: inserted_content,
+                    line_type: LineType::Added,
+                    old_line_number: None,
+                    new_line_number: Some(inserted_line),
+                    is_collapsible: None,
+                    collapsed_count: None,
+                    collapsed_lines: None,
+                });
+            }
+            (Some((deleted_content, deleted_line)), None) => {
+                left_lines.push(DiffLine {
+                    content: deleted_content,
+                    line_type: LineType::Removed,
+                    old_line_number: Some(deleted_line),
+                    new_line_number: None,
+                    is_collapsible: None,
+                    collapsed_count: None,
+                    collapsed_lines: None,
+                });
+                right_lines.push(DiffLine {
+                    content: String::new(),
+                    line_type: LineType::Unchanged,
+                    old_line_number: None,
+                    new_line_number: None,
+                    is_collapsible: None,
+                    collapsed_count: None,
+                    collapsed_lines: None,
+                });
+            }
+            (None, Some((inserted_content, inserted_line))) => {
+                left_lines.push(DiffLine {
+                    content: String::new(),
+                    line_type: LineType::Unchanged,
+                    old_line_number: None,
+                    new_line_number: None,
+                    is_collapsible: None,
+                    collapsed_count: None,
+                    collapsed_lines: None,
+                });
+                right_lines.push(DiffLine {
+                    content: inserted_content,
+                    line_type: LineType::Added,
+                    old_line_number: None,
+                    new_line_number: Some(inserted_line),
+                    is_collapsible: None,
+                    collapsed_count: None,
+                    collapsed_lines: None,
+                });
+            }
+            (None, None) => break,
+        }
+    }
+}
+
 pub fn compute_split_diff(old_content: &str, new_content: &str) -> SplitDiffResult {
     let old_text = ensure_trailing_newline(old_content);
     let new_text = ensure_trailing_newline(new_content);
@@ -231,6 +407,9 @@ pub fn compute_split_diff(old_content: &str, new_content: &str) -> SplitDiffResu
     let mut old_idx = 0;
     let mut new_idx = 0;
 
+    let mut pending_deletes: Vec<(String, usize)> = Vec::new();
+    let mut pending_inserts: Vec<(String, usize)> = Vec::new();
+
     for change in diff.iter_all_changes() {
         let content = change.value();
         let content_str = if let Some(stripped) = content.strip_suffix('\n') {
@@ -241,6 +420,13 @@ pub fn compute_split_diff(old_content: &str, new_content: &str) -> SplitDiffResu
 
         match change.tag() {
             ChangeTag::Equal => {
+                flush_pending_split_changes(
+                    &mut left_lines,
+                    &mut right_lines,
+                    &mut pending_deletes,
+                    &mut pending_inserts,
+                );
+
                 left_lines.push(DiffLine {
                     content: content_str.clone(),
                     line_type: LineType::Unchanged,
@@ -263,49 +449,22 @@ pub fn compute_split_diff(old_content: &str, new_content: &str) -> SplitDiffResu
                 new_idx += 1;
             }
             ChangeTag::Delete => {
-                left_lines.push(DiffLine {
-                    content: content_str,
-                    line_type: LineType::Removed,
-                    old_line_number: Some(old_idx + 1),
-                    new_line_number: None,
-                    is_collapsible: None,
-                    collapsed_count: None,
-                    collapsed_lines: None,
-                });
-                right_lines.push(DiffLine {
-                    content: String::new(),
-                    line_type: LineType::Unchanged,
-                    old_line_number: None,
-                    new_line_number: None,
-                    is_collapsible: None,
-                    collapsed_count: None,
-                    collapsed_lines: None,
-                });
+                pending_deletes.push((content_str, old_idx + 1));
                 old_idx += 1;
             }
             ChangeTag::Insert => {
-                left_lines.push(DiffLine {
-                    content: String::new(),
-                    line_type: LineType::Unchanged,
-                    old_line_number: None,
-                    new_line_number: None,
-                    is_collapsible: None,
-                    collapsed_count: None,
-                    collapsed_lines: None,
-                });
-                right_lines.push(DiffLine {
-                    content: content_str,
-                    line_type: LineType::Added,
-                    old_line_number: None,
-                    new_line_number: Some(new_idx + 1),
-                    is_collapsible: None,
-                    collapsed_count: None,
-                    collapsed_lines: None,
-                });
+                pending_inserts.push((content_str, new_idx + 1));
                 new_idx += 1;
             }
         }
     }
+
+    flush_pending_split_changes(
+        &mut left_lines,
+        &mut right_lines,
+        &mut pending_deletes,
+        &mut pending_inserts,
+    );
 
     SplitDiffResult {
         left_lines,
@@ -860,8 +1019,8 @@ mod tests {
 
         let result = compute_split_diff(old, new);
 
-        assert_eq!(result.left_lines.len(), 4);
-        assert_eq!(result.right_lines.len(), 4);
+        assert_eq!(result.left_lines.len(), 3);
+        assert_eq!(result.right_lines.len(), 3);
 
         // Line 1: unchanged on both sides
         assert!(matches!(
@@ -875,35 +1034,23 @@ mod tests {
         assert_eq!(result.left_lines[0].content, "line 1");
         assert_eq!(result.right_lines[0].content, "line 1");
 
-        // Line 2: removed on left, empty on right
+        // Line 2: modification aligned side-by-side
         assert!(matches!(result.left_lines[1].line_type, LineType::Removed));
-        assert!(matches!(
-            result.right_lines[1].line_type,
-            LineType::Unchanged
-        ));
+        assert!(matches!(result.right_lines[1].line_type, LineType::Added));
         assert_eq!(result.left_lines[1].content, "line 2");
-        assert_eq!(result.right_lines[1].content, "");
+        assert_eq!(result.right_lines[1].content, "line 2 modified");
 
-        // Empty line on left, added on right
+        // Line 3: unchanged on both sides
         assert!(matches!(
             result.left_lines[2].line_type,
             LineType::Unchanged
         ));
-        assert!(matches!(result.right_lines[2].line_type, LineType::Added));
-        assert_eq!(result.left_lines[2].content, "");
-        assert_eq!(result.right_lines[2].content, "line 2 modified");
-
-        // Line 3: unchanged on both sides
         assert!(matches!(
-            result.left_lines[3].line_type,
+            result.right_lines[2].line_type,
             LineType::Unchanged
         ));
-        assert!(matches!(
-            result.right_lines[3].line_type,
-            LineType::Unchanged
-        ));
-        assert_eq!(result.left_lines[3].content, "line 3");
-        assert_eq!(result.right_lines[3].content, "line 3");
+        assert_eq!(result.left_lines[2].content, "line 3");
+        assert_eq!(result.right_lines[2].content, "line 3");
     }
 
     #[test]
@@ -999,23 +1146,77 @@ mod tests {
         assert_eq!(result.right_lines[0].old_line_number, None);
         assert_eq!(result.right_lines[0].new_line_number, Some(1));
 
-        // Check line numbers for the removed line
+        // Check line numbers for the modified line (removed vs added)
         assert_eq!(result.left_lines[1].old_line_number, Some(2));
         assert_eq!(result.left_lines[1].new_line_number, None);
         assert_eq!(result.right_lines[1].old_line_number, None);
-        assert_eq!(result.right_lines[1].new_line_number, None); // Empty line
-
-        // Check line numbers for the added line
-        assert_eq!(result.left_lines[2].old_line_number, None); // Empty line
-        assert_eq!(result.left_lines[2].new_line_number, None);
-        assert_eq!(result.right_lines[2].old_line_number, None);
-        assert_eq!(result.right_lines[2].new_line_number, Some(2));
+        assert_eq!(result.right_lines[1].new_line_number, Some(2));
 
         // Check line numbers for the last unchanged line
-        assert_eq!(result.left_lines[3].old_line_number, Some(3));
-        assert_eq!(result.left_lines[3].new_line_number, None);
-        assert_eq!(result.right_lines[3].old_line_number, None);
-        assert_eq!(result.right_lines[3].new_line_number, Some(3));
+        assert_eq!(result.left_lines[2].old_line_number, Some(3));
+        assert_eq!(result.left_lines[2].new_line_number, None);
+        assert_eq!(result.right_lines[2].old_line_number, None);
+        assert_eq!(result.right_lines[2].new_line_number, Some(3));
+    }
+
+    #[test]
+    fn test_compute_split_diff_aligns_uneven_delete_insert_blocks() {
+        let old = "a\nb\nc\nd\n";
+        let new = "a\nx\nd\n";
+
+        let result = compute_split_diff(old, new);
+
+        assert_eq!(result.left_lines.len(), result.right_lines.len());
+
+        // a, then (b->x), then c deleted with blank right, then d
+        assert_eq!(result.left_lines.len(), 4);
+
+        assert!(matches!(result.left_lines[1].line_type, LineType::Removed));
+        assert_eq!(result.left_lines[1].content, "b");
+        assert!(matches!(result.right_lines[1].line_type, LineType::Added));
+        assert_eq!(result.right_lines[1].content, "x");
+
+        assert!(matches!(result.left_lines[2].line_type, LineType::Removed));
+        assert_eq!(result.left_lines[2].content, "c");
+        assert!(matches!(result.right_lines[2].line_type, LineType::Unchanged));
+        assert_eq!(result.right_lines[2].content, "");
+        assert_eq!(result.right_lines[2].new_line_number, None);
+    }
+
+    #[test]
+    fn test_add_collapsible_sections_split_collapses_long_unchanged_block() {
+        let lines: Vec<String> = (1..=20).map(|i| format!("line {i}")).collect();
+        let content = lines.join("\n");
+        let split = compute_split_diff(&content, &content);
+
+        let result = add_collapsible_sections_split(split);
+
+        assert_eq!(result.left_lines.len(), 7);
+        assert_eq!(result.right_lines.len(), 7);
+
+        let left_collapsible = &result.left_lines[3];
+        let right_collapsible = &result.right_lines[3];
+
+        assert!(left_collapsible.is_collapsible.unwrap_or(false));
+        assert!(right_collapsible.is_collapsible.unwrap_or(false));
+        assert_eq!(left_collapsible.collapsed_count, Some(14));
+        assert_eq!(right_collapsible.collapsed_count, Some(14));
+        assert_eq!(
+            left_collapsible
+                .collapsed_lines
+                .as_ref()
+                .map(|lines| lines.len()),
+            Some(14)
+        );
+        assert_eq!(
+            right_collapsible
+                .collapsed_lines
+                .as_ref()
+                .map(|lines| lines.len()),
+            Some(14)
+        );
+        assert_eq!(left_collapsible.old_line_number, Some(4));
+        assert_eq!(right_collapsible.new_line_number, Some(4));
     }
 
     // ===== calculate_diff_stats Tests =====

@@ -358,6 +358,7 @@ beforeEach(() => {
   cleanupRegistryMock.addResizeObserver.mockClear()
   cleanupRegistryMock.addTimeout.mockClear()
   cleanupRegistryMock.addInterval.mockClear()
+  vi.mocked(writeTerminalBackend).mockClear()
   const navigatorAny = navigator as Navigator & { userAgent?: string }
   Object.defineProperty(navigatorAny, 'userAgent', {
     value: 'Macintosh',

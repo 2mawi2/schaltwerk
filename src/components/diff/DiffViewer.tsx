@@ -3,11 +3,13 @@ import clsx from 'clsx'
 import { VscComment, VscDiscard } from 'react-icons/vsc'
 import { getFileIcon } from '../../utils/fileIcons'
 import { DiffLineRow } from './DiffLineRow'
+import { SplitDiffRows } from './SplitDiffRows'
 import { ChangedFile } from './DiffFileExplorer'
 import { FileDiffData } from './loadDiffs'
 import { AnimatedText } from '../common/AnimatedText'
 import { ReviewCommentThread } from '../../types/review'
 import { LineSelection } from '../../hooks/useLineSelection'
+import type { LineInfo } from '../../types/diff'
 import { theme } from '../../common/theme'
 import { OpenInSplitButton, type OpenApp, type OpenInAppRequest } from '../OpenInSplitButton'
 import { ConfirmDiscardDialog } from '../common/ConfirmDiscardDialog'
@@ -152,7 +154,7 @@ export interface DiffViewerProps {
   onToggleFileExpanded: (filePath: string) => void
   onFileBodyHeightChange: (filePath: string, height: number) => void
   getCommentsForFile: (filePath: string) => ReviewCommentThread[]
-  highlightCode: (filePath: string, lineKey: string, code: string) => string
+  highlightCode: (filePath: string, lineKey: string, code: string) => string | undefined
   toggleCollapsed: (filePath: string, index: number) => void
   handleLineMouseDown: (payload: { lineNum: number; side: 'old' | 'new'; filePath: string; event: React.MouseEvent }) => void
   handleLineMouseEnter: (payload: { lineNum: number; side: 'old' | 'new'; filePath: string }) => void
@@ -516,6 +518,107 @@ export function DiffViewer({
     )
   }
 
+  const renderUnifiedDiffRows = (filePath: string, lines: LineInfo[], expandedSet: Set<number> | undefined) => {
+    return lines.flatMap((line, idx) => {
+      const globalIdx = `${filePath}-${idx}`
+      const isExpanded = expandedSet?.has(idx) ?? false
+      const { lineNum, side } = getSelectableLineIdentity(line)
+
+      if (line.isCollapsible) {
+        const rows: React.ReactNode[] = []
+        rows.push(
+          <DiffLineRow
+            key={globalIdx}
+            line={line}
+            index={globalIdx}
+            isSelected={false}
+            filePath={filePath}
+            onLineMouseDown={handleLineMouseDown}
+            onLineMouseEnter={handleLineMouseEnter}
+            onLineMouseLeave={handleLineMouseLeave}
+            onLineMouseUp={handleLineMouseUp}
+            onToggleCollapse={() => toggleCollapsed(filePath, idx)}
+            isCollapsed={!isExpanded}
+            highlightedContent={undefined}
+          />
+        )
+
+        if (isExpanded && line.collapsedLines) {
+          line.collapsedLines.forEach((collapsedLine, collapsedIdx) => {
+            const { lineNum: collapsedLineNum, side: collapsedSide } = getSelectableLineIdentity(collapsedLine)
+            rows.push(
+              <DiffLineRow
+                key={`${globalIdx}-expanded-${collapsedIdx}`}
+                line={collapsedLine}
+                index={`${globalIdx}-${collapsedIdx}`}
+                isSelected={collapsedLineNum ? lineSelection.isLineSelected(filePath, collapsedLineNum, collapsedSide) : false}
+                filePath={filePath}
+                onLineMouseDown={handleLineMouseDown}
+                onLineMouseEnter={handleLineMouseEnter}
+                onLineMouseLeave={handleLineMouseLeave}
+                onLineMouseUp={handleLineMouseUp}
+                highlightedContent={collapsedLine.content !== undefined ? highlightCode(filePath, `${globalIdx}-expanded-${collapsedIdx}`, collapsedLine.content) : undefined}
+                onLineNumberContextMenu={(payload) => handleLineNumberContextMenu(filePath, payload)}
+                onCodeContextMenu={(payload) => handleCodeContextMenu(filePath, payload)}
+                isKeyboardFocused={keyboardFocus?.filePath === filePath && keyboardFocus.lineNum === collapsedLineNum && keyboardFocus.side === collapsedSide}
+                isHovered={hoveredLine?.filePath === filePath && hoveredLine.lineNum === collapsedLineNum && hoveredLine.side === collapsedSide}
+              />
+            )
+          })
+        }
+
+        return rows
+      }
+
+      return (
+        <DiffLineRow
+          key={globalIdx}
+          line={line}
+          index={globalIdx}
+          isSelected={lineNum ? lineSelection.isLineSelected(filePath, lineNum ?? 0, side) : false}
+          filePath={filePath}
+          onLineMouseDown={handleLineMouseDown}
+          onLineMouseEnter={handleLineMouseEnter}
+          onLineMouseLeave={handleLineMouseLeave}
+          onLineMouseUp={handleLineMouseUp}
+          highlightedContent={line.content !== undefined ? highlightCode(filePath, globalIdx, line.content) : undefined}
+          onLineNumberContextMenu={(payload) => handleLineNumberContextMenu(filePath, payload)}
+          onCodeContextMenu={(payload) => handleCodeContextMenu(filePath, payload)}
+          isKeyboardFocused={keyboardFocus?.filePath === filePath && keyboardFocus.lineNum === lineNum && keyboardFocus.side === side}
+          isHovered={hoveredLine?.filePath === filePath && hoveredLine.lineNum === lineNum && hoveredLine.side === side}
+        />
+      )
+    })
+  }
+
+  const renderDiffRows = (filePath: string, fileDiff: FileDiffData, expandedSet: Set<number> | undefined) => {
+    if ('diffResult' in fileDiff) {
+      return renderUnifiedDiffRows(filePath, fileDiff.diffResult, expandedSet)
+    }
+    if ('splitDiffResult' in fileDiff) {
+      return (
+        <SplitDiffRows
+          filePath={filePath}
+          leftLines={fileDiff.splitDiffResult.leftLines}
+          rightLines={fileDiff.splitDiffResult.rightLines}
+          expandedSet={expandedSet}
+          toggleCollapsed={toggleCollapsed}
+          isLineSelected={lineSelection.isLineSelected}
+          highlightCode={highlightCode}
+          handleLineMouseDown={handleLineMouseDown}
+          handleLineMouseEnter={handleLineMouseEnter}
+          handleLineMouseLeave={handleLineMouseLeave}
+          handleLineMouseUp={handleLineMouseUp}
+          handleLineNumberContextMenu={handleLineNumberContextMenu}
+          handleCodeContextMenu={handleCodeContextMenu}
+          keyboardFocus={keyboardFocus}
+          hoveredLine={hoveredLine}
+        />
+      )
+    }
+    return null
+  }
+
   return (
     <>
       {branchInfo && (
@@ -670,76 +773,7 @@ export function DiffViewer({
                   >
                     <table className="w-full min-w-full table-fixed">
                       <tbody>
-                    {('diffResult' in fileDiff ? fileDiff.diffResult : []).flatMap((line, idx) => {
-                      const globalIdx = `${file.path}-${idx}`
-                      const isExpanded = expandedSet?.has(idx) ?? false
-                      const { lineNum, side } = getSelectableLineIdentity(line)
-
-                      if (line.isCollapsible) {
-                        const rows = []
-                        rows.push(
-                          <DiffLineRow
-                            key={globalIdx}
-                            line={line}
-                            index={globalIdx}
-                            isSelected={false}
-                            filePath={file.path}
-                            onLineMouseDown={handleLineMouseDown}
-                            onLineMouseEnter={handleLineMouseEnter}
-                            onLineMouseLeave={handleLineMouseLeave}
-                            onLineMouseUp={handleLineMouseUp}
-                            onToggleCollapse={() => toggleCollapsed(file.path, idx)}
-                            isCollapsed={!isExpanded}
-                            highlightedContent={undefined}
-                          />
-                        )
-
-                        if (isExpanded && line.collapsedLines) {
-                          line.collapsedLines.forEach((collapsedLine, collapsedIdx) => {
-                            const { lineNum: collapsedLineNum, side: collapsedSide } = getSelectableLineIdentity(collapsedLine)
-                            rows.push(
-                              <DiffLineRow
-                                key={`${globalIdx}-expanded-${collapsedIdx}`}
-                                line={collapsedLine}
-                                index={`${globalIdx}-${collapsedIdx}`}
-                                isSelected={collapsedLineNum ? lineSelection.isLineSelected(file.path, collapsedLineNum, collapsedSide) : false}
-                                filePath={file.path}
-                                onLineMouseDown={handleLineMouseDown}
-                                onLineMouseEnter={handleLineMouseEnter}
-                                onLineMouseLeave={handleLineMouseLeave}
-                                onLineMouseUp={handleLineMouseUp}
-                                highlightedContent={collapsedLine.content !== undefined ? highlightCode(file.path, `${globalIdx}-expanded-${collapsedIdx}`, collapsedLine.content) : undefined}
-                                onLineNumberContextMenu={(payload) => handleLineNumberContextMenu(file.path, payload)}
-                                onCodeContextMenu={(payload) => handleCodeContextMenu(file.path, payload)}
-                                isKeyboardFocused={keyboardFocus?.filePath === file.path && keyboardFocus.lineNum === collapsedLineNum && keyboardFocus.side === collapsedSide}
-                                isHovered={hoveredLine?.filePath === file.path && hoveredLine.lineNum === collapsedLineNum && hoveredLine.side === collapsedSide}
-                              />
-                            )
-                          })
-                        }
-
-                        return rows
-                      }
-
-                      return (
-                        <DiffLineRow
-                          key={globalIdx}
-                          line={line}
-                          index={globalIdx}
-                          isSelected={lineNum ? lineSelection.isLineSelected(file.path, lineNum ?? 0, side) : false}
-                          filePath={file.path}
-                          onLineMouseDown={handleLineMouseDown}
-                          onLineMouseEnter={handleLineMouseEnter}
-                          onLineMouseLeave={handleLineMouseLeave}
-                          onLineMouseUp={handleLineMouseUp}
-                          highlightedContent={line.content !== undefined ? highlightCode(file.path, globalIdx, line.content) : undefined}
-                          onLineNumberContextMenu={(payload) => handleLineNumberContextMenu(file.path, payload)}
-                          onCodeContextMenu={(payload) => handleCodeContextMenu(file.path, payload)}
-                          isKeyboardFocused={keyboardFocus?.filePath === file.path && keyboardFocus.lineNum === lineNum && keyboardFocus.side === side}
-                          isHovered={hoveredLine?.filePath === file.path && hoveredLine.lineNum === lineNum && hoveredLine.side === side}
-                        />
-                      )
-                    })}
+                        {renderDiffRows(file.path, fileDiff, expandedSet)}
                       </tbody>
                     </table>
                   </HorizontalScrollRegion>
@@ -909,76 +943,7 @@ export function DiffViewer({
                   >
                     <table className="w-full min-w-full table-fixed">
                       <tbody>
-                        {('diffResult' in fileDiff ? fileDiff.diffResult : []).flatMap((line, idx) => {
-                          const globalIdx = `${file.path}-${idx}`
-                          const isExpanded = expandedSet?.has(idx) ?? false
-                          const { lineNum, side } = getSelectableLineIdentity(line)
-
-                          if (line.isCollapsible) {
-                            const rows = []
-                            rows.push(
-                              <DiffLineRow
-                                key={globalIdx}
-                                line={line}
-                                index={globalIdx}
-                                isSelected={false}
-                                filePath={file.path}
-                                onLineMouseDown={handleLineMouseDown}
-                                onLineMouseEnter={handleLineMouseEnter}
-                                onLineMouseLeave={handleLineMouseLeave}
-                                onLineMouseUp={handleLineMouseUp}
-                                onToggleCollapse={() => toggleCollapsed(file.path, idx)}
-                                isCollapsed={!isExpanded}
-                                highlightedContent={undefined}
-                              />
-                            )
-
-                            if (isExpanded && line.collapsedLines) {
-                              line.collapsedLines.forEach((collapsedLine, collapsedIdx) => {
-                                const { lineNum: collapsedLineNum, side: collapsedSide } = getSelectableLineIdentity(collapsedLine)
-                                rows.push(
-                                  <DiffLineRow
-                                    key={`${globalIdx}-expanded-${collapsedIdx}`}
-                                    line={collapsedLine}
-                                    index={`${globalIdx}-${collapsedIdx}`}
-                                    isSelected={collapsedLineNum ? lineSelection.isLineSelected(file.path, collapsedLineNum, collapsedSide) : false}
-                                    filePath={file.path}
-                                    onLineMouseDown={handleLineMouseDown}
-                                    onLineMouseEnter={handleLineMouseEnter}
-                                    onLineMouseLeave={handleLineMouseLeave}
-                                    onLineMouseUp={handleLineMouseUp}
-                                    highlightedContent={collapsedLine.content !== undefined ? highlightCode(file.path, `${globalIdx}-expanded-${collapsedIdx}`, collapsedLine.content) : undefined}
-                                    onLineNumberContextMenu={(payload) => handleLineNumberContextMenu(file.path, payload)}
-                                    onCodeContextMenu={(payload) => handleCodeContextMenu(file.path, payload)}
-                                    isKeyboardFocused={keyboardFocus?.filePath === file.path && keyboardFocus.lineNum === collapsedLineNum && keyboardFocus.side === collapsedSide}
-                                    isHovered={hoveredLine?.filePath === file.path && hoveredLine.lineNum === collapsedLineNum && hoveredLine.side === collapsedSide}
-                                  />
-                                )
-                              })
-                            }
-
-                            return rows
-                          }
-
-                          return (
-                            <DiffLineRow
-                              key={globalIdx}
-                              line={line}
-                              index={globalIdx}
-                              isSelected={lineNum ? lineSelection.isLineSelected(file.path, lineNum ?? 0, side) : false}
-                              filePath={file.path}
-                              onLineMouseDown={handleLineMouseDown}
-                              onLineMouseEnter={handleLineMouseEnter}
-                              onLineMouseLeave={handleLineMouseLeave}
-                              onLineMouseUp={handleLineMouseUp}
-                              highlightedContent={line.content !== undefined ? highlightCode(file.path, globalIdx, line.content) : undefined}
-                              onLineNumberContextMenu={(payload) => handleLineNumberContextMenu(file.path, payload)}
-                              onCodeContextMenu={(payload) => handleCodeContextMenu(file.path, payload)}
-                              isKeyboardFocused={keyboardFocus?.filePath === file.path && keyboardFocus.lineNum === lineNum && keyboardFocus.side === side}
-                              isHovered={hoveredLine?.filePath === file.path && hoveredLine.lineNum === lineNum && hoveredLine.side === side}
-                            />
-                          )
-                        })}
+                        {renderDiffRows(file.path, fileDiff, expandedSet)}
                       </tbody>
                     </table>
                   </HorizontalScrollRegion>
