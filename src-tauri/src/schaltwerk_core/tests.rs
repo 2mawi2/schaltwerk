@@ -846,6 +846,40 @@ fn test_cleanup_orphaned_worktrees() {
 }
 
 #[test]
+fn test_cleanup_orphaned_worktrees_fast_moves_trash_dir() {
+    let env = TestEnvironment::new().unwrap();
+    let manager = env.get_session_manager().unwrap();
+
+    let worktrees_dir = env.repo_path.join(".schaltwerk").join("worktrees");
+    let trash_dir = worktrees_dir.join(".schaltwerk-trash");
+    std::fs::create_dir_all(&trash_dir).unwrap();
+
+    // Make the trash directory non-trivial so the background cleanup is unlikely to finish
+    // before we assert on the staging rename.
+    for i in 0..5_000 {
+        std::fs::write(trash_dir.join(format!("file_{i}.txt")), "x").unwrap();
+    }
+
+    manager.cleanup_orphaned_worktrees().unwrap();
+
+    assert!(
+        !trash_dir.exists(),
+        "trash directory should be renamed for background cleanup"
+    );
+
+    let entries: Vec<_> = std::fs::read_dir(&worktrees_dir)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .filter_map(|e| e.file_name().to_str().map(|s| s.to_string()))
+        .collect();
+
+    assert!(
+        entries.iter().any(|name| name.starts_with(".schaltwerk-trash-cleanup-")),
+        "expected a staged trash cleanup directory, got entries={entries:?}"
+    );
+}
+
+#[test]
 fn test_concurrent_session_creation() {
     use std::sync::Arc;
     use std::thread;

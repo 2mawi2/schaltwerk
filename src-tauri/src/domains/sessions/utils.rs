@@ -8,6 +8,8 @@ use crate::{
     shared::format_branch_name,
 };
 use anyhow::{Result, anyhow};
+use std::collections::HashSet;
+use std::fs;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
@@ -169,6 +171,21 @@ impl SessionUtils {
 
     pub fn cleanup_orphaned_worktrees(&self) -> Result<()> {
         let worktrees = git::list_worktrees(&self.repo_path)?;
+        let sessions = self.db_manager.list_sessions()?;
+        // IMPORTANT: Only check against sessions that should have worktrees.
+        // Spec sessions should NOT have worktree directories, so we exclude them.
+        let sessions_with_worktrees: Vec<_> = sessions
+            .into_iter()
+            .filter(|s| s.session_state != SessionState::Spec)
+            .collect();
+        let canonical_session_worktrees: HashSet<PathBuf> = sessions_with_worktrees
+            .iter()
+            .map(|s| {
+                s.worktree_path
+                    .canonicalize()
+                    .unwrap_or_else(|_| s.worktree_path.clone())
+            })
+            .collect();
 
         for worktree_path in worktrees {
             if !worktree_path
@@ -183,21 +200,7 @@ impl SessionUtils {
                 .canonicalize()
                 .unwrap_or_else(|_| worktree_path.clone());
 
-            let sessions = self.db_manager.list_sessions()?;
-            // IMPORTANT: Only check against sessions that should have worktrees
-            // Spec sessions should NOT have worktree directories, so we exclude them
-            let sessions_with_worktrees: Vec<_> = sessions
-                .into_iter()
-                .filter(|s| s.session_state != SessionState::Spec)
-                .collect();
-
-            let exists = sessions_with_worktrees.iter().any(|s| {
-                let canonical_session = s
-                    .worktree_path
-                    .canonicalize()
-                    .unwrap_or_else(|_| s.worktree_path.clone());
-                canonical_session == canonical_worktree
-            });
+            let exists = canonical_session_worktrees.contains(&canonical_worktree);
 
             if !exists {
                 log::info!(
@@ -210,7 +213,7 @@ impl SessionUtils {
                         "Forcefully removing worktree directory: {}",
                         worktree_path.display()
                     );
-                    let _ = std::fs::remove_dir_all(&worktree_path);
+                    self.fast_remove_dir_in_background(&worktree_path);
                 }
             }
         }
@@ -218,6 +221,67 @@ impl SessionUtils {
         self.cleanup_trash_directory()?;
 
         Ok(())
+    }
+
+    fn fast_remove_dir_in_background(&self, path: &Path) {
+        if !path.exists() {
+            return;
+        }
+
+        let parent = path.parent().unwrap_or(path);
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        let staged_name = format!(
+            ".schaltwerk-trash-orphan-{}-{ts}",
+            path.file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("worktree")
+        );
+        let staged_path = parent.join(staged_name);
+
+        match fs::rename(path, &staged_path) {
+            Ok(()) => {
+                log::info!(
+                    "Fast-moved orphaned worktree for cleanup: {} -> {}",
+                    path.display(),
+                    staged_path.display()
+                );
+                let staged_owned = staged_path.clone();
+                std::thread::spawn(move || {
+                    if let Err(e) = fs::remove_dir_all(&staged_owned) {
+                        log::warn!(
+                            "Background cleanup failed for {}: {e}",
+                            staged_owned.display()
+                        );
+                    } else {
+                        log::debug!(
+                            "Background cleanup completed: {}",
+                            staged_owned.display()
+                        );
+                    }
+                });
+            }
+            Err(e) => {
+                log::warn!(
+                    "Fast rename failed ({}), scheduling background removal for {}",
+                    e,
+                    path.display()
+                );
+                let owned = path.to_path_buf();
+                std::thread::spawn(move || {
+                    if let Err(e) = fs::remove_dir_all(&owned) {
+                        log::warn!(
+                            "Background cleanup failed for {}: {e}",
+                            owned.display()
+                        );
+                    } else {
+                        log::debug!("Background cleanup completed: {}", owned.display());
+                    }
+                });
+            }
+        }
     }
 
     fn cleanup_trash_directory(&self) -> Result<()> {
@@ -230,12 +294,50 @@ impl SessionUtils {
 
         log::info!("Cleaning up trash directory: {}", trash_dir.display());
 
-        match std::fs::remove_dir_all(&trash_dir) {
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        let staged_dir = worktrees_dir.join(format!(".schaltwerk-trash-cleanup-{ts}"));
+
+        match fs::rename(&trash_dir, &staged_dir) {
             Ok(()) => {
-                log::info!("Trash directory cleaned up successfully");
+                log::info!(
+                    "Fast-moved trash directory for background cleanup: {} -> {}",
+                    trash_dir.display(),
+                    staged_dir.display()
+                );
+                std::thread::spawn(move || {
+                    if let Err(e) = fs::remove_dir_all(&staged_dir) {
+                        log::warn!(
+                            "Background trash cleanup failed for {}: {e}",
+                            staged_dir.display()
+                        );
+                    } else {
+                        log::debug!(
+                            "Background trash cleanup completed: {}",
+                            staged_dir.display()
+                        );
+                    }
+                });
             }
             Err(e) => {
-                log::warn!("Failed to clean up trash directory: {e}");
+                log::warn!(
+                    "Fast rename of trash directory failed ({}), scheduling background removal for {}",
+                    e,
+                    trash_dir.display()
+                );
+                let owned = trash_dir.to_path_buf();
+                std::thread::spawn(move || {
+                    if let Err(e) = fs::remove_dir_all(&owned) {
+                        log::warn!(
+                            "Background trash cleanup failed for {}: {e}",
+                            owned.display()
+                        );
+                    } else {
+                        log::debug!("Background trash cleanup completed: {}", owned.display());
+                    }
+                });
             }
         }
 
