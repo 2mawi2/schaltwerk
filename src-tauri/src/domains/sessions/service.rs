@@ -3751,6 +3751,13 @@ impl SessionManager {
     pub fn mark_session_ready(&self, session_name: &str) -> Result<bool> {
         let session = self.db_manager.get_session_by_name(session_name)?;
 
+        if !session.worktree_path.exists() {
+            return Err(anyhow!(
+                "Worktree for session '{session_name}' is missing at {}",
+                session.worktree_path.display()
+            ));
+        }
+
         let ready_to_merge = !git::has_uncommitted_changes(&session.worktree_path)?;
 
         self.db_manager

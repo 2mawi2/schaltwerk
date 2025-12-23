@@ -1582,6 +1582,36 @@ fn test_mark_ready_never_auto_commits_dirty_worktree() {
 }
 
 #[test]
+fn test_mark_ready_errors_when_worktree_missing() {
+    let env = TestEnvironment::new().unwrap();
+    let manager = env.get_session_manager().unwrap();
+
+    let session = manager
+        .create_session("mark-ready-missing-worktree", None, None)
+        .unwrap();
+
+    std::fs::remove_dir_all(&session.worktree_path).unwrap();
+
+    let err = manager.mark_session_ready(&session.name).unwrap_err();
+    let message = err.to_string();
+    assert!(
+        message.contains("Worktree for session") && message.contains("is missing"),
+        "unexpected error message: {message}"
+    );
+
+    let db_session = manager
+        .db_ref()
+        .get_session_by_name(&env.repo_path, &session.name)
+        .unwrap();
+    assert_eq!(
+        db_session.session_state,
+        SessionState::Running,
+        "missing worktree should not transition to Reviewed"
+    );
+    assert!(!db_session.ready_to_merge);
+}
+
+#[test]
 fn test_follow_up_unmarks_reviewed_and_sets_running() {
     let env = TestEnvironment::new().unwrap();
     let manager = env.get_session_manager().unwrap();
