@@ -37,13 +37,13 @@ import { writeTerminalBackend } from '../../terminal/transport/backend'
 import { buildBracketedPasteChunks } from '../../terminal/paste/bracketedPaste'
 import {
     acquireTerminalInstance,
+    attachTerminalInstance,
     detachTerminalInstance,
     hasTerminalInstance,
     isTerminalBracketedPasteEnabled,
 } from '../../terminal/registry/terminalRegistry'
 import { XtermTerminal } from '../../terminal/xterm/XtermTerminal'
 import { useTerminalGpu } from '../../hooks/useTerminalGpu'
-import { terminalOutputManager } from '../../terminal/stream/terminalOutputManager'
 import { TerminalResizeCoordinator } from './resize/TerminalResizeCoordinator'
 import {
     calculateEffectiveColumns,
@@ -139,6 +139,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     }, []);
     const termRef = useRef<HTMLDivElement>(null);
     const lastMeasuredDimensionsRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
+    const layoutSuspendedRef = useRef(false);
     const readDimensions = useCallback(() => {
         const el = termRef.current;
         if (!el || !el.isConnected) {
@@ -159,6 +160,35 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const xtermWrapperRef = useRef<XtermTerminal | null>(null);
     const fileLinkHandlerRef = useRef<TerminalFileLinkHandler | null>(null);
     const scrollDebugRef = useRef<{ lastY: number; lastTime: number; changes: number[] }>({ lastY: -1, lastTime: 0, changes: [] });
+    const debugCountersRef = useRef<{ scrollEvents: number; initRuns: number }>({ scrollEvents: 0, initRuns: 0 });
+    const termDebug = () => (typeof window !== 'undefined' && localStorage.getItem('TERMINAL_DEBUG') === '1');
+
+    const getScrollSnapshot = useCallback(() => {
+        const term = terminal.current;
+        const el = termRef.current;
+        if (!term) return null;
+        try {
+            const buf = term.buffer?.active;
+            return {
+                cols: term.cols,
+                rows: term.rows,
+                bufferType: (buf as unknown as { type?: string })?.type,
+                baseY: buf?.baseY,
+                viewportY: buf?.viewportY,
+                cursorY: (buf as unknown as { cursorY?: number })?.cursorY,
+                length: buf?.length,
+                container: el ? { w: el.clientWidth, h: el.clientHeight } : undefined,
+            };
+        } catch (error) {
+            return { error: String(error) };
+        }
+    }, []);
+
+    const logScrollSnapshot = useCallback((source: string, extra?: Record<string, unknown>) => {
+        if (!termDebug()) return;
+        const snap = getScrollSnapshot();
+        logger.debug(`[Terminal ${terminalId}] [scroll-snap] ${source}`, { ...extra, ...snap });
+    }, [getScrollSnapshot, terminalId]);
     const logScrollChange = useCallback((source: string) => {
         const term = terminal.current;
         if (!term) return;
@@ -168,6 +198,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         const debug = scrollDebugRef.current;
         const delta = debug.lastY >= 0 ? viewportY - debug.lastY : 0;
         const timeDelta = debug.lastTime > 0 ? now - debug.lastTime : 0;
+        debugCountersRef.current.scrollEvents += 1;
+        const debugEnabled = termDebug();
         if (Math.abs(delta) > 0 && timeDelta < 500) {
             debug.changes.push(delta);
             if (debug.changes.length > 10) debug.changes.shift();
@@ -175,13 +207,17 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 debug.changes.slice(-4).some((d, i, arr) => i > 0 && Math.sign(d) !== Math.sign(arr[i-1]));
             if (hasOscillation) {
                 logger.warn(`[Terminal ${terminalId}] OSCILLATION DETECTED source=${source} viewportY=${viewportY} baseY=${baseY} delta=${delta} timeDelta=${timeDelta.toFixed(0)}ms changes=[${debug.changes.join(',')}]`);
+                logScrollSnapshot(`${source}:oscillation`, { delta, timeDelta });
             } else if (Math.abs(delta) > 5) {
                 logger.debug(`[Terminal ${terminalId}] Scroll jump source=${source} viewportY=${viewportY} baseY=${baseY} delta=${delta} timeDelta=${timeDelta.toFixed(0)}ms`);
+                logScrollSnapshot(`${source}:jump`, { delta, timeDelta });
+            } else if (debugEnabled && (debugCountersRef.current.scrollEvents % 25 === 0)) {
+                logScrollSnapshot(`${source}:periodic`, { delta, timeDelta });
             }
         }
         debug.lastY = viewportY;
         debug.lastTime = now;
-    }, [terminalId]);
+    }, [terminalId, logScrollSnapshot]);
     const getPreviewState = useAtomValue(previewStateAtom)
     const setPreviewUrl = useSetAtom(setPreviewUrlActionAtom)
     const previewWatcherRef = useRef<LocalPreviewWatcher | null>(null)
@@ -325,7 +361,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         setIsSearchVisible(false);
         setSearchTerm('');
     }, []);
-    const termDebug = () => (typeof window !== 'undefined' && localStorage.getItem('TERMINAL_DEBUG') === '1');
     const terminalIdRef = useRef(terminalId);
     terminalIdRef.current = terminalId;
     const sessionScopeRef = useRef<string | null>(null);
@@ -426,44 +461,34 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
     const applySizeUpdate = useCallback((cols: number, rows: number, reason: string, _force = false) => {
         if (!terminal.current) return false;
-        if (cols < MIN_TERMINAL_COLUMNS || rows < MIN_TERMINAL_ROWS) {
-            logger.debug(`[Terminal ${terminalId}] Skipping ${reason} resize due to tiny dimensions ${cols}x${rows}`);
-            const prevCols = lastSize.current.cols;
-            const prevRows = lastSize.current.rows;
-            if (prevCols >= MIN_TERMINAL_COLUMNS && prevRows >= MIN_TERMINAL_ROWS) {
-                requestAnimationFrame(() => {
-                    try {
-                        terminal.current?.resize(prevCols, prevRows);
-                    } catch (error) {
-                        logger.debug(`[Terminal ${terminalId}] Failed to restore previous size after tiny resize`, error);
-                    }
-                });
-            }
-            return false;
-        }
-
         const effectiveCols = calculateEffectiveColumns(cols);
-        lastSize.current = { cols, rows };
+        const effectiveRows = Math.max(Math.floor(rows), MIN_TERMINAL_ROWS);
+        if (effectiveCols !== cols || effectiveRows !== rows) {
+            logger.debug(`[Terminal ${terminalId}] Clamping ${reason} resize ${cols}x${rows} → ${effectiveCols}x${effectiveRows}`);
+        }
+        lastSize.current = { cols: effectiveCols, rows: effectiveRows };
 
         const term = terminal.current;
         try {
-            term.resize(effectiveCols, rows);
+            logScrollSnapshot(`resize:${reason}:before`, { cols: effectiveCols, rows: effectiveRows });
+            term.resize(effectiveCols, effectiveRows);
             if (xtermWrapperRef.current?.shouldFollowOutput()) {
                 requestAnimationFrame(() => {
                     term.scrollToLine(term.buffer.active.baseY);
                     logScrollChange('applySizeUpdate');
                 });
             }
+            logScrollSnapshot(`resize:${reason}:after`, { cols: effectiveCols, rows: effectiveRows });
         } catch (e) {
-            logger.debug(`[Terminal ${terminalId}] Failed to apply frontend resize to ${effectiveCols}x${rows}`, e);
+            logger.debug(`[Terminal ${terminalId}] Failed to apply frontend resize to ${effectiveCols}x${effectiveRows}`, e);
         }
 
-        recordTerminalSize(terminalId, effectiveCols, rows);
-        schedulePtyResize(terminalId, { cols: effectiveCols, rows });
-        lastEffectiveRef.current = { cols: effectiveCols, rows };
+        recordTerminalSize(terminalId, effectiveCols, effectiveRows);
+        schedulePtyResize(terminalId, { cols: effectiveCols, rows: effectiveRows });
+        lastEffectiveRef.current = { cols: effectiveCols, rows: effectiveRows };
         rememberDimensions();
         return true;
-    }, [terminalId, rememberDimensions, logScrollChange]);
+    }, [terminalId, rememberDimensions, logScrollChange, logScrollSnapshot]);
 
     useEffect(() => {
         const coordinator = new TerminalResizeCoordinator({
@@ -492,10 +517,10 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             applyRowsOnly: (rows, _context) => {
                 if (!terminal.current) return;
                 const currentCols = terminal.current.cols;
-                if (rows < MIN_TERMINAL_ROWS) return;
+                const effectiveRows = Math.max(Math.floor(rows), MIN_TERMINAL_ROWS);
                 const term = terminal.current;
                 try {
-                    term.resize(currentCols, rows);
+                    term.resize(currentCols, effectiveRows);
                     if (xtermWrapperRef.current?.shouldFollowOutput()) {
                         requestAnimationFrame(() => {
                             term.scrollToLine(term.buffer.active.baseY);
@@ -503,18 +528,17 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                         });
                     }
                 } catch (e) {
-                    logger.debug(`[Terminal ${terminalId}] Failed to apply rows-only resize to ${currentCols}x${rows}`, e);
+                    logger.debug(`[Terminal ${terminalId}] Failed to apply rows-only resize to ${currentCols}x${effectiveRows}`, e);
                 }
-                lastSize.current = { cols: currentCols, rows };
-                recordTerminalSize(terminalId, currentCols, rows);
-                schedulePtyResize(terminalId, { cols: currentCols, rows });
-                lastEffectiveRef.current = { cols: currentCols, rows };
+                lastSize.current = { cols: currentCols, rows: effectiveRows };
+                recordTerminalSize(terminalId, currentCols, effectiveRows);
+                schedulePtyResize(terminalId, { cols: currentCols, rows: effectiveRows });
+                lastEffectiveRef.current = { cols: currentCols, rows: effectiveRows };
             },
             applyColsOnly: (cols, _context) => {
                 if (!terminal.current) return;
                 const currentRows = terminal.current.rows;
                 const effectiveCols = calculateEffectiveColumns(cols);
-                if (effectiveCols < MIN_TERMINAL_COLUMNS) return;
                 const term = terminal.current;
                 try {
                     term.resize(effectiveCols, currentRows);
@@ -615,16 +639,29 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             return;
         }
 
+        const wasSuspended = layoutSuspendedRef.current;
         if (isMeasurementTooSmall(measured.width, measured.height)) {
-            logger.debug(`[Terminal ${terminalId}] Skipping ${reason} resize - container too small (${measured.width}x${measured.height})`);
+            lastMeasuredDimensionsRef.current = measured;
+            layoutSuspendedRef.current = true;
+            if (!wasSuspended) {
+                logger.debug(`[Terminal ${terminalId}] Suspending resize - container too small (${measured.width}x${measured.height})`);
+            }
             return;
         }
 
-        if (!options?.force) {
+        if (wasSuspended) {
+            layoutSuspendedRef.current = false;
+            logger.debug(`[Terminal ${terminalId}] Resuming resize - container measurable (${measured.width}x${measured.height})`);
+        }
+
+        const shouldForce = Boolean(options?.force) || wasSuspended;
+        const shouldImmediate = Boolean(options?.immediate) || wasSuspended;
+
+        if (!shouldForce) {
             const prev = lastMeasuredDimensionsRef.current;
             const deltaWidth = Math.abs(measured.width - prev.width);
             const deltaHeight = Math.abs(measured.height - prev.height);
-            if (!options?.immediate && deltaWidth < RESIZE_PIXEL_EPSILON && deltaHeight < RESIZE_PIXEL_EPSILON) {
+            if (!shouldImmediate && deltaWidth < RESIZE_PIXEL_EPSILON && deltaHeight < RESIZE_PIXEL_EPSILON) {
                 return;
             }
         }
@@ -633,19 +670,27 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         const proposer = fitAddon.current as unknown as { proposeDimensions?: () => { cols: number; rows: number } | undefined };
         const proposed = proposer.proposeDimensions?.();
         if (!proposed || !Number.isFinite(proposed.cols) || !Number.isFinite(proposed.rows) || proposed.cols <= 0 || proposed.rows <= 0) {
+            layoutSuspendedRef.current = true;
+            logger.debug(`[Terminal ${terminalId}] Suspending resize - invalid size proposal`, { proposed, reason });
             return;
         }
 
         if (proposed.cols < MIN_PROPOSED_COLUMNS) {
-            logger.debug(`[Terminal ${terminalId}] Skipping ${reason} resize - proposed columns too small (${proposed.cols})`);
+            logger.debug(`[Terminal ${terminalId}] Clamping ${reason} resize - proposed columns too small (${proposed.cols})`);
+            resizeCoordinatorRef.current?.resize({
+                cols: MIN_TERMINAL_COLUMNS,
+                rows: Math.max(MIN_TERMINAL_ROWS, proposed.rows),
+                reason: `${reason}:min-clamp-proposal`,
+                immediate: true,
+            });
             return;
         }
 
         resizeCoordinatorRef.current?.resize({
-            cols: proposed.cols,
-            rows: proposed.rows,
+            cols: Math.max(MIN_TERMINAL_COLUMNS, proposed.cols),
+            rows: Math.max(MIN_TERMINAL_ROWS, proposed.rows),
             reason,
-            immediate: options?.immediate ?? false,
+            immediate: shouldImmediate,
         });
     }, [readDimensions, terminalId]);
 
@@ -1106,6 +1151,10 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     }, [agentType, terminalId]);
 
     useEffect(() => {
+        debugCountersRef.current.initRuns += 1;
+        if (termDebug()) {
+            logger.debug(`[Terminal ${terminalId}] [init] effect run #${debugCountersRef.current.initRuns}`);
+        }
         mountedRef.current = true;
         let cancelled = false;
         // track mounted lifecycle only; no timer-based logic tied to mount time
@@ -1149,8 +1198,9 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         searchAddon.current = instance.searchAddon;
         
         if (termRef.current) {
-            instance.attach(termRef.current);
+            attachTerminalInstance(terminalId, termRef.current);
         }
+        logScrollSnapshot('attached');
         applyLetterSpacingRef.current?.(webglRendererActiveRef.current);
         // Allow streaming immediately; proper fits will still run later
         rendererReadyRef.current = true;
@@ -1396,8 +1446,10 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                         setHydrated(true);
                         if (!hydratedOnceRef.current) {
                             hydratedOnceRef.current = true;
+                            emitUiEvent(UiEvent.TerminalReady, { terminalId });
                             onReadyRef.current?.();
                         }
+                        logScrollSnapshot('onRender:hydrated');
                     }
                 });
                 if (disposable && typeof disposable === 'object' && typeof (disposable as { dispose?: () => void }).dispose === 'function') {
@@ -1405,10 +1457,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 }
             }
         }
-
-        void terminalOutputManager.ensureStarted(terminalId).catch(error => {
-            logger.warn(`[Terminal ${terminalId}] Failed to ensure terminal stream`, error);
-        });
 
         // Handle font size changes with better debouncing
         let fontSizeRafPending = false;
@@ -1610,6 +1658,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             mountedRef.current = false;
             cancelled = true;
             rendererReadyRef.current = false;
+            logScrollSnapshot('cleanup:before-detach');
 
             outputDisposables.forEach(disposable => {
                 try {
@@ -1648,6 +1697,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             }
 
             detachTerminalInstance(terminalId);
+            logScrollSnapshot('cleanup:after-detach');
             xtermWrapperRef.current = null;
             gpuRenderer.current = null;
             terminal.current = null;
@@ -1662,8 +1712,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         terminalId,
         addEventListener,
         addResizeObserver,
-        gpuEnabledForTerminal,
-        gpuRenderer,
     ]);
 
 

@@ -34,6 +34,13 @@ const cleanupRegistryMock = vi.hoisted(() => ({
   addInterval: vi.fn(),
 }))
 
+const gpuMockState = vi.hoisted(() => ({
+  enabled: true,
+  setEnabled(value: boolean) {
+    this.enabled = value
+  },
+}))
+
 type HarnessConfig = {
   scrollback: number
   fontSize: number
@@ -63,6 +70,7 @@ type HarnessInstance = {
     }
     resize: ReturnType<typeof vi.fn>
     scrollLines: ReturnType<typeof vi.fn>
+    scrollToLine: ReturnType<typeof vi.fn>
     scrollToBottom: ReturnType<typeof vi.fn>
     focus: ReturnType<typeof vi.fn>
     hasSelection: ReturnType<typeof vi.fn>
@@ -106,6 +114,10 @@ const terminalHarness = vi.hoisted(() => {
         this.rows = rows
       }),
       scrollLines: vi.fn(),
+      scrollToLine: vi.fn(function scrollToLine(this: typeof raw, line: number) {
+        const baseY = this.buffer.active.baseY
+        this.buffer.active.viewportY = Math.max(0, Math.min(baseY, line))
+      }),
       scrollToBottom: vi.fn(),
       focus: vi.fn(),
       hasSelection: vi.fn(() => false),
@@ -227,7 +239,7 @@ vi.mock('../../contexts/ModalContext', () => ({
 vi.mock('../../hooks/useTerminalGpu', () => ({
   useTerminalGpu: () => ({
     gpuRenderer: { current: null },
-    gpuEnabledForTerminal: false,
+    gpuEnabledForTerminal: gpuMockState.enabled,
     webglRendererActive: false,
     refreshGpuFontRendering: vi.fn(),
     applyLetterSpacing: vi.fn(),
@@ -245,6 +257,7 @@ vi.mock('../../terminal/registry/terminalRegistry', () => {
   const { acquireMock } = terminalHarness
   return {
     acquireTerminalInstance: vi.fn((id: string, factory: () => unknown) => acquireMock(id, factory as () => HarnessInstance)),
+    attachTerminalInstance: vi.fn(),
     releaseTerminalInstance: vi.fn(),
     removeTerminalInstance: vi.fn(),
     detachTerminalInstance: vi.fn(),
@@ -342,6 +355,7 @@ vi.stubGlobal('cancelAnimationFrame', (id: number) => {
 
 beforeEach(() => {
   cleanup()
+  gpuMockState.setEnabled(true)
   const { NoopObserver } = observerMocks
   const globalContext = globalThis as Record<string, unknown>
   globalContext.ResizeObserver = NoopObserver
@@ -383,6 +397,31 @@ function renderTerminal(props: Partial<TerminalProps> & { terminalId: string }, 
 }
 
 describe('Terminal', () => {
+  it('does not reinitialize the terminal when GPU preference changes', async () => {
+    gpuMockState.setEnabled(true)
+    const store = createStore()
+    const utils = render(
+      <Provider store={store}>
+        <Terminal terminalId="session-gpu-toggle-top" sessionName="gpu-toggle" />
+      </Provider>,
+    )
+
+    await waitFor(() => {
+      expect(terminalHarness.acquireMock).toHaveBeenCalledTimes(1)
+      expect(terminalHarness.instances.length).toBeGreaterThan(0)
+    })
+
+    gpuMockState.setEnabled(false)
+    utils.rerender(
+      <Provider store={store}>
+        <Terminal terminalId="session-gpu-toggle-top" sessionName="gpu-toggle" />
+      </Provider>,
+    )
+
+    // If the init effect re-runs, it will detach/cleanup and acquire again.
+    expect(terminalHarness.acquireMock).toHaveBeenCalledTimes(1)
+  })
+
   it('constructs XtermTerminal with default scrollback for regular terminals', async () => {
     renderTerminal({ terminalId: 'session-123-bottom' })
 
@@ -438,7 +477,7 @@ describe('Terminal', () => {
     })
 
     const instance = terminalHarness.instances[0] as HarnessInstance
-    expect(instance.config.scrollback).toBe(10000)
+    expect(instance.config.scrollback).toBe(0)
   })
 
   it('uses TUI scrollback for TUI-based agents (claude)', async () => {
@@ -450,7 +489,7 @@ describe('Terminal', () => {
     })
 
     const instance = terminalHarness.instances[0] as HarnessInstance
-    expect(instance.config.scrollback).toBe(10000)
+    expect(instance.config.scrollback).toBe(0)
   })
 
   it('treats terminal-only top terminals as regular shells and skips agent startup', async () => {
@@ -557,6 +596,8 @@ describe('Terminal', () => {
       expect(primaryOnData).toBeTypeOf('function')
       expect(secondaryOnData).toBeTypeOf('function')
 
+      // Ignore initialization writes (e.g. empty init payload) triggered by mount/RAF.
+      vi.mocked(writeTerminalBackend).mockClear()
       primaryOnData?.('\u001b')
       secondaryOnData?.('\u001b')
 
