@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   acquireTerminalInstance,
+  attachTerminalInstance,
+  detachTerminalInstance,
   removeTerminalInstance,
   isTerminalBracketedPasteEnabled,
   addTerminalOutputCallback,
@@ -70,6 +72,7 @@ describe('terminalRegistry stream flushing', () => {
       } as unknown as import('../xterm/XtermTerminal').XtermTerminal)
 
     acquireTerminalInstance('stream-test', factory)
+    attachTerminalInstance('stream-test', document.createElement('div'))
 
     expect(addListenerMock).toHaveBeenCalledWith(
       'stream-test',
@@ -117,6 +120,7 @@ describe('terminalRegistry stream flushing', () => {
       } as unknown as import('../xterm/XtermTerminal').XtermTerminal)
 
     acquireTerminalInstance('clear-test', factory)
+    attachTerminalInstance('clear-test', document.createElement('div'))
 
     const listener = addListenerMock.mock.calls[0][1] as (chunk: string) => void
 
@@ -155,6 +159,7 @@ describe('terminalRegistry stream flushing', () => {
       } as unknown as import('../xterm/XtermTerminal').XtermTerminal)
 
     acquireTerminalInstance('paste-mode-test', factory)
+    attachTerminalInstance('paste-mode-test', document.createElement('div'))
 
     const listener = addListenerMock.mock.calls[0][1] as (chunk: string) => void
 
@@ -197,6 +202,7 @@ describe('terminalRegistry stream flushing', () => {
       } as unknown as import('../xterm/XtermTerminal').XtermTerminal)
 
     acquireTerminalInstance('alternate-buffer-test', factory)
+    attachTerminalInstance('alternate-buffer-test', document.createElement('div'))
 
     const listener = addListenerMock.mock.calls[0][1] as (chunk: string) => void
     listener('hello')
@@ -238,6 +244,7 @@ describe('terminalRegistry stream flushing', () => {
       } as unknown as import('../xterm/XtermTerminal').XtermTerminal)
 
     acquireTerminalInstance('cursor-move-test', factory)
+    attachTerminalInstance('cursor-move-test', document.createElement('div'))
 
     const listener = addListenerMock.mock.calls[0][1] as (chunk: string) => void
     listener('frame update')
@@ -277,6 +284,7 @@ describe('terminalRegistry stream flushing', () => {
       } as unknown as import('../xterm/XtermTerminal').XtermTerminal)
 
     acquireTerminalInstance('tui-follow-test', factory)
+    attachTerminalInstance('tui-follow-test', document.createElement('div'))
 
     const listener = addListenerMock.mock.calls[0][1] as (chunk: string) => void
     listener('hello')
@@ -314,6 +322,7 @@ describe('terminalRegistry stream flushing', () => {
       } as unknown as import('../xterm/XtermTerminal').XtermTerminal)
 
     acquireTerminalInstance('tui-clear-test', factory)
+    attachTerminalInstance('tui-clear-test', document.createElement('div'))
 
     const listener = addListenerMock.mock.calls[0][1] as (chunk: string) => void
 
@@ -325,6 +334,96 @@ describe('terminalRegistry stream flushing', () => {
     expect(rawWrite).toHaveBeenCalledWith('some contentmore content', expect.any(Function))
 
     removeTerminalInstance('tui-clear-test')
+  })
+
+  it('holds TUI clear-screen redraw until content arrives', async () => {
+    const rawWrite = vi.fn()
+    const rawWriteSync = vi.fn()
+    const factory = () =>
+      ({
+        raw: {
+          write: rawWrite,
+          writeSync: rawWriteSync,
+          scrollToBottom: vi.fn(),
+          buffer: {
+            active: {
+              baseY: 0,
+              viewportY: 0,
+              type: 'normal',
+            },
+          },
+        },
+        shouldFollowOutput: () => false,
+        isTuiMode: () => true,
+        attach: vi.fn(),
+        detach: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as import('../xterm/XtermTerminal').XtermTerminal)
+
+    acquireTerminalInstance('tui-deferral-test', factory)
+    attachTerminalInstance('tui-deferral-test', document.createElement('div'))
+
+    const listener = addListenerMock.mock.calls[0][1] as (chunk: string) => void
+
+    listener('\x1b[2J\x1b[H')
+    await vi.runOnlyPendingTimersAsync()
+    expect(rawWrite).not.toHaveBeenCalled()
+
+    listener('hello')
+    await vi.runOnlyPendingTimersAsync()
+
+    expect(rawWrite).not.toHaveBeenCalled()
+    expect(rawWriteSync).toHaveBeenCalledTimes(1)
+    expect(rawWriteSync).toHaveBeenCalledWith('\x1b[?2026h\x1b[2J\x1b[Hhello\x1b[?2026l')
+
+    removeTerminalInstance('tui-deferral-test')
+  })
+
+  it('does not start a second TUI write while the first one is still parsing', async () => {
+    let pendingWriteCallback: (() => void) | undefined
+    const rawWrite = vi.fn((_data: string, cb?: unknown) => {
+      pendingWriteCallback = cb as (() => void) | undefined
+    })
+    const factory = () =>
+      ({
+        raw: {
+          write: rawWrite,
+          scrollToBottom: vi.fn(),
+          buffer: {
+            active: {
+              baseY: 0,
+              viewportY: 0,
+              type: 'normal',
+            },
+          },
+        },
+        shouldFollowOutput: () => false,
+        isTuiMode: () => true,
+        attach: vi.fn(),
+        detach: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as import('../xterm/XtermTerminal').XtermTerminal)
+
+    acquireTerminalInstance('tui-parse-barrier-test', factory)
+    attachTerminalInstance('tui-parse-barrier-test', document.createElement('div'))
+
+    const listener = addListenerMock.mock.calls[0][1] as (chunk: string) => void
+
+    listener('first')
+    await vi.runOnlyPendingTimersAsync()
+    expect(rawWrite).toHaveBeenCalledTimes(1)
+
+    // Parsing still in flight (callback not invoked), second chunk should not trigger another write yet.
+    listener('second')
+    await vi.runOnlyPendingTimersAsync()
+    expect(rawWrite).toHaveBeenCalledTimes(1)
+
+    // Once parsing completes, the buffered chunk should flush.
+    pendingWriteCallback?.()
+    await vi.runOnlyPendingTimersAsync()
+    expect(rawWrite).toHaveBeenCalledTimes(2)
+
+    removeTerminalInstance('tui-parse-barrier-test')
   })
 
   it('fires output callbacks after write flush completes', async () => {
@@ -349,6 +448,7 @@ describe('terminalRegistry stream flushing', () => {
       } as unknown as import('../xterm/XtermTerminal').XtermTerminal)
 
     acquireTerminalInstance('output-test', factory)
+    attachTerminalInstance('output-test', document.createElement('div'))
 
     const outCb = vi.fn()
     addTerminalOutputCallback('output-test', outCb)
@@ -368,5 +468,52 @@ describe('terminalRegistry stream flushing', () => {
 
     removeTerminalOutputCallback('output-test', outCb)
     removeTerminalInstance('output-test')
+  })
+
+  it('buffers output while detached and flushes when reattached', async () => {
+    const rawWrite = vi.fn()
+    const factory = () =>
+      ({
+        raw: {
+          write: rawWrite,
+          scrollToBottom: vi.fn(),
+          buffer: {
+            active: {
+              baseY: 10,
+              viewportY: 10,
+            },
+          },
+        },
+        shouldFollowOutput: () => false,
+        isTuiMode: () => true,
+        attach: vi.fn(),
+        detach: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as import('../xterm/XtermTerminal').XtermTerminal)
+
+    acquireTerminalInstance('detach-buffer-test', factory)
+    attachTerminalInstance('detach-buffer-test', document.createElement('div'))
+
+    const listener = addListenerMock.mock.calls[0][1] as (chunk: string) => void
+
+    listener('a')
+    await vi.runAllTimersAsync()
+    expect(rawWrite).toHaveBeenCalledTimes(1)
+    const firstWriteCallback = rawWrite.mock.calls[0][1] as unknown as () => void
+    firstWriteCallback()
+
+    detachTerminalInstance('detach-buffer-test')
+
+    listener('b')
+    await vi.runAllTimersAsync()
+    expect(rawWrite).toHaveBeenCalledTimes(1)
+
+    attachTerminalInstance('detach-buffer-test', document.createElement('div'))
+    await vi.runAllTimersAsync()
+
+    expect(rawWrite).toHaveBeenCalledTimes(2)
+    expect(rawWrite).toHaveBeenLastCalledWith('b', expect.any(Function))
+
+    removeTerminalInstance('detach-buffer-test')
   })
 })
