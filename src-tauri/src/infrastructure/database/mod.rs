@@ -5,6 +5,7 @@ pub mod db_epics;
 pub mod db_project_config;
 pub mod db_schema;
 pub mod db_specs;
+pub mod timestamps;
 
 pub use connection::Database;
 pub use db_app_config::AppConfigMethods;
