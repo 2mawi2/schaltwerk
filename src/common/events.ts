@@ -34,6 +34,7 @@ export enum SchaltEvent {
   DiffBaseBranchChanged = 'schaltwerk:diff-base-branch-changed',
   ProjectValidationError = 'schaltwerk:project-validation-error',
   OpenPrModal = 'schaltwerk:open-pr-modal',
+  SelectAllRequested = 'schaltwerk:select-all-requested',
 }
 
 
@@ -250,4 +251,5 @@ export type EventPayloadMap = {
   [SchaltEvent.DiffBaseBranchChanged]: DiffBaseBranchChangedPayload
   [SchaltEvent.ProjectValidationError]: ProjectValidationErrorPayload
   [SchaltEvent.OpenPrModal]: OpenPrModalPayload
+  [SchaltEvent.SelectAllRequested]: null
 }

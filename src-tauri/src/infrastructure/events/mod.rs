@@ -36,6 +36,7 @@ pub enum SchaltEvent {
     DiffBaseBranchChanged,
     ProjectValidationError,
     OpenPrModal,
+    SelectAllRequested,
 }
 
 impl SchaltEvent {
@@ -76,6 +77,7 @@ impl SchaltEvent {
             SchaltEvent::DiffBaseBranchChanged => "schaltwerk:diff-base-branch-changed",
             SchaltEvent::ProjectValidationError => "schaltwerk:project-validation-error",
             SchaltEvent::OpenPrModal => "schaltwerk:open-pr-modal",
+            SchaltEvent::SelectAllRequested => "schaltwerk:select-all-requested",
         }
     }
 }
@@ -137,6 +139,10 @@ mod tests {
         assert_eq!(
             SchaltEvent::GlobalKeepAwakeStateChanged.as_str(),
             "schaltwerk:global-keep-awake-state-changed"
+        );
+        assert_eq!(
+            SchaltEvent::SelectAllRequested.as_str(),
+            "schaltwerk:select-all-requested"
         );
     }
 }

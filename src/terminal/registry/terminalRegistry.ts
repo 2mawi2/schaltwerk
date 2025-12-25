@@ -258,6 +258,22 @@ class TerminalInstanceRegistry {
     return this.instances.get(id)?.bracketedPasteEnabled ?? false;
   }
 
+  selectAll(id: string): boolean {
+    const record = this.instances.get(id);
+    if (!record) {
+      logger.debug(`[Registry] selectAll called for non-existent terminal ${id}`);
+      return false;
+    }
+
+    try {
+      record.xterm.raw.selectAll();
+      return true;
+    } catch (error) {
+      logger.debug(`[Registry] Failed to select all for terminal ${id}`, error);
+      return false;
+    }
+  }
+
   /**
    * Check if all written data has been parsed by xterm.
    * VS Code pattern: latestWriteId === latestParseId means all data processed.
@@ -729,6 +745,10 @@ export function hasTerminalInstance(id: string): boolean {
 
 export function isTerminalBracketedPasteEnabled(id: string): boolean {
   return registry.isBracketedPasteEnabled(id);
+}
+
+export function selectAllTerminal(id: string): boolean {
+  return registry.selectAll(id);
 }
 
 export function addTerminalOutputCallback(id: string, callback: () => void): void {

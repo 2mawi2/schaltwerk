@@ -5,6 +5,7 @@ import {
   detachTerminalInstance,
   removeTerminalInstance,
   isTerminalBracketedPasteEnabled,
+  selectAllTerminal,
   addTerminalOutputCallback,
   removeTerminalOutputCallback,
 } from './terminalRegistry'
@@ -515,5 +516,37 @@ describe('terminalRegistry stream flushing', () => {
     expect(rawWrite).toHaveBeenLastCalledWith('b', expect.any(Function))
 
     removeTerminalInstance('detach-buffer-test')
+  })
+
+  it('selects all output for existing terminals', () => {
+    const selectAll = vi.fn()
+    const factory = () =>
+      ({
+        raw: {
+          write: vi.fn(),
+          scrollToBottom: vi.fn(),
+          selectAll,
+          buffer: {
+            active: {
+              baseY: 0,
+              viewportY: 0,
+            },
+          },
+        },
+        shouldFollowOutput: () => true,
+        isTuiMode: () => false,
+        attach: vi.fn(),
+        detach: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as import('../xterm/XtermTerminal').XtermTerminal)
+
+    acquireTerminalInstance('select-all-test', factory)
+    expect(selectAllTerminal('select-all-test')).toBe(true)
+    expect(selectAll).toHaveBeenCalledTimes(1)
+    removeTerminalInstance('select-all-test')
+  })
+
+  it('returns false when selecting all for unknown terminal IDs', () => {
+    expect(selectAllTerminal('missing-terminal')).toBe(false)
   })
 })
