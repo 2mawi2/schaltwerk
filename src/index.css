@@ -248,6 +248,7 @@ body.is-split-dragging [class*="transition-"] {
 .xterm-viewport {
   color-scheme: dark;
   scrollbar-gutter: stable both-edges;
+  overflow-anchor: none;
 }
 
 .xterm-viewport {

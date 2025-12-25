@@ -1,7 +1,8 @@
 use crate::domains::sessions::entity::GitStats;
+use crate::infrastructure::database::timestamps::utc_from_epoch_seconds_lossy;
 use crate::infrastructure::database::Database;
 use anyhow::Result;
-use chrono::{TimeZone, Utc};
+use chrono::Utc;
 use rusqlite::params;
 
 pub trait GitStatsMethods {
@@ -46,7 +47,7 @@ impl GitStatsMethods for Database {
                 lines_added: row.get(2)?,
                 lines_removed: row.get(3)?,
                 has_uncommitted: row.get(4)?,
-                calculated_at: Utc.timestamp_opt(row.get(5)?, 0).unwrap(),
+                calculated_at: utc_from_epoch_seconds_lossy(row.get(5)?),
                 last_diff_change_ts: None,
             })
         });
@@ -69,7 +70,7 @@ impl GitStatsMethods for Database {
                 lines_added: row.get(2)?,
                 lines_removed: row.get(3)?,
                 has_uncommitted: row.get(4)?,
-                calculated_at: Utc.timestamp_opt(row.get(5)?, 0).unwrap(),
+                calculated_at: utc_from_epoch_seconds_lossy(row.get(5)?),
                 last_diff_change_ts: None,
             })
         })?;
@@ -115,7 +116,7 @@ impl GitStatsMethods for Database {
                 lines_added: row.get(2)?,
                 lines_removed: row.get(3)?,
                 has_uncommitted: row.get(4)?,
-                calculated_at: Utc.timestamp_opt(row.get(5)?, 0).unwrap(),
+                calculated_at: utc_from_epoch_seconds_lossy(row.get(5)?),
                 last_diff_change_ts: None,
             })
         })?;

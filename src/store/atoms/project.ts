@@ -352,14 +352,39 @@ export const closeProjectActionAtom = atom(
     }
 
     const tabs = get(projectTabsInternalAtom)
-    if (!tabs.some(tab => tab.projectPath === normalized)) {
+    const closingIndex = tabs.findIndex(tab => tab.projectPath === normalized)
+    if (closingIndex === -1) {
       return { closed: false, nextActivePath: get(projectPathAtom) }
     }
 
-    updateTabStatus(get as GetAtomFunction, set as SetAtomFunction, normalized, entry => ({
-      ...entry,
-      status: 'closing',
-    }))
+    const closingEntry = tabs[closingIndex]
+    if (!closingEntry) {
+      return { closed: false, nextActivePath: get(projectPathAtom) }
+    }
+
+    const restoreTab = (overrides: Partial<ProjectEntry>) => {
+      const current = get(projectTabsInternalAtom)
+      if (current.some(tab => tab.projectPath === normalized)) {
+        return
+      }
+      const entry: ProjectEntry = {
+        ...closingEntry,
+        ...overrides,
+      }
+      const insertionIndex = Math.min(closingIndex, current.length)
+      set(projectTabsInternalAtom, [
+        ...current.slice(0, insertionIndex),
+        entry,
+        ...current.slice(insertionIndex),
+      ])
+    }
+
+    // Optimistically remove the tab from the UI immediately. Cleanup (terminals/sessions) can take
+    // a moment, and keeping the tab visible makes it feel like the close click didn't work.
+    set(projectTabsInternalAtom, [
+      ...tabs.slice(0, closingIndex),
+      ...tabs.slice(closingIndex + 1),
+    ])
 
     const activePath = get(projectPathAtom)
     const closingActive = activePath === normalized
@@ -370,10 +395,7 @@ export const closeProjectActionAtom = atom(
       if (fallback) {
         const switched = await set(selectProjectActionAtom, { path: fallback.projectPath })
         if (!switched) {
-          updateTabStatus(get as GetAtomFunction, set as SetAtomFunction, normalized, entry => ({
-            ...entry,
-            status: 'ready',
-          }))
+          restoreTab({ status: 'ready', lastError: undefined })
           return { closed: false, nextActivePath: activePath }
         }
         nextActivePath = fallback.projectPath
@@ -392,11 +414,10 @@ export const closeProjectActionAtom = atom(
       await invoke(TauriCommands.CloseProject, { path: normalized })
     } catch (error) {
       logger.warn('[projects] Failed to close project', { path: normalized, error })
-      updateTabStatus(get as GetAtomFunction, set as SetAtomFunction, normalized, entry => ({
-        ...entry,
+      restoreTab({
         status: 'error',
         lastError: error instanceof Error ? error.message : String(error),
-      }))
+      })
       if (closingActive && nextActivePath === null) {
         await set(setProjectPathActionAtom, normalized)
       }

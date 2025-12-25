@@ -107,6 +107,32 @@ describe('project lifecycle atoms', () => {
     expect(invoke).toHaveBeenCalledWith(TauriCommands.CloseProject, { path: '/repo/solo' })
   })
 
+  it('removes the tab immediately while the backend close is pending', async () => {
+    await store.set(openProjectActionAtom, { path: '/repo/solo' })
+    invoke.mockClear()
+
+    const closeDeferred = deferredPromise()
+
+    invoke.mockImplementation(async (command, args?: InvokeArgsType) => {
+      if (command === TauriCommands.CloseProject) {
+        const pathArg = (args as { path?: string } | undefined)?.path
+        if (pathArg === '/repo/solo') {
+          return closeDeferred.promise
+        }
+      }
+      return null
+    })
+
+    const closePromise = store.set(closeProjectActionAtom, { path: '/repo/solo' })
+
+    expect(store.get(projectTabsAtom)).toHaveLength(0)
+
+    closeDeferred.resolve()
+
+    const result = await closePromise
+    expect(result.closed).toBe(true)
+  })
+
   it('marks a tab as errored when initialization fails', async () => {
     const ignoreBoom = (reason: unknown) => {
       if (reason instanceof Error && reason.message === 'boom') {

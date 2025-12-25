@@ -5,8 +5,11 @@ import { listenEvent } from '../../common/eventSystem'
 import { startSessionTop } from '../../common/agentSpawn'
 import { writeTerminalBackend } from '../../terminal/transport/backend'
 import { TERMINAL_FILE_DRAG_TYPE } from '../../common/dragTypes'
-import { __resetTerminalTargetingForTest, setActiveAgentTerminalId } from '../../common/terminalTargeting'
+import { __resetTerminalTargetingForTest, getActiveAgentTerminalId, setActiveAgentTerminalId } from '../../common/terminalTargeting'
 import { Provider, createStore } from 'jotai'
+import { agentTabsStateAtom, type AgentTab } from '../../store/atoms/agentTabs'
+import { useAgentTabs } from '../../hooks/useAgentTabs'
+import type { AgentType } from '../../types/session'
 
 const ATLAS_CONTRAST_BASE = 1.1
 
@@ -32,6 +35,13 @@ const cleanupRegistryMock = vi.hoisted(() => ({
   addResizeObserver: vi.fn(),
   addTimeout: vi.fn(),
   addInterval: vi.fn(),
+}))
+
+const gpuMockState = vi.hoisted(() => ({
+  enabled: true,
+  setEnabled(value: boolean) {
+    this.enabled = value
+  },
 }))
 
 type HarnessConfig = {
@@ -63,6 +73,7 @@ type HarnessInstance = {
     }
     resize: ReturnType<typeof vi.fn>
     scrollLines: ReturnType<typeof vi.fn>
+    scrollToLine: ReturnType<typeof vi.fn>
     scrollToBottom: ReturnType<typeof vi.fn>
     focus: ReturnType<typeof vi.fn>
     hasSelection: ReturnType<typeof vi.fn>
@@ -106,6 +117,10 @@ const terminalHarness = vi.hoisted(() => {
         this.rows = rows
       }),
       scrollLines: vi.fn(),
+      scrollToLine: vi.fn(function scrollToLine(this: typeof raw, line: number) {
+        const baseY = this.buffer.active.baseY
+        this.buffer.active.viewportY = Math.max(0, Math.min(baseY, line))
+      }),
       scrollToBottom: vi.fn(),
       focus: vi.fn(),
       hasSelection: vi.fn(() => false),
@@ -227,7 +242,7 @@ vi.mock('../../contexts/ModalContext', () => ({
 vi.mock('../../hooks/useTerminalGpu', () => ({
   useTerminalGpu: () => ({
     gpuRenderer: { current: null },
-    gpuEnabledForTerminal: false,
+    gpuEnabledForTerminal: gpuMockState.enabled,
     webglRendererActive: false,
     refreshGpuFontRendering: vi.fn(),
     applyLetterSpacing: vi.fn(),
@@ -245,6 +260,7 @@ vi.mock('../../terminal/registry/terminalRegistry', () => {
   const { acquireMock } = terminalHarness
   return {
     acquireTerminalInstance: vi.fn((id: string, factory: () => unknown) => acquireMock(id, factory as () => HarnessInstance)),
+    attachTerminalInstance: vi.fn(),
     releaseTerminalInstance: vi.fn(),
     removeTerminalInstance: vi.fn(),
     detachTerminalInstance: vi.fn(),
@@ -342,6 +358,7 @@ vi.stubGlobal('cancelAnimationFrame', (id: number) => {
 
 beforeEach(() => {
   cleanup()
+  gpuMockState.setEnabled(true)
   const { NoopObserver } = observerMocks
   const globalContext = globalThis as Record<string, unknown>
   globalContext.ResizeObserver = NoopObserver
@@ -383,6 +400,31 @@ function renderTerminal(props: Partial<TerminalProps> & { terminalId: string }, 
 }
 
 describe('Terminal', () => {
+  it('does not reinitialize the terminal when GPU preference changes', async () => {
+    gpuMockState.setEnabled(true)
+    const store = createStore()
+    const utils = render(
+      <Provider store={store}>
+        <Terminal terminalId="session-gpu-toggle-top" sessionName="gpu-toggle" />
+      </Provider>,
+    )
+
+    await waitFor(() => {
+      expect(terminalHarness.acquireMock).toHaveBeenCalledTimes(1)
+      expect(terminalHarness.instances.length).toBeGreaterThan(0)
+    })
+
+    gpuMockState.setEnabled(false)
+    utils.rerender(
+      <Provider store={store}>
+        <Terminal terminalId="session-gpu-toggle-top" sessionName="gpu-toggle" />
+      </Provider>,
+    )
+
+    // If the init effect re-runs, it will detach/cleanup and acquire again.
+    expect(terminalHarness.acquireMock).toHaveBeenCalledTimes(1)
+  })
+
   it('constructs XtermTerminal with default scrollback for regular terminals', async () => {
     renderTerminal({ terminalId: 'session-123-bottom' })
 
@@ -438,7 +480,7 @@ describe('Terminal', () => {
     })
 
     const instance = terminalHarness.instances[0] as HarnessInstance
-    expect(instance.config.scrollback).toBe(10000)
+    expect(instance.config.scrollback).toBe(0)
   })
 
   it('uses TUI scrollback for TUI-based agents (claude)', async () => {
@@ -450,7 +492,7 @@ describe('Terminal', () => {
     })
 
     const instance = terminalHarness.instances[0] as HarnessInstance
-    expect(instance.config.scrollback).toBe(10000)
+    expect(instance.config.scrollback).toBe(0)
   })
 
   it('treats terminal-only top terminals as regular shells and skips agent startup', async () => {
@@ -557,11 +599,100 @@ describe('Terminal', () => {
       expect(primaryOnData).toBeTypeOf('function')
       expect(secondaryOnData).toBeTypeOf('function')
 
+      // Ignore initialization writes (e.g. empty init payload) triggered by mount/RAF.
+      vi.mocked(writeTerminalBackend).mockClear()
       primaryOnData?.('\u001b')
       secondaryOnData?.('\u001b')
 
       expect(writeTerminalBackend).toHaveBeenCalledTimes(1)
       expect(writeTerminalBackend).toHaveBeenCalledWith('session-demo-top', '\u001b')
+    } finally {
+      terminalHarness.acquireMock.mockReset()
+      if (originalAcquire) {
+        terminalHarness.acquireMock.mockImplementation(originalAcquire)
+      }
+    }
+  })
+
+  it('initializes agent tab input targeting from agent tabs state (no manual targeting setup)', async () => {
+    const sessionId = 'demo'
+    const baseTerminalId = 'session-demo-top'
+
+    function AgentTabsHarness() {
+      useAgentTabs(sessionId, baseTerminalId)
+      return null
+    }
+
+    const createdById = new Map<string, HarnessInstance>()
+    type AcquireResult = ReturnType<typeof terminalHarness.acquireMock>
+    const originalAcquire = terminalHarness.acquireMock.getMockImplementation() as (
+      (id: string, factory: () => HarnessInstance) => AcquireResult
+    )
+
+    terminalHarness.acquireMock.mockImplementation((id: string, factory: () => HarnessInstance): AcquireResult => {
+      let created: HarnessInstance | undefined
+      const result = originalAcquire(id, () => {
+        const instance = factory()
+        created = instance
+        return instance
+      })
+      if (created) {
+        createdById.set(id, created)
+      }
+      return result
+    })
+
+    const store = createStore()
+    const tabs: AgentTab[] = [
+      { id: 'tab-0', terminalId: baseTerminalId, label: 'Agent 1', agentType: 'claude' },
+      { id: 'tab-1', terminalId: `${baseTerminalId}-1`, label: 'Agent 2', agentType: 'codex' as AgentType },
+    ]
+    store.set(agentTabsStateAtom, new Map([[sessionId, { tabs, activeTab: 1 }]]))
+
+    try {
+      render(
+        <Provider store={store}>
+          <AgentTabsHarness />
+          <Terminal terminalId={baseTerminalId} sessionName={sessionId} />
+          <Terminal terminalId={`${baseTerminalId}-1`} sessionName={sessionId} />
+        </Provider>
+      )
+
+      await waitFor(() => {
+        expect(createdById.has(baseTerminalId)).toBe(true)
+        expect(createdById.has(`${baseTerminalId}-1`)).toBe(true)
+      })
+
+      await waitFor(() => {
+        expect(getActiveAgentTerminalId(sessionId)).toBe(`${baseTerminalId}-1`)
+      })
+
+      const primary = createdById.get(baseTerminalId)!
+      const secondary = createdById.get(`${baseTerminalId}-1`)!
+      const primaryOnData = primary.raw.onData.mock.calls[0]?.[0] as ((data: string) => void) | undefined
+      const secondaryOnData = secondary.raw.onData.mock.calls[0]?.[0] as ((data: string) => void) | undefined
+
+      expect(primaryOnData).toBeTypeOf('function')
+      expect(secondaryOnData).toBeTypeOf('function')
+
+      primaryOnData?.('\u001b')
+      secondaryOnData?.('\u001b')
+
+      expect(writeTerminalBackend).toHaveBeenCalledTimes(1)
+      expect(writeTerminalBackend).toHaveBeenCalledWith(`${baseTerminalId}-1`, '\u001b')
+
+      vi.mocked(writeTerminalBackend).mockClear()
+
+      await act(async () => {
+        store.set(agentTabsStateAtom, new Map([[sessionId, { tabs, activeTab: 0 }]]))
+      })
+      expect(getActiveAgentTerminalId(sessionId)).toBe(baseTerminalId)
+
+      primaryOnData?.('\u001b')
+      secondaryOnData?.('\u001b')
+
+      expect(writeTerminalBackend).toHaveBeenCalledTimes(1)
+      expect(writeTerminalBackend).toHaveBeenCalledWith(baseTerminalId, '\u001b')
     } finally {
       terminalHarness.acquireMock.mockReset()
       if (originalAcquire) {

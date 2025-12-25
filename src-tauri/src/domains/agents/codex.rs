@@ -830,35 +830,84 @@ pub fn extract_session_id_from_path(session_file: &Path) -> Option<String> {
         session_file.display()
     );
     let content = fs::read_to_string(session_file).ok()?;
+
+    let is_non_session_id_candidate = |id: &str| {
+        let trimmed = id.trim();
+        trimmed.is_empty() || trimmed.eq_ignore_ascii_case("exec") || trimmed.eq_ignore_ascii_case("resume")
+    };
+
+    let mut fallback: Option<String> = None;
+
     for (line_num, line) in content.lines().enumerate() {
         if let Ok(json) = serde_json::from_str::<serde_json::Value>(line) {
-            if let Some(id) = json
+            let record_type = json
+                .get("type")
+                .and_then(|v| v.as_str())
+                .or_else(|| json.get("record_type").and_then(|v| v.as_str()));
+
+            let has_originator = json
+                .get("originator")
+                .and_then(|v| v.as_str())
+                .is_some()
+                || json
+                    .get("payload")
+                    .and_then(|p| p.get("originator"))
+                    .and_then(|v| v.as_str())
+                    .is_some();
+
+            let has_cwd = json.get("cwd").and_then(|v| v.as_str()).is_some()
+                || json
+                    .get("payload")
+                    .and_then(|p| p.get("cwd"))
+                    .and_then(|v| v.as_str())
+                    .is_some();
+
+            let is_session_meta = matches!(record_type, Some("session_meta")) || (has_originator && has_cwd);
+
+            let candidate = json
                 .get("payload")
                 .and_then(|p| p.get("id"))
                 .and_then(|v| v.as_str())
-            {
-                log::trace!(
-                    "✅ Found session id in payload on line {}: {}",
-                    line_num + 1,
-                    id
-                );
-                return Some(id.to_string());
-            }
-            if let Some(id) = json.get("id").and_then(|v| v.as_str()) {
-                log::trace!(
-                    "✅ Found top-level session id on line {}: {}",
-                    line_num + 1,
-                    id
-                );
-                return Some(id.to_string());
+                .or_else(|| json.get("id").and_then(|v| v.as_str()));
+
+            if let Some(id) = candidate {
+                if is_non_session_id_candidate(id) {
+                    log::trace!(
+                        "⚠️ Ignoring non-session Codex id token on line {}: {}",
+                        line_num + 1,
+                        id
+                    );
+                    continue;
+                }
+
+                if is_session_meta {
+                    log::trace!(
+                        "✅ Found Codex session id on line {}: {}",
+                        line_num + 1,
+                        id
+                    );
+                    return Some(id.to_string());
+                }
+
+                if fallback.is_none() {
+                    log::trace!(
+                        "🛈 Recorded fallback Codex id on line {}: {}",
+                        line_num + 1,
+                        id
+                    );
+                    fallback = Some(id.to_string());
+                }
             }
         }
     }
-    log::trace!(
-        "❌ No session id found in Codex log: {}",
-        session_file.display()
-    );
-    None
+
+    if fallback.is_none() {
+        log::trace!(
+            "❌ No session id found in Codex log: {}",
+            session_file.display()
+        );
+    }
+    fallback
 }
 
 pub fn build_codex_command_with_config(
@@ -1300,6 +1349,25 @@ mod tests {
 
         let mut temp_file = NamedTempFile::new().unwrap();
         writeln!(temp_file, r#"{{"timestamp":"2025-09-13T01:00:00.000Z","type":"session_meta","payload":{{"id":"abc-123","cwd":"/path","originator":"codex_cli_rs"}}}}"#).unwrap();
+        assert_eq!(
+            extract_session_id_from_path(temp_file.path()),
+            Some("abc-123".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_session_id_prefers_session_meta_over_command_id() {
+        use std::io::Write;
+        use tempfile::NamedTempFile;
+
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(
+            temp_file,
+            r#"{{"timestamp":"2025-09-13T01:00:00.000Z","type":"command","payload":{{"id":"exec"}}}}"#
+        )
+        .unwrap();
+        writeln!(temp_file, r#"{{"timestamp":"2025-09-13T01:00:01.000Z","type":"session_meta","payload":{{"id":"abc-123","cwd":"/path","originator":"codex_cli_rs"}}}}"#).unwrap();
+
         assert_eq!(
             extract_session_id_from_path(temp_file.path()),
             Some("abc-123".to_string())

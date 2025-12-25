@@ -4,7 +4,7 @@ import { useTerminalTabs } from '../../hooks/useTerminalTabs'
 import { UnifiedTab } from '../UnifiedTab'
 import { theme } from '../../common/theme'
 import { useModal } from '../../contexts/ModalContext'
-import { safeTerminalFocus, safeTerminalFocusImmediate } from '../../utils/safeFocus'
+import { safeTerminalFocusImmediate } from '../../utils/safeFocus'
 import { TabInfo } from '../../types/terminalTabs'
 import { AddTabButton } from '../AddTabButton'
 import type { AutoPreviewConfig } from '../../utils/runScriptPreviewConfig'
@@ -153,15 +153,15 @@ const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(
             id={tab.index}
             label={tab.label}
             isActive={tab.index === activeTab}
-            onSelect={() => {
-              setActiveTab(tab.index)
-              requestAnimationFrame(() => {
-                const activeTerminalRef = terminalRefs.current.get(tab.index)
-                if (activeTerminalRef) {
-                  safeTerminalFocus(() => activeTerminalRef.focus(), isAnyModalOpen)
-                }
-              })
-            }}
+	            onSelect={() => {
+	              setActiveTab(tab.index)
+	              requestAnimationFrame(() => {
+	                const activeTerminalRef = terminalRefs.current.get(tab.index)
+	                if (activeTerminalRef) {
+	                  safeTerminalFocusImmediate(() => activeTerminalRef.focus(), isAnyModalOpen)
+	                }
+	              })
+	            }}
             onClose={tabs.length > 1 ? () => { void closeTab(tab.index) } : undefined}
             onMiddleClick={tabs.length > 1 ? () => { void closeTab(tab.index) } : undefined}
             showCloseButton={tabs.length > 1}

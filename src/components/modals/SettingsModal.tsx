@@ -2036,7 +2036,7 @@ fi`}
                                 <span className="text-body text-slate-300">Enable GPU-accelerated rendering (WebGL)</span>
                             </label>
                             <div className="mt-2 text-caption text-slate-500">
-                                Uses hardware acceleration for better performance with multiple terminals. Automatically falls back to Canvas if WebGL is unavailable.
+                                Uses hardware acceleration for better performance with multiple terminals. Automatically falls back to the DOM renderer if WebGL is unavailable.
                             </div>
                         </div>
 

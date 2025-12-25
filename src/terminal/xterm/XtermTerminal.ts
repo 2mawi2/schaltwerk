@@ -264,6 +264,12 @@ export class XtermTerminal {
     }
 
     try {
+      this.raw.options.scrollOnUserInput = false
+    } catch (error) {
+      logger.debug(`[XtermTerminal ${this.terminalId}] Failed to disable scrollOnUserInput for TUI mode`, error)
+    }
+
+    try {
       this.raw.write('\x1b[?25l')
     } catch (error) {
       logger.debug(`[XtermTerminal ${this.terminalId}] Failed to hide cursor for TUI mode`, error)
@@ -275,6 +281,12 @@ export class XtermTerminal {
       this.raw.options.cursorBlink = true
     } catch (error) {
       logger.debug(`[XtermTerminal ${this.terminalId}] Failed to enable cursor blink for standard mode`, error)
+    }
+
+    try {
+      this.raw.options.scrollOnUserInput = true
+    } catch (error) {
+      logger.debug(`[XtermTerminal ${this.terminalId}] Failed to enable scrollOnUserInput for standard mode`, error)
     }
 
     try {
@@ -451,16 +463,22 @@ export class XtermTerminal {
     try {
       this.raw.parser.registerCsiHandler({ prefix: '?', final: 'h' }, (params) => {
         if (params.length > 0 && params[0] === SYNC_MODE) {
-          logger.debug(`[XtermTerminal ${this.terminalId}] Synchronized output enabled`)
-          return true
+          if (typeof window !== 'undefined' && localStorage.getItem('TERMINAL_DEBUG') === '1') {
+            logger.debug(`[XtermTerminal ${this.terminalId}] Synchronized output enabled`)
+          }
+          // Allow xterm.js to handle the mode switch (prevents visible tearing/flicker for TUIs).
+          return false
         }
         return false
       })
 
       this.raw.parser.registerCsiHandler({ prefix: '?', final: 'l' }, (params) => {
         if (params.length > 0 && params[0] === SYNC_MODE) {
-          logger.debug(`[XtermTerminal ${this.terminalId}] Synchronized output disabled`)
-          return true
+          if (typeof window !== 'undefined' && localStorage.getItem('TERMINAL_DEBUG') === '1') {
+            logger.debug(`[XtermTerminal ${this.terminalId}] Synchronized output disabled`)
+          }
+          // Allow xterm.js to handle the mode switch (prevents visible tearing/flicker for TUIs).
+          return false
         }
         return false
       })

@@ -8,7 +8,87 @@ const ESC = '\x1b';
 const CLEAR_SCROLLBACK_SEQ = `${ESC}[3J`;
 const BRACKETED_PASTE_ENABLE_SEQ = `${ESC}[?2004h`;
 const BRACKETED_PASTE_DISABLE_SEQ = `${ESC}[?2004l`;
+const SYNC_OUTPUT_ENABLE_SEQ = `${ESC}[?2026h`;
+const SYNC_OUTPUT_DISABLE_SEQ = `${ESC}[?2026l`;
+const ALT_SCREEN_ENABLE_1049 = `${ESC}[?1049h`;
+const ALT_SCREEN_DISABLE_1049 = `${ESC}[?1049l`;
+const ALT_SCREEN_ENABLE_47 = `${ESC}[?47h`;
+const ALT_SCREEN_DISABLE_47 = `${ESC}[?47l`;
+const ALT_SCREEN_ENABLE_1047 = `${ESC}[?1047h`;
+const ALT_SCREEN_DISABLE_1047 = `${ESC}[?1047l`;
 const CONTROL_SEQUENCE_TAIL_MAX = 32;
+const MAX_PENDING_CHARS_WHILE_DETACHED = 512 * 1024;
+
+function stripAnsiSequences(text: string): string {
+  // Minimal ANSI strip to detect "boundary-only" chunks without using control-character regexes.
+  let output = '';
+  for (let i = 0; i < text.length; i += 1) {
+    const code = text.charCodeAt(i);
+    if (code !== 0x1b) {
+      output += text[i];
+      continue;
+    }
+
+    const next = text.charCodeAt(i + 1);
+    // CSI
+    if (next === 0x5b) {
+      i += 2;
+      while (i < text.length) {
+        const c = text.charCodeAt(i);
+        // final byte
+        if (c >= 0x40 && c <= 0x7e) {
+          break;
+        }
+        i += 1;
+      }
+      continue;
+    }
+    // OSC
+    if (next === 0x5d) {
+      i += 2;
+      while (i < text.length) {
+        const c = text.charCodeAt(i);
+        // BEL
+        if (c === 0x07) {
+          break;
+        }
+        // ESC \
+        if (c === 0x1b && text.charCodeAt(i + 1) === 0x5c) {
+          i += 1;
+          break;
+        }
+        i += 1;
+      }
+      continue;
+    }
+
+    // Other single-character escape sequences (e.g. ESC c)
+    i += 1;
+  }
+  return output.trim();
+}
+
+function isLikelyRedrawBoundaryOnlyChunk(text: string): boolean {
+  return stripAnsiSequences(text).length === 0;
+}
+
+function containsCupSequence(text: string): boolean {
+  for (let i = 0; i < text.length; i += 1) {
+    if (text.charCodeAt(i) !== 0x1b || text.charCodeAt(i + 1) !== 0x5b) {
+      continue;
+    }
+
+    i += 2;
+    while (i < text.length) {
+      const c = text.charCodeAt(i);
+      if (c >= 0x40 && c <= 0x7e) {
+        return text[i] === 'H';
+      }
+      i += 1;
+    }
+  }
+  return false;
+}
 
 export interface TerminalInstanceRecord {
   id: string;
@@ -20,6 +100,9 @@ export interface TerminalInstanceRecord {
   streamRegistered: boolean;
   bracketedPasteEnabled: boolean;
   controlSequenceTail: string;
+  pendingByteLength: number;
+  tuiHoldRedraw?: boolean;
+  flushAfterParse?: boolean;
   streamListener?: (chunk: string) => void;
   pendingChunks?: string[];
   rafScheduled?: boolean;
@@ -62,10 +145,11 @@ class TerminalInstanceRegistry {
       refCount: 1,
       lastSeq: null,
       initialized: false,
-      attached: true,
+      attached: false,
       streamRegistered: false,
       bracketedPasteEnabled: false,
       controlSequenceTail: '',
+      pendingByteLength: 0,
       latestWriteId: 0,
       latestParseId: 0,
     };
@@ -113,6 +197,7 @@ class TerminalInstanceRegistry {
 
     record.xterm.attach(container);
     record.attached = true;
+    this.scheduleFlush(record, 'attach');
 
     const bufAfter = record.xterm.raw.buffer?.active;
     logger.debug(`[Registry] Attached terminal ${id}: baseY=${bufAfter?.baseY}, viewportY=${bufAfter?.viewportY}`);
@@ -130,6 +215,16 @@ class TerminalInstanceRegistry {
 
     record.xterm.detach();
     record.attached = false;
+
+    if (record.rafHandle !== undefined) {
+      try {
+        cancelAnimationFrame(record.rafHandle);
+      } catch (error) {
+        logger.debug(`[Registry] Failed to cancel RAF for ${record.id} during detach`, error);
+      }
+      record.rafHandle = undefined;
+      record.rafScheduled = false;
+    }
   }
 
   updateLastSeq(id: string, seq: number | null): void {
@@ -269,6 +364,134 @@ class TerminalInstanceRegistry {
     }
   }
 
+  private scheduleFlush(record: TerminalInstanceRecord, reason: string): void {
+    if (!record.attached && record.xterm.isTuiMode()) {
+      return;
+    }
+    if (record.rafScheduled) {
+      return;
+    }
+    if (!record.pendingChunks || record.pendingChunks.length === 0) {
+      return;
+    }
+
+    record.rafScheduled = true;
+    record.rafHandle = requestAnimationFrame(() => {
+      this.flushChunks(record, reason);
+    });
+  }
+
+  private flushChunks(record: TerminalInstanceRecord, _reason: string): void {
+    record.rafScheduled = false;
+    record.rafHandle = undefined;
+
+    if (!record.attached && record.xterm.isTuiMode()) {
+      return;
+    }
+
+    if (!record.pendingChunks || record.pendingChunks.length === 0) {
+      return;
+    }
+
+    if (record.xterm.isTuiMode()) {
+      if (record.tuiHoldRedraw) {
+        return;
+      }
+      const parsingInFlight = record.latestWriteId !== record.latestParseId;
+      if (parsingInFlight) {
+        record.flushAfterParse = true;
+        return;
+      }
+    }
+
+    const combined = record.pendingChunks.join('');
+    record.pendingChunks = [];
+    record.pendingByteLength = 0;
+    const hadClear = record.hadClearInBatch ?? false;
+    record.hadClearInBatch = false;
+
+    const hasFullScreenRedrawControl =
+      record.xterm.isTuiMode()
+      && (
+        combined.includes('\x1b[2J')
+        || containsCupSequence(combined)
+        || combined.includes(ALT_SCREEN_ENABLE_1049)
+        || combined.includes(ALT_SCREEN_DISABLE_1049)
+        || combined.includes(ALT_SCREEN_ENABLE_47)
+        || combined.includes(ALT_SCREEN_DISABLE_47)
+        || combined.includes(ALT_SCREEN_ENABLE_1047)
+        || combined.includes(ALT_SCREEN_DISABLE_1047)
+      );
+
+    const shouldUseSynchronizedOutput =
+      hasFullScreenRedrawControl
+      && !combined.includes(SYNC_OUTPUT_ENABLE_SEQ)
+      && !combined.includes(SYNC_OUTPUT_DISABLE_SEQ);
+
+    const payload = shouldUseSynchronizedOutput
+      ? `${SYNC_OUTPUT_ENABLE_SEQ}${combined}${SYNC_OUTPUT_DISABLE_SEQ}`
+      : combined;
+
+    // VS Code-style dual-timestamp tracking: increment write ID before write,
+    // update parse ID in callback when xterm finishes parsing.
+    // This allows checking if all buffered data has been processed.
+    const writeId = ++record.latestWriteId;
+
+    const bufBefore = record.xterm.raw.buffer?.active;
+    const baseYBefore = bufBefore?.baseY;
+    const viewportYBefore = bufBefore?.viewportY;
+
+    try {
+      const rawWithWriteSync = record.xterm.raw as unknown as { writeSync?: (data: string) => void };
+      if (record.xterm.isTuiMode() && hasFullScreenRedrawControl && typeof rawWithWriteSync.writeSync === 'function') {
+        if (typeof window !== 'undefined' && localStorage.getItem('TERMINAL_DEBUG') === '1') {
+          logger.debug(`[Registry ${record.id}] Using writeSync for full-frame TUI batch (chars=${payload.length})`);
+        }
+        rawWithWriteSync.writeSync(payload);
+        record.latestParseId = writeId;
+
+        const bufAfter = record.xterm.raw.buffer?.active;
+        if (bufAfter && (bufAfter.baseY !== baseYBefore || bufAfter.viewportY !== viewportYBefore)) {
+          logger.debug(`[Registry ${record.id}] Viewport changed after write: baseY ${baseYBefore}→${bufAfter.baseY}, viewportY ${viewportYBefore}→${bufAfter.viewportY}`);
+        }
+
+        if (hadClear) {
+          this.notifyClearCallbacks(record);
+        }
+        this.notifyOutputCallbacks(record);
+
+        if (record.flushAfterParse && record.pendingChunks && record.pendingChunks.length > 0 && !record.tuiHoldRedraw) {
+          record.flushAfterParse = false;
+          this.scheduleFlush(record, 'after-parse');
+        }
+        return;
+      }
+
+      record.xterm.raw.write(payload, () => {
+        // Mark this write as fully parsed by xterm
+        record.latestParseId = writeId;
+
+        const bufAfter = record.xterm.raw.buffer?.active;
+        if (bufAfter && (bufAfter.baseY !== baseYBefore || bufAfter.viewportY !== viewportYBefore)) {
+          logger.debug(`[Registry ${record.id}] Viewport changed after write: baseY ${baseYBefore}→${bufAfter.baseY}, viewportY ${viewportYBefore}→${bufAfter.viewportY}`);
+        }
+
+        if (hadClear) {
+          this.notifyClearCallbacks(record);
+        }
+        this.notifyOutputCallbacks(record);
+
+        if (record.flushAfterParse && record.pendingChunks && record.pendingChunks.length > 0 && !record.tuiHoldRedraw) {
+          record.flushAfterParse = false;
+          this.scheduleFlush(record, 'after-parse');
+        }
+      });
+    } catch (error) {
+      record.flushAfterParse = false;
+      logger.debug(`[Registry] Failed to write batch for ${record.id}`, error);
+    }
+  }
+
   private ensureStream(record: TerminalInstanceRecord): void {
     if (record.streamRegistered) {
       return;
@@ -277,52 +500,14 @@ class TerminalInstanceRegistry {
     record.pendingChunks = [];
     record.rafScheduled = false;
     record.hadClearInBatch = false;
-
-    const flushChunks = () => {
-      record.rafScheduled = false;
-      record.rafHandle = undefined;
-
-      if (!record.pendingChunks || record.pendingChunks.length === 0) {
-        return;
-      }
-
-      const combined = record.pendingChunks.join('');
-      record.pendingChunks = [];
-      const hadClear = record.hadClearInBatch ?? false;
-      record.hadClearInBatch = false;
-
-      // VS Code-style dual-timestamp tracking: increment write ID before write,
-      // update parse ID in callback when xterm finishes parsing.
-      // This allows checking if all buffered data has been processed.
-      const writeId = ++record.latestWriteId;
-
-      const bufBefore = record.xterm.raw.buffer?.active;
-      const baseYBefore = bufBefore?.baseY;
-      const viewportYBefore = bufBefore?.viewportY;
-
-      try {
-        record.xterm.raw.write(combined, () => {
-          // Mark this write as fully parsed by xterm
-          record.latestParseId = writeId;
-
-          const bufAfter = record.xterm.raw.buffer?.active;
-          if (bufAfter && (bufAfter.baseY !== baseYBefore || bufAfter.viewportY !== viewportYBefore)) {
-            logger.debug(`[Registry ${record.id}] Viewport changed after write: baseY ${baseYBefore}→${bufAfter.baseY}, viewportY ${viewportYBefore}→${bufAfter.viewportY}`);
-          }
-
-          if (hadClear) {
-            this.notifyClearCallbacks(record);
-          }
-          this.notifyOutputCallbacks(record);
-        });
-      } catch (error) {
-        logger.debug(`[Registry] Failed to write batch for ${record.id}`, error);
-      }
-    };
+    record.pendingByteLength = 0;
+    record.tuiHoldRedraw = false;
+    record.flushAfterParse = false;
 
     const listener = (chunk: string) => {
       if (!record.pendingChunks) {
         record.pendingChunks = [];
+        record.pendingByteLength = 0;
       }
 
       // The backend stream can split control sequences across chunks (e.g. "\x1b[?20" + "04h").
@@ -335,6 +520,33 @@ class TerminalInstanceRegistry {
         // last wins (enable after disable => enabled, disable after enable => disabled).
         record.bracketedPasteEnabled = enableIdx > disableIdx;
       }
+
+      const syncEnableIdx = combinedControl.lastIndexOf(SYNC_OUTPUT_ENABLE_SEQ);
+      const syncDisableIdx = combinedControl.lastIndexOf(SYNC_OUTPUT_DISABLE_SEQ);
+      if (syncEnableIdx !== -1 || syncDisableIdx !== -1) {
+        logger.debug(
+          `[Registry ${record.id}] Synchronized output mode toggle detected: enableIdx=${syncEnableIdx}, disableIdx=${syncDisableIdx}`,
+        );
+      }
+
+      const alt1049EnableIdx = combinedControl.lastIndexOf(ALT_SCREEN_ENABLE_1049);
+      const alt1049DisableIdx = combinedControl.lastIndexOf(ALT_SCREEN_DISABLE_1049);
+      const alt47EnableIdx = combinedControl.lastIndexOf(ALT_SCREEN_ENABLE_47);
+      const alt47DisableIdx = combinedControl.lastIndexOf(ALT_SCREEN_DISABLE_47);
+      const alt1047EnableIdx = combinedControl.lastIndexOf(ALT_SCREEN_ENABLE_1047);
+      const alt1047DisableIdx = combinedControl.lastIndexOf(ALT_SCREEN_DISABLE_1047);
+      if (
+        alt1049EnableIdx !== -1 ||
+        alt1049DisableIdx !== -1 ||
+        alt47EnableIdx !== -1 ||
+        alt47DisableIdx !== -1 ||
+        alt1047EnableIdx !== -1 ||
+        alt1047DisableIdx !== -1
+      ) {
+        logger.debug(
+          `[Registry ${record.id}] Alternate screen toggle detected: 1049(e=${alt1049EnableIdx},d=${alt1049DisableIdx}) 47(e=${alt47EnableIdx},d=${alt47DisableIdx}) 1047(e=${alt1047EnableIdx},d=${alt1047DisableIdx})`,
+        );
+      }
       record.controlSequenceTail = combinedControl.slice(
         Math.max(0, combinedControl.length - CONTROL_SEQUENCE_TAIL_MAX),
       );
@@ -346,7 +558,7 @@ class TerminalInstanceRegistry {
       let processedChunk = chunk;
       const has3J = chunk.includes(CLEAR_SCROLLBACK_SEQ);
       const has2J = chunk.includes('\x1b[2J');
-      const hasH = chunk.includes('\x1b[H');
+      const hasH = containsCupSequence(chunk);
 
       if (has3J || has2J || hasH) {
         const buffer = record.xterm.raw.buffer?.active;
@@ -360,18 +572,60 @@ class TerminalInstanceRegistry {
         } else {
           logger.debug(`[Registry ${record.id}] CLEAR_SCROLLBACK_SEQ detected - clearing pending chunks`);
           record.pendingChunks = [];
+          record.pendingByteLength = 0;
           record.hadClearInBatch = true;
         }
       }
 
+      const isTui = record.xterm.isTuiMode();
+      const hasAltScreenToggle =
+        chunk.includes(ALT_SCREEN_ENABLE_1049)
+        || chunk.includes(ALT_SCREEN_DISABLE_1049)
+        || chunk.includes(ALT_SCREEN_ENABLE_47)
+        || chunk.includes(ALT_SCREEN_DISABLE_47)
+        || chunk.includes(ALT_SCREEN_ENABLE_1047)
+        || chunk.includes(ALT_SCREEN_DISABLE_1047);
+      const hasRedrawBoundary = has2J || hasH || hasAltScreenToggle;
+      const boundaryOnly = isTui && hasRedrawBoundary && isLikelyRedrawBoundaryOnlyChunk(processedChunk);
+
       if (processedChunk.length > 0) {
         record.pendingChunks.push(processedChunk);
+        record.pendingByteLength += processedChunk.length;
+
+        if (!record.attached && record.pendingByteLength > MAX_PENDING_CHARS_WHILE_DETACHED) {
+          while (record.pendingChunks.length > 1 && record.pendingByteLength > MAX_PENDING_CHARS_WHILE_DETACHED) {
+            const dropped = record.pendingChunks.shift();
+            if (!dropped) break;
+            record.pendingByteLength -= dropped.length;
+          }
+
+          if (record.pendingByteLength > MAX_PENDING_CHARS_WHILE_DETACHED && record.pendingChunks.length === 1) {
+            const kept = record.pendingChunks[0];
+            const sliceStart = Math.max(0, kept.length - MAX_PENDING_CHARS_WHILE_DETACHED);
+            record.pendingChunks[0] = kept.slice(sliceStart);
+            record.pendingByteLength = record.pendingChunks[0].length;
+          }
+        }
       }
 
-      if (!record.rafScheduled) {
-        record.rafScheduled = true;
-        record.rafHandle = requestAnimationFrame(flushChunks);
+      if (isTui) {
+        if (boundaryOnly) {
+          record.tuiHoldRedraw = true;
+          return;
+        }
+
+        if (record.tuiHoldRedraw) {
+          record.tuiHoldRedraw = false;
+        }
+
+        const parsingInFlight = record.latestWriteId !== record.latestParseId;
+        if (parsingInFlight) {
+          record.flushAfterParse = true;
+          return;
+        }
       }
+
+      this.scheduleFlush(record, 'stream');
     };
 
     record.streamListener = listener;
@@ -399,6 +653,7 @@ class TerminalInstanceRegistry {
     if (record.pendingChunks && record.pendingChunks.length > 0) {
       const combined = record.pendingChunks.join('');
       record.pendingChunks = [];
+      record.pendingByteLength = 0;
       try {
         record.xterm.raw.write(combined);
       } catch (error) {
@@ -414,6 +669,7 @@ class TerminalInstanceRegistry {
     record.streamRegistered = false;
     record.rafScheduled = false;
     record.pendingChunks = undefined;
+    record.pendingByteLength = 0;
     record.lastChunkTime = undefined;
     record.hadClearInBatch = false;
     record.clearCallbacks = undefined;
@@ -440,6 +696,10 @@ export function removeTerminalInstance(id: string): void {
 
 export function detachTerminalInstance(id: string): void {
   registry.detach(id);
+}
+
+export function attachTerminalInstance(id: string, container: HTMLElement): void {
+  registry.attach(id, container);
 }
 
 export function releaseSessionTerminals(sessionName: string): void {
