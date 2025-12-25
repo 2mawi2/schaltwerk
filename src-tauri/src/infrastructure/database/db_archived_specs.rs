@@ -1,9 +1,9 @@
 use anyhow::Result;
-use chrono::{TimeZone, Utc};
 use rusqlite::params;
 use std::path::{Path, PathBuf};
 
 use crate::domains::sessions::entity::ArchivedSpec;
+use crate::infrastructure::database::timestamps::utc_from_epoch_millis_lossy;
 use crate::schaltwerk_core::database::Database;
 
 pub trait ArchivedSpecMethods {
@@ -49,7 +49,7 @@ impl ArchivedSpecMethods for Database {
                 content: row.get(4)?,
                 archived_at: {
                     let ms: i64 = row.get(5)?;
-                    Utc.timestamp_millis_opt(ms).unwrap()
+                    utc_from_epoch_millis_lossy(ms)
                 },
             })
         })?;

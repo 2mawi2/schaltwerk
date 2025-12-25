@@ -1,7 +1,8 @@
-import { autocompletion, type Completion, type CompletionContext } from '@codemirror/autocomplete'
-import type { Extension } from '@codemirror/state'
+import { acceptCompletion, autocompletion, type Completion, type CompletionContext } from '@codemirror/autocomplete'
+import { Prec, type Extension } from '@codemirror/state'
 import type { ProjectFileIndexApi } from '../../hooks/useProjectFileIndex'
 import { logger } from '../../utils/logger'
+import { keymap } from '@codemirror/view'
 
 const FILE_COMPLETION_PATTERN = /@[A-Za-z0-9_./-]*/
 const MAX_COMPLETION_RESULTS = 40
@@ -71,10 +72,18 @@ export function createFileReferenceAutocomplete(provider: ProjectFileIndexApi): 
     }
   }
 
-  return autocompletion({
-    override: [completionSource],
-    closeOnBlur: true,
-  })
+  return [
+    autocompletion({
+      override: [completionSource],
+      closeOnBlur: true,
+    }),
+    Prec.high(
+      keymap.of([
+        { key: 'Enter', run: acceptCompletion },
+        { key: 'Tab', run: acceptCompletion },
+      ])
+    ),
+  ]
 }
 
 export function filterFilePaths(files: string[], query: string): string[] {

@@ -226,48 +226,25 @@ impl CommandRunner for SystemCommandRunner {
         current_dir: Option<&Path>,
         env: &[(&str, &str)],
     ) -> io::Result<CommandOutput> {
-        let mut cmd = StdCommand::new(program);
-        cmd.args(args);
+        // Run commands through a login shell to inherit the user's full environment
+        // (SSH_AUTH_SOCK, GH_TOKEN, custom PATH entries, etc.). This ensures gh/git
+        // commands work the same as if typed in the user's terminal.
+        let inner_command = build_inner_command(program, args, env);
+        let (shell_program, shell_args) = build_login_shell_invocation(&inner_command);
+
+        debug!(
+            "Running command through login shell: {shell_program} {shell_args:?}"
+        );
+
+        let mut cmd = StdCommand::new(&shell_program);
+        for arg in &shell_args {
+            cmd.arg(arg);
+        }
+
+        cmd.env("TERM", "dumb");
+
         if let Some(dir) = current_dir {
             cmd.current_dir(dir);
-        }
-        for (key, value) in env {
-            cmd.env(key, value);
-        }
-
-        // Many user installations of GitHub CLI live outside the default PATH that
-        // Tauri-provided processes inherit on macOS. To match the behaviour users
-        // expect from their login shell, append common Homebrew and /usr/local
-        // locations unless the caller explicitly overrides PATH.
-        #[cfg(target_os = "macos")]
-        {
-            const EXTRA_PATHS: &[&str] = &[
-                "/opt/homebrew/bin",
-                "/opt/homebrew/sbin",
-                "/usr/local/bin",
-                "/usr/local/sbin",
-            ];
-
-            let overrides_path = env.iter().any(|(key, _)| *key == "PATH");
-            if !overrides_path {
-                let mut path_entries: Vec<PathBuf> = env::var_os("PATH")
-                    .map(|value| env::split_paths(&value).collect())
-                    .unwrap_or_default();
-
-                for candidate in EXTRA_PATHS {
-                    let candidate_path = PathBuf::from(candidate);
-                    if !path_entries
-                        .iter()
-                        .any(|existing| existing == &candidate_path)
-                    {
-                        path_entries.push(candidate_path);
-                    }
-                }
-
-                if let Ok(joined) = env::join_paths(path_entries.iter()) {
-                    cmd.env("PATH", joined);
-                }
-            }
         }
 
         let output = cmd.output()?;
@@ -277,6 +254,77 @@ impl CommandRunner for SystemCommandRunner {
             stderr: String::from_utf8_lossy(&output.stderr).to_string(),
         })
     }
+}
+
+fn build_inner_command(program: &str, args: &[&str], env: &[(&str, &str)]) -> String {
+    let mut parts = Vec::new();
+
+    // Add environment variable exports (POSIX syntax)
+    for (key, value) in env {
+        parts.push(format!("{}={}", key, sh_quote(value)));
+    }
+
+    // Add the actual command
+    parts.push(sh_quote(program));
+    for arg in args {
+        parts.push(sh_quote(arg));
+    }
+
+    parts.join(" ")
+}
+
+fn build_login_shell_invocation(command: &str) -> (String, Vec<String>) {
+    let shell = env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+    let shell_name = Path::new(&shell)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("zsh")
+        .to_ascii_lowercase();
+
+    let args = match shell_name.as_str() {
+        "tcsh" | "csh" => vec!["-ic".to_string(), command.to_string()],
+        "fish" => vec!["-l".to_string(), "-c".to_string(), command.to_string()],
+        "nu" | "nushell" => vec![
+            "-i".to_string(),
+            "-l".to_string(),
+            "-c".to_string(),
+            command.to_string(),
+        ],
+        "pwsh" | "powershell" => {
+            vec!["-Login".to_string(), "-Command".to_string(), command.to_string()]
+        }
+        "xonsh" => vec![
+            "-i".to_string(),
+            "-l".to_string(),
+            "-c".to_string(),
+            command.to_string(),
+        ],
+        _ => vec![
+            "-i".to_string(),
+            "-l".to_string(),
+            "-c".to_string(),
+            command.to_string(),
+        ],
+    };
+
+    (shell, args)
+}
+
+fn sh_quote(s: &str) -> String {
+    if s.is_empty() {
+        return "''".to_string();
+    }
+    let mut quoted = String::with_capacity(s.len() + 2);
+    quoted.push('\'');
+    for ch in s.chars() {
+        if ch == '\'' {
+            quoted.push_str("'\\''");
+        } else {
+            quoted.push(ch);
+        }
+    }
+    quoted.push('\'');
+    quoted
 }
 
 pub struct GitHubCli<R: CommandRunner = SystemCommandRunner> {

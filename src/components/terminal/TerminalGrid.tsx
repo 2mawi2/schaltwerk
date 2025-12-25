@@ -154,11 +154,28 @@ const TerminalGridComponent = () => {
 
     const agentTabsState = getAgentTabsState()
 
+    const pendingTerminalFocusRef = useRef<{ focusArea: 'claude' | 'terminal' | null; terminalId: string | null }>({
+        focusArea: null,
+        terminalId: null,
+    })
+
     useEffect(() => {
         if ((selection.kind === 'session' || selection.kind === 'orchestrator') && terminals.top && agentType) {
             ensureAgentTabsInitialized(agentType as AgentType)
         }
     }, [selection, terminals.top, agentType, ensureAgentTabsInitialized])
+
+    useEffect(() => {
+        if (localFocus !== 'claude') return
+        if (!agentTabsState || agentTabsState.tabs.length === 0) return
+        const active = agentTabsState.tabs[agentTabsState.activeTab]
+        if (!active?.terminalId) return
+
+        pendingTerminalFocusRef.current = { focusArea: 'claude', terminalId: active.terminalId }
+        safeTerminalFocus(() => {
+            claudeTerminalRef.current?.focus()
+        }, isAnyModalOpen)
+    }, [agentTabsState, isAnyModalOpen, localFocus])
 
     // Terminal tabs state from Jotai atom
     const terminalTabsAtomState = useAtomValue(terminalTabsAtomFamily(terminals.bottomBase))
@@ -444,8 +461,6 @@ const TerminalGridComponent = () => {
         }
 
         // Track the last specifically requested terminal focus so we can apply it when ready
-        let lastRequestedTerminalId: string | null = null
-
         const handleFocusTerminal = (detail?: { terminalId?: string; focusType?: 'terminal' | 'claude' }) => {
             // Don't focus terminal if any modal is open
             if (isAnyModalOpen()) return
@@ -458,7 +473,7 @@ const TerminalGridComponent = () => {
             // If a specific terminalId was provided, prefer focusing that one
             const targetId = detail?.terminalId || null
             if (targetId) {
-                lastRequestedTerminalId = targetId
+                pendingTerminalFocusRef.current = { focusArea: 'terminal', terminalId: targetId }
                 safeTerminalFocus(() => {
                     terminalTabsRef.current?.focusTerminal(targetId)
                 }, isAnyModalOpen)
@@ -475,13 +490,19 @@ const TerminalGridComponent = () => {
         const handleTerminalReady = (detail?: { terminalId: string }) => {
             if (isAnyModalOpen()) return
             if (!detail) return
-            if (lastRequestedTerminalId && detail.terminalId === lastRequestedTerminalId) {
-                safeTerminalFocus(() => {
+
+            const pending = pendingTerminalFocusRef.current
+            if (!pending.terminalId || pending.terminalId !== detail.terminalId) return
+
+            safeTerminalFocus(() => {
+                if (pending.focusArea === 'claude') {
+                    claudeTerminalRef.current?.focus()
+                } else if (pending.focusArea === 'terminal') {
                     terminalTabsRef.current?.focusTerminal(detail.terminalId)
-                }, isAnyModalOpen)
-                // Clear to avoid repeated focusing
-                lastRequestedTerminalId = null
-            }
+                }
+            }, isAnyModalOpen)
+
+            pendingTerminalFocusRef.current = { focusArea: null, terminalId: null }
         }
 
         const cleanupReset = listenUiEvent(UiEvent.TerminalReset, handleTerminalReset)
@@ -678,6 +699,20 @@ const TerminalGridComponent = () => {
         const sessionKey = getSessionKey()
         const focusArea = getFocusForSession(sessionKey)
         setLocalFocus(focusArea === 'claude' || focusArea === 'terminal' ? focusArea : null)
+
+        const activeTerminalTab = terminalTabsState.activeTab === RUN_TAB_INDEX
+            ? null
+            : (terminalTabsState.tabs.find(tab => tab.index === terminalTabsState.activeTab) ?? terminalTabsState.tabs[0] ?? null)
+        const pendingTerminalId = focusArea === 'claude'
+            ? (agentTabsState?.tabs[agentTabsState.activeTab]?.terminalId ?? getActiveAgentTerminalId(sessionKey) ?? terminals.top ?? null)
+            : focusArea === 'terminal'
+                ? (activeTerminalTab?.terminalId ?? null)
+                : null
+
+        pendingTerminalFocusRef.current = {
+            focusArea: focusArea === 'claude' || focusArea === 'terminal' ? focusArea : null,
+            terminalId: pendingTerminalId,
+        }
         
         // Focus the appropriate terminal after ensuring it's rendered
         safeTerminalFocus(() => {
@@ -688,7 +723,7 @@ const TerminalGridComponent = () => {
             }
             // TODO: Add diff focus handling when we implement it
         }, isAnyModalOpen)
-    }, [selection, getFocusForSession, getSessionKey, isAnyModalOpen, setLocalFocus])
+    }, [RUN_TAB_INDEX, agentTabsState, getFocusForSession, getSessionKey, isAnyModalOpen, selection, setLocalFocus, terminalTabsState.activeTab, terminalTabsState.tabs, terminals.top])
 
     // If global focus changes to claude/terminal, apply it immediately.
     // Avoid overriding per-session default when only the selection changed
@@ -723,12 +758,23 @@ const TerminalGridComponent = () => {
         // Apply the new global focus (modal-safe)
         if (currentFocus === 'claude') {
             setLocalFocus('claude')
+            pendingTerminalFocusRef.current = {
+                focusArea: 'claude',
+                terminalId: agentTabsState?.tabs[agentTabsState.activeTab]?.terminalId ?? getActiveAgentTerminalId(sessionKey) ?? terminals.top ?? null,
+            }
             safeTerminalFocus(() => {
                 claudeTerminalRef.current?.focus()
             }, isAnyModalOpen)
             lastAppliedGlobalFocusRef.current = 'claude'
         } else if (currentFocus === 'terminal') {
             setLocalFocus('terminal')
+            const activeTerminalTab = terminalTabsState.activeTab === RUN_TAB_INDEX
+                ? null
+                : (terminalTabsState.tabs.find(tab => tab.index === terminalTabsState.activeTab) ?? terminalTabsState.tabs[0] ?? null)
+            pendingTerminalFocusRef.current = {
+                focusArea: 'terminal',
+                terminalId: activeTerminalTab?.terminalId ?? null,
+            }
             safeTerminalFocus(() => {
                 terminalTabsRef.current?.focus()
             }, isAnyModalOpen)
@@ -737,7 +783,7 @@ const TerminalGridComponent = () => {
             setLocalFocus(null)
             lastAppliedGlobalFocusRef.current = null
         }
-    }, [currentFocus, selection, getSessionKey, isAnyModalOpen, setLocalFocus])
+    }, [RUN_TAB_INDEX, agentTabsState, currentFocus, getSessionKey, isAnyModalOpen, selection, setLocalFocus, terminalTabsState.activeTab, terminalTabsState.tabs, terminals.top])
 
     // Keyboard shortcut handling for Run Mode (Cmd+E) and Terminal Focus (Cmd+/)
     useEffect(() => {
@@ -1066,6 +1112,10 @@ const TerminalGridComponent = () => {
         const sessionKey = getSessionKey()
         setFocusForSession(sessionKey, 'claude')
         setLocalFocus('claude')
+        pendingTerminalFocusRef.current = {
+            focusArea: 'claude',
+            terminalId: agentTabsState?.tabs[agentTabsState.activeTab]?.terminalId ?? getActiveAgentTerminalId(sessionKey) ?? terminals.top ?? null,
+        }
 
         // Only focus the terminal, don't restart Claude
         // Claude is already auto-started by the Terminal component when first mounted
@@ -1073,7 +1123,7 @@ const TerminalGridComponent = () => {
         safeTerminalFocus(() => {
             claudeTerminalRef.current?.focus()
         }, isAnyModalOpen)
-    }, [getSessionKey, isAnyModalOpen, setFocusForSession, setLocalFocus])
+    }, [agentTabsState, getSessionKey, isAnyModalOpen, setFocusForSession, setLocalFocus, terminals.top])
 
     const handleActionButtonInvoke = useCallback((action: HeaderActionConfig) => {
         const run = async () => {
@@ -1111,6 +1161,13 @@ const TerminalGridComponent = () => {
         const sessionKey = getSessionKey()
         setFocusForSession(sessionKey, 'terminal')
         setLocalFocus('terminal')
+        const activeTerminalTab = terminalTabsState.activeTab === RUN_TAB_INDEX
+            ? null
+            : (terminalTabsState.tabs.find(tab => tab.index === terminalTabsState.activeTab) ?? terminalTabsState.tabs[0] ?? null)
+        pendingTerminalFocusRef.current = {
+            focusArea: 'terminal',
+            terminalId: activeTerminalTab?.terminalId ?? null,
+        }
                         // If collapsed, uncollapse first
         if (isBottomCollapsed) {
             const expanded = lastExpandedBottomPercent || 28
@@ -1124,7 +1181,7 @@ const TerminalGridComponent = () => {
         safeTerminalFocus(() => {
             terminalTabsRef.current?.focus()
         }, isAnyModalOpen)
-    }, [getSessionKey, isBottomCollapsed, isAnyModalOpen, lastExpandedBottomPercent, setFocusForSession, setIsBottomCollapsed, setLocalFocus, setSizes])
+    }, [RUN_TAB_INDEX, getSessionKey, isBottomCollapsed, isAnyModalOpen, lastExpandedBottomPercent, setFocusForSession, setIsBottomCollapsed, setLocalFocus, setSizes, terminalTabsState.activeTab, terminalTabsState.tabs])
 
     // No prompt UI here anymore; moved to right panel dock
 

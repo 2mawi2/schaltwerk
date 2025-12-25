@@ -1,5 +1,5 @@
 import { useAtom } from 'jotai'
-import { useCallback } from 'react'
+import { useCallback, useLayoutEffect } from 'react'
 import {
     agentTabsStateAtom,
     AgentTab,
@@ -17,6 +17,7 @@ import {
     clearActiveAgentTerminalId,
     resolveActiveAgentTerminalId,
     setActiveAgentTerminalId,
+    setActiveAgentTerminalFromTabsState,
 } from '../common/terminalTargeting'
 
 type StartAgentFn = (params: {
@@ -32,6 +33,11 @@ export const useAgentTabs = (
 ) => {
     const [agentTabsMap, setAgentTabsMap] = useAtom(agentTabsStateAtom)
     const startAgent = options?.startAgent
+
+    useLayoutEffect(() => {
+        if (!sessionId || !baseTerminalId) return
+        setActiveAgentTerminalFromTabsState(sessionId, agentTabsMap.get(sessionId) ?? null, baseTerminalId)
+    }, [agentTabsMap, sessionId, baseTerminalId])
 
     const parseTabNumericIndex = useCallback((tab: AgentTab, fallback: number): number => {
         if (tab.id.startsWith('tab-')) {

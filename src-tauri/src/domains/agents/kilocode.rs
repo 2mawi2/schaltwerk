@@ -6,7 +6,10 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::{BufReader, Read, Write};
 use std::path::{Path, PathBuf};
-use std::sync::{LazyLock, OnceLock, RwLock};
+use std::sync::{LazyLock, RwLock};
+
+#[cfg(not(test))]
+use std::sync::OnceLock;
 use std::time::{Duration, Instant, SystemTime};
 
 #[derive(Debug, Clone, Default)]
@@ -374,10 +377,14 @@ fn extract_cwd_from_task_history_fast(task_history_file: &Path) -> Option<String
 }
 
 /// Get or create the session index with cache invalidation
+#[cfg(not(test))]
 static SESSION_INDEX: OnceLock<KilocodeIndex> = OnceLock::new();
 
 /// Find a Kilocode session by matching worktree path
-pub fn find_kilocode_session(worktree_path: &Path) -> Option<String> {
+fn find_kilocode_session_with_index(
+    worktree_path: &Path,
+    index_cache: &KilocodeIndex,
+) -> Option<String> {
     debug!("find_kilocode_session: looking for worktree_path={worktree_path:?}");
 
     let home = dirs::home_dir()?;
@@ -401,12 +408,23 @@ pub fn find_kilocode_session(worktree_path: &Path) -> Option<String> {
 
     let normalized_worktree = normalized_worktree?;
 
-    let index_cache = SESSION_INDEX.get_or_init(KilocodeIndex::new);
     let index = index_cache.get_or_rebuild(&kilocode_tasks_dir, &kilocode_workspaces_dir);
 
     let result = index.get(&normalized_worktree).cloned();
     debug!("find_kilocode_session: lookup result for {normalized_worktree:?} = {result:?}");
     result
+}
+
+#[cfg(not(test))]
+pub fn find_kilocode_session(worktree_path: &Path) -> Option<String> {
+    let index_cache = SESSION_INDEX.get_or_init(KilocodeIndex::new);
+    find_kilocode_session_with_index(worktree_path, index_cache)
+}
+
+#[cfg(test)]
+pub fn find_kilocode_session(worktree_path: &Path) -> Option<String> {
+    let index_cache = KilocodeIndex::new();
+    find_kilocode_session_with_index(worktree_path, &index_cache)
 }
 
 #[derive(Clone, Default)]
@@ -677,14 +695,26 @@ static DISABLE_INDEXING: LazyLock<bool> =
     });
 
 #[cfg(test)]
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::cell::Cell;
 
 #[cfg(test)]
-static TASK_HISTORY_READS: AtomicUsize = AtomicUsize::new(0);
+thread_local! {
+    static TASK_HISTORY_READS: Cell<usize> = Cell::new(0);
+}
 
 #[cfg(test)]
 fn bump_task_history_reads() {
-    TASK_HISTORY_READS.fetch_add(1, Ordering::Relaxed);
+    TASK_HISTORY_READS.with(|reads| reads.set(reads.get() + 1));
+}
+
+#[cfg(test)]
+fn reset_task_history_reads() {
+    TASK_HISTORY_READS.with(|reads| reads.set(0));
+}
+
+#[cfg(test)]
+fn task_history_reads() -> usize {
+    TASK_HISTORY_READS.with(|reads| reads.get())
 }
 
 #[cfg(not(test))]
@@ -1013,23 +1043,23 @@ mod tests {
         )
         .unwrap();
 
-        TASK_HISTORY_READS.store(0, Ordering::Relaxed);
+        reset_task_history_reads();
         let indexer = KilocodeIndex::new();
         let index1 = indexer.get_or_rebuild(&tasks_dir, &workspaces_dir);
         assert_eq!(
             index1.get(&normalize_path(&worktree_dir).unwrap()),
             Some(&"last-sess-123".to_string())
         );
-        assert_eq!(TASK_HISTORY_READS.load(Ordering::Relaxed), 1);
+        assert_eq!(task_history_reads(), 1);
 
         // New indexer simulates a new process: should load persisted cache and skip parsing.
-        TASK_HISTORY_READS.store(0, Ordering::Relaxed);
+        reset_task_history_reads();
         let indexer2 = KilocodeIndex::new();
         let index2 = indexer2.get_or_rebuild(&tasks_dir, &workspaces_dir);
         assert_eq!(
             index2.get(&normalize_path(&worktree_dir).unwrap()),
             Some(&"last-sess-123".to_string())
         );
-        assert_eq!(TASK_HISTORY_READS.load(Ordering::Relaxed), 0);
+        assert_eq!(task_history_reads(), 0);
     }
 }

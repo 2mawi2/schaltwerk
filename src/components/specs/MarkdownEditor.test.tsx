@@ -67,6 +67,10 @@ describe('MarkdownEditor', () => {
     const withProviderExtensions = captureExtensions({ fileReferenceProvider: provider })
 
     expect(withProviderExtensions.length).toBe(baseExtensions.length + 1)
+
+    const lastExtension = withProviderExtensions[withProviderExtensions.length - 1]
+    expect(Array.isArray(lastExtension)).toBe(true)
+    expect((lastExtension as Extension[]).length).toBe(2)
   })
 
   it('blocks oversized paste operations and reports through toast', () => {

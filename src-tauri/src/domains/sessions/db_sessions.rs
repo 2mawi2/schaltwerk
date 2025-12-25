@@ -1,7 +1,10 @@
 use crate::domains::sessions::entity::{Session, SessionState, SessionStatus};
+use crate::infrastructure::database::timestamps::{
+    utc_from_epoch_seconds_lossy, utc_from_epoch_seconds_lossy_opt,
+};
 use crate::infrastructure::database::Database;
 use anyhow::Result;
-use chrono::{TimeZone, Utc};
+use chrono::Utc;
 use rusqlite::{Result as SqlResult, ToSql, params};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -261,11 +264,9 @@ impl SessionMethods for Database {
                     .get::<_, String>(12)?
                     .parse()
                     .unwrap_or(SessionStatus::Active),
-                created_at: Utc.timestamp_opt(row.get(13)?, 0).unwrap(),
-                updated_at: Utc.timestamp_opt(row.get(14)?, 0).unwrap(),
-                last_activity: row
-                    .get::<_, Option<i64>>(15)?
-                    .and_then(|ts| Utc.timestamp_opt(ts, 0).single()),
+                created_at: utc_from_epoch_seconds_lossy(row.get(13)?),
+                updated_at: utc_from_epoch_seconds_lossy(row.get(14)?),
+                last_activity: utc_from_epoch_seconds_lossy_opt(row.get::<_, Option<i64>>(15)?),
                 initial_prompt: row.get(16)?,
                 ready_to_merge: row.get(17).unwrap_or(false),
                 original_agent_type: row.get(18).ok(),
@@ -319,11 +320,9 @@ impl SessionMethods for Database {
                     .get::<_, String>(12)?
                     .parse()
                     .unwrap_or(SessionStatus::Active),
-                created_at: Utc.timestamp_opt(row.get(13)?, 0).unwrap(),
-                updated_at: Utc.timestamp_opt(row.get(14)?, 0).unwrap(),
-                last_activity: row
-                    .get::<_, Option<i64>>(15)?
-                    .and_then(|ts| Utc.timestamp_opt(ts, 0).single()),
+                created_at: utc_from_epoch_seconds_lossy(row.get(13)?),
+                updated_at: utc_from_epoch_seconds_lossy(row.get(14)?),
+                last_activity: utc_from_epoch_seconds_lossy_opt(row.get::<_, Option<i64>>(15)?),
                 initial_prompt: row.get(16)?,
                 ready_to_merge: row.get(17).unwrap_or(false),
                 original_agent_type: row.get(18).ok(),
@@ -405,11 +404,9 @@ impl SessionMethods for Database {
                         .get::<_, String>(12)?
                         .parse()
                         .unwrap_or(SessionStatus::Active),
-                    created_at: Utc.timestamp_opt(row.get(13)?, 0).unwrap(),
-                    updated_at: Utc.timestamp_opt(row.get(14)?, 0).unwrap(),
-                    last_activity: row
-                        .get::<_, Option<i64>>(15)?
-                        .and_then(|ts| Utc.timestamp_opt(ts, 0).single()),
+                    created_at: utc_from_epoch_seconds_lossy(row.get(13)?),
+                    updated_at: utc_from_epoch_seconds_lossy(row.get(14)?),
+                    last_activity: utc_from_epoch_seconds_lossy_opt(row.get::<_, Option<i64>>(15)?),
                     ready_to_merge: row.get(16).unwrap_or(false),
                     original_agent_type: row.get(17).ok(),
                     original_skip_permissions: row.get(18).ok(),
@@ -477,11 +474,9 @@ impl SessionMethods for Database {
                         .get::<_, String>(12)?
                         .parse()
                         .unwrap_or(SessionStatus::Active),
-                    created_at: Utc.timestamp_opt(row.get(13)?, 0).unwrap(),
-                    updated_at: Utc.timestamp_opt(row.get(14)?, 0).unwrap(),
-                    last_activity: row
-                        .get::<_, Option<i64>>(15)?
-                        .and_then(|ts| Utc.timestamp_opt(ts, 0).single()),
+                    created_at: utc_from_epoch_seconds_lossy(row.get(13)?),
+                    updated_at: utc_from_epoch_seconds_lossy(row.get(14)?),
+                    last_activity: utc_from_epoch_seconds_lossy_opt(row.get::<_, Option<i64>>(15)?),
                     ready_to_merge: row.get(16).unwrap_or(false),
                     original_agent_type: row.get(17).ok(),
                     original_skip_permissions: row.get(18).ok(),
@@ -648,11 +643,11 @@ impl SessionMethods for Database {
                             .get::<_, String>(12)?
                             .parse()
                             .unwrap_or(SessionStatus::Active),
-                        created_at: Utc.timestamp_opt(row.get(13)?, 0).unwrap(),
-                        updated_at: Utc.timestamp_opt(row.get(14)?, 0).unwrap(),
-                        last_activity: row
-                            .get::<_, Option<i64>>(15)?
-                            .and_then(|ts| Utc.timestamp_opt(ts, 0).single()),
+                        created_at: utc_from_epoch_seconds_lossy(row.get(13)?),
+                        updated_at: utc_from_epoch_seconds_lossy(row.get(14)?),
+                        last_activity: utc_from_epoch_seconds_lossy_opt(
+                            row.get::<_, Option<i64>>(15)?,
+                        ),
                         ready_to_merge: row.get(16).unwrap_or(false),
                         original_agent_type: row.get(17).ok(),
                         original_skip_permissions: row.get(18).ok(),
@@ -868,7 +863,62 @@ impl SessionMethods for Database {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::TimeZone;
     use rusqlite::params;
+
+    #[test]
+    fn test_list_sessions_parses_millis_timestamps() {
+        let db = Database::new_in_memory().expect("failed to build in-memory database");
+        let repo_path = PathBuf::from("/tmp/repo");
+
+        let created_at = Utc.timestamp_opt(1_700_000_000, 0).single().unwrap();
+        let updated_at = Utc.timestamp_opt(1_700_000_100, 0).single().unwrap();
+
+        let session = Session {
+            id: "millis-session".to_string(),
+            name: "millis-session".to_string(),
+            display_name: None,
+            version_group_id: None,
+            version_number: None,
+            epic_id: None,
+            repository_path: repo_path.clone(),
+            repository_name: "repo".to_string(),
+            branch: "schaltwerk/millis-session".to_string(),
+            parent_branch: "main".to_string(),
+            original_parent_branch: Some("main".to_string()),
+            worktree_path: repo_path.join(".schaltwerk/worktrees/millis-session"),
+            status: SessionStatus::Active,
+            created_at,
+            updated_at,
+            last_activity: None,
+            initial_prompt: None,
+            ready_to_merge: false,
+            original_agent_type: None,
+            original_skip_permissions: None,
+            pending_name_generation: false,
+            was_auto_generated: false,
+            spec_content: None,
+            session_state: SessionState::Running,
+            resume_allowed: true,
+            amp_thread_id: None,
+            pr_number: None,
+            pr_url: None,
+        };
+
+        db.create_session(&session).expect("failed to create session");
+
+        let conn = db.get_conn().expect("failed to borrow connection");
+        conn.execute(
+            "UPDATE sessions SET created_at = created_at * 1000, updated_at = updated_at * 1000 WHERE id = ?1",
+            params![session.id],
+        )
+        .expect("failed to update timestamps to millis");
+
+        let sessions = db.list_sessions(&repo_path).expect("failed to list sessions");
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].created_at.timestamp(), created_at.timestamp());
+        assert_eq!(sessions[0].updated_at.timestamp(), updated_at.timestamp());
+    }
 
     #[test]
     fn test_session_pr_fields_persist() {

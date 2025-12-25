@@ -6,7 +6,7 @@ import { markWebglFailedGlobally } from './gpuFallbackState';
 import { XtermAddonImporter } from '../xterm/xtermAddonImporter';
 
 export interface RendererState {
-    type: 'webgl' | 'canvas' | 'none';
+    type: 'webgl' | 'dom' | 'none';
     addon?: WebglAddon;
     contextLost: boolean;
 }
@@ -56,9 +56,9 @@ export class WebGLTerminalRenderer {
         this.initAttempted = true;
 
         if (!isWebGLSupported()) {
-            logger.info(`[GPU] WebGL not supported for terminal ${this.terminalId}, using canvas renderer`);
+            logger.info(`[GPU] WebGL not supported for terminal ${this.terminalId}, using DOM renderer`);
             markWebglFailedGlobally('unsupported');
-            this.state = { type: 'canvas', contextLost: false };
+            this.state = { type: 'dom', contextLost: false };
             this.initializing = false;
             return this.state;
         }
@@ -90,7 +90,7 @@ export class WebGLTerminalRenderer {
                 error
             );
             markWebglFailedGlobally('initialization-failed');
-            this.state = { type: 'canvas', contextLost: false };
+            this.state = { type: 'dom', contextLost: false };
             return this.state;
         } finally {
             this.initializing = false;

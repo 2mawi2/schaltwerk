@@ -5,6 +5,7 @@ const mockIsWebGLSupported = vi.fn(function mockIsWebGLSupportedImpl() {
   return true
 })
 const mockResetWebGLCapabilityCacheForTesting = vi.fn(function mockResetCacheImpl() {})
+const mockMarkWebglFailedGlobally = vi.fn(function mockMarkWebglFailedGloballyImpl() {})
 
 const mockWebglAddonInstance = {
     onContextLoss: vi.fn(),
@@ -20,6 +21,10 @@ let importAddonMock: ReturnType<typeof vi.fn>;
 vi.mock('./webglCapability', () => ({
     isWebGLSupported: () => mockIsWebGLSupported(),
     resetWebGLCapabilityCacheForTesting: mockResetWebGLCapabilityCacheForTesting
+}))
+
+vi.mock('./gpuFallbackState', () => ({
+    markWebglFailedGlobally: (_reason?: string) => mockMarkWebglFailedGlobally(),
 }))
 
 vi.mock('../xterm/xtermAddonImporter', () => ({
@@ -51,6 +56,7 @@ describe('WebGLTerminalRenderer', () => {
         mockIsWebGLSupported.mockReturnValue(true)
         mockIsWebGLSupported.mockClear()
         mockResetWebGLCapabilityCacheForTesting.mockClear()
+        mockMarkWebglFailedGlobally.mockClear()
 
         ;({ WebGLTerminalRenderer } = await import('./webglRenderer'))
 
@@ -77,27 +83,33 @@ describe('WebGLTerminalRenderer', () => {
     it('should initialize with WebGL when supported', async () => {
         const state = await renderer.initialize()
 
-        if (state.type !== 'webgl') {
-            expect(state.type).toBe('canvas')
-            expect(mockTerminal.loadAddon).not.toHaveBeenCalled()
-            return
-        }
-
         expect(state.type).toBe('webgl')
         expect(state.contextLost).toBe(false)
         expect(mockTerminal.loadAddon).toHaveBeenCalled()
         expect(importAddonMock).toHaveBeenCalledWith('webgl')
     })
 
-    it('should fall back to Canvas when WebGL is not supported', async () => {
+    it('should fall back to DOM when WebGL is not supported', async () => {
         mockIsWebGLSupported.mockReturnValue(false)
         mockResetWebGLCapabilityCacheForTesting()
 
         const state = await renderer.initialize()
 
-        expect(state.type).toBe('canvas')
+        expect(state.type).toBe('dom')
         expect(state.contextLost).toBe(false)
         expect(mockTerminal.loadAddon).not.toHaveBeenCalled()
+        expect(mockMarkWebglFailedGlobally).toHaveBeenCalled()
+    })
+
+    it('should fall back to DOM when the WebGL addon fails to load', async () => {
+        importAddonMock.mockRejectedValueOnce(new Error('addon-load-failed'))
+
+        const state = await renderer.initialize()
+
+        expect(state.type).toBe('dom')
+        expect(state.contextLost).toBe(false)
+        expect(mockTerminal.loadAddon).not.toHaveBeenCalled()
+        expect(mockMarkWebglFailedGlobally).toHaveBeenCalled()
     })
 
     it('should not re-initialize if already initialized', async () => {
