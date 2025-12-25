@@ -168,6 +168,12 @@ vi.mock('./Terminal', () => {
   }
 })
 
+vi.mock('../acp/AcpChatPanel', () => ({
+  AcpChatPanel: ({ sessionName }: { sessionName: string }) => (
+    <div data-testid="acp-chat-panel-mock" data-session-name={sessionName} />
+  ),
+}))
+
 // Mock TerminalTabs to work with the mount counting system
 vi.mock('./TerminalTabs', () => {
   let lastFocusedTerminalId: string | null = null
@@ -691,7 +697,11 @@ describe('TerminalGrid', () => {
 
     // New terminal ids mounted (remounted due to key change)
     const devIds = terminalIdsFor('dev')
-    expect(screen.getByTestId(devIds.testIdTop)).toBeInTheDocument()
+
+    // Claude sessions render a rich ACP UI in the top pane instead of a terminal.
+    expect(screen.getByTestId('acp-chat-panel-mock')).toBeInTheDocument()
+    expect(screen.getByTestId('acp-chat-panel-mock')).toHaveAttribute('data-session-name', 'dev')
+    expect(screen.queryByTestId(devIds.testIdTop)).not.toBeInTheDocument()
     // Bottom terminal is now in tabs, wait for it to be created
     await waitFor(() => {
       expect(screen.getByTestId(devIds.testIdBottom)).toBeInTheDocument()
@@ -703,12 +713,13 @@ describe('TerminalGrid', () => {
     const bottomEl = screen.getByTestId(devIds.testIdBottom)
     fireEvent.click(bottomEl)
     await waitFor(() => {
+      expect(bridge?.getFocusForSession('dev')).toBe('terminal')
       expect(m.__getFocusSpy(devIds.bottomBase)).toHaveBeenCalled()
     }, { timeout: 2000 })
     const agentTabBarOrHeader = screen.queryByTestId('agent-tab-bar') || screen.getByText(/Agent\s+[—-]{1,2}\s+dev/)
     fireEvent.click(agentTabBarOrHeader)
     await waitFor(() => {
-      expect(m.__getFocusSpy(devIds.topId)).toHaveBeenCalled()
+      expect(bridge?.getFocusForSession('dev')).toBe('claude')
     }, { timeout: 2000 })
   })
 

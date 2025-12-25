@@ -8,6 +8,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::domains::terminal::TerminalManager;
+use crate::domains::acp::manager::AcpManager;
 use crate::schaltwerk_core::SchaltwerkCore;
 
 fn canonicalize_project_path(path: &Path) -> Result<PathBuf> {
@@ -25,6 +26,7 @@ fn canonicalize_project_path(path: &Path) -> Result<PathBuf> {
 pub struct Project {
     pub path: PathBuf,
     pub terminal_manager: Arc<TerminalManager>,
+    pub acp_manager: Arc<AcpManager>,
     pub schaltwerk_core: Arc<RwLock<SchaltwerkCore>>,
 }
 
@@ -34,6 +36,7 @@ impl Project {
 
         // Each project gets its own terminal manager
         let terminal_manager = Arc::new(TerminalManager::new());
+        let acp_manager = Arc::new(AcpManager::new());
 
         // Get the global app data directory for project databases
         let db_path = Self::get_project_db_path(&path)?;
@@ -53,6 +56,7 @@ impl Project {
         Ok(Self {
             path,
             terminal_manager,
+            acp_manager,
             schaltwerk_core,
         })
     }
@@ -104,6 +108,7 @@ impl Project {
     pub fn new_in_memory(path: PathBuf) -> Result<Self> {
         // Each project gets its own terminal manager
         let terminal_manager = Arc::new(TerminalManager::new());
+        let acp_manager = Arc::new(AcpManager::new());
 
         // For tests, create a temporary database file that will be cleaned up
         let temp_dir = std::env::temp_dir();
@@ -117,6 +122,7 @@ impl Project {
         Ok(Self {
             path,
             terminal_manager,
+            acp_manager,
             schaltwerk_core,
         })
     }
@@ -301,6 +307,13 @@ impl ProjectManager {
                     e
                 );
             }
+
+            if let Err(e) = project.acp_manager.stop_all().await {
+                warn!(
+                    "Failed to cleanup ACP sessions for project {}: {e}",
+                    path.display()
+                );
+            }
         }
     }
 
@@ -427,6 +440,13 @@ impl ProjectManager {
             return Err(e);
         }
 
+        if let Err(e) = project.acp_manager.stop_all().await {
+            warn!(
+                "Failed to cleanup ACP sessions for project {}: {e}",
+                key_removed.display()
+            );
+        }
+
         let mut current = self.current_project.write().await;
         if current.as_ref() == Some(&key_removed) {
             *current = None;
@@ -440,6 +460,11 @@ impl ProjectManager {
     pub async fn current_terminal_manager(&self) -> Result<Arc<TerminalManager>> {
         let project = self.current_project().await?;
         Ok(project.terminal_manager.clone())
+    }
+
+    pub async fn current_acp_manager(&self) -> Result<Arc<AcpManager>> {
+        let project = self.current_project().await?;
+        Ok(project.acp_manager.clone())
     }
 
     /// Get SchaltwerkCore for current project

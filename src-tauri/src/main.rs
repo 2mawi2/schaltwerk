@@ -279,6 +279,15 @@ pub async fn get_terminal_manager()
         .map_err(|e| format!("Failed to get terminal manager: {e}"))
 }
 
+pub async fn get_acp_manager()
+-> Result<Arc<schaltwerk::domains::acp::manager::AcpManager>, String> {
+    let manager = get_project_manager().await;
+    manager
+        .current_acp_manager()
+        .await
+        .map_err(|e| format!("Failed to get ACP manager: {e}"))
+}
+
 pub async fn get_schaltwerk_core()
 -> Result<Arc<RwLock<schaltwerk::schaltwerk_core::SchaltwerkCore>>, String> {
     // Respect MCP request context if one is set for this task
@@ -1138,6 +1147,11 @@ fn main() {
             schaltwerk_core_set_archive_max_entries,
             schaltwerk_core_list_project_files,
             schaltwerk_core_list_codex_models,
+            // ACP rich UI commands
+            schaltwerk_acp_start_session,
+            schaltwerk_acp_prompt,
+            schaltwerk_acp_resolve_permission,
+            schaltwerk_acp_stop_session,
             // Open apps commands
             get_default_open_app,
             set_default_open_app,

@@ -34,6 +34,10 @@ export enum SchaltEvent {
   DiffBaseBranchChanged = 'schaltwerk:diff-base-branch-changed',
   ProjectValidationError = 'schaltwerk:project-validation-error',
   OpenPrModal = 'schaltwerk:open-pr-modal',
+  AcpSessionStatus = 'schaltwerk:acp-session-status',
+  AcpSessionUpdate = 'schaltwerk:acp-session-update',
+  AcpPermissionRequested = 'schaltwerk:acp-permission-requested',
+  AcpTerminalOutput = 'schaltwerk:acp-terminal-output',
 }
 
 
@@ -186,6 +190,40 @@ export interface OpenPrModalPayload {
   mode?: 'squash' | 'reapply'
 }
 
+export type AcpRequestId = string | number
+
+export type AcpSessionStatus = 'starting' | 'ready' | 'error' | 'stopped'
+
+export interface AcpSessionStatusPayload {
+  sessionName: string
+  status: AcpSessionStatus
+  sessionId?: string | null
+  message?: string | null
+}
+
+export interface AcpSessionUpdatePayload {
+  sessionName: string
+  sessionId: string
+  update: unknown
+}
+
+export interface AcpPermissionRequestPayload {
+  sessionName: string
+  sessionId: string
+  requestId: AcpRequestId
+  toolCall: unknown
+  options: unknown[]
+}
+
+export interface AcpTerminalOutputPayload {
+  sessionName: string
+  sessionId: string
+  terminalId: string
+  output: string
+  truncated: boolean
+  exitStatus?: unknown
+}
+
 import { type EnrichedSession, type Epic } from '../types/session'
 
 export interface SessionsRefreshedEventPayload {
@@ -250,4 +288,8 @@ export type EventPayloadMap = {
   [SchaltEvent.DiffBaseBranchChanged]: DiffBaseBranchChangedPayload
   [SchaltEvent.ProjectValidationError]: ProjectValidationErrorPayload
   [SchaltEvent.OpenPrModal]: OpenPrModalPayload
+  [SchaltEvent.AcpSessionStatus]: AcpSessionStatusPayload
+  [SchaltEvent.AcpSessionUpdate]: AcpSessionUpdatePayload
+  [SchaltEvent.AcpPermissionRequested]: AcpPermissionRequestPayload
+  [SchaltEvent.AcpTerminalOutput]: AcpTerminalOutputPayload
 }

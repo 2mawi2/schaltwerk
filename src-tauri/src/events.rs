@@ -34,6 +34,10 @@ pub enum SchaltEvent {
     OrchestratorLaunchFailed,
     ProjectValidationError,
     OpenPrModal,
+    AcpSessionStatus,
+    AcpSessionUpdate,
+    AcpPermissionRequested,
+    AcpTerminalOutput,
 }
 
 impl SchaltEvent {
@@ -72,6 +76,10 @@ impl SchaltEvent {
             SchaltEvent::OrchestratorLaunchFailed => "schaltwerk:orchestrator-launch-failed",
             SchaltEvent::ProjectValidationError => "schaltwerk:project-validation-error",
             SchaltEvent::OpenPrModal => "schaltwerk:open-pr-modal",
+            SchaltEvent::AcpSessionStatus => "schaltwerk:acp-session-status",
+            SchaltEvent::AcpSessionUpdate => "schaltwerk:acp-session-update",
+            SchaltEvent::AcpPermissionRequested => "schaltwerk:acp-permission-requested",
+            SchaltEvent::AcpTerminalOutput => "schaltwerk:acp-terminal-output",
         }
     }
 }

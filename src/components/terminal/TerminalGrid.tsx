@@ -64,6 +64,7 @@ import { CustomAgentModal } from '../modals/CustomAgentModal'
 import { useSessionManagement } from '../../hooks/useSessionManagement'
 import { startOrchestratorTop } from '../../common/agentSpawn'
 import { getActiveAgentTerminalId } from '../../common/terminalTargeting'
+import { AcpChatPanel } from '../acp/AcpChatPanel'
 
 type TerminalTabDescriptor = { index: number; terminalId: string; label: string }
 type TerminalTabsUiState = {
@@ -1125,16 +1126,36 @@ const TerminalGridComponent = () => {
         }, isAnyModalOpen)
     }, [agentTabsState, getSessionKey, isAnyModalOpen, setFocusForSession, setLocalFocus, terminals.top])
 
+    const activeTopAgentType = useMemo(() => {
+        if (agentTabsState) {
+            const activeTab = agentTabsState.tabs[agentTabsState.activeTab]
+            return activeTab?.agentType ?? agentType
+        }
+        return agentType
+    }, [agentTabsState, agentType])
+
+    const shouldUseAcpForTop = useMemo(() => {
+        return selection.kind === 'session' && Boolean(selection.payload) && activeTopAgentType === 'claude' && !selectionIsSpec
+    }, [activeTopAgentType, selection, selectionIsSpec])
+
     const handleActionButtonInvoke = useCallback((action: HeaderActionConfig) => {
         const run = async () => {
             try {
                 const sessionKey = getSessionKey()
+
+                if (shouldUseAcpForTop && selection.kind === 'session' && selection.payload) {
+                    setFocusForSession(sessionKey, 'claude')
+                    setLocalFocus('claude')
+                    await invoke<void>(TauriCommands.SchaltwerkAcpPrompt, { sessionName: selection.payload, prompt: action.prompt })
+                    return
+                }
+
                 const terminalId = getActiveAgentTerminalId(sessionKey) ?? terminals.top
                 await invoke(TauriCommands.PasteAndSubmitTerminal, {
                     id: terminalId,
                     data: action.prompt,
-                    useBracketedPaste: shouldUseBracketedPaste(agentType),
-                    needsDelayedSubmit: needsDelayedSubmitForAgent(agentType),
+                    useBracketedPaste: shouldUseBracketedPaste(activeTopAgentType),
+                    needsDelayedSubmit: needsDelayedSubmitForAgent(activeTopAgentType),
                 })
 
                 safeTerminalFocus(() => {
@@ -1152,7 +1173,7 @@ const TerminalGridComponent = () => {
         }
 
         void run()
-    }, [agentType, getSessionKey, isAnyModalOpen, localFocus, terminals.top])
+    }, [activeTopAgentType, getSessionKey, isAnyModalOpen, localFocus, selection, setFocusForSession, setLocalFocus, shouldUseAcpForTop, terminals.top])
 
     const handleTerminalClick = useCallback((e?: React.MouseEvent) => {
         // Prevent event from bubbling if called from child
@@ -1461,40 +1482,49 @@ const TerminalGridComponent = () => {
                                 (() => {
                                     const activeTab = agentTabsState.tabs[agentTabsState.activeTab]
                                     if (!activeTab) return null
+                                    const shouldUseRichUi = selection.kind === 'session' && activeTab.agentType === 'claude' && Boolean(selection.payload)
                                     return (
-                                        <TerminalErrorBoundary key={activeTab.terminalId} terminalId={activeTab.terminalId}>
-                                            <Terminal
-                                                key={`top-terminal-${terminalKey}-${activeTab.terminalId}`}
-                                                ref={claudeTerminalRef}
-                                                terminalId={activeTab.terminalId}
-                                                className="h-full w-full"
-                                                sessionName={selection.kind === 'session' ? selection.payload ?? undefined : undefined}
-                                                isCommander={selection.kind === 'orchestrator'}
-                                                agentType={activeTab.agentType}
-                                                onTerminalClick={handleClaudeSessionClick}
-                                                previewKey={previewKey ?? undefined}
-                                                autoPreviewConfig={autoPreviewConfig}
-                                                workingDirectory={effectiveWorkingDirectory}
-                                            />
-                                        </TerminalErrorBoundary>
+                                        shouldUseRichUi ? (
+                                            <AcpChatPanel key={`acp-${selection.payload}`} sessionName={selection.payload ?? ''} />
+                                        ) : (
+                                            <TerminalErrorBoundary key={activeTab.terminalId} terminalId={activeTab.terminalId}>
+                                                <Terminal
+                                                    key={`top-terminal-${terminalKey}-${activeTab.terminalId}`}
+                                                    ref={claudeTerminalRef}
+                                                    terminalId={activeTab.terminalId}
+                                                    className="h-full w-full"
+                                                    sessionName={selection.kind === 'session' ? selection.payload ?? undefined : undefined}
+                                                    isCommander={selection.kind === 'orchestrator'}
+                                                    agentType={activeTab.agentType}
+                                                    onTerminalClick={handleClaudeSessionClick}
+                                                    previewKey={previewKey ?? undefined}
+                                                    autoPreviewConfig={autoPreviewConfig}
+                                                    workingDirectory={effectiveWorkingDirectory}
+                                                />
+                                            </TerminalErrorBoundary>
+                                        )
                                     )
                                 })()
                             ) : (
-                                <TerminalErrorBoundary terminalId={terminals.top}>
-                                    <Terminal
-                                    key={`top-terminal-${terminalKey}`}
-                                    ref={claudeTerminalRef}
-                                    terminalId={terminals.top}
-                                    className="h-full w-full"
-                                    sessionName={selection.kind === 'session' ? selection.payload ?? undefined : undefined}
-                                    isCommander={selection.kind === 'orchestrator'}
-                                    agentType={agentType}
-                                    onTerminalClick={handleClaudeSessionClick}
-                                    previewKey={previewKey ?? undefined}
-                                    autoPreviewConfig={autoPreviewConfig}
-                                    workingDirectory={effectiveWorkingDirectory}
-                                />
-                                </TerminalErrorBoundary>
+                                (selection.kind === 'session' && agentType === 'claude' && Boolean(selection.payload)) ? (
+                                    <AcpChatPanel key={`acp-${selection.payload}`} sessionName={selection.payload ?? ''} />
+                                ) : (
+                                    <TerminalErrorBoundary terminalId={terminals.top}>
+                                        <Terminal
+                                        key={`top-terminal-${terminalKey}`}
+                                        ref={claudeTerminalRef}
+                                        terminalId={terminals.top}
+                                        className="h-full w-full"
+                                        sessionName={selection.kind === 'session' ? selection.payload ?? undefined : undefined}
+                                        isCommander={selection.kind === 'orchestrator'}
+                                        agentType={agentType}
+                                        onTerminalClick={handleClaudeSessionClick}
+                                        previewKey={previewKey ?? undefined}
+                                        autoPreviewConfig={autoPreviewConfig}
+                                        workingDirectory={effectiveWorkingDirectory}
+                                    />
+                                    </TerminalErrorBoundary>
+                                )
                             )
                         )}
                     </div>
