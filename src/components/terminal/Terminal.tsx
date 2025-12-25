@@ -1443,12 +1443,16 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 const disposable = renderHandler.call(terminal.current, () => {
                     if (!hydratedRef.current) {
                         hydratedRef.current = true;
-                        setHydrated(true);
-                        if (!hydratedOnceRef.current) {
-                            hydratedOnceRef.current = true;
-                            emitUiEvent(UiEvent.TerminalReady, { terminalId });
-                            onReadyRef.current?.();
-                        }
+	                        setHydrated(true);
+	                        if (!hydratedOnceRef.current) {
+	                            hydratedOnceRef.current = true;
+	                            try {
+	                                emitUiEvent(UiEvent.TerminalReady, { terminalId });
+	                            } catch (error) {
+	                                logger.debug(`[Terminal ${terminalId}] Failed to emit terminal-ready event`, error);
+	                            }
+	                            onReadyRef.current?.();
+	                        }
                         logScrollSnapshot('onRender:hydrated');
                     }
                 });
