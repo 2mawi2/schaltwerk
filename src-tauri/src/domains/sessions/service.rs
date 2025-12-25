@@ -3751,14 +3751,15 @@ impl SessionManager {
     pub fn mark_session_ready(&self, session_name: &str) -> Result<bool> {
         let session = self.db_manager.get_session_by_name(session_name)?;
 
-        if !session.worktree_path.exists() {
-            return Err(anyhow!(
-                "Worktree for session '{session_name}' is missing at {}",
+        let ready_to_merge = if session.worktree_path.exists() {
+            !git::has_uncommitted_changes(&session.worktree_path)?
+        } else {
+            log::warn!(
+                "Worktree for session '{session_name}' is missing at {}; marking as reviewed with ready_to_merge=false",
                 session.worktree_path.display()
-            ));
-        }
-
-        let ready_to_merge = !git::has_uncommitted_changes(&session.worktree_path)?;
+            );
+            false
+        };
 
         self.db_manager
             .update_session_ready_to_merge(&session.id, ready_to_merge)?;

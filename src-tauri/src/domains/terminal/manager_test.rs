@@ -42,7 +42,7 @@ mod tests {
             if buffer.contains(expected) {
                 return true;
             }
-            tokio::task::yield_now().await;
+            sleep(Duration::from_millis(1)).await;
         }
         false
     }
