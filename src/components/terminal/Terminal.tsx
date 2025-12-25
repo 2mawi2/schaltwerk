@@ -408,6 +408,46 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         return active === id;
     }, []);
 
+    useEffect(() => {
+        if (typeof window === 'undefined') {
+            return
+        }
+
+        const handleSelectAll = (event: KeyboardEvent) => {
+            if (detectPlatformSafe() !== 'mac') return
+            if (event.type !== 'keydown') return
+
+            if (!event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return
+            if (event.key !== 'a' && event.key !== 'A') return
+
+            const target = event.target
+            if (!(target instanceof Node)) return
+
+            const container = termRef.current
+            if (!container || !container.isConnected) return
+            if (!container.contains(target)) return
+
+            if (target instanceof HTMLInputElement) return
+            if (target instanceof HTMLElement && target.isContentEditable) return
+            if (target instanceof HTMLTextAreaElement) {
+                const isXtermTextarea = target.classList.contains('xterm-helper-textarea') || Boolean(target.closest('.xterm'))
+                if (!isXtermTextarea) {
+                    return
+                }
+            }
+
+            event.preventDefault()
+            event.stopPropagation()
+            if (typeof event.stopImmediatePropagation === 'function') {
+                event.stopImmediatePropagation()
+            }
+            terminal.current?.selectAll()
+        }
+
+        window.addEventListener('keydown', handleSelectAll, true)
+        return () => window.removeEventListener('keydown', handleSelectAll, true)
+    }, []);
+
     const {
         config: terminalConfig,
         configRef: terminalConfigRef,
@@ -1367,6 +1407,20 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
             const isMac = navigator.userAgent.includes('Mac')
             const modifierKey = isMac ? event.metaKey : event.ctrlKey
+
+            if (
+                isMac &&
+                event.type === 'keydown' &&
+                event.metaKey &&
+                !event.ctrlKey &&
+                !event.altKey &&
+                !event.shiftKey &&
+                (event.key === 'a' || event.key === 'A')
+            ) {
+                event.preventDefault()
+                terminal.current?.selectAll()
+                return false
+            }
             const shouldHandleClaudeShiftEnter = (
                 agentTypeRef.current === 'claude' &&
                 isAgentTopTerminal &&
@@ -1974,8 +2028,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 return;
             }
         }
-        // If user is selecting text inside the run terminal, do not steal focus (prevents jump-to-bottom)
-        if (agentType === 'run' && (isUserSelectingInTerminal() || suppressNextClickRef.current)) {
+        if (isUserSelectingInTerminal() || suppressNextClickRef.current) {
             // Reset suppression after consuming it
             suppressNextClickRef.current = false;
             return;
@@ -2071,6 +2124,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         >
              <div
                  ref={termRef}
+                 data-terminal-id={terminalId}
                  className={`h-full w-full overflow-hidden transition-opacity duration-150 ${!hydrated ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
              />
              <TerminalScrollButton

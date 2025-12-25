@@ -75,6 +75,7 @@ type HarnessInstance = {
     scrollLines: ReturnType<typeof vi.fn>
     scrollToLine: ReturnType<typeof vi.fn>
     scrollToBottom: ReturnType<typeof vi.fn>
+    selectAll: ReturnType<typeof vi.fn>
     focus: ReturnType<typeof vi.fn>
     hasSelection: ReturnType<typeof vi.fn>
     attachCustomKeyEventHandler: ReturnType<typeof vi.fn>
@@ -122,6 +123,7 @@ const terminalHarness = vi.hoisted(() => {
         this.buffer.active.viewportY = Math.max(0, Math.min(baseY, line))
       }),
       scrollToBottom: vi.fn(),
+      selectAll: vi.fn(),
       focus: vi.fn(),
       hasSelection: vi.fn(() => false),
       attachCustomKeyEventHandler: vi.fn(),
@@ -260,7 +262,11 @@ vi.mock('../../terminal/registry/terminalRegistry', () => {
   const { acquireMock } = terminalHarness
   return {
     acquireTerminalInstance: vi.fn((id: string, factory: () => unknown) => acquireMock(id, factory as () => HarnessInstance)),
-    attachTerminalInstance: vi.fn(),
+    attachTerminalInstance: vi.fn((_id: string, container: HTMLElement) => {
+      const textarea = document.createElement('textarea')
+      textarea.classList.add('xterm-helper-textarea')
+      container.appendChild(textarea)
+    }),
     releaseTerminalInstance: vi.fn(),
     removeTerminalInstance: vi.fn(),
     detachTerminalInstance: vi.fn(),
@@ -454,6 +460,80 @@ describe('Terminal', () => {
     expect(instance.config.scrollback).toBe(5000)
     expect(instance.config.fontFamily).toBe('Menlo, Monaco, ui-monospace, SFMono-Regular, monospace')
     expect(instance.config.minimumContrastRatio).toBeCloseTo(ATLAS_CONTRAST_BASE)
+  })
+
+  it('selects all terminal output on Cmd+A (macOS)', async () => {
+    renderTerminal({ terminalId: 'session-select-all-top', sessionName: 'select-all' })
+
+    await waitFor(() => {
+      expect(terminalHarness.instances.length).toBeGreaterThan(0)
+      expect((terminalHarness.instances[0] as HarnessInstance).raw.attachCustomKeyEventHandler).toHaveBeenCalled()
+    })
+
+    const instance = terminalHarness.instances[0] as HarnessInstance
+    const handler = instance.raw.attachCustomKeyEventHandler.mock.calls[0]?.[0] as ((event: KeyboardEvent) => boolean)
+    expect(typeof handler).toBe('function')
+
+    const event = {
+      type: 'keydown',
+      key: 'a',
+      metaKey: true,
+      ctrlKey: false,
+      altKey: false,
+      shiftKey: false,
+      preventDefault: vi.fn(),
+    } as unknown as KeyboardEvent
+
+    const result = handler(event)
+
+    expect(event.preventDefault).toHaveBeenCalled()
+    expect(instance.raw.selectAll).toHaveBeenCalled()
+    expect(result).toBe(false)
+  })
+
+  it('selects all terminal output on Cmd+A via window capture handler', async () => {
+    const utils = renderTerminal({ terminalId: 'session-select-all-capture-top', sessionName: 'select-all-capture' })
+
+    await waitFor(() => {
+      expect(terminalHarness.instances.length).toBeGreaterThan(0)
+    })
+
+    const instance = terminalHarness.instances[0] as HarnessInstance
+    instance.raw.selectAll.mockClear()
+
+    const textarea = utils.container.querySelector('textarea.xterm-helper-textarea') as HTMLTextAreaElement | null
+    expect(textarea).not.toBeNull()
+    textarea!.focus()
+
+    const event = new KeyboardEvent('keydown', { key: 'a', metaKey: true, bubbles: true, cancelable: true })
+    textarea!.dispatchEvent(event)
+
+    expect(event.defaultPrevented).toBe(true)
+    expect(instance.raw.selectAll).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not steal focus after drag-selection for non-run terminals', async () => {
+    const onTerminalClick = vi.fn()
+    const utils = renderTerminal({ terminalId: 'session-drag-select-top', sessionName: 'drag-select', agentType: 'claude', onTerminalClick })
+
+    await waitFor(() => {
+      expect(terminalHarness.instances.length).toBeGreaterThan(0)
+    })
+
+    const instance = terminalHarness.instances[0] as HarnessInstance
+    instance.raw.focus.mockClear()
+    onTerminalClick.mockClear()
+
+    const container = utils.container.querySelector('[data-smartdash-exempt="true"]') as HTMLDivElement | null
+    expect(container).not.toBeNull()
+
+    fireEvent.mouseDown(container!, { clientX: 10, clientY: 10 })
+    fireEvent.mouseMove(container!, { clientX: 30, clientY: 10 })
+    fireEvent.mouseUp(container!)
+    fireEvent.click(container!)
+
+    expect(instance.raw.focus).not.toHaveBeenCalled()
+    expect(onTerminalClick).not.toHaveBeenCalled()
   })
 
   it('applies deep scrollback for agent top terminals', async () => {

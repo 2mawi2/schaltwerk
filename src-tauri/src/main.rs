@@ -959,6 +959,61 @@ use schaltwerk::infrastructure::logging::register_dev_error_hook;
 use serde::Serialize;
 use tauri::Manager;
 
+#[cfg(target_os = "macos")]
+const MACOS_SELECT_ALL_MENU_ID: &str = "schaltwerk-select-all";
+
+#[cfg(target_os = "macos")]
+fn replace_macos_select_all_menu_item<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    menu: &tauri::menu::Menu<R>,
+) -> Result<(), tauri::Error> {
+    use tauri::menu::{MenuItem, MenuItemKind};
+
+    let Some(edit_menu) = menu.items()?.into_iter().find_map(|item| match item {
+        MenuItemKind::Submenu(submenu) => match submenu.text() {
+            Ok(text) if text.replace('&', "") == "Edit" => Some(submenu),
+            _ => None,
+        },
+        _ => None,
+    }) else {
+        return Ok(());
+    };
+
+    let items = edit_menu.items()?;
+    let mut select_all_index = None;
+    for (idx, item) in items.iter().enumerate() {
+        let label = match item {
+            MenuItemKind::Predefined(menu_item) => menu_item.text().ok(),
+            MenuItemKind::MenuItem(menu_item) => menu_item.text().ok(),
+            _ => None,
+        };
+
+        if let Some(label) = label
+            && label.replace('&', "") == "Select All"
+        {
+            select_all_index = Some(idx);
+            break;
+        }
+    }
+
+    let Some(select_all_index) = select_all_index else {
+        return Ok(());
+    };
+
+    edit_menu.remove_at(select_all_index)?;
+
+    let replacement = MenuItem::with_id(
+        app,
+        MACOS_SELECT_ALL_MENU_ID,
+        "Select All",
+        true,
+        Some("CmdOrCtrl+A"),
+    )?;
+
+    edit_menu.insert(&replacement, select_all_index)?;
+    Ok(())
+}
+
 fn main() {
     extend_process_path();
 
@@ -1015,14 +1070,34 @@ fn main() {
     // Create cleanup guard that will run on exit
     let _cleanup_guard = cleanup::TerminalCleanupGuard;
 
-    let run_result = tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_updater::Builder::new()
             .pubkey(UPDATER_PUBLIC_KEY.trim())
-        .build())
-        .invoke_handler(tauri::generate_handler![
+        .build());
+
+    #[cfg(target_os = "macos")]
+    let builder = builder
+        .menu(|app| {
+            let menu = tauri::menu::Menu::default(app)?;
+            if let Err(error) = replace_macos_select_all_menu_item(app, &menu) {
+                log::warn!("[menu] Failed to override macOS Select All: {error}");
+            }
+            Ok(menu)
+        })
+        .on_menu_event(|app, event| {
+            if event.id() != MACOS_SELECT_ALL_MENU_ID {
+                return;
+            }
+
+            if let Err(error) = emit_event(app, SchaltEvent::SelectAllRequested, &()) {
+                log::warn!("[menu] Failed to emit select-all-requested event: {error}");
+            }
+        });
+
+    let run_result = builder.invoke_handler(tauri::generate_handler![
             // Development info
             get_development_info,
             github_get_status,

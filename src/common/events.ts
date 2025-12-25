@@ -34,6 +34,7 @@ export enum SchaltEvent {
   DiffBaseBranchChanged = 'schaltwerk:diff-base-branch-changed',
   ProjectValidationError = 'schaltwerk:project-validation-error',
   OpenPrModal = 'schaltwerk:open-pr-modal',
+  SelectAllRequested = 'schaltwerk:select-all-requested',
   AcpSessionStatus = 'schaltwerk:acp-session-status',
   AcpSessionUpdate = 'schaltwerk:acp-session-update',
   AcpPermissionRequested = 'schaltwerk:acp-permission-requested',
@@ -288,6 +289,7 @@ export type EventPayloadMap = {
   [SchaltEvent.DiffBaseBranchChanged]: DiffBaseBranchChangedPayload
   [SchaltEvent.ProjectValidationError]: ProjectValidationErrorPayload
   [SchaltEvent.OpenPrModal]: OpenPrModalPayload
+  [SchaltEvent.SelectAllRequested]: null
   [SchaltEvent.AcpSessionStatus]: AcpSessionStatusPayload
   [SchaltEvent.AcpSessionUpdate]: AcpSessionUpdatePayload
   [SchaltEvent.AcpPermissionRequested]: AcpPermissionRequestPayload

@@ -85,6 +85,7 @@ import { logger } from './utils/logger'
 import { installSmartDashGuards } from './utils/normalizeCliText'
 import { useKeyboardShortcutsConfig } from './contexts/KeyboardShortcutsContext'
 import { detectPlatformSafe, isShortcutForAction } from './keyboardShortcuts/helpers'
+import { selectAllTerminal } from './terminal/registry/terminalRegistry'
 import { useSelectionPreserver } from './hooks/useSelectionPreserver'
 import { AGENT_START_TIMEOUT_MESSAGE } from './common/agentSpawn'
 import { beginSplitDrag, endSplitDrag } from './utils/splitDragCoordinator'
@@ -575,6 +576,57 @@ function AppContent() {
     pendingActivePathRef.current = null
     setPendingActivePath(null)
   }, [])
+
+  const handleSelectAllRequested = useCallback(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      return
+    }
+
+    const active = document.activeElement
+    if (!(active instanceof Element)) {
+      return
+    }
+
+    const terminalContainer = active.closest('[data-terminal-id]')
+    const terminalId = terminalContainer?.getAttribute('data-terminal-id')
+    if (terminalId) {
+      selectAllTerminal(terminalId)
+      return
+    }
+
+    if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) {
+      active.select()
+      return
+    }
+
+    if (active instanceof HTMLElement && active.isContentEditable) {
+      const selection = window.getSelection()
+      if (!selection) {
+        return
+      }
+
+      const range = document.createRange()
+      range.selectNodeContents(active)
+      selection.removeAllRanges()
+      selection.addRange(range)
+    }
+  }, [selectAllTerminal])
+
+  useEffect(() => {
+    const unlistenPromise = listenEvent(SchaltEvent.SelectAllRequested, () => {
+      handleSelectAllRequested()
+    })
+
+    return () => {
+      void unlistenPromise
+        .then(unlisten => {
+          unlisten()
+        })
+        .catch(error => {
+          logger.warn('[App] Failed to detach select all requested listener', error)
+        })
+    }
+  }, [handleSelectAllRequested])
 
   useEffect(() => {
     if (projectPath && pendingActivePathRef.current === projectPath) {
