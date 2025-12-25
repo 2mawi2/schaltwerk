@@ -1,7 +1,8 @@
 use super::connection::Database;
 use crate::domains::sessions::entity::Spec;
+use crate::infrastructure::database::timestamps::utc_from_epoch_seconds_lossy;
 use anyhow::Result;
-use chrono::{TimeZone, Utc};
+use chrono::Utc;
 use rusqlite::{Row, params};
 use std::path::{Path, PathBuf};
 
@@ -141,11 +142,11 @@ fn row_to_spec(row: &Row<'_>) -> rusqlite::Result<Spec> {
         content: row.get(6)?,
         created_at: {
             let ts: i64 = row.get(7)?;
-            Utc.timestamp_opt(ts, 0).unwrap()
+            utc_from_epoch_seconds_lossy(ts)
         },
         updated_at: {
             let ts: i64 = row.get(8)?;
-            Utc.timestamp_opt(ts, 0).unwrap()
+            utc_from_epoch_seconds_lossy(ts)
         },
     })
 }
