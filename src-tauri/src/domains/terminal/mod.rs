@@ -69,6 +69,7 @@ pub mod idle_detection;
 pub mod lifecycle;
 pub mod local;
 pub mod manager;
+pub mod nvm;
 pub mod shell_invocation;
 pub mod submission;
 pub mod utf8_stream;
