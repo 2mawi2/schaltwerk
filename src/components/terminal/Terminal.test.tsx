@@ -5,8 +5,11 @@ import { listenEvent } from '../../common/eventSystem'
 import { startSessionTop } from '../../common/agentSpawn'
 import { writeTerminalBackend } from '../../terminal/transport/backend'
 import { TERMINAL_FILE_DRAG_TYPE } from '../../common/dragTypes'
-import { __resetTerminalTargetingForTest, setActiveAgentTerminalId } from '../../common/terminalTargeting'
+import { __resetTerminalTargetingForTest, getActiveAgentTerminalId, setActiveAgentTerminalId } from '../../common/terminalTargeting'
 import { Provider, createStore } from 'jotai'
+import { agentTabsStateAtom, type AgentTab } from '../../store/atoms/agentTabs'
+import { useAgentTabs } from '../../hooks/useAgentTabs'
+import type { AgentType } from '../../types/session'
 
 const ATLAS_CONTRAST_BASE = 1.1
 
@@ -603,6 +606,93 @@ describe('Terminal', () => {
 
       expect(writeTerminalBackend).toHaveBeenCalledTimes(1)
       expect(writeTerminalBackend).toHaveBeenCalledWith('session-demo-top', '\u001b')
+    } finally {
+      terminalHarness.acquireMock.mockReset()
+      if (originalAcquire) {
+        terminalHarness.acquireMock.mockImplementation(originalAcquire)
+      }
+    }
+  })
+
+  it('initializes agent tab input targeting from agent tabs state (no manual targeting setup)', async () => {
+    const sessionId = 'demo'
+    const baseTerminalId = 'session-demo-top'
+
+    function AgentTabsHarness() {
+      useAgentTabs(sessionId, baseTerminalId)
+      return null
+    }
+
+    const createdById = new Map<string, HarnessInstance>()
+    type AcquireResult = ReturnType<typeof terminalHarness.acquireMock>
+    const originalAcquire = terminalHarness.acquireMock.getMockImplementation() as (
+      (id: string, factory: () => HarnessInstance) => AcquireResult
+    )
+
+    terminalHarness.acquireMock.mockImplementation((id: string, factory: () => HarnessInstance): AcquireResult => {
+      let created: HarnessInstance | undefined
+      const result = originalAcquire(id, () => {
+        const instance = factory()
+        created = instance
+        return instance
+      })
+      if (created) {
+        createdById.set(id, created)
+      }
+      return result
+    })
+
+    const store = createStore()
+    const tabs: AgentTab[] = [
+      { id: 'tab-0', terminalId: baseTerminalId, label: 'Agent 1', agentType: 'claude' },
+      { id: 'tab-1', terminalId: `${baseTerminalId}-1`, label: 'Agent 2', agentType: 'codex' as AgentType },
+    ]
+    store.set(agentTabsStateAtom, new Map([[sessionId, { tabs, activeTab: 1 }]]))
+
+    try {
+      render(
+        <Provider store={store}>
+          <AgentTabsHarness />
+          <Terminal terminalId={baseTerminalId} sessionName={sessionId} />
+          <Terminal terminalId={`${baseTerminalId}-1`} sessionName={sessionId} />
+        </Provider>
+      )
+
+      await waitFor(() => {
+        expect(createdById.has(baseTerminalId)).toBe(true)
+        expect(createdById.has(`${baseTerminalId}-1`)).toBe(true)
+      })
+
+      await waitFor(() => {
+        expect(getActiveAgentTerminalId(sessionId)).toBe(`${baseTerminalId}-1`)
+      })
+
+      const primary = createdById.get(baseTerminalId)!
+      const secondary = createdById.get(`${baseTerminalId}-1`)!
+      const primaryOnData = primary.raw.onData.mock.calls[0]?.[0] as ((data: string) => void) | undefined
+      const secondaryOnData = secondary.raw.onData.mock.calls[0]?.[0] as ((data: string) => void) | undefined
+
+      expect(primaryOnData).toBeTypeOf('function')
+      expect(secondaryOnData).toBeTypeOf('function')
+
+      primaryOnData?.('\u001b')
+      secondaryOnData?.('\u001b')
+
+      expect(writeTerminalBackend).toHaveBeenCalledTimes(1)
+      expect(writeTerminalBackend).toHaveBeenCalledWith(`${baseTerminalId}-1`, '\u001b')
+
+      vi.mocked(writeTerminalBackend).mockClear()
+
+      await act(async () => {
+        store.set(agentTabsStateAtom, new Map([[sessionId, { tabs, activeTab: 0 }]]))
+      })
+      expect(getActiveAgentTerminalId(sessionId)).toBe(baseTerminalId)
+
+      primaryOnData?.('\u001b')
+      secondaryOnData?.('\u001b')
+
+      expect(writeTerminalBackend).toHaveBeenCalledTimes(1)
+      expect(writeTerminalBackend).toHaveBeenCalledWith(baseTerminalId, '\u001b')
     } finally {
       terminalHarness.acquireMock.mockReset()
       if (originalAcquire) {

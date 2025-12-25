@@ -179,6 +179,7 @@ describe('selection atoms', () => {
     const registry = await import('../../terminal/registry/terminalRegistry')
     vi.mocked(registry.hasTerminalInstance).mockReset()
     vi.mocked(registry.hasTerminalInstance).mockReturnValue(false)
+    vi.mocked(registry.removeTerminalInstance).mockReset()
     vi.mocked(registry.releaseSessionTerminals).mockReset()
     vi.mocked(registry.releaseTerminalInstance).mockReset()
 
@@ -201,6 +202,26 @@ describe('selection atoms', () => {
     const terminal = await import('../../components/terminal/Terminal')
     const ids = ['term-1', 'term-2']
     await store.set(clearTerminalTrackingActionAtom, ids)
+    expect(vi.mocked(terminal.clearTerminalStartedTracking)).toHaveBeenCalledWith(ids)
+  })
+
+  it('continues clearing terminal tracking when local disposal throws', async () => {
+    const backend = await import('../../terminal/transport/backend')
+    const registry = await import('../../terminal/registry/terminalRegistry')
+    const terminal = await import('../../components/terminal/Terminal')
+
+    vi.mocked(backend.closeTerminalBackend).mockResolvedValue(undefined)
+
+    vi.mocked(registry.removeTerminalInstance).mockImplementationOnce(() => {
+      throw new Error('dispose boom')
+    })
+
+    const ids = ['term-1', 'term-2']
+
+    await expect(store.set(clearTerminalTrackingActionAtom, ids)).resolves.toBeUndefined()
+
+    expect(vi.mocked(backend.closeTerminalBackend)).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(registry.removeTerminalInstance)).toHaveBeenCalledTimes(2)
     expect(vi.mocked(terminal.clearTerminalStartedTracking)).toHaveBeenCalledWith(ids)
   })
 
