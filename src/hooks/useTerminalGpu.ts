@@ -52,7 +52,7 @@ export function useTerminalGpu({
     queued: false,
     redrawId: null,
   });
-  const lastRendererTypeRef = useRef<'none' | 'canvas' | 'webgl'>('none');
+  const lastRendererTypeRef = useRef<'none' | 'dom' | 'webgl'>('none');
   const [webglEnabled, setWebglEnabled] = useState<boolean>(true);
   const [webglRendererActive, setWebglRendererActive] = useState<boolean>(false);
   const letterSpacingIssueLogged = useRef<'missing' | 'failure' | null>(null);

@@ -27,12 +27,12 @@ const {
   getLastRenderer,
   clearLastRenderer,
 } = vi.hoisted(() => {
-  let rendererStateType: 'canvas' | 'webgl' = 'canvas'
+  let rendererStateType: 'dom' | 'webgl' = 'dom'
   let lastRenderer: unknown = null
 
   class MockWebGLTerminalRenderer {
-    #state: { type: 'canvas' | 'webgl' | 'none'; contextLost: boolean } = {
-      type: 'canvas',
+    #state: { type: 'dom' | 'webgl' | 'none'; contextLost: boolean } = {
+      type: 'dom',
       contextLost: false,
     }
     constructor() {
@@ -41,8 +41,8 @@ const {
     ensureLoaded = vi.fn(async () => {
       if (rendererStateType === 'webgl') {
         this.#state = { type: 'webgl', contextLost: false }
-      } else if (rendererStateType === 'canvas') {
-        this.#state = { type: 'canvas', contextLost: false }
+      } else if (rendererStateType === 'dom') {
+        this.#state = { type: 'dom', contextLost: false }
       }
       return this.#state
     })
@@ -62,11 +62,11 @@ const {
 
   return {
     MockWebGLTerminalRenderer,
-    setRendererStateType: (type: 'canvas' | 'webgl') => {
+    setRendererStateType: (type: 'dom' | 'webgl') => {
       rendererStateType = type
     },
     resetRendererStateType: () => {
-      rendererStateType = 'canvas'
+      rendererStateType = 'dom'
     },
     getLastRenderer: () => lastRenderer as MockWebGLTerminalRenderer | null,
     clearLastRenderer: () => {
