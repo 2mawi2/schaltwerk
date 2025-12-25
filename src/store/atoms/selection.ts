@@ -601,33 +601,45 @@ export const setSelectionActionAtom = atom(
 export const clearTerminalTrackingActionAtom = atom(
   null,
   async (_get, _set, terminalIds: string[]): Promise<void> => {
-    for (const id of terminalIds) {
-      try {
-        await closeTerminalBackend(id)
-      } catch (error) {
-        logger.warn('[selection] Failed to close terminal during cleanup', { id, error })
-      }
-      // Always remove from registry, even if backend close failed (e.g. project closed)
-      removeTerminalInstance(id)
+    try {
+      for (const id of terminalIds) {
+        try {
+          await closeTerminalBackend(id)
+        } catch (error) {
+          logger.warn('[selection] Failed to close terminal during cleanup', { id, error })
+        }
 
-      const key = terminalToSelectionKey.get(id)
-      if (!key) {
+        // Always remove from registry, even if backend close failed (e.g. project closed)
+        try {
+          removeTerminalInstance(id)
+        } catch (error) {
+          logger.warn('[selection] Failed to dispose terminal instance during cleanup', { id, error })
+        }
+
+        const key = terminalToSelectionKey.get(id)
+        if (!key) {
+          terminalWorkingDirectory.delete(id)
+          continue
+        }
+        selectionsNeedingRecreate.add(key)
+        terminalToSelectionKey.delete(id)
         terminalWorkingDirectory.delete(id)
-        continue
+        const tracked = terminalsCache.get(key)
+        if (!tracked) {
+          continue
+        }
+        tracked.delete(id)
+        if (tracked.size === 0) {
+          terminalsCache.delete(key)
+        }
       }
-      selectionsNeedingRecreate.add(key)
-      terminalToSelectionKey.delete(id)
-      terminalWorkingDirectory.delete(id)
-      const tracked = terminalsCache.get(key)
-      if (!tracked) {
-        continue
-      }
-      tracked.delete(id)
-      if (tracked.size === 0) {
-        terminalsCache.delete(key)
+    } finally {
+      try {
+        clearTerminalStartedTracking(terminalIds)
+      } catch (error) {
+        logger.warn('[selection] Failed to clear terminal started tracking during cleanup', { error })
       }
     }
-    clearTerminalStartedTracking(terminalIds)
   },
 )
 
