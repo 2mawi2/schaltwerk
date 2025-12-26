@@ -215,7 +215,35 @@ impl AcpSession {
         command.stdin(std::process::Stdio::piped());
         command.stdout(std::process::Stdio::piped());
         command.stderr(std::process::Stdio::piped());
+
+        let mut env_map = HashMap::new();
         for (key, value) in env_vars {
+            env_map.insert(key, value);
+        }
+
+        if agent_binary.contains('/') {
+            let agent_parent = Path::new(&agent_binary)
+                .parent()
+                .map(|path| path.to_string_lossy().into_owned())
+                .filter(|path| !path.is_empty());
+
+            if let Some(agent_parent) = agent_parent {
+                let base_path = env_map
+                    .get("PATH")
+                    .cloned()
+                    .or_else(|| std::env::var("PATH").ok())
+                    .unwrap_or_else(|| {
+                        "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+                            .to_string()
+                    });
+
+                if !base_path.split(':').any(|entry| entry == agent_parent) {
+                    env_map.insert("PATH".to_string(), format!("{agent_parent}:{base_path}"));
+                }
+            }
+        }
+
+        for (key, value) in env_map {
             command.env(key, value);
         }
 
