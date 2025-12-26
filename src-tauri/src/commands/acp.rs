@@ -2,9 +2,33 @@ use crate::{SETTINGS_MANAGER, get_acp_manager, get_core_read};
 use anyhow::{Result, anyhow};
 use schaltwerk::infrastructure::database::{AppConfigMethods, ProjectConfigMethods};
 use schaltwerk::services::AgentManifest;
-use which::which;
+use tokio::process::Command;
 
-fn resolve_claude_code_acp_command() -> Result<(String, Vec<String>)> {
+async fn resolve_program_in_login_shell(program: &str) -> Option<String> {
+    let lookup = format!(
+        "command -v {}",
+        schaltwerk::domains::terminal::sh_quote_string(program)
+    );
+    let invocation = schaltwerk::domains::terminal::build_login_shell_invocation(&lookup);
+    let output = Command::new(&invocation.program)
+        .args(&invocation.args)
+        .output()
+        .await
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let resolved = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if resolved.is_empty() {
+        None
+    } else {
+        Some(resolved)
+    }
+}
+
+async fn resolve_claude_code_acp_command() -> Result<(String, Vec<String>)> {
     if let Ok(value) = std::env::var("SCHALTWERK_CLAUDE_ACP_BINARY") {
         let trimmed = value.trim();
         if !trimmed.is_empty() {
@@ -15,20 +39,23 @@ fn resolve_claude_code_acp_command() -> Result<(String, Vec<String>)> {
                 .ok_or_else(|| anyhow!("SCHALTWERK_CLAUDE_ACP_BINARY is empty"))?
                 .to_string();
             let args = parts.into_iter().skip(1).collect::<Vec<_>>();
-            if which(&binary).is_ok() {
-                return Ok((binary, args));
+
+            if let Some(resolved) = resolve_program_in_login_shell(&binary).await {
+                return Ok((resolved, args));
             }
+
             return Err(anyhow!(
-                "Claude Code ACP command not found: '{binary}'. Ensure it exists or update SCHALTWERK_CLAUDE_ACP_BINARY."
+                "Claude Code ACP command not found: '{binary}'. Ensure it exists in your login shell PATH or update SCHALTWERK_CLAUDE_ACP_BINARY."
             ));
         }
     }
 
     // Prefer a manifest-provided binary if present (future-proofing).
     if let Some(def) = AgentManifest::get("claudecode")
-        .filter(|def| which(&def.default_binary_path).is_ok())
+        && !def.default_binary_path.trim().is_empty()
+        && let Some(resolved) = resolve_program_in_login_shell(&def.default_binary_path).await
     {
-        return Ok((def.default_binary_path.clone(), Vec::new()));
+        return Ok((resolved, Vec::new()));
     }
 
     for candidate in [
@@ -39,13 +66,24 @@ fn resolve_claude_code_acp_command() -> Result<(String, Vec<String>)> {
         // Common build output name
         "ccacp",
     ] {
-        if which(candidate).is_ok() {
-            return Ok((candidate.to_string(), Vec::new()));
+        if let Some(resolved) = resolve_program_in_login_shell(candidate).await {
+            return Ok((resolved, Vec::new()));
         }
     }
 
+    // Fallback: run from npm without a global install (requires Node.js + npm/npx).
+    if let Some(resolved_npx) = resolve_program_in_login_shell("npx").await {
+        return Ok((
+            resolved_npx,
+            vec![
+                "-y".to_string(),
+                "@zed-industries/claude-code-acp".to_string(),
+            ],
+        ));
+    }
+
     Err(anyhow!(
-        "Claude Code ACP adapter not found. Install '@zed-industries/claude-code-acp' (so 'claude-code-acp' is on PATH), or set SCHALTWERK_CLAUDE_ACP_BINARY (it may include args, e.g. 'npx -y @zed-industries/claude-code-acp')."
+        "Claude Code ACP adapter not found. Either:\n- Install Node.js (to get 'npx'), or\n- Install '@zed-industries/claude-code-acp' (so 'claude-code-acp' is on PATH), or\n- Set SCHALTWERK_CLAUDE_ACP_BINARY (it may include args, e.g. 'npx -y @zed-industries/claude-code-acp')."
     ))
 }
 
@@ -64,12 +102,12 @@ pub async fn schaltwerk_acp_start_session(
         .get_session(&session_name)
         .map_err(|e| format!("Failed to get session: {e}"))?;
 
-    let skip_permissions = session.original_skip_permissions.unwrap_or_else(|| {
-        db.get_skip_permissions()
-            .unwrap_or(false)
-    });
+    let skip_permissions = session
+        .original_skip_permissions
+        .unwrap_or_else(|| db.get_skip_permissions().unwrap_or(false));
 
     let (agent_binary, agent_args) = resolve_claude_code_acp_command()
+        .await
         .map_err(|e| e.to_string())?;
 
     let initial_mode = skip_permissions.then(|| "bypassPermissions".to_string());
