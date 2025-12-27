@@ -1,4 +1,4 @@
-import { useAtom } from 'jotai'
+import { useAtom, useAtomValue } from 'jotai'
 import { useCallback, useLayoutEffect } from 'react'
 import {
     agentTabsStateAtom,
@@ -13,6 +13,8 @@ import { displayNameForAgent } from '../components/shared/agentDefaults'
 import { AgentType } from '../types/session'
 import { clearTerminalStartState } from '../common/terminalStartState'
 import { removeTerminalInstance } from '../terminal/registry/terminalRegistry'
+import { projectPathAtom } from '../store/atoms/project'
+import { computeProjectOrchestratorId } from '../common/agentSpawn'
 import {
     clearActiveAgentTerminalId,
     resolveActiveAgentTerminalId,
@@ -33,6 +35,9 @@ export const useAgentTabs = (
 ) => {
     const [agentTabsMap, setAgentTabsMap] = useAtom(agentTabsStateAtom)
     const startAgent = options?.startAgent
+    const projectPath = useAtomValue(projectPathAtom)
+    const sessionStartScope = computeProjectOrchestratorId(projectPath ?? null) ?? undefined
+    const terminalStartScope = baseTerminalId?.startsWith('orchestrator-') ? undefined : sessionStartScope
 
     useLayoutEffect(() => {
         if (!sessionId || !baseTerminalId) return
@@ -261,7 +266,7 @@ export const useAgentTabs = (
                         err
                     )
                 })
-                clearTerminalStartState([tabToClose.terminalId])
+                clearTerminalStartState([tabToClose.terminalId], terminalStartScope)
                 removeTerminalInstance(tabToClose.terminalId)
 
                 const newTabs = current.tabs.filter((_, i) => i !== index)
@@ -290,7 +295,7 @@ export const useAgentTabs = (
                 setActiveAgentTerminalId(sessionId, nextActiveTerminalId)
             }
         },
-        [sessionId, baseTerminalId, setAgentTabsMap]
+        [sessionId, baseTerminalId, setAgentTabsMap, terminalStartScope]
     )
 
     const resetTabs = useCallback(() => {
@@ -307,7 +312,7 @@ export const useAgentTabs = (
                             e
                         )
                     })
-                    clearTerminalStartState([tab.terminalId])
+                    clearTerminalStartState([tab.terminalId], terminalStartScope)
                     removeTerminalInstance(tab.terminalId)
                 }
             })
@@ -327,7 +332,7 @@ export const useAgentTabs = (
             }
             return next
         })
-    }, [sessionId, baseTerminalId, agentTabsMap, setAgentTabsMap])
+    }, [sessionId, baseTerminalId, agentTabsMap, setAgentTabsMap, terminalStartScope])
 
     const updatePrimaryAgentType = useCallback(
         (agentType: AgentType) => {

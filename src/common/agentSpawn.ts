@@ -17,6 +17,7 @@ import {
   markTerminalStarting,
   clearTerminalStartState,
 } from './terminalStartState'
+import { scopedTerminalKey } from './scopeKeys'
 
 export { EXTENDED_AGENT_START_TIMEOUT_MS, DEFAULT_AGENT_START_TIMEOUT_MS } from './agentLifecycleTracker'
 
@@ -127,6 +128,8 @@ export async function startSessionTop(params: {
 }) {
   const { sessionName, topId, projectOrchestratorId, measured } = params
   const agentType = params.agentType ?? DEFAULT_AGENT
+  const scope = projectOrchestratorId ?? undefined
+  const inflightKey = scope ? scopedTerminalKey(scope, topId) : topId
 
   logger.info(`[AGENT_LAUNCH_TRACE] startSessionTop called: sessionName=${sessionName}, topId=${topId}, agentType=${agentType}`)
 
@@ -135,17 +138,21 @@ export async function startSessionTop(params: {
     return
   }
 
-  if (hasInflight(topId) || isTerminalStartingOrStarted(topId)) {
+  if (hasInflight(inflightKey) || isTerminalStartingOrStarted(topId, scope)) {
     logger.info(`[AGENT_LAUNCH_TRACE] startSessionTop skipped - already inflight or started: ${topId}`)
     return
   }
-  markTerminalStarting(topId)
+  if (scope) {
+    markTerminalStarting(topId, scope)
+  } else {
+    markTerminalStarting(topId)
+  }
   try {
     const { cols, rows } = computeSpawnSize({ topId, measured, projectOrchestratorId })
     const timeoutMs = determineStartTimeoutMs(agentType)
     const command = TauriCommands.SchaltwerkCoreStartSessionAgent
 
-    await singleflight(topId, async () => {
+    await singleflight(inflightKey, async () => {
       const lifecycleBase = {
         terminalId: topId,
         sessionName,
@@ -180,7 +187,11 @@ export async function startSessionTop(params: {
     })
   } catch (e) {
     try {
-      clearTerminalStartState([topId])
+      if (scope) {
+        clearTerminalStartState([topId], scope)
+      } else {
+        clearTerminalStartState([topId])
+      }
     } catch (cleanupErr) {
       logger.debug(`[agentSpawn] Failed to clear terminal start state during error cleanup for ${topId}`, cleanupErr)
     }

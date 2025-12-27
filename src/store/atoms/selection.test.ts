@@ -250,6 +250,33 @@ describe('selection atoms', () => {
     })
   })
 
+  it('does not close session terminals when switching projects with the same session name', async () => {
+    await withNodeEnv('development', async () => {
+      const backend = await import('../../terminal/transport/backend')
+      vi.mocked(backend.createTerminalBackend).mockClear()
+      vi.mocked(backend.closeTerminalBackend).mockClear()
+
+      await store.set(setProjectPathActionAtom, '/projects/alpha')
+      nextSessionResponse = createRawSession({ name: 'dupe', worktree_path: '/tmp/worktrees/alpha/dupe' })
+      await store.set(setSelectionActionAtom, { selection: { kind: 'session', payload: 'dupe' } })
+      await waitForSelectionAsyncEffectsForTest()
+
+      const sessionTopId = stableSessionTerminalId('dupe', 'top')
+      expect(store.get(terminalsAtom).top).toBe(sessionTopId)
+      expect(vi.mocked(backend.closeTerminalBackend).mock.calls.map(([id]) => id)).not.toContain(sessionTopId)
+
+      vi.mocked(backend.closeTerminalBackend).mockClear()
+
+      await store.set(setProjectPathActionAtom, '/projects/beta')
+      nextSessionResponse = createRawSession({ name: 'dupe', worktree_path: '/tmp/worktrees/beta/dupe' })
+      await store.set(setSelectionActionAtom, { selection: { kind: 'session', payload: 'dupe' } })
+      await waitForSelectionAsyncEffectsForTest()
+
+      expect(store.get(terminalsAtom).top).toBe(sessionTopId)
+      expect(vi.mocked(backend.closeTerminalBackend).mock.calls.map(([id]) => id)).not.toContain(sessionTopId)
+    })
+  })
+
   it('skips terminal allocation for specs and creates on running transition without recreation', async () => {
     await withNodeEnv('development', async () => {
       const backend = await import('../../terminal/transport/backend')

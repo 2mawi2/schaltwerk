@@ -12,10 +12,12 @@ import { emitUiEvent, listenUiEvent, UiEvent } from '../../common/uiEvents'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import { createTerminalBackend, closeTerminalBackend } from '../../terminal/transport/backend'
 import { clearTerminalStartedTracking } from '../../components/terminal/Terminal'
+import { computeProjectOrchestratorId } from '../../common/agentSpawn'
 import { logger } from '../../utils/logger'
 import type { RawSession } from '../../types/session'
 import { FilterMode } from '../../types/sessionFilters'
 import { projectPathAtom } from './project'
+import { scopedTerminalKey } from '../../common/scopeKeys'
 
 export interface Selection {
   kind: 'session' | 'orchestrator'
@@ -240,6 +242,7 @@ function snapshotFromRawSession(raw: RawSession): SessionSnapshot {
 const sessionSnapshotsCache = new Map<string, SessionSnapshot>()
 const sessionFetchPromises = new Map<string, Promise<SessionSnapshot | null>>()
 const terminalsCache = new Map<string, Set<string>>()
+// Keyed by `${projectPath ?? 'none'}::${terminalId}` to avoid cross-project collisions.
 const terminalToSelectionKey = new Map<string, string>()
 const terminalWorkingDirectory = new Map<string, string>()
 const selectionsNeedingRecreate = new Set<string>()
@@ -263,7 +266,7 @@ export const cleanupOrchestratorTerminalsActionAtom = atom(
     if (ids.length === 0) {
       return
     }
-    await set(clearTerminalTrackingActionAtom, ids)
+    await set(clearTerminalTrackingActionAtom, { terminalIds: ids, projectPath })
   },
 )
 
@@ -406,16 +409,22 @@ async function ensureTerminal(
   tracked: Set<string>,
   force: boolean,
   cacheKey: string,
+  projectPath: string | null,
 ): Promise<void> {
   const isTestEnv = typeof process !== 'undefined' && process.env.NODE_ENV === 'test'
 
   const registryHasInstance = hasTerminalInstance(id)
   const backendHasInstance = isTestEnv ? registryHasInstance : await invoke<boolean>(TauriCommands.TerminalExists, { id }).catch(() => false)
-  const currentOwnerKey = terminalToSelectionKey.get(id)
-  const previousCwd = terminalWorkingDirectory.get(id)
+  const scopedKey = scopedTerminalKey(projectPath, id)
+  const currentOwnerKey = terminalToSelectionKey.get(scopedKey)
+  const previousCwd = terminalWorkingDirectory.get(scopedKey)
   const cwdChanged = previousCwd !== undefined && previousCwd !== cwd
   const ownerMismatch = currentOwnerKey && currentOwnerKey !== cacheKey
-  let mustRecreate = force || cwdChanged || Boolean(ownerMismatch)
+  const hasOtherScopeOwner =
+    !currentOwnerKey &&
+    Array.from(terminalToSelectionKey.keys()).some(key => key !== scopedKey && key.endsWith(`::${id}`))
+  const crossScopeRebind = hasOtherScopeOwner && !backendHasInstance && registryHasInstance
+  let mustRecreate = force || cwdChanged || Boolean(ownerMismatch) || crossScopeRebind
   let pathMissing = false
 
   if (!mustRecreate && cwd) {
@@ -456,8 +465,8 @@ async function ensureTerminal(
     }
 
     tracked.delete(id)
-    terminalToSelectionKey.delete(id)
-    terminalWorkingDirectory.delete(id)
+    terminalToSelectionKey.delete(scopedKey)
+    terminalWorkingDirectory.delete(scopedKey)
   }
 
   if (!mustRecreate && backendHasInstance) {
@@ -471,22 +480,22 @@ async function ensureTerminal(
       cwd,
     })
     tracked.add(id)
-    terminalToSelectionKey.set(id, cacheKey)
-    terminalWorkingDirectory.set(id, cwd)
+    terminalToSelectionKey.set(scopedKey, cacheKey)
+    terminalWorkingDirectory.set(scopedKey, cwd)
     return
   }
 
   if (isTestEnv) {
     tracked.add(id)
-    terminalToSelectionKey.set(id, cacheKey)
-    terminalWorkingDirectory.set(id, cwd)
+    terminalToSelectionKey.set(scopedKey, cacheKey)
+    terminalWorkingDirectory.set(scopedKey, cwd)
     return
   }
 
   await createTerminalBackend({ id, cwd })
   tracked.add(id)
-  terminalToSelectionKey.set(id, cacheKey)
-  terminalWorkingDirectory.set(id, cwd)
+  terminalToSelectionKey.set(scopedKey, cacheKey)
+  terminalWorkingDirectory.set(scopedKey, cwd)
 }
 
 export const setSelectionActionAtom = atom(
@@ -533,8 +542,12 @@ export const setSelectionActionAtom = atom(
     const terminals = computeTerminals(enrichedSelection, projectPath)
     const cacheKey = selectionCacheKey(enrichedSelection, projectPath)
     const pendingRecreate = selectionsNeedingRecreate.has(cacheKey)
-    const trackedTopCwd = terminalWorkingDirectory.get(terminals.top)
-    const trackedBottomCwd = terminalWorkingDirectory.get(terminals.bottomBase)
+    const trackedTopCwd = terminals.top
+      ? terminalWorkingDirectory.get(scopedTerminalKey(projectPath, terminals.top))
+      : undefined
+    const trackedBottomCwd = terminals.bottomBase
+      ? terminalWorkingDirectory.get(scopedTerminalKey(projectPath, terminals.bottomBase))
+      : undefined
     const workingDirectoryChanged = Boolean(
       terminals.workingDirectory &&
       ((trackedTopCwd && trackedTopCwd !== terminals.workingDirectory) ||
@@ -565,8 +578,8 @@ export const setSelectionActionAtom = atom(
     if (shouldTouchTerminals) {
       if (shouldCreateTerminals) {
         await Promise.all([
-          ensureTerminal(terminals.top, terminals.workingDirectory, tracked, effectiveForceRecreate, cacheKey),
-          ensureTerminal(terminals.bottomBase, terminals.workingDirectory, tracked, effectiveForceRecreate, cacheKey),
+          ensureTerminal(terminals.top, terminals.workingDirectory, tracked, effectiveForceRecreate, cacheKey, projectPath ?? null),
+          ensureTerminal(terminals.bottomBase, terminals.workingDirectory, tracked, effectiveForceRecreate, cacheKey, projectPath ?? null),
         ])
       }
 
@@ -600,7 +613,9 @@ export const setSelectionActionAtom = atom(
 
 export const clearTerminalTrackingActionAtom = atom(
   null,
-  async (_get, _set, terminalIds: string[]): Promise<void> => {
+  async (get, _set, payload: { terminalIds: string[]; projectPath?: string | null } | string[]): Promise<void> => {
+    const terminalIds = Array.isArray(payload) ? payload : payload.terminalIds
+    const scopeProjectPath = Array.isArray(payload) ? get(projectPathAtom) : (payload.projectPath ?? get(projectPathAtom))
     try {
       for (const id of terminalIds) {
         try {
@@ -616,14 +631,15 @@ export const clearTerminalTrackingActionAtom = atom(
           logger.warn('[selection] Failed to dispose terminal instance during cleanup', { id, error })
         }
 
-        const key = terminalToSelectionKey.get(id)
+        const scopedKey = scopedTerminalKey(scopeProjectPath ?? null, id)
+        const key = terminalToSelectionKey.get(scopedKey)
         if (!key) {
-          terminalWorkingDirectory.delete(id)
+          terminalWorkingDirectory.delete(scopedKey)
           continue
         }
         selectionsNeedingRecreate.add(key)
-        terminalToSelectionKey.delete(id)
-        terminalWorkingDirectory.delete(id)
+        terminalToSelectionKey.delete(scopedKey)
+        terminalWorkingDirectory.delete(scopedKey)
         const tracked = terminalsCache.get(key)
         if (!tracked) {
           continue
@@ -635,7 +651,20 @@ export const clearTerminalTrackingActionAtom = atom(
       }
     } finally {
       try {
-        clearTerminalStartedTracking(terminalIds)
+        const orchestratorTerminalId = computeProjectOrchestratorId(scopeProjectPath ?? null) ?? null
+        const sessionTerminalIds = orchestratorTerminalId
+          ? terminalIds.filter(id => id !== orchestratorTerminalId)
+          : terminalIds
+        if (sessionTerminalIds.length > 0) {
+          if (orchestratorTerminalId) {
+            clearTerminalStartedTracking(sessionTerminalIds, orchestratorTerminalId)
+          } else {
+            clearTerminalStartedTracking(sessionTerminalIds)
+          }
+        }
+        if (orchestratorTerminalId && terminalIds.includes(orchestratorTerminalId)) {
+          clearTerminalStartedTracking([orchestratorTerminalId])
+        }
       } catch (error) {
         logger.warn('[selection] Failed to clear terminal started tracking during cleanup', { error })
       }
