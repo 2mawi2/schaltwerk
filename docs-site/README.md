@@ -40,6 +40,7 @@ docs-site/
 │   └── worktrees-and-terminals.mdx
 ├── guides/                # User guides
 │   ├── using-schaltwerk.mdx
+│   ├── pull-requests.mdx
 │   ├── agent-setup.mdx
 │   └── keyboard-shortcuts.mdx
 └── mcp/                   # MCP integration

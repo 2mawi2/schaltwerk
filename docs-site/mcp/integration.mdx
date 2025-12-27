@@ -109,10 +109,33 @@ Once set up, your AI agent can use these MCP tools to automate session managemen
   <Card title="Check Status" icon="list">
     Query all sessions and their current state
   </Card>
+
+  <Card title="Open PR Modal" icon="code-compare">
+    Agent can request opening the Create PR dialog (you review and confirm in the UI)
+  </Card>
   <Card title="Setup Scripts" icon="bolt">
     Read the current worktree setup script, then propose and apply updates after confirming which untracked config (e.g., .env) should be copied.
   </Card>
 </CardGroup>
+
+## Pull Requests via MCP
+
+Agents can request that Schaltwerk open the **Create Pull Request** dialog for a running/reviewed session:
+
+- Tool: `schaltwerk_create_pr`
+- Result: Schaltwerk opens the PR modal with suggested values
+- You still confirm the PR in the UI (the tool does not create the PR directly)
+
+```json
+{
+  "session_name": "my-session",
+  "pr_title": "Add caching to search endpoint",
+  "pr_body": "Summary…",
+  "base_branch": "main",
+  "pr_branch_name": "pr/my-session",
+  "mode": "squash"
+}
+```
 
 ## Worktree Setup Scripts via MCP
 

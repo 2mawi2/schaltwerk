@@ -50,6 +50,7 @@
       "group": "Guides",
       "pages": [
         "guides/using-schaltwerk",
+        "guides/pull-requests",
         "guides/advanced-workflows",
         "guides/multi-project",
         "guides/orchestrator",
