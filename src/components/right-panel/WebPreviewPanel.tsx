@@ -257,17 +257,12 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
       if (cancelled) return
 
       try {
-        const result = await invoke<{ html: string | null; cancelled: boolean }>(
+        const result = await invoke<{ html: string | null }>(
           TauriCommands.PreviewPollPickedElement,
           { label: webviewLabel }
         )
 
         if (cancelled) return
-
-        if (result.cancelled) {
-          setElementPickerActive({ key: previewKey, active: false })
-          return
-        }
 
         if (result.html) {
           setElementPickerActive({ key: previewKey, active: false })

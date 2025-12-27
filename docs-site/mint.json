@@ -53,6 +53,7 @@
         "guides/advanced-workflows",
         "guides/multi-project",
         "guides/orchestrator",
+        "guides/web-preview",
         "guides/agent-setup",
         "guides/terminal-configuration",
         "guides/remote-access",

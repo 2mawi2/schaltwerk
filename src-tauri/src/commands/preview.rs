@@ -3,12 +3,10 @@ use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
 const PICKED_PREFIX: &str = "#__schaltwerk_picked=";
-const CANCELLED_HASH: &str = "#__schaltwerk_picker_cancelled";
 
 #[derive(Serialize)]
 pub struct PickerPollResult {
     pub html: Option<String>,
-    pub cancelled: bool,
 }
 
 #[tauri::command]
@@ -27,18 +25,7 @@ pub async fn preview_poll_picked_element(
     let fragment = url.fragment().unwrap_or("");
     let full_hash = format!("#{fragment}");
 
-    if full_hash == CANCELLED_HASH {
-        webview
-            .eval("window.location.hash = ''")
-            .map_err(|e| format!("Failed to clear hash: {e}"))?;
-        return Ok(PickerPollResult {
-            html: None,
-            cancelled: true,
-        });
-    }
-
     if let Some(encoded) = full_hash.strip_prefix(PICKED_PREFIX) {
-
         webview
             .eval("window.location.hash = ''")
             .map_err(|e| format!("Failed to clear hash: {e}"))?;
@@ -50,16 +37,10 @@ pub async fn preview_poll_picked_element(
         let html = String::from_utf8(decoded_bytes)
             .map_err(|e| format!("Invalid UTF-8 in decoded HTML: {e}"))?;
 
-        return Ok(PickerPollResult {
-            html: Some(html),
-            cancelled: false,
-        });
+        return Ok(PickerPollResult { html: Some(html) });
     }
 
-    Ok(PickerPollResult {
-        html: None,
-        cancelled: false,
-    })
+    Ok(PickerPollResult { html: None })
 }
 
 #[tauri::command]

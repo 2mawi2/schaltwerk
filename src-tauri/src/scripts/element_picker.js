@@ -82,16 +82,6 @@
     return false;
   }
 
-  function handleKeyDown(event) {
-    if (!enabled) return;
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      event.stopPropagation();
-      window.location.hash = '__schaltwerk_picker_cancelled';
-      disable();
-    }
-  }
-
   function enable() {
     if (enabled) return;
     enabled = true;
@@ -103,7 +93,6 @@
 
     document.addEventListener('mousemove', handleMouseMove, true);
     document.addEventListener('click', handleClick, true);
-    document.addEventListener('keydown', handleKeyDown, true);
 
     document.body.style.cursor = 'crosshair';
   }
@@ -114,7 +103,6 @@
 
     document.removeEventListener('mousemove', handleMouseMove, true);
     document.removeEventListener('click', handleClick, true);
-    document.removeEventListener('keydown', handleKeyDown, true);
 
     if (highlightOverlay) {
       highlightOverlay.style.display = 'none';

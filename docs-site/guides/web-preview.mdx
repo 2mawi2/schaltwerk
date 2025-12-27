@@ -1,0 +1,98 @@
+---
+title: Web Preview
+description: 'Preview localhost development servers directly in Schaltwerk without switching to a browser'
+---
+
+Schaltwerk includes a built-in web preview panel for viewing localhost development servers directly in the app. When you click a localhost link in terminal output, it opens in the preview panel automatically—no browser switching required.
+
+## Getting Started
+
+<Steps>
+  <Step title="Start a dev server">
+    Run your development server in the terminal (e.g., `npm run dev`, `bun run dev`)
+  </Step>
+
+  <Step title="Click the localhost link">
+    When the server logs a URL like `http://localhost:3000`, click it in the terminal output
+
+    ![Terminal showing localhost URL that can be clicked](/images/web-preview-localhost-terminal.png)
+  </Step>
+
+  <Step title="Preview opens automatically">
+    The right panel switches to the Preview tab and loads your site
+
+    ![Preview panel showing navigation bar with URL input and controls](/images/web-preview-navigation-bar.png)
+  </Step>
+</Steps>
+
+<Info>
+  By default, clicking localhost URLs in terminals opens them in the preview panel. To open them in your browser instead, go to **Settings → Run & Environment** and disable "Preview localhost on terminal click".
+</Info>
+
+## Developing Web Apps
+
+The preview panel lets you see your web app while agents make changes. Hot module replacement works seamlessly—as the agent modifies code, the preview updates automatically.
+
+**Supported URL formats:**
+- Bare port: `3000` → `http://localhost:3000`
+- Hostname: `localhost:3000` → `http://localhost:3000`
+- Full URL: `http://localhost:3000/dashboard`
+
+You can also type directly in the address bar or enter just a port number.
+
+## Giving Feedback with Element Picker
+
+The element picker lets you select any element on the page and send its HTML to the agent—perfect for pointing out specific UI issues.
+
+<Steps>
+  <Step title="Click the element picker button">
+    In the preview toolbar, click the element picker button
+
+    ![Element picker button highlighted in preview toolbar](/images/web-preview-select-element.png)
+  </Step>
+
+  <Step title="Hover and click an element">
+    Move your cursor over the page—elements highlight as you hover. Click to select one.
+  </Step>
+
+  <Step title="HTML appears in the terminal">
+    The selected element's HTML is pasted as a code block in the active terminal, ready for the agent to see
+
+    ![HTML code block pasted in terminal for agent to reference](/images/web-preview-pasting-in-agent.png)
+  </Step>
+
+  <Step title="Continue the conversation">
+    Now you can tell the agent exactly what to change: "Make this button blue" or "Add padding to this card"
+  </Step>
+</Steps>
+
+## Toolbar Controls
+
+From left to right:
+
+- **Back / Forward arrows** — Navigate through your browsing history
+- **Refresh** — Reload the current page
+- **Open external** — Open the URL in your default browser
+- **Element picker** — Enable element selection mode
+- **URL input** — Enter a URL or port number
+- **Zoom** — Adjust the preview scale (50%–200%)
+
+**Keyboard shortcuts:** `⌘=` zoom in, `⌘-` zoom out, `⌘0` reset zoom
+
+## Multiple Sessions
+
+When running multiple sessions with dev servers, use different ports to avoid conflicts:
+
+```bash
+# Session 1
+PORT=3001 npm run dev
+
+# Session 2
+PORT=3002 npm run dev
+```
+
+Each session maintains its own preview URL, so you can switch between sessions without losing your place.
+
+## Limitations
+
+- **No DevTools** — For full debugging, click the external link button to open in your browser
