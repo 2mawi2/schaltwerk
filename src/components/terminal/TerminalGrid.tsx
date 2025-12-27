@@ -155,6 +155,18 @@ const TerminalGridComponent = () => {
 
     const agentTabsState = getAgentTabsState()
 
+    const activeTopAgentType = useMemo(() => {
+        if (agentTabsState) {
+            const activeTab = agentTabsState.tabs[agentTabsState.activeTab]
+            return activeTab?.agentType ?? agentType
+        }
+        return agentType
+    }, [agentTabsState, agentType])
+
+    const shouldUseAcpForTop = useMemo(() => {
+        return selection.kind === 'session' && Boolean(selection.payload) && activeTopAgentType === 'claude' && !selectionIsSpec
+    }, [activeTopAgentType, selection, selectionIsSpec])
+
     const pendingTerminalFocusRef = useRef<{ focusArea: 'claude' | 'terminal' | null; terminalId: string | null }>({
         focusArea: null,
         terminalId: null,
@@ -167,6 +179,7 @@ const TerminalGridComponent = () => {
     }, [selection, terminals.top, agentType, ensureAgentTabsInitialized])
 
     useEffect(() => {
+        if (shouldUseAcpForTop) return
         if (localFocus !== 'claude') return
         if (!agentTabsState || agentTabsState.tabs.length === 0) return
         const active = agentTabsState.tabs[agentTabsState.activeTab]
@@ -176,7 +189,7 @@ const TerminalGridComponent = () => {
         safeTerminalFocus(() => {
             claudeTerminalRef.current?.focus()
         }, isAnyModalOpen)
-    }, [agentTabsState, isAnyModalOpen, localFocus])
+    }, [agentTabsState, isAnyModalOpen, localFocus, shouldUseAcpForTop])
 
     // Terminal tabs state from Jotai atom
     const terminalTabsAtomState = useAtomValue(terminalTabsAtomFamily(terminals.bottomBase))
@@ -1113,6 +1126,9 @@ const TerminalGridComponent = () => {
         const sessionKey = getSessionKey()
         setFocusForSession(sessionKey, 'claude')
         setLocalFocus('claude')
+        if (shouldUseAcpForTop) {
+            return
+        }
         pendingTerminalFocusRef.current = {
             focusArea: 'claude',
             terminalId: agentTabsState?.tabs[agentTabsState.activeTab]?.terminalId ?? getActiveAgentTerminalId(sessionKey) ?? terminals.top ?? null,
@@ -1124,19 +1140,7 @@ const TerminalGridComponent = () => {
         safeTerminalFocus(() => {
             claudeTerminalRef.current?.focus()
         }, isAnyModalOpen)
-    }, [agentTabsState, getSessionKey, isAnyModalOpen, setFocusForSession, setLocalFocus, terminals.top])
-
-    const activeTopAgentType = useMemo(() => {
-        if (agentTabsState) {
-            const activeTab = agentTabsState.tabs[agentTabsState.activeTab]
-            return activeTab?.agentType ?? agentType
-        }
-        return agentType
-    }, [agentTabsState, agentType])
-
-    const shouldUseAcpForTop = useMemo(() => {
-        return selection.kind === 'session' && Boolean(selection.payload) && activeTopAgentType === 'claude' && !selectionIsSpec
-    }, [activeTopAgentType, selection, selectionIsSpec])
+    }, [agentTabsState, getSessionKey, isAnyModalOpen, setFocusForSession, setLocalFocus, shouldUseAcpForTop, terminals.top])
 
     const handleActionButtonInvoke = useCallback((action: HeaderActionConfig) => {
         const run = async () => {
@@ -1482,7 +1486,7 @@ const TerminalGridComponent = () => {
                                 (() => {
                                     const activeTab = agentTabsState.tabs[agentTabsState.activeTab]
                                     if (!activeTab) return null
-                                    const shouldUseRichUi = selection.kind === 'session' && activeTab.agentType === 'claude' && Boolean(selection.payload)
+                                    const shouldUseRichUi = shouldUseAcpForTop && selection.kind === 'session'
                                     return (
                                         shouldUseRichUi ? (
                                             <AcpChatPanel key={`acp-${selection.payload}`} sessionName={selection.payload ?? ''} />
@@ -1506,7 +1510,7 @@ const TerminalGridComponent = () => {
                                     )
                                 })()
                             ) : (
-                                (selection.kind === 'session' && agentType === 'claude' && Boolean(selection.payload)) ? (
+                                shouldUseAcpForTop ? (
                                     <AcpChatPanel key={`acp-${selection.payload}`} sessionName={selection.payload ?? ''} />
                                 ) : (
                                     <TerminalErrorBoundary terminalId={terminals.top}>

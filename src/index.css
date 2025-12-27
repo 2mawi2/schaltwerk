@@ -37,6 +37,24 @@ button:disabled {
   cursor: not-allowed;
 }
 
+/* ACP chat collapsible panels */
+.acp-details > summary {
+  list-style: none;
+}
+
+.acp-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.acp-details__chevron {
+  flex: 0 0 auto;
+  transition: transform 150ms ease;
+}
+
+.acp-details[open] .acp-details__chevron {
+  transform: rotate(90deg);
+}
+
 /* Ensure text selection works in diff viewer */
 .select-text {
   user-select: text !important;

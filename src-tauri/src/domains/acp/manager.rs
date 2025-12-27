@@ -2,7 +2,7 @@ use crate::events::{emit_event, SchaltEvent};
 use anyhow::{Context, Result, anyhow};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, Ordering};
@@ -71,12 +71,14 @@ pub struct AcpTerminalOutputPayload {
 #[derive(Default)]
 pub struct AcpManager {
     sessions: Mutex<HashMap<String, Arc<AcpSession>>>,
+    starting_sessions: Mutex<HashSet<String>>,
 }
 
 impl AcpManager {
     pub fn new() -> Self {
         Self {
             sessions: Mutex::new(HashMap::new()),
+            starting_sessions: Mutex::new(HashSet::new()),
         }
     }
 
@@ -89,11 +91,24 @@ impl AcpManager {
         env_vars: Vec<(String, String)>,
         initial_mode: Option<String>,
     ) -> Result<()> {
-        {
+        if let Some(existing) = {
             let sessions = self.sessions.lock().await;
-            if sessions.contains_key(session_name) {
+            sessions.get(session_name).cloned()
+        } {
+            if existing.is_alive().await {
                 return Ok(());
             }
+
+            let mut sessions = self.sessions.lock().await;
+            sessions.remove(session_name);
+        }
+
+        {
+            let mut starting_sessions = self.starting_sessions.lock().await;
+            if starting_sessions.contains(session_name) {
+                return Ok(());
+            }
+            starting_sessions.insert(session_name.to_string());
         }
 
         emit_event(
@@ -108,7 +123,7 @@ impl AcpManager {
         )?;
 
         let (agent_binary, agent_args) = agent_command;
-        let session = AcpSession::spawn(
+        let session_result = AcpSession::spawn(
             app.clone(),
             session_name.to_string(),
             worktree_path,
@@ -117,7 +132,14 @@ impl AcpManager {
             env_vars,
             initial_mode,
         )
-        .await?;
+        .await;
+
+        {
+            let mut starting_sessions = self.starting_sessions.lock().await;
+            starting_sessions.remove(session_name);
+        }
+
+        let session = session_result?;
 
         {
             let mut sessions = self.sessions.lock().await;
@@ -196,6 +218,7 @@ struct AcpSession {
     initial_mode: Option<String>,
     pending_permissions: Mutex<HashMap<JsonRpcId, oneshot::Sender<String>>>,
     terminals: Mutex<HashMap<String, Arc<AcpTerminal>>>,
+    stderr_tail: Mutex<VecDeque<String>>,
     child: Mutex<Option<Child>>,
 }
 
@@ -268,6 +291,7 @@ impl AcpSession {
             initial_mode,
             pending_permissions: Mutex::new(HashMap::new()),
             terminals: Mutex::new(HashMap::new()),
+            stderr_tail: Mutex::new(VecDeque::new()),
             child: Mutex::new(Some(child)),
         });
 
@@ -433,6 +457,14 @@ impl AcpSession {
     async fn stderr_task(session: Arc<Self>, stderr: tokio::process::ChildStderr) {
         let mut reader = BufReader::new(stderr).lines();
         while let Ok(Some(line)) = reader.next_line().await {
+            {
+                let mut tail = session.stderr_tail.lock().await;
+                const MAX_LINES: usize = 40;
+                if tail.len() >= MAX_LINES {
+                    tail.pop_front();
+                }
+                tail.push_back(line.clone());
+            }
             log::debug!("[acp:{} stderr] {line}", session.session_name);
         }
     }
@@ -454,6 +486,52 @@ impl AcpSession {
             }
         }
 
+        let exit_status = {
+            let mut child_guard = session.child.lock().await;
+            let status = child_guard
+                .as_mut()
+                .and_then(|child| child.try_wait().ok().flatten());
+            *child_guard = None;
+            status
+        };
+
+        let stderr_snippet = {
+            let tail = session.stderr_tail.lock().await;
+            tail.iter()
+                .rev()
+                .find(|line| {
+                    let trimmed = line.trim();
+                    if trimmed.is_empty() {
+                        return false;
+                    }
+
+                    let lower = trimmed.to_ascii_lowercase();
+                    if lower.contains("a complete log of this run can be found") {
+                        return false;
+                    }
+
+                    true
+                })
+                .cloned()
+        };
+
+        let mut message = "ACP agent process exited".to_string();
+        if let Some(code) = exit_status.as_ref().and_then(|status| status.code()) {
+            message.push_str(&format!(" (exit code {code})"));
+        }
+        if let Some(snippet) = stderr_snippet {
+            let trimmed = snippet.trim();
+            if !trimmed.is_empty() {
+                const MAX_CHARS: usize = 180;
+                let mut short = trimmed.to_string();
+                if short.chars().count() > MAX_CHARS {
+                    short = short.chars().take(MAX_CHARS).collect::<String>();
+                    short.push('…');
+                }
+                message.push_str(&format!(" · last stderr: {short}"));
+            }
+        }
+
         let _ = emit_event(
             &session.app,
             SchaltEvent::AcpSessionStatus,
@@ -461,7 +539,7 @@ impl AcpSession {
                 session_name: session.session_name.clone(),
                 status: AcpSessionStatus::Stopped,
                 session_id: session.session_id.lock().await.clone(),
-                message: Some("ACP agent process exited".to_string()),
+                message: Some(message),
             },
         );
     }
@@ -670,6 +748,22 @@ impl AcpSession {
             let _ = child.kill().await;
         }
         Ok(())
+    }
+
+    async fn is_alive(&self) -> bool {
+        let mut child_guard = self.child.lock().await;
+        let Some(child) = child_guard.as_mut() else {
+            return false;
+        };
+
+        match child.try_wait() {
+            Ok(Some(_)) => false,
+            Ok(None) => true,
+            Err(err) => {
+                log::warn!("[acp] Failed to query agent status: {err}");
+                true
+            }
+        }
     }
 
     async fn request_agent(&self, method: &str, params: Value) -> Result<Value> {
@@ -974,8 +1068,21 @@ impl AcpTerminal {
         env: Vec<(String, String)>,
         output_byte_limit: Option<usize>,
     ) -> Result<Arc<Self>> {
-        let mut cmd = Command::new(command);
-        cmd.args(args);
+        let shell_command = if args.is_empty() {
+            command.to_string()
+        } else {
+            let mut parts = Vec::with_capacity(args.len() + 1);
+            parts.push(sh_quote_string(command));
+            for arg in args {
+                parts.push(sh_quote_string(arg));
+            }
+            parts.join(" ")
+        };
+
+        let (shell_program, shell_args) = build_login_shell_invocation(&shell_command);
+
+        let mut cmd = Command::new(&shell_program);
+        cmd.args(&shell_args);
         cmd.current_dir(cwd);
         cmd.stdin(std::process::Stdio::null());
         cmd.stdout(std::process::Stdio::piped());
@@ -986,7 +1093,7 @@ impl AcpTerminal {
 
         let mut child = cmd.spawn().with_context(|| {
             format!(
-                "Failed to spawn terminal command '{command}' in {}",
+                "Failed to spawn terminal command '{shell_command}' in {}",
                 cwd.display()
             )
         })?;
@@ -1193,6 +1300,92 @@ fn canonicalize_existing_ancestor(path: &Path) -> Result<PathBuf> {
             Err(err) => return Err(err.into()),
         }
     }
+}
+
+fn build_login_shell_invocation(command: &str) -> (String, Vec<String>) {
+    let shell = std::env::var("SHELL")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "/bin/sh".to_string());
+
+    let shell_kind = classify_shell(&shell);
+    let login_flags = login_flags(shell_kind);
+    let command_flag = command_flag(shell_kind);
+
+    let mut args = Vec::with_capacity(login_flags.len() + 2);
+    for flag in login_flags {
+        args.push(flag.to_string());
+    }
+    args.push(command_flag.to_string());
+    args.push(command.to_string());
+
+    (shell, args)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ShellKind {
+    BashLike,
+    Fish,
+    Nu,
+    Tcsh,
+    PowerShell,
+    Unknown,
+}
+
+fn classify_shell(shell: &str) -> ShellKind {
+    use ShellKind::*;
+
+    let name = std::path::Path::new(shell)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or(shell)
+        .to_ascii_lowercase();
+
+    match name.as_str() {
+        "bash" | "zsh" | "ksh" | "sh" | "dash" | "ash" => BashLike,
+        "fish" => Fish,
+        "nu" | "nushell" => Nu,
+        "tcsh" | "csh" => Tcsh,
+        "pwsh" | "powershell" => PowerShell,
+        _ => Unknown,
+    }
+}
+
+fn login_flags(kind: ShellKind) -> &'static [&'static str] {
+    use ShellKind::*;
+    match kind {
+        Nu => &["--login"],
+        PowerShell => &["-Login"],
+        BashLike | Fish | Tcsh | Unknown => &["-l"],
+    }
+}
+
+fn command_flag(kind: ShellKind) -> &'static str {
+    use ShellKind::*;
+    match kind {
+        PowerShell => "-Command",
+        BashLike | Fish | Nu | Tcsh | Unknown => "-c",
+    }
+}
+
+fn sh_quote_string(s: &str) -> String {
+    if s.is_empty() {
+        return "''".to_string();
+    }
+
+    let mut quoted = String::with_capacity(s.len() + 2);
+    quoted.push('\'');
+    for ch in s.chars() {
+        if ch == '\'' {
+            quoted.push_str("'\\''");
+        } else {
+            quoted.push(ch);
+        }
+    }
+    quoted.push('\'');
+
+    quoted
 }
 
 #[cfg(test)]
