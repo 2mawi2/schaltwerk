@@ -1,9 +1,11 @@
 import { atom } from 'jotai'
-import { atomFamily } from 'jotai/utils'
+import { atomFamily, atomWithStorage } from 'jotai/utils'
+import type { SyncStorage } from 'jotai/vanilla/utils/atomWithStorage'
 import { invoke } from '@tauri-apps/api/core'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import { TauriCommands } from '../../common/tauriCommands'
 import { logger } from '../../utils/logger'
+import { layoutStorage } from './layout'
 import type {
   AcpPermissionRequestPayload,
   AcpSessionStatusPayload,
@@ -21,20 +23,40 @@ const DEFAULT_ACP_STATE: AcpChatState = {
   input: '',
 }
 
+const encodeKeyPart = (value: string) => encodeURIComponent(value)
+const buildAcpChatStorageKey = (sessionName: string) => `schaltwerk:acp-chat:${encodeKeyPart(sessionName)}`
+const buildClaudeTopViewModeStorageKey = (sessionName: string) =>
+  `schaltwerk:claude-top-view:${encodeKeyPart(sessionName)}`
+
+const acpChatStorage = layoutStorage as unknown as SyncStorage<AcpChatState>
+const claudeTopViewModeStorage = layoutStorage as unknown as SyncStorage<ClaudeTopViewMode>
+
 export const acpChatStateAtomFamily = atomFamily(
-  (_sessionName: string) => atom<AcpChatState>({ ...DEFAULT_ACP_STATE, items: [] }),
+  (sessionName: string) =>
+    atomWithStorage<AcpChatState>(buildAcpChatStorageKey(sessionName), DEFAULT_ACP_STATE, acpChatStorage, {
+      getOnInit: true,
+    }),
   (a, b) => a === b
 )
 
 export const claudeTopViewModeAtomFamily = atomFamily(
-  (_sessionName: string) => atom<ClaudeTopViewMode>('rich'),
+  (sessionName: string) =>
+    atomWithStorage<ClaudeTopViewMode>(
+      buildClaudeTopViewModeStorageKey(sessionName),
+      'rich',
+      claudeTopViewModeStorage,
+      {
+        getOnInit: true,
+      }
+    ),
   (a, b) => a === b
 )
 
+const stableIdPrefix = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 let nextStableId = 0
 function stableId(prefix: string): string {
   nextStableId += 1
-  return `${prefix}-${nextStableId}`
+  return `${prefix}-${stableIdPrefix}-${nextStableId}`
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -176,10 +198,17 @@ function applySessionUpdate(prev: AcpChatState, payload: AcpSessionUpdatePayload
   }
 
   if (updateKind === 'plan') {
-    return {
-      ...prev,
-      items: [...prev.items, { kind: 'plan', id: stableId('plan'), plan: update } satisfies ChatItem],
+    const nextItems = [...prev.items]
+    for (let i = nextItems.length - 1; i >= 0; i -= 1) {
+      const existing = nextItems[i]
+      if (existing.kind === 'plan') {
+        nextItems[i] = { ...existing, plan: update }
+        return { ...prev, items: nextItems }
+      }
     }
+
+    nextItems.push({ kind: 'plan', id: stableId('plan'), plan: update } satisfies ChatItem)
+    return { ...prev, items: nextItems }
   }
 
   return prev
@@ -259,6 +288,7 @@ export const dismissAcpPermissionPromptActionAtom = atom(
 export const ensureAcpSessionStartedActionAtom = atom(
   null,
   async (_get, set, params: { sessionName: string }) => {
+    set(acpChatStateAtomFamily(params.sessionName), (prev) => ({ ...prev, pendingPermission: null }))
     try {
       await invoke<void>(TauriCommands.SchaltwerkAcpStartSession, { sessionName: params.sessionName })
     } catch (error) {

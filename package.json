@@ -24,7 +24,7 @@
     "lint:ts": "tsc --noEmit",
     "lint:rust": "cd src-tauri && CARGO_TERM_PROGRESS_WHEN=never cargo --quiet clippy --all-features --message-format=short -- -D warnings",
     "lint:mcp": "cd mcp-server && bun run lint",
-    "test:frontend": "NODE_NO_WARNINGS=1 ROLLUP_SKIP_NODEJS_NATIVE_ADDON=1 FORCE_COLOR=0 VITEST_MAX_THREADS=1 VITEST_MIN_THREADS=1 vitest run --reporter=dot 2>&1 | grep -v 'localstorage-file\\|baseline-browser-mapping\\|trace-warnings'",
+    "test:frontend": "bash -o pipefail -c \"NODE_NO_WARNINGS=1 ROLLUP_SKIP_NODEJS_NATIVE_ADDON=1 FORCE_COLOR=0 VITEST_MAX_THREADS=1 VITEST_MIN_THREADS=1 vitest run --reporter=dot 2>&1 | grep -E -v 'localstorage-file|baseline-browser-mapping|trace-warnings'\"",
     "test:arch:frontend": "ROLLUP_SKIP_NODEJS_NATIVE_ADDON=1 FORCE_COLOR=0 vitest run src/test/architecture.test.ts",
     "test:frontend:coverage": "ROLLUP_SKIP_NODEJS_NATIVE_ADDON=1 vitest run --coverage",
     "test:frontend:watch": "ROLLUP_SKIP_NODEJS_NATIVE_ADDON=1 vitest",

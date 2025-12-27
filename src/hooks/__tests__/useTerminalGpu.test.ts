@@ -201,6 +201,7 @@ describe('useTerminalGpu', () => {
   })
 
   it('ignores font preference changes when GPU rendering is disabled', async () => {
+    invokeMock.mockResolvedValue({ webglEnabled: false })
     shouldAttemptWebglMock.mockReturnValue(false)
     const { result } = renderHook(() =>
       useTerminalGpu({
@@ -210,6 +211,8 @@ describe('useTerminalGpu', () => {
         applySizeUpdate: vi.fn(() => true),
       })
     )
+
+    await act(async () => {})
 
     setGpuRendererMock.mockClear()
     disposeGpuRendererMock.mockClear()

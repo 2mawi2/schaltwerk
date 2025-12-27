@@ -76,7 +76,24 @@ fn try_rewrite_npx_to_node_invocation(npx_path: &str, args: Vec<String>) -> Opti
     let bin_dir = npx_path.parent()?;
     let prefix = bin_dir.parent()?;
     let node_path = bin_dir.join("node");
-    let npx_cli = prefix.join("lib").join("node_modules").join("npm").join("bin").join("npx-cli.js");
+
+    let npx_cli = [
+        prefix
+            .join("lib")
+            .join("node_modules")
+            .join("npm")
+            .join("bin")
+            .join("npx-cli.js"),
+        prefix
+            .join("libexec")
+            .join("lib")
+            .join("node_modules")
+            .join("npm")
+            .join("bin")
+            .join("npx-cli.js"),
+    ]
+    .into_iter()
+    .find(|candidate| candidate.is_file())?;
 
     if !node_path.is_file() || !npx_cli.is_file() {
         return None;
@@ -93,8 +110,23 @@ fn npx_cli_for_node_path(node_path: &str) -> Option<PathBuf> {
     let node_path = Path::new(node_path);
     let bin_dir = node_path.parent()?;
     let prefix = bin_dir.parent()?;
-    let npx_cli = prefix.join("lib").join("node_modules").join("npm").join("bin").join("npx-cli.js");
-    if npx_cli.is_file() { Some(npx_cli) } else { None }
+    [
+        prefix
+            .join("lib")
+            .join("node_modules")
+            .join("npm")
+            .join("bin")
+            .join("npx-cli.js"),
+        prefix
+            .join("libexec")
+            .join("lib")
+            .join("node_modules")
+            .join("npm")
+            .join("bin")
+            .join("npx-cli.js"),
+    ]
+    .into_iter()
+    .find(|candidate| candidate.is_file())
 }
 
 async fn resolve_node_candidates(cwd: &Path) -> Vec<String> {
