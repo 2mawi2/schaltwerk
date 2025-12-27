@@ -198,7 +198,9 @@ export function useTerminalGpu({
       logger.info(
         `[Terminal ${terminalId}] Skipping WebGL initialization due to previous failure (DOM renderer active)`,
       );
-      disposeRegisteredGpuRenderer(terminalId, 'global-fallback');
+      if (getGpuRenderer(terminalId)) {
+        disposeRegisteredGpuRenderer(terminalId, 'global-fallback');
+      }
       gpuRenderer.current = null;
       applyLetterSpacing(false);
       return;

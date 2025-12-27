@@ -809,6 +809,65 @@ describe('Terminal', () => {
     }
   })
 
+  it('does not resize when a forced fit resolves to the current cols/rows (prevents scroll drift)', async () => {
+    renderTerminal({ terminalId: 'session-force-fit-top', sessionName: 'force-fit' })
+
+    await waitFor(() => {
+      expect(terminalHarness.acquireMock).toHaveBeenCalled()
+      expect(terminalHarness.instances.length).toBeGreaterThan(0)
+      expect(cleanupRegistryMock.addResizeObserver).toHaveBeenCalled()
+      expect(cleanupRegistryMock.addEventListener).toHaveBeenCalled()
+    })
+
+    const instance = terminalHarness.instances[0] as HarnessInstance
+    const baselineResizes = instance.raw.resize.mock.calls.length
+
+    instance.raw.buffer.active.baseY = 200
+    instance.raw.buffer.active.viewportY = 123
+
+    // If we accidentally call resize() even when cols/rows are unchanged, simulate the observed drift.
+    instance.raw.resize.mockImplementation(function resize(this: HarnessInstance['raw'], cols: number, rows: number) {
+      this.cols = cols
+      this.rows = rows
+      this.buffer.active.viewportY = Math.max(0, this.buffer.active.viewportY - 1)
+    })
+
+    instance.fitAddon.proposeDimensions = vi.fn(() => ({ cols: instance.raw.cols, rows: instance.raw.rows }))
+
+    const roCalls = cleanupRegistryMock.addResizeObserver.mock.calls
+    const roLast = roCalls[roCalls.length - 1]
+    const element = roLast?.[0] as HTMLDivElement | undefined
+    expect(element).toBeDefined()
+    Object.defineProperty(element!, 'clientWidth', { configurable: true, value: 800 })
+    Object.defineProperty(element!, 'clientHeight', { configurable: true, value: 600 })
+
+    const fontListenerCall = cleanupRegistryMock.addEventListener.mock.calls.find((call) => call[1] === 'font-size-changed')
+    expect(fontListenerCall).toBeDefined()
+    const fontSizeHandler = fontListenerCall?.[2] as ((ev: Event) => void) | undefined
+    expect(fontSizeHandler).toBeTypeOf('function')
+
+    vi.useFakeTimers()
+    try {
+      await act(async () => {
+        fontSizeHandler?.(new CustomEvent('font-size-changed', { detail: { terminalFontSize: 13, uiFontSize: 13 } }))
+        await vi.runOnlyPendingTimersAsync()
+      })
+
+      expect(instance.raw.resize.mock.calls.length).toBe(baselineResizes)
+      expect(instance.raw.buffer.active.viewportY).toBe(123)
+
+      await act(async () => {
+        fontSizeHandler?.(new CustomEvent('font-size-changed', { detail: { terminalFontSize: 13, uiFontSize: 13 } }))
+        await vi.runOnlyPendingTimersAsync()
+      })
+
+      expect(instance.raw.resize.mock.calls.length).toBe(baselineResizes)
+      expect(instance.raw.buffer.active.viewportY).toBe(123)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('does not render the loading overlay when the terminal is already hydrated', async () => {
     registryMocks.hasTerminalInstance.mockReturnValue(true)
     terminalHarness.setNextIsNew(false)

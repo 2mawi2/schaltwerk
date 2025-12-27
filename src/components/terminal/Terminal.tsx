@@ -710,22 +710,31 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             return;
         }
 
-        if (proposed.cols < MIN_PROPOSED_COLUMNS) {
-            logger.debug(`[Terminal ${terminalId}] Clamping ${reason} resize - proposed columns too small (${proposed.cols})`);
-            resizeCoordinatorRef.current?.resize({
-                cols: MIN_TERMINAL_COLUMNS,
-                rows: Math.max(MIN_TERMINAL_ROWS, proposed.rows),
-                reason: `${reason}:min-clamp-proposal`,
-                immediate: true,
-            });
+        const desiredRows = Math.max(MIN_TERMINAL_ROWS, Math.floor(proposed.rows));
+        const desiredCols = proposed.cols < MIN_PROPOSED_COLUMNS
+            ? MIN_TERMINAL_COLUMNS
+            : calculateEffectiveColumns(proposed.cols);
+
+        if (terminal.current.cols === desiredCols && terminal.current.rows === desiredRows) {
+            // Avoid no-op resizes. xterm.js can still perturb viewport scroll position when `resize()` is
+            // called with the current dimensions, which shows up as "scroll creeps up" when switching
+            // between terminals while scrolled away from bottom.
+            if (shouldForce) {
+                try {
+                    xtermWrapperRef.current?.forceScrollbarRefresh();
+                    xtermWrapperRef.current?.refresh();
+                } catch (error) {
+                    logger.debug(`[Terminal ${terminalId}] No-op resize refresh failed`, error);
+                }
+            }
             return;
         }
 
         resizeCoordinatorRef.current?.resize({
-            cols: Math.max(MIN_TERMINAL_COLUMNS, proposed.cols),
-            rows: Math.max(MIN_TERMINAL_ROWS, proposed.rows),
-            reason,
-            immediate: shouldImmediate,
+            cols: desiredCols,
+            rows: desiredRows,
+            reason: proposed.cols < MIN_PROPOSED_COLUMNS ? `${reason}:min-clamp-proposal` : reason,
+            immediate: proposed.cols < MIN_PROPOSED_COLUMNS ? true : shouldImmediate,
         });
     }, [readDimensions, terminalId]);
 
