@@ -5,6 +5,7 @@ import { Provider, createStore } from 'jotai'
 import { WebPreviewPanel } from './WebPreviewPanel'
 import * as previewRegistry from '../../features/preview/previewIframeRegistry'
 import { PREVIEW_ZOOM_STEP } from '../../store/atoms/preview'
+import { ModalProvider } from '../../contexts/ModalContext'
 
 const { __resetRegistryForTests } = previewRegistry
 
@@ -16,7 +17,9 @@ const renderPanel = (props: React.ComponentProps<typeof WebPreviewPanel>) => {
   const store = createStore()
   return render(
     <Provider store={store}>
-      <WebPreviewPanel {...props} />
+      <ModalProvider>
+        <WebPreviewPanel {...props} />
+      </ModalProvider>
     </Provider>
   )
 }
@@ -127,7 +130,9 @@ describe('WebPreviewPanel', () => {
 
     const { rerender } = render(
       <Provider>
-        <WebPreviewPanel previewKey="key-1" />
+        <ModalProvider>
+          <WebPreviewPanel previewKey="key-1" />
+        </ModalProvider>
       </Provider>
     )
 
@@ -143,7 +148,9 @@ describe('WebPreviewPanel', () => {
 
     rerender(
       <Provider>
-        <WebPreviewPanel previewKey="key-2" />
+        <ModalProvider>
+          <WebPreviewPanel previewKey="key-2" />
+        </ModalProvider>
       </Provider>
     )
 
@@ -153,7 +160,9 @@ describe('WebPreviewPanel', () => {
 
     rerender(
       <Provider>
-        <WebPreviewPanel previewKey="key-1" />
+        <ModalProvider>
+          <WebPreviewPanel previewKey="key-1" />
+        </ModalProvider>
       </Provider>
     )
 
@@ -226,7 +235,7 @@ describe('WebPreviewPanel', () => {
     })
   })
 
-  it('allows manual zooming through the toolbar popover', async () => {
+  it('allows manual zooming through inline toolbar controls', async () => {
     const user = userEvent.setup()
 
     renderPanel({ previewKey: 'test-key' })
@@ -239,9 +248,6 @@ describe('WebPreviewPanel', () => {
       expect(document.querySelector('iframe[data-preview-key="test-key"]')).not.toBeNull()
     })
 
-    await user.click(screen.getByRole('button', { name: 'Adjust zoom' }))
-    expect(await screen.findByText('Reset')).toBeInTheDocument()
-
     await user.click(screen.getByRole('button', { name: 'Zoom in' }))
 
     await waitFor(() => {
@@ -249,7 +255,7 @@ describe('WebPreviewPanel', () => {
       expect(zoomHost).toHaveAttribute('data-preview-zoom', (1 + PREVIEW_ZOOM_STEP).toFixed(2))
     })
 
-    await user.click(screen.getByRole('button', { name: 'Reset' }))
+    await user.click(screen.getByRole('button', { name: 'Reset zoom' }))
 
     await waitFor(() => {
       const zoomHost = document.querySelector('[data-preview-zoom]')

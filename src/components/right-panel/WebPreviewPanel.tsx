@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import type { FormEvent, ChangeEvent } from 'react'
 import { useAtom, useSetAtom } from 'jotai'
-import { VscRefresh, VscGlobe, VscArrowRight, VscChevronLeft, VscChevronRight, VscSearch, VscLinkExternal, VscInspect } from 'react-icons/vsc'
+import { VscRefresh, VscGlobe, VscArrowRight, VscChevronLeft, VscChevronRight, VscLinkExternal, VscInspect } from 'react-icons/vsc'
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
 import {
@@ -23,6 +23,7 @@ import { detectPlatformSafe, isShortcutForAction } from '../../keyboardShortcuts
 import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
 import { emitUiEvent, UiEvent } from '../../common/uiEvents'
 import { logger } from '../../utils/logger'
+import { useModal } from '../../contexts/ModalContext'
 
 interface WebPreviewPanelProps {
   previewKey: string
@@ -71,39 +72,18 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
   const [inputValue, setInputValue] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [hostElement, setHostElement] = useState<HTMLDivElement | null>(null)
-  const [showZoomPopover, setShowZoomPopover] = useState(false)
-  const zoomControlRef = useRef<HTMLDivElement | null>(null)
   const { config: keyboardShortcutConfig } = useKeyboardShortcutsConfig()
+  const { isAnyModalOpen } = useModal()
   const platform = useMemo(() => detectPlatformSafe(), [])
 
   useEffect(() => {
     setInputValue(currentUrl ?? '')
   }, [currentUrl])
 
-  useEffect(() => {
-    const handlePointerDown = (event: PointerEvent) => {
-      if (!zoomControlRef.current) return
-      if (!zoomControlRef.current.contains(event.target as Node)) {
-        setShowZoomPopover(false)
-      }
-    }
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setShowZoomPopover(false)
-      }
-    }
-
-    window.addEventListener('pointerdown', handlePointerDown, true)
-    window.addEventListener('keydown', handleEscape)
-    return () => {
-      window.removeEventListener('pointerdown', handlePointerDown, true)
-      window.removeEventListener('keydown', handleEscape)
-    }
-  }, [])
+  const modalOpen = isAnyModalOpen()
 
   useEffect(() => {
-    if (!hostElement || !currentUrl || isResizing) {
+    if (!hostElement || !currentUrl || isResizing || modalOpen) {
       if (hostElement && currentUrl) {
         unmountIframe(previewKey)
       }
@@ -116,7 +96,7 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
     return () => {
       unmountIframe(previewKey)
     }
-  }, [previewKey, currentUrl, hostElement, isResizing])
+  }, [previewKey, currentUrl, hostElement, isResizing, modalOpen])
 
   useEffect(() => {
     if (!currentUrl) return
@@ -124,7 +104,7 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
   }, [previewKey, zoom, currentUrl])
 
   useEffect(() => {
-    if (!hostElement || !currentUrl || isResizing) return
+    if (!hostElement || !currentUrl || isResizing || modalOpen) return
 
     const updateBounds = () => {
       mountIframe(previewKey, hostElement)
@@ -144,7 +124,7 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
       resizeObserver?.disconnect()
       window.removeEventListener('resize', updateBounds)
     }
-  }, [previewKey, currentUrl, hostElement, isResizing])
+  }, [previewKey, currentUrl, hostElement, isResizing, modalOpen])
 
   const handleSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
@@ -204,21 +184,6 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
     },
     [previewKey, navigateHistory]
   )
-
-  const handleZoomDelta = useCallback(
-    (delta: number) => {
-      adjustZoom({ key: previewKey, delta })
-    },
-    [adjustZoom, previewKey]
-  )
-
-  const handleZoomReset = useCallback(() => {
-    resetZoom(previewKey)
-  }, [resetZoom, previewKey])
-
-  const handleZoomButtonToggle = useCallback(() => {
-    setShowZoomPopover(value => !value)
-  }, [])
 
   const handleOpenInBrowser = useCallback(async () => {
     try {
@@ -294,6 +259,17 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
   const canZoomOut = zoom > PREVIEW_MIN_ZOOM + 0.001
   const canZoomIn = zoom < PREVIEW_MAX_ZOOM - 0.001
 
+  const handleZoomDelta = useCallback(
+    (delta: number) => {
+      adjustZoom({ key: previewKey, delta })
+    },
+    [adjustZoom, previewKey]
+  )
+
+  const handleZoomReset = useCallback(() => {
+    resetZoom(previewKey)
+  }, [resetZoom, previewKey])
+
   const buttonClass = (disabled?: boolean) =>
     [
       'h-8 w-8 rounded flex items-center justify-center border border-slate-700 bg-slate-900 hover:bg-slate-800 transition-colors',
@@ -350,55 +326,38 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
             placeholder="Enter URL (e.g. http://localhost:3000)"
             autoComplete="off"
           />
-          <div className="relative" ref={zoomControlRef}>
-            <button
-              type="button"
-              aria-label="Adjust zoom"
-              className="h-8 w-8 rounded border border-slate-700 bg-slate-900 flex items-center justify-center text-slate-200 hover:bg-slate-800"
-              onClick={handleZoomButtonToggle}
-            >
-              <VscSearch />
-            </button>
-            {showZoomPopover && (
-              <div className="absolute right-0 mt-2 w-48 rounded-md border border-slate-700 bg-slate-900 shadow-2xl z-10">
-                <div className="flex items-center justify-between px-3 py-2 text-sm text-slate-100">
-                  <span className="font-semibold">{Math.round(zoom * 100)}%</span>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      aria-label="Zoom out"
-                      className="h-7 w-7 rounded-full border border-slate-600 text-slate-100 disabled:opacity-40"
-                      onClick={() => handleZoomDelta(-PREVIEW_ZOOM_STEP)}
-                      disabled={!canZoomOut}
-                    >
-                      &minus;
-                    </button>
-                    <button
-                      type="button"
-                      aria-label="Zoom in"
-                      className="h-7 w-7 rounded-full border border-slate-600 text-slate-100 disabled:opacity-40"
-                      onClick={() => handleZoomDelta(PREVIEW_ZOOM_STEP)}
-                      disabled={!canZoomIn}
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-                <div className="border-t border-slate-800" />
-                <button
-                  type="button"
-                  className="w-full px-3 py-2 text-sm font-medium text-cyan-300 hover:bg-slate-800"
-                  onClick={handleZoomReset}
-                >
-                  Reset
-                </button>
-              </div>
-            )}
-          </div>
           <button type="submit" className="h-8 w-8 rounded bg-cyan-600 flex items-center justify-center text-slate-900 hover:bg-cyan-500 disabled:opacity-40" disabled={!inputValue.trim()} aria-label="Navigate">
             <VscArrowRight className="text-lg" />
           </button>
         </form>
+        <div className="flex items-center gap-0.5 border-l border-slate-700 pl-2">
+          <button
+            type="button"
+            aria-label="Zoom out"
+            className="h-6 w-6 rounded text-slate-400 hover:text-slate-100 hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-transparent flex items-center justify-center text-xs"
+            onClick={() => handleZoomDelta(-PREVIEW_ZOOM_STEP)}
+            disabled={!canZoomOut}
+          >
+            −
+          </button>
+          <button
+            type="button"
+            aria-label="Reset zoom"
+            className="px-1 text-xs text-slate-400 hover:text-cyan-300 rounded min-w-[2.5rem] text-center"
+            onClick={handleZoomReset}
+          >
+            {Math.round(zoom * 100)}%
+          </button>
+          <button
+            type="button"
+            aria-label="Zoom in"
+            className="h-6 w-6 rounded text-slate-400 hover:text-slate-100 hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-transparent flex items-center justify-center text-xs"
+            onClick={() => handleZoomDelta(PREVIEW_ZOOM_STEP)}
+            disabled={!canZoomIn}
+          >
+            +
+          </button>
+        </div>
       </div>
       {error && (
         <div className="px-4 py-2 text-xs text-red-400 border-b border-slate-800" role="status" aria-live="polite">
@@ -406,7 +365,9 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
         </div>
       )}
       <div className="flex-1 bg-slate-950 text-slate-400 overflow-hidden">
-        {isResizing ? (
+        {modalOpen ? (
+          <div className="flex h-full items-center justify-center px-6 text-center text-sm text-slate-400">Preview paused while dialog is open…</div>
+        ) : isResizing ? (
           <div className="flex h-full items-center justify-center px-6 text-center text-sm text-slate-400">Preview paused while resizing…</div>
         ) : hasUrl ? (
           <div className="h-full w-full overflow-hidden" data-preview-zoom={zoom.toFixed(2)}>

@@ -36,6 +36,7 @@ import { AppUpdateResultPayload } from '../../common/events'
 import type { SettingsCategory } from '../../types/settings'
 import { requestDockBounce } from '../../utils/attentionBridge'
 import { MarkdownEditor } from '../specs/MarkdownEditor'
+import { useModal } from '../../contexts/ModalContext'
 
 const shortcutArraysEqual = (a: string[] = [], b: string[] = []) => {
     if (a.length !== b.length) return false
@@ -292,9 +293,17 @@ interface SessionPreferences {
 }
 
 export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Props) {
+    const { registerModal, unregisterModal } = useModal()
     const [terminalFontSize, setTerminalFontSize] = useAtom(terminalFontSizeAtom)
     const [uiFontSize, setUiFontSize] = useAtom(uiFontSizeAtom)
     const { applyOverrides: applyShortcutOverrides } = useKeyboardShortcutsConfig()
+
+    useEffect(() => {
+        if (!open) return
+        const modalId = 'SettingsModal'
+        registerModal(modalId)
+        return () => unregisterModal(modalId)
+    }, [open, registerModal, unregisterModal])
     const [activeCategory, setActiveCategory] = useState<SettingsCategory>(initialTab || 'appearance')
     const [activeAgentTab, setActiveAgentTab] = useState<AgentType>(DEFAULT_AGENT)
     const [projectPath, setProjectPath] = useState<string>('')
