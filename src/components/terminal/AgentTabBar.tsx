@@ -1,12 +1,14 @@
 import React from 'react'
-import { VscDiscard } from 'react-icons/vsc'
+import { VscDiscard, VscPreview, VscTerminal } from 'react-icons/vsc'
 import { getAgentColorScheme, theme } from '../../common/theme'
+import { typography } from '../../common/typography'
 import { AgentTab, MAX_AGENT_TABS } from '../../store/atoms/agentTabs'
 import { UnifiedTab } from '../UnifiedTab'
 import { AddTabButton } from '../AddTabButton'
 import { HeaderActionConfig } from '../../types/actionButton'
 import { getActionButtonColorClasses } from '../../constants/actionButtonColors'
 import { getAgentColorKey } from '../../utils/agentColors'
+import type { ClaudeTopViewMode } from '../../types/acp'
 
 interface AgentTabBarProps {
     tabs: AgentTab[]
@@ -19,6 +21,10 @@ interface AgentTabBarProps {
     actionButtons?: HeaderActionConfig[]
     onAction?: (action: HeaderActionConfig) => void
     shortcutLabel?: string
+    claudeViewToggle?: {
+        mode: ClaudeTopViewMode
+        onChange: (mode: ClaudeTopViewMode) => void
+    } | null
 }
 
 export const AgentTabBar: React.FC<AgentTabBarProps> = ({
@@ -32,8 +38,10 @@ export const AgentTabBar: React.FC<AgentTabBarProps> = ({
     actionButtons = [],
     onAction,
     shortcutLabel,
+    claudeViewToggle = null,
 }) => {
     const canAddTab = onTabAdd && tabs.length < MAX_AGENT_TABS
+    const activeViewMode = claudeViewToggle?.mode ?? null
 
     const renderAgentLabel = (tab: AgentTab) => {
         const colorScheme = getAgentColorScheme(getAgentColorKey(tab.agentType))
@@ -122,6 +130,51 @@ export const AgentTabBar: React.FC<AgentTabBarProps> = ({
 
             {/* Right Action Buttons - Fixed width, always visible */}
             <div className="flex items-center flex-shrink-0 ml-2">
+                {claudeViewToggle && activeViewMode && (
+                    <div
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            border: `1px solid ${theme.colors.border.subtle}`,
+                            borderRadius: 9999,
+                            overflow: 'hidden',
+                            backgroundColor: theme.colors.background.tertiary,
+                            marginRight: 8,
+                        }}
+                        aria-label="Claude view mode"
+                    >
+                        {([
+                            { id: 'rich' as const, label: 'Rich UI', icon: <VscPreview aria-hidden="true" /> },
+                            { id: 'terminal' as const, label: 'Terminal', icon: <VscTerminal aria-hidden="true" /> },
+                        ] satisfies Array<{ id: ClaudeTopViewMode; label: string; icon: React.ReactNode }>).map((option) => {
+                            const isActive = option.id === activeViewMode
+                            return (
+                                <button
+                                    key={option.id}
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        claudeViewToggle.onChange(option.id)
+                                    }}
+                                    style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: 6,
+                                        padding: '4px 10px',
+                                        border: 'none',
+                                        backgroundColor: isActive ? theme.colors.background.elevated : 'transparent',
+                                        color: isActive ? theme.colors.text.primary : theme.colors.text.tertiary,
+                                        cursor: 'pointer',
+                                        ...typography.caption,
+                                    }}
+                                >
+                                    {option.icon}
+                                    {option.label}
+                                </button>
+                            )
+                        })}
+                    </div>
+                )}
                 {actionButtons.length > 0 && (
                     <div className="flex items-center gap-1 mr-2">
                         {actionButtons.map((action) => (

@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { invoke } from '@tauri-apps/api/core'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
@@ -18,34 +17,25 @@ import {
   VscStopCircle,
   VscTerminal,
 } from 'react-icons/vsc'
-import { listenEvent, SchaltEvent } from '../../common/eventSystem'
+import { useAtomValue, useSetAtom } from 'jotai'
 import { withOpacity } from '../../common/colorUtils'
 import { theme } from '../../common/theme'
 import { typography } from '../../common/typography'
-import { TauriCommands } from '../../common/tauriCommands'
 import { logger } from '../../utils/logger'
 import type {
   AcpPermissionRequestPayload,
   AcpRequestId,
-  AcpSessionStatusPayload,
-  AcpSessionUpdatePayload,
-  AcpTerminalOutputPayload,
 } from '../../common/events'
-
-type ChatItem =
-  | { kind: 'status'; id: string; status: string; message?: string | null }
-  | { kind: 'message'; id: string; role: 'user' | 'assistant' | 'thought'; text: string }
-  | { kind: 'image'; id: string; role: 'user' | 'assistant' | 'thought'; image: { data?: string | null; mimeType?: string | null; uri?: string | null } }
-  | { kind: 'tool_call'; id: string; toolCallId: string }
-  | { kind: 'plan'; id: string; plan: unknown }
-
-type ToolCallState = Record<string, unknown>
-
-type TerminalOutputState = {
-  output: string
-  truncated: boolean
-  exitStatus?: unknown
-}
+import type { ChatItem, ToolCallState, TerminalOutputState } from '../../types/acp'
+import {
+  acpChatStateAtomFamily,
+  dismissAcpPermissionPromptActionAtom,
+  ensureAcpSessionStartedActionAtom,
+  resolveAcpPermissionActionAtom,
+  sendAcpPromptActionAtom,
+  setAcpInputActionAtom,
+  stopAcpSessionActionAtom,
+} from '../../store/atoms/acp'
 
 type StatusPalette = {
   bg: string
@@ -68,12 +58,6 @@ function getArray(value: unknown, key: string): unknown[] | null {
   if (!isRecord(value)) return null
   const v = value[key]
   return Array.isArray(v) ? v : null
-}
-
-let nextStableId = 0
-function stableId(prefix: string): string {
-  nextStableId += 1
-  return `${prefix}-${nextStableId}`
 }
 
 function toJson(value: unknown): string {
@@ -1195,12 +1179,15 @@ function ChatImageBubble({ item }: { item: Extract<ChatItem, { kind: 'image' }> 
 }
 
 export function AcpChatPanel({ sessionName }: { sessionName: string }) {
-  const [status, setStatus] = useState<AcpSessionStatusPayload | null>(null)
-  const [items, setItems] = useState<ChatItem[]>([])
-  const [toolCalls, setToolCalls] = useState<Record<string, ToolCallState>>({})
-  const [terminalOutputs, setTerminalOutputs] = useState<Record<string, TerminalOutputState>>({})
-  const [pendingPermission, setPendingPermission] = useState<AcpPermissionRequestPayload | null>(null)
-  const [input, setInput] = useState('')
+  const state = useAtomValue(acpChatStateAtomFamily(sessionName))
+  const ensureSessionStarted = useSetAtom(ensureAcpSessionStartedActionAtom)
+  const sendPrompt = useSetAtom(sendAcpPromptActionAtom)
+  const stopSession = useSetAtom(stopAcpSessionActionAtom)
+  const setInput = useSetAtom(setAcpInputActionAtom)
+  const resolvePermission = useSetAtom(resolveAcpPermissionActionAtom)
+  const dismissPermission = useSetAtom(dismissAcpPermissionPromptActionAtom)
+
+  const { status, items, toolCalls, terminalOutputs, pendingPermission, input } = state
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const isNearBottomRef = useRef(true)
@@ -1209,159 +1196,9 @@ export function AcpChatPanel({ sessionName }: { sessionName: string }) {
 
   useAutoResizeTextArea(textareaRef, input)
 
-  const startSession = useCallback(async () => {
-    try {
-      await invoke<void>(TauriCommands.SchaltwerkAcpStartSession, { sessionName })
-    } catch (error) {
-      logger.error('[AcpChatPanel] Failed to start ACP session', error)
-      setStatus({ sessionName, status: 'error', message: String(error) })
-      setItems((prev) => [
-        ...prev,
-        { kind: 'status', id: stableId('status'), status: 'error', message: String(error) },
-      ])
-    }
-  }, [sessionName])
-
   useEffect(() => {
-    setStatus(null)
-    setItems([])
-    setToolCalls({})
-    setTerminalOutputs({})
-    setPendingPermission(null)
-    void startSession()
-  }, [sessionName, startSession])
-
-  useEffect(() => {
-    let cancelled = false
-    const unlisten: Array<() => void> = []
-
-    void (async () => {
-      try {
-        const offStatus = await listenEvent(SchaltEvent.AcpSessionStatus, (payload) => {
-          if (cancelled || payload.sessionName !== sessionName) return
-          setStatus(payload)
-          setItems((prev) => {
-            const shouldAppend =
-              payload.status === 'error' ||
-              payload.status === 'stopped' ||
-              (payload.status === 'ready' && Boolean(payload.message))
-            if (!shouldAppend) {
-              return prev
-            }
-
-            const last = prev[prev.length - 1]
-            const lastMessage = last && last.kind === 'status' ? (last.message ?? null) : null
-            const nextMessage = payload.message ?? null
-            if (last && last.kind === 'status' && last.status === payload.status && lastMessage === nextMessage) {
-              return prev
-            }
-            return [
-              ...prev,
-              { kind: 'status', id: stableId('status'), status: payload.status, message: payload.message },
-            ]
-          })
-        })
-        unlisten.push(offStatus)
-
-        const offUpdate = await listenEvent(SchaltEvent.AcpSessionUpdate, (payload: AcpSessionUpdatePayload) => {
-          if (cancelled || payload.sessionName !== sessionName) return
-          const update = payload.update
-          if (!isRecord(update)) return
-          const updateKind = getString(update, 'sessionUpdate')
-          if (!updateKind) return
-
-	          if (updateKind === 'agent_message_chunk' || updateKind === 'user_message_chunk' || updateKind === 'agent_thought_chunk') {
-	            const content = isRecord(update.content) ? update.content : null
-	            const contentType = content ? getString(content, 'type') : null
-	            const role: 'user' | 'assistant' | 'thought' =
-	              updateKind === 'user_message_chunk' ? 'user' : updateKind === 'agent_thought_chunk' ? 'thought' : 'assistant'
-
-	            if (contentType === 'image') {
-	              const data = getString(content, 'data')
-	              const mimeType = getString(content, 'mimeType')
-	              const uri = getString(content, 'uri')
-
-	              if (!data && !uri) {
-	                setItems((prev) => [...prev, { kind: 'message', id: stableId('msg'), role, text: JSON.stringify(content ?? update, null, 2) }])
-	                return
-	              }
-
-	              setItems((prev) => [...prev, { kind: 'image', id: stableId('img'), role, image: { data, mimeType, uri } }])
-	              return
-	            }
-
-	            const text = contentType === 'text' ? getString(content, 'text') ?? '' : JSON.stringify(content ?? update, null, 2)
-	            if (text.length === 0) return
-
-	            setItems((prev) => {
-	              const last = prev[prev.length - 1]
-	              if (last && last.kind === 'message' && last.role === role) {
-	                const next = [...prev]
-	                next[next.length - 1] = { ...last, text: last.text + text }
-	                return next
-	              }
-	              return [...prev, { kind: 'message', id: stableId('msg'), role, text }]
-	            })
-	            return
-	          }
-
-          if (updateKind === 'tool_call') {
-            const toolCallId = getString(update, 'toolCallId')
-            if (!toolCallId) return
-            setToolCalls((prev) => ({ ...prev, [toolCallId]: update }))
-            setItems((prev) => {
-              if (prev.some((item) => item.kind === 'tool_call' && item.toolCallId === toolCallId)) {
-                return prev
-              }
-              return [...prev, { kind: 'tool_call', id: stableId('tool'), toolCallId }]
-            })
-            return
-          }
-
-          if (updateKind === 'tool_call_update') {
-            const toolCallId = getString(update, 'toolCallId')
-            if (!toolCallId) return
-            setToolCalls((prev) => ({ ...prev, [toolCallId]: { ...(prev[toolCallId] ?? {}), ...update } }))
-            return
-          }
-
-          if (updateKind === 'plan') {
-            setItems((prev) => [...prev, { kind: 'plan', id: stableId('plan'), plan: update }])
-          }
-        })
-        unlisten.push(offUpdate)
-
-        const offPermission = await listenEvent(
-          SchaltEvent.AcpPermissionRequested,
-          (payload: AcpPermissionRequestPayload) => {
-            if (cancelled || payload.sessionName !== sessionName) return
-            setPendingPermission(payload)
-          }
-        )
-        unlisten.push(offPermission)
-
-        const offTerminal = await listenEvent(SchaltEvent.AcpTerminalOutput, (payload: AcpTerminalOutputPayload) => {
-          if (cancelled || payload.sessionName !== sessionName) return
-          setTerminalOutputs((prev) => ({
-            ...prev,
-            [payload.terminalId]: {
-              output: payload.output,
-              truncated: payload.truncated,
-              exitStatus: payload.exitStatus,
-            },
-          }))
-        })
-        unlisten.push(offTerminal)
-      } catch (error) {
-        logger.error('[AcpChatPanel] Failed to set up ACP listeners', error)
-      }
-    })()
-
-    return () => {
-      cancelled = true
-      unlisten.forEach((fn) => fn())
-    }
-  }, [sessionName])
+    void ensureSessionStarted({ sessionName })
+  }, [ensureSessionStarted, sessionName])
 
   useEffect(() => {
     const el = scrollContainerRef.current
@@ -1385,64 +1222,25 @@ export function AcpChatPanel({ sessionName }: { sessionName: string }) {
   }, [items])
 
   const handleSend = useCallback(async () => {
-    const text = input.trim()
-    if (!text || status?.status !== 'ready') return
-    setInput('')
-    setItems((prev) => [...prev, { kind: 'message', id: stableId('user'), role: 'user', text }])
-    try {
-      await invoke<void>(TauriCommands.SchaltwerkAcpPrompt, { sessionName, prompt: text })
-    } catch (error) {
-      logger.error('[AcpChatPanel] Failed to send prompt', error)
-      setItems((prev) => [
-        ...prev,
-        { kind: 'status', id: stableId('status'), status: 'error', message: String(error) },
-      ])
-    }
-  }, [input, sessionName, status?.status])
+    if (status?.status !== 'ready') return
+    await sendPrompt({ sessionName })
+  }, [sendPrompt, sessionName, status?.status])
 
   const handleSelectPermission = useCallback(
     async (requestId: AcpRequestId, optionId: string) => {
-      setPendingPermission(null)
-      try {
-        await invoke<void>(TauriCommands.SchaltwerkAcpResolvePermission, {
-          sessionName,
-          requestId,
-          optionId,
-        })
-      } catch (error) {
-        logger.error('[AcpChatPanel] Failed to resolve permission', error)
-        setItems((prev) => [
-          ...prev,
-          { kind: 'status', id: stableId('status'), status: 'error', message: String(error) },
-        ])
-      }
+      await resolvePermission({ sessionName, requestId, optionId })
     },
-    [sessionName]
+    [resolvePermission, sessionName]
   )
 
   const handleRestart = useCallback(async () => {
-    setStatus({ sessionName, status: 'starting' })
-    try {
-      await invoke<void>(TauriCommands.SchaltwerkAcpStopSession, { sessionName })
-    } catch (error) {
-      logger.warn('[AcpChatPanel] Failed to stop ACP session (continuing to start)', error)
-    }
-    await startSession()
-  }, [sessionName, startSession])
+    await stopSession({ sessionName })
+    await ensureSessionStarted({ sessionName })
+  }, [ensureSessionStarted, sessionName, stopSession])
 
   const handleStop = useCallback(async () => {
-    setPendingPermission(null)
-    try {
-      await invoke<void>(TauriCommands.SchaltwerkAcpStopSession, { sessionName })
-      setStatus({ sessionName, status: 'stopped' })
-    } catch (error) {
-      logger.error('[AcpChatPanel] Failed to stop ACP session', error)
-      setItems((prev) => [
-        ...prev,
-        { kind: 'status', id: stableId('status'), status: 'error', message: String(error) },
-      ])
-    }
-  }, [sessionName])
+    await stopSession({ sessionName })
+  }, [sessionName, stopSession])
 
   const statusValue = status?.status ?? 'starting'
   const placeholder =
@@ -1601,7 +1399,7 @@ export function AcpChatPanel({ sessionName }: { sessionName: string }) {
             <textarea
               ref={textareaRef}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => setInput({ sessionName, input: e.target.value })}
               onKeyDown={(e) => {
                 if (e.key !== 'Enter' || e.shiftKey) return
                 e.preventDefault()
@@ -1649,7 +1447,7 @@ export function AcpChatPanel({ sessionName }: { sessionName: string }) {
       {pendingPermission && (
         <PermissionPrompt
           request={pendingPermission}
-          onDismiss={() => setPendingPermission(null)}
+          onDismiss={() => dismissPermission({ sessionName })}
           onSelect={(optionId) => void handleSelectPermission(pendingPermission.requestId, optionId)}
         />
       )}

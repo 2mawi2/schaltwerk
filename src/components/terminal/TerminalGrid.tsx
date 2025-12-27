@@ -18,7 +18,7 @@ import { useActionButtons } from '../../hooks/useActionButtons'
 import { invoke } from '@tauri-apps/api/core'
 import { getActionButtonColorClasses } from '../../constants/actionButtonColors'
 import { ConfirmResetDialog } from '../common/ConfirmResetDialog'
-import { VscDiscard } from 'react-icons/vsc'
+import { VscDiscard, VscPreview, VscTerminal } from 'react-icons/vsc'
 import { useRef, useEffect, useState, useMemo, useCallback, memo } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import {
@@ -46,6 +46,7 @@ import { useKeyboardShortcutsConfig } from '../../contexts/KeyboardShortcutsCont
 import { detectPlatformSafe, isShortcutForAction } from '../../keyboardShortcuts/helpers'
 import { mapSessionUiState } from '../../utils/sessionFilters'
 import { theme } from '../../common/theme'
+import { typography } from '../../common/typography'
 import { SPLIT_GUTTER_SIZE } from '../../common/splitLayout'
 import { logger } from '../../utils/logger'
 import { loadRunScriptConfiguration } from '../../utils/runScriptLoader'
@@ -65,6 +66,10 @@ import { useSessionManagement } from '../../hooks/useSessionManagement'
 import { startOrchestratorTop } from '../../common/agentSpawn'
 import { getActiveAgentTerminalId } from '../../common/terminalTargeting'
 import { AcpChatPanel } from '../acp/AcpChatPanel'
+import { closeTerminalBackend } from '../../terminal/transport/backend'
+import { clearTerminalStartState } from '../../common/terminalStartState'
+import { claudeTopViewModeAtomFamily, stopAcpSessionActionAtom } from '../../store/atoms/acp'
+import type { ClaudeTopViewMode } from '../../types/acp'
 
 type TerminalTabDescriptor = { index: number; terminalId: string; label: string }
 type TerminalTabsUiState = {
@@ -163,9 +168,53 @@ const TerminalGridComponent = () => {
         return agentType
     }, [agentTabsState, agentType])
 
-    const shouldUseAcpForTop = useMemo(() => {
+    const claudeViewSessionName = selection.kind === 'session' && selection.payload ? selection.payload : '__none__'
+    const [claudeTopViewMode, setClaudeTopViewMode] = useAtom(claudeTopViewModeAtomFamily(claudeViewSessionName))
+    const stopAcpSession = useSetAtom(stopAcpSessionActionAtom)
+
+    const showClaudeViewToggle = useMemo(() => {
         return selection.kind === 'session' && Boolean(selection.payload) && activeTopAgentType === 'claude' && !selectionIsSpec
     }, [activeTopAgentType, selection, selectionIsSpec])
+
+    const shouldUseAcpForTop = useMemo(() => {
+        return (
+            selection.kind === 'session' &&
+            Boolean(selection.payload) &&
+            activeTopAgentType === 'claude' &&
+            !selectionIsSpec &&
+            claudeTopViewMode === 'rich'
+        )
+    }, [activeTopAgentType, claudeTopViewMode, selection, selectionIsSpec])
+
+    const handleClaudeViewModeChange = useCallback(
+        (mode: ClaudeTopViewMode) => {
+            if (selection.kind !== 'session' || !selection.payload) return
+            const sessionName = selection.payload
+            if (mode === claudeTopViewMode) return
+
+            void (async () => {
+                if (mode === 'terminal') {
+                    await stopAcpSession({ sessionName })
+                    setClaudeTopViewMode(mode)
+                    return
+                }
+
+                const terminalIdToClose =
+                    agentTabsState?.tabs[agentTabsState.activeTab]?.terminalId ?? terminals.top ?? null
+                if (terminalIdToClose) {
+                    clearTerminalStartState([terminalIdToClose])
+                    try {
+                        await closeTerminalBackend(terminalIdToClose)
+                    } catch (error) {
+                        logger.debug('[TerminalGrid] Failed to close terminal while switching to Rich UI', error)
+                    }
+                }
+
+                setClaudeTopViewMode(mode)
+            })()
+        },
+        [agentTabsState, claudeTopViewMode, selection, setClaudeTopViewMode, stopAcpSession, terminals.top]
+    )
 
     const pendingTerminalFocusRef = useRef<{ focusArea: 'claude' | 'terminal' | null; terminalId: string | null }>({
         focusArea: null,
@@ -1400,6 +1449,11 @@ const TerminalGridComponent = () => {
                             actionButtons={shouldShowActionButtons ? actionButtons : []}
                             onAction={handleActionButtonInvoke}
                             shortcutLabel={focusClaudeShortcut || '⌘T'}
+                            claudeViewToggle={
+                                showClaudeViewToggle
+                                    ? { mode: claudeTopViewMode, onChange: handleClaudeViewModeChange }
+                                    : null
+                            }
                         />
                     ) : (
                     <div
@@ -1452,14 +1506,74 @@ const TerminalGridComponent = () => {
                                 </button>
                             )}
                             {selection.kind === 'session' && (
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); setConfirmResetOpen(true) }}
-                                    className="p-1 rounded hover:bg-slate-800"
-                                    title="Reset session"
-                                    aria-label="Reset session"
-                                >
-                                    <VscDiscard className="text-base" />
-                                </button>
+                                <>
+                                    {showClaudeViewToggle && (
+                                        <div
+                                            style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                border: `1px solid ${theme.colors.border.subtle}`,
+                                                borderRadius: 9999,
+                                                overflow: 'hidden',
+                                                backgroundColor: theme.colors.background.tertiary,
+                                            }}
+                                            aria-label="Claude view mode"
+                                        >
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    handleClaudeViewModeChange('rich')
+                                                }}
+                                                style={{
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: 6,
+                                                    padding: '4px 10px',
+                                                    border: 'none',
+                                                    backgroundColor: claudeTopViewMode === 'rich' ? theme.colors.background.elevated : 'transparent',
+                                                    color: claudeTopViewMode === 'rich' ? theme.colors.text.primary : theme.colors.text.tertiary,
+                                                    cursor: 'pointer',
+                                                    ...typography.caption,
+                                                }}
+                                                title="Rich UI"
+                                            >
+                                                <VscPreview aria-hidden="true" />
+                                                Rich UI
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    handleClaudeViewModeChange('terminal')
+                                                }}
+                                                style={{
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: 6,
+                                                    padding: '4px 10px',
+                                                    border: 'none',
+                                                    backgroundColor: claudeTopViewMode === 'terminal' ? theme.colors.background.elevated : 'transparent',
+                                                    color: claudeTopViewMode === 'terminal' ? theme.colors.text.primary : theme.colors.text.tertiary,
+                                                    cursor: 'pointer',
+                                                    ...typography.caption,
+                                                }}
+                                                title="Terminal"
+                                            >
+                                                <VscTerminal aria-hidden="true" />
+                                                Terminal
+                                            </button>
+                                        </div>
+                                    )}
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setConfirmResetOpen(true) }}
+                                        className="p-1 rounded hover:bg-slate-800"
+                                        title="Reset session"
+                                        aria-label="Reset session"
+                                    >
+                                        <VscDiscard className="text-base" />
+                                    </button>
+                                </>
                             )}
                         </div>
                         <span

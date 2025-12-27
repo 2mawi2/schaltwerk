@@ -5,6 +5,7 @@ use schaltwerk::services::AgentManifest;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use tokio::process::Command;
+use schaltwerk::shared::session_metadata_gateway::SessionMetadataGateway;
 
 fn build_lookup_path_prefix(cwd: &Path) -> String {
     let mut candidates: Vec<String> = Vec::new();
@@ -263,6 +264,12 @@ pub async fn schaltwerk_acp_start_session(
 
     let initial_mode = skip_permissions.then(|| "bypassPermissions".to_string());
 
+    let resume_session_id = if session.resume_allowed {
+        schaltwerk::domains::agents::claude::find_resumable_claude_session_fast(&session.worktree_path)
+    } else {
+        None
+    };
+
     let mut env_vars = Vec::new();
     if let Some(settings_manager) = SETTINGS_MANAGER.get() {
         let settings = settings_manager.lock().await;
@@ -279,11 +286,23 @@ pub async fn schaltwerk_acp_start_session(
         &session_name,
         session.worktree_path.clone(),
         (agent_binary, agent_args),
-        env_vars,
-        initial_mode,
+        schaltwerk::domains::acp::manager::AcpSessionStartOptions {
+            env_vars,
+            initial_mode,
+            resume_session_id,
+        },
     )
     .await
-    .map_err(|e| e.to_string())
+    .map_err(|e| e.to_string())?;
+
+    let metadata_gateway = SessionMetadataGateway::new(&db);
+    if !session.resume_allowed
+        && let Err(error) = metadata_gateway.update_session_resume_flag(&session.id, true)
+    {
+        log::warn!("[acp] Failed to flip resume_allowed for {session_name}: {error}");
+    }
+
+    Ok(())
 }
 
 #[tauri::command]

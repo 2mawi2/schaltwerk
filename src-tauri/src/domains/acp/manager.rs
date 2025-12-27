@@ -74,6 +74,13 @@ pub struct AcpManager {
     starting_sessions: Mutex<HashSet<String>>,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct AcpSessionStartOptions {
+    pub env_vars: Vec<(String, String)>,
+    pub initial_mode: Option<String>,
+    pub resume_session_id: Option<String>,
+}
+
 impl AcpManager {
     pub fn new() -> Self {
         Self {
@@ -88,8 +95,7 @@ impl AcpManager {
         session_name: &str,
         worktree_path: PathBuf,
         agent_command: (String, Vec<String>),
-        env_vars: Vec<(String, String)>,
-        initial_mode: Option<String>,
+        options: AcpSessionStartOptions,
     ) -> Result<()> {
         if let Some(existing) = {
             let sessions = self.sessions.lock().await;
@@ -129,8 +135,7 @@ impl AcpManager {
             worktree_path,
             agent_binary,
             agent_args,
-            env_vars,
-            initial_mode,
+            options,
         )
         .await;
 
@@ -216,6 +221,7 @@ struct AcpSession {
     next_id: AtomicI64,
     session_id: Mutex<Option<String>>,
     initial_mode: Option<String>,
+    resume_session_id: Option<String>,
     pending_permissions: Mutex<HashMap<JsonRpcId, oneshot::Sender<String>>>,
     terminals: Mutex<HashMap<String, Arc<AcpTerminal>>>,
     stderr_tail: Mutex<VecDeque<String>>,
@@ -229,8 +235,7 @@ impl AcpSession {
         worktree_path: PathBuf,
         agent_binary: String,
         agent_args: Vec<String>,
-        env_vars: Vec<(String, String)>,
-        initial_mode: Option<String>,
+        options: AcpSessionStartOptions,
     ) -> Result<Arc<Self>> {
         let mut command = Command::new(&agent_binary);
         command.args(&agent_args);
@@ -240,7 +245,7 @@ impl AcpSession {
         command.stderr(std::process::Stdio::piped());
 
         let mut env_map = HashMap::new();
-        for (key, value) in env_vars {
+        for (key, value) in options.env_vars {
             env_map.insert(key, value);
         }
 
@@ -288,7 +293,8 @@ impl AcpSession {
             pending: Mutex::new(HashMap::new()),
             next_id: AtomicI64::new(1),
             session_id: Mutex::new(None),
-            initial_mode,
+            initial_mode: options.initial_mode,
+            resume_session_id: options.resume_session_id,
             pending_permissions: Mutex::new(HashMap::new()),
             terminals: Mutex::new(HashMap::new()),
             stderr_tail: Mutex::new(VecDeque::new()),
@@ -310,6 +316,10 @@ impl AcpSession {
         let this = self.clone();
 
         tokio::spawn(async move {
+            let resume_session_id = this
+                .resume_session_id
+                .clone()
+                .filter(|value| !value.trim().is_empty());
             let init_result = this
                 .request_agent(
                     "initialize",
@@ -352,30 +362,68 @@ impl AcpSession {
                 );
             }
 
+            let build_session_new = |resume: Option<&str>| {
+                let mut request = json!({
+                  "cwd": worktree_path.to_string_lossy().to_string(),
+                  "mcpServers": [],
+                });
+
+                if let Some(resume) = resume {
+                    request["_meta"] = json!({
+                      "claudeCode": {
+                        "options": {
+                          "resume": resume,
+                        }
+                      }
+                    });
+                }
+
+                request
+            };
+
             let new_session_result = this
-                .request_agent(
-                    "session/new",
-                    json!({
-                      "cwd": worktree_path.to_string_lossy().to_string(),
-                      "mcpServers": [],
-                    }),
-                )
+                .request_agent("session/new", build_session_new(resume_session_id.as_deref()))
                 .await;
 
-            let new_session_value = match new_session_result {
-                Ok(v) => v,
+            let (new_session_value, resume_failed_message) = match new_session_result {
+                Ok(v) => (v, None),
                 Err(e) => {
-                    let _ = emit_event(
-                        &app,
-                        SchaltEvent::AcpSessionStatus,
-                        &AcpSessionStatusPayload {
-                            session_name: session_name.clone(),
-                            status: AcpSessionStatus::Error,
-                            session_id: None,
-                            message: Some(format!("ACP session/new failed: {e}")),
-                        },
-                    );
-                    return;
+                    if let Some(resume) = resume_session_id.as_deref() {
+                        log::warn!(
+                            "[acp] session/new failed when resuming '{resume}' for {session_name}: {e}; retrying without resume"
+                        );
+                        match this.request_agent("session/new", build_session_new(None)).await {
+                            Ok(v) => (
+                                v,
+                                Some(format!("ACP resume failed for '{resume}', started a new session")),
+                            ),
+                            Err(second) => {
+                                let _ = emit_event(
+                                    &app,
+                                    SchaltEvent::AcpSessionStatus,
+                                    &AcpSessionStatusPayload {
+                                        session_name: session_name.clone(),
+                                        status: AcpSessionStatus::Error,
+                                        session_id: None,
+                                        message: Some(format!("ACP session/new failed: {second}")),
+                                    },
+                                );
+                                return;
+                            }
+                        }
+                    } else {
+                        let _ = emit_event(
+                            &app,
+                            SchaltEvent::AcpSessionStatus,
+                            &AcpSessionStatusPayload {
+                                session_name: session_name.clone(),
+                                status: AcpSessionStatus::Error,
+                                session_id: None,
+                                message: Some(format!("ACP session/new failed: {e}")),
+                            },
+                        );
+                        return;
+                    }
                 }
             };
 
@@ -401,7 +449,7 @@ impl AcpSession {
                 *guard = Some(session_id.clone());
             }
 
-            let mut ready_message = None;
+            let mut ready_message = resume_failed_message;
             if let Some(mode_id) = this
                 .initial_mode
                 .clone()
@@ -416,8 +464,10 @@ impl AcpSession {
                 log::warn!(
                     "[acp] Failed to set initial session mode '{mode_id}' for {session_name}: {err}"
                 );
-                ready_message =
-                    Some(format!("ACP session ready (failed to set mode '{mode_id}': {err})"));
+                ready_message = Some(match ready_message {
+                    Some(existing) => format!("{existing} · failed to set mode '{mode_id}': {err}"),
+                    None => format!("failed to set mode '{mode_id}': {err}"),
+                });
             }
 
             let _ = emit_event(

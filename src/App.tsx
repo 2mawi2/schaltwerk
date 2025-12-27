@@ -96,6 +96,7 @@ import {
   refreshKeepAwakeStateActionAtom,
   registerKeepAwakeEventListenerActionAtom,
 } from './store/atoms/powerSettings'
+import { initializeAcpEventsActionAtom } from './store/atoms/acp'
 import { registerDevErrorListeners } from './dev/registerDevErrorListeners'
 import { AgentCliMissingModal } from './components/agentBinary/AgentCliMissingModal'
 import type { SettingsCategory } from './types/settings'
@@ -128,6 +129,7 @@ function AppContent() {
   const setSelectionProjectPath = useSetAtom(setProjectPathActionAtom)
   const initializeSessionsEvents = useSetAtom(initializeSessionsEventsActionAtom)
   const initializeSessionsSettings = useSetAtom(initializeSessionsSettingsActionAtom)
+  const initializeAcpEvents = useSetAtom(initializeAcpEventsActionAtom)
   const refreshSessions = useSetAtom(refreshSessionsActionAtom)
   const refreshKeepAwakeState = useSetAtom(refreshKeepAwakeStateActionAtom)
   const registerKeepAwakeListener = useSetAtom(registerKeepAwakeEventListenerActionAtom)
@@ -174,6 +176,10 @@ function AppContent() {
   useEffect(() => {
     void initializeSessionsEvents()
   }, [initializeSessionsEvents])
+
+  useEffect(() => {
+    void initializeAcpEvents()
+  }, [initializeAcpEvents])
 
   useEffect(() => {
     let unlisten: (() => void) | undefined
