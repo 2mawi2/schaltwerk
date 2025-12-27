@@ -155,7 +155,6 @@ describe('useTerminalGpu', () => {
         terminalId: 'test-terminal',
         terminalRef,
         fitAddonRef,
-        isBackground: false,
         applySizeUpdate: vi.fn(() => true),
       })
     )
@@ -174,7 +173,6 @@ describe('useTerminalGpu', () => {
         terminalId: 'gpu-terminal',
         terminalRef,
         fitAddonRef,
-        isBackground: false,
         applySizeUpdate: vi.fn(() => true),
       })
     )
@@ -209,7 +207,6 @@ describe('useTerminalGpu', () => {
         terminalId: 'dom-terminal',
         terminalRef,
         fitAddonRef,
-        isBackground: true,
         applySizeUpdate: vi.fn(() => true),
       })
     )
@@ -235,7 +232,6 @@ describe('useTerminalGpu', () => {
         terminalId: 'reuse-terminal',
         terminalRef,
         fitAddonRef,
-        isBackground: false,
         applySizeUpdate: vi.fn(() => true),
       })
     )
