@@ -24,8 +24,16 @@ describe('mapRunScriptPreviewConfig', () => {
     })
   })
 
-  it('applies defaults when flags are missing', () => {
+  it('defaults to interceptClicks true when flags are missing', () => {
     const config = mapRunScriptPreviewConfig({ command: 'pnpm dev' })
+    expect(config).toEqual({ interceptClicks: true })
+  })
+
+  it('respects explicit false setting', () => {
+    const config = mapRunScriptPreviewConfig({
+      command: 'npm start',
+      previewLocalhostOnClick: false,
+    })
     expect(config).toEqual({ interceptClicks: false })
   })
 })
