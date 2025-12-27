@@ -1,5 +1,5 @@
 use super::{agent_ctx, terminals};
-use crate::get_terminal_manager;
+use crate::{SETTINGS_MANAGER, get_terminal_manager};
 use schaltwerk::services::CreateTerminalWithAppAndSizeParams;
 use schaltwerk::services::{AgentLaunchSpec, parse_agent_command};
 use std::collections::HashMap;
@@ -10,6 +10,27 @@ use tokio::time::timeout;
 
 static START_LOCKS: LazyLock<AsyncMutex<HashMap<String, Arc<AsyncMutex<()>>>>> =
     LazyLock::new(|| AsyncMutex::new(HashMap::new()));
+
+pub async fn get_agent_command_prefix() -> Option<String> {
+    let settings_manager = SETTINGS_MANAGER.get()?;
+    let manager = settings_manager.lock().await;
+    manager.get_agent_command_prefix()
+}
+
+pub fn apply_command_prefix(
+    prefix: Option<String>,
+    agent_name: String,
+    agent_args: Vec<String>,
+) -> (String, Vec<String>) {
+    match prefix {
+        Some(p) if !p.is_empty() => {
+            let mut new_args = vec![agent_name];
+            new_args.extend(agent_args);
+            (p, new_args)
+        }
+        _ => (agent_name, agent_args),
+    }
+}
 
 pub async fn launch_in_terminal(
     terminal_id: String,
@@ -39,6 +60,8 @@ pub async fn launch_in_terminal(
     let _guard = term_lock.lock().await;
     log::info!("[AGENT_LAUNCH_TRACE] Acquired term_lock for {terminal_id}");
 
+    let command_prefix = get_agent_command_prefix().await;
+
     let launch_future = async {
         let command_line = launch_spec.format_for_shell();
         let (cwd, agent_name, agent_args) = parse_agent_command(&command_line)?;
@@ -51,6 +74,17 @@ pub async fn launch_in_terminal(
         let final_args =
             agent_ctx::build_final_args(&agent_kind, agent_args, &cli_text, &preferences);
 
+        let (final_agent_name, final_agent_args) =
+            apply_command_prefix(command_prefix, agent_name.clone(), final_args.clone());
+
+        if final_agent_name != agent_name {
+            log::info!(
+                "[AGENT_LAUNCH_TRACE] Applied command prefix: {} {} ...",
+                final_agent_name,
+                final_agent_args.first().unwrap_or(&String::new())
+            );
+        }
+
         let manager = get_terminal_manager().await?;
         // Always relaunch the agent command to ensure it actually starts; if a terminal exists, close it first
         if manager.terminal_exists(&terminal_id).await? {
@@ -62,8 +96,8 @@ pub async fn launch_in_terminal(
                 .create_terminal_with_app_and_size(CreateTerminalWithAppAndSizeParams {
                     id: terminal_id.clone(),
                     cwd: cwd.clone(),
-                    command: agent_name.clone(),
-                    args: final_args.clone(),
+                    command: final_agent_name.clone(),
+                    args: final_agent_args.clone(),
                     env: merged_env.clone(),
                     cols: c,
                     rows: r,
@@ -74,8 +108,8 @@ pub async fn launch_in_terminal(
                 .create_terminal_with_app(
                     terminal_id.clone(),
                     cwd.clone(),
-                    agent_name.clone(),
-                    final_args.clone(),
+                    final_agent_name.clone(),
+                    final_agent_args.clone(),
                     merged_env.clone(),
                 )
                 .await?;
@@ -122,7 +156,7 @@ fn merge_env_vars(
 
 #[cfg(test)]
 mod tests {
-    use super::merge_env_vars;
+    use super::{apply_command_prefix, merge_env_vars};
     use std::collections::HashMap;
 
     #[test]
@@ -141,5 +175,59 @@ mod tests {
         assert_eq!(map.get("PATH"), Some(&"/tmp/shim:/usr/bin".to_string()));
         assert_eq!(map.get("API_KEY"), Some(&"123".to_string()));
         assert_eq!(map.get("NEW_VAR"), Some(&"value".to_string()));
+    }
+
+    #[test]
+    fn apply_command_prefix_with_vt() {
+        let (name, args) = apply_command_prefix(
+            Some("vt".to_string()),
+            "claude".to_string(),
+            vec!["--dangerously-skip-permissions".to_string()],
+        );
+
+        assert_eq!(name, "vt");
+        assert_eq!(args, vec!["claude", "--dangerously-skip-permissions"]);
+    }
+
+    #[test]
+    fn apply_command_prefix_without_prefix() {
+        let (name, args) = apply_command_prefix(
+            None,
+            "claude".to_string(),
+            vec!["--dangerously-skip-permissions".to_string()],
+        );
+
+        assert_eq!(name, "claude");
+        assert_eq!(args, vec!["--dangerously-skip-permissions"]);
+    }
+
+    #[test]
+    fn apply_command_prefix_with_empty_prefix() {
+        let (name, args) = apply_command_prefix(
+            Some("".to_string()),
+            "claude".to_string(),
+            vec!["--dangerously-skip-permissions".to_string()],
+        );
+
+        assert_eq!(name, "claude");
+        assert_eq!(args, vec!["--dangerously-skip-permissions"]);
+    }
+
+    #[test]
+    fn apply_command_prefix_preserves_all_args() {
+        let (name, args) = apply_command_prefix(
+            Some("vt".to_string()),
+            "claude".to_string(),
+            vec![
+                "--dangerously-skip-permissions".to_string(),
+                "implement feature X".to_string(),
+            ],
+        );
+
+        assert_eq!(name, "vt");
+        assert_eq!(
+            args,
+            vec!["claude", "--dangerously-skip-permissions", "implement feature X"]
+        );
     }
 }

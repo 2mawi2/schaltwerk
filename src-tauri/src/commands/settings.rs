@@ -708,6 +708,26 @@ pub async fn set_amp_mcp_servers(
     manager.set_amp_mcp_servers(mcp_servers)
 }
 
+#[tauri::command]
+pub async fn get_agent_command_prefix() -> Result<Option<String>, String> {
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+
+    let manager = settings_manager.lock().await;
+    Ok(manager.get_agent_command_prefix())
+}
+
+#[tauri::command]
+pub async fn set_agent_command_prefix(prefix: Option<String>) -> Result<(), String> {
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+
+    let mut manager = settings_manager.lock().await;
+    manager.set_agent_command_prefix(prefix)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

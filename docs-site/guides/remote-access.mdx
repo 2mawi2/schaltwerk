@@ -1,0 +1,81 @@
+---
+title: Remote Access
+description: 'Access your Schaltwerk sessions from anywhere using VibeTunnel'
+---
+
+For remote access to your Schaltwerk sessions, we recommend [VibeTunnel](https://github.com/amantus-ai/vibetunnel). It integrates seamlessly with Schaltwerk's [command prefix](/guides/terminal-configuration#agent-command-prefix) feature—just set `vt` as your prefix and all agent sessions become accessible from any browser, including your phone.
+
+## How It Works
+
+VibeTunnel provides a `vt` command wrapper that forwards terminal sessions to a web dashboard. When combined with Schaltwerk's [command prefix](/guides/terminal-configuration#agent-command-prefix) feature:
+
+1. Each agent session is wrapped with `vt`
+2. VibeTunnel captures the terminal output
+3. You can view all sessions at `http://localhost:4020`
+4. With tunneling (Tailscale, ngrok, etc.), access from anywhere
+
+## Setup
+
+<Steps>
+  <Step title="Install VibeTunnel">
+    **macOS (Recommended):**
+    ```bash
+    brew install --cask vibetunnel
+    ```
+
+    **npm (Linux/Headless):**
+    ```bash
+    npm install -g vibetunnel
+    ```
+  </Step>
+
+  <Step title="Start VibeTunnel">
+    **macOS App:** Open VibeTunnel from Applications. It runs in the menu bar.
+
+    **npm:** Run `vibetunnel` to start the server.
+  </Step>
+
+  <Step title="Configure Schaltwerk">
+    Set the command prefix to `vt` in **Settings → Terminal → Agent Command Prefix**
+
+    See [Terminal Configuration](/guides/terminal-configuration#agent-command-prefix) for details.
+  </Step>
+
+  <Step title="Start a session">
+    Create or start any session in Schaltwerk. The agent will automatically be wrapped with VibeTunnel.
+  </Step>
+
+  <Step title="Access the dashboard">
+    Open `http://localhost:4020` to see all your agent sessions in the browser.
+  </Step>
+</Steps>
+
+## Remote Access Options
+
+To access your sessions from other devices, you'll need to expose the VibeTunnel dashboard. See the [VibeTunnel documentation](https://github.com/amantus-ai/vibetunnel#remote-access) for details on:
+
+- **Tailscale** - Access via your private Tailscale network
+- **ngrok** - Create a public tunnel with `ngrok http 4020`
+- **Cloudflare Tunnel** - Use Cloudflare's free tunnels
+- **Local Network** - Access via your machine's IP address
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="VibeTunnel dashboard is empty">
+    - Ensure VibeTunnel is running (check menu bar on macOS)
+    - Verify the prefix is set to `vt` exactly in Schaltwerk settings
+    - Restart the agent session after setting the prefix
+  </Accordion>
+
+  <Accordion title="Agent not starting">
+    - Verify `vt` command is available: run `which vt` in terminal
+    - Check Schaltwerk logs for error messages
+  </Accordion>
+</AccordionGroup>
+
+## Resources
+
+<Card title="VibeTunnel Documentation" icon="book" href="https://github.com/amantus-ai/vibetunnel">
+  Full documentation, features, and remote access setup
+</Card>

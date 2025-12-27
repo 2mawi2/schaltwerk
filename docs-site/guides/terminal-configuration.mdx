@@ -1,0 +1,57 @@
+---
+title: Terminal Configuration
+description: 'Configure shell settings and command prefix for Schaltwerk terminals'
+---
+
+Configure how Schaltwerk spawns terminal sessions in **Settings → Terminal**.
+
+## Shell Configuration
+
+By default, Schaltwerk uses your system's default shell (`$SHELL`). You can override this with a custom shell.
+
+### Shell Path
+
+Set a custom shell executable path. Leave empty to use the system default.
+
+**Examples:**
+- `/usr/local/bin/nu` or `/opt/homebrew/bin/nu` (Nushell)
+- `/usr/local/bin/fish` or `/opt/homebrew/bin/fish` (Fish)
+- `/bin/zsh` or `/usr/bin/zsh` (Zsh)
+- `/bin/bash` or `/usr/bin/bash` (Bash)
+
+### Shell Arguments
+
+Space-separated arguments passed to the shell. Leave empty for default interactive mode (`-i`).
+
+<Info>
+  Nushell doesn't require the `-i` flag for interactive mode.
+</Info>
+
+<Warning>
+  Changes apply to new terminals only. Existing terminals continue using their current shell.
+</Warning>
+
+## Agent Command Prefix
+
+Wrap all agent processes with a custom command. When you set a prefix, the agent command:
+
+```bash
+claude --dangerously-skip-permissions
+```
+
+becomes:
+
+```bash
+[prefix] claude --dangerously-skip-permissions
+```
+
+This applies to all agents (Claude, Codex, Gemini, etc.) across all sessions.
+
+### Use Cases
+
+- **[Remote Access](/guides/remote-access)** - Set prefix to `vt` to use VibeTunnel for browser-based access
+- **Custom Wrappers** - Scripts for logging, environment setup, or resource management
+
+<Info>
+  The prefix applies to newly started agents. Existing running agents continue with their original command until restarted.
+</Info>

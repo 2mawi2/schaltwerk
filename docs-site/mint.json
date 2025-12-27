@@ -54,6 +54,8 @@
         "guides/multi-project",
         "guides/orchestrator",
         "guides/agent-setup",
+        "guides/terminal-configuration",
+        "guides/remote-access",
         "guides/sandboxing",
         "guides/keyboard-shortcuts",
         "guides/troubleshooting",

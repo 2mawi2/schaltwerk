@@ -316,4 +316,14 @@ impl SettingsManager {
             .set_amp_mcp_servers(mcp_servers)
             .map_err(|e| e.to_string())
     }
+
+    pub fn get_agent_command_prefix(&self) -> Option<String> {
+        self.service.get_agent_command_prefix()
+    }
+
+    pub fn set_agent_command_prefix(&mut self, prefix: Option<String>) -> Result<(), String> {
+        self.service
+            .set_agent_command_prefix(prefix)
+            .map_err(|e| e.to_string())
+    }
 }

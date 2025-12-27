@@ -322,6 +322,8 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
     })
     const [devErrorToastsEnabled, setDevErrorToastsEnabled] = useState(false)
     const [initialDevErrorToastsEnabled, setInitialDevErrorToastsEnabled] = useState(false)
+    const [agentCommandPrefix, setAgentCommandPrefix] = useState<string>('')
+    const [initialAgentCommandPrefix, setInitialAgentCommandPrefix] = useState<string>('')
     const platform = useMemo(() => detectPlatformSafe(), [])
 
     const [keyboardShortcutsState, setKeyboardShortcutsState] = useState<KeyboardShortcutConfig>(() => mergeShortcutConfig(defaultShortcutConfig))
@@ -698,7 +700,15 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
         } catch (error) {
             logger.info('Dev error toast preference not available:', error)
         }
-        
+
+        let loadedCommandPrefix = ''
+        try {
+            const prefix = await invoke<string | null>(TauriCommands.GetAgentCommandPrefix)
+            loadedCommandPrefix = prefix || ''
+        } catch (error) {
+            logger.info('Agent command prefix not available:', error)
+        }
+
         setEnvVars(loadedEnvVars)
         setCliArgs(loadedCliArgs)
         setProjectSettings(loadedProjectSettings)
@@ -709,6 +719,8 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
         setRunScript(loadedRunScript)
         setDevErrorToastsEnabled(loadedDevErrorToasts)
         setInitialDevErrorToastsEnabled(loadedDevErrorToasts)
+        setAgentCommandPrefix(loadedCommandPrefix)
+        setInitialAgentCommandPrefix(loadedCommandPrefix)
         setAgentPreferences(loadedAgentPrefs)
         const normalizedShortcuts = mergeShortcutConfig(loadedShortcuts)
         setKeyboardShortcutsState(normalizedShortcuts)
@@ -969,7 +981,19 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
                 result.failedSettings.push('development error toasts')
             }
         }
-        
+
+        if (agentCommandPrefix !== initialAgentCommandPrefix) {
+            try {
+                const prefixValue = agentCommandPrefix.trim() || null
+                await invoke(TauriCommands.SetAgentCommandPrefix, { prefix: prefixValue })
+                result.savedSettings.push('agent command prefix')
+                setInitialAgentCommandPrefix(agentCommandPrefix)
+            } catch (error) {
+                logger.error('Failed to save agent command prefix:', error)
+                result.failedSettings.push('agent command prefix')
+            }
+        }
+
         // Save run script
         try {
             await invoke(TauriCommands.SetProjectRunScript, { runScript })
@@ -2246,6 +2270,46 @@ fi`}
                                 <div className="mt-4 pt-3 border-t border-slate-600">
                                     <strong className="text-slate-300">Note:</strong> Changes will apply to new terminals only. Existing terminals will continue using their current shell.
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="pt-6 border-t border-slate-700">
+                        <h3 className="text-body font-medium text-slate-200 mb-4">Agent Command Prefix</h3>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-body text-slate-300 mb-2">Command Prefix</label>
+                                <input
+                                    type="text"
+                                    value={agentCommandPrefix}
+                                    onChange={(e) => setAgentCommandPrefix(e.target.value)}
+                                    placeholder="e.g., vt"
+                                    className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-body"
+                                />
+                                <div className="mt-2 text-caption text-slate-500">
+                                    Prefix command for all agent executions. Transforms <code className={theme.colors.accent.blue.DEFAULT}>claude ...</code> into <code className={theme.colors.accent.blue.DEFAULT}>[prefix] claude ...</code>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="mt-4 p-4 bg-slate-800/50 border border-slate-700 rounded">
+                            <div className="text-caption text-slate-400">
+                                <strong className="text-slate-300">Use Cases:</strong>
+                                <ul className="mt-3 space-y-2">
+                                    <li className="flex items-start gap-2">
+                                        <span className={theme.colors.accent.blue.DEFAULT}>Remote Access:</span>
+                                        <div>
+                                            Set prefix to <code>vt</code> to use <a href="https://vt.sh" target="_blank" rel="noopener noreferrer" className={`${theme.colors.accent.cyan.DEFAULT} hover:underline`}>VibeTunnel</a> for browser-based remote terminal access
+                                        </div>
+                                    </li>
+                                    <li className="flex items-start gap-2">
+                                        <span className={theme.colors.accent.blue.DEFAULT}>Wrappers:</span>
+                                        <div>
+                                            Use custom wrappers for logging, resource limiting, or environment setup
+                                        </div>
+                                    </li>
+                                </ul>
                             </div>
                         </div>
                     </div>

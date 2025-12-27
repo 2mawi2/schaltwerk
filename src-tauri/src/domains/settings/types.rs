@@ -301,4 +301,6 @@ pub struct Settings {
     pub dev_error_toasts_enabled: bool,
     #[serde(default)]
     pub last_project_parent_directory: Option<String>,
+    #[serde(default)]
+    pub agent_command_prefix: Option<String>,
 }

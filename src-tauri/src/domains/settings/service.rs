@@ -496,6 +496,20 @@ impl SettingsService {
         self.settings.amp_mcp_servers = mcp_servers;
         self.save()
     }
+
+    pub fn get_agent_command_prefix(&self) -> Option<String> {
+        self.settings.agent_command_prefix.clone()
+    }
+
+    pub fn set_agent_command_prefix(
+        &mut self,
+        prefix: Option<String>,
+    ) -> Result<(), SettingsServiceError> {
+        self.settings.agent_command_prefix = prefix
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+        self.save()
+    }
 }
 
 #[cfg(test)]
@@ -854,5 +868,57 @@ mod tests {
             .expect("should accept kilocode binary config");
 
         assert_eq!(repo_handle.snapshot().agent_binaries.kilocode, Some(config));
+    }
+
+    #[test]
+    fn agent_command_prefix_defaults_to_none() {
+        let repo = InMemoryRepository::default();
+        let service = SettingsService::new(Box::new(repo));
+
+        assert!(service.get_agent_command_prefix().is_none());
+    }
+
+    #[test]
+    fn set_agent_command_prefix_persists_value() {
+        let repo = InMemoryRepository::default();
+        let repo_handle = repo.clone();
+        let mut service = SettingsService::new(Box::new(repo));
+
+        service
+            .set_agent_command_prefix(Some("vt".to_string()))
+            .expect("should set agent command prefix");
+
+        assert_eq!(service.get_agent_command_prefix(), Some("vt".to_string()));
+        assert_eq!(
+            repo_handle.snapshot().agent_command_prefix,
+            Some("vt".to_string())
+        );
+    }
+
+    #[test]
+    fn set_agent_command_prefix_trims_whitespace() {
+        let repo = InMemoryRepository::default();
+        let mut service = SettingsService::new(Box::new(repo));
+
+        service
+            .set_agent_command_prefix(Some("  vt  ".to_string()))
+            .expect("should set agent command prefix");
+
+        assert_eq!(service.get_agent_command_prefix(), Some("vt".to_string()));
+    }
+
+    #[test]
+    fn set_agent_command_prefix_empty_becomes_none() {
+        let repo = InMemoryRepository::default();
+        let mut service = SettingsService::new(Box::new(repo));
+
+        service
+            .set_agent_command_prefix(Some("vt".to_string()))
+            .expect("should set agent command prefix");
+        service
+            .set_agent_command_prefix(Some("".to_string()))
+            .expect("should clear agent command prefix");
+
+        assert!(service.get_agent_command_prefix().is_none());
     }
 }

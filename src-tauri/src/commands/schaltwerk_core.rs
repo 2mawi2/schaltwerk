@@ -1763,6 +1763,11 @@ async fn schaltwerk_core_start_agent_in_terminal(
         "FINAL COMMAND CONSTRUCTION for {kind_str}: command='{agent_name}', args={final_args:?}"
     );
 
+    // Apply command prefix if configured (e.g., "vt" for VibeTunnel)
+    let command_prefix = agent_launcher::get_agent_command_prefix().await;
+    let (agent_name, final_args) =
+        agent_launcher::apply_command_prefix(command_prefix, agent_name, final_args);
+
     // Create terminal with initial size if provided
     if use_shell_chain {
         let sh_cmd = "sh".to_string();
