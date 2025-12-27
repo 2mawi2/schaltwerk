@@ -100,7 +100,6 @@ export interface TerminalProps {
     agentType?: string;
     readOnly?: boolean;
     onTerminalClick?: () => void;
-    isBackground?: boolean;
     onReady?: () => void;
     inputFilter?: (data: string) => boolean;
     workingDirectory?: string;
@@ -123,7 +122,7 @@ type TerminalFileLinkHandler = (text: string) => Promise<boolean> | boolean;
 
 const normalizeForComparison = (value: string) => value.replace(/\\/g, '/');
 
-const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalId, className = '', sessionName, isCommander = false, agentType, readOnly = false, onTerminalClick, isBackground = false, onReady, inputFilter, workingDirectory, previewKey, autoPreviewConfig }, ref) => {
+const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalId, className = '', sessionName, isCommander = false, agentType, readOnly = false, onTerminalClick, onReady, inputFilter, workingDirectory, previewKey, autoPreviewConfig }, ref) => {
     const { addEventListener, addResizeObserver } = useCleanupRegistry();
     const { isAnyModalOpen } = useModal();
     const containerRef = useRef<HTMLDivElement | null>(null);
@@ -457,10 +456,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         terminalFontSize,
         readOnlyRef,
     } = useTerminalConfig({
-        isBackground,
-        isAgentTopTerminal,
         readOnly,
-        agentType,
     });
     // Drag-selection suppression for run terminals
     const suppressNextClickRef = useRef<boolean>(false);
@@ -617,7 +613,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         terminalId,
         terminalRef: terminal,
         fitAddonRef: fitAddon,
-        isBackground,
         applySizeUpdate,
     });
 
@@ -992,7 +987,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     // Workaround: force-fit and send PTY resize when session search runs for OpenCode
     useEffect(() => {
         const handleSearchResize = (detail?: { kind?: 'session' | 'orchestrator'; sessionId?: string }) => {
-            if (agentType !== 'opencode' || isBackground) return;
+            if (agentType !== 'opencode') return;
             if (!termRef.current) return;
             const el = termRef.current;
             if (!el.isConnected || el.clientWidth === 0 || el.clientHeight === 0) return;
@@ -1045,13 +1040,13 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 logger.warn(`[Terminal ${terminalId}] Failed to remove OpenCode search resize listener`, error)
             }
         }
-        // Deliberately depend on agentType/isBackground to keep logic accurate per mount
-    }, [agentType, isBackground, terminalId, sessionName, isCommander, requestResize]);
+        // Deliberately depend on agentType to keep logic accurate per mount
+    }, [agentType, terminalId, sessionName, isCommander, requestResize]);
 
     // Listen for session-switching animation completion for OpenCode
     useEffect(() => {
         const handleSessionSwitchAnimationEnd = () => {
-            if (agentType !== 'opencode' || isBackground) return;
+            if (agentType !== 'opencode') return;
 
             // Check if session-switching class was removed (animation finished)
             if (!document.body.classList.contains('session-switching')) {
@@ -1085,12 +1080,12 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
 
         return () => observer.disconnect();
-    }, [agentType, isBackground, terminalId, requestResize]);
+    }, [agentType, terminalId, requestResize]);
 
     // Deterministic refit on session switch specifically for OpenCode
     useEffect(() => {
         const handleSelectionResize = (detail?: { kind?: 'session' | 'orchestrator'; sessionId?: string }) => {
-            if (agentType !== 'opencode' || isBackground) return;
+            if (agentType !== 'opencode') return;
             if (detail?.kind === 'session') {
                 if (!sessionName || detail.sessionId !== sessionName) return;
             } else if (detail?.kind === 'orchestrator') {
@@ -1135,7 +1130,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 logger.warn(`[Terminal ${terminalId}] Failed to remove OpenCode selection resize listener`, error)
             }
         }
-    }, [agentType, isBackground, terminalId, sessionName, isCommander, requestResize]);
+    }, [agentType, terminalId, sessionName, isCommander, requestResize]);
 
     // Generic, agent-agnostic terminal resize request listener (delegates to requestResize with two-pass fit)
     useEffect(() => {
@@ -1309,55 +1304,43 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             }
         };
         
-        // Skip resize observers for background terminals to save resources
-        let rendererObserver: ResizeObserver | null = null;
-        if (!isBackground) {
-            // Use ResizeObserver to deterministically initialize renderer when container is ready
-            // This avoids polling and ensures we initialize exactly once when dimensions are available
-            rendererObserver = new ResizeObserver((entries?: ResizeObserverEntry[]) => {
-                if (rendererInitialized) return;
-                try {
-                    const entry = entries && entries[0];
-                    const w = entry?.contentRect?.width ?? termRef.current?.clientWidth ?? 0;
-                    const h = entry?.contentRect?.height ?? termRef.current?.clientHeight ?? 0;
-                    if (w > 0 && h > 0) {
-                        // Container now has dimensions, initialize renderer
-                        // Disconnect immediately after first successful observation to prevent interference
-                        rendererObserver?.disconnect();
-                        requestAnimationFrame(() => {
-                            void initializeRenderer();
-                        });
-                    }
-                } catch (e) {
-                    logger.debug('ResizeObserver error during terminal initialization', e)
-                    // Fallback: try immediate initialization based on current element size
-                    if (termRef.current && termRef.current.clientWidth > 0 && termRef.current.clientHeight > 0) {
-                        try { rendererObserver?.disconnect(); } catch {
-                            // Intentionally ignore observer disconnect errors
-                        }
-                        requestAnimationFrame(() => {
-                            void initializeRenderer();
-                        });
-                    }
+        // Use ResizeObserver to deterministically initialize renderer when container is ready
+        // This avoids polling and ensures we initialize exactly once when dimensions are available
+        const rendererObserver = new ResizeObserver((entries?: ResizeObserverEntry[]) => {
+            if (rendererInitialized) return;
+            try {
+                const entry = entries && entries[0];
+                const w = entry?.contentRect?.width ?? termRef.current?.clientWidth ?? 0;
+                const h = entry?.contentRect?.height ?? termRef.current?.clientHeight ?? 0;
+                if (w > 0 && h > 0) {
+                    // Container now has dimensions, initialize renderer
+                    // Disconnect immediately after first successful observation to prevent interference
+                    rendererObserver?.disconnect();
+                    requestAnimationFrame(() => {
+                        void initializeRenderer();
+                    });
                 }
-            });
-            
-            // Start observing the terminal container
-            rendererObserver.observe(termRef.current);
-        } else {
-            // For background terminals, initialize immediately with default size
-            requestAnimationFrame(() => {
-                void initializeRenderer();
-            });
-        }
+            } catch (e) {
+                logger.debug('ResizeObserver error during terminal initialization', e)
+                // Fallback: try immediate initialization based on current element size
+                if (termRef.current && termRef.current.clientWidth > 0 && termRef.current.clientHeight > 0) {
+                    rendererObserver?.disconnect();
+                    requestAnimationFrame(() => {
+                        void initializeRenderer();
+                    });
+                }
+            }
+        });
+
+        // Start observing the terminal container
+        rendererObserver.observe(termRef.current);
 
         // Use IntersectionObserver to catch hidden->visible transitions (e.g., collapsed panels)
         // and trigger a definitive fit+resize when the terminal becomes visible.
-        // Skip for background terminals since they're always hidden
         // NOTE: IntersectionObserver now ONLY handles layout concerns (fit, scrollbar refresh).
         // Scroll positioning is handled by explicit lifecycle atoms to avoid race conditions.
         let visibilityObserver: IntersectionObserver | null = null;
-        if (!isBackground && typeof IntersectionObserver !== 'undefined' && termRef.current) {
+        if (typeof IntersectionObserver !== 'undefined' && termRef.current) {
             visibilityObserver = new IntersectionObserver((entries) => {
                 const entry = entries[0];
                 if (!entry || !entry.isIntersecting) return;
@@ -1765,7 +1748,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             // All terminals are cleaned up when the app exits via the backend cleanup handler
             // useCleanupRegistry handles other cleanup automatically
         };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- refs are stable; isBackground/isAgentTopTerminal are read at call-time and shouldn't trigger re-init
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refs are stable; isAgentTopTerminal is read at call-time and shouldn't trigger re-init
     }, [
         terminalId,
         addEventListener,

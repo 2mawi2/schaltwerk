@@ -225,7 +225,7 @@ export class XtermTerminal {
     }
     this.container.style.display = 'block'
 
-    if (this.savedDistanceFromBottom !== null && this.uiMode !== 'tui') {
+    if (this.savedDistanceFromBottom !== null) {
       const distance = this.savedDistanceFromBottom
       this.savedDistanceFromBottom = null
       logger.debug(`[XtermTerminal ${this.terminalId}] Restoring scroll position: distance=${distance}`)
@@ -242,8 +242,8 @@ export class XtermTerminal {
           logger.debug(`[XtermTerminal ${this.terminalId}] Failed to restore scroll position`, error)
         }
       })
-    } else if (this.uiMode === 'tui') {
-      this.savedDistanceFromBottom = null
+    } else {
+      this.forceScrollbarRefresh()
     }
   }
 
@@ -298,11 +298,9 @@ export class XtermTerminal {
 
   detach(): void {
     const buffer = this.raw.buffer?.active
-    if (buffer && this.uiMode !== 'tui') {
+    if (buffer) {
       this.savedDistanceFromBottom = buffer.baseY - buffer.viewportY
       logger.debug(`[XtermTerminal ${this.terminalId}] detach(): Saved scroll distance=${this.savedDistanceFromBottom}, baseY=${buffer.baseY}, viewportY=${buffer.viewportY}`)
-    } else {
-      logger.debug(`[XtermTerminal ${this.terminalId}] detach(): TUI mode - not saving scroll position`)
     }
     this.container.style.display = 'none'
   }
