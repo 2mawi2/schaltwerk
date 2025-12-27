@@ -1,6 +1,6 @@
 [package]
 name = "schaltwerk"
-version = "0.9.8"
+version = "0.9.9"
 description = "AI-powered git worktree session manager for isolated development environments"
 authors = ["Schaltwerk Contributors"]
 license = "MIT"
