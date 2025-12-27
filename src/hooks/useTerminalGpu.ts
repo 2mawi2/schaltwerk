@@ -24,7 +24,6 @@ interface UseTerminalGpuParams {
   terminalId: string;
   terminalRef: MutableRefObject<XTerm | null>;
   fitAddonRef: MutableRefObject<FitAddon | null>;
-  isBackground: boolean;
   applySizeUpdate: (cols: number, rows: number, reason: string, force?: boolean) => boolean;
 }
 
@@ -43,7 +42,6 @@ export function useTerminalGpu({
   terminalId,
   terminalRef,
   fitAddonRef,
-  isBackground,
   applySizeUpdate,
 }: UseTerminalGpuParams): UseTerminalGpuResult {
   const gpuRenderer = useRef<WebGLTerminalRenderer | null>(null);
@@ -63,8 +61,8 @@ export function useTerminalGpu({
   }, []);
 
   const gpuEnabledForTerminal = useMemo(
-    () => !isBackground && webglEnabled,
-    [isBackground, webglEnabled],
+    () => webglEnabled,
+    [webglEnabled],
   );
 
   const cancelGpuRefreshWork = useCallback(() => {
@@ -284,8 +282,7 @@ export function useTerminalGpu({
 
         if (!terminalRef.current) return;
 
-        const allowWebgl = !isBackground && newWebglEnabled;
-        if (allowWebgl) {
+        if (newWebglEnabled) {
           try {
             await ensureRenderer();
           } catch (error) {
@@ -305,7 +302,7 @@ export function useTerminalGpu({
     });
 
     return cleanup;
-  }, [applyLetterSpacing, ensureRenderer, isBackground, terminalId, terminalRef]);
+  }, [applyLetterSpacing, ensureRenderer, terminalId, terminalRef]);
 
   useEffect(() => {
     if (!gpuEnabledForTerminal) {

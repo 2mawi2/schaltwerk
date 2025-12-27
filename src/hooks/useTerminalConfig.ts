@@ -10,22 +10,13 @@ import {
   setTerminalFontFamilyActionAtom,
 } from '../store/atoms/terminal'
 import { terminalFontSizeAtom } from '../store/atoms/fontSize'
-import { isTuiAgent } from '../types/session'
 
-const DEFAULT_SCROLLBACK_LINES = 10000
-const BACKGROUND_SCROLLBACK_LINES = 5000
-const AGENT_SCROLLBACK_LINES = 20000
-// TUI agents continuously redraw the screen and don't need scrollback; keeping scrollback causes
-// baseY/viewportY churn (especially across resizes) and can trigger flicker/scroll loops.
-const TUI_SCROLLBACK_LINES = 0
+const SCROLLBACK_LINES = 20000
 const ATLAS_CONTRAST_BASE = 1.1
 const DEFAULT_FONT_FAMILY = 'Menlo, Monaco, ui-monospace, SFMono-Regular, monospace'
 
 interface TerminalConfigOptions {
-  isBackground: boolean
-  isAgentTopTerminal: boolean
   readOnly: boolean
-  agentType?: string
 }
 
 export interface TerminalConfig {
@@ -54,7 +45,7 @@ export interface UseTerminalConfigResult {
 }
 
 export function useTerminalConfig(options: TerminalConfigOptions): UseTerminalConfigResult {
-  const { isBackground, isAgentTopTerminal, readOnly, agentType } = options
+  const { readOnly } = options
 
   const resolvedFontFamily = useAtomValue(resolvedFontFamilyAtom)
   const customFontFamily = useAtomValue(customFontFamilyAtom)
@@ -85,15 +76,8 @@ export function useTerminalConfig(options: TerminalConfigOptions): UseTerminalCo
   readOnlyRef.current = readOnly
 
   const config = useMemo((): TerminalConfig => {
-    let scrollbackLines = DEFAULT_SCROLLBACK_LINES
-    if (isBackground) {
-      scrollbackLines = BACKGROUND_SCROLLBACK_LINES
-    } else if (isAgentTopTerminal) {
-      scrollbackLines = isTuiAgent(agentType) ? TUI_SCROLLBACK_LINES : AGENT_SCROLLBACK_LINES
-    }
-
     return {
-      scrollback: scrollbackLines,
+      scrollback: SCROLLBACK_LINES,
       fontSize: terminalFontSize,
       fontFamily: resolvedFontFamily || DEFAULT_FONT_FAMILY,
       readOnly,
@@ -101,9 +85,6 @@ export function useTerminalConfig(options: TerminalConfigOptions): UseTerminalCo
       smoothScrolling: smoothScrollingEnabled,
     }
   }, [
-    isBackground,
-    isAgentTopTerminal,
-    agentType,
     terminalFontSize,
     resolvedFontFamily,
     readOnly,
