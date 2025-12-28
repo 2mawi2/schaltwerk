@@ -433,7 +433,7 @@ export function PrSessionModal({
                   id="pr-body"
                   value={body}
                   onChange={(event) => setBody(event.target.value)}
-                  rows={4}
+                  rows={8}
                   className="mt-1 w-full rounded px-3 py-2 text-sm resize-y"
                   style={{
                     backgroundColor: theme.colors.background.tertiary,

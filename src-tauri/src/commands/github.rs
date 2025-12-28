@@ -243,7 +243,7 @@ pub async fn github_connect_project(app: AppHandle) -> Result<GitHubRepositoryPa
 
 #[tauri::command]
 pub async fn github_create_reviewed_pr(
-    app: AppHandle,
+    _app: AppHandle,
     args: CreateReviewedPrArgs,
 ) -> Result<GitHubPrPayload, String> {
     let cli = GitHubCli::new();
@@ -329,14 +329,10 @@ pub async fn github_create_reviewed_pr(
             format_cli_error(err)
         })?;
 
-    let payload = GitHubPrPayload {
+    Ok(GitHubPrPayload {
         branch: pr_result.branch,
         url: pr_result.url,
-    };
-
-    let status = build_status().await?;
-    emit_status(&app, &status)?;
-    Ok(payload)
+    })
 }
 
 #[tauri::command]
@@ -465,14 +461,10 @@ pub async fn github_create_session_pr_impl(
         );
     }
 
-    let payload = GitHubPrPayload {
+    Ok(GitHubPrPayload {
         branch: pr_result.branch,
         url: pr_result.url,
-    };
-
-    let status = build_status().await?;
-    emit_status(&app, &status)?;
-    Ok(payload)
+    })
 }
 
 #[tauri::command]

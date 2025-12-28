@@ -1055,7 +1055,44 @@ impl<R: CommandRunner> GitHubCli<R> {
 
         ensure_git_remote_exists(opts.repo_path)?;
 
+        if let Ok(Some(existing_url)) =
+            self.view_existing_pr(opts.pr_branch_name, opts.repository, opts.session_worktree_path)
+        {
+            info!(
+                "PR already exists for branch '{}': {existing_url}",
+                opts.pr_branch_name
+            );
+            return Ok(GitHubPrResult {
+                branch: opts.pr_branch_name.to_string(),
+                url: existing_url,
+            });
+        }
+
         let dirty_patch = build_full_worktree_patch(self, opts.session_worktree_path)?;
+
+        let can_skip_temp_worktree = opts.mode == PrCommitMode::Reapply
+            && dirty_patch.trim().is_empty()
+            && opts.pr_branch_name == opts.session_branch;
+
+        if can_skip_temp_worktree {
+            info!(
+                "Skipping temp worktree: reapply mode with no uncommitted changes, pushing directly"
+            );
+            push_head_to_remote_branch(self, opts.session_worktree_path, opts.pr_branch_name)?;
+
+            let pr_url = self.create_pull_request(
+                opts.pr_branch_name,
+                opts.repository,
+                opts.session_worktree_path,
+                opts.content.clone(),
+                Some(opts.base_branch),
+            )?;
+
+            return Ok(GitHubPrResult {
+                branch: opts.pr_branch_name.to_string(),
+                url: pr_url,
+            });
+        }
 
         let temp_root = tempfile::tempdir().map_err(GitHubCliError::Io)?;
         let temp_worktree_path = temp_root.path().join("schaltwerk-pr-worktree");
