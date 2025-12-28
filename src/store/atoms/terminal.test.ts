@@ -99,7 +99,10 @@ describe('Terminal Atoms', () => {
       await store.set(addTabActionAtom, { baseTerminalId: baseId, activateNew: true })
 
       const state = store.get(terminalTabsAtomFamily(baseId))
+      // activeTabIndex stores the actual tab.index value (2), not array position
       expect(state.activeTabIndex).toBe(2)
+      // Verify the tab with index 2 exists
+      expect(state.tabs.find(t => t.index === 2)).toBeDefined()
     })
 
     it('respects maxTabs limit', async () => {
@@ -130,7 +133,7 @@ describe('Terminal Atoms', () => {
       expect(state.tabs[0].index).toBe(1)
     })
 
-    it('adjusts activeTabIndex when removing tab before active', async () => {
+    it('keeps activeTabIndex unchanged when removing tab before active', async () => {
       const baseId = 'session-test~abc-bottom'
 
       // First addTab: creates tabs [0, 1], second addTab: adds tab 2, third addTab: adds tab 3
@@ -143,11 +146,13 @@ describe('Terminal Atoms', () => {
       await store.set(removeTabActionAtom, { baseTerminalId: baseId, tabIndex: 0 })
 
       const state = store.get(terminalTabsAtomFamily(baseId))
-      // After removing, activeTabIndex should adjust down by 1
-      expect(state.activeTabIndex).toBe(2)
+      // activeTabIndex stores the actual tab.index value, not array position
+      // Tab 3 still exists, so activeTabIndex remains 3
+      expect(state.activeTabIndex).toBe(3)
+      expect(state.tabs.find(t => t.index === 3)).toBeDefined()
     })
 
-    it('clamps activeTabIndex when removing the active tab', async () => {
+    it('selects next tab when removing the active tab', async () => {
       const baseId = 'session-test~abc-bottom'
 
       // First addTab creates tabs [0, 1]
@@ -160,8 +165,9 @@ describe('Terminal Atoms', () => {
       await store.set(removeTabActionAtom, { baseTerminalId: baseId, tabIndex: 2 })
 
       const state = store.get(terminalTabsAtomFamily(baseId))
-      // Should clamp to the new last tab
+      // When removing the last active tab, select the new last tab (index 1)
       expect(state.activeTabIndex).toBe(1)
+      expect(state.tabs.find(t => t.index === 1)).toBeDefined()
     })
   })
 
@@ -177,7 +183,7 @@ describe('Terminal Atoms', () => {
       expect(state.activeTabIndex).toBe(1)
     })
 
-    it('clamps to valid range', async () => {
+    it('falls back to first tab when requested tab does not exist', async () => {
       const baseId = 'session-test~abc-bottom'
 
       // Creates tabs [0, 1]
@@ -185,7 +191,38 @@ describe('Terminal Atoms', () => {
       await store.set(setActiveTabActionAtom, { baseTerminalId: baseId, tabIndex: 100 })
 
       const state = store.get(terminalTabsAtomFamily(baseId))
-      expect(state.activeTabIndex).toBe(1)
+      // Tab 100 doesn't exist, so fall back to the first tab (index 0)
+      expect(state.activeTabIndex).toBe(0)
+    })
+
+    it('handles non-sequential tab indices correctly', async () => {
+      const baseId = 'session-test~abc-bottom'
+
+      // Create tabs [0, 1, 2]
+      await store.set(addTabActionAtom, { baseTerminalId: baseId })
+      await store.set(addTabActionAtom, { baseTerminalId: baseId })
+      // Remove tab 1, leaving [0, 2]
+      await store.set(removeTabActionAtom, { baseTerminalId: baseId, tabIndex: 1 })
+      // Add new tab, creating [0, 2, 3]
+      await store.set(addTabActionAtom, { baseTerminalId: baseId })
+
+      let state = store.get(terminalTabsAtomFamily(baseId))
+      expect(state.tabs.map(t => t.index)).toEqual([0, 2, 3])
+
+      // Set active to tab 3
+      await store.set(setActiveTabActionAtom, { baseTerminalId: baseId, tabIndex: 3 })
+      state = store.get(terminalTabsAtomFamily(baseId))
+      expect(state.activeTabIndex).toBe(3)
+
+      // Set active to tab 2
+      await store.set(setActiveTabActionAtom, { baseTerminalId: baseId, tabIndex: 2 })
+      state = store.get(terminalTabsAtomFamily(baseId))
+      expect(state.activeTabIndex).toBe(2)
+
+      // Set active to tab 0
+      await store.set(setActiveTabActionAtom, { baseTerminalId: baseId, tabIndex: 0 })
+      state = store.get(terminalTabsAtomFamily(baseId))
+      expect(state.activeTabIndex).toBe(0)
     })
 
     it('allows negative indices for special tabs like Run tab', async () => {

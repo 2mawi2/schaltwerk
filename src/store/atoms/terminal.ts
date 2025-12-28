@@ -58,11 +58,12 @@ export const addTabActionAtom = atom(
     }
 
     const newTabs = [...current.tabs, newTab]
-    const newActiveIndex = activateNew ? newTabs.length - 1 : current.activeTabIndex
+    // Store the actual tab.index value, not array position
+    const newActiveTabIndex = activateNew ? nextIndex : current.activeTabIndex
 
     set(tabsAtom, {
       tabs: newTabs,
-      activeTabIndex: newActiveIndex,
+      activeTabIndex: newActiveTabIndex,
     })
   }
 )
@@ -80,17 +81,25 @@ export const removeTabActionAtom = atom(
     }
 
     const newTabs = current.tabs.filter(t => t.index !== tabIndex)
-    let newActiveIndex = current.activeTabIndex
 
-    if (tabArrayIndex < current.activeTabIndex) {
-      newActiveIndex = current.activeTabIndex - 1
-    } else if (tabArrayIndex === current.activeTabIndex && newActiveIndex >= newTabs.length) {
-      newActiveIndex = Math.max(0, newTabs.length - 1)
+    // activeTabIndex stores the actual tab.index value, not array position
+    let newActiveTabIndex = current.activeTabIndex
+
+    // If we're removing the currently active tab
+    if (tabIndex === current.activeTabIndex) {
+      if (newTabs.length === 0) {
+        newActiveTabIndex = 0
+      } else {
+        // Select the next tab at the same array position, or the previous one if at the end
+        const nextArrayIndex = Math.min(tabArrayIndex, newTabs.length - 1)
+        newActiveTabIndex = newTabs[nextArrayIndex].index
+      }
     }
+    // If the active tab still exists in newTabs, keep its index (no change needed)
 
     set(tabsAtom, {
       tabs: newTabs,
-      activeTabIndex: newActiveIndex,
+      activeTabIndex: newActiveTabIndex,
     })
   }
 )
@@ -111,15 +120,21 @@ export const setActiveTabActionAtom = atom(
       return
     }
 
-    const tabArrayIndex = current.tabs.findIndex(t => t.index === tabIndex)
-    const clampedIndex = tabArrayIndex === -1
-      ? Math.max(0, Math.min(tabIndex, current.tabs.length - 1))
-      : tabArrayIndex
-
-    set(tabsAtom, {
-      ...current,
-      activeTabIndex: Math.max(0, clampedIndex),
-    })
+    // Store the actual tab.index value, not the array position.
+    // The UI compares tab.index === activeTabIndex, so they must be the same type.
+    const tabExists = current.tabs.some(t => t.index === tabIndex)
+    if (tabExists) {
+      set(tabsAtom, {
+        ...current,
+        activeTabIndex: tabIndex,
+      })
+    } else if (current.tabs.length > 0) {
+      // If the requested tab doesn't exist, default to the first tab's index
+      set(tabsAtom, {
+        ...current,
+        activeTabIndex: current.tabs[0].index,
+      })
+    }
   }
 )
 
