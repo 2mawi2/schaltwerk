@@ -9,6 +9,7 @@ import { theme, getAgentColorScheme } from "../../common/theme";
 import { typography } from "../../common/typography";
 import type { MergeStatus } from "../../store/atoms/sessions";
 import { getSessionDisplayName } from "../../utils/sessionDisplayName";
+import { mapSessionUiState } from "../../utils/sessionFilters";
 import { useMultipleShortcutDisplays } from "../../keyboardShortcuts/useShortcutDisplay";
 import { KeyboardShortcutAction } from "../../keyboardShortcuts/config";
 import { detectPlatformSafe } from "../../keyboardShortcuts/helpers";
@@ -251,7 +252,8 @@ export const SessionCard = memo<SessionCardProps>(
     const deletions = s.diff_stats?.deletions || 0;
     const isBlocked = s.is_blocked || false;
     const isReadyToMerge = s.ready_to_merge || false;
-    const isReviewedState = s.session_state === "reviewed";
+    const sessionState = mapSessionUiState(s);
+    const isReviewedState = sessionState === "reviewed";
     const agentType =
       s.original_agent_type as SessionInfo["original_agent_type"];
     const agentKey = (agentType || "").toLowerCase();
@@ -259,8 +261,6 @@ export const SessionCard = memo<SessionCardProps>(
 
     const agentColor = getAgentColorKey(agentKey);
     const colorScheme = getAgentColorScheme(agentColor);
-
-    const sessionState = s.session_state;
     const showReviewedDirtyBadge =
       isReviewedState && !isReadyToMerge && !!s.has_uncommitted_changes;
 
