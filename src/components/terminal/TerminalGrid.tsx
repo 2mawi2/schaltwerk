@@ -134,8 +134,8 @@ const TerminalGridComponent = () => {
 
     // Agent tabs state for multiple agents in top terminal
     const agentTabScopeId = selection.kind === 'session' ? (selection.payload ?? null) : selection.kind === 'orchestrator' ? 'orchestrator' : null
-    const orchestratorTabStarter = useCallback(async ({ terminalId }: { sessionId: string; terminalId: string; agentType: string }) => {
-        await startOrchestratorTop({ terminalId })
+    const orchestratorTabStarter = useCallback(async ({ terminalId, agentType }: { sessionId: string; terminalId: string; agentType: string }) => {
+        await startOrchestratorTop({ terminalId, agentType })
     }, [])
 
     const {
@@ -862,7 +862,7 @@ const TerminalGridComponent = () => {
             // Add agent tab shortcut
             if (isShortcutForAction(event, KeyboardShortcutAction.AddAgentTab, keyboardShortcutConfig, { platform })) {
                 event.preventDefault()
-                if (selection.kind === 'session') {
+                if (selection.kind === 'session' || selection.kind === 'orchestrator') {
                     setCustomAgentModalOpen(true)
                 }
                 return
@@ -1368,8 +1368,8 @@ const TerminalGridComponent = () => {
                             tabs={agentTabsState.tabs}
                             activeTab={agentTabsState.activeTab}
                             onTabSelect={setActiveAgentTab}
-                            onTabClose={selection.kind === 'session' ? closeAgentTab : undefined}
-                            onTabAdd={selection.kind === 'session' ? () => setCustomAgentModalOpen(true) : undefined}
+                            onTabClose={(selection.kind === 'session' || selection.kind === 'orchestrator') && agentTabsState.tabs.length > 1 ? closeAgentTab : undefined}
+                            onTabAdd={(selection.kind === 'session' || selection.kind === 'orchestrator') ? () => setCustomAgentModalOpen(true) : undefined}
                             onReset={selection.kind === 'session' ? () => setConfirmResetOpen(true) : undefined}
                             isFocused={localFocus === 'claude'}
                             actionButtons={shouldShowActionButtons ? actionButtons : []}
@@ -1700,7 +1700,7 @@ const TerminalGridComponent = () => {
                 onSwitch={handleConfigureAgentsSwitch}
             />
             <CustomAgentModal
-                open={customAgentModalOpen && selection.kind === 'session'}
+                open={customAgentModalOpen && (selection.kind === 'session' || selection.kind === 'orchestrator')}
                 onClose={() => setCustomAgentModalOpen(false)}
                 onSelect={handleCustomAgentSelect}
                 initialAgentType={agentType as AgentType}

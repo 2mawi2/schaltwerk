@@ -202,12 +202,12 @@ export async function startSessionTop(params: {
 export async function startOrchestratorTop(params: {
   terminalId: string
   measured?: { cols?: number | null; rows?: number | null }
+  agentType?: string
 }) {
-  const { terminalId, measured } = params
+  const { terminalId, measured, agentType: requestedAgentType } = params
   if (hasInflight(terminalId) || isTerminalStartingOrStarted(terminalId)) return
 
-  // Orchestrator always runs Claude today; keep agentType aligned with backend expectations/metrics
-  const agentType = DEFAULT_AGENT
+  const agentType = requestedAgentType ?? DEFAULT_AGENT
   const lifecycleBase = { terminalId, agentType }
   const { cols, rows } = computeSpawnSize({ topId: terminalId, measured })
   const timeoutMs = determineStartTimeoutMs(agentType)
@@ -225,7 +225,7 @@ export async function startOrchestratorTop(params: {
     await singleflight(terminalId, async () => {
       try {
         await withAgentStartTimeout(
-          invoke(command, { terminalId, cols, rows }),
+          invoke(command, { terminalId, cols, rows, agentType: requestedAgentType }),
           timeoutMs,
           { id: terminalId, command }
         )
