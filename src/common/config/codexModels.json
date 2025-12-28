@@ -23,6 +23,11 @@
             "id": "high",
             "label": "High",
             "description": "Maximizes reasoning depth for complex or ambiguous problems"
+          },
+          {
+            "id": "xhigh",
+            "label": "Extra high",
+            "description": "Maximum reasoning depth for the most difficult tasks"
           }
         ]
       },
