@@ -1878,8 +1878,10 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
     terminal_id: String,
     cols: Option<u16>,
     rows: Option<u16>,
+    agent_type: Option<String>,
 ) -> Result<String, String> {
-    log::info!("[AGENT_LAUNCH_TRACE] Starting Claude for orchestrator in terminal: {terminal_id}");
+    let agent_label = agent_type.as_deref().unwrap_or("claude");
+    log::info!("[AGENT_LAUNCH_TRACE] Starting {agent_label} for orchestrator in terminal: {terminal_id}");
 
     log::info!("[AGENT_LAUNCH_TRACE] Acquiring core read lock for {terminal_id}");
     let core = match get_core_read().await {
@@ -1929,10 +1931,10 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
     };
 
     let command_spec = manager
-        .start_claude_in_orchestrator_with_binary(&binary_paths)
+        .start_agent_in_orchestrator(&binary_paths, agent_type.as_deref())
         .map_err(|e| {
             log::error!("Failed to build orchestrator command: {e}");
-            format!("Failed to start Claude in orchestrator: {e}")
+            format!("Failed to start {agent_label} in orchestrator: {e}")
         })?;
 
     drop(core);

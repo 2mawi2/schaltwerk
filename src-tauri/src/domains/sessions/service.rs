@@ -3526,7 +3526,7 @@ impl SessionManager {
         &self,
         binary_paths: &HashMap<String, String>,
     ) -> Result<AgentLaunchSpec> {
-        self.start_orchestrator_internal(binary_paths, false)
+        self.start_orchestrator_internal(binary_paths, false, None)
     }
 
     pub fn start_claude_in_orchestrator_with_binary(
@@ -3548,13 +3548,22 @@ impl SessionManager {
         _cli_args: Option<&str>,
         binary_paths: &HashMap<String, String>,
     ) -> Result<AgentLaunchSpec> {
-        self.start_orchestrator_internal(binary_paths, true)
+        self.start_orchestrator_internal(binary_paths, true, None)
+    }
+
+    pub fn start_agent_in_orchestrator(
+        &self,
+        binary_paths: &HashMap<String, String>,
+        agent_type_override: Option<&str>,
+    ) -> Result<AgentLaunchSpec> {
+        self.start_orchestrator_internal(binary_paths, true, agent_type_override)
     }
 
     fn start_orchestrator_internal(
         &self,
         binary_paths: &HashMap<String, String>,
         resume_session: bool,
+        agent_type_override: Option<&str>,
     ) -> Result<AgentLaunchSpec> {
         let mode = if resume_session { "resumable" } else { "fresh" };
         log::info!(
@@ -3577,7 +3586,10 @@ impl SessionManager {
         }
 
         let skip_permissions = self.db_manager.get_orchestrator_skip_permissions()?;
-        let requested_agent_type = self.db_manager.get_orchestrator_agent_type()?;
+        let requested_agent_type = match agent_type_override {
+            Some(override_type) => override_type.to_string(),
+            None => self.db_manager.get_orchestrator_agent_type()?,
+        };
         let agent_type = resolve_launch_agent(&requested_agent_type, binary_paths)?;
 
         log::info!("Orchestrator agent type: {agent_type}, skip_permissions: {skip_permissions}, resume: {resume_session}");
