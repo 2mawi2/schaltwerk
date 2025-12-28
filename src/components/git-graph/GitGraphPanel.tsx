@@ -20,6 +20,7 @@ import { useGitHistory } from '../../store/atoms/gitHistory'
 import { ORCHESTRATOR_SESSION_NAME } from '../../constants/sessions'
 import { useAtomValue } from 'jotai'
 import { projectPathAtom } from '../../store/atoms/project'
+import { HistorySearchInput, type HistorySearchInputHandle } from './HistorySearchInput'
 
 interface GitGraphPanelProps {
   onOpenCommitDiff?: (payload: {
@@ -56,11 +57,16 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
     isLoadingMore,
     loadMoreError,
     latestHead,
+    filteredItems,
+    filter,
     ensureLoaded,
     loadMore: loadMoreHistory,
     refresh: refreshHistory,
+    setFilter,
   } = useGitHistory(repoPath)
+  const searchInputRef = useRef<HistorySearchInputHandle>(null)
   const repoPathRef = useRef<string | null>(repoPath ?? null)
+  const [isSearchVisible, setIsSearchVisible] = useState(false)
   const [selectedCommitId, setSelectedCommitId] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; commit: HistoryItem } | null>(null)
   const [commitDetails, setCommitDetails] = useState<Record<string, CommitDetailState>>({})
@@ -80,11 +86,39 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
   const lastLoadMoreErrorRef = useRef<string | null>(null)
 
   const historyItems = useMemo(() => {
-    return snapshot ? toViewModel(snapshot) : []
-  }, [snapshot])
+    if (!snapshot) return []
+    const itemsToRender = filter.searchText ? filteredItems : snapshot.items
+    return toViewModel({ ...snapshot, items: itemsToRender })
+  }, [snapshot, filteredItems, filter.searchText])
 
   const hasSnapshot = Boolean(snapshot)
   const hasMore = snapshot?.hasMore ?? false
+  const totalCount = snapshot?.items.length ?? 0
+
+  const handleSearchChange = useCallback((searchText: string) => {
+    setFilter(prev => ({ ...prev, searchText }))
+  }, [setFilter])
+
+  const handleCloseSearch = useCallback(() => {
+    setIsSearchVisible(false)
+    setFilter(prev => ({ ...prev, searchText: '' }))
+  }, [setFilter])
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+        e.preventDefault()
+        setIsSearchVisible(true)
+        requestAnimationFrame(() => {
+          searchInputRef.current?.focus()
+        })
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
   const handleLoadMore = useCallback(async () => {
     if (isLoadingMore || pendingLoadMore) {
       return
@@ -710,6 +744,18 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
       data-testid="git-history-panel"
       onMouseDown={handlePanelInteraction}
     >
+      {isSearchVisible && (
+        <div className="flex-shrink-0 px-2 py-1.5 border-b" style={{ borderColor: theme.colors.border.default }}>
+          <HistorySearchInput
+            ref={searchInputRef}
+            value={filter.searchText}
+            onChange={handleSearchChange}
+            matchCount={filteredItems.length}
+            totalCount={totalCount}
+            onClose={handleCloseSearch}
+          />
+        </div>
+      )}
       <HistoryList
         items={historyItems}
         selectedCommitId={selectedCommitId}

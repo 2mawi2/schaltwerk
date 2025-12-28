@@ -73,6 +73,27 @@ const baseSnapshot: HistoryProviderSnapshot = {
   headCommit: 'abc1234fffffffabc1234fffffffabc1234fffffff'
 }
 
+const defaultFilter = { searchText: '', author: null }
+
+function createMockGitHistory(overrides: Record<string, unknown> = {}) {
+  const snapshot = (overrides.snapshot as HistoryProviderSnapshot | null) ?? baseSnapshot
+  return {
+    snapshot,
+    isLoading: false,
+    error: null,
+    isLoadingMore: false,
+    loadMoreError: null,
+    latestHead: snapshot?.headCommit ?? null,
+    filter: defaultFilter,
+    filteredItems: snapshot?.items ?? [],
+    ensureLoaded: vi.fn(),
+    loadMore: vi.fn(),
+    refresh: vi.fn(),
+    setFilter: vi.fn(),
+    ...overrides,
+  }
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   mockedInvoke.mockReset()
@@ -122,17 +143,10 @@ describe('GitGraphPanel', () => {
       ]
     }
 
-    useGitHistoryMock.mockReturnValue({
+    useGitHistoryMock.mockReturnValue(createMockGitHistory({
       snapshot,
-      isLoading: false,
-      error: null,
-      isLoadingMore: false,
-      loadMoreError: null,
-      latestHead: snapshot.headCommit ?? null,
       ensureLoaded: ensureLoadedMock,
-      loadMore: vi.fn(),
-      refresh: vi.fn()
-    })
+    }))
 
     const filesResponse = [
       { path: 'src/main.rs', changeType: 'M' },
@@ -170,17 +184,9 @@ describe('GitGraphPanel', () => {
   it('invokes onOpenCommitDiff when a file row is activated', async () => {
     const ensureLoadedMock = vi.fn()
 
-    useGitHistoryMock.mockReturnValue({
-      snapshot: baseSnapshot,
-      isLoading: false,
-      error: null,
-      isLoadingMore: false,
-      loadMoreError: null,
-      latestHead: baseSnapshot.headCommit ?? null,
+    useGitHistoryMock.mockReturnValue(createMockGitHistory({
       ensureLoaded: ensureLoadedMock,
-      loadMore: vi.fn(),
-      refresh: vi.fn()
-    })
+    }))
 
     const filesResponse = [
       { path: 'src/main.rs', changeType: 'M' },
@@ -216,17 +222,10 @@ describe('GitGraphPanel', () => {
     const ensureLoadedMock = vi.fn()
     const refreshMock = vi.fn()
 
-    useGitHistoryMock.mockReturnValue({
-      snapshot: baseSnapshot,
-      isLoading: false,
-      error: null,
-      isLoadingMore: false,
-      loadMoreError: null,
-      latestHead: baseSnapshot.headCommit ?? null,
+    useGitHistoryMock.mockReturnValue(createMockGitHistory({
       ensureLoaded: ensureLoadedMock,
-      loadMore: vi.fn(),
       refresh: refreshMock
-    })
+    }))
 
     mockedInvoke.mockResolvedValue(baseSnapshot as unknown)
 
@@ -259,17 +258,10 @@ describe('GitGraphPanel', () => {
     const ensureLoadedMock = vi.fn().mockResolvedValue(undefined)
     const refreshMock = vi.fn().mockResolvedValue(undefined)
 
-    useGitHistoryMock.mockReturnValue({
-      snapshot: baseSnapshot,
-      isLoading: false,
-      error: null,
-      isLoadingMore: false,
-      loadMoreError: null,
-      latestHead: baseSnapshot.headCommit ?? null,
+    useGitHistoryMock.mockReturnValue(createMockGitHistory({
       ensureLoaded: ensureLoadedMock,
-      loadMore: vi.fn(),
       refresh: refreshMock
-    })
+    }))
 
     renderWithProject(<GitGraphPanel />)
 
@@ -284,17 +276,10 @@ describe('GitGraphPanel', () => {
     const ensureLoadedMock = vi.fn().mockResolvedValue(undefined)
     const refreshMock = vi.fn().mockResolvedValue(undefined)
 
-    useGitHistoryMock.mockReturnValue({
-      snapshot: baseSnapshot,
-      isLoading: false,
-      error: null,
-      isLoadingMore: false,
-      loadMoreError: null,
-      latestHead: baseSnapshot.headCommit ?? null,
+    useGitHistoryMock.mockReturnValue(createMockGitHistory({
       ensureLoaded: ensureLoadedMock,
-      loadMore: vi.fn(),
       refresh: refreshMock
-    })
+    }))
 
     const user = userEvent.setup()
     renderWithProject(<GitGraphPanel />)
@@ -324,17 +309,10 @@ describe('GitGraphPanel', () => {
     const ensureLoadedMock = vi.fn().mockResolvedValue(undefined)
     const refreshMock = vi.fn().mockResolvedValue(undefined)
 
-    useGitHistoryMock.mockReturnValue({
-      snapshot: baseSnapshot,
-      isLoading: false,
-      error: null,
-      isLoadingMore: false,
-      loadMoreError: null,
-      latestHead: baseSnapshot.headCommit ?? null,
+    useGitHistoryMock.mockReturnValue(createMockGitHistory({
       ensureLoaded: ensureLoadedMock,
-      loadMore: vi.fn(),
       refresh: refreshMock
-    })
+    }))
 
     mockedInvoke.mockResolvedValue(baseSnapshot as unknown)
 
@@ -365,17 +343,12 @@ describe('GitGraphPanel', () => {
     const ensureLoadedMock = vi.fn().mockResolvedValue(undefined)
     const refreshMock = vi.fn().mockResolvedValue(undefined)
 
-    useGitHistoryMock.mockReturnValue({
+    useGitHistoryMock.mockReturnValue(createMockGitHistory({
       snapshot: null,
-      isLoading: false,
-      error: null,
-      isLoadingMore: false,
-      loadMoreError: null,
       latestHead: null,
       ensureLoaded: ensureLoadedMock,
-      loadMore: vi.fn(),
       refresh: refreshMock
-    })
+    }))
 
     mockedInvoke.mockResolvedValue(baseSnapshot as unknown)
 
@@ -413,17 +386,12 @@ describe('GitGraphPanel', () => {
     }))
     const refreshMock = vi.fn().mockResolvedValue(undefined)
 
-    useGitHistoryMock.mockReturnValue({
+    useGitHistoryMock.mockReturnValue(createMockGitHistory({
       snapshot: null,
-      isLoading: false,
-      error: null,
-      isLoadingMore: false,
-      loadMoreError: null,
       latestHead: null,
       ensureLoaded: ensureLoadedMock,
-      loadMore: vi.fn(),
       refresh: refreshMock
-    })
+    }))
 
     renderWithProject(<GitGraphPanel />)
 
@@ -456,17 +424,11 @@ describe('GitGraphPanel', () => {
     const ensureLoadedMock = vi.fn().mockResolvedValue(undefined)
     const refreshMock = vi.fn().mockResolvedValue(undefined)
 
-    useGitHistoryMock.mockReturnValue({
-      snapshot: baseSnapshot,
+    useGitHistoryMock.mockReturnValue(createMockGitHistory({
       isLoading: true,
-      error: null,
-      isLoadingMore: false,
-      loadMoreError: null,
-      latestHead: baseSnapshot.headCommit ?? null,
       ensureLoaded: ensureLoadedMock,
-      loadMore: vi.fn(),
       refresh: refreshMock
-    })
+    }))
 
     renderWithProject(<GitGraphPanel />)
 
@@ -489,17 +451,11 @@ describe('GitGraphPanel', () => {
 
     useGitHistoryMock.mockImplementation((repoPath: string | null) => {
       expect(repoPath).toBe('/sessions/test-session')
-      return {
+      return createMockGitHistory({
         snapshot: overrideSnapshot,
-        isLoading: false,
-        error: null,
-        isLoadingMore: false,
-        loadMoreError: null,
-        latestHead: overrideSnapshot.headCommit ?? null,
         ensureLoaded: ensureLoadedMock,
-        loadMore: vi.fn(),
         refresh: refreshMock
-      }
+      })
     })
 
     mockedInvoke.mockResolvedValue(overrideSnapshot as unknown)
@@ -576,15 +532,12 @@ describe('GitGraphPanel', () => {
 
     const refreshMock = vi.fn(async (_options?: { sinceHeadOverride?: string | null }) => {})
 
-    useGitHistoryMock.mockImplementation(() => ({
+    useGitHistoryMock.mockImplementation(() => createMockGitHistory({
       snapshot: snapshotState,
       isLoading: !snapshotState,
-      error: null,
-      isLoadingMore: false,
-      loadMoreError: null,
       latestHead: latestHeadState,
+      filteredItems: snapshotState?.items ?? [],
       ensureLoaded: ensureLoadedMock,
-      loadMore: vi.fn(),
       refresh: refreshMock
     }))
 
@@ -632,17 +585,10 @@ describe('GitGraphPanel', () => {
     const ensureLoadedMock = vi.fn()
     const refreshMock = vi.fn()
 
-    useGitHistoryMock.mockReturnValue({
-      snapshot: baseSnapshot,
-      isLoading: false,
-      error: null,
-      isLoadingMore: false,
-      loadMoreError: null,
-      latestHead: baseSnapshot.headCommit ?? null,
+    useGitHistoryMock.mockReturnValue(createMockGitHistory({
       ensureLoaded: ensureLoadedMock,
-      loadMore: vi.fn(),
       refresh: refreshMock
-    })
+    }))
 
     mockedInvoke.mockResolvedValue(baseSnapshot as unknown)
 
@@ -673,17 +619,10 @@ describe('GitGraphPanel', () => {
     const ensureLoadedMock = vi.fn()
     const refreshMock = vi.fn()
 
-    useGitHistoryMock.mockReturnValue({
-      snapshot: baseSnapshot,
-      isLoading: false,
-      error: null,
-      isLoadingMore: false,
-      loadMoreError: null,
-      latestHead: baseSnapshot.headCommit ?? null,
+    useGitHistoryMock.mockReturnValue(createMockGitHistory({
       ensureLoaded: ensureLoadedMock,
-      loadMore: vi.fn(),
       refresh: refreshMock
-    })
+    }))
 
     mockedInvoke.mockResolvedValue(baseSnapshot as unknown)
 
@@ -713,17 +652,12 @@ describe('GitGraphPanel', () => {
   it('shows error state when initial history fetch fails', async () => {
     const ensureLoadedMock = vi.fn()
 
-    useGitHistoryMock.mockReturnValue({
+    useGitHistoryMock.mockReturnValue(createMockGitHistory({
       snapshot: null,
-      isLoading: false,
       error: 'Boom',
-      isLoadingMore: false,
-      loadMoreError: null,
       latestHead: null,
       ensureLoaded: ensureLoadedMock,
-      loadMore: vi.fn(),
-      refresh: vi.fn()
-    })
+    }))
 
     renderWithProject(<GitGraphPanel />)
 
@@ -734,17 +668,11 @@ describe('GitGraphPanel', () => {
   it('shows empty state before any history has loaded', async () => {
     const ensureLoadedMock = vi.fn()
 
-    useGitHistoryMock.mockReturnValue({
+    useGitHistoryMock.mockReturnValue(createMockGitHistory({
       snapshot: null,
-      isLoading: false,
-      error: null,
-      isLoadingMore: false,
-      loadMoreError: null,
       latestHead: null,
       ensureLoaded: ensureLoadedMock,
-      loadMore: vi.fn(),
-      refresh: vi.fn()
-    })
+    }))
 
     renderWithProject(<GitGraphPanel />)
 
@@ -754,17 +682,9 @@ describe('GitGraphPanel', () => {
   it('logs and swallows errors when event unlisten rejects during cleanup', async () => {
     const ensureLoadedMock = vi.fn()
 
-    useGitHistoryMock.mockReturnValue({
-      snapshot: baseSnapshot,
-      isLoading: false,
-      error: null,
-      isLoadingMore: false,
-      loadMoreError: null,
-      latestHead: baseSnapshot.headCommit ?? null,
+    useGitHistoryMock.mockReturnValue(createMockGitHistory({
       ensureLoaded: ensureLoadedMock,
-      loadMore: vi.fn(),
-      refresh: vi.fn()
-    })
+    }))
 
     const unlistenError = new Error('failed to unlisten')
 
@@ -791,17 +711,10 @@ describe('GitGraphPanel', () => {
     const ensureLoadedMock = vi.fn()
     const refreshMock = vi.fn().mockResolvedValue(undefined)
 
-    useGitHistoryMock.mockReturnValue({
-      snapshot: baseSnapshot,
-      isLoading: false,
-      error: null,
-      isLoadingMore: false,
-      loadMoreError: null,
-      latestHead: baseSnapshot.headCommit ?? null,
+    useGitHistoryMock.mockReturnValue(createMockGitHistory({
       ensureLoaded: ensureLoadedMock,
-      loadMore: vi.fn(),
       refresh: refreshMock
-    })
+    }))
 
     renderWithProject(<GitGraphPanel />)
 
@@ -835,17 +748,10 @@ describe('GitGraphPanel', () => {
     const ensureLoadedMock = vi.fn()
     const refreshMock = vi.fn().mockResolvedValue(undefined)
 
-    useGitHistoryMock.mockReturnValue({
-      snapshot: baseSnapshot,
-      isLoading: false,
-      error: null,
-      isLoadingMore: false,
-      loadMoreError: null,
-      latestHead: baseSnapshot.headCommit ?? null,
+    useGitHistoryMock.mockReturnValue(createMockGitHistory({
       ensureLoaded: ensureLoadedMock,
-      loadMore: vi.fn(),
       refresh: refreshMock
-    })
+    }))
 
     const user = userEvent.setup()
 
@@ -878,17 +784,10 @@ describe('GitGraphPanel', () => {
     const ensureLoadedMock = vi.fn()
     const refreshMock = vi.fn().mockResolvedValue(undefined)
 
-    useGitHistoryMock.mockReturnValue({
-      snapshot: baseSnapshot,
-      isLoading: false,
-      error: null,
-      isLoadingMore: false,
-      loadMoreError: null,
-      latestHead: baseSnapshot.headCommit ?? null,
+    useGitHistoryMock.mockReturnValue(createMockGitHistory({
       ensureLoaded: ensureLoadedMock,
-      loadMore: vi.fn(),
       refresh: refreshMock
-    })
+    }))
 
     const user = userEvent.setup()
 
@@ -992,13 +891,10 @@ describe('GitGraphPanel', () => {
       rerender?.(<GitGraphPanel />)
     })
 
-    useGitHistoryMock.mockImplementation(() => ({
+    useGitHistoryMock.mockImplementation(() => createMockGitHistory({
       snapshot: snapshotState,
-      isLoading: false,
-      error: null,
-      isLoadingMore: false,
-      loadMoreError: null,
       latestHead: snapshotState?.headCommit ?? null,
+      filteredItems: snapshotState?.items ?? [],
       ensureLoaded: ensureLoadedMock,
       loadMore: loadMoreMock,
       refresh: refreshMock
@@ -1041,21 +937,15 @@ describe('GitGraphPanel', () => {
       resolveLoad = resolve
     }))
 
-    useGitHistoryMock.mockReturnValue({
+    useGitHistoryMock.mockReturnValue(createMockGitHistory({
       snapshot: {
         ...baseSnapshot,
         hasMore: true,
         nextCursor: 'cursor-1'
       },
-      isLoading: false,
-      error: null,
-      isLoadingMore: false,
-      loadMoreError: null,
-      latestHead: baseSnapshot.headCommit ?? null,
       ensureLoaded: ensureLoadedMock,
       loadMore: loadMoreMock,
-      refresh: vi.fn()
-    })
+    }))
 
     const user = userEvent.setup()
     renderWithProject(<GitGraphPanel />)

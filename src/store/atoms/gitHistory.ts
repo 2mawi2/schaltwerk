@@ -6,6 +6,7 @@ import { useCallback, useMemo } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
 import type { HistoryItem, HistoryProviderSnapshot } from '../../components/git-graph/types'
 import { logger } from '../../utils/logger'
+import { fuzzyMatch } from '../../utils/fuzzyMatch'
 
 type FetchMode = 'initial' | 'append' | 'refresh'
 
@@ -400,7 +401,7 @@ export function applyGitHistoryFilters(items: HistoryItem[], filter: GitHistoryF
     return items
   }
 
-  const search = filter.searchText.trim().toLowerCase()
+  const search = filter.searchText.trim()
   const author = filter.author?.trim().toLowerCase() ?? ''
 
   if (!search && !author) {
@@ -408,9 +409,7 @@ export function applyGitHistoryFilters(items: HistoryItem[], filter: GitHistoryF
   }
 
   return items.filter(item => {
-    const subject = item.subject.toLowerCase()
     const itemAuthor = item.author.toLowerCase()
-    const identifier = (item.fullHash ?? item.id).toLowerCase()
 
     if (author && !itemAuthor.includes(author)) {
       return false
@@ -420,7 +419,8 @@ export function applyGitHistoryFilters(items: HistoryItem[], filter: GitHistoryF
       return true
     }
 
-    return subject.includes(search) || identifier.includes(search) || itemAuthor.includes(search)
+    const identifier = item.fullHash ?? item.id
+    return fuzzyMatch(item.subject, search) || fuzzyMatch(identifier, search) || fuzzyMatch(item.author, search)
   })
 }
 
