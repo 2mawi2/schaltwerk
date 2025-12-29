@@ -1141,6 +1141,7 @@ fn main() {
             get_app_version,
             clipboard_write_text,
             check_for_updates_now,
+            restart_app,
             report_attention_snapshot,
             schaltwerk_core_log_frontend_message,
             open_external_url,

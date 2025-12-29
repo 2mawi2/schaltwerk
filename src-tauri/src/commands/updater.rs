@@ -5,3 +5,8 @@ use tauri::AppHandle;
 pub async fn check_for_updates_now(app: AppHandle) -> Result<UpdateResultPayload, String> {
     Ok(updater::run_manual_update(&app).await)
 }
+
+#[tauri::command]
+pub fn restart_app(app: AppHandle) {
+    app.restart();
+}
