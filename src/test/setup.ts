@@ -3,6 +3,13 @@ import { randomUUID as nodeRandomUUID } from 'node:crypto'
 import { afterEach, beforeEach, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
 
+const actEnvTarget = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+actEnvTarget.IS_REACT_ACT_ENVIRONMENT = true
+if (typeof window !== 'undefined') {
+  const windowTarget = window as typeof window & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+  windowTarget.IS_REACT_ACT_ENVIRONMENT = true
+}
+
 const createMemoryStorage = () => {
   const store = new Map<string, string>()
   return {

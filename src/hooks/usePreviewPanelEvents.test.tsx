@@ -36,8 +36,9 @@ describe('usePreviewPanelEvents', () => {
     expect(getByTestId('collapsed').textContent).toBe('true')
     expect(getByTestId('tab').textContent).toBe('changes')
 
-    await act(async () => {})
-    emitUiEvent(UiEvent.OpenPreviewPanel, { previewKey: 'test' })
+    await act(async () => {
+      emitUiEvent(UiEvent.OpenPreviewPanel, { previewKey: 'test' })
+    })
 
     await waitFor(() => {
       expect(getByTestId('collapsed').textContent).toBe('false')
@@ -82,8 +83,9 @@ it('click interception opens sidebar and updates preview URL', async () => {
   expect(getByTestId('collapsed').textContent).toBe('true')
   expect(getByTestId('tab').textContent).toBe('changes')
 
-  await act(async () => {})
-  await act(async () => { getByTestId('click').click() })
+  await act(async () => {
+    getByTestId('click').click()
+  })
 
   await waitFor(() => {
     expect(getByTestId('collapsed').textContent).toBe('false')

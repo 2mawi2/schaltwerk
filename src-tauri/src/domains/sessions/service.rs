@@ -388,8 +388,15 @@ mod service_unified_tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_unified_registry_produces_same_commands_as_old_match() {
         let (manager, temp_dir) = create_test_session_manager();
+        let home_dir = tempfile::TempDir::new().unwrap();
+        let prev_home = std::env::var("HOME").ok();
+        let override_key = "SCHALTWERK_CLAUDE_HOME_OVERRIDE";
+        let prev_override = std::env::var(override_key).ok();
+        EnvAdapter::set_var("HOME", &home_dir.path().to_string_lossy());
+        EnvAdapter::set_var(override_key, &home_dir.path().to_string_lossy());
         let _registry = crate::domains::agents::unified::AgentRegistry::new();
 
         // Test each supported agent type
@@ -429,11 +436,26 @@ mod service_unified_tests {
                 agent_type
             );
         }
+
+        if let Some(prev) = prev_home {
+            EnvAdapter::set_var("HOME", &prev);
+        } else {
+            EnvAdapter::remove_var("HOME");
+        }
+        if let Some(prev) = prev_override {
+            EnvAdapter::set_var(override_key, &prev);
+        } else {
+            EnvAdapter::remove_var(override_key);
+        }
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_codex_sandbox_mode_handling_preserved() {
         let (manager, temp_dir) = create_test_session_manager();
+        let home_dir = tempfile::TempDir::new().unwrap();
+        let prev_home = std::env::var("HOME").ok();
+        EnvAdapter::set_var("HOME", &home_dir.path().to_string_lossy());
 
         // Test with skip_permissions = true
         let mut session = create_test_session(&temp_dir, "codex", "danger");
@@ -478,6 +500,12 @@ mod service_unified_tests {
         assert!(result.is_ok());
         let command = result.unwrap();
         assert!(command.shell_command.contains("--sandbox workspace-write"));
+
+        if let Some(prev) = prev_home {
+            EnvAdapter::set_var("HOME", &prev);
+        } else {
+            EnvAdapter::remove_var("HOME");
+        }
     }
 
     #[test]

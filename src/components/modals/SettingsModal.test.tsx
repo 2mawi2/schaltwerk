@@ -1,10 +1,11 @@
 import React from 'react'
-import { render, screen, waitFor } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { vi, type Mock } from 'vitest'
 import { SettingsModal } from './SettingsModal'
 import { defaultShortcutConfig } from '../../keyboardShortcuts/config'
 import { TauriCommands } from '../../common/tauriCommands'
+import { renderWithProviders } from '../../tests/test-utils'
 
 const baseInvokeImplementation = async (command: string, _args?: unknown) => {
   switch (command) {
@@ -214,7 +215,7 @@ describe('SettingsModal loading indicators', () => {
     settingsValue.loading = true
     useSettingsMock.mockReturnValue(settingsValue)
 
-    render(
+    renderWithProviders(
       <SettingsModal
         open={true}
         onClose={() => {}}
@@ -229,7 +230,7 @@ describe('SettingsModal loading indicators', () => {
     settingsValue.saving = true
     useSettingsMock.mockReturnValue(settingsValue)
 
-    render(
+    renderWithProviders(
       <SettingsModal
         open={true}
         onClose={() => {}}
@@ -251,7 +252,7 @@ describe('SettingsModal loading indicators', () => {
 
     const user = userEvent.setup()
 
-    render(
+    renderWithProviders(
       <SettingsModal
         open={true}
         onClose={() => {}}
@@ -278,7 +279,7 @@ describe('SettingsModal loading indicators', () => {
 
     const user = userEvent.setup()
 
-    render(
+    renderWithProviders(
       <SettingsModal
         open={true}
         onClose={() => {}}
@@ -307,7 +308,7 @@ describe('SettingsModal initial tab handling', () => {
   })
 
   it('opens the specified initial tab when provided', async () => {
-    render(
+    renderWithProviders(
       <SettingsModal
         open={true}
         initialTab="projectRun"
@@ -323,7 +324,7 @@ describe('SettingsModal initial tab handling', () => {
   })
 
   it('defaults to the project settings tab when no initial tab is provided', async () => {
-    render(
+    renderWithProviders(
       <SettingsModal
         open={true}
         onClose={() => {}}
@@ -338,7 +339,7 @@ describe('SettingsModal initial tab handling', () => {
   })
 
   it('responds to changes in the initialTab prop', async () => {
-    const { rerender } = render(
+    const { rerender } = renderWithProviders(
       <SettingsModal
         open={true}
         initialTab="appearance"
@@ -380,7 +381,7 @@ describe('SettingsModal version settings', () => {
   })
 
   it('loads auto update preference on mount', async () => {
-    render(
+    renderWithProviders(
       <SettingsModal
         open={true}
         onClose={() => {}}
@@ -393,7 +394,7 @@ describe('SettingsModal version settings', () => {
   })
 
   it('allows toggling automatic updates from the version tab', async () => {
-    render(
+    renderWithProviders(
       <SettingsModal
         open={true}
         onClose={() => {}}
@@ -408,7 +409,7 @@ describe('SettingsModal version settings', () => {
   })
 
   it('invokes manual update check command', async () => {
-    render(
+    renderWithProviders(
       <SettingsModal
         open={true}
         onClose={() => {}}
@@ -435,7 +436,7 @@ describe('SettingsModal appearance settings', () => {
   })
 
   it('loads dev error toast preference on mount', async () => {
-    render(
+    renderWithProviders(
       <SettingsModal
         open={true}
         onClose={() => {}}
@@ -448,7 +449,7 @@ describe('SettingsModal appearance settings', () => {
   })
 
   it('persists dev error toast preference changes', async () => {
-    render(
+    renderWithProviders(
       <SettingsModal
         open={true}
         onClose={() => {}}
@@ -497,7 +498,7 @@ describe('SettingsModal project settings navigation', () => {
       return baseInvokeImplementation(command, args)
     })
 
-    render(
+    renderWithProviders(
       <SettingsModal
         open={true}
         onClose={() => {}}
@@ -526,7 +527,7 @@ describe('SettingsModal project settings navigation', () => {
     const settingsValue = createDefaultUseSettingsValue()
     useSettingsMock.mockReturnValue(settingsValue)
 
-    render(
+    renderWithProviders(
       <SettingsModal
         open={true}
         onClose={() => {}}
@@ -558,7 +559,7 @@ describe('SettingsModal project settings navigation', () => {
 
     const confirmSpy = (window.confirm as unknown as Mock).mockReturnValue(false)
 
-    render(<SettingsModal open={true} onClose={() => {}} />)
+    renderWithProviders(<SettingsModal open={true} onClose={() => {}} />)
     const user = userEvent.setup()
 
     const projectNavButton = await screen.findByRole('button', { name: 'Project Settings' })
@@ -601,7 +602,7 @@ describe('SettingsModal project settings navigation', () => {
 
     const confirmSpy = (window.confirm as unknown as Mock).mockReturnValue(true)
 
-    render(<SettingsModal open={true} onClose={() => {}} />)
+    renderWithProviders(<SettingsModal open={true} onClose={() => {}} />)
     const user = userEvent.setup()
 
     const projectNavButton = await screen.findByRole('button', { name: 'Project Settings' })

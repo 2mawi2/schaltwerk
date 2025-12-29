@@ -109,27 +109,6 @@ export function getFileCategoryFromPath(filePath: string): FileCategory {
 }
 
 /**
- * Check if a file is a code file based on extension.
- */
-export function isCodeFile(filePath: string): boolean {
-  return getFileCategoryFromPath(filePath) === 'code'
-}
-
-/**
- * Check if a file is a config file based on extension.
- */
-export function isConfigFile(filePath: string): boolean {
-  return getFileCategoryFromPath(filePath) === 'config'
-}
-
-/**
- * Check if a file is a documentation file based on extension.
- */
-export function isDocFile(filePath: string): boolean {
-  return getFileCategoryFromPath(filePath) === 'doc'
-}
-
-/**
  * Check if a file is a markdown file.
  */
 export function isMarkdownFile(filePath: string): boolean {

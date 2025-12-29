@@ -616,7 +616,7 @@ describe('useTerminalTabs', () => {
       })
 
       expect(result.current.tabs).toHaveLength(1)
-      expect(result.current.activeTab).toBe(0) // Should stay at 0 (now pointing to remaining tab)
+      expect(result.current.activeTab).toBe(1) // Should stay on the remaining tab index
     })
 
     it('prevents closing the last tab', async () => {

@@ -116,10 +116,10 @@ export function renderWithProviders(
   options: RenderWithProvidersOptions = {}
 ) {
   const { githubOverrides, ...renderOptions } = options
-  return render(
-    <ProviderTree githubOverrides={githubOverrides}>{ui}</ProviderTree>,
-    renderOptions
+  const Wrapper = ({ children }: { children: React.ReactNode }) => (
+    <ProviderTree githubOverrides={githubOverrides}>{children}</ProviderTree>
   )
+  return render(ui, { wrapper: Wrapper, ...renderOptions })
 }
 
 // Component to set project path for tests

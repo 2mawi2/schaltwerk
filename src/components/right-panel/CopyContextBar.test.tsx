@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, act } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
@@ -47,8 +47,6 @@ vi.mock('../../common/eventSystem', async (importOriginal) => {
 })
 
 const mockInvoke = vi.mocked(invoke)
-const user = userEvent.setup()
-
 const makeChangedFile = (file: Partial<ChangedFile> & { path: string }): ChangedFile => {
   const additions = file.additions ?? 0
   const deletions = file.deletions ?? 0
@@ -188,13 +186,12 @@ describe('CopyContextBar', () => {
   })
 
   it('copies bundle and reports success', async () => {
+    const user = userEvent.setup()
     renderComponent('s4')
 
     const button = await screen.findByRole('button', { name: /copy context/i })
     await waitFor(() => expect(button).toBeEnabled())
-    await act(async () => {
-      await user.click(button)
-    })
+    await user.click(button)
 
     await waitFor(() => {
       expect(pushToastMock).toHaveBeenCalledWith(expect.objectContaining({ title: 'Copied to clipboard' }))
@@ -231,6 +228,7 @@ describe('CopyContextBar', () => {
       }
     })
 
+    const user = userEvent.setup()
     const sessionName = 's-selected'
     const store = createStore()
     store.set(projectPathAtom, '/test/project')
@@ -250,17 +248,13 @@ describe('CopyContextBar', () => {
     const diffPill = await screen.findByText('Diff')
     const filesPill = await screen.findByText('Files')
 
-    await act(async () => {
-      await user.click(diffPill)
-      await user.click(filesPill)
-    })
+    await user.click(diffPill)
+    await user.click(filesPill)
 
     const button = await screen.findByRole('button', { name: /copy context/i })
     await waitFor(() => expect(button).toBeEnabled())
 
-    await act(async () => {
-      await user.click(button)
-    })
+    await user.click(button)
 
     await waitFor(() => {
       expect(clipboardText).toContain('### file1.txt (modified)')
