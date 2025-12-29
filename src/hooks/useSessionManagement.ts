@@ -27,7 +27,8 @@ export interface SessionManagementHookReturn {
         agentType: string,
         skipPermissions: boolean,
         selection: SessionSelection,
-        terminals: TerminalIds
+        terminals: TerminalIds,
+        currentAgentType?: string
     ) => Promise<void>
 }
 
@@ -200,18 +201,19 @@ export function useSessionManagement(): SessionManagementHookReturn {
         await invoke(TauriCommands.SchaltwerkCoreStartClaudeOrchestrator, { terminalId })
     }, [])
 
-    const startSessionWithNewModel = useCallback(async (sessionName: string): Promise<void> => {
+    const startSessionWithNewModel = useCallback(async (sessionName: string, forceRestart = false): Promise<void> => {
         await invoke(TauriCommands.SchaltwerkCoreStartSessionAgentWithRestart, {
             params: {
                 sessionName,
-                forceRestart: true,
+                forceRestart,
             },
         })
     }, [])
 
     const restartWithNewModel = useCallback(async (
-        selection: SessionSelection, 
-        terminalId: string
+        selection: SessionSelection,
+        terminalId: string,
+        forceRestart = false
     ): Promise<void> => {
         if (selection.kind === 'orchestrator') {
             const startedP = waitForAgentStarted(terminalId)
@@ -219,7 +221,7 @@ export function useSessionManagement(): SessionManagementHookReturn {
             await startedP
         } else if (selection.kind === 'session' && selection.payload) {
             const startedP = waitForAgentStarted(terminalId)
-            await startSessionWithNewModel(selection.payload)
+            await startSessionWithNewModel(selection.payload, forceRestart)
             await startedP
         }
     }, [startOrchestratorWithNewModel, startSessionWithNewModel, waitForAgentStarted])
@@ -228,34 +230,30 @@ export function useSessionManagement(): SessionManagementHookReturn {
         agentType: string,
         skipPermissions: boolean,
         selection: SessionSelection,
-        terminals: TerminalIds
+        terminals: TerminalIds,
+        currentAgentType?: string
     ): Promise<void> => {
         await setSkipPermissionsForSelection(selection, skipPermissions)
         await updateAgentType(selection, agentType)
-        
+
         const claudeTerminalId = terminals.top
         const sessionStartScope = computeProjectOrchestratorId(projectPath ?? null) ?? undefined
         const terminalStartScope = selection.kind === 'session' ? sessionStartScope : undefined
 
-        // Set the guard FIRST before any async operations to prevent auto-start effects
-        // from firing during the model switch. We only clear on error.
         if (terminalStartScope) {
             markTerminalStarting(claudeTerminalId, terminalStartScope)
         } else {
             markTerminalStarting(claudeTerminalId)
         }
 
-        // During model switch, we must NOT clear the selection atom's terminal tracking
-        // (terminalWorkingDirectory, terminalToSelectionKey) because that would cause the
-        // terminal to be recreated when switching sessions and coming back.
-        // We only need to close the backend terminal and wait for it to close.
         const exists = await invoke<boolean>(TauriCommands.TerminalExists, { id: claudeTerminalId })
         if (exists) {
             await closeTerminalIfExists(claudeTerminalId)
             await waitForTerminalClosed(claudeTerminalId)
         }
         try {
-            await restartWithNewModel(selection, claudeTerminalId)
+            const isDifferentAgentType = currentAgentType !== undefined && currentAgentType !== agentType
+            await restartWithNewModel(selection, claudeTerminalId, isDifferentAgentType)
         } catch (error) {
             if (terminalStartScope) {
                 clearTerminalStartState([claudeTerminalId], terminalStartScope)

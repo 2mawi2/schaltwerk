@@ -41,12 +41,14 @@ export function AgentBinaryStatus() {
 
   const handleSelectAgent = async (agent: AgentType) => {
     if (agent === 'terminal') return
+    const previousAgent = selectedDefault
     setSelectedDefault(agent)
     await switchModel(
       agent,
       false,
       { kind: 'orchestrator' },
-      terminals
+      terminals,
+      previousAgent
     )
   }
 

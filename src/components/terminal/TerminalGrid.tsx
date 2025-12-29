@@ -281,7 +281,8 @@ const TerminalGridComponent = () => {
                 nextAgent,
                 skipPermissions,
                 targetSelection,
-                terminals
+                terminals,
+                agentType
             )
             setAgentType(nextAgent)
             if (targetSelection.kind === 'session') {
@@ -297,7 +298,7 @@ const TerminalGridComponent = () => {
         } finally {
             setConfigureAgentsOpen(false)
         }
-    }, [selection, switchModel, terminals, pushToast, updatePrimaryAgentType, setAgentType])
+    }, [selection, switchModel, terminals, pushToast, updatePrimaryAgentType, setAgentType, agentType])
 
     const handleCustomAgentSelect = useCallback(async ({ agentType: nextAgent, skipPermissions }: { agentType: AgentType; skipPermissions: boolean }) => {
         try {
