@@ -1,24 +1,26 @@
 import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import { ReviewCommentsList } from './ReviewCommentsList'
-import { ReviewComment } from '../../types/review'
+import type { CommentDisplay } from '../../hooks/useReviewComments'
 
 describe('ReviewCommentsList', () => {
-  const createMockComment = (overrides?: Partial<ReviewComment>): ReviewComment => ({
+  const createMockDisplayComment = (overrides?: Partial<CommentDisplay>): CommentDisplay => ({
     id: '1',
+    fileName: 'Example.tsx',
+    lineText: 'Lines 10-15',
+    sideText: 'current',
+    commentPreview: 'This is a test comment',
+    fullComment: 'This is a test comment',
     filePath: 'src/components/Example.tsx',
     lineRange: { start: 10, end: 15 },
     side: 'new',
-    selectedText: 'const example = true',
-    comment: 'This is a test comment',
-    timestamp: Date.now(),
     ...overrides
   })
 
   it('should render comments list', () => {
     const comments = [
-      createMockComment({ id: '1', comment: 'First comment' }),
-      createMockComment({ id: '2', comment: 'Second comment', filePath: 'src/utils/helper.ts' })
+      createMockDisplayComment({ id: '1', commentPreview: 'First comment' }),
+      createMockDisplayComment({ id: '2', commentPreview: 'Second comment', fileName: 'helper.ts' })
     ]
     const onDelete = vi.fn()
 
@@ -32,8 +34,8 @@ describe('ReviewCommentsList', () => {
 
   it('should display line ranges correctly', () => {
     const comments = [
-      createMockComment({ lineRange: { start: 10, end: 15 } }),
-      createMockComment({ id: '2', lineRange: { start: 20, end: 20 } })
+      createMockDisplayComment({ lineText: 'Lines 10-15' }),
+      createMockDisplayComment({ id: '2', lineText: 'Line 20' })
     ]
     const onDelete = vi.fn()
 
@@ -43,10 +45,10 @@ describe('ReviewCommentsList', () => {
     expect(screen.getByText(/Line 20/)).toBeInTheDocument()
   })
 
-  it('should display side correctly', () => {
+  it('should display side when provided', () => {
     const comments = [
-      createMockComment({ side: 'old' }),
-      createMockComment({ id: '2', side: 'new' })
+      createMockDisplayComment({ sideText: 'base' }),
+      createMockDisplayComment({ id: '2', sideText: 'current' })
     ]
     const onDelete = vi.fn()
 
@@ -56,23 +58,33 @@ describe('ReviewCommentsList', () => {
     expect(screen.getByText(/current/)).toBeInTheDocument()
   })
 
-  it('should truncate long comments', () => {
-    const longComment = 'This is a very long comment that should be truncated in the preview to keep the UI clean and readable'
+  it('should hide side text separator when sideText is not provided', () => {
     const comments = [
-      createMockComment({ comment: longComment })
+      createMockDisplayComment({ sideText: undefined, lineText: 'Lines 5-10' })
+    ]
+    const onDelete = vi.fn()
+
+    render(<ReviewCommentsList comments={comments} onDeleteComment={onDelete} />)
+
+    expect(screen.getByText('Lines 5-10')).toBeInTheDocument()
+    expect(screen.queryByText(/•/)).not.toBeInTheDocument()
+  })
+
+  it('should render truncated comment preview', () => {
+    const comments = [
+      createMockDisplayComment({ commentPreview: 'This is a very long comment that should be truncat...' })
     ]
     const onDelete = vi.fn()
 
     render(<ReviewCommentsList comments={comments} onDeleteComment={onDelete} />)
 
     expect(screen.getByText('"This is a very long comment that should be truncat..."')).toBeInTheDocument()
-    expect(screen.queryByText(longComment)).not.toBeInTheDocument()
   })
 
   it('should call onDeleteComment when delete button is clicked', () => {
     const comments = [
-      createMockComment({ id: 'comment-1' }),
-      createMockComment({ id: 'comment-2' })
+      createMockDisplayComment({ id: 'comment-1' }),
+      createMockDisplayComment({ id: 'comment-2' })
     ]
     const onDelete = vi.fn()
 
@@ -95,7 +107,7 @@ describe('ReviewCommentsList', () => {
 
   it('should have proper accessibility attributes', () => {
     const comments = [
-      createMockComment({ filePath: 'src/App.tsx' })
+      createMockDisplayComment({ fileName: 'App.tsx' })
     ]
     const onDelete = vi.fn()
 

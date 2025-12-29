@@ -4,6 +4,7 @@ import { VscComment, VscCheck } from 'react-icons/vsc'
 import { getFileIcon } from '../../utils/fileIcons'
 import { ReviewCommentsList } from './ReviewCommentsList'
 import { ReviewComment } from '../../types/review'
+import { useReviewComments } from '../../hooks/useReviewComments'
 import { theme } from '../../common/theme'
 import { ConfirmModal } from '../modals/ConfirmModal'
 import type { ChangedFile as EventsChangedFile } from '../../common/events'
@@ -44,6 +45,12 @@ export function DiffFileExplorer({
   getConfirmationMessage = (count: number) => `Cancel review and discard ${count} comment${count > 1 ? 's' : ''}?`
 }: DiffFileExplorerProps) {
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
+  const { formatCommentsForDisplay } = useReviewComments()
+
+  const displayComments = useMemo(() => {
+    if (!currentReview) return []
+    return formatCommentsForDisplay(currentReview.comments)
+  }, [currentReview, formatCommentsForDisplay])
 
   const fileIndexMap = useMemo(() => {
     const map = new Map<string, number>()
@@ -121,8 +128,8 @@ export function DiffFileExplorer({
         <div className="p-3 border-t border-slate-800 flex flex-col gap-3">
           <div className="text-xs text-slate-500">
             <div className="font-medium text-slate-400 mb-2">Review Comments:</div>
-            <ReviewCommentsList 
-              comments={currentReview.comments}
+            <ReviewCommentsList
+              comments={displayComments}
               onDeleteComment={removeComment}
             />
           </div>

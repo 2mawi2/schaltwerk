@@ -1,21 +1,17 @@
 import { VscTrash } from 'react-icons/vsc'
-import { ReviewComment } from '../../types/review'
-import { useReviewComments } from '../../hooks/useReviewComments'
+import type { CommentDisplay } from '../../hooks/useReviewComments'
 
 interface ReviewCommentsListProps {
-  comments: ReviewComment[]
+  comments: CommentDisplay[]
   onDeleteComment: (_id: string) => void
 }
 
 export function ReviewCommentsList({ comments, onDeleteComment }: ReviewCommentsListProps) {
-  const { formatCommentsForDisplay } = useReviewComments()
-  const displayComments = formatCommentsForDisplay(comments)
-
   return (
     <div className="space-y-2 max-h-64 overflow-y-auto">
-      {displayComments.map((comment) => (
-        <div 
-          key={comment.id} 
+      {comments.map((comment) => (
+        <div
+          key={comment.id}
           className="group bg-slate-800/50 rounded px-2 py-1.5 hover:bg-slate-800"
         >
           <div className="flex items-start justify-between gap-2">
@@ -24,7 +20,7 @@ export function ReviewCommentsList({ comments, onDeleteComment }: ReviewComments
                 {comment.fileName}
               </div>
               <div className="text-[10px] text-slate-500">
-                {comment.lineText} • {comment.sideText}
+                {comment.sideText ? `${comment.lineText} • ${comment.sideText}` : comment.lineText}
               </div>
               <div className="text-xs text-slate-400 mt-0.5">
                 "{comment.commentPreview}"

@@ -2,7 +2,7 @@ import { atom } from 'jotai'
 import { atomFamily } from 'jotai/utils'
 import { logger } from '../../utils/logger'
 
-export type SpecEditorViewMode = 'edit' | 'preview'
+export type SpecEditorViewMode = 'edit' | 'preview' | 'review'
 
 export const SPEC_EDITOR_VIEW_MODE_STORAGE_KEY = 'spec-editor-view-modes'
 
@@ -13,7 +13,7 @@ type SpecContentMap = Map<string, string>
 type DirtySessions = string[]
 
 function isValidViewMode(value: unknown): value is SpecEditorViewMode {
-  return value === 'edit' || value === 'preview'
+  return value === 'edit' || value === 'preview' || value === 'review'
 }
 
 function loadViewModesFromStorage(): ViewModesMap {

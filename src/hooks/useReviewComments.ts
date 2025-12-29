@@ -5,7 +5,7 @@ export interface CommentDisplay {
   id: string
   fileName: string
   lineText: string
-  sideText: string
+  sideText?: string
   commentPreview: string
   fullComment: string
   filePath: string
@@ -13,7 +13,7 @@ export interface CommentDisplay {
     start: number
     end: number
   }
-  side: 'old' | 'new'
+  side?: 'old' | 'new'
 }
 
 export function useReviewComments() {
