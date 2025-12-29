@@ -3694,6 +3694,11 @@ function CommentForm({
   platform: Platform;
 }) {
   const [text, setText] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    textareaRef.current?.focus();
+  }, []);
 
   const handleSubmit = () => {
     if (text.trim()) {
@@ -3705,12 +3710,12 @@ function CommentForm({
   return (
     <>
       <textarea
+        ref={textareaRef}
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder="Write your comment..."
         className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-sm focus:outline-none focus:border-cyan-400 resize-none"
         rows={4}
-        autoFocus
         onKeyDown={(e) => {
           const nativeEvent = e.nativeEvent as KeyboardEvent;
           if (

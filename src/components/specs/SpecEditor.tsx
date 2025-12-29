@@ -188,14 +188,13 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
     }
   }, [viewMode])
 
-  const focusCommentTextarea = useCallback((textarea: HTMLTextAreaElement | null) => {
-    if (textarea) {
-      commentTextareaRef.current = textarea
-      queueMicrotask(() => {
-        textarea.focus()
+  useEffect(() => {
+    if (showCommentForm) {
+      requestAnimationFrame(() => {
+        commentTextareaRef.current?.focus()
       })
     }
-  }, [])
+  }, [showCommentForm])
 
   const handleContentChange = (newContent: string) => {
     setCurrentContent(newContent)
@@ -290,10 +289,10 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
     }
   }, [isDraggingSelection, lineSelection, sessionName])
 
-  const handleLineMouseUp = useCallback(() => {
+  const handleLineMouseUp = useCallback((event: MouseEvent) => {
     setIsDraggingSelection(false)
     if (lineSelection.selection) {
-      setCommentFormPosition({ x: 0, y: 100 })
+      setCommentFormPosition({ x: event.clientX, y: event.clientY })
       setShowCommentForm(true)
     }
   }, [lineSelection.selection])
@@ -621,7 +620,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
                   </div>
                 </div>
                 <textarea
-                  ref={focusCommentTextarea}
+                  ref={commentTextareaRef}
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
                   placeholder="Write your comment..."

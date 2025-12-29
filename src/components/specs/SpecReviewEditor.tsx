@@ -13,7 +13,7 @@ interface SpecReviewEditorProps {
   selection: SpecLineSelection | null
   onLineClick: (lineNum: number, specId: string, event?: React.MouseEvent) => void
   onLineMouseEnter?: (lineNum: number) => void
-  onLineMouseUp?: () => void
+  onLineMouseUp?: (event: MouseEvent) => void
   className?: string
 }
 
@@ -189,17 +189,17 @@ export function SpecReviewEditor({
       onLineMouseEnterRef.current?.(lineNum)
       return false
     },
-    mouseup: () => {
+    mouseup: (event: MouseEvent) => {
       if (isDraggingRef.current) {
         isDraggingRef.current = false
-        onLineMouseUpRef.current?.()
+        onLineMouseUpRef.current?.(event)
       }
       return false
     },
-    mouseleave: () => {
+    mouseleave: (event: MouseEvent) => {
       if (isDraggingRef.current) {
         isDraggingRef.current = false
-        onLineMouseUpRef.current?.()
+        onLineMouseUpRef.current?.(event)
       }
       return false
     }
