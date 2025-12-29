@@ -54,6 +54,7 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
   const [activeChangesFile, setActiveChangesFile] = useState<string | null>(null)
   const [inlineDiffDefault, setInlineDiffDefault] = useState<boolean | null>(null)
   const [inlineHasFiles, setInlineHasFiles] = useState(true)
+  const [isSpecReviewMode, setIsSpecReviewMode] = useState(false)
   const diffContainerRef = useRef<HTMLDivElement>(null)
   const [reformatSidebarEnabled, setReformatSidebarEnabled] = useState<boolean>(() => {
     if (typeof window === 'undefined') return true
@@ -183,6 +184,12 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
       setActiveChangesFile(null)
     }
   }, [activeTab, changesPanelMode])
+
+  useEffect(() => {
+    if (activeTab !== 'specs' && isSpecReviewMode) {
+      setIsSpecReviewMode(false)
+    }
+  }, [activeTab, isSpecReviewMode])
 
   // Get spec sessions for workspace
   const specSessions = allSessions.filter(session => isSpecSession(session.info))
@@ -390,17 +397,20 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
     if (typeof window !== 'undefined') {
       window.localStorage.setItem('schaltwerk:inlineReformatSidebar', value ? 'true' : 'false')
     }
-    if (isInlineReviewing) {
-      onInlineReviewModeChange?.(true, { reformatSidebar: value })
-    }
-  }, [isInlineReviewing, onInlineReviewModeChange])
+  }, [])
+
+  const handleSpecReviewModeChange = useCallback((isReviewing: boolean) => {
+    setIsSpecReviewMode(isReviewing)
+  }, [])
+
+  const isAnyReviewModeActive = isInlineReviewing || isSpecReviewMode
 
   useEffect(() => {
     onInlineReviewModeChange?.(
-      isInlineReviewing,
-      { reformatSidebar: reformatSidebarEnabled, hasFiles: inlineHasFiles },
+      isAnyReviewModeActive,
+      { reformatSidebar: reformatSidebarEnabled, hasFiles: isInlineReviewing ? inlineHasFiles : true },
     )
-  }, [isInlineReviewing, onInlineReviewModeChange, reformatSidebarEnabled, inlineHasFiles])
+  }, [isAnyReviewModeActive, onInlineReviewModeChange, reformatSidebarEnabled, inlineHasFiles, isInlineReviewing])
 
   return (
     <div
@@ -535,6 +545,7 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
                   closeSpecTab(specId)
                   emitUiEvent(UiEvent.StartAgentFromSpec, { name: specId })
                 }}
+                onReviewModeChange={handleSpecReviewModeChange}
               />
             ) : activeTab === 'agent' ? (
               effectiveSelection.kind === 'session' ? (

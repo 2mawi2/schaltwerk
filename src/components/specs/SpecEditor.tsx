@@ -67,9 +67,10 @@ interface Props {
   sessionName: string
   onStart?: () => void
   disableFocusShortcut?: boolean
+  onReviewModeChange?: (isReviewing: boolean) => void
 }
 
-export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false }: Props) {
+export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false, onReviewModeChange }: Props) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -267,16 +268,18 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
     lineSelection.clearSelection()
     setShowCommentForm(false)
     setViewMode('review')
+    onReviewModeChange?.(true)
     logger.info('[SpecEditor] Entered review mode')
-  }, [lineSelection, setViewMode])
+  }, [lineSelection, setViewMode, onReviewModeChange])
 
   const handleExitReviewMode = useCallback(() => {
     setReviewComments([])
     lineSelection.clearSelection()
     setShowCommentForm(false)
     setViewMode('preview')
+    onReviewModeChange?.(false)
     logger.info('[SpecEditor] Exited review mode')
-  }, [lineSelection, setViewMode])
+  }, [lineSelection, setViewMode, onReviewModeChange])
 
   const handleLineClick = useCallback((lineNum: number, specId: string, event?: React.MouseEvent) => {
     setIsDraggingSelection(true)
@@ -579,8 +582,8 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
         <div style={{ display: viewMode === 'preview' ? 'block' : 'none' }} className="h-full">
           <MarkdownRenderer content={currentContent} className="h-full" />
         </div>
-        <div style={{ display: viewMode === 'review' ? 'flex' : 'none' }} className="h-full flex-col relative">
-          <div className="flex-1 min-h-0 overflow-hidden">
+        <div style={{ display: viewMode === 'review' ? 'flex' : 'none', flexDirection: 'column' }} className="h-full relative">
+          <div className="flex-1 min-h-0 overflow-auto">
             <SpecReviewEditor
               content={currentContent}
               specId={sessionName}
