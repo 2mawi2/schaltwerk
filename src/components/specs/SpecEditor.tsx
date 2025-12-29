@@ -448,6 +448,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
           <EpicSelect
             value={selectedEpic}
             onChange={(epicId) => setItemEpic(sessionName, epicId)}
+            showDeleteButton
           />
           {!disableFocusShortcut && (
             <span

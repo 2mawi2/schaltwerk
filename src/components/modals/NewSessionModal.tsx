@@ -1361,6 +1361,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
 	                            value={selectedEpic}
 	                            onChange={setEpicId}
 	                            variant="field"
+	                            showDeleteButton
 	                        />
 	                    </div>
 	                    </div>
