@@ -218,10 +218,8 @@ describe('useSessionManagement', () => {
                 await result.current!.switchModel(
                     'gemini',
                     true,
-                    selection, 
-                    mockTerminals,
-                    mockClearTerminalTracking,
-                    mockClearTerminalStartedTracking
+                    selection,
+                    mockTerminals
                 )
             })
 
@@ -234,8 +232,9 @@ describe('useSessionManagement', () => {
             expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartClaudeOrchestrator, {
                 terminalId: 'test-terminal-top'
             })
-            expect(mockClearTerminalTracking).toHaveBeenCalledWith(['test-terminal-top'])
-            expect(mockClearTerminalStartedTracking).toHaveBeenCalledWith(['test-terminal-top'])
+            // Selection atom tracking should NOT be cleared during model switch
+            expect(mockClearTerminalTracking).not.toHaveBeenCalled()
+            expect(mockClearTerminalStartedTracking).not.toHaveBeenCalled()
         })
 
         it('should switch model for session', async () => {
@@ -265,10 +264,8 @@ describe('useSessionManagement', () => {
                 await result.current!.switchModel(
                     'opencode',
                     false,
-                    selection, 
-                    mockTerminals,
-                    mockClearTerminalTracking,
-                    mockClearTerminalStartedTracking
+                    selection,
+                    mockTerminals
                 )
             })
 
@@ -285,8 +282,9 @@ describe('useSessionManagement', () => {
                     forceRestart: true
                 }
             })
-            expect(mockClearTerminalTracking).toHaveBeenCalledWith(['test-terminal-top'])
-            expect(mockClearTerminalStartedTracking).toHaveBeenCalledWith(['test-terminal-top'])
+            // Selection atom tracking should NOT be cleared during model switch
+            expect(mockClearTerminalTracking).not.toHaveBeenCalled()
+            expect(mockClearTerminalStartedTracking).not.toHaveBeenCalled()
         })
 
         it('marks terminal starting while switching models to avoid duplicate launches', async () => {
@@ -318,14 +316,12 @@ describe('useSessionManagement', () => {
                     'opencode',
                     false,
                     selection,
-                    mockTerminals,
-                    mockClearTerminalTracking,
-                    mockClearTerminalStartedTracking
+                    mockTerminals
                 )
             })
 
             expect(markSpy).toHaveBeenCalledWith('test-terminal-top')
-            expect(clearSpy).toHaveBeenCalledWith(['test-terminal-top'])
+            expect(clearSpy).not.toHaveBeenCalled()
 
             markSpy.mockRestore()
             clearSpy.mockRestore()
@@ -334,7 +330,7 @@ describe('useSessionManagement', () => {
 
         it('should handle terminal not existing during model switch', async () => {
             const { result } = renderHook(() => useSessionManagement())
-            
+
             const selection = { kind: 'orchestrator' as const }
 
             mockInvoke
@@ -347,10 +343,8 @@ describe('useSessionManagement', () => {
                 await result.current!.switchModel(
                     'claude',
                     false,
-                    selection, 
-                    mockTerminals,
-                    mockClearTerminalTracking,
-                    mockClearTerminalStartedTracking
+                    selection,
+                    mockTerminals
                 )
             })
 
@@ -365,17 +359,15 @@ describe('useSessionManagement', () => {
 
         it('should dispatch reset terminals event after model switch', async () => {
             const { result } = renderHook(() => useSessionManagement())
-            
+
             const selection = { kind: 'orchestrator' as const }
 
             await act(async () => {
                 await result.current!.switchModel(
                     'opencode',
                     false,
-                    selection, 
-                    mockTerminals,
-                    mockClearTerminalTracking,
-                    mockClearTerminalStartedTracking
+                    selection,
+                    mockTerminals
                 )
             })
 
@@ -418,9 +410,7 @@ describe('useSessionManagement', () => {
                         'claude',
                         false,
                         selection,
-                        mockTerminals,
-                        mockClearTerminalTracking,
-                        mockClearTerminalStartedTracking
+                        mockTerminals
                     )
                 ).rejects.toThrow('Switch error')
             })
@@ -583,9 +573,7 @@ describe('useSessionManagement', () => {
                             'claude',
                             false,
                             selection,
-                            mockTerminals,
-                            mockClearTerminalTracking,
-                            mockClearTerminalStartedTracking
+                            mockTerminals
                         )
                     ).rejects.toThrow('Agent type update failed')
                 })
@@ -607,9 +595,7 @@ describe('useSessionManagement', () => {
                             'claude',
                             false,
                             selection,
-                            mockTerminals,
-                            mockClearTerminalTracking,
-                            mockClearTerminalStartedTracking
+                            mockTerminals
                         )
                     ).rejects.toThrow('Terminal check failed')
                 })
@@ -632,38 +618,9 @@ describe('useSessionManagement', () => {
                             'claude',
                             false,
                             selection,
-                            mockTerminals,
-                            mockClearTerminalTracking,
-                            mockClearTerminalStartedTracking
+                            mockTerminals
                         )
                     ).rejects.toThrow('Close terminal failed')
-                })
-            })
-
-            it('should handle clear terminal tracking failure', async () => {
-                const { result } = renderHook(() => useSessionManagement())
-
-                const selection = { kind: 'orchestrator' as const }
-
-                mockClearTerminalTracking.mockRejectedValueOnce(new Error('Clear tracking failed'))
-
-                mockInvoke
-                    .mockResolvedValueOnce(undefined) // schaltwerk_core_set_skip_permissions
-                    .mockResolvedValueOnce(undefined) // schaltwerk_core_set_agent_type
-                    .mockResolvedValueOnce(true) // terminal_exists
-                    .mockResolvedValueOnce(undefined) // close_terminal
-
-                await act(async () => {
-                    await expect(
-                        result.current.switchModel(
-                            'claude',
-                            false,
-                            selection,
-                            mockTerminals,
-                            mockClearTerminalTracking,
-                            mockClearTerminalStartedTracking
-                        )
-                    ).rejects.toThrow('Clear tracking failed')
                 })
             })
 
@@ -686,9 +643,7 @@ describe('useSessionManagement', () => {
                             'claude',
                             false,
                             selection,
-                            mockTerminals,
-                            mockClearTerminalTracking,
-                            mockClearTerminalStartedTracking
+                            mockTerminals
                         )
                     ).rejects.toThrow('Orchestrator restart failed')
                 })

@@ -31,7 +31,6 @@ import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
 import { VscRefresh, VscCode, VscLayoutSidebarLeft, VscLayoutSidebarLeftOff } from 'react-icons/vsc'
 import { IconButton } from '../common/IconButton'
 import { ProgressIndicator } from '../common/ProgressIndicator'
-import { clearTerminalStartedTracking } from '../terminal/Terminal'
 import { logger } from '../../utils/logger'
 import { UiEvent, emitUiEvent, listenUiEvent } from '../../common/uiEvents'
 import { runSpecRefineWithOrchestrator } from '../../utils/specRefine'
@@ -132,7 +131,7 @@ const groupVersionGroupsByEpic = (sessionGroups: SessionVersionGroupType[]): Epi
 }
 
 export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, onSelectNextProject, isCollapsed = false, onExpandRequest, onToggleSidebar }: SidebarProps) {
-    const { selection, setSelection, terminals, clearTerminalTracking } = useSelection()
+    const { selection, setSelection, terminals } = useSelection()
     const projectPath = useAtomValue(projectPathAtom)
     const { setFocusForSession, setCurrentFocus } = useFocus()
     const { isSessionRunning } = useRun()
@@ -1982,7 +1981,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                         ? { kind: 'session' as const, payload: switchModelSessionId }
                         : selection
 
-                    await switchModel(agentType, skipPermissions, targetSelection, terminals, clearTerminalTracking, clearTerminalStartedTracking)
+                    await switchModel(agentType, skipPermissions, targetSelection, terminals)
 
                     // Reload sessions to show updated agent type
                     await reloadSessionsAndRefreshIdle()
