@@ -48,6 +48,7 @@ export const TauriCommands = {
   GetKeyboardShortcuts: 'get_keyboard_shortcuts',
   GetLastProjectParentDirectory: 'get_last_project_parent_directory',
   GetFileDiffFromMain: 'get_file_diff_from_main',
+  ReadProjectFile: 'read_project_file',
   GetGitGraphHistory: 'get_git_graph_history',
   GetGitGraphCommitFiles: 'get_git_graph_commit_files',
   GetMcpStatus: 'get_mcp_status',

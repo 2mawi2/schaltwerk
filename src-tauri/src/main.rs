@@ -17,6 +17,7 @@ mod cli;
 mod commands;
 mod diff_commands;
 pub mod errors;
+mod file_commands;
 mod events;
 mod macos_prefs;
 mod mcp_api;
@@ -1232,6 +1233,7 @@ fn main() {
             diff_commands::get_commit_files,
             diff_commands::get_commit_file_contents,
             diff_commands::set_session_diff_base_branch,
+            file_commands::read_project_file,
             // Project commands
             get_recent_projects,
             add_recent_project,

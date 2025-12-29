@@ -3,7 +3,8 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import { useSelection } from '../../hooks/useSelection'
-import { VscFile, VscDiffAdded, VscDiffModified, VscDiffRemoved, VscFileBinary, VscDiscard, VscFolder } from 'react-icons/vsc'
+import { useOpenInEditor } from '../../hooks/useOpenInEditor'
+import { VscFile, VscDiffAdded, VscDiffModified, VscDiffRemoved, VscFileBinary, VscDiscard, VscGoToFile } from 'react-icons/vsc'
 import clsx from 'clsx'
 import { isBinaryFileByExtension } from '../../utils/binaryDetection'
 import { logger } from '../../utils/logger'
@@ -87,6 +88,7 @@ const collectFilePathsFromFolder = (folder: FolderNode): string[] => {
 
 export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, getCommentCountForFile, selectedFilePath, onFilesChange }: DiffFileListProps) {
   const { selection } = useSelection()
+  const { openInEditor } = useOpenInEditor({ sessionNameOverride, isCommander })
   const [files, setFiles] = useState<ChangedFile[]>([])
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -796,35 +798,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
     }
   }, [sessionName, isCommander])
 
-  const handleOpenFile = useCallback(async (filePath: string) => {
-    try {
-      let basePath: string
-
-      if (isCommander && !sessionName) {
-        basePath = await invoke<string>(TauriCommands.GetActiveProjectPath)
-      } else if (sessionName) {
-        const sessionData = await invoke<{ worktree_path: string }>(TauriCommands.SchaltwerkCoreGetSession, { name: sessionName })
-        basePath = sessionData.worktree_path
-      } else {
-        logger.warn('Cannot open file: no session or orchestrator context')
-        return
-      }
-
-      const fullPath = `${basePath}/${filePath}`
-      const defaultAppId = await invoke<string>(TauriCommands.GetDefaultOpenApp)
-      await invoke(TauriCommands.OpenInApp, { 
-        appId: defaultAppId, 
-        worktreeRoot: basePath,
-        worktreePath: basePath, // backward compat
-        targetPath: fullPath 
-      })
-    } catch (e) {
-      logger.error('Failed to open file:', filePath, e)
-      const errorMessage = typeof e === 'string' ? e : ((e as Error)?.message || String(e) || 'Unknown error')
-      alert(errorMessage)
-    }
-  }, [sessionName, isCommander])
-
+  
   const handleFileDragStart = useCallback((filePath: string) => (event: DragEvent<HTMLElement>) => {
     if (!event.dataTransfer) {
       return
@@ -905,7 +879,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
             style={{ color: theme.colors.text.secondary }}
             onClick={(e) => {
               e.stopPropagation()
-              void handleOpenFile(node.file.path)
+              void openInEditor(node.file.path)
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.color = theme.colors.text.primary
@@ -914,7 +888,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
               e.currentTarget.style.color = theme.colors.text.secondary
             }}
           >
-            <VscFolder className="text-base" />
+            <VscGoToFile className="text-base" />
           </button>
           <button
             title="Discard changes for this file"

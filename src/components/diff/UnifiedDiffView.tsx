@@ -37,7 +37,6 @@ import {
   VscSplitHorizontal,
 } from "react-icons/vsc";
 import { SearchBox } from "../common/SearchBox";
-import "../../styles/vscode-dark-theme.css";
 import { logger } from "../../utils/logger";
 import { useSessions } from "../../hooks/useSessions";
 import { mapSessionUiState } from "../../utils/sessionFilters";

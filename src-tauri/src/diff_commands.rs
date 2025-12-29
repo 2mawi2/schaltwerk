@@ -5,7 +5,7 @@ use crate::get_project_manager;
 use git2::{
     Delta, DiffFindOptions, DiffOptions, ErrorCode, ObjectType, Oid, Repository, Sort, Tree,
 };
-use schaltwerk::binary_detection::{get_unsupported_reason, is_binary_file_by_extension};
+use schaltwerk::binary_detection::{get_unsupported_reason, is_binary_file_by_extension, is_likely_binary_content};
 use schaltwerk::domains::git;
 use schaltwerk::domains::git::stats::build_changed_files_from_diff;
 use schaltwerk::domains::sessions::entity::ChangedFile;
@@ -584,16 +584,6 @@ pub async fn get_file_diff_from_main(
     Ok((base_text, worktree_text))
 }
 
-fn is_likely_binary(bytes: &[u8]) -> bool {
-    // Use Git's standard algorithm: check for null bytes in first 8000 bytes
-    // This matches Git's buffer_is_binary() function
-    let check_size = std::cmp::min(8000, bytes.len());
-    let sample = &bytes[..check_size];
-
-    // Check for null bytes (Git's standard binary detection)
-    sample.contains(&0)
-}
-
 #[tauri::command]
 pub async fn get_base_branch_name(session_name: Option<String>) -> Result<String, SchaltError> {
     resolve_base_branch_structured(session_name.as_deref()).await
@@ -731,7 +721,7 @@ fn read_blob_from_commit_path(
     if data.len() > 10 * 1024 * 1024 {
         return Err("Base file is too large to diff (>10MB)".to_string());
     }
-    if data.contains(&0) || is_likely_binary(&data) {
+    if data.contains(&0) || is_likely_binary_content(&data) {
         return Err("Base file appears to be binary".to_string());
     }
     Ok(String::from_utf8_lossy(&data).to_string())
@@ -1029,7 +1019,7 @@ async fn resolve_session_info_structured(
         .map_err(|message| map_session_lookup_error(session_name, message))
 }
 
-async fn resolve_repo_path_structured(session_name: Option<&str>) -> Result<String, SchaltError> {
+pub async fn resolve_repo_path_structured(session_name: Option<&str>) -> Result<String, SchaltError> {
     if let Some(name) = session_name {
         let (worktree, _) = resolve_session_info_structured(name).await?;
         Ok(worktree)

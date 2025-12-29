@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState, type ChangeEvent } from 'react'
 import { DiffFileList } from './DiffFileList'
 import { UnifiedDiffView } from './UnifiedDiffView'
+import { ProjectFileTree } from './ProjectFileTree'
+import { FileContentViewer } from './FileContentViewer'
 import {
   VscScreenFull,
   VscChevronLeft,
@@ -13,8 +15,11 @@ import {
   VscVerified,
   VscRequestChanges,
   VscAccount,
-  VscClose
+  VscClose,
+  VscGitCompare,
+  VscFiles
 } from 'react-icons/vsc'
+import clsx from 'clsx'
 import { useReview } from '../../contexts/ReviewContext'
 import { useReviewComments } from '../../hooks/useReviewComments'
 import { useSelection } from '../../hooks/useSelection'
@@ -67,6 +72,9 @@ export function SimpleDiffPanel({
   const [hasFiles, setHasFiles] = useState(true)
   const [preferInline, setPreferInline] = useAtom(inlineSidebarDefaultPreferenceAtom)
   const [linkPrModalOpen, setLinkPrModalOpen] = useState(false)
+  const [viewSource, setViewSource] = useState<'changes' | 'files'>('changes')
+  const [fileViewerPath, setFileViewerPath] = useState<string | null>(null)
+  const [fileTreeScrollPosition, setFileTreeScrollPosition] = useState(0)
   const { pushToast } = useToast()
   const { currentReview, getCommentsForFile, clearReview } = useReview()
   const { formatReviewForPrompt, getConfirmationMessage } = useReviewComments()
@@ -277,6 +285,14 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
     </div>
   )
 
+  const handleProjectFileSelect = useCallback((filePath: string) => {
+    setFileViewerPath(filePath)
+  }, [])
+
+  const handleBackToProjectList = useCallback(() => {
+    setFileViewerPath(null)
+  }, [])
+
   const renderDiffFileList = () => (
     <DiffFileList
       onFileSelect={handleSelectFile}
@@ -332,31 +348,87 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
     )
   }
 
+  const renderViewSourceToggle = () => (
+    <div className="flex items-center gap-1 rounded-md p-0.5" style={{ backgroundColor: theme.colors.background.secondary }}>
+      <button
+        onClick={() => { setViewSource('changes'); setFileViewerPath(null) }}
+        className={clsx(
+          'flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors',
+          viewSource === 'changes' ? 'text-slate-100' : 'text-slate-400 hover:text-slate-200'
+        )}
+        style={viewSource === 'changes' ? { backgroundColor: theme.colors.background.elevated } : undefined}
+        title="Show changed files"
+      >
+        <VscGitCompare className="w-3 h-3" />
+        <span>Changes</span>
+      </button>
+      <button
+        onClick={() => { setViewSource('files'); setFileViewerPath(null) }}
+        className={clsx(
+          'flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors',
+          viewSource === 'files' ? 'text-slate-100' : 'text-slate-400 hover:text-slate-200'
+        )}
+        style={viewSource === 'files' ? { backgroundColor: theme.colors.background.elevated } : undefined}
+        title="Browse all project files"
+      >
+        <VscFiles className="w-3 h-3" />
+        <span>Files</span>
+      </button>
+    </div>
+  )
+
+  const renderFilesViewContent = () => {
+    if (fileViewerPath) {
+      return (
+        <FileContentViewer
+          filePath={fileViewerPath}
+          onBack={handleBackToProjectList}
+          sessionNameOverride={sessionNameOverride}
+        />
+      )
+    }
+    return (
+      <ProjectFileTree
+        onFileSelect={handleProjectFileSelect}
+        sessionNameOverride={sessionNameOverride}
+        isCommander={isCommander}
+        scrollPosition={fileTreeScrollPosition}
+        onScrollPositionChange={setFileTreeScrollPosition}
+      />
+    )
+  }
+
   return (
     <div className="relative h-full flex flex-col overflow-hidden" {...testProps}>
       <div className="flex items-center justify-between px-3 py-2 border-b border-slate-800 bg-slate-950 shrink-0">
-        <span className="text-xs font-medium text-slate-400">Changed Files</span>
         <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-xs" style={{ color: theme.colors.text.secondary }}>
-            <input
-              type="checkbox"
-              className="rounded border-slate-600 bg-slate-900"
-              checked={preferInline}
-              onChange={handleToggleInlinePreference}
-            />
-            <span>Open diffs inline</span>
-          </label>
-          <label className="flex items-center gap-2 text-xs" style={{ color: theme.colors.text.secondary }}>
-            <input
-              type="checkbox"
-              className="rounded border-slate-600 bg-slate-900"
-              checked={reformatSidebarEnabled ?? true}
-              onChange={handleToggleLayoutPreference}
-              disabled={!preferInline}
-            />
-            <span>Auto-collapse sidebar</span>
-          </label>
-          {currentSession && (
+          {renderViewSourceToggle()}
+        </div>
+        <div className="flex items-center gap-3">
+          {viewSource === 'changes' && (
+            <>
+              <label className="flex items-center gap-2 text-xs" style={{ color: theme.colors.text.secondary }}>
+                <input
+                  type="checkbox"
+                  className="rounded border-slate-600 bg-slate-900"
+                  checked={preferInline}
+                  onChange={handleToggleInlinePreference}
+                />
+                <span>Open diffs inline</span>
+              </label>
+              <label className="flex items-center gap-2 text-xs" style={{ color: theme.colors.text.secondary }}>
+                <input
+                  type="checkbox"
+                  className="rounded border-slate-600 bg-slate-900"
+                  checked={reformatSidebarEnabled ?? true}
+                  onChange={handleToggleLayoutPreference}
+                  disabled={!preferInline}
+                />
+                <span>Auto-collapse sidebar</span>
+              </label>
+            </>
+          )}
+          {viewSource === 'changes' && currentSession && (
             prNumber ? (
               <>
                 {prDetails && (
@@ -418,7 +490,7 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
               </button>
             )
           )}
-          {onOpenDiff && (
+          {viewSource === 'changes' && onOpenDiff && (
             <button
               onClick={() => onOpenDiff(activeFile, true)}
               className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-slate-200 transition-colors"
@@ -430,7 +502,7 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
         </div>
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
-        {renderDiffFileList()}
+        {viewSource === 'changes' ? renderDiffFileList() : renderFilesViewContent()}
       </div>
       <LinkPrModal
         open={linkPrModalOpen}
