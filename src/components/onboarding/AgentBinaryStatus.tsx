@@ -4,7 +4,6 @@ import { useClaudeSession } from '../../hooks/useClaudeSession'
 import { useSessionManagement } from '../../hooks/useSessionManagement'
 import { useSelection } from '../../hooks/useSelection'
 import { theme } from '../../common/theme'
-import { withOpacity } from '../../common/colorUtils'
 import { displayNameForAgent } from '../shared/agentDefaults'
 import { AGENT_TYPES, AgentType } from '../../types/session'
 
@@ -15,7 +14,7 @@ const SELECTABLE_AGENTS: AgentType[] = AGENT_TYPES.filter(
 )
 
 function StatusIcon({ status }: { status: Status }) {
-  const stroke = status === 'present' ? theme.colors.accent.green.DEFAULT : theme.colors.text.secondary
+  const stroke = status === 'present' ? 'var(--color-accent-green)' : 'var(--color-text-secondary)'
   return (
     <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke={stroke} strokeWidth={2}>
       <circle cx="10" cy="10" r="9" />
@@ -58,9 +57,9 @@ export function AgentBinaryStatus() {
           onClick={() => { void refresh() }}
           className="px-2 py-1 text-xs rounded border"
           style={{
-            borderColor: theme.colors.border.subtle,
-            color: theme.colors.text.secondary,
-            backgroundColor: theme.colors.background.elevated,
+            borderColor: 'var(--color-border-subtle)',
+            color: 'var(--color-text-secondary)',
+            backgroundColor: 'var(--color-bg-elevated)',
           }}
         >
           Refresh
@@ -81,16 +80,16 @@ export function AgentBinaryStatus() {
           const isSelected = selectedDefault === agent
 
           const borderColor = isSelected
-            ? theme.colors.accent.blue.DEFAULT
+            ? 'var(--color-accent-blue)'
             : status === 'present'
-              ? withOpacity(theme.colors.accent.green.DEFAULT, 0.6)
-              : theme.colors.border.subtle
+              ? 'rgba(var(--color-accent-green-rgb), 0.6)'
+              : 'var(--color-border-subtle)'
 
           const backgroundColor = isSelected
-            ? withOpacity(theme.colors.accent.blue.DEFAULT, 0.1)
+            ? 'rgba(var(--color-accent-blue-rgb), 0.1)'
             : status === 'present'
-              ? withOpacity(theme.colors.accent.green.DEFAULT, 0.04)
-              : theme.colors.background.elevated
+              ? 'rgba(var(--color-accent-green-rgb), 0.04)'
+              : 'var(--color-bg-elevated)'
 
           return (
             <button
@@ -100,8 +99,8 @@ export function AgentBinaryStatus() {
               style={{
                 borderColor,
                 backgroundColor,
-                boxShadow: isSelected ? `0 0 0 1px ${theme.colors.accent.blue.DEFAULT}` : theme.shadow.sm,
-                color: theme.colors.text.primary,
+                boxShadow: isSelected ? '0 0 0 1px var(--color-accent-blue)' : theme.shadow.sm,
+                color: 'var(--color-text-primary)',
               }}
             >
               <div className="flex items-center justify-between text-sm font-semibold">
@@ -113,9 +112,9 @@ export function AgentBinaryStatus() {
                   <span
                     className="text-xs px-2.5 py-0.5 rounded-full"
                     style={{
-                      backgroundColor: withOpacity(theme.colors.accent.blue.DEFAULT, 0.2),
-                      color: theme.colors.accent.blue.light,
-                      border: `1px solid ${withOpacity(theme.colors.accent.blue.DEFAULT, 0.5)}`,
+                      backgroundColor: 'rgba(var(--color-accent-blue-rgb), 0.2)',
+                      color: 'var(--color-accent-blue-light)',
+                      border: '1px solid rgba(var(--color-accent-blue-rgb), 0.5)',
                     }}
                   >
                     Default
@@ -126,10 +125,10 @@ export function AgentBinaryStatus() {
                     style={{
                       backgroundColor:
                         status === 'present'
-                          ? withOpacity(theme.colors.accent.green.DEFAULT, 0.18)
-                          : withOpacity(theme.colors.border.subtle, 0.35),
-                      color: status === 'present' ? theme.colors.text.primary : theme.colors.text.secondary,
-                      border: `1px solid ${status === 'present' ? withOpacity(theme.colors.accent.green.DEFAULT, 0.5) : withOpacity(theme.colors.border.subtle, 0.6)}`,
+                          ? 'rgba(var(--color-accent-green-rgb), 0.18)'
+                          : 'rgba(var(--color-border-subtle-rgb), 0.35)',
+                      color: status === 'present' ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+                      border: `1px solid ${status === 'present' ? 'rgba(var(--color-accent-green-rgb), 0.5)' : 'rgba(var(--color-border-subtle-rgb), 0.6)'}`,
                     }}
                   >
                     {status === 'present' ? 'Found' : 'Missing'}
@@ -138,7 +137,7 @@ export function AgentBinaryStatus() {
               </div>
               <div
                 className="text-xs break-all"
-                style={{ color: theme.colors.text.secondary }}
+                style={{ color: 'var(--color-text-secondary)' }}
               >
                 {preferred ?? 'No path detected'}
               </div>

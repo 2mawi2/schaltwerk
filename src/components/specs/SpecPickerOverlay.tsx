@@ -81,23 +81,23 @@ export function SpecPickerOverlay({ specs, onSelect, onClose }: Props) {
   return (
     <div
       className="absolute inset-0 flex items-start justify-center pt-16 px-8 z-50"
-      style={{ backgroundColor: theme.colors.overlay.backdrop }}
+      style={{ backgroundColor: 'var(--color-overlay-backdrop)' }}
     >
       <div
         data-spec-picker-overlay
         className="w-full max-w-2xl rounded-lg border-2"
         style={{
-          backgroundColor: theme.colors.background.secondary,
-          borderColor: theme.colors.border.subtle,
+          backgroundColor: 'var(--color-bg-secondary)',
+          borderColor: 'var(--color-border-subtle)',
           boxShadow: theme.shadow.xl
         }}
         onKeyDown={handleKeyDown}
       >
         <div
           className="flex items-center gap-2 px-4 py-3 border-b-2"
-          style={{ borderColor: theme.colors.border.subtle }}
+          style={{ borderColor: 'var(--color-border-subtle)' }}
         >
-          <VscSearch style={{ color: theme.colors.text.tertiary, fontSize: theme.fontSize.bodyLarge }} />
+          <VscSearch style={{ color: 'var(--color-text-tertiary)', fontSize: theme.fontSize.bodyLarge }} />
           <input
             ref={inputRef}
             type="text"
@@ -106,7 +106,7 @@ export function SpecPickerOverlay({ specs, onSelect, onClose }: Props) {
             placeholder="Search specs..."
             className="flex-1 bg-transparent border-none outline-none placeholder:text-slate-500"
             style={{
-              color: theme.colors.text.primary,
+              color: 'var(--color-text-primary)',
               fontSize: theme.fontSize.body
             }}
           />
@@ -114,10 +114,10 @@ export function SpecPickerOverlay({ specs, onSelect, onClose }: Props) {
             onClick={onClose}
             className="p-1 rounded transition-colors"
             style={{
-              color: theme.colors.text.tertiary,
+              color: 'var(--color-text-tertiary)',
               backgroundColor: 'transparent'
             }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = theme.colors.background.hover}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'}
             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
             title="Close (Esc)"
           >
@@ -128,13 +128,13 @@ export function SpecPickerOverlay({ specs, onSelect, onClose }: Props) {
         <div
           ref={listRef}
           className="max-h-96 overflow-y-auto"
-          style={{ backgroundColor: theme.colors.background.secondary }}
+          style={{ backgroundColor: 'var(--color-bg-secondary)' }}
         >
           {filtered.length === 0 ? (
             <div
               className="px-4 py-8 text-center"
               style={{
-                color: theme.colors.text.tertiary,
+                color: 'var(--color-text-tertiary)',
                 fontSize: theme.fontSize.body
               }}
             >
@@ -152,16 +152,16 @@ export function SpecPickerOverlay({ specs, onSelect, onClose }: Props) {
                   className="w-full px-4 py-3 text-left transition-colors border-b last:border-b-0"
                   style={{
                     backgroundColor: isSelected
-                      ? theme.colors.background.elevated
+                      ? 'var(--color-bg-elevated)'
                       : 'transparent',
-                    borderColor: theme.colors.border.default,
-                    color: theme.colors.text.primary,
+                    borderColor: 'var(--color-border-default)',
+                    color: 'var(--color-text-primary)',
                     fontSize: theme.fontSize.body
                   }}
                   onMouseEnter={() => setSelectedIndex(index)}
                 >
                   <div className="font-medium" style={{
-                    color: isSelected ? theme.colors.accent.cyan.DEFAULT : theme.colors.text.primary,
+                    color: isSelected ? 'var(--color-accent-cyan)' : 'var(--color-text-primary)',
                     fontSize: theme.fontSize.body
                   }}>
                     {displayName}
@@ -170,7 +170,7 @@ export function SpecPickerOverlay({ specs, onSelect, onClose }: Props) {
                     <div
                       className="mt-1 truncate"
                       style={{
-                        color: theme.colors.text.tertiary,
+                        color: 'var(--color-text-tertiary)',
                         fontSize: theme.fontSize.caption
                       }}
                     >

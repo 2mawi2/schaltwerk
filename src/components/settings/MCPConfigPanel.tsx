@@ -3,7 +3,6 @@ import { invoke } from '@tauri-apps/api/core'
 import { AnimatedText } from '../common/AnimatedText'
 import { TauriCommands } from '../../common/tauriCommands'
 import { logger } from '../../utils/logger'
-import { theme } from '../../common/theme'
 
 interface MCPStatus {
   mcp_server_path: string
@@ -44,12 +43,12 @@ function NodeRequiredNotice({ agent }: { agent: Props['agent'] }) {
     <div
       className="p-3 border rounded text-xs space-y-2"
       style={{
-        backgroundColor: theme.colors.accent.amber.bg,
-        borderColor: theme.colors.accent.amber.border,
-        color: theme.colors.text.primary,
+        backgroundColor: 'var(--color-accent-amber-bg)',
+        borderColor: 'var(--color-accent-amber-border)',
+        color: 'var(--color-text-primary)',
       }}
     >
-      <div className="font-medium" style={{ color: theme.colors.accent.amber.light }}>
+      <div className="font-medium" style={{ color: 'var(--color-accent-amber-light)' }}>
         Node.js required
       </div>
       <div>Node.js is required to run the Schaltwerk MCP server.</div>
@@ -61,7 +60,7 @@ function NodeRequiredNotice({ agent }: { agent: Props['agent'] }) {
         target="_blank"
         rel="noopener noreferrer"
         className="inline-block underline"
-        style={{ color: theme.colors.accent.amber.light }}
+        style={{ color: 'var(--color-accent-amber-light)' }}
       >
         Download Node.js
       </a>
@@ -170,7 +169,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                   }}
               className="w-4 h-4 rounded border-slate-600 bg-slate-800 focus:ring-cyan-400 focus:ring-offset-0"
               style={{
-                color: theme.colors.accent.blue.dark,
+                color: 'var(--color-accent-blue-dark)',
               }}
             />
              <span className="text-xs text-slate-400">
@@ -219,9 +218,9 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
               
               <div className="p-3 rounded text-xs"
                    style={{
-                     backgroundColor: theme.colors.accent.blue.bg,
-                     borderColor: theme.colors.accent.blue.border,
-                     color: theme.colors.accent.blue.DEFAULT,
+                     backgroundColor: 'var(--color-accent-blue-bg)',
+                     borderColor: 'var(--color-accent-blue-border)',
+                     color: 'var(--color-accent-blue)',
                    }}>
                 <div className="flex items-start gap-2">
                   <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -299,15 +298,15 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                        disabled={loading}
                          className="px-3 py-1 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm transition-colors"
                          style={{
-                           backgroundColor: theme.colors.palette.cyan[800],
-                           borderColor: theme.colors.accent.blue.border,
-                           color: theme.colors.accent.blue.light,
+                           backgroundColor: 'var(--color-cyan-800)',
+                           borderColor: 'var(--color-accent-blue-border)',
+                           color: 'var(--color-accent-blue-light)',
                          }}
                          onMouseEnter={(e) => {
-                           e.currentTarget.style.backgroundColor = theme.colors.palette.cyan[700];
+                           e.currentTarget.style.backgroundColor = 'var(--color-cyan-700)';
                          }}
                          onMouseLeave={(e) => {
-                           e.currentTarget.style.backgroundColor = theme.colors.palette.cyan[800];
+                           e.currentTarget.style.backgroundColor = 'var(--color-cyan-800)';
                          }}
                      >
                        {agent === 'codex' || agent === 'amp' || agent === 'droid' ? 'Enable MCP (global)' : 'Configure MCP for This Project'}
@@ -322,15 +321,15 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                            rel="noopener noreferrer"
                            className="px-3 py-1 border rounded text-sm transition-colors inline-block"
                            style={{
-                             backgroundColor: theme.colors.palette.cyan[800],
-                             borderColor: theme.colors.accent.blue.border,
-                             color: theme.colors.accent.blue.light,
+                             backgroundColor: 'var(--color-cyan-800)',
+                             borderColor: 'var(--color-accent-blue-border)',
+                             color: 'var(--color-accent-blue-light)',
                            }}
                            onMouseEnter={(e) => {
-                             (e.target as HTMLElement).style.backgroundColor = theme.colors.palette.cyan[700];
+                             (e.target as HTMLElement).style.backgroundColor = 'var(--color-cyan-700)';
                            }}
                            onMouseLeave={(e) => {
-                             (e.target as HTMLElement).style.backgroundColor = theme.colors.palette.cyan[800];
+                             (e.target as HTMLElement).style.backgroundColor = 'var(--color-cyan-800)';
                            }}
                         >
                          Install Claude Code First

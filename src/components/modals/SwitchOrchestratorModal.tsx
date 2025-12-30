@@ -3,7 +3,6 @@ import { ModelSelector } from '../inputs/ModelSelector'
 import { useClaudeSession } from '../../hooks/useClaudeSession'
 import { AgentType, AGENT_TYPES, AGENT_SUPPORTS_SKIP_PERMISSIONS } from '../../types/session'
 import { logger } from '../../utils/logger'
-import { theme } from '../../common/theme'
 
 interface Props {
   open: boolean
@@ -187,13 +186,13 @@ export function SwitchOrchestratorModal({
             disabled={switching}
             className="px-3 py-1.5 disabled:bg-slate-600 disabled:cursor-not-allowed rounded text-white group relative inline-flex items-center gap-2"
             style={{
-              backgroundColor: theme.colors.accent.blue.dark,
+              backgroundColor: 'var(--color-accent-blue-dark)',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = theme.colors.accent.blue.DEFAULT
+              e.currentTarget.style.backgroundColor = 'var(--color-accent-blue)'
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = theme.colors.accent.blue.dark
+              e.currentTarget.style.backgroundColor = 'var(--color-accent-blue-dark)'
             }}
             title="Switch Agent (Enter)"
           >

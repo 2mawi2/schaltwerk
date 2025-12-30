@@ -5,7 +5,7 @@ import { SearchAddon } from '@xterm/addon-search'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { invoke } from '@tauri-apps/api/core'
 
-import { theme } from '../../common/theme'
+import { buildTerminalTheme } from '../../common/themes/terminalTheme'
 import { logger } from '../../utils/logger'
 import { XtermAddonImporter } from './xtermAddonImporter'
 import { TauriCommands } from '../../common/tauriCommands'
@@ -26,6 +26,7 @@ export interface XtermTerminalOptions {
   config: XtermTerminalConfig
   onLinkClick?: (uri: string) => boolean | Promise<boolean>
   uiMode?: TerminalUiMode
+  theme?: TerminalTheme
 }
 
 type TerminalTheme = NonNullable<ITerminalOptions['theme']>
@@ -44,36 +45,11 @@ interface ITerminalWithCore extends XTerm {
   _core?: IXtermCore
 }
 
-function buildTheme(): TerminalTheme {
-  return {
-    background: theme.colors.background.secondary,
-    foreground: theme.colors.text.primary,
-    cursor: theme.colors.text.primary,
-    cursorAccent: theme.colors.background.secondary,
-    black: theme.colors.background.elevated,
-    red: theme.colors.accent.red.DEFAULT,
-    green: theme.colors.accent.green.DEFAULT,
-    yellow: theme.colors.accent.yellow.DEFAULT,
-    blue: theme.colors.accent.blue.DEFAULT,
-    magenta: theme.colors.accent.purple.DEFAULT,
-    cyan: theme.colors.accent.cyan.DEFAULT,
-    white: theme.colors.text.primary,
-    brightBlack: theme.colors.background.hover,
-    brightRed: theme.colors.accent.red.light,
-    brightGreen: theme.colors.accent.green.light,
-    brightYellow: theme.colors.accent.yellow.light,
-    brightBlue: theme.colors.accent.blue.light,
-    brightMagenta: theme.colors.accent.purple.light,
-    brightCyan: theme.colors.accent.cyan.light,
-    brightWhite: theme.colors.text.primary,
-  }
-}
-
 const DEFAULT_SMOOTH_SCROLL_DURATION_MS = 125
 
-function buildTerminalOptions(config: XtermTerminalConfig): ITerminalOptions {
+function buildTerminalOptions(config: XtermTerminalConfig, theme: TerminalTheme): ITerminalOptions {
   return {
-    theme: buildTheme(),
+    theme,
     fontFamily: config.fontFamily,
     fontSize: config.fontSize,
     cursorBlink: true,
@@ -119,7 +95,8 @@ export class XtermTerminal {
     this.config = options.config
     this.uiMode = options.uiMode ?? 'standard'
     this.linkHandler = options.onLinkClick ?? null
-    const resolvedOptions = buildTerminalOptions(this.config)
+    const resolvedTheme = options.theme ?? buildTerminalTheme('dark')
+    const resolvedOptions = buildTerminalOptions(this.config, resolvedTheme)
 
     this.raw = new XTerm(resolvedOptions)
     this.fitAddon = new FitAddon()

@@ -30,7 +30,6 @@ import { getActiveAgentTerminalId } from '../../common/terminalTargeting'
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
 import { logger } from '../../utils/logger'
-import { theme } from '../../common/theme'
 import { useAtom } from 'jotai'
 import { inlineSidebarDefaultPreferenceAtom } from '../../store/atoms/diffPreferences'
 import { useShortcutDisplay } from '../../keyboardShortcuts/useShortcutDisplay'
@@ -349,14 +348,14 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
   }
 
   const renderViewSourceToggle = () => (
-    <div className="flex items-center gap-1 rounded-md p-0.5" style={{ backgroundColor: theme.colors.background.secondary }}>
+    <div className="flex items-center gap-1 rounded-md p-0.5" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
       <button
         onClick={() => { setViewSource('changes'); setFileViewerPath(null) }}
         className={clsx(
           'flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors',
           viewSource === 'changes' ? 'text-slate-100' : 'text-slate-400 hover:text-slate-200'
         )}
-        style={viewSource === 'changes' ? { backgroundColor: theme.colors.background.elevated } : undefined}
+        style={viewSource === 'changes' ? { backgroundColor: 'var(--color-bg-elevated)' } : undefined}
         title="Show changed files"
       >
         <VscGitCompare className="w-3 h-3" />
@@ -368,7 +367,7 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
           'flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors',
           viewSource === 'files' ? 'text-slate-100' : 'text-slate-400 hover:text-slate-200'
         )}
-        style={viewSource === 'files' ? { backgroundColor: theme.colors.background.elevated } : undefined}
+        style={viewSource === 'files' ? { backgroundColor: 'var(--color-bg-elevated)' } : undefined}
         title="Browse all project files"
       >
         <VscFiles className="w-3 h-3" />
@@ -407,7 +406,7 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
         <div className="flex items-center gap-3">
           {viewSource === 'changes' && (
             <>
-              <label className="flex items-center gap-2 text-xs" style={{ color: theme.colors.text.secondary }}>
+              <label className="flex items-center gap-2 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
                 <input
                   type="checkbox"
                   className="rounded border-slate-600 bg-slate-900"
@@ -416,7 +415,7 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
                 />
                 <span>Open diffs inline</span>
               </label>
-              <label className="flex items-center gap-2 text-xs" style={{ color: theme.colors.text.secondary }}>
+              <label className="flex items-center gap-2 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
                 <input
                   type="checkbox"
                   className="rounded border-slate-600 bg-slate-900"

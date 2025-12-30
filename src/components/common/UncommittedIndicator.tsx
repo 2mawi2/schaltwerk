@@ -73,9 +73,9 @@ export function UncommittedIndicator({
                         top: `${tooltipPosition.top}px`,
                         left: `${tooltipPosition.left}px`,
                         transform: 'translateX(-50%)',
-                        backgroundColor: theme.colors.background.elevated,
-                        color: theme.colors.text.primary,
-                        border: `1px solid ${theme.colors.border.subtle}`,
+                        backgroundColor: 'var(--color-bg-elevated)',
+                        color: 'var(--color-text-primary)',
+                        border: '1px solid var(--color-border-subtle)',
                     }}
                 >
                     {tooltipText.split('\n').map((line, index) => (

@@ -110,6 +110,10 @@ fn default_true() -> bool {
     true
 }
 
+fn default_theme() -> String {
+    "system".to_string()
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum AttentionNotificationMode {
@@ -274,7 +278,7 @@ pub struct AgentBinaryConfigs {
     pub kilocode: Option<AgentBinaryConfig>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Settings {
     pub agent_env_vars: AgentEnvVars,
     pub agent_cli_args: AgentCliArgs,
@@ -286,6 +290,8 @@ pub struct Settings {
     pub terminal: TerminalSettings,
     #[serde(default)]
     pub font_sizes: FontSizes,
+    #[serde(default = "default_theme")]
+    pub theme: String,
     pub agent_binaries: AgentBinaryConfigs,
     pub diff_view: DiffViewPreferences,
     pub session: SessionPreferences,
@@ -303,4 +309,29 @@ pub struct Settings {
     pub last_project_parent_directory: Option<String>,
     #[serde(default)]
     pub agent_command_prefix: Option<String>,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            agent_env_vars: AgentEnvVars::default(),
+            agent_cli_args: AgentCliArgs::default(),
+            agent_initial_commands: AgentInitialCommands::default(),
+            agent_preferences: AgentPreferences::default(),
+            terminal_ui: TerminalUIPreferences::default(),
+            terminal: TerminalSettings::default(),
+            font_sizes: FontSizes::default(),
+            theme: default_theme(),
+            agent_binaries: AgentBinaryConfigs::default(),
+            diff_view: DiffViewPreferences::default(),
+            session: SessionPreferences::default(),
+            updater: UpdaterPreferences::default(),
+            keyboard_shortcuts: HashMap::new(),
+            tutorial_completed: false,
+            amp_mcp_servers: HashMap::new(),
+            dev_error_toasts_enabled: default_true(),
+            last_project_parent_directory: None,
+            agent_command_prefix: None,
+        }
+    }
 }

@@ -1,7 +1,6 @@
 import { memo, useMemo } from 'react'
 import type { ReactNode, ReactElement } from 'react'
 import type { HistoryItemViewModel } from './types'
-import { theme } from '../../common/theme'
 
 export const SWIMLANE_HEIGHT = 22
 export const SWIMLANE_WIDTH = 9
@@ -26,7 +25,7 @@ function renderGraph(viewModel: HistoryItemViewModel): ReactElement {
       ? outputSwimlanes[circleIndex].color
       : circleIndex < inputSwimlanes.length
       ? inputSwimlanes[circleIndex].color
-      : theme.colors.graph.references.default
+      : 'var(--color-graph-reference-default)'
 
   let outputSwimlaneIndex = 0
 
@@ -185,7 +184,7 @@ function renderGraph(viewModel: HistoryItemViewModel): ReactElement {
         r={CIRCLE_STROKE_WIDTH}
         stroke={circleColor}
         strokeWidth={CIRCLE_RADIUS}
-        fill={theme.colors.background.primary}
+        fill="var(--color-bg-primary)"
       />
     )
   } else if (historyItem.parentIds.length > 1) {
@@ -209,7 +208,7 @@ function renderGraph(viewModel: HistoryItemViewModel): ReactElement {
         r={CIRCLE_RADIUS - 1}
         stroke={circleColor}
         strokeWidth={CIRCLE_STROKE_WIDTH}
-        fill={theme.colors.background.primary}
+        fill="var(--color-bg-primary)"
       />
     )
   } else {

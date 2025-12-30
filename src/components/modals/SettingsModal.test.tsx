@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { vi, type Mock } from 'vitest'
 import { SettingsModal } from './SettingsModal'
+import { ModalProvider } from '../../contexts/ModalContext'
 import { defaultShortcutConfig } from '../../keyboardShortcuts/config'
 import { TauriCommands } from '../../common/tauriCommands'
 
@@ -215,10 +216,12 @@ describe('SettingsModal loading indicators', () => {
     useSettingsMock.mockReturnValue(settingsValue)
 
     render(
-      <SettingsModal
-        open={true}
-        onClose={() => {}}
-      />
+      <ModalProvider>
+        <SettingsModal
+          open={true}
+          onClose={() => {}}
+        />
+      </ModalProvider>
     )
 
     expect(await screen.findByText('Loading settings...')).toBeInTheDocument()
@@ -230,10 +233,12 @@ describe('SettingsModal loading indicators', () => {
     useSettingsMock.mockReturnValue(settingsValue)
 
     render(
-      <SettingsModal
-        open={true}
-        onClose={() => {}}
-      />
+      <ModalProvider>
+        <SettingsModal
+          open={true}
+          onClose={() => {}}
+        />
+      </ModalProvider>
     )
 
     expect(await screen.findByRole('button', { name: 'Saving...' })).toBeInTheDocument()
@@ -252,10 +257,12 @@ describe('SettingsModal loading indicators', () => {
     const user = userEvent.setup()
 
     render(
-      <SettingsModal
-        open={true}
-        onClose={() => {}}
-      />
+      <ModalProvider>
+        <SettingsModal
+          open={true}
+          onClose={() => {}}
+        />
+      </ModalProvider>
     )
 
     await user.click(await screen.findByRole('button', { name: 'Sessions' }))
@@ -279,10 +286,12 @@ describe('SettingsModal loading indicators', () => {
     const user = userEvent.setup()
 
     render(
-      <SettingsModal
-        open={true}
-        onClose={() => {}}
-      />
+      <ModalProvider>
+        <SettingsModal
+          open={true}
+          onClose={() => {}}
+        />
+      </ModalProvider>
     )
 
     await user.click(await screen.findByRole('button', { name: 'Sessions' }))
@@ -308,11 +317,13 @@ describe('SettingsModal initial tab handling', () => {
 
   it('opens the specified initial tab when provided', async () => {
     render(
-      <SettingsModal
-        open={true}
-        initialTab="projectRun"
-        onClose={() => {}}
-      />
+      <ModalProvider>
+        <SettingsModal
+          open={true}
+          initialTab="projectRun"
+          onClose={() => {}}
+        />
+      </ModalProvider>
     )
 
     const runButton = await screen.findByRole('button', { name: 'Run & Environment' })
@@ -324,10 +335,12 @@ describe('SettingsModal initial tab handling', () => {
 
   it('defaults to the project settings tab when no initial tab is provided', async () => {
     render(
-      <SettingsModal
-        open={true}
-        onClose={() => {}}
-      />
+      <ModalProvider>
+        <SettingsModal
+          open={true}
+          onClose={() => {}}
+        />
+      </ModalProvider>
     )
 
     const projectSettingsButton = await screen.findByRole('button', { name: 'Project Settings' })
@@ -339,11 +352,13 @@ describe('SettingsModal initial tab handling', () => {
 
   it('responds to changes in the initialTab prop', async () => {
     const { rerender } = render(
-      <SettingsModal
-        open={true}
-        initialTab="appearance"
-        onClose={() => {}}
-      />
+      <ModalProvider>
+        <SettingsModal
+          open={true}
+          initialTab="appearance"
+          onClose={() => {}}
+        />
+      </ModalProvider>
     )
 
     const appearanceButton = await screen.findByRole('button', { name: 'Appearance' })
@@ -352,11 +367,13 @@ describe('SettingsModal initial tab handling', () => {
     })
 
     rerender(
-      <SettingsModal
-        open={true}
-        initialTab="projectRun"
-        onClose={() => {}}
-      />
+      <ModalProvider>
+        <SettingsModal
+          open={true}
+          initialTab="projectRun"
+          onClose={() => {}}
+        />
+      </ModalProvider>
     )
 
     const runButton = await screen.findByRole('button', { name: 'Run & Environment' })
@@ -381,10 +398,12 @@ describe('SettingsModal version settings', () => {
 
   it('loads auto update preference on mount', async () => {
     render(
-      <SettingsModal
-        open={true}
-        onClose={() => {}}
-      />
+      <ModalProvider>
+        <SettingsModal
+          open={true}
+          onClose={() => {}}
+        />
+      </ModalProvider>
     )
 
     await waitFor(() => {
@@ -394,10 +413,12 @@ describe('SettingsModal version settings', () => {
 
   it('allows toggling automatic updates from the version tab', async () => {
     render(
-      <SettingsModal
-        open={true}
-        onClose={() => {}}
-      />
+      <ModalProvider>
+        <SettingsModal
+          open={true}
+          onClose={() => {}}
+        />
+      </ModalProvider>
     )
 
     await userEvent.click(await screen.findByRole('button', { name: 'Version' }))
@@ -409,10 +430,12 @@ describe('SettingsModal version settings', () => {
 
   it('invokes manual update check command', async () => {
     render(
-      <SettingsModal
-        open={true}
-        onClose={() => {}}
-      />
+      <ModalProvider>
+        <SettingsModal
+          open={true}
+          onClose={() => {}}
+        />
+      </ModalProvider>
     )
 
     await userEvent.click(await screen.findByRole('button', { name: 'Version' }))
@@ -436,10 +459,12 @@ describe('SettingsModal appearance settings', () => {
 
   it('loads dev error toast preference on mount', async () => {
     render(
-      <SettingsModal
-        open={true}
-        onClose={() => {}}
-      />
+      <ModalProvider>
+        <SettingsModal
+          open={true}
+          onClose={() => {}}
+        />
+      </ModalProvider>
     )
 
     await waitFor(() => {
@@ -449,10 +474,12 @@ describe('SettingsModal appearance settings', () => {
 
   it('persists dev error toast preference changes', async () => {
     render(
-      <SettingsModal
-        open={true}
-        onClose={() => {}}
-      />
+      <ModalProvider>
+        <SettingsModal
+          open={true}
+          onClose={() => {}}
+        />
+      </ModalProvider>
     )
 
     await waitFor(() => {
@@ -498,10 +525,12 @@ describe('SettingsModal project settings navigation', () => {
     })
 
     render(
-      <SettingsModal
-        open={true}
-        onClose={() => {}}
-      />
+      <ModalProvider>
+        <SettingsModal
+          open={true}
+          onClose={() => {}}
+        />
+      </ModalProvider>
     )
 
     const user = userEvent.setup()
@@ -527,10 +556,12 @@ describe('SettingsModal project settings navigation', () => {
     useSettingsMock.mockReturnValue(settingsValue)
 
     render(
-      <SettingsModal
-        open={true}
-        onClose={() => {}}
-      />
+      <ModalProvider>
+        <SettingsModal
+          open={true}
+          onClose={() => {}}
+        />
+      </ModalProvider>
     )
 
     await screen.findByRole('button', { name: 'Appearance' })
@@ -558,7 +589,7 @@ describe('SettingsModal project settings navigation', () => {
 
     const confirmSpy = (window.confirm as unknown as Mock).mockReturnValue(false)
 
-    render(<SettingsModal open={true} onClose={() => {}} />)
+    render(<ModalProvider><SettingsModal open={true} onClose={() => {}} /></ModalProvider>)
     const user = userEvent.setup()
 
     const projectNavButton = await screen.findByRole('button', { name: 'Project Settings' })
@@ -601,7 +632,7 @@ describe('SettingsModal project settings navigation', () => {
 
     const confirmSpy = (window.confirm as unknown as Mock).mockReturnValue(true)
 
-    render(<SettingsModal open={true} onClose={() => {}} />)
+    render(<ModalProvider><SettingsModal open={true} onClose={() => {}} /></ModalProvider>)
     const user = userEvent.setup()
 
     const projectNavButton = await screen.findByRole('button', { name: 'Project Settings' })

@@ -51,7 +51,7 @@ export const AgentTabBar: React.FC<AgentTabBarProps> = ({
                 <span
                     className="truncate max-w-[120px]"
                     style={{
-                        color: theme.colors.text.primary,
+                        color: 'var(--color-text-primary)',
                         fontFamily: theme.fontFamily.sans,
                         fontWeight: 500,
                     }}
@@ -66,9 +66,9 @@ export const AgentTabBar: React.FC<AgentTabBarProps> = ({
         <div
             data-testid="agent-tab-bar"
             style={{
-                backgroundColor: isFocused ? theme.colors.accent.blue.bg : undefined,
-                color: isFocused ? theme.colors.accent.blue.light : undefined,
-                borderBottomColor: isFocused ? theme.colors.accent.blue.border : undefined,
+                backgroundColor: isFocused ? 'var(--color-accent-blue-bg)' : undefined,
+                color: isFocused ? 'var(--color-accent-blue-light)' : undefined,
+                borderBottomColor: isFocused ? 'var(--color-accent-blue-border)' : undefined,
             }}
             className={`h-9 px-2 text-xs border-b flex items-center gap-1 overflow-hidden z-10 relative ${
                 isFocused
@@ -99,7 +99,7 @@ export const AgentTabBar: React.FC<AgentTabBarProps> = ({
                                     minWidth: '100px',
                                     maxWidth: '200px',
                                     backgroundColor: isActive
-                                        ? theme.colors.background.primary
+                                        ? 'var(--color-bg-primary)'
                                         : 'transparent',
                                 }}
                             />
@@ -159,11 +159,11 @@ export const AgentTabBar: React.FC<AgentTabBarProps> = ({
                     <span
                         style={{
                             backgroundColor: isFocused
-                                ? theme.colors.accent.blue.bg
-                                : theme.colors.background.hover,
+                                ? 'var(--color-accent-blue-bg)'
+                                : 'var(--color-bg-hover)',
                             color: isFocused
-                                ? theme.colors.accent.blue.light
-                                : theme.colors.text.tertiary,
+                                ? 'var(--color-accent-blue-light)'
+                                : 'var(--color-text-tertiary)',
                         }}
                         className="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap"
                         title={`Focus Claude (${shortcutLabel})`}

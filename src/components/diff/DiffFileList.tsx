@@ -15,7 +15,6 @@ import { ConfirmDiscardDialog } from '../common/ConfirmDiscardDialog'
 import type { ChangedFile } from '../../common/events'
 import { DiffChangeBadges } from './DiffChangeBadges'
 import { ORCHESTRATOR_SESSION_NAME } from '../../constants/sessions'
-import { theme } from '../../common/theme'
 import { useAtom, useAtomValue } from 'jotai'
 import { projectPathAtom } from '../../store/atoms/project'
 import { getErrorMessage, isSessionMissingError } from '../../types/errors'
@@ -843,7 +842,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
         {getFileIcon(node.file.change_type, node.file.path)}
         <div className="flex-1 min-w-0">
             <div className="flex items-start gap-2 justify-between">
-            <div className="text-sm truncate font-medium" style={{ color: theme.colors.text.primary }}>
+            <div className="text-sm truncate font-medium" style={{ color: 'var(--color-text-primary)' }}>
               {node.name}
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
@@ -851,8 +850,8 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
                 <span
                   className="text-xs px-1.5 py-0.5 rounded font-medium"
                   style={{
-                    backgroundColor: theme.colors.accent.blue.bg,
-                    color: theme.colors.accent.blue.light
+                    backgroundColor: 'var(--color-accent-blue-bg)',
+                    color: 'var(--color-accent-blue-light)'
                   }}
                   aria-label={`${commentCount} comments on ${node.file.path}`}
                 >
@@ -876,16 +875,16 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
             title="Open file in editor"
             aria-label={`Open ${node.file.path}`}
             className="p-1 rounded hover:bg-slate-800"
-            style={{ color: theme.colors.text.secondary }}
+            style={{ color: 'var(--color-text-secondary)' }}
             onClick={(e) => {
               e.stopPropagation()
               void openInEditor(node.file.path)
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.color = theme.colors.text.primary
+              e.currentTarget.style.color = 'var(--color-text-primary)'
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.color = theme.colors.text.secondary
+              e.currentTarget.style.color = 'var(--color-text-secondary)'
             }}
           >
             <VscGoToFile className="text-base" />
@@ -910,7 +909,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
               onChange={() => toggleSelectedForCopyContext(node.file.path)}
               onClick={(e) => e.stopPropagation()}
               className="ml-1 mt-[3px] shrink-0 w-4 h-4 opacity-60 hover:opacity-100 transition-opacity cursor-pointer"
-              style={{ accentColor: theme.colors.accent.blue.DEFAULT }}
+              style={{ accentColor: 'var(--color-accent-blue)' }}
             />
           )}
         </div>
@@ -968,9 +967,9 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
                   checked={files.length > 0 && selectedForCopyCount === files.length}
                   onChange={(e) => setAllSelectedForCopyContext(e.target.checked)}
                   className="shrink-0 w-4 h-4 opacity-70 hover:opacity-100 transition-opacity cursor-pointer"
-                  style={{ accentColor: theme.colors.accent.blue.DEFAULT }}
+                  style={{ accentColor: 'var(--color-accent-blue)' }}
                 />
-                <span style={{ color: theme.colors.text.muted }}>
+                <span style={{ color: 'var(--color-text-muted)' }}>
                   ({selectedForCopyCount}/{files.length})
                 </span>
               </label>
@@ -1012,7 +1011,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
               renderFolderContent={(folder) => {
                 if (!showCopyContextControls) {
                   return (
-                    <span className="text-xs flex-shrink-0" style={{ color: theme.colors.text.muted }}>
+                    <span className="text-xs flex-shrink-0" style={{ color: 'var(--color-text-muted)' }}>
                       ({folder.fileCount})
                     </span>
                   )
@@ -1029,7 +1028,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
 
                 return (
                   <div className="flex-1 flex items-center justify-between min-w-0">
-                    <span className="text-xs flex-shrink-0" style={{ color: theme.colors.text.muted }}>
+                    <span className="text-xs flex-shrink-0" style={{ color: 'var(--color-text-muted)' }}>
                       ({folder.fileCount})
                     </span>
                     <input
@@ -1043,7 +1042,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
                       onChange={(e) => setManySelectedForCopyContext(folderFilePaths, e.target.checked)}
                       onClick={(e) => e.stopPropagation()}
                       className="shrink-0 w-4 h-4 opacity-60 hover:opacity-100 transition-opacity cursor-pointer"
-                      style={{ accentColor: theme.colors.accent.blue.DEFAULT }}
+                      style={{ accentColor: 'var(--color-accent-blue)' }}
                     />
                   </div>
                 )

@@ -37,11 +37,11 @@ export function AddTabButton({
         width: '24px',
         height: '24px',
         backgroundColor: isHovered
-          ? theme.colors.tabs.inactive.hoverBg
+          ? 'var(--color-tab-inactive-hover-bg)'
           : 'transparent',
         color: isHovered
-          ? theme.colors.text.secondary
-          : theme.colors.text.muted,
+          ? 'var(--color-text-secondary)'
+          : 'var(--color-text-muted)',
         transition: 'background-color 150ms ease-out, color 150ms ease-out, transform 100ms ease-out',
         transform: isHovered ? 'scale(1.05)' : 'scale(1)',
       }}

@@ -35,13 +35,13 @@ export function SpecWorkspacePanel({
   const activeSpec = specs.find(s => s.info.session_id === activeTab)
 
   return (
-    <div className="h-full flex flex-col" style={{ backgroundColor: theme.colors.background.secondary }}>
+    <div className="h-full flex flex-col" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
       <div
         className="h-8 max-h-8 flex-shrink-0 flex items-center overflow-x-auto overflow-y-hidden scrollbar-hide"
         style={{
-          backgroundColor: theme.colors.background.tertiary,
-          borderBottom: `1px solid ${theme.colors.border.subtle}`,
-          boxShadow: `inset 0 -1px 0 ${theme.colors.border.default}`,
+          backgroundColor: 'var(--color-bg-tertiary)',
+          borderBottom: '1px solid var(--color-border-subtle)',
+          boxShadow: 'inset 0 -1px 0 var(--color-border-default)',
         }}
       >
         <button
@@ -49,9 +49,9 @@ export function SpecWorkspacePanel({
           className="flex items-center justify-center shrink-0 cursor-pointer h-full"
           style={{
             width: '32px',
-            color: theme.colors.text.tertiary,
+            color: 'var(--color-text-tertiary)',
             backgroundColor: 'transparent',
-            borderRight: `1px solid ${theme.colors.border.subtle}`
+            borderRight: '1px solid var(--color-border-subtle)'
           }}
           title="Open spec"
         >
@@ -86,8 +86,8 @@ export function SpecWorkspacePanel({
                   style={{
                     ...typography.caption,
                     lineHeight: theme.lineHeight.compact,
-                    backgroundColor: theme.colors.accent.amber.bg,
-                    color: theme.colors.accent.amber.DEFAULT,
+                    backgroundColor: 'var(--color-accent-amber-bg)',
+                    color: 'var(--color-accent-amber)',
                     padding: '0 4px',
                     borderRadius: '4px'
                   }}
@@ -111,15 +111,15 @@ export function SpecWorkspacePanel({
         ) : (
           <div
             className="h-full flex flex-col items-center justify-center gap-4"
-            style={{ color: theme.colors.text.tertiary }}
+            style={{ color: 'var(--color-text-tertiary)' }}
           >
             <p style={{ fontSize: theme.fontSize.body }}>No spec selected</p>
             <button
               onClick={onOpenPicker}
               className="px-4 py-2 rounded transition-colors"
               style={{
-                backgroundColor: theme.colors.background.elevated,
-                color: theme.colors.text.primary,
+                backgroundColor: 'var(--color-bg-elevated)',
+                color: 'var(--color-text-primary)',
                 fontSize: theme.fontSize.button
               }}
             >

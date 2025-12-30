@@ -9,7 +9,6 @@ import {
   getHomeContainerStyles,
   LAYOUT_CONSTANTS
 } from '../../constants/layout'
-import { theme } from '../../common/theme'
 import { formatDateTime } from '../../utils/dateTime'
 import { detectPlatformSafe } from '../../keyboardShortcuts/helpers'
 import { useRecentProjects } from '../../hooks/useRecentProjects'
@@ -106,7 +105,7 @@ export function HomeScreen({ onOpenProject, initialError, onClearInitialError }:
   return (
     <div
       className="w-full"
-      style={{ backgroundColor: theme.colors.background.primary }}
+      style={{ backgroundColor: 'var(--color-bg-primary)' }}
     >
       <div style={getHomeContainerStyles()}>
         <div style={getHomeLogoPositionStyles()}>
@@ -138,9 +137,9 @@ export function HomeScreen({ onOpenProject, initialError, onClearInitialError }:
               onClick={() => { void handleSelectDirectory() }}
               className="py-4 px-6 rounded-lg flex items-center justify-center gap-3 group"
               style={{
-                backgroundColor: theme.colors.accent.blue.bg,
-                border: `1px solid ${theme.colors.accent.blue.border}`,
-                color: theme.colors.accent.blue.DEFAULT
+                backgroundColor: 'var(--color-accent-blue-bg)',
+                border: '1px solid var(--color-accent-blue-border)',
+                color: 'var(--color-accent-blue)'
               }}
             >
               <VscFolderOpened className="text-2xl" />
@@ -150,9 +149,9 @@ export function HomeScreen({ onOpenProject, initialError, onClearInitialError }:
               onClick={() => setShowCloneDialog(true)}
               className="py-4 px-6 rounded-lg flex items-center justify-center gap-3 group"
               style={{
-                backgroundColor: theme.colors.accent.purple.bg,
-                border: `1px solid ${theme.colors.accent.purple.border}`,
-                color: theme.colors.accent.purple.DEFAULT
+                backgroundColor: 'var(--color-accent-purple-bg)',
+                border: '1px solid var(--color-accent-purple-border)',
+                color: 'var(--color-accent-purple)'
               }}
             >
               <VscRepoClone className="text-2xl" />
@@ -191,10 +190,10 @@ export function HomeScreen({ onOpenProject, initialError, onClearInitialError }:
                         <VscFolderOpened
                           className="transition-colors text-lg flex-shrink-0 mt-0.5"
                           style={{
-                            color: theme.colors.text.muted,
+                            color: 'var(--color-text-muted)',
                           }}
-                          onMouseEnter={(e) => { e.currentTarget.style.color = theme.colors.accent.blue.DEFAULT }}
-                          onMouseLeave={(e) => { e.currentTarget.style.color = theme.colors.text.muted }}
+                          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-accent-blue)' }}
+                          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-muted)' }}
                         />
                         <div className="flex-1 min-w-0 pr-8">
                           <h3 className="text-slate-200 font-medium truncate text-sm">

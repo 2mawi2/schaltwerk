@@ -5,7 +5,6 @@ import { VscRefresh } from 'react-icons/vsc'
 import { theme } from '../../common/theme'
 import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
 import { useToast } from '../../common/toast/ToastProvider'
-import { withOpacity } from '../../common/colorUtils'
 import { logger } from '../../utils/logger'
 
 interface GithubMenuButtonProps {
@@ -14,15 +13,15 @@ interface GithubMenuButtonProps {
 }
 
 const menuContainerStyle: CSSProperties = {
-  backgroundColor: theme.colors.background.elevated,
-  border: `1px solid ${theme.colors.border.subtle}`,
-  boxShadow: `0 12px 24px ${withOpacity(theme.colors.background.primary, 0.45)}`,
+  backgroundColor: 'var(--color-bg-elevated)',
+  border: '1px solid var(--color-border-subtle)',
+  boxShadow: '0 12px 24px rgba(var(--color-bg-primary-rgb), 0.45)',
 }
 
 const dividerStyle: CSSProperties = {
   height: 1,
   width: '100%',
-  backgroundColor: theme.colors.border.subtle,
+  backgroundColor: 'var(--color-border-subtle)',
   opacity: 0.6,
 }
 
@@ -66,14 +65,14 @@ export function GithubMenuButton({ className, hasActiveProject = false }: Github
   const indicatorColor = useMemo(() => {
     switch (overallState) {
       case 'connected':
-        return theme.colors.accent.green.DEFAULT
+        return 'var(--color-accent-green)'
       case 'disconnected':
-        return theme.colors.accent.blue.DEFAULT
+        return 'var(--color-accent-blue)'
       case 'unauthenticated':
-        return theme.colors.accent.amber.DEFAULT
+        return 'var(--color-accent-amber)'
       case 'missing':
       default:
-        return theme.colors.accent.red.DEFAULT
+        return 'var(--color-accent-red)'
     }
   }, [overallState])
 
@@ -141,9 +140,9 @@ export function GithubMenuButton({ className, hasActiveProject = false }: Github
       const isHovered = hoveredButton === key && !disabled
       const isFocused = focusedButton === key && !disabled
       return {
-        backgroundColor: isHovered ? theme.colors.background.hover : theme.colors.background.secondary,
-        borderColor: (isHovered || isFocused) ? theme.colors.border.focus : theme.colors.border.subtle,
-        color: disabled ? theme.colors.text.muted : theme.colors.text.primary,
+        backgroundColor: isHovered ? 'var(--color-bg-active)' : 'var(--color-bg-tertiary)',
+        borderColor: (isHovered || isFocused) ? 'var(--color-border-focus)' : 'var(--color-border-default)',
+        color: disabled ? 'var(--color-text-muted)' : 'var(--color-text-primary)',
         cursor: disabled ? 'not-allowed' : 'pointer',
         fontSize: theme.fontSize.button,
         fontWeight: 500,
@@ -156,7 +155,7 @@ export function GithubMenuButton({ className, hasActiveProject = false }: Github
         alignItems: 'center',
         gap: 10,
         transition: 'background-color 120ms ease, border-color 120ms ease, color 120ms ease',
-        boxShadow: isFocused ? `0 0 0 2px ${withOpacity(theme.colors.border.focus, 0.45)}` : 'none',
+        boxShadow: isFocused ? '0 0 0 2px rgba(var(--color-border-focus-rgb), 0.45)' : 'none',
       }
     },
     [focusedButton, hoveredButton]
@@ -175,9 +174,9 @@ export function GithubMenuButton({ className, hasActiveProject = false }: Github
         type="button"
         className="flex items-center gap-2 px-2 h-[22px] border rounded-md text-xs"
         style={{
-          backgroundColor: theme.colors.background.elevated,
-          borderColor: theme.colors.border.subtle,
-          color: theme.colors.text.primary,
+          backgroundColor: 'var(--color-bg-elevated)',
+          borderColor: 'var(--color-border-subtle)',
+          color: 'var(--color-text-primary)',
         }}
         disabled={busy}
         onClick={() => setOpen((value) => !value)}
@@ -205,10 +204,10 @@ export function GithubMenuButton({ className, hasActiveProject = false }: Github
           className="absolute right-0 mt-2 min-w-[240px] z-30 rounded-lg overflow-hidden"
           style={menuContainerStyle}
         >
-          <div className="px-3 py-2 text-xs" style={{ color: theme.colors.text.secondary }}>
+          <div className="px-3 py-2 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
             <div className="flex items-center gap-2">
               <FaGithub className="text-[14px]" />
-              <span style={{ color: theme.colors.text.primary }}>GitHub CLI</span>
+              <span style={{ color: 'var(--color-text-primary)' }}>GitHub CLI</span>
             </div>
             <div className="mt-2 space-y-1">
               <div>Installed: <strong>{installed ? 'Yes' : 'No'}</strong></div>
@@ -216,7 +215,7 @@ export function GithubMenuButton({ className, hasActiveProject = false }: Github
               {repository ? (
                 <div>
                   Repository: <strong>{repository.nameWithOwner}</strong>
-                  <div className="text-[11px]" style={{ color: theme.colors.text.muted }}>
+                  <div className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
                     Default branch {repository.defaultBranch}
                   </div>
                 </div>
@@ -228,16 +227,16 @@ export function GithubMenuButton({ className, hasActiveProject = false }: Github
               )}
             </div>
             {!installed && (
-              <div className="mt-3 pt-2 border-t" style={{ borderColor: theme.colors.border.subtle }}>
-                <div className="text-[11px]" style={{ color: theme.colors.text.muted }}>
+              <div className="mt-3 pt-2 border-t" style={{ borderColor: 'var(--color-border-subtle)' }}>
+                <div className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
                   Install the GitHub CLI to enable PR automation.
                 </div>
               </div>
             )}
             {installed && !authenticated && (
-              <div className="mt-3 pt-2 border-t" style={{ borderColor: theme.colors.border.subtle }}>
-                <div className="text-[11px]" style={{ color: theme.colors.text.muted }}>
-                  To authenticate, run <code className="px-1 py-0.5 rounded" style={{ backgroundColor: theme.colors.background.hover }}>gh auth login</code> in your terminal, then refresh status.
+              <div className="mt-3 pt-2 border-t" style={{ borderColor: 'var(--color-border-subtle)' }}>
+                <div className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+                  To authenticate, run <code className="px-1 py-0.5 rounded" style={{ backgroundColor: 'var(--color-bg-hover)' }}>gh auth login</code> in your terminal, then refresh status.
                 </div>
               </div>
             )}

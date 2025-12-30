@@ -17,7 +17,12 @@ interface SpecReviewEditorProps {
   className?: string
 }
 
-const editorColors = theme.colors.editor
+const editorColors = {
+  background: 'var(--color-editor-background)',
+  text: 'var(--color-editor-text)',
+  gutterText: 'var(--color-editor-gutter-text)',
+  gutterActiveText: 'var(--color-editor-gutter-active-text)',
+}
 
 const customTheme = EditorView.theme({
   '&': {
@@ -52,13 +57,13 @@ const customTheme = EditorView.theme({
     cursor: 'pointer',
   },
   '.cm-line:hover': {
-    backgroundColor: `${theme.colors.background.elevated}`,
+    backgroundColor: 'var(--color-bg-elevated)',
   },
   '.cm-gutters': {
     backgroundColor: editorColors.background,
     color: editorColors.gutterText,
     border: 'none',
-    borderRight: `1px solid ${theme.colors.border.subtle}`,
+    borderRight: '1px solid var(--color-border-subtle)',
     cursor: 'pointer',
   },
   '.cm-lineNumbers .cm-gutterElement': {
@@ -67,7 +72,7 @@ const customTheme = EditorView.theme({
     textAlign: 'right',
   },
   '.cm-lineNumbers .cm-gutterElement:hover': {
-    backgroundColor: `${theme.colors.background.elevated}`,
+    backgroundColor: 'var(--color-bg-elevated)',
     color: editorColors.gutterActiveText,
   },
   '.cm-selectionBackground': {
@@ -77,10 +82,10 @@ const customTheme = EditorView.theme({
     backgroundColor: 'transparent !important',
   },
   '.cm-selected-line': {
-    backgroundColor: `${theme.colors.accent.cyan.bg} !important`,
+    backgroundColor: 'var(--color-accent-cyan-bg) !important',
   },
   '.cm-selected-line:hover': {
-    backgroundColor: `${theme.colors.accent.cyan.light}33 !important`,
+    backgroundColor: 'rgba(var(--color-accent-cyan-rgb), 0.2) !important',
   },
 }, { dark: true })
 

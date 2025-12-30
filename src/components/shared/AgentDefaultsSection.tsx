@@ -1,6 +1,5 @@
 import { useMemo, useState, useRef } from 'react'
 import type { CSSProperties } from 'react'
-import { theme } from '../../common/theme'
 import { AgentType } from '../../types/session'
 import { AgentEnvVar, displayNameForAgent } from './agentDefaults'
 
@@ -30,11 +29,11 @@ export function AgentDefaultsSection({
     const [advancedOpen, setAdvancedOpen] = useState(false)
     const cliArgsRef = useRef<HTMLTextAreaElement | null>(null)
     const buttonStyleVars = useMemo(() => ({
-        '--agent-advanced-btn-bg': theme.colors.background.elevated,
-        '--agent-advanced-btn-hover': theme.colors.background.hover,
-        '--agent-advanced-btn-text': theme.colors.text.secondary,
-        '--agent-advanced-btn-text-hover': theme.colors.text.primary,
-        '--agent-advanced-btn-border': theme.colors.border.subtle,
+        '--agent-advanced-btn-bg': 'var(--color-bg-elevated)',
+        '--agent-advanced-btn-hover': 'var(--color-bg-hover)',
+        '--agent-advanced-btn-text': 'var(--color-text-secondary)',
+        '--agent-advanced-btn-text-hover': 'var(--color-text-primary)',
+        '--agent-advanced-btn-border': 'var(--color-border-subtle)',
     }) as CSSProperties, [])
 
     const buttonClasses = 'inline-flex items-center justify-center h-8 px-3 rounded-md border text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-[color:var(--agent-advanced-btn-bg)] text-[color:var(--agent-advanced-btn-text)] border-[color:var(--agent-advanced-btn-border)] hover:bg-[color:var(--agent-advanced-btn-hover)] hover:text-[color:var(--agent-advanced-btn-text-hover)] focus:outline-none focus:ring-1 focus:ring-[color:var(--agent-advanced-btn-border)] focus:ring-offset-0'
@@ -178,8 +177,8 @@ export function AgentDefaultsSection({
                             <div
                                 className="rounded border mt-3"
                                 style={{
-                                    borderColor: theme.colors.border.subtle,
-                                    backgroundColor: theme.colors.background.elevated,
+                                    borderColor: 'var(--color-border-subtle)',
+                                    backgroundColor: 'var(--color-bg-elevated)',
                                 }}
                             >
                                 <div

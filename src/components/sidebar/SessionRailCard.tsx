@@ -71,7 +71,7 @@ export const SessionRailCard = memo<SessionRailCardProps>(function SessionRailCa
   const additions = info.diff_stats?.insertions || info.diff_stats?.additions || 0
   const deletions = info.diff_stats?.deletions || 0
 
-  const surfaceClasses = getSessionCardSurfaceClasses({
+  const surface = getSessionCardSurfaceClasses({
     sessionState,
     isSelected,
     isReviewedState: sessionState === 'reviewed',
@@ -90,9 +90,10 @@ export const SessionRailCard = memo<SessionRailCardProps>(function SessionRailCa
       className={clsx(
         'group relative w-full rounded-md mb-1 border transition-all duration-200',
         'flex flex-col items-center gap-1.5 px-1.5 py-1.5',
-        surfaceClasses,
+        surface.className,
         'cursor-pointer'
       )}
+      style={surface.style}
       onClick={() => onSelect(info.session_id)}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -106,8 +107,11 @@ export const SessionRailCard = memo<SessionRailCardProps>(function SessionRailCa
         <div className="flex items-center justify-center w-full">
           {shortcutLabel && (
             <span
-              className="text-[11px] px-1.5 py-0.5 rounded bg-slate-700/60"
-              style={{ color: theme.colors.text.secondary }}
+              className="text-[11px] px-1.5 py-0.5 rounded"
+              style={{
+                color: 'var(--color-text-secondary)',
+                backgroundColor: 'rgba(var(--color-bg-hover-rgb), 0.6)',
+              }}
             >
               {shortcutLabel}
             </span>
@@ -124,7 +128,7 @@ export const SessionRailCard = memo<SessionRailCardProps>(function SessionRailCa
               lineHeight: theme.lineHeight.compact,
               fontFamily: theme.fontFamily.sans,
               fontWeight: 600,
-              color: theme.colors.accent.yellow.light
+              color: 'var(--color-accent-yellow-light)'
             }}
             title="Idle"
           >
@@ -134,14 +138,14 @@ export const SessionRailCard = memo<SessionRailCardProps>(function SessionRailCa
           {!isRunningState && !isIdle && stateLabel === SessionState.Spec && (
             <span
               className="block w-1.5 h-1.5 rounded-full"
-              style={{ backgroundColor: theme.colors.accent.yellow.DEFAULT }}
+              style={{ backgroundColor: 'var(--color-accent-yellow)' }}
               title="Spec"
             />
           )}
           {!isRunningState && !isIdle && stateLabel === SessionState.Reviewed && (
             <span
               className="font-bold"
-              style={{ color: theme.colors.accent.green.light, fontSize: theme.fontSize.caption }}
+              style={{ color: 'var(--color-accent-green-light)', fontSize: theme.fontSize.caption }}
               title="Ready"
             >
               ✓
@@ -150,7 +154,7 @@ export const SessionRailCard = memo<SessionRailCardProps>(function SessionRailCa
           {!isRunningState && !isIdle && stateLabel === SessionState.Running && (
             <span
               className="block w-1 h-1 rounded-full opacity-40"
-              style={{ backgroundColor: theme.colors.text.tertiary }}
+              style={{ backgroundColor: 'var(--color-text-tertiary)' }}
               title="Idle"
             />
           )}
@@ -159,10 +163,10 @@ export const SessionRailCard = memo<SessionRailCardProps>(function SessionRailCa
         {/* Diff summary */}
         <div
           className="flex flex-col items-center justify-center gap-0.8 w-full"
-          style={{ ...typography.caption, fontSize: theme.fontSize.label, color: theme.colors.text.secondary }}
+          style={{ ...typography.caption, fontSize: theme.fontSize.label, color: 'var(--color-text-secondary)' }}
         >
-          <span style={{ color: theme.colors.accent.green.light }}>+{additions}</span>
-          <span style={{ color: theme.colors.accent.red.light }}>-{deletions}</span>
+          <span style={{ color: 'var(--color-accent-green-light)' }}>+{additions}</span>
+          <span style={{ color: 'var(--color-accent-red-light)' }}>-{deletions}</span>
         </div>
 
         {/* No branch/name text in rail */}

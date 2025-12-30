@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import clsx from 'clsx';
-import { theme } from '../../common/theme';
 
 interface IconButtonProps {
   icon: React.ReactNode;
@@ -68,23 +67,53 @@ export function IconButton({
     }
   };
 
-  // Match existing button styles from the app
-  const getButtonClasses = () => {
-    if (disabled) {
-      return 'opacity-50 cursor-not-allowed';
-    }
+  const getButtonTokens = () => {
+    const base = {
+      bg: 'rgba(var(--color-bg-hover-rgb), 0.6)',
+      hoverBg: 'rgba(var(--color-bg-hover-rgb), 0.8)',
+      text: 'var(--color-text-secondary)',
+      border: 'rgba(var(--color-border-subtle-rgb), 0.6)',
+      hoverBorder: 'rgba(var(--color-border-strong-rgb), 0.7)',
+    };
 
     switch (variant) {
       case 'success':
-        return 'bg-green-800/60 hover:bg-green-700/60 text-green-300';
+        return {
+          bg: 'rgba(var(--color-accent-green-rgb), 0.16)',
+          hoverBg: 'rgba(var(--color-accent-green-rgb), 0.24)',
+          text: 'var(--color-accent-green-light)',
+          border: 'rgba(var(--color-accent-green-rgb), 0.35)',
+          hoverBorder: 'rgba(var(--color-accent-green-rgb), 0.5)',
+        };
       case 'danger':
-        return 'bg-red-800/60 hover:bg-red-700/60 text-red-300';
+        return {
+          bg: 'rgba(var(--color-accent-red-rgb), 0.16)',
+          hoverBg: 'rgba(var(--color-accent-red-rgb), 0.24)',
+          text: 'var(--color-accent-red-light)',
+          border: 'rgba(var(--color-accent-red-rgb), 0.35)',
+          hoverBorder: 'rgba(var(--color-accent-red-rgb), 0.5)',
+        };
       case 'warning':
-        return 'bg-yellow-800/60 hover:bg-yellow-700/60 text-yellow-300';
+        return {
+          bg: 'rgba(var(--color-accent-amber-rgb), 0.18)',
+          hoverBg: 'rgba(var(--color-accent-amber-rgb), 0.26)',
+          text: 'var(--color-accent-amber-light)',
+          border: 'rgba(var(--color-accent-amber-rgb), 0.35)',
+          hoverBorder: 'rgba(var(--color-accent-amber-rgb), 0.5)',
+        };
       default:
-        return 'bg-slate-700/60 hover:bg-slate-600/60 text-slate-300';
+        return base;
     }
   };
+
+  const tokens = getButtonTokens();
+  const buttonStyle = {
+    '--icon-button-bg': tokens.bg,
+    '--icon-button-hover-bg': tokens.hoverBg,
+    '--icon-button-text': tokens.text,
+    '--icon-button-border': tokens.border,
+    '--icon-button-hover-border': tokens.hoverBorder,
+  } as React.CSSProperties;
 
   const portalTarget = typeof document === 'undefined' ? null : document.body;
 
@@ -100,13 +129,16 @@ export function IconButton({
         aria-pressed={ariaPressed}
         className={clsx(
           'inline-flex items-center justify-center',
-          'px-1.5 py-1 rounded',
+          'px-1.5 py-1 rounded border',
           'transition-colors duration-150', // Smooth color transitions only
           'text-[12px]', // Medium text size for better visibility
-          getButtonClasses(),
+          'bg-[var(--icon-button-bg)] text-[var(--icon-button-text)] border-[var(--icon-button-border)]',
+          !disabled && 'hover:bg-[var(--icon-button-hover-bg)] hover:border-[var(--icon-button-hover-border)]',
+          disabled && 'opacity-50 cursor-not-allowed',
           !disabled && 'cursor-pointer',
           className
         )}
+        style={buttonStyle}
         title={tooltip ? undefined : ariaLabel}
       >
         <span className="w-4 h-4 flex items-center justify-center">
@@ -125,9 +157,9 @@ export function IconButton({
               top: `${tooltipPosition.top}px`,
               left: `${tooltipPosition.left}px`,
               transform: 'translateX(-50%)',
-              backgroundColor: theme.colors.background.elevated,
-              color: theme.colors.text.primary,
-              border: `1px solid ${theme.colors.border.subtle}`,
+              backgroundColor: 'var(--color-bg-elevated)',
+              color: 'var(--color-text-primary)',
+              border: '1px solid var(--color-border-subtle)',
               animation: 'fadeIn 150ms ease-out',
             }}
           >

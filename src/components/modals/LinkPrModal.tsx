@@ -1,7 +1,6 @@
 import { useEffect, useCallback, useState } from 'react'
 import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
 import { useGithubPrSearch } from '../../hooks/useGithubPrSearch'
-import { theme } from '../../common/theme'
 import type { GithubPrSummary } from '../../types/githubIssues'
 import { formatRelativeDate } from '../../utils/time'
 import { buildPrUrl } from '../../utils/githubUrls'
@@ -94,7 +93,7 @@ export function LinkPrModal({
             <div className="flex flex-col items-center justify-center gap-2 py-8 text-sm text-slate-400">
               <span
                 className="h-4 w-4 rounded-full border-2 border-t-transparent animate-spin"
-                style={{ borderColor: theme.colors.accent.blue.DEFAULT }}
+                style={{ borderColor: 'var(--color-accent-blue)' }}
               />
               Loading pull requests…
             </div>
@@ -110,12 +109,12 @@ export function LinkPrModal({
               {results.map(pr => {
                 const isHovered = hoveredPr === pr.number
                 const state = pr.state.toLowerCase()
-                const statusTheme =
+                const statusTone =
                   state === 'open'
-                    ? theme.colors.accent.green
+                    ? 'green'
                     : state === 'merged'
-                      ? theme.colors.accent.violet
-                      : theme.colors.accent.red
+                      ? 'violet'
+                      : 'red'
 
                 return (
                   <li key={pr.number}>
@@ -126,15 +125,15 @@ export function LinkPrModal({
                       onMouseLeave={() => setHoveredPr(null)}
                       className="w-full text-left px-3 py-2 rounded-md transition-colors"
                       style={{
-                        backgroundColor: isHovered ? theme.colors.background.hover : 'transparent',
+                        backgroundColor: isHovered ? 'var(--color-bg-hover)' : 'transparent',
                       }}
                     >
                       <div className="flex items-start gap-2">
                         <span
                           className="shrink-0 mt-1 text-xs font-medium px-1.5 py-0.5 rounded"
                           style={{
-                            backgroundColor: statusTheme.bg,
-                            color: statusTheme.DEFAULT,
+                            backgroundColor: `var(--color-accent-${statusTone}-bg)`,
+                            color: `var(--color-accent-${statusTone})`,
                           }}
                         >
                           {state.charAt(0).toUpperCase() + state.slice(1)}

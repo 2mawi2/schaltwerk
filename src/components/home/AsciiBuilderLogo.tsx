@@ -1,6 +1,4 @@
 import { useEffect, useMemo, useRef } from 'react'
-import { theme } from '../../common/theme'
-import { withOpacity } from '../../common/colorUtils'
 
 interface AsciiBuilderLogoProps {
   asciiArt?: string
@@ -738,17 +736,17 @@ export function AsciiBuilderLogo({
     : colorClassName
 
   const colorStyle = useGradientText ? {
-    backgroundImage: `linear-gradient(to right, ${theme.colors.accent.cyan.DEFAULT}, ${theme.colors.accent.blue.DEFAULT}, ${theme.colors.accent.cyan.DEFAULT})`
+    backgroundImage: 'linear-gradient(to right, var(--color-accent-cyan), var(--color-accent-blue), var(--color-accent-cyan))'
   } : {
-    color: theme.colors.accent.cyan.DEFAULT
+    color: 'var(--color-accent-cyan)'
   }
 
-  const primaryGlow = theme.colors.accent.blue.DEFAULT
+  const primaryGlow = 'var(--color-accent-blue-rgb)'
   const textShadow =
     glow === 'soft'
-      ? `0 0 10px ${withOpacity(primaryGlow, 0.35)}, 0 0 22px ${withOpacity(primaryGlow, 0.2)}`
+      ? `0 0 10px rgba(${primaryGlow}, 0.35), 0 0 22px rgba(${primaryGlow}, 0.2)`
       : glow === 'subtle'
-      ? `0 0 6px ${withOpacity(primaryGlow, 0.25)}`
+      ? `0 0 6px rgba(${primaryGlow}, 0.25)`
       : 'none'
 
   const defaultTextSizeClasses = 'text-[10px] sm:text-xs md:text-sm lg:text-base xl:text-lg 2xl:text-xl'

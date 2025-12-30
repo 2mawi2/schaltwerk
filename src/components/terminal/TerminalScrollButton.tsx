@@ -1,7 +1,5 @@
 import { memo, useState } from 'react'
 import { VscArrowDown } from 'react-icons/vsc'
-import { theme } from '../../common/theme'
-import { withOpacity } from '../../common/colorUtils'
 
 interface TerminalScrollButtonProps {
     visible: boolean
@@ -28,12 +26,12 @@ export const TerminalScrollButton = memo(({ visible, onClick }: TerminalScrollBu
             `}
             style={{
                 backgroundColor: isHovered 
-                    ? theme.colors.background.elevated 
-                    : withOpacity(theme.colors.background.elevated, 0.6),
-                borderColor: theme.colors.border.subtle,
+                    ? 'var(--color-bg-elevated)' 
+                    : 'rgba(var(--color-bg-elevated-rgb), 0.6)',
+                borderColor: 'var(--color-border-subtle)',
                 color: isHovered 
-                    ? theme.colors.text.primary 
-                    : theme.colors.text.tertiary,
+                    ? 'var(--color-text-primary)' 
+                    : 'var(--color-text-tertiary)',
             }}
             title="Scroll to bottom"
             aria-label="Scroll to bottom"

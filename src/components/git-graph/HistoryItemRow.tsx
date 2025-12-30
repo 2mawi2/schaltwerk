@@ -5,7 +5,6 @@ import type { HistoryItemViewModel, HistoryItem, CommitDetailState } from './typ
 import { GitGraphRow, SWIMLANE_WIDTH } from './GitGraphRow'
 import { groupReferences } from './refGrouping'
 import { theme } from '../../common/theme'
-import { withOpacity } from '../../common/colorUtils'
 import { getFileIcon } from '../../utils/fileIcons'
 
 interface HistoryItemRowProps {
@@ -41,8 +40,8 @@ function renderReferences(references: ReturnType<typeof groupReferences>) {
     <div className="flex gap-1 items-center ml-1 flex-shrink-0">
       {references.map((ref, index) => {
         const hasColor = ref.color !== undefined
-        const backgroundColor = hasColor ? ref.color : theme.colors.overlay.light
-        const textColor = hasColor ? theme.colors.text.primary : theme.colors.text.secondary
+        const backgroundColor = hasColor ? ref.color : 'var(--color-overlay-light)'
+        const textColor = hasColor ? 'var(--color-text-primary)' : 'var(--color-text-secondary)'
         const showCount = ref.count !== undefined && ref.count > 1
         const showIcon = ref.showIconOnly || (ref.count !== undefined && ref.count >= 1) || ref.icon === 'tag'
 
@@ -57,7 +56,7 @@ function renderReferences(references: ReturnType<typeof groupReferences>) {
               fontSize: theme.fontSize.body,
               lineHeight: '1.3em',
               fontWeight: 600,
-              textShadow: `0 1px 3px ${withOpacity(theme.colors.text.inverse, 0.5)}, 0 0 1px ${withOpacity(theme.colors.text.inverse, 0.3)}`,
+              textShadow: '0 1px 3px rgba(var(--color-text-inverse-rgb), 0.5), 0 0 1px rgba(var(--color-text-inverse-rgb), 0.3)',
               paddingLeft: showIcon || !ref.showDescription ? '0.3em' : '0.45em',
               paddingRight: ref.showDescription || showIcon ? '0.3em' : '0.45em'
             }}
@@ -137,8 +136,8 @@ export const HistoryItemRow = memo(({ viewModel, isSelected, onSelect, onContext
   const detailContainerRef = useRef<HTMLDivElement | null>(null)
   const [detailHeight, setDetailHeight] = useState(0)
 
-  const selectedRowBackground = withOpacity(theme.colors.accent.blue.DEFAULT, 0.25)
-  const currentRowBackground = withOpacity(theme.colors.palette.blue[700], 0.4)
+  const selectedRowBackground = 'rgba(var(--color-accent-blue-rgb), 0.25)'
+  const currentRowBackground = 'rgba(var(--color-blue-700-rgb), 0.4)'
 
   const rowBgColor = isSelected
     ? selectedRowBackground
@@ -148,7 +147,7 @@ export const HistoryItemRow = memo(({ viewModel, isSelected, onSelect, onContext
 
   const headerStyles: CSSProperties & Record<'--hover-bg', string> = {
     backgroundColor: rowBgColor,
-    '--hover-bg': isSelected || isCurrent ? rowBgColor : theme.colors.background.secondary,
+    '--hover-bg': isSelected || isCurrent ? rowBgColor : 'var(--color-bg-secondary)',
     cursor: 'pointer'
   }
 
@@ -269,7 +268,7 @@ export const HistoryItemRow = memo(({ viewModel, isSelected, onSelect, onContext
               style={{
                 minHeight: detailItemHeight,
                 height: detailItemHeight,
-                '--hover-bg': theme.colors.background.secondary,
+                '--hover-bg': 'var(--color-bg-secondary)',
               } as CSSProperties}
               role="button"
               tabIndex={0}

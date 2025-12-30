@@ -121,6 +121,15 @@ impl SettingsService {
         self.save()
     }
 
+    pub fn get_theme(&self) -> String {
+        self.settings.theme.clone()
+    }
+
+    pub fn set_theme(&mut self, theme: &str) -> Result<(), SettingsServiceError> {
+        self.settings.theme = theme.to_string();
+        self.save()
+    }
+
     pub fn get_agent_cli_args(&self, agent_type: &str) -> String {
         if agent_type == "terminal" {
             return String::new();
@@ -689,6 +698,28 @@ mod tests {
         assert_eq!(service.get_font_sizes(), (16, 15));
         assert_eq!(repo_handle.snapshot().font_sizes.terminal, 16);
         assert_eq!(repo_handle.snapshot().font_sizes.ui, 15);
+    }
+
+    #[test]
+    fn theme_defaults_to_system() {
+        let repo = InMemoryRepository::default();
+        let service = SettingsService::new(Box::new(repo));
+
+        assert_eq!(service.get_theme(), "system");
+    }
+
+    #[test]
+    fn set_theme_persists_value() {
+        let repo = InMemoryRepository::default();
+        let repo_handle = repo.clone();
+        let mut service = SettingsService::new(Box::new(repo));
+
+        service
+            .set_theme("dark")
+            .expect("should persist theme selection");
+
+        assert_eq!(service.get_theme(), "dark");
+        assert_eq!(repo_handle.snapshot().theme, "dark");
     }
 
     #[test]

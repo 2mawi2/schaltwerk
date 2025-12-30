@@ -1,4 +1,4 @@
-import { memo, useCallback } from "react";
+import { memo, useCallback, type CSSProperties } from "react";
 import { clsx } from "clsx";
 import { SessionActions } from "../session/SessionActions";
 import { SessionInfo, SessionMonitorStatus } from "../../types/session";
@@ -78,6 +78,17 @@ type SessionCardSurfaceOptions = {
   isPromotionPreview?: boolean
 }
 
+type SessionCardSurface = {
+  className: string
+  style: SessionCardSurfaceStyle
+}
+
+type SessionCardSurfaceStyle = CSSProperties & {
+  '--session-card-bg'?: string
+  '--session-card-hover-bg'?: string
+  '--session-card-border'?: string
+}
+
 export function getSessionCardSurfaceClasses({
   sessionState,
   isSelected,
@@ -86,28 +97,56 @@ export function getSessionCardSurfaceClasses({
   hasFollowUpMessage,
   willBeDeleted,
   isPromotionPreview,
-}: SessionCardSurfaceOptions) {
-  const baseTone = (() => {
-    if (willBeDeleted) {
-      return "border-red-600/50 bg-red-950/20 opacity-30 transition-all duration-200";
-    }
-    if (isPromotionPreview) {
-      return "session-ring session-ring-green border-transparent shadow-lg shadow-green-400/20";
-    }
-    if (isSelected) return "session-ring session-ring-blue border-transparent";
-    if (isReviewedState) return "session-ring session-ring-green border-transparent opacity-90";
-    if (sessionState === "running") return "border-slate-700 bg-slate-800/50 hover:bg-slate-800/60";
-    if (sessionState === "spec") return "border-slate-800 bg-slate-900/30 hover:bg-slate-800/30 opacity-85";
-    return "border-slate-800 bg-slate-900/40 hover:bg-slate-800/30";
-  })();
+}: SessionCardSurfaceOptions): SessionCardSurface {
+  const style: SessionCardSurfaceStyle = {
+    '--session-card-bg': 'rgba(var(--color-bg-tertiary-rgb), 0.4)',
+    '--session-card-hover-bg': 'rgba(var(--color-bg-hover-rgb), 0.4)',
+    '--session-card-border': 'var(--color-border-default)',
+  }
 
-  return clsx(
-    baseTone,
-    hasFollowUpMessage && !isSelected &&
-      "ring-2 ring-blue-400/50 shadow-lg shadow-blue-400/20 bg-blue-950/20",
-    isRunning && !isSelected &&
-      "ring-2 ring-pink-500/50 shadow-lg shadow-pink-500/20 bg-pink-950/20"
-  );
+  let className = 'border-[var(--session-card-border)] bg-[var(--session-card-bg)] hover:bg-[var(--session-card-hover-bg)]'
+
+  if (sessionState === "running") {
+    style['--session-card-border'] = 'var(--color-border-subtle)'
+    style['--session-card-bg'] = 'rgba(var(--color-bg-elevated-rgb), 0.5)'
+    style['--session-card-hover-bg'] = 'rgba(var(--color-bg-hover-rgb), 0.5)'
+  } else if (sessionState === "spec") {
+    style['--session-card-bg'] = 'rgba(var(--color-bg-tertiary-rgb), 0.3)'
+    style['--session-card-hover-bg'] = 'rgba(var(--color-bg-hover-rgb), 0.35)'
+  }
+
+  if (willBeDeleted) {
+    style['--session-card-border'] = 'var(--color-accent-red-border)'
+    style['--session-card-bg'] = 'rgba(var(--color-accent-red-rgb), 0.12)'
+    style['--session-card-hover-bg'] = 'rgba(var(--color-accent-red-rgb), 0.18)'
+    className = clsx(className, "opacity-30 transition-all duration-200")
+  }
+
+  if (isPromotionPreview) {
+    style['--session-card-border'] = 'transparent'
+    className = clsx(className, "session-ring session-ring-green")
+  } else if (isSelected) {
+    style['--session-card-border'] = 'transparent'
+    className = clsx(className, "session-ring session-ring-blue")
+  } else if (isReviewedState) {
+    style['--session-card-border'] = 'transparent'
+    className = clsx(className, "session-ring session-ring-green opacity-90")
+  }
+
+  if (!willBeDeleted && !isSelected) {
+    if (hasFollowUpMessage) {
+      style['--session-card-bg'] = 'var(--color-accent-blue-bg)'
+      style['--session-card-hover-bg'] = 'var(--color-accent-blue-bg)'
+      className = clsx(className, "ring-2 ring-[var(--color-accent-blue-border)]")
+    }
+    if (isRunning) {
+      style['--session-card-bg'] = 'var(--color-accent-magenta-bg)'
+      style['--session-card-hover-bg'] = 'var(--color-accent-magenta-bg)'
+      className = clsx(className, "ring-2 ring-[var(--color-accent-magenta-border)]")
+    }
+  }
+
+  return { className, style }
 }
 
 export const getAgentColorKey = (
@@ -137,7 +176,7 @@ const sessionText = {
   title: {
     ...typography.heading,
     fontWeight: 600,
-    color: theme.colors.text.primary,
+    color: "var(--color-text-primary)",
   },
   badge: {
     ...typography.caption,
@@ -146,23 +185,23 @@ const sessionText = {
   },
   meta: {
     ...typography.caption,
-    color: theme.colors.text.tertiary,
+    color: "var(--color-text-tertiary)",
   },
   metaEmphasis: {
     ...typography.caption,
-    color: theme.colors.text.secondary,
+    color: "var(--color-text-secondary)",
   },
   agent: {
     ...typography.body,
-    color: theme.colors.text.secondary,
+    color: "var(--color-text-secondary)",
   },
   agentMuted: {
     ...typography.caption,
-    color: theme.colors.text.secondary,
+    color: "var(--color-text-secondary)",
   },
   statsLabel: {
     ...typography.caption,
-    color: theme.colors.text.tertiary,
+    color: "var(--color-text-tertiary)",
   },
   statsNumber: {
     ...typography.caption,
@@ -264,6 +303,16 @@ export const SessionCard = memo<SessionCardProps>(
     const showReviewedDirtyBadge =
       isReviewedState && !isReadyToMerge && !!s.has_uncommitted_changes;
 
+    const surface = getSessionCardSurfaceClasses({
+      sessionState,
+      isSelected,
+      isReviewedState,
+      isRunning: Boolean(isRunning),
+      hasFollowUpMessage,
+      willBeDeleted,
+      isPromotionPreview,
+    });
+
     const handleEpicChange = useCallback(
       (nextEpicId: string | null) => {
         void setItemEpic(s.session_id, nextEpicId);
@@ -294,17 +343,10 @@ export const SessionCard = memo<SessionCardProps>(
         data-session-selected={isSelected ? "true" : "false"}
         className={clsx(
           "group relative w-full text-left px-3 py-2.5 rounded-md mb-2 border transition-all duration-300",
-          getSessionCardSurfaceClasses({
-            sessionState,
-            isSelected,
-            isReviewedState,
-            isRunning: Boolean(isRunning),
-            hasFollowUpMessage,
-            willBeDeleted,
-            isPromotionPreview,
-          }),
+          surface.className,
           isBusy ? "cursor-progress opacity-60" : "cursor-pointer",
         )}
+        style={surface.style}
         aria-label={getAccessibilityLabel(isSelected, index)}
       >
         {isBusy && (
@@ -312,14 +354,14 @@ export const SessionCard = memo<SessionCardProps>(
             className="absolute inset-0 z-10 flex items-center justify-center rounded-md pointer-events-none"
             data-testid="session-busy-indicator"
             style={{
-              backgroundColor: theme.colors.background.primary,
+              backgroundColor: "var(--color-bg-primary)",
               opacity: 0.72,
             }}
           >
             <span
               className="h-4 w-4 border-2 border-solid rounded-full animate-spin"
               style={{
-                borderColor: theme.colors.accent.blue.border,
+                borderColor: "var(--color-accent-blue-border)",
                 borderTopColor: "transparent",
               }}
             />
@@ -355,7 +397,7 @@ export const SessionCard = memo<SessionCardProps>(
                       lineHeight: theme.lineHeight.compact,
                       fontFamily: theme.fontFamily.sans,
                       fontWeight: 600,
-                      color: theme.colors.accent.yellow.light,
+                      color: "var(--color-accent-yellow-light)",
                     }}
                   >
                     ⏸︎ Idle
@@ -366,9 +408,9 @@ export const SessionCard = memo<SessionCardProps>(
                     className="px-1.5 py-0.5 rounded border"
                     style={{
                       ...sessionText.badge,
-                      backgroundColor: theme.colors.accent.magenta.bg,
-                      color: theme.colors.accent.magenta.DEFAULT,
-                      borderColor: theme.colors.accent.magenta.border,
+                      backgroundColor: "var(--color-accent-magenta-bg)",
+                      color: "var(--color-accent-magenta)",
+                      borderColor: "var(--color-accent-magenta-border)",
                     }}
                   >
                     Running
@@ -381,7 +423,7 @@ export const SessionCard = memo<SessionCardProps>(
                 className="flex-shrink-0"
                 style={{
                   ...sessionText.badge,
-                  color: theme.colors.accent.green.light,
+                  color: "var(--color-accent-green-light)",
                 }}
               >
                 ✓ Reviewed
@@ -392,7 +434,7 @@ export const SessionCard = memo<SessionCardProps>(
                 className="flex-shrink-0"
                 style={{
                   ...sessionText.badge,
-                  color: theme.colors.accent.red.light,
+                  color: "var(--color-accent-red-light)",
                 }}
               >
                 ⚠ blocked
@@ -416,15 +458,16 @@ export const SessionCard = memo<SessionCardProps>(
                   <span
                     className="absolute inline-flex h-full w-full rounded-full opacity-75"
                     style={{
-                      backgroundColor: theme.colors.accent.blue.light,
+                      backgroundColor: "var(--color-accent-blue-light)",
                     }}
                   ></span>
                   <span
-                    className="relative inline-flex rounded-full h-4 w-4 text-white items-center justify-center font-bold"
+                    className="relative inline-flex rounded-full h-4 w-4 items-center justify-center font-bold"
                     style={{
                       ...sessionText.badge,
                       fontSize: theme.fontSize.caption,
-                      backgroundColor: theme.colors.accent.blue.DEFAULT,
+                      backgroundColor: "var(--color-accent-blue)",
+                      color: "var(--color-text-inverse)",
                     }}
                   >
                     !
@@ -436,8 +479,11 @@ export const SessionCard = memo<SessionCardProps>(
           <div className="flex items-center gap-2 flex-shrink-0">
             {index < 8 && (
               <span
-                className="px-1.5 py-0.5 rounded bg-slate-700/50"
-                style={sessionText.meta}
+                className="px-1.5 py-0.5 rounded"
+                style={{
+                  ...sessionText.meta,
+                  backgroundColor: "rgba(var(--color-bg-hover-rgb), 0.6)",
+                }}
               >
                 {(() => {
                   const sessionActions = [
@@ -461,7 +507,7 @@ export const SessionCard = memo<SessionCardProps>(
             className="truncate"
             style={{
               ...sessionText.agent,
-              color: theme.colors.text.primary,
+              color: "var(--color-text-primary)",
             }}
             title={taskDescription}
           >
@@ -477,9 +523,9 @@ export const SessionCard = memo<SessionCardProps>(
               className="flex-shrink-0 inline-flex items-center gap-1 px-1.5 py-[1px] rounded border"
               style={{
                 ...sessionText.badge,
-                backgroundColor: theme.colors.accent.amber.bg,
-                color: theme.colors.accent.amber.light,
-                borderColor: theme.colors.accent.amber.border,
+                backgroundColor: "var(--color-accent-amber-bg)",
+                color: "var(--color-accent-amber-light)",
+                borderColor: "var(--color-accent-amber-border)",
               }}
             >
               Spec
@@ -506,8 +552,8 @@ export const SessionCard = memo<SessionCardProps>(
                   {agentLabel}
                 </span>
               )}
-              <span className="text-green-400">+{additions}</span>
-              <span className="text-red-400">-{deletions}</span>
+              <span style={{ color: "var(--color-accent-green-light)" }}>+{additions}</span>
+              <span style={{ color: "var(--color-accent-red-light)" }}>-{deletions}</span>
               <span className="truncate max-w-[120px]" title={s.branch}>
                 {s.branch}
               </span>
@@ -516,15 +562,18 @@ export const SessionCard = memo<SessionCardProps>(
         </div>
         {progressPercent > 0 && (
           <>
-            <div className="mt-3 h-2 bg-slate-800 rounded">
+            <div className="mt-3 h-2 rounded bg-[var(--color-bg-tertiary)]">
               <div
-                className={clsx(
-                  "h-2 rounded",
-                  color === "green" && "bg-green-500",
-                  color === "violet" && "bg-violet-500",
-                  color === "gray" && "bg-slate-500",
-                )}
-                style={{ width: `${progressPercent}%` }}
+                className="h-2 rounded"
+                style={{
+                  width: `${progressPercent}%`,
+                  backgroundColor:
+                    color === "green"
+                      ? "var(--color-accent-green)"
+                      : color === "violet"
+                        ? "var(--color-accent-violet)"
+                        : "var(--color-text-muted)",
+                }}
               />
             </div>
             <div className="mt-1" style={sessionText.meta}>

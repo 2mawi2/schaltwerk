@@ -35,7 +35,7 @@ export function EpicSelect({ value, disabled = false, onChange, variant = 'pill'
                 key: epic.id,
                 label: (
                     <span className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: scheme?.DEFAULT ?? theme.colors.text.muted }} />
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: scheme?.DEFAULT ?? 'var(--color-text-muted)' }} />
                         <span className="truncate">{epic.name}</span>
                     </span>
                 ),
@@ -44,9 +44,9 @@ export function EpicSelect({ value, disabled = false, onChange, variant = 'pill'
 
         return [
             { key: 'none', label: 'None' },
-            { key: 'separator', label: <div style={{ height: 1, backgroundColor: theme.colors.border.subtle }} />, disabled: true },
+            { key: 'separator', label: <div style={{ height: 1, backgroundColor: 'var(--color-border-subtle)' }} />, disabled: true },
             ...epicItems,
-            { key: 'separator-2', label: <div style={{ height: 1, backgroundColor: theme.colors.border.subtle }} />, disabled: true },
+            { key: 'separator-2', label: <div style={{ height: 1, backgroundColor: 'var(--color-border-subtle)' }} />, disabled: true },
             { key: 'create', label: '+ Create new epic' },
         ]
     }, [epics, selectedId, value])
@@ -109,33 +109,33 @@ export function EpicSelect({ value, disabled = false, onChange, variant = 'pill'
                         }}
                         disabled={disabled}
                         className={variant === 'icon'
-                            ? `inline-flex items-center justify-center px-1.5 py-1 rounded transition-colors duration-150 ${disabled ? 'opacity-50 cursor-not-allowed' : 'bg-slate-700/60 hover:bg-slate-600/60 cursor-pointer'} ${className}`
+                            ? `inline-flex items-center justify-center px-1.5 py-1 rounded border transition-colors duration-150 ${disabled ? 'opacity-50 cursor-not-allowed' : 'bg-[rgba(var(--color-bg-hover-rgb),0.6)] hover:bg-[rgba(var(--color-bg-hover-rgb),0.8)] border-[rgba(var(--color-border-subtle-rgb),0.6)] hover:border-[rgba(var(--color-border-strong-rgb),0.7)] cursor-pointer'} ${className}`
                             : `${variant === 'field' ? 'w-full px-3 py-2 justify-between' : variant === 'compact' ? 'p-1' : 'px-2 py-1'} rounded border inline-flex items-center gap-2 ${disabled ? 'opacity-60 cursor-not-allowed' : 'hover:opacity-90'} ${className}`
                         }
                         style={variant === 'icon' ? undefined : {
                             backgroundColor: variant === 'field'
-                                ? theme.colors.background.secondary
-                                : theme.colors.background.elevated,
-                            borderColor: theme.colors.border.subtle,
-                            color: variant === 'field' ? theme.colors.text.primary : theme.colors.text.secondary,
+                                ? 'var(--color-bg-secondary)'
+                                : 'var(--color-bg-elevated)',
+                            borderColor: 'var(--color-border-subtle)',
+                            color: variant === 'field' ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
                             fontSize: variant === 'field' ? theme.fontSize.body : theme.fontSize.caption,
                         }}
                         title={value?.name ?? 'Set epic'}
                     >
                         {variant === 'icon' ? (
                             <span className="w-4 h-4 flex items-center justify-center">
-                                <VscTag style={{ color: selectedScheme?.DEFAULT ?? theme.colors.text.muted }} />
+                                <VscTag style={{ color: selectedScheme?.DEFAULT ?? 'var(--color-text-muted)' }} />
                             </span>
                         ) : (
                             <>
                                 <span
                                     className="w-2 h-2 rounded-full"
-                                    style={{ backgroundColor: selectedScheme?.DEFAULT ?? theme.colors.text.muted }}
+                                    style={{ backgroundColor: selectedScheme?.DEFAULT ?? 'var(--color-text-muted)' }}
                                 />
                                 {variant !== 'compact' && (
                                     <>
                                         <span className={`truncate ${variant === 'field' ? 'flex-1 text-left' : 'max-w-[140px]'}`}>{value?.name ?? 'None'}</span>
-                                        <span style={{ color: theme.colors.text.muted }}>▾</span>
+                                        <span style={{ color: 'var(--color-text-muted)' }}>▾</span>
                                     </>
                                 )}
                             </>

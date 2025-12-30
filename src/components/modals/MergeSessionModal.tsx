@@ -31,17 +31,17 @@ interface MergeSessionModalProps {
 }
 
 const modalBackdropStyle: React.CSSProperties = {
-  backgroundColor: theme.colors.overlay.backdrop,
+  backgroundColor: 'var(--color-overlay-backdrop)',
 }
 
 const modalContainerStyle: React.CSSProperties = {
-  backgroundColor: theme.colors.background.elevated,
-  border: `1px solid ${theme.colors.border.subtle}`,
-  color: theme.colors.text.primary,
+  backgroundColor: 'var(--color-bg-elevated)',
+  border: '1px solid var(--color-border-subtle)',
+  color: 'var(--color-text-primary)',
 }
 
 const fieldLabelStyle: React.CSSProperties = {
-  color: theme.colors.text.secondary,
+  color: 'var(--color-text-secondary)',
   fontSize: theme.fontSize?.label || '0.75rem',
 }
 
@@ -208,17 +208,17 @@ export function MergeSessionModal({
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
-          <div className="flex justify-between items-start gap-4 border-b px-6 py-4" style={{ borderColor: theme.colors.border.subtle }}>
+        <div className="flex justify-between items-start gap-4 border-b px-6 py-4" style={{ borderColor: 'var(--color-border-subtle)' }}>
           <div>
-            <h2 id="merge-session-title" className="text-lg font-semibold" style={{ color: theme.colors.text.primary }}>
+            <h2 id="merge-session-title" className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
               Merge Session
             </h2>
-            <p className="text-sm" style={{ color: theme.colors.text.secondary }}>
+            <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
               {sessionName} → {parentBranch}
             </p>
           </div>
           <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2 text-sm" style={{ color: theme.colors.text.secondary }}>
+            <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
               <input
                 type="checkbox"
                 checked={autoCancelEnabled}
@@ -231,7 +231,7 @@ export function MergeSessionModal({
             <button
               onClick={onClose}
               className="text-sm"
-              style={{ color: theme.colors.text.secondary }}
+              style={{ color: 'var(--color-text-secondary)' }}
               aria-label="Close merge dialog"
               title="Close (Esc)"
             >
@@ -252,18 +252,18 @@ export function MergeSessionModal({
               <div
                 className="flex items-center gap-3 rounded px-4 py-3"
                 style={{
-                  backgroundColor: theme.colors.background.tertiary,
-                  border: `1px solid ${theme.colors.border.subtle}`,
+                  backgroundColor: 'var(--color-bg-tertiary)',
+                  border: '1px solid var(--color-border-subtle)',
                 }}
               >
-                <span className="text-sm" style={{ color: theme.colors.text.secondary }}>
+                <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                   Auto-cancel after a successful merge is currently {autoCancelEnabled ? 'enabled' : 'disabled'}. This preference is stored per project and can also be adjusted in Settings → Project.
                 </span>
               </div>
 
               <div>
                 <span style={fieldLabelStyle}>Session branch</span>
-                <div className="text-sm" style={{ color: theme.colors.text.primary }}>{sessionBranch}</div>
+                <div className="text-sm" style={{ color: 'var(--color-text-primary)' }}>{sessionBranch}</div>
               </div>
 
               <div>
@@ -275,9 +275,9 @@ export function MergeSessionModal({
                     className="px-3 py-2 rounded text-sm"
                     style={{
                       backgroundColor:
-                        mode === 'squash' ? theme.colors.accent.green.bg : theme.colors.background.tertiary,
-                      border: `1px solid ${mode === 'squash' ? theme.colors.accent.green.border : theme.colors.border.subtle}`,
-                      color: theme.colors.text.primary,
+                        mode === 'squash' ? 'var(--color-accent-green-bg)' : 'var(--color-bg-tertiary)',
+                      border: `1px solid ${mode === 'squash' ? 'var(--color-accent-green-border)' : 'var(--color-border-subtle)'}`,
+                      color: 'var(--color-text-primary)',
                     }}
                   >
                     Squash & fast-forward
@@ -288,15 +288,15 @@ export function MergeSessionModal({
                     className="px-3 py-2 rounded text-sm"
                     style={{
                       backgroundColor:
-                        mode === 'reapply' ? theme.colors.accent.blue.bg : theme.colors.background.tertiary,
-                      border: `1px solid ${mode === 'reapply' ? theme.colors.accent.blue.border : theme.colors.border.subtle}`,
-                      color: theme.colors.text.primary,
+                        mode === 'reapply' ? 'var(--color-accent-blue-bg)' : 'var(--color-bg-tertiary)',
+                      border: `1px solid ${mode === 'reapply' ? 'var(--color-accent-blue-border)' : 'var(--color-border-subtle)'}`,
+                      color: 'var(--color-text-primary)',
                     }}
                   >
                     Reapply commits
                   </button>
                 </div>
-                <p className="mt-2 text-sm" style={{ color: theme.colors.text.secondary }}>
+                <p className="mt-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                   {modeDescriptions[mode]}
                 </p>
               </div>
@@ -314,9 +314,9 @@ export function MergeSessionModal({
                     onChange={(event) => handleCommitMessageChange(event.target.value)}
                     className="mt-1 w-full rounded px-3 py-2 text-sm"
                     style={{
-                      backgroundColor: theme.colors.background.tertiary,
-                      border: `1px solid ${theme.colors.border.subtle}`,
-                      color: theme.colors.text.primary,
+                      backgroundColor: 'var(--color-bg-tertiary)',
+                      border: '1px solid var(--color-border-subtle)',
+                      color: 'var(--color-text-primary)',
                     }}
                     placeholder={preview?.defaultCommitMessage || 'Describe the changes that landed in this session'}
                   />
@@ -327,9 +327,9 @@ export function MergeSessionModal({
                 <div
                   className="rounded-md px-3 py-2 text-sm"
                   style={{
-                    backgroundColor: theme.colors.accent.red.bg,
-                    border: `1px solid ${theme.colors.accent.red.border}`,
-                    color: theme.colors.text.primary,
+                    backgroundColor: 'var(--color-accent-red-bg)',
+                    border: '1px solid var(--color-accent-red-border)',
+                    color: 'var(--color-text-primary)',
                   }}
                 >
                   <p className="font-medium">Resolve merge conflicts before proceeding.</p>
@@ -346,9 +346,9 @@ export function MergeSessionModal({
                 <div
                   className="rounded-md px-3 py-2 text-sm"
                   style={{
-                    backgroundColor: theme.colors.accent.green.bg,
-                    border: `1px solid ${theme.colors.accent.green.border}`,
-                    color: theme.colors.text.primary,
+                    backgroundColor: 'var(--color-accent-green-bg)',
+                    border: '1px solid var(--color-accent-green-border)',
+                    color: 'var(--color-text-primary)',
                   }}
                 >
                   <p className="font-medium">Nothing to merge</p>
@@ -363,9 +363,9 @@ export function MergeSessionModal({
             <div
               className="rounded-md px-3 py-2 text-sm"
               style={{
-                backgroundColor: theme.colors.accent.red.bg,
-                border: `1px solid ${theme.colors.accent.red.border}`,
-                color: theme.colors.text.primary,
+                backgroundColor: 'var(--color-accent-red-bg)',
+                border: '1px solid var(--color-accent-red-border)',
+                color: 'var(--color-text-primary)',
               }}
             >
               {error}
@@ -373,8 +373,8 @@ export function MergeSessionModal({
           )}
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-t px-6 py-4" style={{ borderColor: theme.colors.border.subtle }}>
-          <div className="text-xs" style={{ color: theme.colors.text.secondary }}>
+        <div className="flex items-center justify-between gap-3 border-t px-6 py-4" style={{ borderColor: 'var(--color-border-subtle)' }}>
+          <div className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
             Shortcut: ⌘⇧M
           </div>
           <div className="flex gap-3">
@@ -383,16 +383,16 @@ export function MergeSessionModal({
               onClick={onClose}
               className="px-4 py-2 text-sm rounded border group inline-flex items-center gap-2"
               style={{
-                backgroundColor: theme.colors.background.tertiary,
-                borderColor: theme.colors.border.subtle,
-                color: theme.colors.text.secondary,
+                backgroundColor: 'var(--color-bg-tertiary)',
+                borderColor: 'var(--color-border-subtle)',
+                color: 'var(--color-text-secondary)',
               }}
               title="Cancel (Esc)"
             >
               <span>Cancel</span>
               <span className="text-xs opacity-60 group-hover:opacity-100">Esc</span>
             </button>
-              <button
+            <button
                 type="button"
                 onClick={handleConfirm}
                 disabled={confirmDisabled}
@@ -400,13 +400,13 @@ export function MergeSessionModal({
                 title={confirmTitle}
                 style={{
                   backgroundColor: confirmDisabled
-                    ? theme.colors.background.hover
-                    : theme.colors.accent.green.DEFAULT,
-                border: `1px solid ${theme.colors.accent.green.dark}`,
-                color: confirmDisabled ? theme.colors.text.secondary : theme.colors.text.inverse,
-                cursor: confirmDisabled ? 'not-allowed' : 'pointer',
-                opacity: confirmDisabled ? 0.6 : 1,
-              }}
+                    ? 'var(--color-bg-hover)'
+                    : 'var(--color-accent-green)',
+                  border: '1px solid var(--color-accent-green-dark)',
+                  color: confirmDisabled ? 'var(--color-text-secondary)' : 'var(--color-text-inverse)',
+                  cursor: confirmDisabled ? 'not-allowed' : 'pointer',
+                  opacity: confirmDisabled ? 0.6 : 1,
+                }}
             >
               <span>{status === 'running' ? 'Merging…' : 'Merge session'}</span>
               <span className="text-xs opacity-60 group-hover:opacity-100">⌘↵</span>

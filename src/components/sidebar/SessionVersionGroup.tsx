@@ -4,8 +4,6 @@ import { SessionCard } from './SessionCard'
 import { SessionVersionGroup as SessionVersionGroupType } from '../../utils/sessionVersions'
 import { isSpec, mapSessionUiState } from '../../utils/sessionFilters'
 import { SessionSelection } from '../../hooks/useSessionManagement'
-import { theme } from '../../common/theme'
-import { withOpacity } from '../../common/colorUtils'
 import { ProgressIndicator } from '../common/ProgressIndicator'
 import type { MergeStatus } from '../../store/atoms/sessions'
 
@@ -144,7 +142,11 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
       key: 'active',
       label: 'Active',
       count: versionStatusSummary.active,
-      color: theme.colors.accent.blue,
+      color: {
+        bg: 'var(--color-accent-blue-bg)',
+        light: 'var(--color-accent-blue-light)',
+        border: 'var(--color-accent-blue-border)'
+      },
       icon: (
         <span className="flex items-center" aria-hidden="true">
           <ProgressIndicator size="sm" />
@@ -155,12 +157,16 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
       key: 'idle',
       label: 'Idle',
       count: versionStatusSummary.idle,
-      color: theme.colors.accent.amber,
+      color: {
+        bg: 'var(--color-accent-amber-bg)',
+        light: 'var(--color-accent-amber-light)',
+        border: 'var(--color-accent-amber-border)'
+      },
       icon: (
         <span
           aria-hidden="true"
           className="text-xs font-semibold"
-          style={{ color: theme.colors.accent.amber.light }}
+          style={{ color: 'var(--color-accent-amber-light)' }}
         >
           ⏸
         </span>
@@ -176,11 +182,11 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
         'rounded-lg border transition-all duration-200'
       )}
       style={hasSelectedVersion ? {
-        borderColor: theme.colors.accent.blue.border,
-        backgroundColor: theme.colors.accent.blue.bg
+        borderColor: 'var(--color-accent-blue-border)',
+        backgroundColor: 'var(--color-accent-blue-bg)'
       } : {
-        borderColor: withOpacity(theme.colors.border.subtle, 0.5),
-        backgroundColor: withOpacity(theme.colors.background.tertiary, 0.2)
+        borderColor: 'rgba(var(--color-border-subtle-rgb), 0.5)',
+        backgroundColor: 'rgba(var(--color-bg-tertiary-rgb), 0.2)'
       }}>
         {/* Group header */}
         <button
@@ -189,20 +195,20 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
             'w-full text-left px-3 py-2 rounded-t-md border-b transition-all duration-200'
           )}
           style={hasSelectedVersion ? {
-            borderBottomColor: theme.colors.accent.blue.border,
-            backgroundColor: theme.colors.accent.blue.bg
+            borderBottomColor: 'var(--color-accent-blue-border)',
+            backgroundColor: 'var(--color-accent-blue-bg)'
           } : {
-            borderBottomColor: withOpacity(theme.colors.border.subtle, 0.3),
-            backgroundColor: withOpacity(theme.colors.background.elevated, 0.3)
+            borderBottomColor: 'rgba(var(--color-border-subtle-rgb), 0.3)',
+            backgroundColor: 'rgba(var(--color-bg-elevated-rgb), 0.3)'
           }}
           onMouseEnter={(e) => {
             if (!hasSelectedVersion) {
-              e.currentTarget.style.backgroundColor = withOpacity(theme.colors.background.hover, 0.4);
+              e.currentTarget.style.backgroundColor = 'rgba(var(--color-bg-hover-rgb), 0.4)';
             }
           }}
           onMouseLeave={(e) => {
             if (!hasSelectedVersion) {
-              e.currentTarget.style.backgroundColor = withOpacity(theme.colors.background.elevated, 0.3);
+              e.currentTarget.style.backgroundColor = 'rgba(var(--color-bg-elevated-rgb), 0.3)';
             }
           }}
           title={`${group.baseName} (${group.versions.length} versions) - Click to expand/collapse`}
@@ -217,17 +223,17 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
             >
               <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 111.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
             </svg>
-            <span className="font-medium text-slate-100">{group.baseName}</span>
+            <span className="font-medium text-[var(--color-text-primary)]">{group.baseName}</span>
             <span
               className="text-xs px-2 py-0.5 rounded-full font-medium ml-2"
               style={hasSelectedVersion ? {
-                backgroundColor: theme.colors.accent.blue.bg,
-                color: theme.colors.accent.blue.light,
-                borderColor: theme.colors.accent.blue.border
+                backgroundColor: 'var(--color-accent-blue-bg)',
+                color: 'var(--color-accent-blue-light)',
+                borderColor: 'var(--color-accent-blue-border)'
               } : {
-                backgroundColor: withOpacity(theme.colors.background.hover, 0.5),
-                color: theme.colors.text.secondary,
-                borderColor: withOpacity(theme.colors.border.subtle, 0.5)
+                backgroundColor: 'rgba(var(--color-bg-hover-rgb), 0.5)',
+                color: 'var(--color-text-secondary)',
+                borderColor: 'rgba(var(--color-border-subtle-rgb), 0.5)'
               }}
             >
               {group.versions.length}x
@@ -243,8 +249,8 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
 
               return (
                 <>
-                  <span className="text-slate-400 text-xs">|</span>
-                  <span className="text-xs text-slate-400">← {baseBranch}</span>
+                  <span className="text-[var(--color-text-muted)] text-xs">|</span>
+                  <span className="text-xs text-[var(--color-text-muted)]">← {baseBranch}</span>
                 </>
               )
             })()}
@@ -279,7 +285,7 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
           <div className="p-2 pt-0">
             <div className="relative pl-6">
               {/* Vertical connector line */}
-              <div className="absolute left-2 top-2 bottom-2 w-px bg-slate-600/50" />
+              <div className="absolute left-2 top-2 bottom-2 w-px bg-[rgba(var(--color-border-strong-rgb),0.5)]" />
               
               <div className="space-y-1">
                  {group.versions.map((version, versionIndex) => {
@@ -293,13 +299,13 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
                   return (
                     <div key={version.session.info.session_id} className="relative">
                       {/* Horizontal connector from vertical line to session - aligned to button center */}
-                      <div className="absolute -left-4 top-7 w-4 h-px bg-slate-600/50" />
+                      <div className="absolute -left-4 top-7 w-4 h-px bg-[rgba(var(--color-border-strong-rgb),0.5)]" />
                       {/* Dot on the vertical line */}
                       <div className={clsx(
                         "absolute top-7 w-2 h-2 rounded-full border",
                         isSelected
-                          ? "bg-cyan-400 border-cyan-300"
-                          : "bg-slate-700 border-slate-600"
+                          ? "bg-[var(--color-accent-cyan)] border-[var(--color-accent-cyan-border)]"
+                          : "bg-[var(--color-bg-hover)] border-[var(--color-border-strong)]"
                       )} style={{ left: '-14px', transform: 'translate(-50%, -50%)' }} />
                       
                   <SessionCard

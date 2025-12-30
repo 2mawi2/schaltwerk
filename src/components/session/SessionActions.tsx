@@ -16,7 +16,6 @@ import {
 } from 'react-icons/vsc';
 import { FaGithub } from 'react-icons/fa'
 import { IconButton } from '../common/IconButton';
-import { theme } from '../../common/theme';
 import type { MergeStatus } from '../../store/atoms/sessions';
 import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
 import { useToast } from '../../common/toast/ToastProvider'
@@ -296,9 +295,9 @@ export function SessionActions({
               <span
                 className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded border"
                 style={{
-                  backgroundColor: theme.colors.accent.green.bg,
-                  borderColor: theme.colors.accent.green.border,
-                  color: theme.colors.accent.green.light,
+                  backgroundColor: 'var(--color-accent-green-bg)',
+                  borderColor: 'var(--color-accent-green-border)',
+                  color: 'var(--color-accent-green-light)',
                 }}
                 title="Session already merged"
               >
@@ -312,9 +311,9 @@ export function SessionActions({
                 disabled={disableMerge}
                 className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded border"
                 style={{
-                  backgroundColor: theme.colors.accent.red.bg,
-                  borderColor: theme.colors.accent.red.border,
-                  color: theme.colors.accent.red.light,
+                  backgroundColor: 'var(--color-accent-red-bg)',
+                  borderColor: 'var(--color-accent-red-border)',
+                  color: 'var(--color-accent-red-light)',
                   cursor: disableMerge ? 'not-allowed' : 'pointer',
                   opacity: disableMerge ? 0.6 : 1,
                 }}

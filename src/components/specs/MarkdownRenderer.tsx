@@ -34,7 +34,7 @@ const LinkComponent = memo(function LinkComponent({ href, children }: { href?: s
       href={href}
       onClick={handleLinkClick}
       style={{
-        color: theme.colors.accent.blue.DEFAULT,
+        color: 'var(--color-accent-blue)',
         textDecoration: 'underline',
         cursor: 'pointer'
       }}
@@ -51,7 +51,7 @@ const customComponents: Partial<Components> = {
       fontWeight: 'bold',
       marginTop: '0.67em',
       marginBottom: '0.67em',
-      color: theme.colors.text.primary
+      color: 'var(--color-text-primary)'
     }}>
       {children}
     </h1>
@@ -62,7 +62,7 @@ const customComponents: Partial<Components> = {
       fontWeight: 'bold',
       marginTop: '0.83em',
       marginBottom: '0.83em',
-      color: theme.colors.text.primary
+      color: 'var(--color-text-primary)'
     }}>
       {children}
     </h2>
@@ -73,7 +73,7 @@ const customComponents: Partial<Components> = {
       fontWeight: 'bold',
       marginTop: '1em',
       marginBottom: '1em',
-      color: theme.colors.text.primary
+      color: 'var(--color-text-primary)'
     }}>
       {children}
     </h3>
@@ -84,7 +84,7 @@ const customComponents: Partial<Components> = {
       fontWeight: 'bold',
       marginTop: '1.33em',
       marginBottom: '1.33em',
-      color: theme.colors.text.primary
+      color: 'var(--color-text-primary)'
     }}>
       {children}
     </h4>
@@ -95,7 +95,7 @@ const customComponents: Partial<Components> = {
       fontWeight: 'bold',
       marginTop: '1.67em',
       marginBottom: '1.67em',
-      color: theme.colors.text.primary
+      color: 'var(--color-text-primary)'
     }}>
       {children}
     </h5>
@@ -106,7 +106,7 @@ const customComponents: Partial<Components> = {
       fontWeight: 'bold',
       marginTop: '2.33em',
       marginBottom: '2.33em',
-      color: theme.colors.text.primary
+      color: 'var(--color-text-primary)'
     }}>
       {children}
     </h6>
@@ -116,7 +116,7 @@ const customComponents: Partial<Components> = {
       marginTop: '1em',
       marginBottom: '1em',
       lineHeight: '1.6',
-      color: theme.colors.text.primary
+      color: 'var(--color-text-primary)'
     }}>
       {children}
     </p>
@@ -131,8 +131,8 @@ const customComponents: Partial<Components> = {
     if (isInline) {
       return (
         <code style={{
-          backgroundColor: theme.colors.background.elevated,
-          color: theme.colors.accent.cyan.DEFAULT,
+          backgroundColor: 'var(--color-bg-elevated)',
+          color: 'var(--color-accent-cyan)',
           padding: '2px 4px',
           borderRadius: '3px',
           fontSize: theme.fontSize.code,
@@ -147,8 +147,8 @@ const customComponents: Partial<Components> = {
         className={className}
         style={{
           display: 'block',
-          backgroundColor: theme.colors.background.elevated,
-          color: theme.colors.text.primary,
+          backgroundColor: 'var(--color-bg-elevated)',
+          color: 'var(--color-text-primary)',
           padding: '12px',
           borderRadius: '4px',
           overflowX: 'auto',
@@ -176,7 +176,7 @@ const customComponents: Partial<Components> = {
       marginBottom: '1em',
       paddingLeft: '2em',
       listStyleType: 'disc',
-      color: theme.colors.text.primary
+      color: 'var(--color-text-primary)'
     }}>
       {children}
     </ul>
@@ -187,7 +187,7 @@ const customComponents: Partial<Components> = {
       marginBottom: '1em',
       paddingLeft: '2em',
       listStyleType: 'decimal',
-      color: theme.colors.text.primary
+      color: 'var(--color-text-primary)'
     }}>
       {children}
     </ol>
@@ -203,13 +203,13 @@ const customComponents: Partial<Components> = {
   ),
   blockquote: ({ children }) => (
     <blockquote style={{
-      borderLeft: `3px solid ${theme.colors.border.default}`,
+      borderLeft: '3px solid var(--color-border-default)',
       paddingLeft: '1em',
       marginLeft: '0',
       marginTop: '1em',
       marginBottom: '1em',
       fontStyle: 'italic',
-      color: theme.colors.text.secondary
+      color: 'var(--color-text-secondary)'
     }}>
       {children}
     </blockquote>
@@ -217,7 +217,7 @@ const customComponents: Partial<Components> = {
   hr: () => (
     <hr style={{
       border: 'none',
-      borderTop: `1px solid ${theme.colors.border.subtle}`,
+      borderTop: '1px solid var(--color-border-subtle)',
       marginTop: '2em',
       marginBottom: '2em'
     }} />
@@ -227,7 +227,7 @@ const customComponents: Partial<Components> = {
       <table style={{
         width: '100%',
         borderCollapse: 'collapse',
-        color: theme.colors.text.primary
+        color: 'var(--color-text-primary)'
       }}>
         {children}
       </table>
@@ -235,7 +235,7 @@ const customComponents: Partial<Components> = {
   ),
   thead: ({ children }) => (
     <thead style={{
-      borderBottom: `2px solid ${theme.colors.border.default}`
+      borderBottom: '2px solid var(--color-border-default)'
     }}>
       {children}
     </thead>
@@ -245,7 +245,7 @@ const customComponents: Partial<Components> = {
   ),
   tr: ({ children }) => (
     <tr style={{
-      borderBottom: `1px solid ${theme.colors.border.subtle}`
+      borderBottom: '1px solid var(--color-border-subtle)'
     }}>
       {children}
     </tr>
@@ -255,7 +255,7 @@ const customComponents: Partial<Components> = {
       padding: '8px 12px',
       textAlign: 'left',
       fontWeight: 'bold',
-      backgroundColor: theme.colors.background.secondary
+      backgroundColor: 'var(--color-bg-secondary)'
     }}>
       {children}
     </th>
@@ -280,8 +280,8 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
         padding: '16px',
         overflowY: 'auto',
         height: '100%',
-        backgroundColor: theme.colors.background.primary,
-        color: theme.colors.text.primary,
+        backgroundColor: 'var(--color-bg-primary)',
+        color: 'var(--color-text-primary)',
         fontSize: theme.fontSize.body,
         lineHeight: '1.6'
       }}

@@ -10,7 +10,6 @@ import { AnimatedText } from '../common/AnimatedText'
 import { ReviewCommentThread } from '../../types/review'
 import { LineSelection } from '../../hooks/useLineSelection'
 import type { LineInfo } from '../../types/diff'
-import { theme } from '../../common/theme'
 import { OpenInSplitButton, type OpenApp, type OpenInAppRequest } from '../OpenInSplitButton'
 import { ConfirmDiscardDialog } from '../common/ConfirmDiscardDialog'
 import { shouldCollapseDiff } from '../../domains/diff/diffFilters'
@@ -108,7 +107,7 @@ function HorizontalScrollRegion({ children, bodyRef, onActivate }: HorizontalScr
         <div
           className="pointer-events-none absolute left-0 top-0 bottom-0 w-8"
           style={{
-            background: `linear-gradient(90deg, ${theme.colors.overlay.dark} 0%, transparent 100%)`
+            background: 'linear-gradient(90deg, var(--color-overlay-dark) 0%, transparent 100%)'
           }}
         />
       )}
@@ -116,7 +115,7 @@ function HorizontalScrollRegion({ children, bodyRef, onActivate }: HorizontalScr
         <div
           className="pointer-events-none absolute right-0 top-0 bottom-0 w-8"
           style={{
-            background: `linear-gradient(270deg, ${theme.colors.overlay.dark} 0%, transparent 100%)`
+            background: 'linear-gradient(270deg, var(--color-overlay-dark) 0%, transparent 100%)'
           }}
         />
       )}
@@ -441,8 +440,8 @@ export function DiffViewer({
         style={{
           top: contextMenu.position.y,
           left: contextMenu.position.x,
-          backgroundColor: theme.colors.background.secondary,
-          border: `1px solid ${theme.colors.border.subtle}`
+          backgroundColor: 'var(--color-bg-secondary)',
+          border: '1px solid var(--color-border-subtle)'
         }}
         onClick={(event) => event.stopPropagation()}
         onMouseDown={(event) => event.stopPropagation()}
@@ -453,11 +452,11 @@ export function DiffViewer({
             role="menuitem"
             className="w-full text-left px-4 py-2 text-sm"
             style={{
-              color: theme.colors.text.secondary,
+              color: 'var(--color-text-secondary)',
               backgroundColor: 'transparent'
             }}
             onMouseEnter={(event) => {
-              event.currentTarget.style.backgroundColor = theme.colors.background.hover
+              event.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'
             }}
             onMouseLeave={(event) => {
               event.currentTarget.style.backgroundColor = 'transparent'
@@ -677,10 +676,10 @@ export function DiffViewer({
                     </div>
                   </div>
                   <div className="flex items-center gap-3 flex-shrink-0">
-                    {commentCount > 0 && (
+                      {commentCount > 0 && (
                       <div
                         className="flex items-center gap-1 text-xs font-medium"
-                        style={{ color: theme.colors.accent.blue.light }}
+                        style={{ color: 'var(--color-accent-blue-light)' }}
                       >
                       <VscComment />
                       <span>{commentCount} comment{commentCount > 1 ? 's' : ''}</span>
@@ -841,7 +840,7 @@ export function DiffViewer({
                   {commentCount > 0 && (
                     <div
                       className="flex items-center gap-1 text-xs font-medium"
-                      style={{ color: theme.colors.accent.blue.light }}
+                      style={{ color: 'var(--color-accent-blue-light)' }}
                     >
                       <VscComment />
                       <span>{commentCount} comment{commentCount > 1 ? 's' : ''}</span>

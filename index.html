@@ -8,9 +8,17 @@
   <title>Schaltwerk</title>
   <style>
     /* Ensure dark background immediately on load to prevent white flash */
+    /* These values match the default dark theme - will be overridden by CSS variables once loaded */
+    html:not([data-theme]) body,
+    html[data-theme="dark"] body {
+      background-color: #020617;
+      color: #f1f5f9;
+    }
+    html[data-theme="light"] body {
+      background-color: #ffffff;
+      color: #1f2328;
+    }
     body {
-      background-color: #020617 !important;
-      color: #f1f5f9 !important;
       margin: 0;
       padding: 0;
       height: 100vh;

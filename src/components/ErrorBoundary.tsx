@@ -1,5 +1,4 @@
 import { Component, ReactNode, ErrorInfo } from 'react'
-import { theme } from '../common/theme'
 import { AsciiBuilderLogo } from './home/AsciiBuilderLogo'
 import { logger } from '../utils/logger'
 
@@ -109,15 +108,15 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
                 className="px-4 py-2 text-sm font-medium text-slate-300 bg-slate-800 border border-slate-700 rounded-md hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 group"
                 title="Reload App"
                 style={{
-                  backgroundColor: theme.colors.background.elevated,
-                  borderColor: theme.colors.border.default,
-                  color: theme.colors.text.secondary
+                  backgroundColor: 'var(--color-bg-elevated)',
+                  borderColor: 'var(--color-border-default)',
+                  color: 'var(--color-text-secondary)'
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = theme.colors.background.hover
+                  e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = theme.colors.background.elevated
+                  e.currentTarget.style.backgroundColor = 'var(--color-bg-elevated)'
                 }}
               >
                 Reload App
@@ -130,14 +129,14 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
                 title="Try Again (Enter)"
                 autoFocus
                 style={{
-                  backgroundColor: theme.colors.accent.blue.DEFAULT,
-                  color: theme.colors.text.inverse
+                  backgroundColor: 'var(--color-accent-blue)',
+                  color: 'var(--color-text-inverse)'
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = theme.colors.accent.blue.dark
+                  e.currentTarget.style.backgroundColor = 'var(--color-accent-blue-dark)'
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = theme.colors.accent.blue.DEFAULT
+                  e.currentTarget.style.backgroundColor = 'var(--color-accent-blue)'
                 }}
               >
                 <span>Try Again</span>
