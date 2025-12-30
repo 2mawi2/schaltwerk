@@ -45,8 +45,8 @@ description: 'Complete list of keyboard shortcuts for efficient session manageme
     |----------|--------|-------------|
     | `⌘T` | Agent Terminal | Focus top terminal |
     | `⌘/` | Shell Terminal | Focus bottom terminal |
-    | `⌘[` | Previous Agent Tab | Switch to previous agent tab |
-    | `⌘]` | Next Agent Tab | Switch to next agent tab |
+    | `⌘[` | Previous Tab | Switch to previous tab (agent or shell based on focus) |
+    | `⌘]` | Next Tab | Switch to next tab (agent or shell based on focus) |
     | `⌘⇧A` | Add Agent Tab | Open add agent tab dialog |
     | `⌘E` | Run Script | Execute configured command |
     | `⌘Enter` | New Line | Insert new line in terminal |
@@ -116,4 +116,6 @@ Click **Record** to capture a new key combination, **Reset** to restore defaults
 </Warning>
 
 - Common conflicts: `⌘1–9` (app switching)
-- Context-aware: Some shortcuts like `⌘Enter` and `⌘F` behave differently based on active context (terminal, diff viewer, etc.)
+- Context-aware: Some shortcuts behave differently based on active context:
+  - `⌘Enter` and `⌘F` adapt to terminal vs diff viewer
+  - `⌘[` and `⌘]` switch agent tabs when focused on top terminal, shell tabs when focused on bottom terminal

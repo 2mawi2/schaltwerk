@@ -837,24 +837,50 @@ const TerminalGridComponent = () => {
                 setPendingRunToggle(true)
             }
             
-            // Agent tab navigation shortcuts (top terminal)
-            if (isShortcutForAction(event, KeyboardShortcutAction.SelectPrevTab, keyboardShortcutConfig, { platform })) {
-                event.preventDefault()
-                if (!agentTabsState || agentTabsState.tabs.length <= 1) return
+            // Tab navigation shortcuts - context-aware based on focus
+            // When focused on top (Claude) terminal: switch agent tabs
+            // When focused on bottom terminal: switch shell tabs
+            const focusTarget = currentFocus ?? localFocus
 
-                const totalTabs = agentTabsState.tabs.length
-                const prevIndex = agentTabsState.activeTab === 0 ? totalTabs - 1 : agentTabsState.activeTab - 1
-                setActiveAgentTab(prevIndex)
+            if (isShortcutForAction(event, KeyboardShortcutAction.SelectPrevTab, keyboardShortcutConfig, { platform }) ||
+                isShortcutForAction(event, KeyboardShortcutAction.SelectPrevBottomTab, keyboardShortcutConfig, { platform })) {
+                event.preventDefault()
+
+                if (focusTarget === 'terminal') {
+                    const shellTabs = terminalTabsState.tabs
+                    if (shellTabs.length <= 1) return
+
+                    const currentIndex = terminalTabsState.activeTab
+                    const prevIndex = currentIndex === 0 ? shellTabs.length - 1 : currentIndex - 1
+                    applyTabsState(prev => ({ ...prev, activeTab: prevIndex }))
+                } else {
+                    if (!agentTabsState || agentTabsState.tabs.length <= 1) return
+
+                    const totalTabs = agentTabsState.tabs.length
+                    const prevIndex = agentTabsState.activeTab === 0 ? totalTabs - 1 : agentTabsState.activeTab - 1
+                    setActiveAgentTab(prevIndex)
+                }
                 return
             }
 
-            if (isShortcutForAction(event, KeyboardShortcutAction.SelectNextTab, keyboardShortcutConfig, { platform })) {
+            if (isShortcutForAction(event, KeyboardShortcutAction.SelectNextTab, keyboardShortcutConfig, { platform }) ||
+                isShortcutForAction(event, KeyboardShortcutAction.SelectNextBottomTab, keyboardShortcutConfig, { platform })) {
                 event.preventDefault()
-                if (!agentTabsState || agentTabsState.tabs.length <= 1) return
 
-                const totalTabs = agentTabsState.tabs.length
-                const nextIndex = agentTabsState.activeTab === totalTabs - 1 ? 0 : agentTabsState.activeTab + 1
-                setActiveAgentTab(nextIndex)
+                if (focusTarget === 'terminal') {
+                    const shellTabs = terminalTabsState.tabs
+                    if (shellTabs.length <= 1) return
+
+                    const currentIndex = terminalTabsState.activeTab
+                    const nextIndex = currentIndex === shellTabs.length - 1 ? 0 : currentIndex + 1
+                    applyTabsState(prev => ({ ...prev, activeTab: nextIndex }))
+                } else {
+                    if (!agentTabsState || agentTabsState.tabs.length <= 1) return
+
+                    const totalTabs = agentTabsState.tabs.length
+                    const nextIndex = agentTabsState.activeTab === totalTabs - 1 ? 0 : agentTabsState.activeTab + 1
+                    setActiveAgentTab(nextIndex)
+                }
                 return
             }
 
@@ -944,6 +970,7 @@ const TerminalGridComponent = () => {
         isBottomCollapsed,
         runModeActive,
         terminalTabsState.activeTab,
+        terminalTabsState.tabs,
         sessionKey,
         getFocusForSession,
         setFocusForSession,
@@ -953,6 +980,7 @@ const TerminalGridComponent = () => {
         getSessionKey,
         applyTabsState,
         persistRunModeState,
+        currentFocus,
         localFocus,
         setLocalFocus,
         setIsBottomCollapsed,
