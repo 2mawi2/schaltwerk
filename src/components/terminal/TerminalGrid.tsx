@@ -1,4 +1,4 @@
-import { Terminal, TerminalHandle } from './Terminal'
+import { Terminal, TerminalHandle, clearTerminalStartedTracking } from './Terminal'
 import { TauriCommands } from '../../common/tauriCommands'
 import { useAgentTabs } from '../../hooks/useAgentTabs'
 import { AgentTabBar } from './AgentTabBar'
@@ -77,7 +77,7 @@ const needsDelayedSubmitForAgent = (agent?: string | null) => agent === 'claude'
 
 
 const TerminalGridComponent = () => {
-    const { selection, terminals, isReady, isSpec } = useSelection()
+    const { selection, terminals, isReady, isSpec, clearTerminalTracking } = useSelection()
     const selectionIsSpec = selection.kind === 'session' && (isSpec || selection.sessionState === 'spec')
     const { getFocusForSession, setFocusForSession, currentFocus } = useFocus()
     const { addRunningSession, removeRunningSession } = useRun()
@@ -282,6 +282,8 @@ const TerminalGridComponent = () => {
                 skipPermissions,
                 targetSelection,
                 terminals,
+                clearTerminalTracking,
+                clearTerminalStartedTracking,
                 agentType
             )
             setAgentType(nextAgent)
@@ -298,7 +300,7 @@ const TerminalGridComponent = () => {
         } finally {
             setConfigureAgentsOpen(false)
         }
-    }, [selection, switchModel, terminals, pushToast, updatePrimaryAgentType, setAgentType, agentType])
+    }, [selection, switchModel, terminals, pushToast, updatePrimaryAgentType, setAgentType, clearTerminalTracking, agentType])
 
     const handleCustomAgentSelect = useCallback(async ({ agentType: nextAgent, skipPermissions }: { agentType: AgentType; skipPermissions: boolean }) => {
         try {

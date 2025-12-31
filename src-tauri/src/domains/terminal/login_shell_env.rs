@@ -199,39 +199,48 @@ fn parse_env_output(output: &str) -> HashMap<String, String> {
     let mut current_value = String::new();
 
     for line in output.lines() {
-        if let Some((key, value)) = try_parse_env_line(line) {
-            if let Some(prev_key) = current_key.take()
-                && is_valid_env_key(&prev_key)
-            {
-                env.insert(prev_key, current_value.trim_end().to_string());
+        match try_parse_env_line(line) {
+            EnvLineResult::Parsed(key, value) => {
+                if let Some(prev_key) = current_key.take() {
+                    env.insert(prev_key, current_value.trim_end().to_string());
+                }
+                current_key = Some(key);
+                current_value = value;
             }
-            current_key = Some(key);
-            current_value = value;
-        } else if current_key.is_some() {
-            current_value.push('\n');
-            current_value.push_str(line);
+            EnvLineResult::Continuation if current_key.is_some() => {
+                current_value.push('\n');
+                current_value.push_str(line);
+            }
+            EnvLineResult::InvalidKey | EnvLineResult::Continuation => {}
         }
     }
 
-    if let Some(key) = current_key
-        && is_valid_env_key(&key)
-    {
+    if let Some(key) = current_key.take() {
         env.insert(key, current_value.trim_end().to_string());
     }
 
     env
 }
 
-fn try_parse_env_line(line: &str) -> Option<(String, String)> {
-    let eq_pos = line.find('=')?;
+enum EnvLineResult {
+    Parsed(String, String),
+    InvalidKey,
+    Continuation,
+}
+
+fn try_parse_env_line(line: &str) -> EnvLineResult {
+    let Some(eq_pos) = line.find('=') else {
+        return EnvLineResult::Continuation;
+    };
+
     let key = &line[..eq_pos];
 
     if key.is_empty() || !is_valid_env_key(key) {
-        return None;
+        return EnvLineResult::InvalidKey;
     }
 
     let value = &line[eq_pos + 1..];
-    Some((key.to_string(), value.to_string()))
+    EnvLineResult::Parsed(key.to_string(), value.to_string())
 }
 
 fn is_valid_env_key(key: &str) -> bool {

@@ -3,6 +3,7 @@ import { useAgentBinarySnapshot } from '../../hooks/useAgentBinarySnapshot'
 import { useClaudeSession } from '../../hooks/useClaudeSession'
 import { useSessionManagement } from '../../hooks/useSessionManagement'
 import { useSelection } from '../../hooks/useSelection'
+import { clearTerminalStartedTracking } from '../terminal/Terminal'
 import { theme } from '../../common/theme'
 import { withOpacity } from '../../common/colorUtils'
 import { displayNameForAgent } from '../shared/agentDefaults'
@@ -28,7 +29,7 @@ export function AgentBinaryStatus() {
   const { loading, error, statusByAgent, allMissing, refresh } = useAgentBinarySnapshot()
   const { getOrchestratorAgentType } = useClaudeSession()
   const { switchModel } = useSessionManagement()
-  const { terminals } = useSelection()
+  const { terminals, clearTerminalTracking } = useSelection()
   const [selectedDefault, setSelectedDefault] = useState<AgentType>('claude')
 
   useEffect(() => {
@@ -48,6 +49,8 @@ export function AgentBinaryStatus() {
       false,
       { kind: 'orchestrator' },
       terminals,
+      clearTerminalTracking,
+      clearTerminalStartedTracking,
       previousAgent
     )
   }

@@ -219,7 +219,9 @@ describe('useSessionManagement', () => {
                     'gemini',
                     true,
                     selection,
-                    mockTerminals
+                    mockTerminals,
+                    mockClearTerminalTracking,
+                    mockClearTerminalStartedTracking
                 )
             })
 
@@ -232,9 +234,8 @@ describe('useSessionManagement', () => {
             expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartClaudeOrchestrator, {
                 terminalId: 'test-terminal-top'
             })
-            // Selection atom tracking should NOT be cleared during model switch
-            expect(mockClearTerminalTracking).not.toHaveBeenCalled()
-            expect(mockClearTerminalStartedTracking).not.toHaveBeenCalled()
+            expect(mockClearTerminalTracking).toHaveBeenCalledWith(['test-terminal-top'])
+            expect(mockClearTerminalStartedTracking).toHaveBeenCalledWith(['test-terminal-top'])
         })
 
         it('should switch model for session', async () => {
@@ -265,7 +266,9 @@ describe('useSessionManagement', () => {
                     'opencode',
                     false,
                     selection,
-                    mockTerminals
+                    mockTerminals,
+                    mockClearTerminalTracking,
+                    mockClearTerminalStartedTracking
                 )
             })
 
@@ -282,8 +285,8 @@ describe('useSessionManagement', () => {
                     forceRestart: false
                 }
             })
-            expect(mockClearTerminalTracking).not.toHaveBeenCalled()
-            expect(mockClearTerminalStartedTracking).not.toHaveBeenCalled()
+            expect(mockClearTerminalTracking).toHaveBeenCalledWith(['test-terminal-top'])
+            expect(mockClearTerminalStartedTracking).toHaveBeenCalledWith(['test-terminal-top'])
         })
 
         it('should resume session when switching to same agent type', async () => {
@@ -312,6 +315,8 @@ describe('useSessionManagement', () => {
                     false,
                     selection,
                     mockTerminals,
+                    mockClearTerminalTracking,
+                    mockClearTerminalStartedTracking,
                     'claude'
                 )
             })
@@ -356,6 +361,8 @@ describe('useSessionManagement', () => {
                     false,
                     selection,
                     mockTerminals,
+                    mockClearTerminalTracking,
+                    mockClearTerminalStartedTracking,
                     'claude'
                 )
             })
@@ -397,12 +404,14 @@ describe('useSessionManagement', () => {
                     'opencode',
                     false,
                     selection,
-                    mockTerminals
+                    mockTerminals,
+                    mockClearTerminalTracking,
+                    mockClearTerminalStartedTracking
                 )
             })
 
             expect(markSpy).toHaveBeenCalledWith('test-terminal-top')
-            expect(clearSpy).not.toHaveBeenCalled()
+            expect(clearSpy).toHaveBeenCalledWith(['test-terminal-top'])
 
             markSpy.mockRestore()
             clearSpy.mockRestore()
@@ -425,7 +434,9 @@ describe('useSessionManagement', () => {
                     'claude',
                     false,
                     selection,
-                    mockTerminals
+                    mockTerminals,
+                    mockClearTerminalTracking,
+                    mockClearTerminalStartedTracking
                 )
             })
 
@@ -448,7 +459,9 @@ describe('useSessionManagement', () => {
                     'opencode',
                     false,
                     selection,
-                    mockTerminals
+                    mockTerminals,
+                    mockClearTerminalTracking,
+                    mockClearTerminalStartedTracking
                 )
             })
 
@@ -491,7 +504,9 @@ describe('useSessionManagement', () => {
                         'claude',
                         false,
                         selection,
-                        mockTerminals
+                        mockTerminals,
+                        mockClearTerminalTracking,
+                        mockClearTerminalStartedTracking
                     )
                 ).rejects.toThrow('Switch error')
             })
@@ -654,7 +669,9 @@ describe('useSessionManagement', () => {
                             'claude',
                             false,
                             selection,
-                            mockTerminals
+                            mockTerminals,
+                            mockClearTerminalTracking,
+                            mockClearTerminalStartedTracking
                         )
                     ).rejects.toThrow('Agent type update failed')
                 })
@@ -676,7 +693,9 @@ describe('useSessionManagement', () => {
                             'claude',
                             false,
                             selection,
-                            mockTerminals
+                            mockTerminals,
+                            mockClearTerminalTracking,
+                            mockClearTerminalStartedTracking
                         )
                     ).rejects.toThrow('Terminal check failed')
                 })
@@ -699,7 +718,9 @@ describe('useSessionManagement', () => {
                             'claude',
                             false,
                             selection,
-                            mockTerminals
+                            mockTerminals,
+                            mockClearTerminalTracking,
+                            mockClearTerminalStartedTracking
                         )
                     ).rejects.toThrow('Close terminal failed')
                 })
@@ -724,7 +745,9 @@ describe('useSessionManagement', () => {
                             'claude',
                             false,
                             selection,
-                            mockTerminals
+                            mockTerminals,
+                            mockClearTerminalTracking,
+                            mockClearTerminalStartedTracking
                         )
                     ).rejects.toThrow('Orchestrator restart failed')
                 })

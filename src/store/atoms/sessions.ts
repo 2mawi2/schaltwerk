@@ -15,7 +15,6 @@ import { stableSessionTerminalId, isTopTerminalId } from '../../common/terminalI
 import { emitUiEvent, UiEvent } from '../../common/uiEvents'
 import { isTerminalStartingOrStarted, clearTerminalStartState, markTerminalStarted } from '../../common/terminalStartState'
 import { startSessionTop, computeProjectOrchestratorId } from '../../common/agentSpawn'
-import { scopedSessionKey, scopedTerminalKey } from '../../common/scopeKeys'
 import { releaseSessionTerminals } from '../../terminal/registry/terminalRegistry'
 import { logger } from '../../utils/logger'
 import { getErrorMessage } from '../../types/errors'
@@ -242,13 +241,7 @@ function dedupeSessions(sessions: EnrichedSession[]): EnrichedSession[] {
 const SESSION_RELEASE_GRACE_MS = 4_000
 const EXPECTED_SESSION_TTL_MS = 15_000
 
-async function releaseRemovedSessions(
-    get: Getter,
-    set: Setter,
-    projectPath: string | null,
-    previous: EnrichedSession[],
-    next: EnrichedSession[],
-) {
+async function releaseRemovedSessions(get: Getter, set: Setter, previous: EnrichedSession[], next: EnrichedSession[]) {
     const now = Date.now()
 
     for (const session of next) {
@@ -257,7 +250,7 @@ async function releaseRemovedSessions(
         const previousState = previousSessionStates.get(id) ?? null
 
         if (previousState === SessionState.Spec && nextState === SessionState.Running) {
-            protectedReleaseUntil.set(scopedSessionKey(projectPath, id), now + SESSION_RELEASE_GRACE_MS)
+            protectedReleaseUntil.set(id, now + SESSION_RELEASE_GRACE_MS)
         }
     }
 
@@ -283,8 +276,7 @@ async function releaseRemovedSessions(
     const terminalsToClear: string[] = []
 
     for (const sessionId of removed) {
-        const sessionKey = scopedSessionKey(projectPath, sessionId)
-        const protectionUntil = protectedReleaseUntil.get(sessionKey) ?? 0
+        const protectionUntil = protectedReleaseUntil.get(sessionId) ?? 0
 
         if (protectionUntil > now) {
             logger.debug('[SessionsAtoms] Skipping terminal release during grace window', {
@@ -294,10 +286,10 @@ async function releaseRemovedSessions(
             continue
         }
 
-        if (pending.delete(sessionKey)) {
+        if (pending.delete(sessionId)) {
             pendingChanged = true
         }
-        suppressedAutoStart.delete(sessionKey)
+        suppressedAutoStart.delete(sessionId)
         releaseSessionTerminals(sessionId)
         terminalsToClear.push(stableSessionTerminalId(sessionId, 'top'))
         terminalsToClear.push(stableSessionTerminalId(sessionId, 'bottom'))
@@ -358,18 +350,16 @@ function autoStartRunningSessions(
         return
     }
 
-    const agentStartScope = computeProjectOrchestratorId(projectPath ?? null) ?? undefined
-
     const pending = new Map(get(pendingStartupsAtom))
     const previousStates = options.previousStates ?? previousSessionStates
     const reason = options.reason ?? 'sessions-refresh'
     let pendingChanged = false
     const now = Date.now()
-    for (const [pendingKey, entry] of pending) {
+    for (const [sessionId, entry] of pending) {
         if (entry.expiresAt <= now) {
-            pending.delete(pendingKey)
+            pending.delete(sessionId)
             pendingChanged = true
-            logger.warn(`[AGENT_LAUNCH_TRACE] pending startup expired for ${pendingKey} (ttl=${PENDING_STARTUP_TTL_MS}ms)`)
+            logger.warn(`[AGENT_LAUNCH_TRACE] pending startup expired for ${sessionId} (ttl=${PENDING_STARTUP_TTL_MS}ms)`)
         }
     }
 
@@ -383,13 +373,11 @@ function autoStartRunningSessions(
             continue
         }
 
-        const sessionKey = scopedSessionKey(projectPath, sessionId)
         const uiState = mapSessionUiState(session.info)
         const rawState = session.info.session_state
         const isEligibleRunning = uiState === SessionState.Running && rawState === SessionState.Running
         const topId = stableSessionTerminalId(sessionId, 'top')
-        const pendingEntry = pending.get(sessionKey)
-        const inflightKey = agentStartScope ? scopedTerminalKey(agentStartScope, topId) : topId
+        const pendingEntry = pending.get(sessionId)
 
         if (session.info.status === 'missing' || session.info.status === 'archived') {
             logger.debug(
@@ -400,7 +388,7 @@ function autoStartRunningSessions(
 
         const scheduleStart = (opts?: { agentTypeOverride?: AgentType; pendingEntry?: PendingStartup }) => {
             const agentTypeOverride = opts?.agentTypeOverride
-            const taskId = inflightKey
+            const taskId = topId
             enqueueBackgroundAgentStart({
                 id: taskId,
                 run: async () => {
@@ -442,12 +430,12 @@ function autoStartRunningSessions(
                         const agentType = agentTypeOverride ?? latestSession.info.original_agent_type ?? session.info.original_agent_type ?? undefined
                         await startSessionTop({ sessionName: sessionId, topId, projectOrchestratorId, agentType })
                         logger.info(`[SessionsAtoms] Started agent for ${sessionId} (${reason}).`)
-                        suppressedAutoStart.add(sessionKey)
+                        suppressedAutoStart.add(sessionId)
                     } catch (error) {
                         const message = getErrorMessage(error)
                         if (message.includes('Working directory not found:')) {
                             logger.info(`[SessionsAtoms] Auto-start skipped for ${sessionId} because worktree is missing.`)
-                            suppressedAutoStart.add(sessionKey)
+                            suppressedAutoStart.add(sessionId)
                             set(allSessionsAtom, (prev) => prev.map(session => {
                                 if (session.info.session_id !== sessionId) {
                                     return session
@@ -477,24 +465,24 @@ function autoStartRunningSessions(
 
         if (pendingEntry && !isEligibleRunning) {
             if (uiState === SessionState.Spec || uiState === SessionState.Reviewed) {
-                pending.delete(sessionKey)
-                suppressedAutoStart.add(sessionKey)
+                pending.delete(sessionId)
+                suppressedAutoStart.add(sessionId)
                 pendingChanged = true
             }
             continue
         }
 
         if (pendingEntry && isEligibleRunning) {
-            if (isTerminalStartingOrStarted(topId, agentStartScope) || hasInflight(inflightKey)) {
+            if (isTerminalStartingOrStarted(topId) || hasInflight(topId)) {
                 logger.info(`[AGENT_LAUNCH_TRACE] pending startup skipping ${sessionId}; background mark or inflight present`)
-                pending.delete(sessionKey)
-                suppressedAutoStart.add(sessionKey)
+                pending.delete(sessionId)
+                suppressedAutoStart.add(sessionId)
                 pendingChanged = true
                 continue
             }
 
-            pending.delete(sessionKey)
-            suppressedAutoStart.delete(sessionKey)
+            pending.delete(sessionId)
+            suppressedAutoStart.delete(sessionId)
             pendingChanged = true
 
             const pendingElapsed = Date.now() - pendingEntry.enqueuedAt
@@ -505,23 +493,23 @@ function autoStartRunningSessions(
         }
 
         if (!isEligibleRunning) {
-            suppressedAutoStart.delete(sessionKey)
+            suppressedAutoStart.delete(sessionId)
             continue
         }
 
-        if (suppressedAutoStart.has(sessionKey)) {
+        if (suppressedAutoStart.has(sessionId)) {
             logger.debug(`[AGENT_LAUNCH_TRACE] autoStartRunningSessions - skipping ${sessionId}: suppressed`)
             continue
         }
 
         const previousState = previousStates.get(sessionId)
 
-        if (isTerminalStartingOrStarted(topId, agentStartScope) || hasInflight(inflightKey)) {
+        if (isTerminalStartingOrStarted(topId) || hasInflight(topId)) {
             logger.info(`[AGENT_LAUNCH_TRACE] autoStartRunningSessions - skipping ${sessionId}; background mark or inflight present (${reason})`)
             continue
         }
 
-        if (backgroundAgentStartQueued.has(inflightKey)) {
+        if (backgroundAgentStartQueued.has(topId)) {
             logger.debug(
                 `[AGENT_LAUNCH_TRACE] autoStartRunningSessions - skipping ${sessionId}; background start already queued (${reason})`
             )
@@ -646,7 +634,7 @@ async function applySessionsSnapshot(
     }
 
     if (projectPath) {
-        await releaseRemovedSessions(get, set, projectPath ?? null, previousSessionsSnapshot, deduped)
+        await releaseRemovedSessions(get, set, previousSessionsSnapshot, deduped)
     }
     set(allSessionsAtom, deduped)
     previousSessionsSnapshot = deduped
@@ -902,17 +890,10 @@ export const endSessionMutationActionAtom = atom(
 export const enqueuePendingStartupActionAtom = atom(
     null,
     (get, set, input: { sessionId: string; agentType?: AgentType; ttlMs?: number }) => {
-        const projectPath = get(projectPathAtom)
-        if (!projectPath) {
-            return
-        }
-
-        const sessionKey = scopedSessionKey(projectPath, input.sessionId)
-
-        suppressedAutoStart.delete(sessionKey)
+        suppressedAutoStart.delete(input.sessionId)
         set(pendingStartupsAtom, (prev) => {
             const next = new Map(prev)
-            next.set(sessionKey, createPendingStartup(input.sessionId, input.agentType, input.ttlMs))
+            next.set(input.sessionId, createPendingStartup(input.sessionId, input.agentType, input.ttlMs))
             return next
         })
 
@@ -938,18 +919,13 @@ export const enqueuePendingStartupActionAtom = atom(
 
 export const clearPendingStartupActionAtom = atom(
     null,
-    (get, set, sessionId: string) => {
-        const projectPath = get(projectPathAtom)
-        if (!projectPath) {
-            return
-        }
-        const sessionKey = scopedSessionKey(projectPath, sessionId)
+    (_get, set, sessionId: string) => {
         set(pendingStartupsAtom, (prev) => {
-            if (!prev.has(sessionKey)) {
+            if (!prev.has(sessionId)) {
                 return prev
             }
             const next = new Map(prev)
-            next.delete(sessionKey)
+            next.delete(sessionId)
             return next
         })
     },
@@ -991,7 +967,7 @@ export const refreshSessionsActionAtom = atom(
         }
 
         if (!projectPath) {
-            await releaseRemovedSessions(get, set, null, previousSessionsSnapshot, [])
+            await releaseRemovedSessions(get, set, previousSessionsSnapshot, [])
             set(allSessionsAtom, [])
             set(mergeStatusesStateAtom, new Map())
             set(mergeInFlightStateAtom, new Map())
@@ -1041,7 +1017,7 @@ export const cleanupProjectSessionsCacheActionAtom = atom(
             return
         }
         // We want to cleanup even if it matches active project path (e.g. closing project)
-        await releaseRemovedSessions(get, set, projectPath, snapshot, [])
+        await releaseRemovedSessions(get, set, snapshot, [])
     },
 )
 
@@ -1252,19 +1228,11 @@ export const initializeSessionsEventsActionAtom = atom(
         })
 
         await register(SchaltEvent.TerminalAgentStarted, (payload) => {
-            const event = payload as { terminal_id?: string | null; session_name?: string | null }
+            const event = payload as { terminal_id?: string | null }
             if (!event?.terminal_id) {
                 return
             }
-
-            if (!event.session_name) {
-                markTerminalStarted(event.terminal_id)
-                return
-            }
-
-            const projectPath = get(projectPathAtom)
-            const scope = computeProjectOrchestratorId(projectPath ?? null) ?? undefined
-            markTerminalStarted(event.terminal_id, scope)
+            markTerminalStarted(event.terminal_id)
         })
 
         const hasSessionInActiveProject = (sessionId: string | undefined | null): boolean => {
@@ -1581,11 +1549,8 @@ export const initializeSessionsEventsActionAtom = atom(
                 skip_permissions?: boolean
             }
 
-            const projectPath = get(projectPathAtom)
             const previousStatesSnapshot = new Map(previousSessionStates)
-            const pendingStartup = projectPath
-                ? (get(pendingStartupsAtom).get(scopedSessionKey(projectPath, event.session_name)) ?? null)
-                : null
+            const pendingStartup = get(pendingStartupsAtom).get(event.session_name) ?? null
             const agentTypeFromEvent: AgentType | undefined =
                 typeof event.agent_type === 'string' && AGENT_TYPES.includes(event.agent_type as AgentType)
                     ? (event.agent_type as AgentType)
@@ -1672,17 +1637,13 @@ export const initializeSessionsEventsActionAtom = atom(
             })
 
             if (removed) {
-                const projectPath = get(projectPathAtom)
-                const sessionKey = scopedSessionKey(projectPath, event.session_name)
-                const startScope = computeProjectOrchestratorId(projectPath ?? null) ?? undefined
-
                 releaseSessionTerminals(event.session_name)
-                suppressedAutoStart.delete(sessionKey)
+                suppressedAutoStart.delete(event.session_name)
                 const topId = stableSessionTerminalId(event.session_name, 'top')
                 const bottomId = stableSessionTerminalId(event.session_name, 'bottom')
-                clearTerminalStartState([topId, bottomId], startScope)
+                clearTerminalStartState([topId, bottomId])
                 const pending = new Map(get(pendingStartupsAtom))
-                if (pending.delete(sessionKey)) {
+                if (pending.delete(event.session_name)) {
                     set(pendingStartupsAtom, pending)
                 }
                 set(mergeStatusesStateAtom, (prev) => {
