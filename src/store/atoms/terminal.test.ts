@@ -236,6 +236,27 @@ describe('Terminal Atoms', () => {
       const state = store.get(terminalTabsAtomFamily(baseId))
       expect(state.activeTabIndex).toBe(-1)
     })
+
+    it('allows switching from Run tab to default tab when atom has no tabs', async () => {
+      const baseId = 'session-test~abc-bottom'
+      const RUN_TAB_INDEX = -1
+
+      // Start with empty atom state (no tabs in atom, but UI shows default tab at index 0)
+      // Set active to Run tab first (simulates user using Run tab)
+      await store.set(setActiveTabActionAtom, { baseTerminalId: baseId, tabIndex: RUN_TAB_INDEX })
+
+      let state = store.get(terminalTabsAtomFamily(baseId))
+      expect(state.tabs).toHaveLength(0)
+      expect(state.activeTabIndex).toBe(-1)
+
+      // Now switch to the default tab at index 0 (simulates user clicking first terminal tab)
+      await store.set(setActiveTabActionAtom, { baseTerminalId: baseId, tabIndex: 0 })
+
+      state = store.get(terminalTabsAtomFamily(baseId))
+      // The atom should now have activeTabIndex 0 even though tabs array is empty
+      // This allows the UI's default tab (index 0) to be shown as active
+      expect(state.activeTabIndex).toBe(0)
+    })
   })
 
   describe('resetTerminalTabsActionAtom', () => {
