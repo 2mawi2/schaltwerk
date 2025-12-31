@@ -89,6 +89,8 @@ pub async fn build_command_spec(
 }
 
 fn build_environment(cols: u16, rows: u16, cwd: &str) -> Vec<(String, String)> {
+    let login_env = super::login_shell_env::get_login_shell_env();
+
     let mut envs = vec![
         ("TERM".to_string(), "xterm-256color".to_string()),
         ("LINES".to_string(), rows.to_string()),
@@ -128,46 +130,60 @@ fn build_environment(cols: u16, rows: u16, cwd: &str) -> Vec<(String, String)> {
             }
         }
 
-        if let Ok(existing_path) = std::env::var("PATH") {
-            const MAX_PATH_LENGTH: usize = 4096;
-            let mut current_length: usize = path_components.iter().map(|s| s.len() + 1).sum();
-            let mut truncated = false;
+        let source_path = login_env
+            .get("PATH")
+            .cloned()
+            .or_else(|| std::env::var("PATH").ok())
+            .unwrap_or_default();
 
-            for component in existing_path.split(':') {
-                if truncated {
-                    break;
-                }
+        const MAX_PATH_LENGTH: usize = 4096;
+        let mut current_length: usize = path_components.iter().map(|s| s.len() + 1).sum();
+        let mut truncated = false;
 
-                for entry in normalize_path_component(component) {
-                    if seen.insert(entry.clone()) {
-                        let new_length = current_length + entry.len() + 1;
-                        if new_length > MAX_PATH_LENGTH {
-                            log::warn!(
-                                "PATH truncated at {current_length} bytes to prevent 'path too long' error"
-                            );
-                            truncated = true;
-                            break;
-                        }
-                        current_length = new_length;
-                        path_components.push(entry);
+        for component in source_path.split(':') {
+            if truncated {
+                break;
+            }
+
+            for entry in normalize_path_component(component) {
+                if seen.insert(entry.clone()) {
+                    let new_length = current_length + entry.len() + 1;
+                    if new_length > MAX_PATH_LENGTH {
+                        log::warn!(
+                            "PATH truncated at {current_length} bytes to prevent 'path too long' error"
+                        );
+                        truncated = true;
+                        break;
                     }
+                    current_length = new_length;
+                    path_components.push(entry);
                 }
             }
         }
 
         path_components.join(":")
     } else {
-        std::env::var("PATH").unwrap_or_else(|_| {
-            "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin".to_string()
+        login_env.get("PATH").cloned().unwrap_or_else(|| {
+            std::env::var("PATH").unwrap_or_else(|_| {
+                "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin".to_string()
+            })
         })
     };
 
     envs.push(("PATH".to_string(), path_value));
 
-    let lang_value = std::env::var("LANG").unwrap_or_else(|_| "en_US.UTF-8".to_string());
+    let lang_value = login_env
+        .get("LANG")
+        .cloned()
+        .or_else(|| std::env::var("LANG").ok())
+        .unwrap_or_else(|| "en_US.UTF-8".to_string());
     envs.push(("LANG".to_string(), lang_value));
 
-    if let Ok(lc_all) = std::env::var("LC_ALL") {
+    if let Some(lc_all) = login_env
+        .get("LC_ALL")
+        .cloned()
+        .or_else(|| std::env::var("LC_ALL").ok())
+    {
         envs.push(("LC_ALL".to_string(), lc_all));
     }
 
