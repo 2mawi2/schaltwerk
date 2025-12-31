@@ -155,7 +155,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
   } | null>(null)
   const [hasLoadedInitialResult, setHasLoadedInitialResult] = useState(false)
 
-  const sessionName = sessionNameOverride ?? (selection.kind === 'session' ? selection.payload : null)
+  const sessionName = sessionNameOverride ?? (selection.kind === 'session' ? selection.payload : null) ?? null
   const compareMode = useAtomValue(diffCompareModeAtomFamily(sessionName ?? 'no-session'))
   const [isResetting, setIsResetting] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)

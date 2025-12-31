@@ -1236,6 +1236,40 @@ export function UnifiedDiffView({
   ],
 );
 
+  const prevFilePathForScrollRef = useRef<string | null>(filePath);
+  useLayoutEffect(() => {
+    if (viewMode !== "sidebar" || !isOpen || !filePath) {
+      prevFilePathForScrollRef.current = filePath;
+      return;
+    }
+    const prevPath = prevFilePathForScrollRef.current;
+    prevFilePathForScrollRef.current = filePath;
+
+    if (prevPath === filePath) {
+      return;
+    }
+
+    setSelectedFile(filePath);
+    setVisibleFilePath(filePath);
+
+    const container = scrollContainerRef.current;
+    const fileElement = fileRefs.current.get(filePath);
+    if (!container || !fileElement) {
+      return;
+    }
+
+    suppressAutoSelectRef.current = true;
+    const containerRect = container.getBoundingClientRect();
+    const elementRect = fileElement.getBoundingClientRect();
+    const delta = elementRect.top - containerRect.top;
+    if (Math.abs(delta) >= 1) {
+      container.scrollTop += delta;
+    }
+    requestAnimationFrame(() => {
+      suppressAutoSelectRef.current = false;
+    });
+  }, [filePath, viewMode, isOpen]);
+
   useEffect(() => {
     if (!isOpen || isLargeDiffMode) {
       setIsVirtualizationLocked(false);
