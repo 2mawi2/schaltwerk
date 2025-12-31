@@ -8,7 +8,6 @@ use anyhow::Error as AnyhowError;
 use git2::Repository;
 use log::{debug, info, warn};
 use serde::Deserialize;
-use tempfile::NamedTempFile;
 
 use super::branches::branch_exists;
 use super::operations::{commit_all_changes, has_uncommitted_changes};
@@ -1043,6 +1042,12 @@ impl<R: CommandRunner> GitHubCli<R> {
         })
     }
 
+    /// Creates a PR from a session by working directly in the session worktree.
+    ///
+    /// This approach avoids creating temporary worktrees, which:
+    /// - Prevents git hook issues (husky, LFS) that fail in incomplete environments
+    /// - Keeps the session in sync with what's pushed to remote
+    /// - Simplifies the code by eliminating patch extraction and cleanup
     pub fn create_session_pr(
         &self,
         opts: CreateSessionPrOptions<'_>,
@@ -1055,6 +1060,7 @@ impl<R: CommandRunner> GitHubCli<R> {
 
         ensure_git_remote_exists(opts.repo_path)?;
 
+        // Check for existing PR first
         if let Ok(Some(existing_url)) =
             self.view_existing_pr(opts.pr_branch_name, opts.repository, opts.session_worktree_path)
         {
@@ -1068,134 +1074,86 @@ impl<R: CommandRunner> GitHubCli<R> {
             });
         }
 
-        let dirty_patch = build_full_worktree_patch(self, opts.session_worktree_path)?;
-
-        let can_skip_temp_worktree = opts.mode == PrCommitMode::Reapply
-            && dirty_patch.trim().is_empty()
-            && opts.pr_branch_name == opts.session_branch;
-
-        if can_skip_temp_worktree {
-            info!(
-                "Skipping temp worktree: reapply mode with no uncommitted changes, pushing directly"
-            );
-            push_head_to_remote_branch(self, opts.session_worktree_path, opts.pr_branch_name)?;
-
-            let pr_url = self.create_pull_request(
-                opts.pr_branch_name,
-                opts.repository,
-                opts.session_worktree_path,
-                opts.content.clone(),
-                Some(opts.base_branch),
-            )?;
-
-            return Ok(GitHubPrResult {
-                branch: opts.pr_branch_name.to_string(),
-                url: pr_url,
-            });
-        }
-
-        let temp_root = tempfile::tempdir().map_err(GitHubCliError::Io)?;
-        let temp_worktree_path = temp_root.path().join("schaltwerk-pr-worktree");
-
-        let worktree_add_args = vec![
-            "worktree".to_string(),
-            "add".to_string(),
-            "--detach".to_string(),
-            temp_worktree_path.to_string_lossy().to_string(),
-            opts.session_branch.to_string(),
-        ];
-        run_git(self, opts.repo_path, &worktree_add_args, &[])?;
-
-        let remove_guard = TemporaryWorktreeGuard {
-            cli: self,
-            repo_path: opts.repo_path,
-            worktree_path: &temp_worktree_path,
-        };
-
-        if !dirty_patch.trim().is_empty() {
-            let mut patch_file = NamedTempFile::new().map_err(GitHubCliError::Io)?;
-            std::io::Write::write_all(&mut patch_file, dirty_patch.as_bytes())
-                .map_err(GitHubCliError::Io)?;
-            let patch_path = patch_file.path().to_string_lossy().to_string();
-            let apply_args = vec![
-                "apply".to_string(),
-                "--index".to_string(),
-                "--whitespace=nowarn".to_string(),
-                patch_path,
-            ];
-            run_git(self, &temp_worktree_path, &apply_args, &[])?;
-        }
-
+        // Resolve commit message from options or PR title
         let fallback_title = match &opts.content {
             PrContent::Explicit { title, .. } => title.trim(),
             PrContent::Fill => "",
         };
+        let commit_msg = opts
+            .commit_message
+            .map(|m| m.trim())
+            .filter(|m| !m.is_empty())
+            .unwrap_or(fallback_title);
 
+        // Perform git operations directly in the session worktree
         match opts.mode {
-            PrCommitMode::Reapply => {
-                if !dirty_patch.trim().is_empty() {
-                    let msg = opts
-                        .commit_message
-                        .map(|m| m.trim())
-                        .filter(|m| !m.is_empty())
-                        .unwrap_or(fallback_title);
-                    if msg.is_empty() {
-                        return Err(GitHubCliError::InvalidInput(
-                            "Commit message is required when committing uncommitted changes."
-                                .to_string(),
-                        ));
-                    }
-                    let commit_args = vec!["commit".to_string(), "-m".to_string(), msg.to_string()];
-                    run_git(self, &temp_worktree_path, &commit_args, &[])?;
-                }
-            }
             PrCommitMode::Squash => {
-                let msg = opts
-                    .commit_message
-                    .map(|m| m.trim())
-                    .filter(|m| !m.is_empty())
-                    .unwrap_or(fallback_title);
-                if msg.is_empty() {
+                // Squash: reset to merge-base, stage everything (commits + uncommitted), single commit
+                if commit_msg.is_empty() {
                     return Err(GitHubCliError::InvalidInput(
                         "Commit message is required for squash mode.".to_string(),
                     ));
                 }
 
                 let merge_base =
-                    resolve_merge_base(self, &temp_worktree_path, opts.base_branch)?;
+                    resolve_merge_base(self, opts.session_worktree_path, opts.base_branch)?;
 
                 let reset_args = vec![
                     "reset".to_string(),
                     "--soft".to_string(),
                     merge_base,
                 ];
-                run_git(self, &temp_worktree_path, &reset_args, &[])?;
+                run_git(self, opts.session_worktree_path, &reset_args, &[])?;
+
                 let add_args = vec!["add".to_string(), "-A".to_string()];
-                run_git(self, &temp_worktree_path, &add_args, &[])?;
-                let commit_args = vec!["commit".to_string(), "-m".to_string(), msg.to_string()];
-                run_git(self, &temp_worktree_path, &commit_args, &[])?;
+                run_git(self, opts.session_worktree_path, &add_args, &[])?;
+
+                let commit_args =
+                    vec!["commit".to_string(), "-m".to_string(), commit_msg.to_string()];
+                run_git(self, opts.session_worktree_path, &commit_args, &[])?;
+            }
+            PrCommitMode::Reapply => {
+                // Reapply: only commit uncommitted changes if any, keep existing commits
+                let has_uncommitted =
+                    has_uncommitted_changes(opts.session_worktree_path).map_err(GitHubCliError::Git)?;
+
+                if has_uncommitted {
+                    if commit_msg.is_empty() {
+                        return Err(GitHubCliError::InvalidInput(
+                            "Commit message is required when committing uncommitted changes."
+                                .to_string(),
+                        ));
+                    }
+
+                    let add_args = vec!["add".to_string(), "-A".to_string()];
+                    run_git(self, opts.session_worktree_path, &add_args, &[])?;
+
+                    let commit_args =
+                        vec!["commit".to_string(), "-m".to_string(), commit_msg.to_string()];
+                    run_git(self, opts.session_worktree_path, &commit_args, &[])?;
+                }
             }
         }
 
-        let push_result = push_head_to_remote_branch(
-            self,
-            &temp_worktree_path,
-            opts.pr_branch_name,
-        );
+        // Push to remote
+        let push_result =
+            push_head_to_remote_branch(self, opts.session_worktree_path, opts.pr_branch_name);
 
         if let Err(push_err) = push_result {
             let err_str = push_err.to_string();
             let is_branch_conflict =
                 err_str.contains("non-fast-forward") || err_str.contains("[rejected]");
             if is_branch_conflict
-                && let Ok(Some(existing_url)) =
-                    self.view_existing_pr(opts.pr_branch_name, opts.repository, &temp_worktree_path)
+                && let Ok(Some(existing_url)) = self.view_existing_pr(
+                    opts.pr_branch_name,
+                    opts.repository,
+                    opts.session_worktree_path,
+                )
             {
                 info!(
                     "Push failed but PR already exists for branch '{}': {existing_url}",
                     opts.pr_branch_name
                 );
-                drop(remove_guard);
                 return Ok(GitHubPrResult {
                     branch: opts.pr_branch_name.to_string(),
                     url: existing_url,
@@ -1204,15 +1162,21 @@ impl<R: CommandRunner> GitHubCli<R> {
             return Err(push_err);
         }
 
+        // Set up upstream tracking so git pull/push work without arguments
+        if let Err(e) =
+            set_upstream_tracking(self, opts.session_worktree_path, opts.pr_branch_name)
+        {
+            warn!("Failed to set upstream tracking for '{}': {e}", opts.pr_branch_name);
+        }
+
+        // Create the PR
         let pr_url = self.create_pull_request(
             opts.pr_branch_name,
             opts.repository,
-            &temp_worktree_path,
+            opts.session_worktree_path,
             opts.content.clone(),
             Some(opts.base_branch),
         )?;
-
-        drop(remove_guard);
 
         Ok(GitHubPrResult {
             branch: opts.pr_branch_name.to_string(),
@@ -1425,29 +1389,6 @@ pub struct CreateSessionPrOptions<'a> {
     pub mode: PrCommitMode,
 }
 
-struct TemporaryWorktreeGuard<'a, R: CommandRunner> {
-    cli: &'a GitHubCli<R>,
-    repo_path: &'a Path,
-    worktree_path: &'a Path,
-}
-
-impl<R: CommandRunner> Drop for TemporaryWorktreeGuard<'_, R> {
-    fn drop(&mut self) {
-        let args_vec = vec![
-            "worktree".to_string(),
-            "remove".to_string(),
-            "--force".to_string(),
-            self.worktree_path.to_string_lossy().to_string(),
-        ];
-        if let Err(err) = run_git(self.cli, self.repo_path, &args_vec, &[]) {
-            warn!(
-                "Failed to remove temporary worktree at {}: {err}",
-                self.worktree_path.display()
-            );
-        }
-    }
-}
-
 fn run_git<R: CommandRunner>(
     cli: &GitHubCli<R>,
     cwd: &Path,
@@ -1532,32 +1473,21 @@ fn push_head_to_remote_branch<R: CommandRunner>(
     result.map(|_| ())
 }
 
-fn build_full_worktree_patch<R: CommandRunner>(
+fn set_upstream_tracking<R: CommandRunner>(
     cli: &GitHubCli<R>,
     worktree_path: &Path,
-) -> Result<String, GitHubCliError> {
-    let dirty = has_uncommitted_changes(worktree_path).map_err(GitHubCliError::Git)?;
-    if !dirty {
-        return Ok(String::new());
-    }
-
-    let index_file = tempfile::NamedTempFile::new().map_err(GitHubCliError::Io)?;
-    let index_path = index_file.path().to_string_lossy().to_string();
-
-    let env = [("GIT_INDEX_FILE", index_path.as_str())];
-
-    let read_tree_args = vec!["read-tree".to_string(), "HEAD".to_string()];
-    run_git(cli, worktree_path, &read_tree_args, &env)?;
-    let add_args = vec!["add".to_string(), "-A".to_string()];
-    run_git(cli, worktree_path, &add_args, &env)?;
-    let diff_args = vec![
-        "diff".to_string(),
-        "--cached".to_string(),
-        "--binary".to_string(),
-        "--no-ext-diff".to_string(),
+    branch_name: &str,
+) -> Result<(), GitHubCliError> {
+    let upstream = format!("origin/{branch_name}");
+    let args = vec![
+        "branch".to_string(),
+        "--set-upstream-to".to_string(),
+        upstream,
     ];
-    let output = run_git(cli, worktree_path, &diff_args, &env)?;
-    Ok(output.stdout)
+
+    run_git(cli, worktree_path, &args, &[])?;
+    debug!("Set upstream tracking to origin/{branch_name}");
+    Ok(())
 }
 
 fn map_runner_error(err: io::Error) -> GitHubCliError {

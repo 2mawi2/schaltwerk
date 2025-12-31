@@ -490,7 +490,7 @@ export function PrSessionModal({
                       placeholder={`pr/${sessionName}`}
                     />
                     <p className="mt-1 text-xs" style={{ color: theme.colors.text.tertiary }}>
-                      Changes will be pushed to this branch. The session branch remains {sessionBranch}.
+                      Your session will switch to this branch after the PR is created.
                     </p>
                   </>
                 )}

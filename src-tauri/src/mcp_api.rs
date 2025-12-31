@@ -11,6 +11,7 @@ use std::path::PathBuf;
 use url::form_urlencoded;
 
 use schaltwerk::domains::settings::setup_script::SetupScriptService;
+use crate::commands::github::{CreateSessionPrArgs, github_create_session_pr_impl};
 use crate::commands::schaltwerk_core::{
     MergeCommandError, merge_session_with_events, schaltwerk_core_cancel_session,
 };
@@ -20,9 +21,7 @@ use crate::{REQUEST_PROJECT_OVERRIDE, get_core_read, get_core_write};
 use schaltwerk::domains::merge::MergeMode;
 use schaltwerk::domains::sessions::entity::{Session, Spec};
 use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
-use schaltwerk::schaltwerk_core::db_project_config::ProjectConfigMethods;
 use schaltwerk::schaltwerk_core::{SessionManager, SessionState};
-use schaltwerk::services::{CreateSessionPrOptions, PrCommitMode, PrContent};
 
 mod diff_api;
 
@@ -1371,42 +1370,6 @@ async fn create_pull_request(
     name: &str,
     app: tauri::AppHandle,
 ) -> Result<Response<String>, hyper::Error> {
-    let (worktree_path, session_branch, parent_branch) = match get_core_read().await {
-        Ok(core) => {
-            let manager = core.session_manager();
-            match manager.get_session(name) {
-                Ok(session) => {
-                    if session.session_state == SessionState::Spec {
-                        return Ok(error_response(
-                            StatusCode::BAD_REQUEST,
-                            format!(
-                                "Session '{name}' is a spec. Start the spec before creating a PR."
-                            ),
-                        ));
-                    }
-                    (
-                        session.worktree_path.clone(),
-                        session.branch.clone(),
-                        session.parent_branch.clone(),
-                    )
-                }
-                Err(e) => {
-                    return Ok(error_response(
-                        StatusCode::NOT_FOUND,
-                        format!("Session '{name}' not found: {e}"),
-                    ));
-                }
-            }
-        }
-        Err(e) => {
-            error!("Failed to acquire session manager for PR: {e}");
-            return Ok(error_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Internal error: {e}"),
-            ));
-        }
-    };
-
     let body_bytes = req.into_body().collect().await?.to_bytes();
     let payload: PullRequestRequest = match serde_json::from_slice(&body_bytes) {
         Ok(p) => p,
@@ -1418,122 +1381,38 @@ async fn create_pull_request(
         }
     };
 
-    let repo_path = match REQUEST_PROJECT_OVERRIDE.try_with(|cell| cell.borrow().clone()) {
-        Ok(Some(path)) => path,
-        _ => {
-            let manager = crate::get_project_manager().await;
-            match manager.current_project().await {
-                Ok(project) => project.path.clone(),
-                Err(e) => {
-                    return Ok(error_response(
-                        StatusCode::BAD_REQUEST,
-                        format!("No active project: {e}"),
-                    ));
-                }
-            }
-        }
-    };
-
-    let mode = payload.mode.unwrap_or(MergeMode::Reapply);
-    let pr_mode = match mode {
-        MergeMode::Squash => PrCommitMode::Squash,
-        MergeMode::Reapply => PrCommitMode::Reapply,
-    };
-
-    let pr_branch_name = payload
-        .pr_branch_name
-        .as_deref()
-        .filter(|s| !s.trim().is_empty())
-        .map(schaltwerk::domains::git::github_cli::sanitize_branch_name)
-        .unwrap_or_else(|| session_branch.clone());
-
-    let base_branch = payload
-        .base_branch
-        .as_deref()
-        .filter(|s| !s.trim().is_empty())
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| {
-            if parent_branch.trim().is_empty() {
-                "main".to_string()
-            } else {
-                parent_branch.clone()
-            }
-        });
-
-    let repository_config = match get_core_read().await {
-        Ok(core) => core
-            .database()
-            .get_project_github_config(&repo_path)
-            .map_err(|e| format!("Failed to load GitHub project config: {e}"))
-            .ok()
-            .flatten(),
-        Err(_) => None,
-    };
-
-    let repository = payload
-        .repository
-        .as_deref()
-        .filter(|s| !s.trim().is_empty())
-        .map(|s| s.to_string())
-        .or_else(|| repository_config.as_ref().map(|cfg| cfg.repository.clone()));
-
-    let cli = schaltwerk::services::GitHubCli::new();
-    if let Err(err) = cli.ensure_installed() {
-        return Ok(error_response(
-            StatusCode::BAD_REQUEST,
-            format!("GitHub CLI is not available: {err}"),
-        ));
-    }
-
-    let pr_result = match cli.create_session_pr(CreateSessionPrOptions {
-        repo_path: &repo_path,
-        session_worktree_path: &worktree_path,
-        session_slug: name,
-        session_branch: &session_branch,
-        base_branch: &base_branch,
-        pr_branch_name: &pr_branch_name,
-        content: PrContent::Explicit {
-            title: &payload.pr_title,
-            body: payload.pr_body.as_deref().unwrap_or(""),
-        },
-        commit_message: payload.commit_message.as_deref(),
-        repository: repository.as_deref(),
-        mode: pr_mode,
-    }) {
-        Ok(res) => res,
-        Err(e) => {
-            return Ok(error_response(
-                StatusCode::BAD_REQUEST,
-                format!("Failed to create pull request: {e}"),
-            ));
-        }
-    };
-
-    let mut cancel_error = None;
-    let mut cancel_queued = false;
-
-    if payload.cancel_after_pr {
-        match schaltwerk_core_cancel_session(app.clone(), name.to_string()).await {
-            Ok(()) => cancel_queued = true,
-            Err(e) => cancel_error = Some(e.to_string()),
-        }
-    }
-
-    let response = PullRequestResponse {
+    let args = CreateSessionPrArgs {
         session_name: name.to_string(),
-        branch: pr_result.branch,
-        url: pr_result.url,
-        cancel_requested: payload.cancel_after_pr,
-        cancel_queued,
-        cancel_error,
+        pr_title: payload.pr_title,
+        pr_body: payload.pr_body,
+        base_branch: payload.base_branch,
+        pr_branch_name: payload.pr_branch_name,
+        commit_message: payload.commit_message,
+        repository: payload.repository,
+        mode: payload.mode.unwrap_or(MergeMode::Reapply),
+        cancel_after_pr: payload.cancel_after_pr,
     };
 
-    let json = serde_json::to_string(&response).unwrap_or_else(|e| {
-        error!("Failed to serialize PR response for '{name}': {e}");
-        "{}".to_string()
-    });
+    match github_create_session_pr_impl(app, args).await {
+        Ok(pr_result) => {
+            let response = PullRequestResponse {
+                session_name: name.to_string(),
+                branch: pr_result.branch,
+                url: pr_result.url,
+                cancel_requested: payload.cancel_after_pr,
+                cancel_queued: payload.cancel_after_pr,
+                cancel_error: None,
+            };
 
-    Ok(json_response(StatusCode::OK, json))
+            let json = serde_json::to_string(&response).unwrap_or_else(|e| {
+                error!("Failed to serialize PR response for '{name}': {e}");
+                "{}".to_string()
+            });
+
+            Ok(json_response(StatusCode::OK, json))
+        }
+        Err(e) => Ok(error_response(StatusCode::BAD_REQUEST, e)),
+    }
 }
 
 #[derive(Debug, serde::Deserialize)]

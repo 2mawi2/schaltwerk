@@ -1,8 +1,10 @@
 use crate::get_project_manager;
-use log::{error, info};
+use log::{error, info, warn};
+use schaltwerk::domains::git::service::rename_branch;
 use schaltwerk::infrastructure::events::{SchaltEvent, emit_event};
 use schaltwerk::project_manager::ProjectManager;
 use schaltwerk::schaltwerk_core::db_project_config::{ProjectConfigMethods, ProjectGithubConfig};
+use schaltwerk::shared::session_metadata_gateway::SessionMetadataGateway;
 use schaltwerk::services::{
     CommandRunner, CreatePrOptions, CreateSessionPrOptions, GitHubCli, GitHubCliError,
     GitHubIssueComment, GitHubIssueDetails, GitHubIssueLabel, GitHubIssueSummary,
@@ -450,6 +452,44 @@ pub async fn github_create_session_pr_impl(
             error!("GitHub PR creation failed: {err}");
             format_cli_error(err)
         })?;
+
+    // If a custom branch name was used, rename the local branch and update the database
+    if pr_result.branch != session_branch {
+        info!(
+            "PR branch '{}' differs from session branch '{}', updating session",
+            pr_result.branch, session_branch
+        );
+
+        // Rename the local git branch to match the PR branch
+        if let Err(e) = rename_branch(&session_worktree, &session_branch, &pr_result.branch) {
+            warn!(
+                "Failed to rename local branch from '{}' to '{}': {e}",
+                session_branch, pr_result.branch
+            );
+        }
+
+        // Update the session's branch in the database
+        {
+            let core = project.schaltwerk_core.read().await;
+            let session = core
+                .session_manager()
+                .get_session(&args.session_name)
+                .map_err(|e| format!("Failed to get session for branch update: {e}"))?;
+
+            if let Err(e) =
+                SessionMetadataGateway::new(core.database()).update_session_branch(&session.id, &pr_result.branch)
+            {
+                warn!(
+                    "Failed to update session branch in database to '{}': {e}",
+                    pr_result.branch
+                );
+            }
+        }
+
+        // Emit refresh event so UI updates
+        emit_event(&app, SchaltEvent::SessionsRefreshed, &project_path)
+            .map_err(|e| format!("Failed to emit sessions refresh: {e}"))?;
+    }
 
     if args.cancel_after_pr
         && let Err(err) =
