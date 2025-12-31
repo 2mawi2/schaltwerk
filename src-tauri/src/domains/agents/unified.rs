@@ -43,6 +43,15 @@ impl AgentAdapter for CodexAdapter {
         if let Some(p) = super::codex::find_codex_resume_path(path)
             && let Some(id) = super::codex::extract_session_id_from_path(&p)
         {
+            let trimmed = id.trim();
+            if super::codex::is_invalid_codex_session_id(trimmed) {
+                log::warn!(
+                    "Codex adapter: Rejecting invalid session ID '{}' extracted from {}",
+                    id,
+                    p.display()
+                );
+                return super::codex::find_codex_session(path);
+            }
             return Some(id);
         }
         super::codex::find_codex_session(path)
