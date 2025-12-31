@@ -453,22 +453,24 @@ class TerminalInstanceRegistry {
     // This allows checking if all buffered data has been processed.
     const writeId = ++record.latestWriteId;
 
-    const bufBefore = record.xterm.raw.buffer?.active;
-    const baseYBefore = bufBefore?.baseY;
-    const viewportYBefore = bufBefore?.viewportY;
+    const terminalDebug = typeof window !== 'undefined' && localStorage.getItem('TERMINAL_DEBUG') === '1';
+    const baseYBefore = terminalDebug ? record.xterm.raw.buffer?.active?.baseY : undefined;
+    const viewportYBefore = terminalDebug ? record.xterm.raw.buffer?.active?.viewportY : undefined;
 
     try {
       const rawWithWriteSync = record.xterm.raw as unknown as { writeSync?: (data: string) => void };
       if (record.xterm.isTuiMode() && hasFullScreenRedrawControl && typeof rawWithWriteSync.writeSync === 'function') {
-        if (typeof window !== 'undefined' && localStorage.getItem('TERMINAL_DEBUG') === '1') {
+        if (terminalDebug) {
           logger.debug(`[Registry ${record.id}] Using writeSync for full-frame TUI batch (chars=${payload.length})`);
         }
         rawWithWriteSync.writeSync(payload);
         record.latestParseId = writeId;
 
-        const bufAfter = record.xterm.raw.buffer?.active;
-        if (bufAfter && (bufAfter.baseY !== baseYBefore || bufAfter.viewportY !== viewportYBefore)) {
-          logger.debug(`[Registry ${record.id}] Viewport changed after write: baseY ${baseYBefore}→${bufAfter.baseY}, viewportY ${viewportYBefore}→${bufAfter.viewportY}`);
+        if (terminalDebug) {
+          const bufAfter = record.xterm.raw.buffer?.active;
+          if (bufAfter && (bufAfter.baseY !== baseYBefore || bufAfter.viewportY !== viewportYBefore)) {
+            logger.debug(`[Registry ${record.id}] Viewport changed after write: baseY ${baseYBefore}→${bufAfter.baseY}, viewportY ${viewportYBefore}→${bufAfter.viewportY}`);
+          }
         }
 
         if (hadClear) {
@@ -484,12 +486,13 @@ class TerminalInstanceRegistry {
       }
 
       record.xterm.raw.write(payload, () => {
-        // Mark this write as fully parsed by xterm
         record.latestParseId = writeId;
 
-        const bufAfter = record.xterm.raw.buffer?.active;
-        if (bufAfter && (bufAfter.baseY !== baseYBefore || bufAfter.viewportY !== viewportYBefore)) {
-          logger.debug(`[Registry ${record.id}] Viewport changed after write: baseY ${baseYBefore}→${bufAfter.baseY}, viewportY ${viewportYBefore}→${bufAfter.viewportY}`);
+        if (terminalDebug) {
+          const bufAfter = record.xterm.raw.buffer?.active;
+          if (bufAfter && (bufAfter.baseY !== baseYBefore || bufAfter.viewportY !== viewportYBefore)) {
+            logger.debug(`[Registry ${record.id}] Viewport changed after write: baseY ${baseYBefore}→${bufAfter.baseY}, viewportY ${viewportYBefore}→${bufAfter.viewportY}`);
+          }
         }
 
         if (hadClear) {
