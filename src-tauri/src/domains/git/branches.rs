@@ -300,13 +300,13 @@ fn materialize_from_remote(repo: &Repository, local: &str, remote: &str) -> Resu
 pub fn safe_sync_branch_with_origin(repo_path: &Path, branch_name: &str) -> Result<()> {
     log::info!("Safely syncing branch '{branch_name}' with origin (fast-forward only)");
 
-    if let Ok(current) = get_current_branch(repo_path) {
-        if current == branch_name {
-            log::info!(
-                "Skipping sync for '{branch_name}' - branch is currently checked out in main repo"
-            );
-            return Ok(());
-        }
+    if let Ok(current) = get_current_branch(repo_path)
+        && current == branch_name
+    {
+        log::info!(
+            "Skipping sync for '{branch_name}' - branch is currently checked out in main repo"
+        );
+        return Ok(());
     }
 
     std::process::Command::new("git")

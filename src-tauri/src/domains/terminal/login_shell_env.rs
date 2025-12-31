@@ -32,12 +32,7 @@ pub async fn capture_login_shell_env() -> Result<HashMap<String, String>, String
     let mark = generate_marker();
     let (shell_args, command) = build_shell_command(&shell_name, &mark);
 
-    log::debug!(
-        "Shell command: {} {:?} {:?}",
-        shell,
-        shell_args,
-        command
-    );
+    log::debug!("Shell command: {shell} {shell_args:?} {command:?}");
 
     let mut cmd = Command::new(&shell);
     cmd.args(&shell_args)
@@ -57,12 +52,10 @@ pub async fn capture_login_shell_env() -> Result<HashMap<String, String>, String
         }
         Err(_) => {
             log::error!(
-                "Timeout after {}s waiting for shell environment from {shell}",
-                DEFAULT_TIMEOUT_SECS
+                "Timeout after {DEFAULT_TIMEOUT_SECS}s waiting for shell environment from {shell}"
             );
             return Err(format!(
-                "Timeout after {}s waiting for shell environment",
-                DEFAULT_TIMEOUT_SECS
+                "Timeout after {DEFAULT_TIMEOUT_SECS}s waiting for shell environment"
             ));
         }
     };
@@ -112,7 +105,7 @@ fn generate_marker() -> String {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or(0);
-    format!("SCHALTWERK{:x}", timestamp)
+    format!("SCHALTWERK{timestamp:x}")
 }
 
 fn build_shell_command(shell_name: &str, mark: &str) -> (Vec<String>, String) {
@@ -207,10 +200,10 @@ fn parse_env_output(output: &str) -> HashMap<String, String> {
 
     for line in output.lines() {
         if let Some((key, value)) = try_parse_env_line(line) {
-            if let Some(prev_key) = current_key.take() {
-                if is_valid_env_key(&prev_key) {
-                    env.insert(prev_key, current_value.trim_end().to_string());
-                }
+            if let Some(prev_key) = current_key.take()
+                && is_valid_env_key(&prev_key)
+            {
+                env.insert(prev_key, current_value.trim_end().to_string());
             }
             current_key = Some(key);
             current_value = value;
@@ -220,10 +213,10 @@ fn parse_env_output(output: &str) -> HashMap<String, String> {
         }
     }
 
-    if let Some(key) = current_key {
-        if is_valid_env_key(&key) {
-            env.insert(key, current_value.trim_end().to_string());
-        }
+    if let Some(key) = current_key
+        && is_valid_env_key(&key)
+    {
+        env.insert(key, current_value.trim_end().to_string());
     }
 
     env

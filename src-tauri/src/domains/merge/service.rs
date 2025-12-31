@@ -1144,8 +1144,7 @@ pub fn update_session_from_parent(
 
     if let Err(e) = git::safe_sync_branch_with_origin(repo_path, &local_parent_branch) {
         debug!(
-            "update_session_from_parent: could not sync parent branch '{}' with origin (may be offline or no remote): {}",
-            local_parent_branch, e
+            "update_session_from_parent: could not sync parent branch '{local_parent_branch}' with origin (may be offline or no remote): {e}"
         );
     }
 
