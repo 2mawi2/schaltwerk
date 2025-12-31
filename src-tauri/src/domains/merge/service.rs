@@ -1088,7 +1088,7 @@ fn index_entry_path(entry: &git2::IndexEntry) -> Option<String> {
 pub fn update_session_from_parent(
     session_name: &str,
     worktree_path: &std::path::Path,
-    _repo_path: &std::path::Path,
+    repo_path: &std::path::Path,
     parent_branch: &str,
 ) -> UpdateSessionFromParentResult {
     let normalize_local_parent_branch = |input: &str| -> String {
@@ -1141,6 +1141,13 @@ pub fn update_session_from_parent(
             stdout
         }
     };
+
+    if let Err(e) = git::safe_sync_branch_with_origin(repo_path, &local_parent_branch) {
+        debug!(
+            "update_session_from_parent: could not sync parent branch '{}' with origin (may be offline or no remote): {}",
+            local_parent_branch, e
+        );
+    }
 
     let repo = match Repository::open(worktree_path) {
         Ok(r) => r,
@@ -2081,6 +2088,198 @@ mod tests {
 
         assert_eq!(result.status, UpdateFromParentStatus::Success);
         assert!(std::fs::read_to_string(session.worktree_path.join("local_only.txt")).is_ok());
+    }
+
+    #[test]
+    fn update_session_from_parent_fetches_and_merges_remote_changes() {
+        let temp = TempDir::new().unwrap();
+        let (manager, _db, repo_path) = create_session_manager(&temp);
+
+        let origin_path = create_bare_origin(&temp);
+        run_git(
+            &repo_path,
+            vec![
+                OsString::from("remote"),
+                OsString::from("add"),
+                OsString::from("origin"),
+                OsString::from(origin_path.to_string_lossy().to_string()),
+            ],
+        )
+        .unwrap();
+        run_git(
+            &repo_path,
+            vec![
+                OsString::from("push"),
+                OsString::from("-u"),
+                OsString::from("origin"),
+                OsString::from("main"),
+            ],
+        )
+        .unwrap();
+
+        let params = SessionCreationParams {
+            name: "update-fetches-remote",
+            prompt: Some("fetch test"),
+            base_branch: Some("main"),
+            custom_branch: None,
+            use_existing_branch: false,
+            sync_with_origin: false,
+            was_auto_generated: false,
+            version_group_id: None,
+            version_number: None,
+            epic_id: None,
+            agent_type: None,
+            skip_permissions: None,
+        };
+
+        let session = manager.create_session_with_agent(params).unwrap();
+
+        commit_file(
+            &session.worktree_path,
+            "session.txt",
+            "session work\n",
+            "session commit",
+        );
+
+        commit_file(&repo_path, "main_change.txt", "main work\n", "main commit");
+        run_git(
+            &repo_path,
+            vec![
+                OsString::from("push"),
+                OsString::from("origin"),
+                OsString::from("main"),
+            ],
+        )
+        .unwrap();
+
+        let local_main_commit = std::process::Command::new("git")
+            .args(["rev-parse", "main"])
+            .current_dir(&repo_path)
+            .output()
+            .unwrap();
+        let local_main_commit = String::from_utf8_lossy(&local_main_commit.stdout)
+            .trim()
+            .to_string();
+
+        run_git(
+            &repo_path,
+            vec![
+                OsString::from("checkout"),
+                OsString::from("-b"),
+                OsString::from("temp-branch"),
+            ],
+        )
+        .unwrap();
+        run_git(
+            &repo_path,
+            vec![
+                OsString::from("branch"),
+                OsString::from("-f"),
+                OsString::from("main"),
+                OsString::from("HEAD~1"),
+            ],
+        )
+        .unwrap();
+
+        let local_main_before = std::process::Command::new("git")
+            .args(["rev-parse", "main"])
+            .current_dir(&repo_path)
+            .output()
+            .unwrap();
+        let local_main_before = String::from_utf8_lossy(&local_main_before.stdout)
+            .trim()
+            .to_string();
+
+        assert_ne!(local_main_before, local_main_commit);
+
+        let result = update_session_from_parent(
+            &session.name,
+            &session.worktree_path,
+            &repo_path,
+            "main",
+        );
+
+        assert_eq!(result.status, UpdateFromParentStatus::Success);
+
+        let local_main_after = std::process::Command::new("git")
+            .args(["rev-parse", "main"])
+            .current_dir(&repo_path)
+            .output()
+            .unwrap();
+        let local_main_after = String::from_utf8_lossy(&local_main_after.stdout)
+            .trim()
+            .to_string();
+        assert_eq!(local_main_after, local_main_commit);
+
+        assert!(
+            std::fs::read_to_string(session.worktree_path.join("main_change.txt")).is_ok()
+        );
+    }
+
+    #[test]
+    fn update_session_from_parent_skips_fetch_when_parent_checked_out() {
+        let temp = TempDir::new().unwrap();
+        let (manager, _db, repo_path) = create_session_manager(&temp);
+
+        let origin_path = create_bare_origin(&temp);
+        run_git(
+            &repo_path,
+            vec![
+                OsString::from("remote"),
+                OsString::from("add"),
+                OsString::from("origin"),
+                OsString::from(origin_path.to_string_lossy().to_string()),
+            ],
+        )
+        .unwrap();
+        run_git(
+            &repo_path,
+            vec![
+                OsString::from("push"),
+                OsString::from("-u"),
+                OsString::from("origin"),
+                OsString::from("main"),
+            ],
+        )
+        .unwrap();
+
+        let params = SessionCreationParams {
+            name: "update-parent-checked-out",
+            prompt: Some("parent checked out test"),
+            base_branch: Some("main"),
+            custom_branch: None,
+            use_existing_branch: false,
+            sync_with_origin: false,
+            was_auto_generated: false,
+            version_group_id: None,
+            version_number: None,
+            epic_id: None,
+            agent_type: None,
+            skip_permissions: None,
+        };
+
+        let session = manager.create_session_with_agent(params).unwrap();
+
+        commit_file(
+            &session.worktree_path,
+            "session.txt",
+            "session work\n",
+            "session commit",
+        );
+
+        commit_file(&repo_path, "local_change.txt", "local work\n", "local commit");
+
+        let result = update_session_from_parent(
+            &session.name,
+            &session.worktree_path,
+            &repo_path,
+            "main",
+        );
+
+        assert_eq!(result.status, UpdateFromParentStatus::Success);
+        assert!(
+            std::fs::read_to_string(session.worktree_path.join("local_change.txt")).is_ok()
+        );
     }
 
     #[test]
