@@ -23,7 +23,10 @@ pub use super::operations::{
     commit_all_changes, has_conflicts, has_uncommitted_changes, is_valid_branch_name,
     is_valid_session_name,
 };
-pub use super::stats::{calculate_git_stats_fast, get_changed_files};
+pub use super::stats::{
+    calculate_git_stats_fast, get_changed_files, get_changed_files_with_mode,
+    has_remote_tracking_branch, DiffCompareMode,
+};
 #[cfg(test)]
 pub use super::worktrees::is_worktree_registered;
 

@@ -21,17 +21,65 @@ use std::path::Path;
 #[tauri::command]
 pub async fn get_changed_files_from_main(
     session_name: Option<String>,
+    compare_mode: Option<git::DiffCompareMode>,
 ) -> Result<Vec<ChangedFile>, SchaltError> {
     let session_ref = session_name.as_deref();
     let repo_path = resolve_repo_path_structured(session_ref).await?;
     let base_branch = resolve_base_branch_structured(session_ref).await?;
-    let result = git::get_changed_files(std::path::Path::new(&repo_path), &base_branch)
-        .map_err(|e| SchaltError::git("get_changed_files_from_main", e))?;
+    let mode = compare_mode.unwrap_or_default();
+
+    let session_branch = if mode == git::DiffCompareMode::UnpushedOnly {
+        resolve_session_branch(session_ref).await.ok()
+    } else {
+        None
+    };
+
+    let result = git::get_changed_files_with_mode(
+        std::path::Path::new(&repo_path),
+        &base_branch,
+        mode,
+        session_branch.as_deref(),
+    )
+    .map_err(|e| SchaltError::git("get_changed_files_from_main", e))?;
     log::info!(
-        "get_changed_files_from_main: session={session_name:?} -> repo_path='{repo_path}', base_branch='{base_branch}', files_count={}",
+        "get_changed_files_from_main: session={session_name:?}, mode={mode:?} -> repo_path='{repo_path}', base_branch='{base_branch}', files_count={}",
         result.len()
     );
     Ok(result)
+}
+
+#[tauri::command]
+pub async fn has_remote_tracking_branch(session_name: String) -> Result<bool, SchaltError> {
+    let repo_path = resolve_repo_path_structured(Some(&session_name)).await?;
+    let session_branch = resolve_session_branch(Some(&session_name)).await?;
+    Ok(git::has_remote_tracking_branch(
+        std::path::Path::new(&repo_path),
+        &session_branch,
+    ))
+}
+
+async fn resolve_session_branch(session_name: Option<&str>) -> Result<String, SchaltError> {
+    let Some(name) = session_name else {
+        return Err(SchaltError::InvalidInput {
+            field: "session_name".to_string(),
+            message: "No session specified".to_string(),
+        });
+    };
+
+    let manager = {
+        let core = get_core_read().await.map_err(|e| SchaltError::DatabaseError {
+            message: e.to_string(),
+        })?;
+        core.session_manager()
+    };
+
+    let session = manager.get_session_by_id(name).or_else(|_| manager.get_session(name)).map_err(
+        |e| SchaltError::SessionNotFound {
+            session_id: format!("{name}: {e}"),
+        },
+    )?;
+
+    Ok(session.branch.clone())
 }
 
 fn collect_working_directory_changes(repo: &Repository) -> anyhow::Result<Vec<ChangedFile>> {

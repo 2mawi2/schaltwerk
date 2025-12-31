@@ -123,11 +123,27 @@ fn check_split_diff_size(
 }
 
 #[tauri::command]
-pub async fn get_changed_files_from_main(session_name: Option<String>) -> Result<Vec<ChangedFile>, String> {
+pub async fn get_changed_files_from_main(
+    session_name: Option<String>,
+    compare_mode: Option<git::DiffCompareMode>,
+) -> Result<Vec<ChangedFile>, String> {
     let repo_path = get_repo_path(session_name.clone()).await?;
-    let base_branch = get_base_branch(session_name).await?;
-    git::get_changed_files(std::path::Path::new(&repo_path), &base_branch)
-        .map_err(|e| format!("Failed to compute changed files: {e}"))
+    let base_branch = get_base_branch(session_name.clone()).await?;
+    let mode = compare_mode.unwrap_or_default();
+
+    let session_branch = if mode == git::DiffCompareMode::UnpushedOnly {
+        get_session_branch(session_name).await.ok()
+    } else {
+        None
+    };
+
+    git::get_changed_files_with_mode(
+        std::path::Path::new(&repo_path),
+        &base_branch,
+        mode,
+        session_branch.as_deref(),
+    )
+    .map_err(|e| format!("Failed to compute changed files: {e}"))
 }
 
 #[tauri::command]
@@ -924,6 +940,43 @@ async fn get_base_branch(session_name: Option<String>) -> Result<String, String>
                 .map_err(|e| format!("Failed to get default branch: {e}"))
         }
     }
+}
+
+async fn get_session_branch(session_name: Option<String>) -> Result<String, String> {
+    let Some(name) = session_name else {
+        return Err("No session specified".to_string());
+    };
+
+    let project_manager = get_project_manager().await;
+    let project = project_manager
+        .current_project()
+        .await
+        .map_err(|e| format!("Failed to get project context: {e}"))?;
+
+    let session_manager = {
+        let core = project.schaltwerk_core.read().await;
+        core.session_manager()
+    };
+
+    let sessions = session_manager
+        .list_enriched_sessions()
+        .map_err(|e| format!("Failed to get sessions: {e}"))?;
+
+    if let Some(session) = find_session_with_fallback(&sessions, &name) {
+        Ok(session.info.branch.clone())
+    } else {
+        Err(format!("Session '{name}' not found"))
+    }
+}
+
+#[tauri::command]
+pub async fn has_remote_tracking_branch(session_name: String) -> Result<bool, String> {
+    let repo_path = get_repo_path(Some(session_name.clone())).await?;
+    let session_branch = get_session_branch(Some(session_name)).await?;
+    Ok(git::has_remote_tracking_branch(
+        std::path::Path::new(&repo_path),
+        &session_branch,
+    ))
 }
 
 #[tauri::command]

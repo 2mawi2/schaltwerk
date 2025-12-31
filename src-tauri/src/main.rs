@@ -1222,6 +1222,7 @@ fn main() {
             schaltwerk::open_apps::open_in_app,
             // Diff commands (from module)
             diff_commands::get_changed_files_from_main,
+            diff_commands::has_remote_tracking_branch,
             diff_commands::get_orchestrator_working_changes,
             diff_commands::get_file_diff_from_main,
             diff_commands::get_current_branch_name,
