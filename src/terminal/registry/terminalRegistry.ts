@@ -537,32 +537,6 @@ class TerminalInstanceRegistry {
         record.bracketedPasteEnabled = enableIdx > disableIdx;
       }
 
-      const syncEnableIdx = combinedControl.lastIndexOf(SYNC_OUTPUT_ENABLE_SEQ);
-      const syncDisableIdx = combinedControl.lastIndexOf(SYNC_OUTPUT_DISABLE_SEQ);
-      if (syncEnableIdx !== -1 || syncDisableIdx !== -1) {
-        logger.debug(
-          `[Registry ${record.id}] Synchronized output mode toggle detected: enableIdx=${syncEnableIdx}, disableIdx=${syncDisableIdx}`,
-        );
-      }
-
-      const alt1049EnableIdx = combinedControl.lastIndexOf(ALT_SCREEN_ENABLE_1049);
-      const alt1049DisableIdx = combinedControl.lastIndexOf(ALT_SCREEN_DISABLE_1049);
-      const alt47EnableIdx = combinedControl.lastIndexOf(ALT_SCREEN_ENABLE_47);
-      const alt47DisableIdx = combinedControl.lastIndexOf(ALT_SCREEN_DISABLE_47);
-      const alt1047EnableIdx = combinedControl.lastIndexOf(ALT_SCREEN_ENABLE_1047);
-      const alt1047DisableIdx = combinedControl.lastIndexOf(ALT_SCREEN_DISABLE_1047);
-      if (
-        alt1049EnableIdx !== -1 ||
-        alt1049DisableIdx !== -1 ||
-        alt47EnableIdx !== -1 ||
-        alt47DisableIdx !== -1 ||
-        alt1047EnableIdx !== -1 ||
-        alt1047DisableIdx !== -1
-      ) {
-        logger.debug(
-          `[Registry ${record.id}] Alternate screen toggle detected: 1049(e=${alt1049EnableIdx},d=${alt1049DisableIdx}) 47(e=${alt47EnableIdx},d=${alt47DisableIdx}) 1047(e=${alt1047EnableIdx},d=${alt1047DisableIdx})`,
-        );
-      }
       record.controlSequenceTail = combinedControl.slice(
         Math.max(0, combinedControl.length - CONTROL_SEQUENCE_TAIL_MAX),
       );
