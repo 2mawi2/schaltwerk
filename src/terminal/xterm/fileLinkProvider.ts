@@ -1,4 +1,5 @@
-import type { ILink, ILinkProvider, IBufferLine, Terminal } from '@xterm/xterm'
+import type { ILink, ILinkProvider } from 'ghostty-web'
+import type { Terminal } from 'ghostty-web'
 
 import { findLinkMatches } from './fileLinks/linkText'
 
@@ -45,7 +46,7 @@ function getWindowedLines(lineIndex: number, terminal: Terminal): [string[], num
   let topIdx = lineIndex
   let bottomIdx = lineIndex
   const lines: string[] = []
-  let line: IBufferLine | undefined = terminal.buffer.active.getLine(lineIndex)
+  let line = terminal.buffer.active.getLine(lineIndex)
 
   if (!line) {
     return [lines, topIdx]
@@ -83,7 +84,6 @@ function getWindowedLines(lineIndex: number, terminal: Terminal): [string[], num
 
 function mapIndex(terminal: Terminal, lineIndex: number, rowIndex: number, stringIndex: number): [number, number] {
   const buffer = terminal.buffer.active
-  const cell = buffer.getNullCell()
   let start = rowIndex
 
   while (stringIndex) {
@@ -92,7 +92,7 @@ function mapIndex(terminal: Terminal, lineIndex: number, rowIndex: number, strin
       return [-1, -1]
     }
     for (let i = start; i < line.length; i += 1) {
-      line.getCell(i, cell)
+      const cell = line.getCell(i) ?? buffer.getNullCell()
       const chars = cell.getChars()
       const width = cell.getWidth()
       if (width) {
@@ -100,8 +100,8 @@ function mapIndex(terminal: Terminal, lineIndex: number, rowIndex: number, strin
         if (i === line.length - 1 && chars === '') {
           const nextLine = buffer.getLine(lineIndex + 1)
           if (nextLine && nextLine.isWrapped) {
-            nextLine.getCell(0, cell)
-            if (cell.getWidth() === 2) {
+            const nextCell = nextLine.getCell(0) ?? buffer.getNullCell()
+            if (nextCell.getWidth() === 2) {
               stringIndex += 1
             }
           }

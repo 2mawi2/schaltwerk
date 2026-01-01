@@ -2,6 +2,7 @@ import type { SettingsCategory } from '../types/settings'
 
 export enum UiEvent {
   PermissionError = 'schaltwerk:permission-error',
+  TerminalInitError = 'schaltwerk:terminal-init-error',
   BackgroundStartMarked = 'schaltwerk:terminal-background-started',
   TerminalResizeRequest = 'schaltwerk:terminal-resize-request',
   TerminalReset = 'schaltwerk:reset-terminals',
@@ -192,6 +193,7 @@ export interface InsertTerminalTextDetail {
 
 export type UiEventPayloads = {
   [UiEvent.PermissionError]: PermissionErrorDetail
+  [UiEvent.TerminalInitError]: TerminalErrorDetail
   [UiEvent.BackgroundStartMarked]: { terminalId: string }
   [UiEvent.TerminalResizeRequest]: TerminalResizeRequestDetail
   [UiEvent.TerminalReset]: TerminalResetDetail

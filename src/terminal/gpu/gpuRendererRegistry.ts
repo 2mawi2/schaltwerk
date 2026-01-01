@@ -1,15 +1,8 @@
-import { WebGLTerminalRenderer } from './webglRenderer';
 import { logger } from '../../utils/logger';
 
-const gpuRenderers = new Map<string, WebGLTerminalRenderer>();
+type DisposableRenderer = { dispose?: () => void };
 
-export function getGpuRenderer(id: string): WebGLTerminalRenderer | undefined {
-  return gpuRenderers.get(id);
-}
-
-export function setGpuRenderer(id: string, renderer: WebGLTerminalRenderer): void {
-  gpuRenderers.set(id, renderer);
-}
+const gpuRenderers = new Map<string, DisposableRenderer>();
 
 export function disposeGpuRenderer(id: string, reason: string): void {
   const renderer = gpuRenderers.get(id);
@@ -17,11 +10,10 @@ export function disposeGpuRenderer(id: string, reason: string): void {
     return;
   }
   try {
-    renderer.dispose();
+    renderer.dispose?.();
   } catch (error) {
     logger.debug(`[GPU] Failed to dispose renderer for ${id} (${reason})`, error);
   } finally {
     gpuRenderers.delete(id);
   }
 }
-

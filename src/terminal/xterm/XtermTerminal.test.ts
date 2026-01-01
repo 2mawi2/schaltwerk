@@ -4,72 +4,70 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn().mockResolvedValue(undefined),
 }))
 
-vi.mock('@xterm/xterm', () => {
+const initMock = vi.fn().mockResolvedValue(undefined)
+const registerLinkProviderMock = vi.fn()
+
+vi.mock('ghostty-web', () => {
   const instances: unknown[] = []
-  class MockXTerm {
+
+  class MockTerminal {
     static __instances = instances
+    cols = 80
+    rows = 24
+    viewportY = 0
+    element: HTMLElement | null = null
     options: Record<string, unknown>
+    selectionManager = {
+      hasSelection: vi.fn(() => false),
+      clearSelection: vi.fn(),
+      selectionStart: null as null | { col: number; absoluteRow: number },
+      selectionEnd: null as null | { col: number; absoluteRow: number },
+    }
+    wasmTerm = {
+      getScrollbackLength: vi.fn(() => 10),
+    }
+
     loadAddon = vi.fn()
-    open = vi.fn()
+    open = vi.fn((parent: HTMLElement) => {
+      this.element = parent
+    })
     write = vi.fn()
     dispose = vi.fn()
-    registerLinkProvider = vi.fn(() => ({ dispose: vi.fn() }))
-    scrollToBottom = vi.fn()
     scrollToLine = vi.fn()
-    scrollLines = vi.fn()
-    buffer: { active: { baseY: number; viewportY: number } } | undefined = {
-      active: { baseY: 0, viewportY: 0 },
-    }
-    element: HTMLElement | null = null
-    parser = {
-      registerOscHandler: vi.fn(() => true),
-      registerCsiHandler: vi.fn(() => ({ dispose: vi.fn() })),
-    }
+    getViewportY = vi.fn(() => this.viewportY)
+    registerLinkProvider = registerLinkProviderMock
+
     constructor(options: Record<string, unknown>) {
       this.options = options
       instances.push(this)
     }
   }
-  return { Terminal: MockXTerm }
-})
 
-vi.mock('@xterm/addon-fit', () => ({
-  FitAddon: class {
+  class MockFitAddon {
     fit = vi.fn()
     dispose = vi.fn()
-  },
-}))
-
-vi.mock('@xterm/addon-search', () => ({
-  SearchAddon: class {
-    findNext = vi.fn()
-    findPrevious = vi.fn()
-    dispose = vi.fn()
-  },
-}))
-
-vi.mock('@xterm/addon-web-links', () => ({
-  WebLinksAddon: class {
-    dispose = vi.fn()
-  },
-}))
-
-const registerMock = vi.fn()
-
-vi.mock('./xtermAddonImporter', () => ({
-  XtermAddonImporter: class {
-    static registerPreloadedAddon = registerMock
+    activate = vi.fn()
   }
-}))
 
-beforeEach(() => {
-  registerMock.mockClear()
+  return {
+    init: initMock,
+    Terminal: MockTerminal,
+    FitAddon: MockFitAddon,
+  }
 })
 
-describe('XtermTerminal wrapper', () => {
-  it('creates a terminal instance, loads addons, and attaches to a container', async () => {
+beforeEach(() => {
+  initMock.mockClear()
+  registerLinkProviderMock.mockClear()
+})
+
+describe('XtermTerminal wrapper (ghostty-web)', () => {
+  it('initializes ghostty-web, creates a terminal instance, and registers link providers on first attach', async () => {
     const { XtermTerminal } = await import('./XtermTerminal')
     const { theme } = await import('../../common/theme')
+
+    await XtermTerminal.ensureInitialized()
+    expect(initMock).toHaveBeenCalledTimes(1)
 
     const wrapper = new XtermTerminal({
       terminalId: 'test-id',
@@ -82,10 +80,9 @@ describe('XtermTerminal wrapper', () => {
         smoothScrolling: true,
       },
     })
-    await wrapper.ensureCoreAddonsLoaded()
 
-    const { Terminal: MockTerminal } = await import('@xterm/xterm') as unknown as {
-      Terminal: { __instances: Array<{ options: Record<string, unknown>; loadAddon: ReturnType<typeof vi.fn>; open: ReturnType<typeof vi.fn>; parser: { registerOscHandler: ReturnType<typeof vi.fn> } }> }
+    const { Terminal: MockTerminal } = await import('ghostty-web') as unknown as {
+      Terminal: { __instances: Array<{ options: Record<string, unknown>; loadAddon: ReturnType<typeof vi.fn>; open: ReturnType<typeof vi.fn> }> }
     }
     expect(MockTerminal.__instances).toHaveLength(1)
     const instance = MockTerminal.__instances[0]
@@ -93,21 +90,14 @@ describe('XtermTerminal wrapper', () => {
     expect(instance.options.fontSize).toBe(14)
     expect(instance.options.fontFamily).toBe('Fira Code')
     expect(instance.options.disableStdin).toBe(false)
-    expect(instance.options.minimumContrastRatio).toBe(1.3)
     expect(instance.options.smoothScrollDuration).toBeGreaterThan(0)
     expect(instance.options.theme).toMatchObject({
       background: theme.colors.background.secondary,
       foreground: theme.colors.text.primary,
       brightRed: theme.colors.accent.red.light,
     })
-    expect(instance.loadAddon).toHaveBeenCalledTimes(3)
-    expect(registerMock).toHaveBeenCalledWith('fit', expect.any(Function))
-    expect(registerMock).toHaveBeenCalledWith('search', expect.any(Function))
-    expect(registerMock).toHaveBeenCalledWith('webLinks', expect.any(Function))
-    expect(instance.parser.registerOscHandler).toHaveBeenCalledTimes(9)
-    for (const code of [10, 11, 12, 13, 14, 15, 16, 17, 19]) {
-      expect(instance.parser.registerOscHandler).toHaveBeenCalledWith(code, expect.any(Function))
-    }
+    expect(instance.loadAddon).toHaveBeenCalledTimes(1)
+    expect(registerLinkProviderMock).toHaveBeenCalledTimes(0)
 
     const container = document.createElement('div')
     wrapper.attach(container)
@@ -120,7 +110,9 @@ describe('XtermTerminal wrapper', () => {
     expect(child.style.width).toBe('100%')
     expect(child.style.height).toBe('100%')
     expect(child.style.display).toBe('block')
+
     expect(instance.open).toHaveBeenCalledTimes(1)
+    expect(registerLinkProviderMock).toHaveBeenCalledTimes(2)
 
     wrapper.detach()
     expect((child as HTMLElement).style.display).toBe('none')
@@ -130,9 +122,10 @@ describe('XtermTerminal wrapper', () => {
     expect(instance.open).toHaveBeenCalledTimes(1)
   })
 
-  it('updates underlying xterm options via updateOptions', async () => {
+  it('updates underlying terminal options via updateOptions', async () => {
     const { XtermTerminal } = await import('./XtermTerminal')
 
+    await XtermTerminal.ensureInitialized()
     const wrapper = new XtermTerminal({
       terminalId: 'opts',
       config: {
@@ -144,8 +137,8 @@ describe('XtermTerminal wrapper', () => {
         smoothScrolling: false,
       },
     })
-    await wrapper.ensureCoreAddonsLoaded()
-    const { Terminal: MockTerminal } = await import('@xterm/xterm') as unknown as {
+
+    const { Terminal: MockTerminal } = await import('ghostty-web') as unknown as {
       Terminal: { __instances: Array<{ options: Record<string, unknown> }> }
     }
     const instance = MockTerminal.__instances.at(-1)!
@@ -156,70 +149,10 @@ describe('XtermTerminal wrapper', () => {
     expect(instance.options.fontFamily).toBe('Fira Code')
   })
 
-  it('applies config updates through applyConfig and updateOptions', async () => {
-    const { XtermTerminal } = await import('./XtermTerminal')
-
-    const wrapper = new XtermTerminal({
-      terminalId: 'cfg',
-      config: {
-        scrollback: 10000,
-        fontSize: 13,
-        fontFamily: 'Menlo',
-        readOnly: false,
-        minimumContrastRatio: 1.0,
-        smoothScrolling: true,
-      },
-    })
-
-    const { Terminal: MockTerminal } = await import('@xterm/xterm') as unknown as {
-      Terminal: { __instances: Array<{ options: Record<string, unknown> }> }
-    }
-    const instance = MockTerminal.__instances.at(-1)!
-
-    wrapper.applyConfig({ readOnly: true, minimumContrastRatio: 1.6, scrollback: 12000, smoothScrolling: false })
-    expect(instance.options.disableStdin).toBe(true)
-    expect(instance.options.minimumContrastRatio).toBe(1.6)
-    expect(instance.options.scrollback).toBe(12000)
-    expect(instance.options.smoothScrollDuration).toBe(0)
-
-    wrapper.updateOptions({ disableStdin: false, scrollback: 8000, smoothScrollDuration: 125 })
-    expect(instance.options.disableStdin).toBe(false)
-    expect(instance.options.scrollback).toBe(8000)
-    expect(instance.options.smoothScrollDuration).toBe(125)
-
-    wrapper.setSmoothScrolling(true)
-    expect(instance.options.smoothScrollDuration).toBeGreaterThan(0)
-  })
-
-  it('toggles smooth scrolling independently', async () => {
-    const { XtermTerminal } = await import('./XtermTerminal')
-
-    const wrapper = new XtermTerminal({
-      terminalId: 'smooth',
-      config: {
-        scrollback: 4000,
-        fontSize: 12,
-        fontFamily: 'Menlo',
-        readOnly: false,
-        minimumContrastRatio: 1.0,
-        smoothScrolling: true,
-      },
-    })
-
-    const { Terminal: MockTerminal } = await import('@xterm/xterm') as unknown as {
-      Terminal: { __instances: Array<{ options: Record<string, unknown> }> }
-    }
-    const instance = MockTerminal.__instances.at(-1)!
-    expect(instance.options.smoothScrollDuration).toBeGreaterThan(0)
-    wrapper.setSmoothScrolling(false)
-    expect(instance.options.smoothScrollDuration).toBe(0)
-    wrapper.setSmoothScrolling(true)
-    expect(instance.options.smoothScrollDuration).toBeGreaterThan(0)
-  })
-
   it('hides the cursor in TUI mode on attach', async () => {
     const { XtermTerminal } = await import('./XtermTerminal')
 
+    await XtermTerminal.ensureInitialized()
     const wrapper = new XtermTerminal({
       terminalId: 'tui',
       uiMode: 'tui',
@@ -233,7 +166,7 @@ describe('XtermTerminal wrapper', () => {
       },
     })
 
-    const { Terminal: MockTerminal } = await import('@xterm/xterm') as unknown as {
+    const { Terminal: MockTerminal } = await import('ghostty-web') as unknown as {
       Terminal: { __instances: Array<{ options: Record<string, unknown>; write: ReturnType<typeof vi.fn> }> }
     }
     const instance = MockTerminal.__instances.at(-1)!
@@ -245,36 +178,10 @@ describe('XtermTerminal wrapper', () => {
     expect(instance.write).toHaveBeenCalledWith('\x1b[?25l')
   })
 
-  it('registers a CSI J handler to block clear scrollback in TUI mode', async () => {
-    const { XtermTerminal } = await import('./XtermTerminal')
-
-    new XtermTerminal({
-      terminalId: 'csi-test',
-      uiMode: 'tui',
-      config: {
-        scrollback: 4000,
-        fontSize: 12,
-        fontFamily: 'Menlo',
-        readOnly: false,
-        minimumContrastRatio: 1.0,
-        smoothScrolling: false,
-      },
-    })
-
-    const { Terminal: MockTerminal } = await import('@xterm/xterm') as unknown as {
-      Terminal: { __instances: Array<{ parser: { registerCsiHandler: ReturnType<typeof vi.fn> } }> }
-    }
-    const instance = MockTerminal.__instances.at(-1)!
-
-    expect(instance.parser.registerCsiHandler).toHaveBeenCalledWith(
-      { final: 'J' },
-      expect.any(Function)
-    )
-  })
-
   it('saves and restores scroll position on detach/attach', async () => {
     const { XtermTerminal } = await import('./XtermTerminal')
 
+    await XtermTerminal.ensureInitialized()
     const wrapper = new XtermTerminal({
       terminalId: 'scroll-test',
       config: {
@@ -287,20 +194,19 @@ describe('XtermTerminal wrapper', () => {
       },
     })
 
-    const { Terminal: MockTerminal } = await import('@xterm/xterm') as unknown as {
-      Terminal: { __instances: Array<{ buffer: { active: { viewportY: number } }; scrollToLine: ReturnType<typeof vi.fn> }> }
+    const { Terminal: MockTerminal } = await import('ghostty-web') as unknown as {
+      Terminal: { __instances: Array<{ viewportY: number; scrollToLine: ReturnType<typeof vi.fn> }> }
     }
     const instance = MockTerminal.__instances.at(-1)!
 
     const container = document.createElement('div')
     wrapper.attach(container)
 
-    instance.buffer.active.viewportY = 42
+    instance.viewportY = 7
     wrapper.detach()
 
     wrapper.attach(container)
-
     await new Promise(resolve => requestAnimationFrame(resolve))
-    expect(instance.scrollToLine).toHaveBeenCalledWith(42)
+    expect(instance.scrollToLine).toHaveBeenCalledWith(7)
   })
 })

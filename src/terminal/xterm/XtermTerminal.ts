@@ -1,13 +1,9 @@
-import type { IDisposable, ITerminalOptions } from '@xterm/xterm'
-import { Terminal as XTerm } from '@xterm/xterm'
-import { FitAddon } from '@xterm/addon-fit'
-import { SearchAddon } from '@xterm/addon-search'
-import { WebLinksAddon } from '@xterm/addon-web-links'
+import type { ITerminalOptions } from 'ghostty-web'
+import { FitAddon, Terminal as GhosttyTerminal, init } from 'ghostty-web'
 import { invoke } from '@tauri-apps/api/core'
 
 import { theme } from '../../common/theme'
 import { logger } from '../../utils/logger'
-import { XtermAddonImporter } from './xtermAddonImporter'
 import { TauriCommands } from '../../common/tauriCommands'
 import { RegexLinkProvider } from './fileLinkProvider'
 import { parseTerminalFileReference, TERMINAL_FILE_LINK_REGEX } from './fileLinks/terminalFileLinks'
@@ -32,16 +28,23 @@ type TerminalTheme = NonNullable<ITerminalOptions['theme']>
 type FileLinkHandler = (text: string) => Promise<boolean> | boolean
 export type TerminalUiMode = 'standard' | 'tui'
 
-interface IXtermViewport {
-  _innerRefresh(): void
-}
+let ghosttyInitPromise: Promise<void> | null = null
 
-interface IXtermCore {
-  viewport?: IXtermViewport
-}
+const TERMINAL_URL_REGEX =
+  /(?:https?:\/\/|mailto:|ftp:\/\/|ssh:\/\/|git:\/\/|tel:|magnet:|gemini:\/\/|gopher:\/\/|news:)[\w\-.~:/?#@!$&*+,;=%]+/gi
+const URL_TRAILING_PUNCTUATION = /[.,;!?)\]]+$/
 
-interface ITerminalWithCore extends XTerm {
-  _core?: IXtermCore
+function ensureGhosttyInitialized(): Promise<void> {
+  if (ghosttyInitPromise) {
+    return ghosttyInitPromise
+  }
+
+  ghosttyInitPromise = init().catch(error => {
+    logger.error('[ghostty-web] init failed', error)
+    ghosttyInitPromise = null
+    throw error
+  })
+  return ghosttyInitPromise
 }
 
 function buildTheme(): TerminalTheme {
@@ -50,6 +53,8 @@ function buildTheme(): TerminalTheme {
     foreground: theme.colors.text.primary,
     cursor: theme.colors.text.primary,
     cursorAccent: theme.colors.background.secondary,
+    selectionBackground: theme.colors.text.primary,
+    selectionForeground: theme.colors.background.secondary,
     black: theme.colors.background.elevated,
     red: theme.colors.accent.red.DEFAULT,
     green: theme.colors.accent.green.DEFAULT,
@@ -78,41 +83,32 @@ function buildTerminalOptions(config: XtermTerminalConfig): ITerminalOptions {
     fontSize: config.fontSize,
     cursorBlink: true,
     cursorStyle: 'block',
-    cursorInactiveStyle: 'outline',
     scrollback: config.scrollback,
     smoothScrollDuration: config.smoothScrolling ? DEFAULT_SMOOTH_SCROLL_DURATION_MS : 0,
     convertEol: false,
     disableStdin: config.readOnly,
-    minimumContrastRatio: config.minimumContrastRatio,
-    customGlyphs: true,
-    drawBoldTextInBrightColors: false,
-    rescaleOverlappingGlyphs: true,
     allowTransparency: false,
-    allowProposedApi: false,
-    fastScrollSensitivity: 8,
-    scrollSensitivity: 1.5,
-    scrollOnUserInput: true,
-    altClickMovesCursor: true,
-    rightClickSelectsWord: true,
-    tabStopWidth: 8,
   }
 }
 
 export class XtermTerminal {
-  readonly raw: XTerm
+  static ensureInitialized(): Promise<void> {
+    return ensureGhosttyInitialized()
+  }
+
+  readonly raw: GhosttyTerminal
   readonly fitAddon: FitAddon
-  readonly searchAddon: SearchAddon
-  readonly webLinksAddon: WebLinksAddon
-  private readonly fileLinkProvider: IDisposable
+  private urlLinkProviderRegistered = false
+  private fileLinkProviderRegistered = false
+  private selectionApiPatched = false
   private readonly container: HTMLDivElement
   private opened = false
-  private readonly coreAddonsReady: Promise<void>
   private config: XtermTerminalConfig
   private readonly terminalId: string
   private fileLinkHandler: FileLinkHandler | null = null
   private linkHandler: ((uri: string) => boolean | Promise<boolean>) | null = null
   private uiMode: TerminalUiMode
-  private savedDistanceFromBottom: number | null = null
+  private savedViewportY: number | null = null
 
   constructor(options: XtermTerminalOptions) {
     this.terminalId = options.terminalId
@@ -121,51 +117,9 @@ export class XtermTerminal {
     this.linkHandler = options.onLinkClick ?? null
     const resolvedOptions = buildTerminalOptions(this.config)
 
-    this.raw = new XTerm(resolvedOptions)
+    this.raw = new GhosttyTerminal(resolvedOptions)
     this.fitAddon = new FitAddon()
     this.raw.loadAddon(this.fitAddon)
-
-    this.searchAddon = new SearchAddon()
-    this.raw.loadAddon(this.searchAddon)
-
-    this.webLinksAddon = new WebLinksAddon((_event: MouseEvent, uri: string) => {
-      const openLink = async () => {
-        try {
-          if (this.linkHandler) {
-            const handled = await this.linkHandler(uri)
-            if (handled) return
-          }
-        } catch (error) {
-          logger.debug(`[XtermTerminal ${this.terminalId}] Link handler failed`, error)
-        }
-
-        try {
-          await invoke<void>(TauriCommands.OpenExternalUrl, { url: uri })
-        } catch (error) {
-          logger.error(`[XtermTerminal ${this.terminalId}] Failed to open link: ${uri}`, error)
-        }
-      }
-
-      void openLink()
-    })
-    this.raw.loadAddon(this.webLinksAddon)
-
-    this.fileLinkProvider = this.raw.registerLinkProvider(
-      new RegexLinkProvider(
-        this.raw,
-        TERMINAL_FILE_LINK_REGEX,
-        (event, text) => {
-          void this.handleFileLink(event, text)
-        },
-        candidate => Boolean(parseTerminalFileReference(candidate)),
-      ),
-    )
-
-    XtermAddonImporter.registerPreloadedAddon('fit', FitAddon)
-    XtermAddonImporter.registerPreloadedAddon('search', SearchAddon)
-    XtermAddonImporter.registerPreloadedAddon('webLinks', WebLinksAddon)
-
-    this.coreAddonsReady = Promise.resolve()
 
     this.container = document.createElement('div')
     this.container.dataset.terminalId = options.terminalId
@@ -176,9 +130,6 @@ export class XtermTerminal {
     this.container.style.display = 'block'
     this.container.style.overflow = 'hidden'
     this.container.style.boxSizing = 'border-box'
-
-    this.registerOscHandlers()
-    this.registerCsiHandlers()
   }
 
   isTuiMode(): boolean {
@@ -209,13 +160,16 @@ export class XtermTerminal {
   }
 
   attach(target: HTMLElement): void {
-    const buffer = this.raw.buffer?.active
-    logger.debug(`[XtermTerminal ${this.terminalId}] attach(): uiMode=${this.uiMode}, opened=${this.opened}, baseY=${buffer?.baseY}, viewportY=${buffer?.viewportY}`)
+    const viewportY = this.getViewportY()
+    logger.debug(`[XtermTerminal ${this.terminalId}] attach(): uiMode=${this.uiMode}, opened=${this.opened}, viewportY=${viewportY}`)
 
     if (!this.opened) {
       this.raw.open(this.container)
       this.opened = true
       logger.debug(`[XtermTerminal ${this.terminalId}] Opened terminal (first attach)`)
+
+      this.registerLinkProviders()
+      this.patchSelectionApi()
     }
     if (this.uiMode === 'tui') {
       this.applyTuiMode()
@@ -225,48 +179,31 @@ export class XtermTerminal {
     }
     this.container.style.display = 'block'
 
-    if (this.savedDistanceFromBottom !== null) {
-      const distance = this.savedDistanceFromBottom
-      this.savedDistanceFromBottom = null
-      logger.debug(`[XtermTerminal ${this.terminalId}] Restoring scroll position: distance=${distance}`)
+    if (this.savedViewportY !== null) {
+      const savedViewportY = this.savedViewportY
+      this.savedViewportY = null
+      logger.debug(`[XtermTerminal ${this.terminalId}] Restoring scroll position: viewportY=${savedViewportY}`)
       requestAnimationFrame(() => {
         try {
-          const buf = this.raw.buffer?.active
-          if (buf) {
-            const targetY = Math.max(0, buf.baseY - distance)
-            logger.debug(`[XtermTerminal ${this.terminalId}] Scroll restore RAF: baseY=${buf.baseY}, targetY=${targetY}`)
-            this.raw.scrollToLine(targetY)
-            this.forceScrollbarRefresh()
-          }
+          this.raw.scrollToLine(savedViewportY)
         } catch (error) {
           logger.debug(`[XtermTerminal ${this.terminalId}] Failed to restore scroll position`, error)
         }
       })
-    } else {
-      this.forceScrollbarRefresh()
     }
   }
 
   isAtBottom(): boolean {
-    const buffer = this.raw.buffer?.active
-    if (!buffer) return true
-    return buffer.baseY - buffer.viewportY <= 1
+    return this.getViewportY() <= 1
   }
 
   private applyTuiMode(): void {
-    const buffer = this.raw.buffer?.active
-    logger.debug(`[XtermTerminal ${this.terminalId}] applyTuiMode(): baseY=${buffer?.baseY}, viewportY=${buffer?.viewportY}`)
+    logger.debug(`[XtermTerminal ${this.terminalId}] applyTuiMode(): viewportY=${this.getViewportY()}`)
 
     try {
       this.raw.options.cursorBlink = false
     } catch (error) {
       logger.debug(`[XtermTerminal ${this.terminalId}] Failed to disable cursor blink for TUI mode`, error)
-    }
-
-    try {
-      this.raw.options.scrollOnUserInput = false
-    } catch (error) {
-      logger.debug(`[XtermTerminal ${this.terminalId}] Failed to disable scrollOnUserInput for TUI mode`, error)
     }
 
     try {
@@ -284,12 +221,6 @@ export class XtermTerminal {
     }
 
     try {
-      this.raw.options.scrollOnUserInput = true
-    } catch (error) {
-      logger.debug(`[XtermTerminal ${this.terminalId}] Failed to enable scrollOnUserInput for standard mode`, error)
-    }
-
-    try {
       this.raw.write('\x1b[?25h')
     } catch (error) {
       logger.debug(`[XtermTerminal ${this.terminalId}] Failed to show cursor for standard mode`, error)
@@ -297,11 +228,8 @@ export class XtermTerminal {
   }
 
   detach(): void {
-    const buffer = this.raw.buffer?.active
-    if (buffer) {
-      this.savedDistanceFromBottom = buffer.baseY - buffer.viewportY
-      logger.debug(`[XtermTerminal ${this.terminalId}] detach(): Saved scroll distance=${this.savedDistanceFromBottom}, baseY=${buffer.baseY}, viewportY=${buffer.viewportY}`)
-    }
+    this.savedViewportY = this.getViewportY()
+    logger.debug(`[XtermTerminal ${this.terminalId}] detach(): Saved viewportY=${this.savedViewportY}`)
     this.container.style.display = 'none'
   }
 
@@ -310,7 +238,7 @@ export class XtermTerminal {
   }
 
   async ensureCoreAddonsLoaded(): Promise<void> {
-    await this.coreAddonsReady
+    return
   }
 
   applyConfig(partial: Partial<XtermTerminalConfig>): void {
@@ -333,17 +261,13 @@ export class XtermTerminal {
       this.raw.options.disableStdin = next.readOnly
     }
 
-    if (partial.minimumContrastRatio !== undefined) {
-      this.raw.options.minimumContrastRatio = next.minimumContrastRatio
-    }
-
     if (partial.smoothScrolling !== undefined) {
       this.setSmoothScrolling(partial.smoothScrolling)
     }
   }
 
   updateOptions(options: Partial<ITerminalOptions>): void {
-    const { fontSize, fontFamily, disableStdin, minimumContrastRatio, scrollback, ...rest } = options
+    const { fontSize, fontFamily, disableStdin, scrollback, ...rest } = options
 
     const configUpdates: Partial<XtermTerminalConfig> = {}
     if (fontSize !== undefined) {
@@ -354,9 +278,6 @@ export class XtermTerminal {
     }
     if (disableStdin !== undefined) {
       configUpdates.readOnly = disableStdin
-    }
-    if (minimumContrastRatio !== undefined) {
-      configUpdates.minimumContrastRatio = minimumContrastRatio
     }
     if (scrollback !== undefined) {
       configUpdates.scrollback = scrollback
@@ -377,15 +298,7 @@ export class XtermTerminal {
   }
 
   refresh(): void {
-    const rawWithRefresh = this.raw as unknown as { refresh?: (start: number, end: number) => void }
-    if (typeof rawWithRefresh.refresh === 'function') {
-      rawWithRefresh.refresh(0, this.raw.rows - 1)
-    }
-  }
-
-  forceScrollbarRefresh(): void {
-    const terminal = this.raw as ITerminalWithCore
-    terminal._core?.viewport?._innerRefresh()
+    return
   }
 
   setSmoothScrolling(enabled: boolean): void {
@@ -394,11 +307,6 @@ export class XtermTerminal {
 
   dispose(): void {
     this.detach()
-    try {
-      this.fileLinkProvider.dispose()
-    } catch (error) {
-      logger.debug(`[XtermTerminal ${this.terminalId}] Failed to dispose file link provider`, error)
-    }
     this.raw.dispose()
   }
 
@@ -419,69 +327,175 @@ export class XtermTerminal {
     }
   }
 
-  private registerOscHandlers(): void {
-    const oscCodes = [10, 11, 12, 13, 14, 15, 16, 17, 19]
-    for (const code of oscCodes) {
+  private registerLinkProviders(): void {
+    if (!this.opened) {
+      return
+    }
+
+    if (!this.urlLinkProviderRegistered) {
       try {
-        this.raw.parser.registerOscHandler(code, () => true)
+        this.raw.registerLinkProvider(
+          new RegexLinkProvider(
+            this.raw,
+            TERMINAL_URL_REGEX,
+            (event, text) => {
+              void this.handleUrlLink(event, text)
+            },
+          ),
+        )
+        this.urlLinkProviderRegistered = true
       } catch (error) {
-        logger.debug(`[XtermTerminal ${this.terminalId}] OSC handler registration failed for code ${code}`, error)
+        logger.debug(`[XtermTerminal ${this.terminalId}] Failed to register URL link provider`, error)
+      }
+    }
+
+    if (!this.fileLinkProviderRegistered) {
+      try {
+        this.raw.registerLinkProvider(
+          new RegexLinkProvider(
+            this.raw,
+            TERMINAL_FILE_LINK_REGEX,
+            (event, text) => {
+              void this.handleFileLink(event, text)
+            },
+            candidate => Boolean(parseTerminalFileReference(candidate)),
+          ),
+        )
+        this.fileLinkProviderRegistered = true
+      } catch (error) {
+        logger.debug(`[XtermTerminal ${this.terminalId}] Failed to register file link provider`, error)
       }
     }
   }
 
-  private registerCsiHandlers(): void {
-    try {
-      this.raw.parser.registerCsiHandler({ final: 'J' }, (params) => {
-        const param = params.length > 0 ? params[0] : 0
-        const isClearScrollback = param === 3
-        const buffer = this.raw.buffer?.active
+  private patchSelectionApi(): void {
+    if (this.selectionApiPatched) {
+      return
+    }
+    this.selectionApiPatched = true
 
-        if (isClearScrollback) {
-          if (this.isTuiMode()) {
-            logger.debug(`[XtermTerminal ${this.terminalId}] BLOCKED CSI 3J in TUI mode (baseY=${buffer?.baseY}, viewportY=${buffer?.viewportY})`)
-            return true
-          } else {
-            logger.debug(`[XtermTerminal ${this.terminalId}] ALLOWING CSI 3J in standard mode (baseY=${buffer?.baseY}, viewportY=${buffer?.viewportY})`)
-          }
-        }
-
-        return false
-      })
-    } catch (error) {
-      logger.debug(`[XtermTerminal ${this.terminalId}] CSI J handler registration failed`, error)
+    const term = this.raw as unknown as {
+      selectionManager?: {
+        hasSelection?: () => boolean
+        clearSelection?: () => void
+        selectionStart?: { col: number; absoluteRow: number } | null
+        selectionEnd?: { col: number; absoluteRow: number } | null
+      }
+      wasmTerm?: { getScrollbackLength?: () => number }
     }
 
-    this.registerSynchronizedOutputHandlers()
+    const selectionManager = term.selectionManager
+    if (!selectionManager) {
+      return
+    }
+
+    const getScrollbackLength = (): number => term.wasmTerm?.getScrollbackLength?.() ?? 0
+
+    const clearIfNeeded = () => {
+      try {
+        if (typeof selectionManager.hasSelection === 'function' && selectionManager.hasSelection()) {
+          selectionManager.clearSelection?.()
+        }
+      } catch (error) {
+        logger.debug(`[XtermTerminal ${this.terminalId}] Failed to clear selection`, error)
+      }
+    }
+
+    const clampCol = (col: number) => Math.max(0, Math.min(col, this.raw.cols - 1))
+    const clampAbsRow = (row: number) => Math.max(0, row)
+
+    const setSelection = (startCol: number, startAbsRow: number, endCol: number, endAbsRow: number) => {
+      clearIfNeeded()
+
+      selectionManager.selectionStart = {
+        col: clampCol(startCol),
+        absoluteRow: clampAbsRow(startAbsRow),
+      }
+      selectionManager.selectionEnd = {
+        col: clampCol(endCol),
+        absoluteRow: clampAbsRow(endAbsRow),
+      }
+    }
+
+    const selectAll = () => {
+      const scrollbackLength = getScrollbackLength()
+      const endAbsRow = scrollbackLength + this.raw.rows - 1
+      setSelection(0, 0, this.raw.cols - 1, endAbsRow)
+    }
+
+    const select = (column: number, row: number, length: number) => {
+      const cols = this.raw.cols
+      const rows = this.raw.rows
+      const viewportY = this.getViewportY()
+      const scrollbackLength = getScrollbackLength()
+
+      const startViewportRow = Math.max(0, Math.min(row, rows - 1))
+      const startCol = clampCol(column)
+
+      const endOffset = Math.max(0, length - 1)
+      const endIndex = startCol + endOffset
+      const endViewportRow = Math.min(rows - 1, startViewportRow + Math.floor(endIndex / cols))
+      const endCol = clampCol(endIndex % cols)
+
+      const startAbsRow = scrollbackLength + startViewportRow - viewportY
+      const endAbsRow = scrollbackLength + endViewportRow - viewportY
+
+      setSelection(startCol, startAbsRow, endCol, endAbsRow)
+    }
+
+    const selectLines = (start: number, end: number) => {
+      const rows = this.raw.rows
+      const viewportY = this.getViewportY()
+      const scrollbackLength = getScrollbackLength()
+
+      const startViewportRow = Math.max(0, Math.min(start, rows - 1))
+      const endViewportRow = Math.max(0, Math.min(end, rows - 1))
+      const startRow = Math.min(startViewportRow, endViewportRow)
+      const endRow = Math.max(startViewportRow, endViewportRow)
+
+      const startAbsRow = scrollbackLength + startRow - viewportY
+      const endAbsRow = scrollbackLength + endRow - viewportY
+
+      setSelection(0, startAbsRow, this.raw.cols - 1, endAbsRow)
+    }
+
+    ;(this.raw as unknown as { selectAll?: () => void }).selectAll = selectAll
+    ;(this.raw as unknown as { select?: (column: number, row: number, length: number) => void }).select = select
+    ;(this.raw as unknown as { selectLines?: (start: number, end: number) => void }).selectLines = selectLines
   }
 
-  private registerSynchronizedOutputHandlers(): void {
-    const SYNC_MODE = 2026
-
-    try {
-      this.raw.parser.registerCsiHandler({ prefix: '?', final: 'h' }, (params) => {
-        if (params.length > 0 && params[0] === SYNC_MODE) {
-          if (typeof window !== 'undefined' && localStorage.getItem('TERMINAL_DEBUG') === '1') {
-            logger.debug(`[XtermTerminal ${this.terminalId}] Synchronized output enabled`)
-          }
-          // Allow xterm.js to handle the mode switch (prevents visible tearing/flicker for TUIs).
-          return false
-        }
-        return false
-      })
-
-      this.raw.parser.registerCsiHandler({ prefix: '?', final: 'l' }, (params) => {
-        if (params.length > 0 && params[0] === SYNC_MODE) {
-          if (typeof window !== 'undefined' && localStorage.getItem('TERMINAL_DEBUG') === '1') {
-            logger.debug(`[XtermTerminal ${this.terminalId}] Synchronized output disabled`)
-          }
-          // Allow xterm.js to handle the mode switch (prevents visible tearing/flicker for TUIs).
-          return false
-        }
-        return false
-      })
-    } catch (error) {
-      logger.debug(`[XtermTerminal ${this.terminalId}] Synchronized output handler registration failed`, error)
+  private getViewportY(): number {
+    const getViewportY = (this.raw as unknown as { getViewportY?: () => number }).getViewportY
+    if (typeof getViewportY === 'function') {
+      return Math.max(0, Math.floor(getViewportY.call(this.raw)))
     }
+    return Math.max(0, Math.floor((this.raw as unknown as { viewportY?: number }).viewportY ?? 0))
+  }
+
+  private async handleUrlLink(event: MouseEvent, text: string): Promise<void> {
+    if (!event.ctrlKey && !event.metaKey) {
+      return
+    }
+
+    const uri = text.replace(URL_TRAILING_PUNCTUATION, '')
+
+    const openLink = async () => {
+      try {
+        if (this.linkHandler) {
+          const handled = await this.linkHandler(uri)
+          if (handled) return
+        }
+      } catch (error) {
+        logger.debug(`[XtermTerminal ${this.terminalId}] Link handler failed`, error)
+      }
+
+      try {
+        await invoke<void>(TauriCommands.OpenExternalUrl, { url: uri })
+      } catch (error) {
+        logger.error(`[XtermTerminal ${this.terminalId}] Failed to open link: ${uri}`, error)
+      }
+    }
+
+    void openLink()
   }
 }

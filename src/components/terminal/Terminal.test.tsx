@@ -278,7 +278,11 @@ vi.mock('../../terminal/registry/terminalRegistry', () => {
 
 vi.mock('../../terminal/xterm/XtermTerminal', () => {
   const { MockXtermTerminal } = terminalHarness
-  return { XtermTerminal: MockXtermTerminal }
+  return {
+    XtermTerminal: Object.assign(MockXtermTerminal, {
+      ensureInitialized: vi.fn(async () => {}),
+    }),
+  }
 })
 
 vi.mock('../../terminal/stream/terminalOutputManager', () => ({
@@ -739,6 +743,9 @@ describe('Terminal', () => {
 
       expect(primaryOnData).toBeTypeOf('function')
       expect(secondaryOnData).toBeTypeOf('function')
+
+      // Ignore initialization writes (e.g. empty init payload) triggered by mount/RAF.
+      vi.mocked(writeTerminalBackend).mockClear()
 
       primaryOnData?.('\u001b')
       secondaryOnData?.('\u001b')

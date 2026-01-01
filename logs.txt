@@ -1,0 +1,945 @@
+
+The default interactive shell is now zsh.
+To update your account to use zsh, please run `chsh -s /bin/zsh`.
+For more details, please visit https://support.apple.com/kb/HT208050.
+Mariuss-MacBook-Pro-2:libghostty-integration-wv mariusw$ __schaltwerk_exit_code=0; just run; __schaltit_code=$?; printf '__SCHALTWERK_RUN_EXIT__=%s
+> ' "$__schaltwerk_exit_code"; printf '\r\033[K'; unset __schaltwerk_exit_code
+Working from project root: /Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/libghostty-integration-wv
+Starting Schaltwerk on port 1420 (branch: libghostty-integration-wv)
+Using dev profile (opt-level=0) for fastest compilation
+Using sccache for Rust compilation caching
+$ tauri dev --config "/var/folders/s1/x2pp24tn2px570cdrf41x5gr0000gn/T/tmp.4EqHWahe1R"
+     Running BeforeDevCommand (`node scripts/package-manager.mjs run dev`)
+$ vite
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+
+  VITE v7.1.9  ready in 356 ms
+
+  ➜  Local:   http://localhost:1420/
+     Running DevCommand (`cargo  run --no-default-features --color always --`)
+        Info Watching /Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/libghostty-integration-wv/src-tauri for changes...
+   Compiling proc-macro2 v1.0.101
+   Compiling quote v1.0.41
+   Compiling unicode-ident v1.0.19
+   Compiling libc v0.2.178
+   Compiling cfg-if v1.0.3
+   Compiling shlex v1.3.0
+   Compiling find-msvc-tools v0.1.4
+   Compiling serde_core v1.0.228
+   Compiling serde v1.0.228
+   Compiling memchr v2.7.6
+   Compiling itoa v1.0.15
+   Compiling zerocopy v0.8.27
+   Compiling jobserver v0.1.34
+   Compiling litemap v0.8.0
+   Compiling writeable v0.6.1
+   Compiling getrandom v0.2.16
+   Compiling fnv v1.0.7
+   Compiling cc v1.2.41
+   Compiling zmij v1.0.2
+   Compiling rand_core v0.6.4
+   Compiling icu_normalizer_data v2.0.0
+   Compiling syn v2.0.106
+   Compiling icu_properties_data v2.0.1
+   Compiling stable_deref_trait v1.2.1
+   Compiling bytes v1.10.1
+   Compiling siphasher v1.0.1
+   Compiling phf_shared v0.11.3
+   Compiling utf8_iter v1.0.4
+   Compiling smallvec v1.15.1
+   Compiling autocfg v1.5.0
+   Compiling siphasher v0.3.11
+   Compiling parking_lot_core v0.9.12
+   Compiling objc2-exception-helper v0.1.1
+   Compiling getrandom v0.1.16
+   Compiling http v1.3.1
+   Compiling ppv-lite86 v0.2.21
+   Compiling rand_chacha v0.3.1
+   Compiling rand v0.8.5
+   Compiling byteorder v1.5.0
+   Compiling strsim v0.11.1
+   Compiling serde_derive v1.0.228
+   Compiling synstructure v0.13.2
+   Compiling zerovec-derive v0.11.1
+   Compiling displaydoc v0.2.5
+   Compiling zerofrom-derive v0.1.6
+   Compiling yoke-derive v0.8.0
+   Compiling phf_generator v0.11.3
+   Compiling objc2 v0.6.3
+   Compiling thiserror v1.0.69
+   Compiling thiserror-impl v1.0.69
+   Compiling aho-corasick v1.1.3
+   Compiling typeid v1.0.3
+   Compiling zerofrom v0.1.6
+   Compiling objc2-encode v4.1.0
+   Compiling syn v1.0.109
+   Compiling thiserror v2.0.17
+   Compiling ident_case v1.0.1
+   Compiling serde_json v1.0.148
+   Compiling regex-syntax v0.8.7
+   Compiling winnow v0.7.13
+   Compiling rand_core v0.5.1
+   Compiling yoke v0.8.0
+   Compiling toml_parser v1.0.6+spec-1.1.0
+   Compiling regex-automata v0.4.12
+   Compiling darling_core v0.21.3
+   Compiling bitflags v2.9.4
+   Compiling phf_macros v0.11.3
+   Compiling thiserror-impl v2.0.17
+   Compiling powerfmt v0.2.0
+   Compiling toml_writer v1.0.6+spec-1.1.0
+   Compiling erased-serde v0.4.8
+   Compiling regex v1.12.2
+   Compiling darling_macro v0.21.3
+   Compiling rand_pcg v0.2.1
+   Compiling rand_chacha v0.2.2
+   Compiling phf_shared v0.8.0
+   Compiling proc-macro-hack v0.5.20+deprecated
+   Compiling unic-common v0.9.0
+   Compiling num-conv v0.1.0
+   Compiling time-core v0.1.6
+   Compiling unic-char-range v0.9.0
+   Compiling zerovec v0.11.4
+   Compiling zerotrie v0.2.2
+   Compiling anyhow v1.0.100
+   Compiling unic-char-property v0.9.0
+   Compiling unic-ucd-version v0.9.0
+   Compiling rand v0.7.3
+   Compiling darling v0.21.3
+   Compiling phf_shared v0.10.0
+   Compiling alloc-no-stdlib v2.0.4
+   Compiling same-file v1.0.6
+   Compiling getrandom v0.3.4
+   Compiling scopeguard v1.2.0
+   Compiling new_debug_unreachable v1.0.6
+   Compiling lock_api v0.4.14
+   Compiling tinystr v0.8.1
+   Compiling potential_utf v0.1.3
+   Compiling walkdir v2.5.0
+   Compiling icu_collections v2.0.0
+   Compiling icu_locale_core v2.0.0
+   Compiling alloc-stdlib v0.2.2
+   Compiling phf_generator v0.10.0
+   Compiling phf_generator v0.8.0
+   Compiling unic-ucd-ident v0.9.0
+   Compiling phf_codegen v0.11.3
+   Compiling string_cache_codegen v0.5.4
+   Compiling icu_provider v2.0.0
+   Compiling bitflags v1.3.2
+   Compiling precomputed-hash v0.1.1
+   Compiling hashbrown v0.16.0
+   Compiling mac v0.1.1
+   Compiling equivalent v1.0.2
+   Compiling icu_properties v2.0.1
+   Compiling icu_normalizer v2.0.0
+   Compiling futf v0.1.5
+   Compiling parking_lot v0.12.5
+   Compiling markup5ever v0.14.1
+   Compiling indexmap v2.11.4
+   Compiling phf_macros v0.10.0
+   Compiling phf_codegen v0.8.0
+   Compiling brotli-decompressor v5.0.0
+   Compiling cssparser v0.29.6
+   Compiling objc2-core-foundation v0.3.2
+   Compiling idna_adapter v1.2.1
+   Compiling toml_datetime v0.7.5+spec-1.1.0
+   Compiling serde_spanned v1.0.4
+   Compiling semver v1.0.27
+   Compiling utf-8 v0.7.6
+   Compiling serde_with_macros v3.15.0
+   Compiling dtoa v1.0.10
+   Compiling log v0.4.29
+   Compiling percent-encoding v2.3.2
+   Compiling tendril v0.4.3
+   Compiling dtoa-short v0.3.5
+   Compiling brotli v8.0.2
+   Compiling form_urlencoded v1.2.2
+   Compiling toml v0.9.10+spec-1.1.0
+   Compiling idna v1.1.0
+   Compiling selectors v0.24.0
+   Compiling uuid v1.19.0
+   Compiling string_cache v0.8.9
+   Compiling phf v0.11.3
+   Compiling cssparser-macros v0.6.1
+   Compiling ctor v0.2.9
+   Compiling indexmap v1.9.3
+   Compiling nodrop v0.1.14
+   Compiling phf v0.10.1
+   Compiling matches v0.1.10
+   Compiling dunce v1.0.5
+   Compiling glob v0.3.3
+   Compiling convert_case v0.4.0
+   Compiling camino v1.2.1
+   Compiling derive_more v0.99.20
+   Compiling servo_arc v0.2.0
+   Compiling url v2.5.7
+   Compiling swift-rs v1.0.7
+   Compiling phf v0.8.0
+   Compiling fxhash v0.2.1
+   Compiling match_token v0.1.0
+   Compiling serde_derive_internals v0.29.1
+   Compiling base64 v0.22.1
+   Compiling schemars v0.8.22
+   Compiling hashbrown v0.12.3
+   Compiling schemars_derive v0.8.22
+   Compiling html5ever v0.29.1
+   Compiling cfb v0.7.3
+   Compiling jsonptr v0.6.3
+   Compiling block2 v0.6.2
+   Compiling cargo-platform v0.1.9
+   Compiling base64 v0.21.7
+   Compiling dyn-clone v1.0.20
+   Compiling version_check v0.9.5
+   Compiling cargo_metadata v0.19.2
+   Compiling json-patch v3.0.1
+   Compiling infer v0.19.0
+   Compiling serde-untagged v0.1.9
+   Compiling urlpattern v0.3.0
+   Compiling serde_with v3.15.0
+   Compiling objc2-foundation v0.3.2
+   Compiling quick-xml v0.38.3
+   Compiling pin-project-lite v0.2.16
+   Compiling option-ext v0.2.0
+   Compiling deranged v0.5.4
+   Compiling once_cell v1.21.3
+   Compiling heck v0.5.0
+   Compiling time v0.3.44
+   Compiling objc2-core-video v0.3.2
+   Compiling objc2-core-graphics v0.3.2
+   Compiling objc2-core-text v0.3.2
+   Compiling rustc_version v0.4.1
+   Compiling embed-resource v3.0.6
+   Compiling dirs-sys v0.5.0
+   Compiling plist v1.8.0
+   Compiling pkg-config v0.3.32
+   Compiling crc32fast v1.5.0
+   Compiling kuchikiki v0.8.8-speedreader
+   Compiling simd-adler32 v0.3.7
+   Compiling futures-core v0.3.31
+   Compiling dirs v6.0.0
+   Compiling tauri-winres v0.3.3
+   Compiling cargo_toml v0.22.3
+   Compiling tauri-utils v2.8.1
+   Compiling tokio-macros v2.6.0
+   Compiling signal-hook-registry v1.4.6
+   Compiling mio v1.0.4
+   Compiling socket2 v0.6.0
+   Compiling adler2 v2.0.1
+   Compiling typenum v1.19.0
+   Compiling miniz_oxide v0.8.9
+   Compiling tokio v1.48.0
+   Compiling generic-array v0.14.8
+   Compiling time-macros v0.2.24
+   Compiling vcpkg v0.2.15
+   Compiling flate2 v1.1.4
+   Compiling core-foundation-sys v0.8.7
+   Compiling crossbeam-utils v0.8.21
+   Compiling futures-io v0.3.31
+   Compiling raw-window-handle v0.6.2
+   Compiling futures-sink v0.3.31
+   Compiling fdeflate v0.3.7
+   Compiling cookie v0.18.1
+   Compiling dpi v0.1.2
+   Compiling block-buffer v0.10.4
+   Compiling crypto-common v0.1.6
+   Compiling digest v0.10.7
+   Compiling png v0.17.16
+   Compiling futures-channel v0.3.31
+   Compiling core-foundation v0.10.1
+   Compiling objc2-security v0.3.2
+   Compiling objc2-javascript-core v0.3.2
+   Compiling foreign-types-macros v0.2.3
+   Compiling pin-utils v0.1.0
+   Compiling foreign-types-shared v0.3.1
+   Compiling rustix v1.1.3
+   Compiling foreign-types v0.5.0
+   Compiling core-graphics-types v0.2.0
+   Compiling crossbeam-channel v0.5.15
+   Compiling futures-macro v0.3.31
+   Compiling zerocopy-derive v0.8.27
+   Compiling ring v0.17.14
+   Compiling errno v0.3.14
+   Compiling cpufeatures v0.2.17
+   Compiling tauri-runtime v2.9.2
+   Compiling slab v0.4.11
+   Compiling futures-task v0.3.31
+   Compiling wry v0.53.4
+   Compiling futures-util v0.3.31
+   Compiling sha2 v0.10.9
+   Compiling core-graphics v0.24.0
+   Compiling tauri-plugin v2.4.0
+   Compiling tauri-build v2.5.3
+   Compiling ico v0.4.0
+   Compiling num-traits v0.2.19
+   Compiling openssl-src v300.5.3+3.5.4
+   Compiling tauri v2.9.5
+   Compiling unicode-segmentation v1.12.0
+   Compiling tauri-runtime-wry v2.9.3
+   Compiling zeroize v1.8.2
+   Compiling dispatch v0.2.0
+   Compiling lazy_static v1.5.0
+   Compiling rustls-pki-types v1.12.0
+   Compiling keyboard-types v0.7.0
+   Compiling objc2-cloud-kit v0.3.2
+   Compiling objc2-core-image v0.3.2
+   Compiling objc2-core-data v0.3.2
+   Compiling objc2-quartz-core v0.3.2
+   Compiling openssl-sys v0.9.109
+   Compiling objc2-app-kit v0.3.2
+   Compiling tauri-codegen v2.5.2
+   Compiling libz-sys v1.1.22
+   Compiling serialize-to-javascript-impl v0.1.2
+   Compiling http-body v1.0.1
+   Compiling httparse v1.10.1
+   Compiling untrusted v0.9.0
+   Compiling serialize-to-javascript v0.1.2
+   Compiling tauri-macros v2.5.2
+   Compiling tracing-core v0.1.34
+   Compiling serde_repr v0.1.20
+   Compiling tracing-attributes v0.1.30
+   Compiling rustls v0.23.32
+   Compiling embed_plist v1.2.2
+   Compiling try-lock v0.2.5
+   Compiling tower-service v0.3.3
+   Compiling mime v0.3.17
+   Compiling fastrand v2.3.0
+   Compiling want v0.3.1
+   Compiling tauri-plugin-fs v2.4.4
+   Compiling tracing v0.1.41
+   Compiling libssh2-sys v0.3.1
+   Compiling atomic-waker v1.1.2
+   Compiling libm v0.2.15
+   Compiling cfg_aliases v0.1.1
+   Compiling utf8parse v0.2.2
+   Compiling subtle v2.6.1
+   Compiling httpdate v1.0.3
+   Compiling anstyle-parse v0.2.7
+   Compiling rustls-webpki v0.103.7
+   Compiling hyper v1.8.1
+   Compiling nix v0.28.0
+   Compiling sync_wrapper v1.0.2
+   Compiling fax_derive v0.2.0
+   Compiling mac-notification-sys v0.6.6
+   Compiling is_terminal_polyfill v1.70.1
+   Compiling zune-core v0.4.12
+   Compiling anstyle v1.0.13
+   Compiling tower-layer v0.3.3
+   Compiling ipnet v2.11.0
+   Compiling anstyle-query v1.1.4
+   Compiling colorchoice v1.0.4
+   Compiling tower v0.5.2
+   Compiling anstream v0.6.21
+   Compiling hyper-util v0.1.19
+   Compiling zune-jpeg v0.4.21
+   Compiling fax v0.2.6
+   Compiling pxfm v0.1.25
+   Compiling webpki-roots v1.0.3
+   Compiling half v2.7.1
+   Compiling tauri-plugin-notification v2.3.3
+   Compiling tauri-plugin-os v2.3.2
+   Compiling tauri-plugin-dialog v2.4.2
+   Compiling tauri-plugin-updater v2.9.0
+   Compiling libsqlite3-sys v0.35.0
+   Compiling rand_core v0.9.3
+   Compiling tokio-rustls v0.26.4
+   Compiling libgit2-sys v0.18.3+1.9.2
+   Compiling slotmap v1.0.7
+   Compiling libmimalloc-sys v0.1.44
+   Compiling foldhash v0.1.5
+   Compiling quick-error v2.0.1
+   Compiling ryu v1.0.20
+   Compiling rfd v0.15.4
+   Compiling iri-string v0.7.8
+   Compiling parking v2.2.1
+   Compiling cfg_aliases v0.2.1
+   Compiling weezl v0.1.10
+   Compiling nix v0.30.1
+   Compiling futures-lite v2.6.1
+   Compiling serde_urlencoded v0.7.1
+   Compiling tiff v0.10.3
+   Compiling moxcms v0.7.7
+   Compiling hashbrown v0.15.5
+   Compiling hyper-rustls v0.27.7
+   Compiling tower-http v0.6.6
+   Compiling rand_chacha v0.9.0
+   Compiling core_maths v0.1.1
+   Compiling tempfile v3.24.0
+   Compiling http-body-util v0.1.3
+   Compiling xattr v1.6.1
+   Compiling tokio-util v0.7.16
+   Compiling iana-time-zone v0.1.64
+   Compiling dispatch2 v0.3.0
+   Compiling filedescriptor v0.8.3
+   Compiling serial2 v0.2.33
+   Compiling fsevent-sys v4.1.0
+   Compiling filetime v0.2.26
+   Compiling bytemuck v1.24.0
+   Compiling tinyvec_macros v0.1.1
+   Compiling shell-words v1.1.1
+   Compiling downcast-rs v1.2.1
+   Compiling arrayvec v0.7.6
+   Compiling notify-types v2.0.0
+   Compiling byteorder-lite v0.1.0
+   Compiling clap_lex v0.7.5
+   Compiling portable-pty v0.9.0
+   Compiling notify v8.2.0
+   Compiling vte v0.15.0
+   Compiling clap_builder v4.5.53
+   Compiling image v0.25.8
+   Compiling tinyvec v1.10.0
+   Compiling tar v0.4.44
+   Compiling reqwest v0.12.23
+   Compiling chrono v0.4.42
+   Compiling ttf-parser v0.25.1
+   Compiling notify-rust v4.11.7
+   Compiling rand v0.9.2
+   Compiling hashlink v0.10.0
+   Compiling scheduled-thread-pool v0.2.7
+   Compiling os_info v3.12.0
+   Compiling futures-executor v0.3.31
+   Compiling schaltwerk v0.10.1 (/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/libghostty-integration-wv/src-tauri)
+   Compiling gethostname v1.0.2
+   Compiling clap_derive v4.5.49
+   Compiling env_filter v0.1.3
+   Compiling memmap2 v0.9.8
+   Compiling minisign-verify v0.2.4
+   Compiling unicode-width v0.2.2
+   Compiling hashbrown v0.14.5
+   Compiling fallible-streaming-iterator v0.1.9
+   Compiling sys-locale v0.3.2
+   Compiling jiff v0.2.15
+   Compiling fallible-iterator v0.3.0
+   Compiling env_home v0.1.0
+   Compiling vt100 v0.16.2
+   Compiling which v8.0.0
+   Compiling rusqlite v0.37.0
+   Compiling dashmap v6.1.0
+   Compiling fontdb v0.23.0
+   Compiling clap v4.5.53
+   Compiling futures v0.3.31
+   Compiling r2d2 v0.8.10
+   Compiling mimalloc v0.1.48
+   Compiling notify-debouncer-mini v0.7.0
+   Compiling pty_host v0.1.0 (/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/libghostty-integration-wv/src-tauri/crates/pty_host)
+   Compiling async-trait v0.1.89
+   Compiling similar v2.7.0
+   Compiling urlencoding v2.1.3
+   Compiling env_logger v0.11.8
+   Compiling objc2-web-kit v0.3.2
+   Compiling tao v0.34.5
+   Compiling window-vibrancy v0.6.0
+   Compiling muda v0.17.1
+   Compiling objc2-osa-kit v0.3.2
+   Compiling osakit v0.3.1
+   Compiling arboard v3.6.1
+   Compiling git2 v0.20.3
+    Finished `dev` profile [unoptimized] target(s) in 2m 04s
+     Running `target/debug/schaltwerk`
+[2025-12-31 17:01:02.784 INFO  schaltwerk::infrastructure::logging] ========================================
+[2025-12-31 17:01:02.784 INFO  schaltwerk::infrastructure::logging] Schaltwerk v0.10.1 starting
+[2025-12-31 17:01:02.784 INFO  schaltwerk::infrastructure::logging] Log file: /Users/mariusw/Library/Application Support/schaltwerk/logs/schaltwerk-20251231-170102.log
+[2025-12-31 17:01:02.784 INFO  schaltwerk::infrastructure::logging] Process ID: 8016
+[2025-12-31 17:01:02.784 INFO  schaltwerk::infrastructure::logging] ========================================
+📝 Logs are being written to: /Users/mariusw/Library/Application Support/schaltwerk/logs/schaltwerk-20251231-170102.log
+[2025-12-31 17:01:02.784 INFO  schaltwerk] Schaltwerk starting...
+[2025-12-31 17:01:02.784 DEBUG schaltwerk] [startup] Effective PATH: /Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/libghostty-integration-wv/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/libghostty-integration-wv/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/node_modules/.bin:/Users/mariusw/Documents/git/node_modules/.bin:/Users/mariusw/Documents/node_modules/.bin:/Users/mariusw/node_modules/.bin:/Users/node_modules/.bin:/node_modules/.bin:/Users/mariusw/.rd/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pmk/env/global/bin:/Library/Apple/usr/bin:/Library/TeX/texbin:/Users/mariusw/.local/bin:/Users/mariusw/.cargo/bin:/Users/mariusw/.pyenv/shims:/Users/mariusw/bin:/Users/mariusw/.nvm/versions/node/v20.19.2/bin:/Users/mariusw/.volta/bin:/Users/mariusw/.fnm:/opt/homebrew/bin:/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home/bin:/Users/mariusw/.bun/bin:/Users/mariusw/Library/TinyTeX/bin/universal-darwin:/Users/mariusw/.rd/bin:/Users/mariusw/.kilocode/cli/pkg/node_modules/.bin:/Users/mariusw/.opencode/bin:/Users/mariusw/.antigravity/antigravity/bin:/opt/homebrew/opt/dotnet/libexec:/Users/mariusw/.codeium/windsurf/bin:/opt/homebrew/opt/qt@5/bin:/Users/mariusw/.npm-global/bin:/Users/mariusw/go/bin:/Applications/Ghostty.app/Contents/MacOS:/opt/homebrew/sbin:/usr/local/sbin:/Users/mariusw/Library/pnpm:/Users/mariusw/.rbenv/shims:/Users/mariusw/.lmstudio/bin:/Users/mariusw/.orbstack/bin:/Users/mariusw/.lmstudio/bin
+[2025-12-31 17:01:02.786 WARN  schaltwerk::macos_prefs] [macOS] Could not get bundle identifier for smart substitution preferences
+[2025-12-31 17:01:02.786 INFO  schaltwerk] Startup directory: /Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/libghostty-integration-wv/src-tauri
+[2025-12-31 17:01:03.199 INFO  schaltwerk] Global keep-awake service initialized
+[2025-12-31 17:01:03.201 INFO  schaltwerk] Settings manager initialized successfully
+[2025-12-31 17:01:03.202 DEBUG schaltwerk::updater] Starting updater check (initiated_by=Auto) with configured endpoints: Some(["https://github.com/2mawi2/schaltwerk/releases/latest/download/latest.json"])
+[2025-12-31 17:01:03.211 INFO  schaltwerk] Window title set to: Schaltwerk - libghostty-integration-wv
+[2025-12-31 17:01:03.252 DEBUG schaltwerk] get_core_read start call_id=083f4f71-743f-4348-a3c7-cfefdd557243
+[2025-12-31 17:01:03.253 WARN  schaltwerk::project_manager] ⚠️ No current project path set
+[2025-12-31 17:01:03.252 INFO  schaltwerk] No active project, using default base port 8547
+[2025-12-31 17:01:03.253 WARN  schaltwerk] Failed to get Schaltwerk core: No active project
+[2025-12-31 17:01:03.253 DEBUG schaltwerk] No active project for activity tracking: Failed to get Schaltwerk core: No active project
+[2025-12-31 17:01:03.253 INFO  schaltwerk] Webhook server listening on http://127.0.0.1:8548
+[2025-12-31 17:01:04.005 DEBUG schaltwerk::updater] No updates available (initiator=Auto)
+[2025-12-31 17:01:05.255 DEBUG schaltwerk] get_core_read start call_id=3d9c06a7-0e47-4d11-8fe3-f1da495a6503
+[2025-12-31 17:01:05.257 WARN  schaltwerk::project_manager] ⚠️ No current project path set
+[2025-12-31 17:01:05.257 WARN  schaltwerk] Failed to get Schaltwerk core: No active project
+[2025-12-31 17:01:05.257 DEBUG schaltwerk] No active project for activity tracking: Failed to get Schaltwerk core: No active project
+[2025-12-31 17:01:05.504 DEBUG schaltwerk::commands::utility] [Frontend] ["No project path available, skipping action buttons load"]
+[2025-12-31 17:01:05.505 INFO  schaltwerk::commands::agent_binaries] Getting all agent binary configurations
+[2025-12-31 17:01:05.506 DEBUG schaltwerk::binary_detector] Starting binary detection for agent: terminal
+[2025-12-31 17:01:05.506 DEBUG schaltwerk::binary_detector] Checking for terminal at /opt/homebrew/bin/terminal
+[2025-12-31 17:01:05.506 DEBUG schaltwerk::commands::utility] [Frontend] ["[SessionsAtoms] refreshSessionsActionAtom start (project=none)"]
+[2025-12-31 17:01:05.506 DEBUG schaltwerk::binary_detector] Checking for terminal at /usr/local/bin/terminal
+[2025-12-31 17:01:05.506 DEBUG schaltwerk::binary_detector] Scanning Homebrew Cellar for terminal at /opt/homebrew/Cellar
+[2025-12-31 17:01:05.506 DEBUG schaltwerk::binary_detector] Checking node path in Cellar: /opt/homebrew/Cellar/node
+[2025-12-31 17:01:05.507 DEBUG schaltwerk::binary_detector] Checking node bin path: /opt/homebrew/Cellar/node/25.2.1/bin/terminal
+[2025-12-31 17:01:05.509 DEBUG schaltwerk::commands::utility] [Frontend] ["[App] Smart dash normalization installed"]
+[2025-12-31 17:01:05.517 DEBUG schaltwerk::commands::utility] [Frontend] ["No project path available, skipping action buttons load"]
+[2025-12-31 17:01:05.517 INFO  schaltwerk::commands::agent_binaries] Getting all agent binary configurations
+[2025-12-31 17:01:05.517 DEBUG schaltwerk::binary_detector] Starting binary detection for agent: terminal
+[2025-12-31 17:01:05.517 DEBUG schaltwerk::binary_detector] Checking for terminal at /opt/homebrew/bin/terminal
+[2025-12-31 17:01:05.518 DEBUG schaltwerk::commands::utility] [Frontend] ["[SessionsAtoms] refreshSessionsActionAtom start (project=none)"]
+[2025-12-31 17:01:05.517 DEBUG schaltwerk::binary_detector] Checking for terminal at /usr/local/bin/terminal
+[2025-12-31 17:01:05.518 DEBUG schaltwerk::binary_detector] Scanning Homebrew Cellar for terminal at /opt/homebrew/Cellar
+[2025-12-31 17:01:05.518 DEBUG schaltwerk::binary_detector] Checking node path in Cellar: /opt/homebrew/Cellar/node
+[2025-12-31 17:01:05.518 DEBUG schaltwerk::binary_detector] Checking node bin path: /opt/homebrew/Cellar/node/25.2.1/bin/terminal
+[2025-12-31 17:01:05.520 DEBUG schaltwerk::commands::utility] [Frontend] ["[App] Smart dash normalization installed"]
+[2025-12-31 17:01:05.523 WARN  schaltwerk::project_manager] ⚠️ No current project path set
+[2025-12-31 17:01:05.523 WARN  schaltwerk::project_manager] ⚠️ No current project path set
+[2025-12-31 17:01:05.525 INFO  schaltwerk::domains::git::github_cli] [GitHubCli] Found gh in common path: /opt/homebrew/bin/gh
+[2025-12-31 17:01:05.525 DEBUG schaltwerk::domains::git::github_cli] [GitHubCli] Checking if GitHub CLI is installed: program='/opt/homebrew/bin/gh', PATH=/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/libghostty-integration-wv/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/libghostty-integration-wv/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/node_modules/.bin:/Users/mariusw/Documents/git/node_modules/.bin:/Users/mariusw/Documents/node_modules/.bin:/Users/mariusw/node_modules/.bin:/Users/node_modules/.bin:/node_modules/.bin:/Users/mariusw/.rd/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pmk/env/global/bin:/Library/Apple/usr/bin:/Library/TeX/texbin:/Users/mariusw/.local/bin:/Users/mariusw/.cargo/bin:/Users/mariusw/.pyenv/shims:/Users/mariusw/bin:/Users/mariusw/.nvm/versions/node/v20.19.2/bin:/Users/mariusw/.volta/bin:/Users/mariusw/.fnm:/opt/homebrew/bin:/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home/bin:/Users/mariusw/.bun/bin:/Users/mariusw/Library/TinyTeX/bin/universal-darwin:/Users/mariusw/.rd/bin:/Users/mariusw/.kilocode/cli/pkg/node_modules/.bin:/Users/mariusw/.opencode/bin:/Users/mariusw/.antigravity/antigravity/bin:/opt/homebrew/opt/dotnet/libexec:/Users/mariusw/.codeium/windsurf/bin:/opt/homebrew/opt/qt@5/bin:/Users/mariusw/.npm-global/bin:/Users/mariusw/go/bin:/Applications/Ghostty.app/Contents/MacOS:/opt/homebrew/sbin:/usr/local/sbin:/Users/mariusw/Library/pnpm:/Users/mariusw/.rbenv/shims:/Users/mariusw/.lmstudio/bin:/Users/mariusw/.orbstack/bin:/Users/mariusw/.lmstudio/bin
+[2025-12-31 17:01:05.525 WARN  schaltwerk::project_manager] ⚠️ No current project path set
+[2025-12-31 17:01:05.525 DEBUG schaltwerk::domains::git::github_cli] [GitHubCli] Checking if GitHub CLI is installed: program='/opt/homebrew/bin/gh', PATH=/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/libghostty-integration-wv/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/libghostty-integration-wv/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/node_modules/.bin:/Users/mariusw/Documents/git/node_modules/.bin:/Users/mariusw/Documents/node_modules/.bin:/Users/mariusw/node_modules/.bin:/Users/node_modules/.bin:/node_modules/.bin:/Users/mariusw/.rd/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pmk/env/global/bin:/Library/Apple/usr/bin:/Library/TeX/texbin:/Users/mariusw/.local/bin:/Users/mariusw/.cargo/bin:/Users/mariusw/.pyenv/shims:/Users/mariusw/bin:/Users/mariusw/.nvm/versions/node/v20.19.2/bin:/Users/mariusw/.volta/bin:/Users/mariusw/.fnm:/opt/homebrew/bin:/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home/bin:/Users/mariusw/.bun/bin:/Users/mariusw/Library/TinyTeX/bin/universal-darwin:/Users/mariusw/.rd/bin:/Users/mariusw/.kilocode/cli/pkg/node_modules/.bin:/Users/mariusw/.opencode/bin:/Users/mariusw/.antigravity/antigravity/bin:/opt/homebrew/opt/dotnet/libexec:/Users/mariusw/.codeium/windsurf/bin:/opt/homebrew/opt/qt@5/bin:/Users/mariusw/.npm-global/bin:/Users/mariusw/go/bin:/Applications/Ghostty.app/Contents/MacOS:/opt/homebrew/sbin:/usr/local/sbin:/Users/mariusw/Library/pnpm:/Users/mariusw/.rbenv/shims:/Users/mariusw/.lmstudio/bin:/Users/mariusw/.orbstack/bin:/Users/mariusw/.lmstudio/bin
+[2025-12-31 17:01:05.525 DEBUG schaltwerk::domains::git::github_cli] [GitHubCli] Checking if GitHub CLI is installed: program='/opt/homebrew/bin/gh', PATH=/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/libghostty-integration-wv/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/libghostty-integration-wv/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/node_modules/.bin:/Users/mariusw/Documents/git/node_modules/.bin:/Users/mariusw/Documents/node_modules/.bin:/Users/mariusw/node_modules/.bin:/Users/node_modules/.bin:/node_modules/.bin:/Users/mariusw/.rd/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pmk/env/global/bin:/Library/Apple/usr/bin:/Library/TeX/texbin:/Users/mariusw/.local/bin:/Users/mariusw/.cargo/bin:/Users/mariusw/.pyenv/shims:/Users/mariusw/bin:/Users/mariusw/.nvm/versions/node/v20.19.2/bin:/Users/mariusw/.volta/bin:/Users/mariusw/.fnm:/opt/homebrew/bin:/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home/bin:/Users/mariusw/.bun/bin:/Users/mariusw/Library/TinyTeX/bin/universal-darwin:/Users/mariusw/.rd/bin:/Users/mariusw/.kilocode/cli/pkg/node_modules/.bin:/Users/mariusw/.opencode/bin:/Users/mariusw/.antigravity/antigravity/bin:/opt/homebrew/opt/dotnet/libexec:/Users/mariusw/.codeium/windsurf/bin:/opt/homebrew/opt/qt@5/bin:/Users/mariusw/.npm-global/bin:/Users/mariusw/go/bin:/Applications/Ghostty.app/Contents/MacOS:/opt/homebrew/sbin:/usr/local/sbin:/Users/mariusw/Library/pnpm:/Users/mariusw/.rbenv/shims:/Users/mariusw/.lmstudio/bin:/Users/mariusw/.orbstack/bin:/Users/mariusw/.lmstudio/bin
+[2025-12-31 17:01:05.525 DEBUG schaltwerk::domains::git::github_cli] Running command through login shell: /opt/homebrew/bin/fish ["-l", "-c", "'/opt/homebrew/bin/gh' '--version'"]
+[2025-12-31 17:01:05.525 DEBUG schaltwerk::domains::git::github_cli] Running command through login shell: /opt/homebrew/bin/fish ["-l", "-c", "'/opt/homebrew/bin/gh' '--version'"]
+[2025-12-31 17:01:05.526 DEBUG schaltwerk::domains::git::github_cli] Running command through login shell: /opt/homebrew/bin/fish ["-l", "-c", "'/opt/homebrew/bin/gh' '--version'"]
+[2025-12-31 17:01:05.532 WARN  schaltwerk::project_manager] ⚠️ No current project path set
+[2025-12-31 17:01:05.533 DEBUG schaltwerk::domains::git::github_cli] [GitHubCli] Checking if GitHub CLI is installed: program='/opt/homebrew/bin/gh', PATH=/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/libghostty-integration-wv/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/libghostty-integration-wv/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/node_modules/.bin:/Users/mariusw/Documents/git/node_modules/.bin:/Users/mariusw/Documents/node_modules/.bin:/Users/mariusw/node_modules/.bin:/Users/node_modules/.bin:/node_modules/.bin:/Users/mariusw/.rd/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pmk/env/global/bin:/Library/Apple/usr/bin:/Library/TeX/texbin:/Users/mariusw/.local/bin:/Users/mariusw/.cargo/bin:/Users/mariusw/.pyenv/shims:/Users/mariusw/bin:/Users/mariusw/.nvm/versions/node/v20.19.2/bin:/Users/mariusw/.volta/bin:/Users/mariusw/.fnm:/opt/homebrew/bin:/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home/bin:/Users/mariusw/.bun/bin:/Users/mariusw/Library/TinyTeX/bin/universal-darwin:/Users/mariusw/.rd/bin:/Users/mariusw/.kilocode/cli/pkg/node_modules/.bin:/Users/mariusw/.opencode/bin:/Users/mariusw/.antigravity/antigravity/bin:/opt/homebrew/opt/dotnet/libexec:/Users/mariusw/.codeium/windsurf/bin:/opt/homebrew/opt/qt@5/bin:/Users/mariusw/.npm-global/bin:/Users/mariusw/go/bin:/Applications/Ghostty.app/Contents/MacOS:/opt/homebrew/sbin:/usr/local/sbin:/Users/mariusw/Library/pnpm:/Users/mariusw/.rbenv/shims:/Users/mariusw/.lmstudio/bin:/Users/mariusw/.orbstack/bin:/Users/mariusw/.lmstudio/bin
+[2025-12-31 17:01:05.533 DEBUG schaltwerk::domains::git::github_cli] Running command through login shell: /opt/homebrew/bin/fish ["-l", "-c", "'/opt/homebrew/bin/gh' '--version'"]
+[2025-12-31 17:01:05.606 DEBUG schaltwerk::binary_detector] Found 0 Homebrew binaries for terminal
+[2025-12-31 17:01:05.606 DEBUG schaltwerk::binary_detector] Found 0 Homebrew binaries for terminal
+[2025-12-31 17:01:05.771 DEBUG schaltwerk::binary_detector] Checking for terminal at /Users/mariusw/.local/bin/terminal
+[2025-12-31 17:01:05.771 DEBUG schaltwerk::binary_detector] Checking for terminal at /Users/mariusw/.local/bin/terminal
+[2025-12-31 17:01:05.771 DEBUG schaltwerk::binary_detector] Checking for terminal at /Users/mariusw/Library/Python/3.11/bin/terminal
+[2025-12-31 17:01:05.771 DEBUG schaltwerk::binary_detector] Checking for terminal at /Users/mariusw/Library/Python/3.11/bin/terminal
+[2025-12-31 17:01:05.771 DEBUG schaltwerk::binary_detector] Checking for terminal at /Users/mariusw/Library/Python/3.10/bin/terminal
+[2025-12-31 17:01:05.771 DEBUG schaltwerk::binary_detector] Checking for terminal at /Users/mariusw/Library/Python/3.10/bin/terminal
+[2025-12-31 17:01:05.771 DEBUG schaltwerk::binary_detector] Checking for terminal at /Users/mariusw/Library/Python/3.9/bin/terminal
+[2025-12-31 17:01:05.771 DEBUG schaltwerk::binary_detector] Checking for terminal at /Users/mariusw/Library/Python/3.9/bin/terminal
+[2025-12-31 17:01:05.771 DEBUG schaltwerk::binary_detector] Checking for terminal at /Users/mariusw/.pyenv/shims/terminal
+[2025-12-31 17:01:05.771 DEBUG schaltwerk::binary_detector] Found 0 Pip binaries for terminal
+[2025-12-31 17:01:05.771 DEBUG schaltwerk::binary_detector] Checking for terminal at /Users/mariusw/.pyenv/shims/terminal
+[2025-12-31 17:01:05.771 DEBUG schaltwerk::binary_detector] Found 0 Pip binaries for terminal
+[2025-12-31 17:01:05.771 DEBUG schaltwerk::binary_detector] Searching PATH for terminal: /Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/libghostty-integration-wv/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/libghostty-integration-wv/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/node_modules/.bin:/Users/mariusw/Documents/git/node_modules/.bin:/Users/mariusw/Documents/node_modules/.bin:/Users/mariusw/node_modules/.bin:/Users/node_modules/.bin:/node_modules/.bin:/Users/mariusw/.rd/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pmk/env/global/bin:/Library/Apple/usr/bin:/Library/TeX/texbin:/Users/mariusw/.local/bin:/Users/mariusw/.cargo/bin:/Users/mariusw/.pyenv/shims:/Users/mariusw/bin:/Users/mariusw/.nvm/versions/node/v20.19.2/bin:/Users/mariusw/.volta/bin:/Users/mariusw/.fnm:/opt/homebrew/bin:/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home/bin:/Users/mariusw/.bun/bin:/Users/mariusw/Library/TinyTeX/bin/universal-darwin:/Users/mariusw/.rd/bin:/Users/mariusw/.kilocode/cli/pkg/node_modules/.bin:/Users/mariusw/.opencode/bin:/Users/mariusw/.antigravity/antigravity/bin:/opt/homebrew/opt/dotnet/libexec:/Users/mariusw/.codeium/windsurf/bin:/opt/homebrew/opt/qt@5/bin:/Users/mariusw/.npm-global/bin:/Users/mariusw/go/bin:/Applications/Ghostty.app/Contents/MacOS:/opt/homebrew/sbin:/usr/local/sbin:/Users/mariusw/Library/pnpm:/Users/mariusw/.rbenv/shims:/Users/mariusw/.lmstudio/bin:/Users/mariusw/.orbstack/bin:/Users/mariusw/.lmstudio/bin
+[2025-12-31 17:01:05.771 DEBUG schaltwerk::binary_detector] Searching PATH for terminal: /Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/libghostty-integration-wv/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/libghostty-integration-wv/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/node_modules/.bin:/Users/mariusw/Documents/git/node_modules/.bin:/Users/mariusw/Documents/node_modules/.bin:/Users/mariusw/node_modules/.bin:/Users/node_modules/.bin:/node_modules/.bin:/Users/mariusw/.rd/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pmk/env/global/bin:/Library/Apple/usr/bin:/Library/TeX/texbin:/Users/mariusw/.local/bin:/Users/mariusw/.cargo/bin:/Users/mariusw/.pyenv/shims:/Users/mariusw/bin:/Users/mariusw/.nvm/versions/node/v20.19.2/bin:/Users/mariusw/.volta/bin:/Users/mariusw/.fnm:/opt/homebrew/bin:/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home/bin:/Users/mariusw/.bun/bin:/Users/mariusw/Library/TinyTeX/bin/universal-darwin:/Users/mariusw/.rd/bin:/Users/mariusw/.kilocode/cli/pkg/node_modules/.bin:/Users/mariusw/.opencode/bin:/Users/mariusw/.antigravity/antigravity/bin:/opt/homebrew/opt/dotnet/libexec:/Users/mariusw/.codeium/windsurf/bin:/opt/homebrew/opt/qt@5/bin:/Users/mariusw/.npm-global/bin:/Users/mariusw/go/bin:/Applications/Ghostty.app/Contents/MacOS:/opt/homebrew/sbin:/usr/local/sbin:/Users/mariusw/Library/pnpm:/Users/mariusw/.rbenv/shims:/Users/mariusw/.lmstudio/bin:/Users/mariusw/.orbstack/bin:/Users/mariusw/.lmstudio/bin
+[2025-12-31 17:01:05.771 DEBUG schaltwerk::binary_detector] Found 0 PATH binaries for terminal
+[2025-12-31 17:01:05.771 DEBUG schaltwerk::binary_detector] Found 0 PATH binaries for terminal
+[2025-12-31 17:01:05.771 INFO  schaltwerk::binary_detector] Final detected binaries count: 0
+[2025-12-31 17:01:05.771 INFO  schaltwerk::binary_detector] Final detected binaries count: 0
+[2025-12-31 17:01:05.771 DEBUG schaltwerk::domains::settings::service] Ignoring binary configuration update for terminal-only mode
+[2025-12-31 17:01:05.772 DEBUG schaltwerk::domains::settings::service] Ignoring binary configuration update for terminal-only mode
+[2025-12-31 17:01:06.047 INFO  schaltwerk::domains::git::github_cli] GitHub CLI detected: gh version 2.83.1 (2025-11-13)
+https://github.com/cli/cli/releases/tag/v2.83.1
+[2025-12-31 17:01:06.047 DEBUG schaltwerk::domains::git::github_cli] Running gh auth status check
+[2025-12-31 17:01:06.047 DEBUG schaltwerk::domains::git::github_cli] Running command through login shell: /opt/homebrew/bin/fish ["-l", "-c", "GH_PROMPT_DISABLED='1' NO_COLOR='1' '/opt/homebrew/bin/gh' 'auth' 'status' '--hostname' 'github.com'"]
+[2025-12-31 17:01:06.047 DEBUG schaltwerk::domains::git::github_cli] GitHub CLI detected: gh version 2.83.1 (2025-11-13)
+https://github.com/cli/cli/releases/tag/v2.83.1
+[2025-12-31 17:01:06.047 DEBUG schaltwerk::domains::git::github_cli] Running gh auth status check
+[2025-12-31 17:01:06.047 DEBUG schaltwerk::domains::git::github_cli] Running command through login shell: /opt/homebrew/bin/fish ["-l", "-c", "GH_PROMPT_DISABLED='1' NO_COLOR='1' '/opt/homebrew/bin/gh' 'auth' 'status' '--hostname' 'github.com'"]
+[2025-12-31 17:01:06.047 DEBUG schaltwerk::domains::git::github_cli] GitHub CLI detected: gh version 2.83.1 (2025-11-13)
+https://github.com/cli/cli/releases/tag/v2.83.1
+[2025-12-31 17:01:06.047 DEBUG schaltwerk::domains::git::github_cli] Running gh auth status check
+[2025-12-31 17:01:06.047 DEBUG schaltwerk::domains::git::github_cli] GitHub CLI detected: gh version 2.83.1 (2025-11-13)
+https://github.com/cli/cli/releases/tag/v2.83.1
+[2025-12-31 17:01:06.047 DEBUG schaltwerk::domains::git::github_cli] Running gh auth status check
+[2025-12-31 17:01:06.047 DEBUG schaltwerk::domains::git::github_cli] Running command through login shell: /opt/homebrew/bin/fish ["-l", "-c", "GH_PROMPT_DISABLED='1' NO_COLOR='1' '/opt/homebrew/bin/gh' 'auth' 'status' '--hostname' 'github.com'"]
+[2025-12-31 17:01:06.047 DEBUG schaltwerk::domains::git::github_cli] Running command through login shell: /opt/homebrew/bin/fish ["-l", "-c", "GH_PROMPT_DISABLED='1' NO_COLOR='1' '/opt/homebrew/bin/gh' 'auth' 'status' '--hostname' 'github.com'"]
+[2025-12-31 17:01:06.988 DEBUG schaltwerk::domains::git::github_cli] gh auth status result: exit=Some(0), stdout_len=647, stderr_len=0
+[2025-12-31 17:01:06.988 DEBUG schaltwerk::domains::git::github_cli] Running command through login shell: /opt/homebrew/bin/fish ["-l", "-c", "GH_PROMPT_DISABLED='1' NO_COLOR='1' '/opt/homebrew/bin/gh' 'api' 'user'"]
+[2025-12-31 17:01:07.032 DEBUG schaltwerk::domains::git::github_cli] gh auth status result: exit=Some(0), stdout_len=647, stderr_len=0
+[2025-12-31 17:01:07.032 DEBUG schaltwerk::domains::git::github_cli] gh auth status result: exit=Some(0), stdout_len=647, stderr_len=0
+[2025-12-31 17:01:07.032 DEBUG schaltwerk::domains::git::github_cli] Running command through login shell: /opt/homebrew/bin/fish ["-l", "-c", "GH_PROMPT_DISABLED='1' NO_COLOR='1' '/opt/homebrew/bin/gh' 'api' 'user'"]
+[2025-12-31 17:01:07.032 DEBUG schaltwerk::domains::git::github_cli] Running command through login shell: /opt/homebrew/bin/fish ["-l", "-c", "GH_PROMPT_DISABLED='1' NO_COLOR='1' '/opt/homebrew/bin/gh' 'api' 'user'"]
+[2025-12-31 17:01:07.166 DEBUG schaltwerk::domains::git::github_cli] gh auth status result: exit=Some(0), stdout_len=647, stderr_len=0
+[2025-12-31 17:01:07.167 DEBUG schaltwerk::domains::git::github_cli] Running command through login shell: /opt/homebrew/bin/fish ["-l", "-c", "GH_PROMPT_DISABLED='1' NO_COLOR='1' '/opt/homebrew/bin/gh' 'api' 'user'"]
+[2025-12-31 17:01:07.259 DEBUG schaltwerk] get_core_read start call_id=82e280ea-94be-43f6-bc4b-fcc824339d61
+[2025-12-31 17:01:07.259 WARN  schaltwerk::project_manager] ⚠️ No current project path set
+[2025-12-31 17:01:07.259 WARN  schaltwerk] Failed to get Schaltwerk core: No active project
+[2025-12-31 17:01:07.259 DEBUG schaltwerk] No active project for activity tracking: Failed to get Schaltwerk core: No active project
+[2025-12-31 17:01:07.530 INFO  schaltwerk::domains::git::github_cli] GitHub authentication verified for Some("2mawi2")
+[2025-12-31 17:01:07.571 DEBUG schaltwerk::domains::git::github_cli] GitHub authentication verified for Some("2mawi2")
+[2025-12-31 17:01:07.579 DEBUG schaltwerk::domains::git::github_cli] GitHub authentication verified for Some("2mawi2")
+[2025-12-31 17:01:07.756 DEBUG schaltwerk::domains::git::github_cli] GitHub authentication verified for Some("2mawi2")
+[2025-12-31 17:01:09.260 DEBUG schaltwerk] get_core_read start call_id=b1d6626d-1999-4759-99ad-6dbcc48a375b
+[2025-12-31 17:01:09.260 WARN  schaltwerk::project_manager] ⚠️ No current project path set
+[2025-12-31 17:01:09.260 WARN  schaltwerk] Failed to get Schaltwerk core: No active project
+[2025-12-31 17:01:09.261 DEBUG schaltwerk] No active project for activity tracking: Failed to get Schaltwerk core: No active project
+[2025-12-31 17:01:11.263 DEBUG schaltwerk] get_core_read start call_id=b50501fc-7267-4d23-826c-e96f4ab8860b
+[2025-12-31 17:01:11.263 WARN  schaltwerk::project_manager] ⚠️ No current project path set
+[2025-12-31 17:01:11.263 WARN  schaltwerk] Failed to get Schaltwerk core: No active project
+[2025-12-31 17:01:11.263 DEBUG schaltwerk] No active project for activity tracking: Failed to get Schaltwerk core: No active project
+[2025-12-31 17:01:12.586 DEBUG schaltwerk::commands::utility] [Frontend] ["[App] Opening project (home-screen)",{"path":"/Users/mariusw/Documents/git/wichtner.com"}]
+[2025-12-31 17:01:12.587 INFO  schaltwerk::services::projects] 🔧 Initialize project command called call_id=d5db43a9-3d38-4ec7-ba1d-a4e816a382b9 path: /Users/mariusw/Documents/git/wichtner.com (switch_lock_wait=0ms)
+[2025-12-31 17:01:12.587 INFO  schaltwerk::services::projects]   Path exists: /Users/mariusw/Documents/git/wichtner.com
+[2025-12-31 17:01:12.587 INFO  schaltwerk::services::projects]   Path is a directory
+[2025-12-31 17:01:12.587 INFO  schaltwerk::services::projects]   ✅ Git repository detected (.git folder exists)
+[2025-12-31 17:01:12.587 INFO  schaltwerk::services::projects] Switching to project call_id=d5db43a9-3d38-4ec7-ba1d-a4e816a382b9: /Users/mariusw/Documents/git/wichtner.com
+[2025-12-31 17:01:12.587 INFO  schaltwerk::project_manager] 📁 ProjectManager::switch_to_project called with: /Users/mariusw/Documents/git/wichtner.com
+[2025-12-31 17:01:12.588 INFO  schaltwerk::project_manager]   Canonicalized path: /Users/mariusw/Documents/git/wichtner.com
+[2025-12-31 17:01:12.588 INFO  schaltwerk::project_manager] 📁 ProjectManager::switch_to_project with no active project set
+[2025-12-31 17:01:12.588 INFO  schaltwerk::project_manager] Switching to project: /Users/mariusw/Documents/git/wichtner.com
+[2025-12-31 17:01:12.588 INFO  schaltwerk::project_manager] 🆕 Creating new project instance for: /Users/mariusw/Documents/git/wichtner.com
+[2025-12-31 17:01:12.588 INFO  schaltwerk::project_manager] Creating new project for path: /Users/mariusw/Documents/git/wichtner.com
+[2025-12-31 17:01:12.588 INFO  schaltwerk::project_manager] Using database at: /Users/mariusw/Library/Application Support/schaltwerk/projects/wichtner_com_4e5d9c7c2ffc83e9/sessions.db
+[2025-12-31 17:01:12.588 INFO  schaltwerk::schaltwerk_core] Creating SchaltwerkCore with explicit repo path: /Users/mariusw/Documents/git/wichtner.com
+[2025-12-31 17:01:12.598 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=3 total=4
+[2025-12-31 17:01:12.601 INFO  schaltwerk::project_manager] ✅ Current project set to: /Users/mariusw/Documents/git/wichtner.com
+[2025-12-31 17:01:12.601 INFO  schaltwerk::services::projects] ✅ Project initialized successfully call_id=d5db43a9-3d38-4ec7-ba1d-a4e816a382b9
+[2025-12-31 17:01:12.621 DEBUG schaltwerk::commands::utility] [Frontend] ["[SessionsAtoms] refreshSessionsActionAtom start (project=/Users/mariusw/Documents/git/wichtner.com)"]
+[2025-12-31 17:01:12.621 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=3 total=4
+[2025-12-31 17:01:12.621 INFO  schaltwerk::commands::utility] [Frontend] ["[useGithubIntegration] Ensuring project initialized for GitHub sync",{"projectPath":"/Users/mariusw/Documents/git/wichtner.com"}]
+[2025-12-31 17:01:12.622 INFO  schaltwerk::commands::utility] [Frontend] ["[useGithubIntegration] Ensuring project initialized for GitHub sync",{"projectPath":"/Users/mariusw/Documents/git/wichtner.com"}]
+[2025-12-31 17:01:12.622 INFO  schaltwerk::commands::schaltwerk_core] list_enriched_sessions call_id=4c663104-06b3-4a16-805c-16c37cc22ed0 stage=start
+[2025-12-31 17:01:12.622 DEBUG schaltwerk::services::sessions] SessionsService list_enriched_sessions start call_id=7edb6063-18e7-4e93-88b1-5cd0028bfddf
+[2025-12-31 17:01:12.622 DEBUG schaltwerk::services::sessions] ProjectSessionsBackend list_enriched_sessions start call_id=9ed10fa4-d3ec-4a86-83cd-406bd1e3e445
+[2025-12-31 17:01:12.622 DEBUG schaltwerk::services::sessions] ProjectSessionsBackend call_id=9ed10fa4-d3ec-4a86-83cd-406bd1e3e445 core read lock wait=0ms
+[2025-12-31 17:01:12.622 INFO  schaltwerk::commands::utility] [Frontend] ["[useGithubIntegration] Ensuring project initialized for GitHub sync",{"projectPath":"/Users/mariusw/Documents/git/wichtner.com"}]
+[2025-12-31 17:01:12.622 INFO  schaltwerk::services::projects] 🔧 Initialize project command called call_id=89cbb514-3e61-4be9-8517-752ee00cd1dc path: /Users/mariusw/Documents/git/wichtner.com (switch_lock_wait=0ms)
+[2025-12-31 17:01:12.622 INFO  schaltwerk::services::projects]   Path exists: /Users/mariusw/Documents/git/wichtner.com
+[2025-12-31 17:01:12.622 INFO  schaltwerk::services::projects]   Path is a directory
+[2025-12-31 17:01:12.622 INFO  schaltwerk::services::projects]   ✅ Git repository detected (.git folder exists)
+[2025-12-31 17:01:12.622 INFO  schaltwerk::domains::sessions::service] [SES] list_enriched_sessions start
+[2025-12-31 17:01:12.622 INFO  schaltwerk::services::projects] Switching to project call_id=89cbb514-3e61-4be9-8517-752ee00cd1dc: /Users/mariusw/Documents/git/wichtner.com
+[2025-12-31 17:01:12.622 INFO  schaltwerk::project_manager] 📁 ProjectManager::switch_to_project called with: /Users/mariusw/Documents/git/wichtner.com
+[2025-12-31 17:01:12.622 INFO  schaltwerk::project_manager]   Canonicalized path: /Users/mariusw/Documents/git/wichtner.com
+[2025-12-31 17:01:12.622 INFO  schaltwerk::project_manager] 📁 ProjectManager::switch_to_project target matches current project; reusing existing instance
+[2025-12-31 17:01:12.622 INFO  schaltwerk::project_manager] Switching to project: /Users/mariusw/Documents/git/wichtner.com
+[2025-12-31 17:01:12.622 INFO  schaltwerk::project_manager] ♻️ Using existing project instance for: /Users/mariusw/Documents/git/wichtner.com
+[2025-12-31 17:01:12.622 DEBUG schaltwerk::domains::sessions::db_sessions] list_sessions: start repo=/Users/mariusw/Documents/git/wichtner.com
+[2025-12-31 17:01:12.623 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=3 total=4
+[2025-12-31 17:01:12.623 INFO  schaltwerk::project_manager] ✅ Current project set to: /Users/mariusw/Documents/git/wichtner.com
+[2025-12-31 17:01:12.623 INFO  schaltwerk::services::projects] ✅ Project initialized successfully call_id=89cbb514-3e61-4be9-8517-752ee00cd1dc
+[2025-12-31 17:01:12.624 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=1 total=4
+[2025-12-31 17:01:12.624 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=2 total=4
+[2025-12-31 17:01:12.624 INFO  schaltwerk::domains::terminal::manager] Creating terminal through manager: id=orchestrator-wichtner_com-6691bf-top, cwd=/Users/mariusw/Documents/git/wichtner.com, env_count=0
+[2025-12-31 17:01:12.624 INFO  schaltwerk::domains::terminal::manager] Creating terminal through manager: id=orchestrator-wichtner_com-6691bf-bottom, cwd=/Users/mariusw/Documents/git/wichtner.com, env_count=0
+[2025-12-31 17:01:12.624 INFO  schaltwerk::domains::terminal::local] Creating terminal: id=orchestrator-wichtner_com-6691bf-bottom, cwd=/Users/mariusw/Documents/git/wichtner.com, size=80x24
+[2025-12-31 17:01:12.625 INFO  schaltwerk::domains::terminal::local] Creating terminal: id=orchestrator-wichtner_com-6691bf-top, cwd=/Users/mariusw/Documents/git/wichtner.com, size=80x24
+[2025-12-31 17:01:12.625 INFO  schaltwerk::services::projects] 🔧 Initialize project command called call_id=263e1743-332b-4afe-8743-6ea61bb84e91 path: /Users/mariusw/Documents/git/wichtner.com (switch_lock_wait=2ms)
+[2025-12-31 17:01:12.625 INFO  schaltwerk::services::projects]   Path exists: /Users/mariusw/Documents/git/wichtner.com
+[2025-12-31 17:01:12.625 INFO  schaltwerk::services::projects]   Path is a directory
+[2025-12-31 17:01:12.625 INFO  schaltwerk::services::projects]   ✅ Git repository detected (.git folder exists)
+[2025-12-31 17:01:12.625 INFO  schaltwerk::services::projects] Switching to project call_id=263e1743-332b-4afe-8743-6ea61bb84e91: /Users/mariusw/Documents/git/wichtner.com
+[2025-12-31 17:01:12.625 INFO  schaltwerk::project_manager] 📁 ProjectManager::switch_to_project called with: /Users/mariusw/Documents/git/wichtner.com
+[2025-12-31 17:01:12.625 INFO  schaltwerk::project_manager]   Canonicalized path: /Users/mariusw/Documents/git/wichtner.com
+[2025-12-31 17:01:12.625 INFO  schaltwerk::project_manager] 📁 ProjectManager::switch_to_project target matches current project; reusing existing instance
+[2025-12-31 17:01:12.625 INFO  schaltwerk::project_manager] Switching to project: /Users/mariusw/Documents/git/wichtner.com
+[2025-12-31 17:01:12.625 INFO  schaltwerk::project_manager] ♻️ Using existing project instance for: /Users/mariusw/Documents/git/wichtner.com
+[2025-12-31 17:01:12.625 INFO  schaltwerk::project_manager] ✅ Current project set to: /Users/mariusw/Documents/git/wichtner.com
+[2025-12-31 17:01:12.625 INFO  schaltwerk::services::projects] ✅ Project initialized successfully call_id=263e1743-332b-4afe-8743-6ea61bb84e91
+[2025-12-31 17:01:12.626 INFO  schaltwerk::services::projects] 🔧 Initialize project command called call_id=7a7a60d0-698e-4fd1-a2d5-7982c4e59483 path: /Users/mariusw/Documents/git/wichtner.com (switch_lock_wait=3ms)
+[2025-12-31 17:01:12.626 INFO  schaltwerk::services::projects]   Path exists: /Users/mariusw/Documents/git/wichtner.com
+[2025-12-31 17:01:12.626 INFO  schaltwerk::services::projects]   Path is a directory
+[2025-12-31 17:01:12.626 INFO  schaltwerk::services::projects]   ✅ Git repository detected (.git folder exists)
+[2025-12-31 17:01:12.626 INFO  schaltwerk::services::projects] Switching to project call_id=7a7a60d0-698e-4fd1-a2d5-7982c4e59483: /Users/mariusw/Documents/git/wichtner.com
+[2025-12-31 17:01:12.626 INFO  schaltwerk::project_manager] 📁 ProjectManager::switch_to_project called with: /Users/mariusw/Documents/git/wichtner.com
+[2025-12-31 17:01:12.626 INFO  schaltwerk::project_manager]   Canonicalized path: /Users/mariusw/Documents/git/wichtner.com
+[2025-12-31 17:01:12.626 INFO  schaltwerk::project_manager] 📁 ProjectManager::switch_to_project target matches current project; reusing existing instance
+[2025-12-31 17:01:12.626 INFO  schaltwerk::project_manager] Switching to project: /Users/mariusw/Documents/git/wichtner.com
+[2025-12-31 17:01:12.626 INFO  schaltwerk::project_manager] ♻️ Using existing project instance for: /Users/mariusw/Documents/git/wichtner.com
+[2025-12-31 17:01:12.626 INFO  schaltwerk::project_manager] ✅ Current project set to: /Users/mariusw/Documents/git/wichtner.com
+[2025-12-31 17:01:12.626 INFO  schaltwerk::services::projects] ✅ Project initialized successfully call_id=7a7a60d0-698e-4fd1-a2d5-7982c4e59483
+[2025-12-31 17:01:12.627 DEBUG schaltwerk::domains::sessions::db_sessions] list_sessions: 94 rows (summary=3ms, hydrate=1ms)
+[2025-12-31 17:01:12.629 INFO  schaltwerk::domains::terminal::login_shell_env] Capturing login shell environment using shell: /opt/homebrew/bin/fish (fish)
+[2025-12-31 17:01:12.629 DEBUG schaltwerk::domains::terminal::login_shell_env] Shell command: /opt/homebrew/bin/fish ["-l", "-c"] "echo -n 'SCHALTWERK188658315142bf48'; env | while read -l line; set -l parts (string split '=' -- $line); if test (count $parts) -ge 2; echo $parts[1]'='(string join '=' $parts[2..]); end; end; echo -n 'SCHALTWERK188658315142bf48'"
+[2025-12-31 17:01:12.630 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=3 total=4
+[2025-12-31 17:01:12.630 WARN  schaltwerk::domains::sessions::repository] Unable to normalize parent branch 'schaltwerk/pedantic_hawking_v3' for session 'funny_almeida': Local branch 'schaltwerk/pedantic_hawking_v3' missing and no remote reference found while normalizing 'schaltwerk/pedantic_hawking_v3'
+[2025-12-31 17:01:12.630 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=3 total=4
+[2025-12-31 17:01:12.631 DEBUG schaltwerk::domains::git::github_cli] [GitHubCli] Checking if GitHub CLI is installed: program='/opt/homebrew/bin/gh', PATH=/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/libghostty-integration-wv/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/libghostty-integration-wv/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/node_modules/.bin:/Users/mariusw/Documents/git/node_modules/.bin:/Users/mariusw/Documents/node_modules/.bin:/Users/mariusw/node_modules/.bin:/Users/node_modules/.bin:/node_modules/.bin:/Users/mariusw/.rd/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pmk/env/global/bin:/Library/Apple/usr/bin:/Library/TeX/texbin:/Users/mariusw/.local/bin:/Users/mariusw/.cargo/bin:/Users/mariusw/.pyenv/shims:/Users/mariusw/bin:/Users/mariusw/.nvm/versions/node/v20.19.2/bin:/Users/mariusw/.volta/bin:/Users/mariusw/.fnm:/opt/homebrew/bin:/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home/bin:/Users/mariusw/.bun/bin:/Users/mariusw/Library/TinyTeX/bin/universal-darwin:/Users/mariusw/.rd/bin:/Users/mariusw/.kilocode/cli/pkg/node_modules/.bin:/Users/mariusw/.opencode/bin:/Users/mariusw/.antigravity/antigravity/bin:/opt/homebrew/opt/dotnet/libexec:/Users/mariusw/.codeium/windsurf/bin:/opt/homebrew/opt/qt@5/bin:/Users/mariusw/.npm-global/bin:/Users/mariusw/go/bin:/Applications/Ghostty.app/Contents/MacOS:/opt/homebrew/sbin:/usr/local/sbin:/Users/mariusw/Library/pnpm:/Users/mariusw/.rbenv/shims:/Users/mariusw/.lmstudio/bin:/Users/mariusw/.orbstack/bin:/Users/mariusw/.lmstudio/bin
+[2025-12-31 17:01:12.631 DEBUG schaltwerk::domains::git::github_cli] Running command through login shell: /opt/homebrew/bin/fish ["-l", "-c", "'/opt/homebrew/bin/gh' '--version'"]
+[2025-12-31 17:01:12.631 WARN  schaltwerk::domains::sessions::repository] Unable to normalize parent branch 'schaltwerk/pedantic_hawking_v3' for session 'charming_cerf': Local branch 'schaltwerk/pedantic_hawking_v3' missing and no remote reference found while normalizing 'schaltwerk/pedantic_hawking_v3'
+[2025-12-31 17:01:12.631 WARN  schaltwerk::domains::sessions::repository] Unable to normalize parent branch 'schaltwerk/pedantic_hawking_v3' for session 'relaxed_fermi': Local branch 'schaltwerk/pedantic_hawking_v3' missing and no remote reference found while normalizing 'schaltwerk/pedantic_hawking_v3'
+[2025-12-31 17:01:12.631 WARN  schaltwerk::domains::sessions::repository] Unable to normalize parent branch 'schaltwerk/nifty_gates' for session 'sharp_snyder': Local branch 'schaltwerk/nifty_gates' missing and no remote reference found while normalizing 'schaltwerk/nifty_gates'
+[2025-12-31 17:01:12.631 WARN  schaltwerk::domains::sessions::repository] Unable to normalize parent branch 'schaltwerk/pedantic_hawking_v3' for session 'nifty_gates': Local branch 'schaltwerk/pedantic_hawking_v3' missing and no remote reference found while normalizing 'schaltwerk/pedantic_hawking_v3'
+[2025-12-31 17:01:12.631 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=3 total=4
+[2025-12-31 17:01:12.632 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=3 total=4
+[2025-12-31 17:01:12.632 DEBUG schaltwerk::domains::git::github_cli] [GitHubCli] Checking if GitHub CLI is installed: program='/opt/homebrew/bin/gh', PATH=/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/libghostty-integration-wv/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/libghostty-integration-wv/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/node_modules/.bin:/Users/mariusw/Documents/git/node_modules/.bin:/Users/mariusw/Documents/node_modules/.bin:/Users/mariusw/node_modules/.bin:/Users/node_modules/.bin:/node_modules/.bin:/Users/mariusw/.rd/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pmk/env/global/bin:/Library/Apple/usr/bin:/Library/TeX/texbin:/Users/mariusw/.local/bin:/Users/mariusw/.cargo/bin:/Users/mariusw/.pyenv/shims:/Users/mariusw/bin:/Users/mariusw/.nvm/versions/node/v20.19.2/bin:/Users/mariusw/.volta/bin:/Users/mariusw/.fnm:/opt/homebrew/bin:/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home/bin:/Users/mariusw/.bun/bin:/Users/mariusw/Library/TinyTeX/bin/universal-darwin:/Users/mariusw/.rd/bin:/Users/mariusw/.kilocode/cli/pkg/node_modules/.bin:/Users/mariusw/.opencode/bin:/Users/mariusw/.antigravity/antigravity/bin:/opt/homebrew/opt/dotnet/libexec:/Users/mariusw/.codeium/windsurf/bin:/opt/homebrew/opt/qt@5/bin:/Users/mariusw/.npm-global/bin:/Users/mariusw/go/bin:/Applications/Ghostty.app/Contents/MacOS:/opt/homebrew/sbin:/usr/local/sbin:/Users/mariusw/Library/pnpm:/Users/mariusw/.rbenv/shims:/Users/mariusw/.lmstudio/bin:/Users/mariusw/.orbstack/bin:/Users/mariusw/.lmstudio/bin
+[2025-12-31 17:01:12.632 DEBUG schaltwerk::domains::git::github_cli] Running command through login shell: /opt/homebrew/bin/fish ["-l", "-c", "'/opt/homebrew/bin/gh' '--version'"]
+[2025-12-31 17:01:12.632 DEBUG schaltwerk::domains::git::github_cli] [GitHubCli] Checking if GitHub CLI is installed: program='/opt/homebrew/bin/gh', PATH=/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/libghostty-integration-wv/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/libghostty-integration-wv/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/worktrees/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/.schaltwerk/node_modules/.bin:/Users/mariusw/Documents/git/schaltwerk/node_modules/.bin:/Users/mariusw/Documents/git/node_modules/.bin:/Users/mariusw/Documents/node_modules/.bin:/Users/mariusw/node_modules/.bin:/Users/node_modules/.bin:/node_modules/.bin:/Users/mariusw/.rd/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pmk/env/global/bin:/Library/Apple/usr/bin:/Library/TeX/texbin:/Users/mariusw/.local/bin:/Users/mariusw/.cargo/bin:/Users/mariusw/.pyenv/shims:/Users/mariusw/bin:/Users/mariusw/.nvm/versions/node/v20.19.2/bin:/Users/mariusw/.volta/bin:/Users/mariusw/.fnm:/opt/homebrew/bin:/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home/bin:/Users/mariusw/.bun/bin:/Users/mariusw/Library/TinyTeX/bin/universal-darwin:/Users/mariusw/.rd/bin:/Users/mariusw/.kilocode/cli/pkg/node_modules/.bin:/Users/mariusw/.opencode/bin:/Users/mariusw/.antigravity/antigravity/bin:/opt/homebrew/opt/dotnet/libexec:/Users/mariusw/.codeium/windsurf/bin:/opt/homebrew/opt/qt@5/bin:/Users/mariusw/.npm-global/bin:/Users/mariusw/go/bin:/Applications/Ghostty.app/Contents/MacOS:/opt/homebrew/sbin:/usr/local/sbin:/Users/mariusw/Library/pnpm:/Users/mariusw/.rbenv/shims:/Users/mariusw/.lmstudio/bin:/Users/mariusw/.orbstack/bin:/Users/mariusw/.lmstudio/bin
+[2025-12-31 17:01:12.632 DEBUG schaltwerk::domains::git::github_cli] Running command through login shell: /opt/homebrew/bin/fish ["-l", "-c", "'/opt/homebrew/bin/gh' '--version'"]
+[2025-12-31 17:01:12.632 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=3 total=4
+[2025-12-31 17:01:12.632 INFO  schaltwerk::domains::terminal::manager] Creating terminal through manager: id=orchestrator-wichtner_com-6691bf-top, cwd=/Users/mariusw/Documents/git/wichtner.com, env_count=0
+[2025-12-31 17:01:12.632 DEBUG schaltwerk::domains::terminal::local] Terminal orchestrator-wichtner_com-6691bf-top already being created
+[2025-12-31 17:01:12.632 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=2 total=4
+[2025-12-31 17:01:12.632 DEBUG schaltwerk::domains::terminal::manager] Event bridge started for terminal orchestrator-wichtner_com-6691bf-top
+[2025-12-31 17:01:12.632 INFO  schaltwerk::domains::terminal::manager] Creating terminal through manager: id=orchestrator-wichtner_com-6691bf-bottom, cwd=/Users/mariusw/Documents/git/wichtner.com, env_count=0
+[2025-12-31 17:01:12.632 DEBUG schaltwerk::domains::terminal::local] Terminal orchestrator-wichtner_com-6691bf-bottom already being created
+[2025-12-31 17:01:12.632 DEBUG schaltwerk::domains::terminal::manager] Terminal orchestrator-wichtner_com-6691bf-top created in: 0ms
+[2025-12-31 17:01:12.632 DEBUG schaltwerk::domains::terminal::manager] Event bridge started for terminal orchestrator-wichtner_com-6691bf-bottom
+[2025-12-31 17:01:12.632 DEBUG schaltwerk::domains::terminal::manager] Terminal orchestrator-wichtner_com-6691bf-bottom created in: 0ms
+[2025-12-31 17:01:12.634 INFO  schaltwerk::domains::sessions::service] [SES] list_sessions fetched 1 rows in 11ms
+[2025-12-31 17:01:12.634 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=3 total=4
+[2025-12-31 17:01:12.635 INFO  schaltwerk::domains::sessions::service] [SES] list_specs fetched 42 rows in 0ms
+[2025-12-31 17:01:12.635 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=3 total=4
+[2025-12-31 17:01:12.635 INFO  schaltwerk::domains::sessions::service] [SES] list_epics fetched 1 rows in 0ms
+[2025-12-31 17:01:12.635 INFO  schaltwerk::domains::sessions::service] [SES] totals sessions=1 specs_in_sessions=0 specs_table=42 non_specs=1
+[2025-12-31 17:01:12.635 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=3 total=4
+[2025-12-31 17:01:12.635 DEBUG schaltwerk::domains::git::db_git_stats] db_git_stats::get_git_stats_bulk start count=1
+[2025-12-31 17:01:12.635 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=3 total=4
+[2025-12-31 17:01:12.636 DEBUG schaltwerk::domains::git::db_git_stats] db_git_stats::get_git_stats_bulk done count=1
+[2025-12-31 17:01:12.636 INFO  schaltwerk::domains::sessions::service] list_enriched_sessions: stage=after_git_stats_bulk stats_loaded=1 requested=1 elapsed=0ms
+[2025-12-31 17:01:12.636 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.637 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.637 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.638 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.638 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.639 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.639 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.640 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.640 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.641 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.641 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.641 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.642 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.642 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.644 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.645 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.647 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.648 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.648 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.649 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.649 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.650 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.650 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.651 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.651 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.652 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.652 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.653 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.653 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.653 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.654 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.654 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.655 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.655 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.656 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.657 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.657 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.658 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.658 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.658 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.659 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.659 INFO  schaltwerk::domains::sessions::service] Detected current HEAD branch 'master' for session setup
+[2025-12-31 17:01:12.660 DEBUG schaltwerk::domains::sessions::service] list_enriched_sessions: session=upbeat_grothendieck stage=process_start status=Active state=Running
+[2025-12-31 17:01:12.660 DEBUG schaltwerk::domains::sessions::service] Processing session 'upbeat_grothendieck': status=Active, session_state=Running
+[2025-12-31 17:01:12.660 DEBUG schaltwerk::domains::sessions::service] list_enriched_sessions: session=upbeat_grothendieck stage=worktree_check:start path=/Users/mariusw/Documents/git/wichtner.com/.schaltwerk/worktrees/upbeat_grothendieck
+[2025-12-31 17:01:12.660 DEBUG schaltwerk::domains::sessions::service] list_enriched_sessions: session=upbeat_grothendieck stage=worktree_check:done exists=true elapsed=0ms
+[2025-12-31 17:01:12.670 INFO  schaltwerk::domains::sessions::service] list_enriched_sessions: Returning 43 enriched sessions (total: 47ms, db: 11ms, git_stats: 0ms, worktree_checks: 0ms, avg per session: 47ms)
+[2025-12-31 17:01:12.670 DEBUG schaltwerk::services::sessions] ProjectSessionsBackend call_id=9ed10fa4-d3ec-4a86-83cd-406bd1e3e445 done count=43 elapsed=48ms
+[2025-12-31 17:01:12.670 DEBUG schaltwerk::services::sessions] SessionsService list_enriched_sessions done call_id=7edb6063-18e7-4e93-88b1-5cd0028bfddf count=43 elapsed=48ms
+[2025-12-31 17:01:12.670 INFO  schaltwerk::commands::schaltwerk_core] list_enriched_sessions call_id=4c663104-06b3-4a16-805c-16c37cc22ed0 stage=done count=43 elapsed=48ms
+[2025-12-31 17:01:12.674 DEBUG schaltwerk::commands::utility] [Frontend] ["[SessionsAtoms] loadSessionsSnapshot success in 53.0ms (count=43)"]
+[2025-12-31 17:01:12.675 DEBUG schaltwerk::domains::git::stats] git_stats: begin path=/Users/mariusw/Documents/git/wichtner.com/.schaltwerk/worktrees/upbeat_grothendieck parent=master status_total=2 has_uncommitted=true sample=["fjdskalfjds", "sometest"]
+[2025-12-31 17:01:12.676 INFO  schaltwerk::commands::utility] [Frontend] ["[AGENT_LAUNCH_TRACE] autoStartRunningSessions - will auto-start upbeat_grothendieck (hydration reason: refresh)"]
+[2025-12-31 17:01:12.676 INFO  schaltwerk::commands::utility] [Frontend] ["[AGENT_LAUNCH_TRACE] startSessionTop called: sessionName=upbeat_grothendieck, topId=session-upbeat_grothendieck~2036dc56-top, agentType=gemini"]
+[2025-12-31 17:01:12.677 DEBUG schaltwerk::commands::utility] [Frontend] ["[terminalStartState] session-upbeat_grothendieck~2036dc56-top -> starting"]
+[2025-12-31 17:01:12.677 INFO  schaltwerk::commands::schaltwerk_core] [AGENT_LAUNCH_TRACE] schaltwerk_core_start_session_agent_with_restart called: session=upbeat_grothendieck, force_restart=false, terminal_id=None, agent_type=None, skip_prompt=None, skip_permissions=None
+[2025-12-31 17:01:12.677 INFO  schaltwerk::commands::schaltwerk_core] Starting agent for session: upbeat_grothendieck, terminal_id_override=None, agent_type_override=None, skip_prompt=false, skip_permissions_override=None
+[2025-12-31 17:01:12.677 DEBUG schaltwerk] get_core_read start call_id=8abd050d-45c4-4d9f-897c-33e4784d442d
+[2025-12-31 17:01:12.677 DEBUG schaltwerk::commands::utility] [Frontend] ["[SessionsAtoms] refreshSessionsActionAtom end in 57.0ms"]
+[2025-12-31 17:01:12.677 DEBUG schaltwerk] get_core_read acquired call_id=8abd050d-45c4-4d9f-897c-33e4784d442d wait=0ms
+[2025-12-31 17:01:12.677 DEBUG schaltwerk] get_core_read done call_id=8abd050d-45c4-4d9f-897c-33e4784d442d total=0ms
+[2025-12-31 17:01:12.677 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=3 total=4
+[2025-12-31 17:01:12.678 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=3 total=4
+[2025-12-31 17:01:12.679 DEBUG schaltwerk::domains::git::stats] git_stats: end path=/Users/mariusw/Documents/git/wichtner.com/.schaltwerk/worktrees/upbeat_grothendieck files_changed=5 +3 -0 has_uncommitted=true elapsed_ms=6
+[2025-12-31 17:01:12.679 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=3 total=4
+[2025-12-31 17:01:12.679 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=3 total=4
+[2025-12-31 17:01:12.679 DEBUG schaltwerk::domains::sessions::service] Background git stats refresh for '1bf14737-c9f1-41ce-ae6d-a6f81a313fd0' completed in 7ms
+[2025-12-31 17:01:12.680 DEBUG schaltwerk::domains::sessions::utils] Using provided binary path for gemini: /opt/homebrew/bin/gemini
+[2025-12-31 17:01:12.680 INFO  schaltwerk::domains::agents::gemini] Gemini session detection (fast-path): Looking for sessions in: /Users/mariusw/.gemini/tmp/fd0ccfc76814e641c548382f25341687184db2ce3e643787337494bbe48d1fe2/chats
+[2025-12-31 17:01:12.681 DEBUG schaltwerk::domains::agents::gemini] Gemini session detection (fast-path): Candidate session 'c6c57a40-f469-433f-8fc9-a0da03d26860' from /Users/mariusw/.gemini/tmp/fd0ccfc76814e641c548382f25341687184db2ce3e643787337494bbe48d1fe2/chats/session-2025-12-31T15-00-c6c57a40.json (mtime=SystemTime { tv_sec: 1767193227, tv_nsec: 378738823 })
+[2025-12-31 17:01:12.681 INFO  schaltwerk::domains::agents::gemini] Gemini session detection (fast-path): Selected session 'c6c57a40-f469-433f-8fc9-a0da03d26860' from /Users/mariusw/.gemini/tmp/fd0ccfc76814e641c548382f25341687184db2ce3e643787337494bbe48d1fe2/chats/session-2025-12-31T15-00-c6c57a40.json (mtime=SystemTime { tv_sec: 1767193227, tv_nsec: 378738823 })
+[2025-12-31 17:01:12.681 INFO  schaltwerk::commands::schaltwerk_core] Claude command for session upbeat_grothendieck: cd /Users/mariusw/Documents/git/wichtner.com/.schaltwerk/worktrees/upbeat_grothendieck && /opt/homebrew/bin/gemini --resume c6c57a40-f469-433f-8fc9-a0da03d26860
+[2025-12-31 17:01:12.681 INFO  schaltwerk::commands::schaltwerk_core] Checking permissions for working directory: /Users/mariusw/Documents/git/wichtner.com/.schaltwerk/worktrees/upbeat_grothendieck
+[2025-12-31 17:01:12.681 INFO  schaltwerk::commands::schaltwerk_core] Working directory access confirmed: /Users/mariusw/Documents/git/wichtner.com/.schaltwerk/worktrees/upbeat_grothendieck
+[2025-12-31 17:01:12.681 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=3 total=4
+[2025-12-31 17:01:12.681 INFO  schaltwerk::commands::schaltwerk_core] Creating terminal with /opt/homebrew/bin/gemini directly: session-upbeat_grothendieck~2036dc56-top with 0 env vars and CLI args: '--model pro'
+[2025-12-31 17:01:12.681 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=3 total=4
+[2025-12-31 17:01:12.681 INFO  schaltwerk::commands::schaltwerk_core] FINAL COMMAND CONSTRUCTION for gemini: command='/opt/homebrew/bin/gemini', args=["--resume", "c6c57a40-f469-433f-8fc9-a0da03d26860", "--model", "pro"]
+[2025-12-31 17:01:12.681 INFO  schaltwerk::domains::terminal::manager] Creating terminal with app and size through manager: id=session-upbeat_grothendieck~2036dc56-top, cwd=/Users/mariusw/Documents/git/wichtner.com/.schaltwerk/worktrees/upbeat_grothendieck, command=/opt/homebrew/bin/gemini, size=131x38
+[2025-12-31 17:01:12.681 INFO  schaltwerk::domains::terminal::local] Creating terminal: id=session-upbeat_grothendieck~2036dc56-top, cwd=/Users/mariusw/Documents/git/wichtner.com/.schaltwerk/worktrees/upbeat_grothendieck, size=131x38
+[2025-12-31 17:01:12.857 DEBUG schaltwerk::domains::terminal::login_shell_env] Parsed 86 env vars from marked env output
+[2025-12-31 17:01:12.857 INFO  schaltwerk::domains::terminal::login_shell_env] Captured 83 environment variables from login shell
+[2025-12-31 17:01:12.859 INFO  schaltwerk::domains::terminal::command_builder] Using shell: /opt/homebrew/bin/fish (no args)
+[2025-12-31 17:01:12.859 INFO  schaltwerk::domains::terminal::command_builder] Resolved command '/opt/homebrew/bin/gemini' to '/opt/homebrew/bin/gemini'
+[2025-12-31 17:01:12.859 INFO  schaltwerk::domains::terminal::local] Spawning terminal orchestrator-wichtner_com-6691bf-top with cwd: /Users/mariusw/Documents/git/wichtner.com
+[2025-12-31 17:01:12.859 INFO  schaltwerk::domains::terminal::command_builder] EXACT COMMAND EXECUTION: /opt/homebrew/bin/gemini --resume c6c57a40-f469-433f-8fc9-a0da03d26860 --model pro
+[2025-12-31 17:01:12.859 INFO  schaltwerk::domains::terminal::command_builder] Command args array (each element is a separate argument): ["--resume", "c6c57a40-f469-433f-8fc9-a0da03d26860", "--model", "pro"]
+[2025-12-31 17:01:12.859 INFO  schaltwerk::domains::terminal::command_builder] Using shell: /opt/homebrew/bin/fish (no args)
+[2025-12-31 17:01:12.859 INFO  schaltwerk::domains::terminal::local] Spawning terminal orchestrator-wichtner_com-6691bf-bottom with cwd: /Users/mariusw/Documents/git/wichtner.com
+[2025-12-31 17:01:12.859 INFO  schaltwerk::domains::terminal::local] Spawning terminal session-upbeat_grothendieck~2036dc56-top with cwd: /Users/mariusw/Documents/git/wichtner.com/.schaltwerk/worktrees/upbeat_grothendieck
+[2025-12-31 17:01:12.865 INFO  schaltwerk::domains::terminal::local] Successfully spawned shell process for terminal orchestrator-wichtner_com-6691bf-top (spawn took 240ms)
+[2025-12-31 17:01:12.865 INFO  schaltwerk::domains::terminal::lifecycle] Starting enhanced monitoring for agent terminal: orchestrator-wichtner_com-6691bf-top
+[2025-12-31 17:01:12.865 DEBUG schaltwerk::domains::terminal::local] Terminal orchestrator-wichtner_com-6691bf-top mapped to session Some("wichtner_com-6691bf")
+[2025-12-31 17:01:12.866 WARN  schaltwerk::domains::terminal::local] Terminal orchestrator-wichtner_com-6691bf-top creation took 241ms (slow)
+[2025-12-31 17:01:12.866 DEBUG schaltwerk::domains::terminal::manager] Event bridge started for terminal orchestrator-wichtner_com-6691bf-top
+[2025-12-31 17:01:12.866 DEBUG schaltwerk::domains::terminal::manager] Terminal orchestrator-wichtner_com-6691bf-top created in: 241ms
+[2025-12-31 17:01:12.868 INFO  schaltwerk::domains::terminal::local] Successfully spawned shell process for terminal session-upbeat_grothendieck~2036dc56-top (spawn took 187ms)
+[2025-12-31 17:01:12.869 INFO  schaltwerk::domains::terminal::lifecycle] Starting enhanced monitoring for agent terminal: session-upbeat_grothendieck~2036dc56-top
+[2025-12-31 17:01:12.869 DEBUG schaltwerk::domains::terminal::local] Terminal session-upbeat_grothendieck~2036dc56-top mapped to session Some("upbeat_grothendieck")
+[2025-12-31 17:01:12.869 WARN  schaltwerk::domains::terminal::local] Terminal session-upbeat_grothendieck~2036dc56-top creation took 187ms (slow)
+[2025-12-31 17:01:12.869 DEBUG schaltwerk::domains::terminal::manager] Event bridge started for terminal session-upbeat_grothendieck~2036dc56-top
+[2025-12-31 17:01:12.869 INFO  schaltwerk::commands::schaltwerk_core] Successfully started agent in terminal: session-upbeat_grothendieck~2036dc56-top
+[2025-12-31 17:01:12.871 DEBUG schaltwerk::commands::utility] [Frontend] ["[terminalStartState] session-upbeat_grothendieck~2036dc56-top -> started"]
+[2025-12-31 17:01:12.872 DEBUG schaltwerk::commands::utility] [Frontend] ["[terminalStartState] session-upbeat_grothendieck~2036dc56-top -> started"]
+[2025-12-31 17:01:12.871 INFO  schaltwerk::domains::terminal::local] Successfully spawned shell process for terminal orchestrator-wichtner_com-6691bf-bottom (spawn took 246ms)
+[2025-12-31 17:01:12.872 DEBUG schaltwerk::domains::terminal::local] Terminal orchestrator-wichtner_com-6691bf-bottom mapped to session Some("wichtner_com-6691bf")
+[2025-12-31 17:01:12.872 WARN  schaltwerk::domains::terminal::local] Terminal orchestrator-wichtner_com-6691bf-bottom creation took 247ms (slow)
+[2025-12-31 17:01:12.872 DEBUG schaltwerk::domains::terminal::manager] Event bridge started for terminal orchestrator-wichtner_com-6691bf-bottom
+[2025-12-31 17:01:12.872 DEBUG schaltwerk::domains::terminal::manager] Terminal orchestrator-wichtner_com-6691bf-bottom created in: 247ms
+[2025-12-31 17:01:12.873 INFO  schaltwerk::commands::utility] [Frontend] ["[SessionsAtoms] Started agent for upbeat_grothendieck (refresh)."]
+[2025-12-31 17:01:12.905 DEBUG schaltwerk::domains::git::github_cli] GitHub CLI detected: gh version 2.83.1 (2025-11-13)
+https://github.com/cli/cli/releases/tag/v2.83.1
+[2025-12-31 17:01:12.905 DEBUG schaltwerk::domains::git::github_cli] Running gh auth status check
+[2025-12-31 17:01:12.905 DEBUG schaltwerk::domains::git::github_cli] Running command through login shell: /opt/homebrew/bin/fish ["-l", "-c", "GH_PROMPT_DISABLED='1' NO_COLOR='1' '/opt/homebrew/bin/gh' 'auth' 'status' '--hostname' 'github.com'"]
+[2025-12-31 17:01:12.905 DEBUG schaltwerk::domains::git::github_cli] GitHub CLI detected: gh version 2.83.1 (2025-11-13)
+https://github.com/cli/cli/releases/tag/v2.83.1
+[2025-12-31 17:01:12.905 DEBUG schaltwerk::domains::git::github_cli] Running gh auth status check
+[2025-12-31 17:01:12.905 DEBUG schaltwerk::domains::git::github_cli] Running command through login shell: /opt/homebrew/bin/fish ["-l", "-c", "GH_PROMPT_DISABLED='1' NO_COLOR='1' '/opt/homebrew/bin/gh' 'auth' 'status' '--hostname' 'github.com'"]
+[2025-12-31 17:01:12.905 DEBUG schaltwerk::domains::git::github_cli] GitHub CLI detected: gh version 2.83.1 (2025-11-13)
+https://github.com/cli/cli/releases/tag/v2.83.1
+[2025-12-31 17:01:12.905 DEBUG schaltwerk::domains::git::github_cli] Running gh auth status check
+[2025-12-31 17:01:12.905 DEBUG schaltwerk::domains::git::github_cli] Running command through login shell: /opt/homebrew/bin/fish ["-l", "-c", "GH_PROMPT_DISABLED='1' NO_COLOR='1' '/opt/homebrew/bin/gh' 'auth' 'status' '--hostname' 'github.com'"]
+[2025-12-31 17:01:12.934 INFO  schaltwerk::commands::utility] [Frontend] ["[NewSessionModal] Reapplying last agent type on close path {\"lastAgentType\":\"claude\",\"hasOverride\":false}"]
+[2025-12-31 17:01:12.939 INFO  schaltwerk::commands::utility] [Frontend] ["[Terminal orchestrator-wichtner_com-6691bf-top] Localhost click intercept ready",{"previewKey":"/Users/mariusw/Documents/git/wichtner.com::orchestrator"}]
+[2025-12-31 17:01:12.946 INFO  schaltwerk::commands::utility] [Frontend] ["[Terminal orchestrator-wichtner_com-6691bf-bottom] Localhost click intercept ready",{"previewKey":"/Users/mariusw/Documents/git/wichtner.com::orchestrator"}]
+[2025-12-31 17:01:12.947 DEBUG schaltwerk::commands::utility] [Frontend] ["Loading action buttons for project:","/Users/mariusw/Documents/git/wichtner.com"]
+[2025-12-31 17:01:12.948 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=3 total=4
+[2025-12-31 17:01:12.948 DEBUG schaltwerk] get_core_read start call_id=64a6e0a2-0643-4357-9a56-2d207fceaa55
+[2025-12-31 17:01:12.949 DEBUG schaltwerk] get_core_read acquired call_id=64a6e0a2-0643-4357-9a56-2d207fceaa55 wait=0ms
+[2025-12-31 17:01:12.949 DEBUG schaltwerk] get_core_read done call_id=64a6e0a2-0643-4357-9a56-2d207fceaa55 total=0ms
+[2025-12-31 17:01:12.948 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=2 total=4
+[2025-12-31 17:01:12.948 INFO  schaltwerk::commands::settings] Loaded 3 action buttons for project /Users/mariusw/Documents/git/wichtner.com: [HeaderActionConfig { id: "squash-merge-main", label: "Squash Merge Main", prompt: "Task: Squash-merge all reviewed Schaltwerk sessions\n\nFind all reviewed sessions and merge them to main branch with proper validation and fallback handling.\n\nSteps to perform:\n\n1. Check git status: Ensure working tree is clean and on main branch\n2. Find reviewed sessions: Use schaltwerk MCP to list all sessions with status=\"reviewed\"\n3. For each reviewed session:\n  - IMPORTANT: First merge main INTO the session branch to resolve conflicts\n  - Check if session branch exists and has valid changes (not regressions)\n  - Switch to session branch (or use worktree if exists)\n  - Check if there are any uncommitted changes and commit them if needed (ensure to not commit any development artifacts like debug scripts etc that should not be in the changeset of the session)\n  - Run git merge main to bring branch up to date with latest changes\n  - Resolve any merge conflicts that occur\n  - Switch back to main branch\n  - Validate session before merge:\n      - CRITICAL: Use git log --oneline main..schaltwerk/session_name to see what commits the session actually adds\n      - CRITICAL: If the session only has a \"Mark session as reviewed\" commit and NO actual feature commits, check for uncommitted changes in the worktree\n      - CRITICAL: After merging main into the session, the diff will show the session \"removing\" files that were added to main after the session was created - THIS IS NORMAL and not the session actually removing anything\n      - Focus on what the session ADDS (new files, modifications to existing files at the time of branch creation)\n  - Attempt squash-merge: git merge --squash <branch>\n  - Create descriptive commit message based on the session's changes\n  - Run tests: Execute bun run test (or npm run test) after merge attempt\n  - Decision point:\n      - ✅ If merge succeeds AND tests pass: Cancel session immediately with force: true\n      - ❌ If merge fails OR tests fail OR changes don't make sense: Send follow-up message and NEVER cancel session\n\nUnderstanding Git Diffs After Merging Main:\n\nCRITICAL: When you merge main into an old session branch and then diff:\n- Files that appear to be \"removed\" by the session are actually files added to main AFTER the session was created\n- The session is NOT removing these files - they simply didn't exist when the session branched off\n- Focus on:\n  - Files the session ADDS (new files created by the session)\n  - Files the session MODIFIES (changes to files that existed when the session was created)\n  - Ignore apparent \"deletions\" of files that were added to main after the session's branch point\n\nExample: If session branched from commit A, and main has since added files X and Y:\n- After merging main into session, git diff main..session will show files X and Y as \"deleted\"\n- This is NORMAL - the session isn't deleting them, it just shows the difference\n- When you squash-merge back to main, files X and Y will remain intact\n\nValidation Criteria:\n\n✅ PROCEED WITH MERGE when:\n- Small merge conflicts that can be resolved mechanically\n- Integration issues between 2 features that need coordination (agent can't solve alone)\n- Clean diff that makes logical sense (ignoring false \"deletions\" from main's newer files)\n- Tests pass after merge\n- No obvious regressions or broken functionality\n\n❌ SEND FOLLOW-UP MESSAGE when:\n- Code compilation fails (linting errors, missing imports, dead code warnings)\n- Tests fail after merge due to integration issues between the new feature and existing functionality\n- Large/complex merge conflicts that require domain knowledge\n- Diff doesn't make sense (random changes, unrelated modifications, broken logic)\n- Obvious regressions (reverting recent improvements that existed when the session was created)\n- Missing proper integration (changes that should work together but don't)\n\n❓ ASK USER FOR GUIDANCE when:\n- Content duplication (session duplicates work from another session)\n- Unclear session purpose (session name doesn't match actual changes)\n- Strategic decisions needed (which of multiple similar sessions should be kept)\n\nFollow-up Message Strategy:\n\nFor technical issues that agents can fix, send a descriptive follow-up message explaining:\n- Specific issue encountered (compilation error, test failures, merge conflicts)\n- What needs to be fixed (resolve dead code, fix integration, handle conflicts)\n- Why it couldn't be auto-merged (requires agent knowledge/context)\n\nExample messages:\n\"The session has compilation conflicts when merged to main. Please resolve the dead code issues with parse_numstat_line function and ensure all exports are properly scoped with #[cfg(test)].\"\n\n\"Tests fail after merge due to integration issues between the new feature and existing functionality. Please ensure proper integration and test compatibility.\"\n\n\"The diff contains complex merge conflicts that require domain knowledge to resolve properly. Please rebase against main and resolve conflicts.\"\n\nFor strategic/content issues, ask the user for guidance at the end of the merge process:\n- Leave the session as-is (don't send messages to agents for issues they can't solve)\n- Present the issue to the user with context and options\n- Let the user decide how to handle duplication, unclear purpose, etc.\n\nRequirements:\n\n- Working tree must be clean before starting\n- Must be on main branch\n- Only merge sessions that pass all validation criteria\n- Send follow-up messages for problematic sessions (don't force merge)\n- CRITICAL: Sessions cancelled immediately ONLY after successful merge and test validation\n- NEVER cancel/delete sessions that failed to merge - preserve all Git state for manual review\n- When you are done with everything, check again if there are new reviewed sessions and then also repeat this whole process from the beginning if there are any new reviewed sessions that you did not consider before\n- When you had to send a follow-up message, you can continue with the other tasks in the meantime to be merged, so that the agent has time to actually process the follow-up message you sent it to him. Because if you do not wait, then there might not be changes immediately.\n\n⚠\u{fe0f} Decision Making Philosophy:\n\n- We handle: Simple conflicts, integration coordination, mechanical merges\n- Agent handles: Complex conflicts, code logic issues, feature-specific problems\n- User handles: Content duplication decisions, strategic choices, session purpose clarification\n- When in doubt: Send follow-up message for technical issues, ask user for strategic issues\n- Git State Protection: NEVER delete/cancel sessions unless they were successfully merged - all failed merges preserve their Git state\n\nCommit message format:\n\nUse the session's changes to create a meaningful commit message that describes what was implemented or fixed.\n\nPlease proceed with finding and validating all reviewed sessions systematically.\n\nGit Recovery & Session Safety\n\n🚨 CRITICAL: Never cancel sessions without merging first!\n\nPrevention:\n- Always run git merge --squash <branch> AND bun run test (or npm run test) before cancelling\n- Only cancel after successful merge + green tests\n\nRecovery (if commits exist):\n# Check if commits still exist in git database\ngit cat-file -t <commit-hash> 2>/dev/null && echo \"Recoverable!\"\n\n# Recover from commit hash\ngit checkout -b recover-session <commit-hash>\n\n# Merge to main\ngit checkout main && git merge --squash recover-session\ngit commit -m \"Recover lost session: <description>\"\n\n⚠\u{fe0f} Remember: Uncommitted changes in worktrees are permanently lost when cancelled - commits in git database can be recovered.", color: Some("green") }, HeaderActionConfig { id: "create-pr", label: "PR", prompt: "Create a pull request for the current branch with a comprehensive description of changes.", color: Some("blue") }, HeaderActionConfig { id: "run-tests", label: "Test", prompt: "Run all tests and fix any failures that occur.", color: Some("amber") }]
+[2025-12-31 17:01:12.949 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=3 total=4
+[2025-12-31 17:01:12.950 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=3 total=4
+[2025-12-31 17:01:12.951 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=3 total=4
+[2025-12-31 17:01:12.953 DEBUG schaltwerk::commands::utility] [Frontend] ["Loading action buttons for project:","/Users/mariusw/Documents/git/wichtner.com"]
+[2025-12-31 17:01:12.953 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=3 total=4
+[2025-12-31 17:01:12.956 INFO  schaltwerk::commands::settings] Loaded 3 action buttons for project /Users/mariusw/Documents/git/wichtner.com: [HeaderActionConfig { id: "squash-merge-main", label: "Squash Merge Main", prompt: "Task: Squash-merge all reviewed Schaltwerk sessions\n\nFind all reviewed sessions and merge them to main branch with proper validation and fallback handling.\n\nSteps to perform:\n\n1. Check git status: Ensure working tree is clean and on main branch\n2. Find reviewed sessions: Use schaltwerk MCP to list all sessions with status=\"reviewed\"\n3. For each reviewed session:\n  - IMPORTANT: First merge main INTO the session branch to resolve conflicts\n  - Check if session branch exists and has valid changes (not regressions)\n  - Switch to session branch (or use worktree if exists)\n  - Check if there are any uncommitted changes and commit them if needed (ensure to not commit any development artifacts like debug scripts etc that should not be in the changeset of the session)\n  - Run git merge main to bring branch up to date with latest changes\n  - Resolve any merge conflicts that occur\n  - Switch back to main branch\n  - Validate session before merge:\n      - CRITICAL: Use git log --oneline main..schaltwerk/session_name to see what commits the session actually adds\n      - CRITICAL: If the session only has a \"Mark session as reviewed\" commit and NO actual feature commits, check for uncommitted changes in the worktree\n      - CRITICAL: After merging main into the session, the diff will show the session \"removing\" files that were added to main after the session was created - THIS IS NORMAL and not the session actually removing anything\n      - Focus on what the session ADDS (new files, modifications to existing files at the time of branch creation)\n  - Attempt squash-merge: git merge --squash <branch>\n  - Create descriptive commit message based on the session's changes\n  - Run tests: Execute bun run test (or npm run test) after merge attempt\n  - Decision point:\n      - ✅ If merge succeeds AND tests pass: Cancel session immediately with force: true\n      - ❌ If merge fails OR tests fail OR changes don't make sense: Send follow-up message and NEVER cancel session\n\nUnderstanding Git Diffs After Merging Main:\n\nCRITICAL: When you merge main into an old session branch and then diff:\n- Files that appear to be \"removed\" by the session are actually files added to main AFTER the session was created\n- The session is NOT removing these files - they simply didn't exist when the session branched off\n- Focus on:\n  - Files the session ADDS (new files created by the session)\n  - Files the session MODIFIES (changes to files that existed when the session was created)\n  - Ignore apparent \"deletions\" of files that were added to main after the session's branch point\n\nExample: If session branched from commit A, and main has since added files X and Y:\n- After merging main into session, git diff main..session will show files X and Y as \"deleted\"\n- This is NORMAL - the session isn't deleting them, it just shows the difference\n- When you squash-merge back to main, files X and Y will remain intact\n\nValidation Criteria:\n\n✅ PROCEED WITH MERGE when:\n- Small merge conflicts that can be resolved mechanically\n- Integration issues between 2 features that need coordination (agent can't solve alone)\n- Clean diff that makes logical sense (ignoring false \"deletions\" from main's newer files)\n- Tests pass after merge\n- No obvious regressions or broken functionality\n\n❌ SEND FOLLOW-UP MESSAGE when:\n- Code compilation fails (linting errors, missing imports, dead code warnings)\n- Tests fail after merge due to integration issues between the new feature and existing functionality\n- Large/complex merge conflicts that require domain knowledge\n- Diff doesn't make sense (random changes, unrelated modifications, broken logic)\n- Obvious regressions (reverting recent improvements that existed when the session was created)\n- Missing proper integration (changes that should work together but don't)\n\n❓ ASK USER FOR GUIDANCE when:\n- Content duplication (session duplicates work from another session)\n- Unclear session purpose (session name doesn't match actual changes)\n- Strategic decisions needed (which of multiple similar sessions should be kept)\n\nFollow-up Message Strategy:\n\nFor technical issues that agents can fix, send a descriptive follow-up message explaining:\n- Specific issue encountered (compilation error, test failures, merge conflicts)\n- What needs to be fixed (resolve dead code, fix integration, handle conflicts)\n- Why it couldn't be auto-merged (requires agent knowledge/context)\n\nExample messages:\n\"The session has compilation conflicts when merged to main. Please resolve the dead code issues with parse_numstat_line function and ensure all exports are properly scoped with #[cfg(test)].\"\n\n\"Tests fail after merge due to integration issues between the new feature and existing functionality. Please ensure proper integration and test compatibility.\"\n\n\"The diff contains complex merge conflicts that require domain knowledge to resolve properly. Please rebase against main and resolve conflicts.\"\n\nFor strategic/content issues, ask the user for guidance at the end of the merge process:\n- Leave the session as-is (don't send messages to agents for issues they can't solve)\n- Present the issue to the user with context and options\n- Let the user decide how to handle duplication, unclear purpose, etc.\n\nRequirements:\n\n- Working tree must be clean before starting\n- Must be on main branch\n- Only merge sessions that pass all validation criteria\n- Send follow-up messages for problematic sessions (don't force merge)\n- CRITICAL: Sessions cancelled immediately ONLY after successful merge and test validation\n- NEVER cancel/delete sessions that failed to merge - preserve all Git state for manual review\n- When you are done with everything, check again if there are new reviewed sessions and then also repeat this whole process from the beginning if there are any new reviewed sessions that you did not consider before\n- When you had to send a follow-up message, you can continue with the other tasks in the meantime to be merged, so that the agent has time to actually process the follow-up message you sent it to him. Because if you do not wait, then there might not be changes immediately.\n\n⚠\u{fe0f} Decision Making Philosophy:\n\n- We handle: Simple conflicts, integration coordination, mechanical merges\n- Agent handles: Complex conflicts, code logic issues, feature-specific problems\n- User handles: Content duplication decisions, strategic choices, session purpose clarification\n- When in doubt: Send follow-up message for technical issues, ask user for strategic issues\n- Git State Protection: NEVER delete/cancel sessions unless they were successfully merged - all failed merges preserve their Git state\n\nCommit message format:\n\nUse the session's changes to create a meaningful commit message that describes what was implemented or fixed.\n\nPlease proceed with finding and validating all reviewed sessions systematically.\n\nGit Recovery & Session Safety\n\n🚨 CRITICAL: Never cancel sessions without merging first!\n\nPrevention:\n- Always run git merge --squash <branch> AND bun run test (or npm run test) before cancelling\n- Only cancel after successful merge + green tests\n\nRecovery (if commits exist):\n# Check if commits still exist in git database\ngit cat-file -t <commit-hash> 2>/dev/null && echo \"Recoverable!\"\n\n# Recover from commit hash\ngit checkout -b recover-session <commit-hash>\n\n# Merge to main\ngit checkout main && git merge --squash recover-session\ngit commit -m \"Recover lost session: <description>\"\n\n⚠\u{fe0f} Remember: Uncommitted changes in worktrees are permanently lost when cancelled - commits in git database can be recovered.", color: Some("green") }, HeaderActionConfig { id: "create-pr", label: "PR", prompt: "Create a pull request for the current branch with a comprehensive description of changes.", color: Some("blue") }, HeaderActionConfig { id: "run-tests", label: "Test", prompt: "Run all tests and fix any failures that occur.", color: Some("amber") }]
+[2025-12-31 17:01:12.958 INFO  schaltwerk::commands::utility] [Frontend] ["[NewSessionModal] Reapplying last agent type on close path {\"lastAgentType\":\"claude\",\"hasOverride\":false}"]
+[2025-12-31 17:01:12.958 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=3 total=4
+[2025-12-31 17:01:12.960 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=3 total=4
+[2025-12-31 17:01:12.961 DEBUG schaltwerk::commands::utility] [Frontend] ["Loading action buttons for project:","/Users/mariusw/Documents/git/wichtner.com"]
+[2025-12-31 17:01:12.962 DEBUG schaltwerk::commands::utility] [Frontend] ["Loading action buttons for project:","/Users/mariusw/Documents/git/wichtner.com"]
+[2025-12-31 17:01:12.965 DEBUG schaltwerk] get_core_read start call_id=419bfd7e-e68e-4a37-b120-06efdac997b3
+[2025-12-31 17:01:12.965 DEBUG schaltwerk] get_core_read acquired call_id=419bfd7e-e68e-4a37-b120-06efdac997b3 wait=0ms
+[2025-12-31 17:01:12.965 DEBUG schaltwerk] get_core_read done call_id=419bfd7e-e68e-4a37-b120-06efdac997b3 total=0ms
+[2025-12-31 17:01:12.965 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=3 total=4
+[2025-12-31 17:01:12.965 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=2 total=4
+[2025-12-31 17:01:12.969 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=3 total=4
+[2025-12-31 17:01:12.969 INFO  schaltwerk::commands::settings] Loaded 3 action buttons for project /Users/mariusw/Documents/git/wichtner.com: [HeaderActionConfig { id: "squash-merge-main", label: "Squash Merge Main", prompt: "Task: Squash-merge all reviewed Schaltwerk sessions\n\nFind all reviewed sessions and merge them to main branch with proper validation and fallback handling.\n\nSteps to perform:\n\n1. Check git status: Ensure working tree is clean and on main branch\n2. Find reviewed sessions: Use schaltwerk MCP to list all sessions with status=\"reviewed\"\n3. For each reviewed session:\n  - IMPORTANT: First merge main INTO the session branch to resolve conflicts\n  - Check if session branch exists and has valid changes (not regressions)\n  - Switch to session branch (or use worktree if exists)\n  - Check if there are any uncommitted changes and commit them if needed (ensure to not commit any development artifacts like debug scripts etc that should not be in the changeset of the session)\n  - Run git merge main to bring branch up to date with latest changes\n  - Resolve any merge conflicts that occur\n  - Switch back to main branch\n  - Validate session before merge:\n      - CRITICAL: Use git log --oneline main..schaltwerk/session_name to see what commits the session actually adds\n      - CRITICAL: If the session only has a \"Mark session as reviewed\" commit and NO actual feature commits, check for uncommitted changes in the worktree\n      - CRITICAL: After merging main into the session, the diff will show the session \"removing\" files that were added to main after the session was created - THIS IS NORMAL and not the session actually removing anything\n      - Focus on what the session ADDS (new files, modifications to existing files at the time of branch creation)\n  - Attempt squash-merge: git merge --squash <branch>\n  - Create descriptive commit message based on the session's changes\n  - Run tests: Execute bun run test (or npm run test) after merge attempt\n  - Decision point:\n      - ✅ If merge succeeds AND tests pass: Cancel session immediately with force: true\n      - ❌ If merge fails OR tests fail OR changes don't make sense: Send follow-up message and NEVER cancel session\n\nUnderstanding Git Diffs After Merging Main:\n\nCRITICAL: When you merge main into an old session branch and then diff:\n- Files that appear to be \"removed\" by the session are actually files added to main AFTER the session was created\n- The session is NOT removing these files - they simply didn't exist when the session branched off\n- Focus on:\n  - Files the session ADDS (new files created by the session)\n  - Files the session MODIFIES (changes to files that existed when the session was created)\n  - Ignore apparent \"deletions\" of files that were added to main after the session's branch point\n\nExample: If session branched from commit A, and main has since added files X and Y:\n- After merging main into session, git diff main..session will show files X and Y as \"deleted\"\n- This is NORMAL - the session isn't deleting them, it just shows the difference\n- When you squash-merge back to main, files X and Y will remain intact\n\nValidation Criteria:\n\n✅ PROCEED WITH MERGE when:\n- Small merge conflicts that can be resolved mechanically\n- Integration issues between 2 features that need coordination (agent can't solve alone)\n- Clean diff that makes logical sense (ignoring false \"deletions\" from main's newer files)\n- Tests pass after merge\n- No obvious regressions or broken functionality\n\n❌ SEND FOLLOW-UP MESSAGE when:\n- Code compilation fails (linting errors, missing imports, dead code warnings)\n- Tests fail after merge due to integration issues between the new feature and existing functionality\n- Large/complex merge conflicts that require domain knowledge\n- Diff doesn't make sense (random changes, unrelated modifications, broken logic)\n- Obvious regressions (reverting recent improvements that existed when the session was created)\n- Missing proper integration (changes that should work together but don't)\n\n❓ ASK USER FOR GUIDANCE when:\n- Content duplication (session duplicates work from another session)\n- Unclear session purpose (session name doesn't match actual changes)\n- Strategic decisions needed (which of multiple similar sessions should be kept)\n\nFollow-up Message Strategy:\n\nFor technical issues that agents can fix, send a descriptive follow-up message explaining:\n- Specific issue encountered (compilation error, test failures, merge conflicts)\n- What needs to be fixed (resolve dead code, fix integration, handle conflicts)\n- Why it couldn't be auto-merged (requires agent knowledge/context)\n\nExample messages:\n\"The session has compilation conflicts when merged to main. Please resolve the dead code issues with parse_numstat_line function and ensure all exports are properly scoped with #[cfg(test)].\"\n\n\"Tests fail after merge due to integration issues between the new feature and existing functionality. Please ensure proper integration and test compatibility.\"\n\n\"The diff contains complex merge conflicts that require domain knowledge to resolve properly. Please rebase against main and resolve conflicts.\"\n\nFor strategic/content issues, ask the user for guidance at the end of the merge process:\n- Leave the session as-is (don't send messages to agents for issues they can't solve)\n- Present the issue to the user with context and options\n- Let the user decide how to handle duplication, unclear purpose, etc.\n\nRequirements:\n\n- Working tree must be clean before starting\n- Must be on main branch\n- Only merge sessions that pass all validation criteria\n- Send follow-up messages for problematic sessions (don't force merge)\n- CRITICAL: Sessions cancelled immediately ONLY after successful merge and test validation\n- NEVER cancel/delete sessions that failed to merge - preserve all Git state for manual review\n- When you are done with everything, check again if there are new reviewed sessions and then also repeat this whole process from the beginning if there are any new reviewed sessions that you did not consider before\n- When you had to send a follow-up message, you can continue with the other tasks in the meantime to be merged, so that the agent has time to actually process the follow-up message you sent it to him. Because if you do not wait, then there might not be changes immediately.\n\n⚠\u{fe0f} Decision Making Philosophy:\n\n- We handle: Simple conflicts, integration coordination, mechanical merges\n- Agent handles: Complex conflicts, code logic issues, feature-specific problems\n- User handles: Content duplication decisions, strategic choices, session purpose clarification\n- When in doubt: Send follow-up message for technical issues, ask user for strategic issues\n- Git State Protection: NEVER delete/cancel sessions unless they were successfully merged - all failed merges preserve their Git state\n\nCommit message format:\n\nUse the session's changes to create a meaningful commit message that describes what was implemented or fixed.\n\nPlease proceed with finding and validating all reviewed sessions systematically.\n\nGit Recovery & Session Safety\n\n🚨 CRITICAL: Never cancel sessions without merging first!\n\nPrevention:\n- Always run git merge --squash <branch> AND bun run test (or npm run test) before cancelling\n- Only cancel after successful merge + green tests\n\nRecovery (if commits exist):\n# Check if commits still exist in git database\ngit cat-file -t <commit-hash> 2>/dev/null && echo \"Recoverable!\"\n\n# Recover from commit hash\ngit checkout -b recover-session <commit-hash>\n\n# Merge to main\ngit checkout main && git merge --squash recover-session\ngit commit -m \"Recover lost session: <description>\"\n\n⚠\u{fe0f} Remember: Uncommitted changes in worktrees are permanently lost when cancelled - commits in git database can be recovered.", color: Some("green") }, HeaderActionConfig { id: "create-pr", label: "PR", prompt: "Create a pull request for the current branch with a comprehensive description of changes.", color: Some("blue") }, HeaderActionConfig { id: "run-tests", label: "Test", prompt: "Run all tests and fix any failures that occur.", color: Some("amber") }]
+[2025-12-31 17:01:12.970 INFO  schaltwerk::commands::utility] [Frontend] ["[Terminal orchestrator-wichtner_com-6691bf-top] Localhost click intercept ready",{"previewKey":"/Users/mariusw/Documents/git/wichtner.com::orchestrator"}]
+[2025-12-31 17:01:12.972 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=3 total=4
+[2025-12-31 17:01:12.973 INFO  schaltwerk::commands::settings] Loaded 3 action buttons for project /Users/mariusw/Documents/git/wichtner.com: [HeaderActionConfig { id: "squash-merge-main", label: "Squash Merge Main", prompt: "Task: Squash-merge all reviewed Schaltwerk sessions\n\nFind all reviewed sessions and merge them to main branch with proper validation and fallback handling.\n\nSteps to perform:\n\n1. Check git status: Ensure working tree is clean and on main branch\n2. Find reviewed sessions: Use schaltwerk MCP to list all sessions with status=\"reviewed\"\n3. For each reviewed session:\n  - IMPORTANT: First merge main INTO the session branch to resolve conflicts\n  - Check if session branch exists and has valid changes (not regressions)\n  - Switch to session branch (or use worktree if exists)\n  - Check if there are any uncommitted changes and commit them if needed (ensure to not commit any development artifacts like debug scripts etc that should not be in the changeset of the session)\n  - Run git merge main to bring branch up to date with latest changes\n  - Resolve any merge conflicts that occur\n  - Switch back to main branch\n  - Validate session before merge:\n      - CRITICAL: Use git log --oneline main..schaltwerk/session_name to see what commits the session actually adds\n      - CRITICAL: If the session only has a \"Mark session as reviewed\" commit and NO actual feature commits, check for uncommitted changes in the worktree\n      - CRITICAL: After merging main into the session, the diff will show the session \"removing\" files that were added to main after the session was created - THIS IS NORMAL and not the session actually removing anything\n      - Focus on what the session ADDS (new files, modifications to existing files at the time of branch creation)\n  - Attempt squash-merge: git merge --squash <branch>\n  - Create descriptive commit message based on the session's changes\n  - Run tests: Execute bun run test (or npm run test) after merge attempt\n  - Decision point:\n      - ✅ If merge succeeds AND tests pass: Cancel session immediately with force: true\n      - ❌ If merge fails OR tests fail OR changes don't make sense: Send follow-up message and NEVER cancel session\n\nUnderstanding Git Diffs After Merging Main:\n\nCRITICAL: When you merge main into an old session branch and then diff:\n- Files that appear to be \"removed\" by the session are actually files added to main AFTER the session was created\n- The session is NOT removing these files - they simply didn't exist when the session branched off\n- Focus on:\n  - Files the session ADDS (new files created by the session)\n  - Files the session MODIFIES (changes to files that existed when the session was created)\n  - Ignore apparent \"deletions\" of files that were added to main after the session's branch point\n\nExample: If session branched from commit A, and main has since added files X and Y:\n- After merging main into session, git diff main..session will show files X and Y as \"deleted\"\n- This is NORMAL - the session isn't deleting them, it just shows the difference\n- When you squash-merge back to main, files X and Y will remain intact\n\nValidation Criteria:\n\n✅ PROCEED WITH MERGE when:\n- Small merge conflicts that can be resolved mechanically\n- Integration issues between 2 features that need coordination (agent can't solve alone)\n- Clean diff that makes logical sense (ignoring false \"deletions\" from main's newer files)\n- Tests pass after merge\n- No obvious regressions or broken functionality\n\n❌ SEND FOLLOW-UP MESSAGE when:\n- Code compilation fails (linting errors, missing imports, dead code warnings)\n- Tests fail after merge due to integration issues between the new feature and existing functionality\n- Large/complex merge conflicts that require domain knowledge\n- Diff doesn't make sense (random changes, unrelated modifications, broken logic)\n- Obvious regressions (reverting recent improvements that existed when the session was created)\n- Missing proper integration (changes that should work together but don't)\n\n❓ ASK USER FOR GUIDANCE when:\n- Content duplication (session duplicates work from another session)\n- Unclear session purpose (session name doesn't match actual changes)\n- Strategic decisions needed (which of multiple similar sessions should be kept)\n\nFollow-up Message Strategy:\n\nFor technical issues that agents can fix, send a descriptive follow-up message explaining:\n- Specific issue encountered (compilation error, test failures, merge conflicts)\n- What needs to be fixed (resolve dead code, fix integration, handle conflicts)\n- Why it couldn't be auto-merged (requires agent knowledge/context)\n\nExample messages:\n\"The session has compilation conflicts when merged to main. Please resolve the dead code issues with parse_numstat_line function and ensure all exports are properly scoped with #[cfg(test)].\"\n\n\"Tests fail after merge due to integration issues between the new feature and existing functionality. Please ensure proper integration and test compatibility.\"\n\n\"The diff contains complex merge conflicts that require domain knowledge to resolve properly. Please rebase against main and resolve conflicts.\"\n\nFor strategic/content issues, ask the user for guidance at the end of the merge process:\n- Leave the session as-is (don't send messages to agents for issues they can't solve)\n- Present the issue to the user with context and options\n- Let the user decide how to handle duplication, unclear purpose, etc.\n\nRequirements:\n\n- Working tree must be clean before starting\n- Must be on main branch\n- Only merge sessions that pass all validation criteria\n- Send follow-up messages for problematic sessions (don't force merge)\n- CRITICAL: Sessions cancelled immediately ONLY after successful merge and test validation\n- NEVER cancel/delete sessions that failed to merge - preserve all Git state for manual review\n- When you are done with everything, check again if there are new reviewed sessions and then also repeat this whole process from the beginning if there are any new reviewed sessions that you did not consider before\n- When you had to send a follow-up message, you can continue with the other tasks in the meantime to be merged, so that the agent has time to actually process the follow-up message you sent it to him. Because if you do not wait, then there might not be changes immediately.\n\n⚠\u{fe0f} Decision Making Philosophy:\n\n- We handle: Simple conflicts, integration coordination, mechanical merges\n- Agent handles: Complex conflicts, code logic issues, feature-specific problems\n- User handles: Content duplication decisions, strategic choices, session purpose clarification\n- When in doubt: Send follow-up message for technical issues, ask user for strategic issues\n- Git State Protection: NEVER delete/cancel sessions unless they were successfully merged - all failed merges preserve their Git state\n\nCommit message format:\n\nUse the session's changes to create a meaningful commit message that describes what was implemented or fixed.\n\nPlease proceed with finding and validating all reviewed sessions systematically.\n\nGit Recovery & Session Safety\n\n🚨 CRITICAL: Never cancel sessions without merging first!\n\nPrevention:\n- Always run git merge --squash <branch> AND bun run test (or npm run test) before cancelling\n- Only cancel after successful merge + green tests\n\nRecovery (if commits exist):\n# Check if commits still exist in git database\ngit cat-file -t <commit-hash> 2>/dev/null && echo \"Recoverable!\"\n\n# Recover from commit hash\ngit checkout -b recover-session <commit-hash>\n\n# Merge to main\ngit checkout main && git merge --squash recover-session\ngit commit -m \"Recover lost session: <description>\"\n\n⚠\u{fe0f} Remember: Uncommitted changes in worktrees are permanently lost when cancelled - commits in git database can be recovered.", color: Some("green") }, HeaderActionConfig { id: "create-pr", label: "PR", prompt: "Create a pull request for the current branch with a comprehensive description of changes.", color: Some("blue") }, HeaderActionConfig { id: "run-tests", label: "Test", prompt: "Run all tests and fix any failures that occur.", color: Some("amber") }]
+[2025-12-31 17:01:12.982 INFO  schaltwerk::commands::utility] [Frontend] ["[TerminalGrid] Resolved auto preview config:",{"raw":{"command":"bun run dev","environmentVariables":{},"previewLocalhostOnClick":true,"workingDirectory":""},"resolved":{"interceptClicks":true}}]
+[2025-12-31 17:01:12.982 DEBUG schaltwerk::commands::utility] [Frontend] ["Action buttons loaded:",[{"color":"green","id":"squash-merge-main","label":"Squash Merge Main","prompt":"Task: Squash-merge all reviewed Schaltwerk sessions\n\nFind all reviewed sessions and merge them to main branch with proper validation and fallback handling.\n\nSteps to perform:\n\n1. Check git status: Ensure working tree is clean and on main branch\n2. Find reviewed sessions: Use schaltwerk MCP to list all sessions with status=\"reviewed\"\n3. For each reviewed session:\n  - IMPORTANT: First merge main INTO the session branch to resolve conflicts\n  - Check if session branch exists and has valid changes (not regressions)\n  - Switch to session branch (or use worktree if exists)\n  - Check if there are any uncommitted changes and commit them if needed (ensure to not commit any development artifacts like debug scripts etc that should not be in the changeset of the session)\n  - Run git merge main to bring branch up to date with latest changes\n  - Resolve any merge conflicts that occur\n  - Switch back to main branch\n  - Validate session before merge:\n      - CRITICAL: Use git log --oneline main..schaltwerk/session_name to see what commits the session actually adds\n      - CRITICAL: If the session only has a \"Mark session as reviewed\" commit and NO actual feature commits, check for uncommitted changes in the worktree\n      - CRITICAL: After merging main into the session, the diff will show the session \"removing\" files that were added to main after the session was created - THIS IS NORMAL and not the session actually removing anything\n      - Focus on what the session ADDS (new files, modifica… [truncated] (6049 chars)"},{"color":"blue","id":"create-pr","label":"PR","prompt":"Create a pull request for the current branch with a comprehensive description of changes."},{"color":"amber","id":"run-tests","label":"Test","prompt":"Run all tests and fix any failures that occur."}]]
+[2025-12-31 17:01:12.984 DEBUG schaltwerk::commands::utility] [Frontend] ["Action buttons loaded:",[{"color":"green","id":"squash-merge-main","label":"Squash Merge Main","prompt":"Task: Squash-merge all reviewed Schaltwerk sessions\n\nFind all reviewed sessions and merge them to main branch with proper validation and fallback handling.\n\nSteps to perform:\n\n1. Check git status: Ensure working tree is clean and on main branch\n2. Find reviewed sessions: Use schaltwerk MCP to list all sessions with status=\"reviewed\"\n3. For each reviewed session:\n  - IMPORTANT: First merge main INTO the session branch to resolve conflicts\n  - Check if session branch exists and has valid changes (not regressions)\n  - Switch to session branch (or use worktree if exists)\n  - Check if there are any uncommitted changes and commit them if needed (ensure to not commit any development artifacts like debug scripts etc that should not be in the changeset of the session)\n  - Run git merge main to bring branch up to date with latest changes\n  - Resolve any merge conflicts that occur\n  - Switch back to main branch\n  - Validate session before merge:\n      - CRITICAL: Use git log --oneline main..schaltwerk/session_name to see what commits the session actually adds\n      - CRITICAL: If the session only has a \"Mark session as reviewed\" commit and NO actual feature commits, check for uncommitted changes in the worktree\n      - CRITICAL: After merging main into the session, the diff will show the session \"removing\" files that were added to main after the session was created - THIS IS NORMAL and not the session actually removing anything\n      - Focus on what the session ADDS (new files, modifica… [truncated] (6049 chars)"},{"color":"blue","id":"create-pr","label":"PR","prompt":"Create a pull request for the current branch with a comprehensive description of changes."},{"color":"amber","id":"run-tests","label":"Test","prompt":"Run all tests and fix any failures that occur."}]]
+[2025-12-31 17:01:12.985 INFO  schaltwerk::commands::utility] [Frontend] ["[TerminalGrid] Resolved auto preview config:",{"raw":{"command":"bun run dev","environmentVariables":{},"previewLocalhostOnClick":true,"workingDirectory":""},"resolved":{"interceptClicks":true}}]
+[2025-12-31 17:01:12.986 DEBUG schaltwerk::commands::utility] [Frontend] ["Action buttons loaded:",[{"color":"green","id":"squash-merge-main","label":"Squash Merge Main","prompt":"Task: Squash-merge all reviewed Schaltwerk sessions\n\nFind all reviewed sessions and merge them to main branch with proper validation and fallback handling.\n\nSteps to perform:\n\n1. Check git status: Ensure working tree is clean and on main branch\n2. Find reviewed sessions: Use schaltwerk MCP to list all sessions with status=\"reviewed\"\n3. For each reviewed session:\n  - IMPORTANT: First merge main INTO the session branch to resolve conflicts\n  - Check if session branch exists and has valid changes (not regressions)\n  - Switch to session branch (or use worktree if exists)\n  - Check if there are any uncommitted changes and commit them if needed (ensure to not commit any development artifacts like debug scripts etc that should not be in the changeset of the session)\n  - Run git merge main to bring branch up to date with latest changes\n  - Resolve any merge conflicts that occur\n  - Switch back to main branch\n  - Validate session before merge:\n      - CRITICAL: Use git log --oneline main..schaltwerk/session_name to see what commits the session actually adds\n      - CRITICAL: If the session only has a \"Mark session as reviewed\" commit and NO actual feature commits, check for uncommitted changes in the worktree\n      - CRITICAL: After merging main into the session, the diff will show the session \"removing\" files that were added to main after the session was created - THIS IS NORMAL and not the session actually removing anything\n      - Focus on what the session ADDS (new files, modifica… [truncated] (6049 chars)"},{"color":"blue","id":"create-pr","label":"PR","prompt":"Create a pull request for the current branch with a comprehensive description of changes."},{"color":"amber","id":"run-tests","label":"Test","prompt":"Run all tests and fix any failures that occur."}]]
+[2025-12-31 17:01:12.992 DEBUG schaltwerk::commands::utility] [Frontend] ["Action buttons loaded:",[{"color":"green","id":"squash-merge-main","label":"Squash Merge Main","prompt":"Task: Squash-merge all reviewed Schaltwerk sessions\n\nFind all reviewed sessions and merge them to main branch with proper validation and fallback handling.\n\nSteps to perform:\n\n1. Check git status: Ensure working tree is clean and on main branch\n2. Find reviewed sessions: Use schaltwerk MCP to list all sessions with status=\"reviewed\"\n3. For each reviewed session:\n  - IMPORTANT: First merge main INTO the session branch to resolve conflicts\n  - Check if session branch exists and has valid changes (not regressions)\n  - Switch to session branch (or use worktree if exists)\n  - Check if there are any uncommitted changes and commit them if needed (ensure to not commit any development artifacts like debug scripts etc that should not be in the changeset of the session)\n  - Run git merge main to bring branch up to date with latest changes\n  - Resolve any merge conflicts that occur\n  - Switch back to main branch\n  - Validate session before merge:\n      - CRITICAL: Use git log --oneline main..schaltwerk/session_name to see what commits the session actually adds\n      - CRITICAL: If the session only has a \"Mark session as reviewed\" commit and NO actual feature commits, check for uncommitted changes in the worktree\n      - CRITICAL: After merging main into the session, the diff will show the session \"removing\" files that were added to main after the session was created - THIS IS NORMAL and not the session actually removing anything\n      - Focus on what the session ADDS (new files, modifica… [truncated] (6049 chars)"},{"color":"blue","id":"create-pr","label":"PR","prompt":"Create a pull request for the current branch with a comprehensive description of changes."},{"color":"amber","id":"run-tests","label":"Test","prompt":"Run all tests and fix any failures that occur."}]]
+[2025-12-31 17:01:13.004 DEBUG schaltwerk::commands::utility] [Frontend] ["[Terminal orchestrator-wichtner_com-6691bf-bottom] Creating terminal: agentTypeRef.current=undefined, initialUiMode=standard"]
+[2025-12-31 17:01:13.004 DEBUG schaltwerk::commands::utility] [Frontend] ["[Registry] Created new terminal orchestrator-wichtner_com-6691bf-bottom, refCount: 1"]
+[2025-12-31 17:01:13.005 DEBUG schaltwerk::commands::utility] [Frontend] ["[Registry] Attaching terminal orchestrator-wichtner_com-6691bf-bottom: isTUI=false, wasAttached=false, pendingChunks=0, baseY=0, viewportY=0"]
+[2025-12-31 17:01:13.005 INFO  schaltwerk::domains::terminal::manager] get_terminal_buffer orchestrator-wichtner_com-6691bf-bottom: 0.00MB, snapshot: 0.0ms, total: 0.0ms
+[2025-12-31 17:01:13.005 DEBUG schaltwerk::commands::utility] [Frontend] ["[XtermTerminal orchestrator-wichtner_com-6691bf-bottom] attach(): uiMode=standard, opened=false, viewportY=0"]
+[2025-12-31 17:01:13.024 DEBUG schaltwerk::commands::utility] [Frontend] ["[XtermTerminal orchestrator-wichtner_com-6691bf-bottom] Opened terminal (first attach)"]
+[2025-12-31 17:01:13.024 DEBUG schaltwerk::commands::utility] [Frontend] ["[Registry] Attached terminal orchestrator-wichtner_com-6691bf-bottom: baseY=0, viewportY=0"]
+[2025-12-31 17:01:13.032 INFO  schaltwerk::commands::utility] [Frontend] ["[Terminal orchestrator-wichtner_com-6691bf-bottom] Initial fit: 90x14 (container: 830x211)"]
+[2025-12-31 17:01:13.033 DEBUG schaltwerk::commands::utility] [Frontend] ["[Terminal orchestrator-wichtner_com-6691bf-top] Creating terminal: agentTypeRef.current=claude, initialUiMode=tui"]
+[2025-12-31 17:01:13.033 DEBUG schaltwerk::commands::utility] [Frontend] ["[Registry] Created new terminal orchestrator-wichtner_com-6691bf-top, refCount: 1"]
+[2025-12-31 17:01:13.034 DEBUG schaltwerk::commands::utility] [Frontend] ["[Registry] Attaching terminal orchestrator-wichtner_com-6691bf-top: isTUI=true, wasAttached=false, pendingChunks=0, baseY=0, viewportY=0"]
+[2025-12-31 17:01:13.034 INFO  schaltwerk::domains::terminal::manager] get_terminal_buffer orchestrator-wichtner_com-6691bf-top: 0.00MB, snapshot: 0.0ms, total: 0.0ms
+[2025-12-31 17:01:13.034 DEBUG schaltwerk::commands::utility] [Frontend] ["[XtermTerminal orchestrator-wichtner_com-6691bf-top] attach(): uiMode=tui, opened=false, viewportY=0"]
+[2025-12-31 17:01:13.040 DEBUG schaltwerk::commands::utility] [Frontend] ["[XtermTerminal orchestrator-wichtner_com-6691bf-top] Opened terminal (first attach)"]
+[2025-12-31 17:01:13.040 DEBUG schaltwerk::commands::utility] [Frontend] ["[XtermTerminal orchestrator-wichtner_com-6691bf-top] applyTuiMode(): viewportY=0"]
+[2025-12-31 17:01:13.041 DEBUG schaltwerk::commands::utility] [Frontend] ["[Registry] Attached terminal orchestrator-wichtner_com-6691bf-top: baseY=0, viewportY=0"]
+[2025-12-31 17:01:13.064 INFO  schaltwerk::commands::utility] [Frontend] ["[Terminal orchestrator-wichtner_com-6691bf-top] Initial fit: 90x40 (container: 830x609)"]
+[2025-12-31 17:01:13.075 DEBUG schaltwerk::domains::terminal::manager] Resizing terminal orchestrator-wichtner_com-6691bf-bottom: 90x14
+[2025-12-31 17:01:13.076 DEBUG schaltwerk::domains::terminal::local] Resized terminal orchestrator-wichtner_com-6691bf-bottom: 90x14
+[2025-12-31 17:01:13.076 DEBUG schaltwerk::domains::terminal::manager] Resizing terminal orchestrator-wichtner_com-6691bf-top: 90x40
+[2025-12-31 17:01:13.076 DEBUG schaltwerk::domains::terminal::local] Resized terminal orchestrator-wichtner_com-6691bf-top: 90x40
+[2025-12-31 17:01:13.265 DEBUG schaltwerk] get_core_read start call_id=f2cf74f3-e4df-45f6-8c85-1830ce788b5b
+[2025-12-31 17:01:13.265 DEBUG schaltwerk] get_core_read acquired call_id=f2cf74f3-e4df-45f6-8c85-1830ce788b5b wait=0ms
+[2025-12-31 17:01:13.265 DEBUG schaltwerk] get_core_read done call_id=f2cf74f3-e4df-45f6-8c85-1830ce788b5b total=0ms
+[2025-12-31 17:01:13.267 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=3 total=4
+[2025-12-31 17:01:13.271 DEBUG schaltwerk::domains::sessions::db_sessions] list_all_active_sessions: 1 rows (summary=4ms, hydrate=0ms)
+[2025-12-31 17:01:13.284 DEBUG schaltwerk::domains::git::stats] git_stats: begin path=/Users/mariusw/Documents/git/wichtner.com/.schaltwerk/worktrees/upbeat_grothendieck parent=master status_total=2 has_uncommitted=true sample=["fjdskalfjds", "sometest"]
+[2025-12-31 17:01:13.285 DEBUG schaltwerk::domains::git::stats] Git stats cache hit for /Users/mariusw/Documents/git/wichtner.com/.schaltwerk/worktrees/upbeat_grothendieck (13ms)
+[2025-12-31 17:01:13.286 DEBUG schaltwerk::domains::git::stats] git_stats: cache_hit path=/Users/mariusw/Documents/git/wichtner.com/.schaltwerk/worktrees/upbeat_grothendieck has_uncommitted=true
+[2025-12-31 17:01:13.286 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=3 total=4
+[2025-12-31 17:01:13.286 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=3 total=4
+[2025-12-31 17:01:13.286 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=3 total=4
+[2025-12-31 17:01:13.303 DEBUG schaltwerk] get_core_read start call_id=f48632fe-8315-4feb-9430-c484e5acf49e
+[2025-12-31 17:01:13.303 DEBUG schaltwerk] get_core_read acquired call_id=f48632fe-8315-4feb-9430-c484e5acf49e wait=0ms
+[2025-12-31 17:01:13.303 DEBUG schaltwerk] get_core_read done call_id=f48632fe-8315-4feb-9430-c484e5acf49e total=0ms
+[2025-12-31 17:01:13.303 DEBUG schaltwerk::infrastructure::database::connection] sqlite_pool wait=0ms idle=3 total=4
+[2025-12-31 17:01:13.739 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"f98d817e-89ef-4944-b5c1-0b0e9f5b9c9f\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:13.885 DEBUG schaltwerk::domains::git::github_cli] gh auth status result: exit=Some(0), stdout_len=647, stderr_len=0
+[2025-12-31 17:01:13.886 DEBUG schaltwerk::domains::git::github_cli] Running command through login shell: /opt/homebrew/bin/fish ["-l", "-c", "GH_PROMPT_DISABLED='1' NO_COLOR='1' '/opt/homebrew/bin/gh' 'api' 'user'"]
+[2025-12-31 17:01:13.889 DEBUG schaltwerk::domains::git::github_cli] gh auth status result: exit=Some(0), stdout_len=647, stderr_len=0
+[2025-12-31 17:01:13.889 DEBUG schaltwerk::domains::git::github_cli] Running command through login shell: /opt/homebrew/bin/fish ["-l", "-c", "GH_PROMPT_DISABLED='1' NO_COLOR='1' '/opt/homebrew/bin/gh' 'api' 'user'"]
+[2025-12-31 17:01:14.016 DEBUG schaltwerk::domains::git::github_cli] gh auth status result: exit=Some(0), stdout_len=647, stderr_len=0
+[2025-12-31 17:01:14.016 DEBUG schaltwerk::domains::git::github_cli] Running command through login shell: /opt/homebrew/bin/fish ["-l", "-c", "GH_PROMPT_DISABLED='1' NO_COLOR='1' '/opt/homebrew/bin/gh' 'api' 'user'"]
+[2025-12-31 17:01:14.027 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"1a6dd860-2010-4e20-9b0e-4ba973f24631\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:14.270 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"863ab25d-774d-4c6c-8c15-857e78f281a0\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:14.445 DEBUG schaltwerk::domains::git::github_cli] GitHub authentication verified for Some("2mawi2")
+[2025-12-31 17:01:14.473 DEBUG schaltwerk::domains::git::github_cli] GitHub authentication verified for Some("2mawi2")
+[2025-12-31 17:01:14.560 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"94651bc2-c6db-4e6e-802e-f8646d3a4a79\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:14.561 DEBUG schaltwerk::commands::utility] [Frontend] ["[ToastProvider] dropped overflowing toasts","{\"count\":1,\"removedIds\":[\"f98d817e-89ef-4944-b5c1-0b0e9f5b9c9f\"]}"]
+[2025-12-31 17:01:14.578 DEBUG schaltwerk::domains::git::github_cli] GitHub authentication verified for Some("2mawi2")
+[2025-12-31 17:01:14.791 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"82a97470-62f5-4c71-91e2-be348fafc1c7\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:14.792 DEBUG schaltwerk::commands::utility] [Frontend] ["[ToastProvider] dropped overflowing toasts","{\"count\":1,\"removedIds\":[\"1a6dd860-2010-4e20-9b0e-4ba973f24631\"]}"]
+[2025-12-31 17:01:15.014 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"a69523f8-9161-4743-80a7-b734147cbbbd\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:15.014 DEBUG schaltwerk::commands::utility] [Frontend] ["[ToastProvider] dropped overflowing toasts","{\"count\":1,\"removedIds\":[\"863ab25d-774d-4c6c-8c15-857e78f281a0\"]}"]
+[2025-12-31 17:01:15.218 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"45a830a1-aa00-4792-9e0a-5ea00ba674c3\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:15.218 DEBUG schaltwerk::commands::utility] [Frontend] ["[ToastProvider] dropped overflowing toasts","{\"count\":1,\"removedIds\":[\"94651bc2-c6db-4e6e-802e-f8646d3a4a79\"]}"]
+[2025-12-31 17:01:15.523 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"0870e1ae-0d2c-48f7-be04-0e646c6b25e9\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:15.524 DEBUG schaltwerk::commands::utility] [Frontend] ["[ToastProvider] dropped overflowing toasts","{\"count\":1,\"removedIds\":[\"82a97470-62f5-4c71-91e2-be348fafc1c7\"]}"]
+[2025-12-31 17:01:15.738 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"cc4abe65-f134-4797-a9e5-cf39724373f3\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:15.738 DEBUG schaltwerk::commands::utility] [Frontend] ["[ToastProvider] dropped overflowing toasts","{\"count\":1,\"removedIds\":[\"a69523f8-9161-4743-80a7-b734147cbbbd\"]}"]
+[2025-12-31 17:01:15.948 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"c2f76ff6-5e55-4d82-9f1e-67e2794b349e\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:15.949 DEBUG schaltwerk::commands::utility] [Frontend] ["[ToastProvider] dropped overflowing toasts","{\"count\":1,\"removedIds\":[\"45a830a1-aa00-4792-9e0a-5ea00ba674c3\"]}"]
+[2025-12-31 17:01:16.147 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"92444c64-0aa1-49f0-b5d4-2358b67d5657\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:16.148 DEBUG schaltwerk::commands::utility] [Frontend] ["[ToastProvider] dropped overflowing toasts","{\"count\":1,\"removedIds\":[\"0870e1ae-0d2c-48f7-be04-0e646c6b25e9\"]}"]
+[2025-12-31 17:01:16.357 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"f669ef2d-9511-4d06-9a44-7d1a711ba55b\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:16.358 DEBUG schaltwerk::commands::utility] [Frontend] ["[ToastProvider] dropped overflowing toasts","{\"count\":1,\"removedIds\":[\"cc4abe65-f134-4797-a9e5-cf39724373f3\"]}"]
+[2025-12-31 17:01:16.560 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"171f68fd-2110-48ac-a423-e02a93218654\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:16.560 DEBUG schaltwerk::commands::utility] [Frontend] ["[ToastProvider] dropped overflowing toasts","{\"count\":1,\"removedIds\":[\"c2f76ff6-5e55-4d82-9f1e-67e2794b349e\"]}"]
+[2025-12-31 17:01:16.760 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"731103df-9362-49df-a56b-10218d1091d1\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:16.760 DEBUG schaltwerk::commands::utility] [Frontend] ["[ToastProvider] dropped overflowing toasts","{\"count\":1,\"removedIds\":[\"92444c64-0aa1-49f0-b5d4-2358b67d5657\"]}"]
+[2025-12-31 17:01:16.950 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"ffcbcd46-7f3c-438c-82e0-309b3d7eb913\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:16.951 DEBUG schaltwerk::commands::utility] [Frontend] ["[ToastProvider] dropped overflowing toasts","{\"count\":1,\"removedIds\":[\"f669ef2d-9511-4d06-9a44-7d1a711ba55b\"]}"]
+[2025-12-31 17:01:17.262 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"b14964f1-6d86-4a39-b77d-b2622b43285b\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:17.262 DEBUG schaltwerk::commands::utility] [Frontend] ["[ToastProvider] dropped overflowing toasts","{\"count\":1,\"removedIds\":[\"171f68fd-2110-48ac-a423-e02a93218654\"]}"]
+[2025-12-31 17:01:17.462 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"b91b26d3-7feb-4918-ad8d-d5762abb4a54\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:17.463 DEBUG schaltwerk::commands::utility] [Frontend] ["[ToastProvider] dropped overflowing toasts","{\"count\":1,\"removedIds\":[\"731103df-9362-49df-a56b-10218d1091d1\"]}"]
+[2025-12-31 17:01:17.657 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"7e3e41ee-dc7a-44b9-867a-22a4e0de655d\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:17.658 DEBUG schaltwerk::commands::utility] [Frontend] ["[ToastProvider] dropped overflowing toasts","{\"count\":1,\"removedIds\":[\"ffcbcd46-7f3c-438c-82e0-309b3d7eb913\"]}"]
+[2025-12-31 17:01:17.847 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"d82803d8-a3bd-4328-8bae-6954ab3be65a\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:17.847 DEBUG schaltwerk::commands::utility] [Frontend] ["[ToastProvider] dropped overflowing toasts","{\"count\":1,\"removedIds\":[\"b14964f1-6d86-4a39-b77d-b2622b43285b\"]}"]
+[2025-12-31 17:01:18.057 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"cbb8c24e-b873-4e1f-a5be-f00efa9ff5c8\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:18.057 DEBUG schaltwerk::commands::utility] [Frontend] ["[ToastProvider] dropped overflowing toasts","{\"count\":1,\"removedIds\":[\"b91b26d3-7feb-4918-ad8d-d5762abb4a54\"]}"]
+[2025-12-31 17:01:18.254 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"35df5333-0eb5-48ae-a664-2620188a31c8\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:18.254 DEBUG schaltwerk::commands::utility] [Frontend] ["[ToastProvider] dropped overflowing toasts","{\"count\":1,\"removedIds\":[\"7e3e41ee-dc7a-44b9-867a-22a4e0de655d\"]}"]
+[2025-12-31 17:01:18.451 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"202ae86e-f1af-42a6-9bbd-1b21cb1038f6\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:18.452 DEBUG schaltwerk::commands::utility] [Frontend] ["[ToastProvider] dropped overflowing toasts","{\"count\":1,\"removedIds\":[\"d82803d8-a3bd-4328-8bae-6954ab3be65a\"]}"]
+[2025-12-31 17:01:18.623 INFO  schaltwerk::domains::terminal::idle_detection] [orchestrator-wichtner_com-6691bf-bottom] Terminal became idle (bytes_elapsed=5182ms, visible_elapsed=5002ms, threshold=5000ms)
+[2025-12-31 17:01:18.623 INFO  schaltwerk::domains::terminal::idle_detection] [orchestrator-wichtner_com-6691bf-top] Terminal became idle (bytes_elapsed=5182ms, visible_elapsed=5002ms, threshold=5000ms)
+[2025-12-31 17:01:18.623 INFO  schaltwerk::domains::terminal::local] Emitting TerminalAttention event: session=wichtner_com-6691bf, terminal=orchestrator-wichtner_com-6691bf-top, attention=true
+[2025-12-31 17:01:18.623 DEBUG schaltwerk::domains::power::global_service] [keep-awake] activity event: session=wichtner_com-6691bf idle=true before: running=0 active=0
+[2025-12-31 17:01:18.624 DEBUG schaltwerk::domains::power::global_service] [keep-awake] decision=auto_paused reason=no_running_sessions active=0 idle_deadline=None projects=0
+[2025-12-31 17:01:18.646 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"abde1793-0239-4c71-a8b2-e27545e19bb6\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:18.646 DEBUG schaltwerk::commands::utility] [Frontend] ["[ToastProvider] dropped overflowing toasts","{\"count\":1,\"removedIds\":[\"cbb8c24e-b873-4e1f-a5be-f00efa9ff5c8\"]}"]
+[2025-12-31 17:01:18.850 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"c40843eb-1c97-49c0-8b27-5bccd5272433\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:18.850 DEBUG schaltwerk::commands::utility] [Frontend] ["[ToastProvider] dropped overflowing toasts","{\"count\":1,\"removedIds\":[\"35df5333-0eb5-48ae-a664-2620188a31c8\"]}"]
+[2025-12-31 17:01:19.053 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"0989302d-542e-4699-be72-3d42e6f5f291\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:19.053 DEBUG schaltwerk::commands::utility] [Frontend] ["[ToastProvider] dropped overflowing toasts","{\"count\":1,\"removedIds\":[\"202ae86e-f1af-42a6-9bbd-1b21cb1038f6\"]}"]
+[2025-12-31 17:01:19.263 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"03afced4-4c9a-4fe0-a2af-5358207cc731\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:19.264 DEBUG schaltwerk::commands::utility] [Frontend] ["[ToastProvider] dropped overflowing toasts","{\"count\":1,\"removedIds\":[\"abde1793-0239-4c71-a8b2-e27545e19bb6\"]}"]
+[2025-12-31 17:01:19.456 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"45ec066c-0956-468e-ae9c-93ac4bcce056\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:19.456 DEBUG schaltwerk::commands::utility] [Frontend] ["[ToastProvider] dropped overflowing toasts","{\"count\":1,\"removedIds\":[\"c40843eb-1c97-49c0-8b27-5bccd5272433\"]}"]
+[2025-12-31 17:01:19.654 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"c748b728-9671-4b1e-a13c-575d139c1154\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:19.654 DEBUG schaltwerk::commands::utility] [Frontend] ["[ToastProvider] dropped overflowing toasts","{\"count\":1,\"removedIds\":[\"0989302d-542e-4699-be72-3d42e6f5f291\"]}"]
+[2025-12-31 17:01:19.842 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"377b4bd2-0112-4470-8298-f3a89c9e8144\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:19.842 DEBUG schaltwerk::commands::utility] [Frontend] ["[ToastProvider] dropped overflowing toasts","{\"count\":1,\"removedIds\":[\"03afced4-4c9a-4fe0-a2af-5358207cc731\"]}"]
+[2025-12-31 17:01:20.028 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"cfcb1216-0d28-4e79-8594-57956a580249\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:20.028 DEBUG schaltwerk::commands::utility] [Frontend] ["[ToastProvider] dropped overflowing toasts","{\"count\":1,\"removedIds\":[\"45ec066c-0956-468e-ae9c-93ac4bcce056\"]}"]
+[2025-12-31 17:01:20.211 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"c73fd26f-08f5-4637-b875-0c590a54493d\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:20.212 DEBUG schaltwerk::commands::utility] [Frontend] ["[ToastProvider] dropped overflowing toasts","{\"count\":1,\"removedIds\":[\"c748b728-9671-4b1e-a13c-575d139c1154\"]}"]
+[2025-12-31 17:01:20.604 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"1901ab5f-7f16-4f08-a64f-66d46ab47bc2\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:20.604 DEBUG schaltwerk::commands::utility] [Frontend] ["[ToastProvider] dropped overflowing toasts","{\"count\":1,\"removedIds\":[\"377b4bd2-0112-4470-8298-f3a89c9e8144\"]}"]
+[2025-12-31 17:01:20.820 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"e156ff58-3b9a-4c05-a433-930e311ee0b0\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:20.821 DEBUG schaltwerk::commands::utility] [Frontend] ["[ToastProvider] dropped overflowing toasts","{\"count\":1,\"removedIds\":[\"cfcb1216-0d28-4e79-8594-57956a580249\"]}"]
+[2025-12-31 17:01:21.023 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"48382c7e-0b72-408a-8f0f-14f5bbf83620\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:21.024 DEBUG schaltwerk::commands::utility] [Frontend] ["[ToastProvider] dropped overflowing toasts","{\"count\":1,\"removedIds\":[\"c73fd26f-08f5-4637-b875-0c590a54493d\"]}"]
+[2025-12-31 17:01:21.237 INFO  schaltwerk::commands::utility] [Frontend] ["[ToastProvider] enqueue toast","{\"id\":\"56ee9b02-87c9-45f4-b7c8-8faf97508b28\",\"tone\":\"error\",\"title\":\"Frontend Error\",\"hasDescription\":true}"]
+[2025-12-31 17:01:21.237 DEBUG schaltwerk::commands::utility] [Frontend] ["[ToastProvider] dropped overflowing toasts","{\"count\":1,\"removedIds\":[\"1901ab5f-7f16-4f08-a64f-66d46ab47bc2\"]}"]
+^C__SCHALTWERK_RUN_EXIT__=130
+Mariuss-MacBook-Pro-2:libghostty-integration-wv mariusw$

@@ -60,18 +60,47 @@ export async function registerDevErrorListeners(
     return () => {}
   }
 
+  const toastState = {
+    frontend: { lastDescription: null as string | null, shownCount: 0 },
+    rejection: { lastDescription: null as string | null, shownCount: 0 },
+    backend: { lastDescription: null as string | null, shownCount: 0 },
+  }
+
+  const MAX_UNIQUE_TOASTS_PER_KIND = 3
+
+  const pushDedupedToast = (kind: keyof typeof toastState, title: string, description: string) => {
+    const state = toastState[kind]
+
+    if (description === state.lastDescription) {
+      return
+    }
+
+    state.lastDescription = description
+    if (state.shownCount >= MAX_UNIQUE_TOASTS_PER_KIND) {
+      logger.warn('[registerDevErrorListeners] Suppressing dev error toast (limit reached)', {
+        title,
+        kind,
+      })
+      return
+    }
+
+    state.shownCount += 1
+    logger.error('[registerDevErrorListeners] Dev error captured', { title, kind, description })
+    pushToast({
+      tone: 'error',
+      title,
+      description,
+      durationMs: 8000,
+    })
+  }
+
   let suppressNextWindowError = false
   const handleFrontendError = (event: ErrorEvent) => {
     const description =
       describeUnknown(event.error ?? event.message ?? 'Unknown frontend error')
 
     suppressNextWindowError = true
-    pushToast({
-      tone: 'error',
-      title: frontendErrorTitle,
-      description,
-      durationMs: 8000,
-    })
+    pushDedupedToast('frontend', frontendErrorTitle, description)
   }
 
   const previousOnError = globalObject.onerror
@@ -82,12 +111,7 @@ export async function registerDevErrorListeners(
       const errorCandidate = error ?? (message instanceof Event ? (message as ErrorEvent).error : null)
       const description = describeUnknown(errorCandidate ?? message ?? 'Unknown frontend error')
 
-      pushToast({
-        tone: 'error',
-        title: frontendErrorTitle,
-        description,
-        durationMs: 8000,
-      })
+      pushDedupedToast('frontend', frontendErrorTitle, description)
     }
 
     if (typeof previousOnError === 'function') {
@@ -101,12 +125,7 @@ export async function registerDevErrorListeners(
     const rejectionEvent = event as PromiseRejectionEvent
     const description = describeUnknown(rejectionEvent.reason)
 
-    pushToast({
-      tone: 'error',
-      title: promiseRejectionTitle,
-      description,
-      durationMs: 8000,
-    })
+    pushDedupedToast('rejection', promiseRejectionTitle, description)
   }
 
   globalObject.addEventListener('error', handleFrontendError)
@@ -119,12 +138,7 @@ export async function registerDevErrorListeners(
       ? `${payload.source}\n${description}`
       : description
 
-    pushToast({
-      tone: 'error',
-      title: backendErrorTitle,
-      description: composedDescription,
-      durationMs: 8000,
-    })
+    pushDedupedToast('backend', backendErrorTitle, composedDescription)
   })
 
   return () => {

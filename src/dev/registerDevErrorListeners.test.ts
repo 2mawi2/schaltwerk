@@ -31,6 +31,7 @@ describe('registerDevErrorListeners', () => {
   it('shows a toast for frontend errors in dev mode', async () => {
     const pushToast = vi.fn()
     const listenBackendError = vi.fn(async () => vi.fn())
+    vi.spyOn(logger, 'error').mockImplementation(() => {})
 
     const cleanup = await registerDevErrorListeners({
       isDev: true,
@@ -50,9 +51,31 @@ describe('registerDevErrorListeners', () => {
     cleanup()
   })
 
+  it('suppresses duplicate frontend error toasts', async () => {
+    const pushToast = vi.fn()
+    const listenBackendError = vi.fn(async () => vi.fn())
+    vi.spyOn(logger, 'error').mockImplementation(() => {})
+
+    const cleanup = await registerDevErrorListeners({
+      isDev: true,
+      pushToast,
+      listenBackendError,
+    })
+
+    const error = new Error('frontend explosion')
+    window.dispatchEvent(new ErrorEvent('error', { message: error.message, error }))
+    window.dispatchEvent(new ErrorEvent('error', { message: error.message, error }))
+    await Promise.resolve()
+
+    expect(pushToast).toHaveBeenCalledTimes(1)
+
+    cleanup()
+  })
+
   it('shows a toast for unhandled promise rejections in dev mode', async () => {
     const pushToast = vi.fn()
     const listenBackendError = vi.fn(async () => vi.fn())
+    vi.spyOn(logger, 'error').mockImplementation(() => {})
 
     const cleanup = await registerDevErrorListeners({
       isDev: true,
@@ -79,6 +102,7 @@ describe('registerDevErrorListeners', () => {
     const pushToast = vi.fn()
     let backendHandler: ((payload: DevBackendErrorPayload) => void) | undefined
     const unlisten = vi.fn()
+    vi.spyOn(logger, 'error').mockImplementation(() => {})
 
     const listenBackendError = vi.fn(async (handler: (payload: DevBackendErrorPayload) => void) => {
       backendHandler = handler
@@ -106,6 +130,7 @@ describe('registerDevErrorListeners', () => {
   it('falls back to window.onerror when necessary', async () => {
     const pushToast = vi.fn()
     const listenBackendError = vi.fn(async () => vi.fn())
+    vi.spyOn(logger, 'error').mockImplementation(() => {})
 
     const cleanup = await registerDevErrorListeners({
       isDev: true,

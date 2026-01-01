@@ -322,6 +322,10 @@ function AppContent() {
 
   useEffect(() => {
     if (!toast) return
+    const terminalInitCleanup = listenUiEvent(UiEvent.TerminalInitError, (detail: { error?: string, terminalId?: string }) => {
+      const description = detail?.error?.trim() || 'Terminal failed to initialize.'
+      toast.pushToast({ tone: 'error', title: 'Terminal error', description })
+    })
     const spawnCleanup = listenUiEvent(UiEvent.SpawnError, (detail: { error?: string, terminalId?: string }) => {
       const description = detail?.error?.trim() || 'Agent failed to start.'
       const terminalId = detail?.terminalId
@@ -365,6 +369,7 @@ function AppContent() {
       }
     })()
     return () => {
+      terminalInitCleanup()
       spawnCleanup()
       noProjectCleanup()
       notGitCleanup()

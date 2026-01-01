@@ -8,9 +8,7 @@ import {
   clearTerminalStartState,
 } from '../../common/terminalStartState'
 import { recordTerminalSize } from '../../common/terminalSizeCache'
-import { Terminal as XTerm, type IDisposable } from '@xterm/xterm';
-import type { FitAddon } from '@xterm/addon-fit';
-import type { SearchAddon } from '@xterm/addon-search';
+import type { Terminal as GhosttyTerminal, IDisposable, FitAddon } from 'ghostty-web';
 import { invoke } from '@tauri-apps/api/core'
 import { startOrchestratorTop, startSessionTop, AGENT_START_TIMEOUT_MESSAGE } from '../../common/agentSpawn'
 import { schedulePtyResize } from '../../common/ptyResizeScheduler'
@@ -25,7 +23,6 @@ import { useCleanupRegistry } from '../../hooks/useCleanupRegistry';
 import { useTerminalConfig } from '../../hooks/useTerminalConfig';
 import { theme } from '../../common/theme';
 import { isTuiAgent } from '../../types/session';
-import '@xterm/xterm/css/xterm.css';
 import './xtermOverrides.css';
 import { logger } from '../../utils/logger'
 import { useModal } from '../../contexts/ModalContext'
@@ -43,6 +40,7 @@ import {
     isTerminalBracketedPasteEnabled,
 } from '../../terminal/registry/terminalRegistry'
 import { XtermTerminal } from '../../terminal/xterm/XtermTerminal'
+import { TerminalSearch } from '../../terminal/search/terminalSearch'
 import { useTerminalGpu } from '../../hooks/useTerminalGpu'
 import { TerminalResizeCoordinator } from './resize/TerminalResizeCoordinator'
 import {
@@ -191,31 +189,45 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const logScrollChange = useCallback((source: string) => {
         const term = terminal.current;
         if (!term) return;
-        const viewportY = term.buffer.active.viewportY;
-        const baseY = term.buffer.active.baseY;
-        const now = performance.now();
-        const debug = scrollDebugRef.current;
-        const delta = debug.lastY >= 0 ? viewportY - debug.lastY : 0;
-        const timeDelta = debug.lastTime > 0 ? now - debug.lastTime : 0;
-        debugCountersRef.current.scrollEvents += 1;
-        const debugEnabled = termDebug();
-        if (Math.abs(delta) > 0 && timeDelta < 500) {
-            debug.changes.push(delta);
-            if (debug.changes.length > 10) debug.changes.shift();
-            const hasOscillation = debug.changes.length >= 4 &&
-                debug.changes.slice(-4).some((d, i, arr) => i > 0 && Math.sign(d) !== Math.sign(arr[i-1]));
-            if (hasOscillation) {
-                logger.warn(`[Terminal ${terminalId}] OSCILLATION DETECTED source=${source} viewportY=${viewportY} baseY=${baseY} delta=${delta} timeDelta=${timeDelta.toFixed(0)}ms changes=[${debug.changes.join(',')}]`);
-                logScrollSnapshot(`${source}:oscillation`, { delta, timeDelta });
-            } else if (Math.abs(delta) > 5) {
-                logger.debug(`[Terminal ${terminalId}] Scroll jump source=${source} viewportY=${viewportY} baseY=${baseY} delta=${delta} timeDelta=${timeDelta.toFixed(0)}ms`);
-                logScrollSnapshot(`${source}:jump`, { delta, timeDelta });
-            } else if (debugEnabled && (debugCountersRef.current.scrollEvents % 25 === 0)) {
-                logScrollSnapshot(`${source}:periodic`, { delta, timeDelta });
+
+        try {
+            const buffer = term.buffer?.active;
+            if (!buffer) {
+                return;
             }
+
+            const viewportY = buffer.viewportY;
+            const baseY = buffer.baseY;
+            if (typeof viewportY !== 'number' || typeof baseY !== 'number') {
+                return;
+            }
+
+            const now = performance.now();
+            const debug = scrollDebugRef.current;
+            const delta = debug.lastY >= 0 ? viewportY - debug.lastY : 0;
+            const timeDelta = debug.lastTime > 0 ? now - debug.lastTime : 0;
+            debugCountersRef.current.scrollEvents += 1;
+            const debugEnabled = termDebug();
+            if (Math.abs(delta) > 0 && timeDelta < 500) {
+                debug.changes.push(delta);
+                if (debug.changes.length > 10) debug.changes.shift();
+                const hasOscillation = debug.changes.length >= 4 &&
+                    debug.changes.slice(-4).some((d, i, arr) => i > 0 && Math.sign(d) !== Math.sign(arr[i-1]));
+                if (hasOscillation) {
+                    logger.warn(`[Terminal ${terminalId}] OSCILLATION DETECTED source=${source} viewportY=${viewportY} baseY=${baseY} delta=${delta} timeDelta=${timeDelta.toFixed(0)}ms changes=[${debug.changes.join(',')}]`);
+                    logScrollSnapshot(`${source}:oscillation`, { delta, timeDelta });
+                } else if (Math.abs(delta) > 5) {
+                    logger.debug(`[Terminal ${terminalId}] Scroll jump source=${source} viewportY=${viewportY} baseY=${baseY} delta=${delta} timeDelta=${timeDelta.toFixed(0)}ms`);
+                    logScrollSnapshot(`${source}:jump`, { delta, timeDelta });
+                } else if (debugEnabled && (debugCountersRef.current.scrollEvents % 25 === 0)) {
+                    logScrollSnapshot(`${source}:periodic`, { delta, timeDelta });
+                }
+            }
+            debug.lastY = viewportY;
+            debug.lastTime = now;
+        } catch (error) {
+            logger.debug(`[Terminal ${terminalId}] Failed to record scroll change`, error);
         }
-        debug.lastY = viewportY;
-        debug.lastTime = now;
     }, [terminalId, logScrollSnapshot]);
     const getPreviewState = useAtomValue(previewStateAtom)
     const setPreviewUrl = useSetAtom(setPreviewUrlActionAtom)
@@ -322,11 +334,10 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     }, [previewKey, terminalId]);
 
 
-    const terminal = useRef<XTerm | null>(null);
+    const terminal = useRef<GhosttyTerminal | null>(null);
     const onDataDisposableRef = useRef<IDisposable | null>(null);
     const onScrollDisposableRef = useRef<IDisposable | null>(null);
     const fitAddon = useRef<FitAddon | null>(null);
-    const searchAddon = useRef<SearchAddon | null>(null);
     const lastSize = useRef<{ cols: number; rows: number }>({ cols: 80, rows: 24 });
     const lastEffectiveRef = useRef<{ cols: number; rows: number }>(lastEffectiveRefInit);
     const resizeCoordinatorRef = useRef<TerminalResizeCoordinator | null>(null);
@@ -343,22 +354,21 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const [isSearchVisible, setIsSearchVisible] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [showScrollBottom, setShowScrollBottom] = useState(false);
+    const terminalSearchRef = useRef<TerminalSearch | null>(null);
     const handleSearchTermChange = useCallback((value: string) => {
         setSearchTerm(value);
+        terminalSearchRef.current?.reset();
     }, []);
     const handleFindNext = useCallback(() => {
-        if (searchAddon.current && terminal.current) {
-            searchAddon.current.findNext(searchTerm);
-        }
+        terminalSearchRef.current?.findNext(searchTerm);
     }, [searchTerm]);
     const handleFindPrevious = useCallback(() => {
-        if (searchAddon.current && terminal.current) {
-            searchAddon.current.findPrevious(searchTerm);
-        }
+        terminalSearchRef.current?.findPrevious(searchTerm);
     }, [searchTerm]);
     const handleCloseSearch = useCallback(() => {
         setIsSearchVisible(false);
         setSearchTerm('');
+        terminalSearchRef.current?.reset();
     }, []);
     const terminalIdRef = useRef(terminalId);
     terminalIdRef.current = terminalId;
@@ -428,12 +438,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
             if (target instanceof HTMLInputElement) return
             if (target instanceof HTMLElement && target.isContentEditable) return
-            if (target instanceof HTMLTextAreaElement) {
-                const isXtermTextarea = target.classList.contains('xterm-helper-textarea') || Boolean(target.closest('.xterm'))
-                if (!isXtermTextarea) {
-                    return
-                }
-            }
 
             event.preventDefault()
             event.stopPropagation()
@@ -510,8 +514,12 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             term.resize(effectiveCols, effectiveRows);
             if (xtermWrapperRef.current?.shouldFollowOutput()) {
                 requestAnimationFrame(() => {
-                    term.scrollToLine(term.buffer.active.baseY);
-                    logScrollChange('applySizeUpdate');
+                    try {
+                        term.scrollToBottom();
+                        logScrollChange('applySizeUpdate');
+                    } catch (error) {
+                        logger.debug(`[Terminal ${terminalId}] Failed to scroll after ${reason} resize`, error);
+                    }
                 });
             }
             logScrollSnapshot(`resize:${reason}:after`, { cols: effectiveCols, rows: effectiveRows });
@@ -559,8 +567,12 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                     term.resize(currentCols, effectiveRows);
                     if (xtermWrapperRef.current?.shouldFollowOutput()) {
                         requestAnimationFrame(() => {
-                            term.scrollToLine(term.buffer.active.baseY);
-                            logScrollChange('applyRowsOnly');
+                            try {
+                                term.scrollToBottom();
+                                logScrollChange('applyRowsOnly');
+                            } catch (error) {
+                                logger.debug(`[Terminal ${terminalId}] Failed to scroll after rows-only resize`, error);
+                            }
                         });
                     }
                 } catch (e) {
@@ -580,8 +592,12 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                     term.resize(effectiveCols, currentRows);
                     if (xtermWrapperRef.current?.shouldFollowOutput()) {
                         requestAnimationFrame(() => {
-                            term.scrollToLine(term.buffer.active.baseY);
-                            logScrollChange('applyColsOnly');
+                            try {
+                                term.scrollToBottom();
+                                logScrollChange('applyColsOnly');
+                            } catch (error) {
+                                logger.debug(`[Terminal ${terminalId}] Failed to scroll after cols-only resize`, error);
+                            }
                         });
                     }
                 } catch (e) {
@@ -721,7 +737,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             // between terminals while scrolled away from bottom.
             if (shouldForce) {
                 try {
-                    xtermWrapperRef.current?.forceScrollbarRefresh();
                     xtermWrapperRef.current?.refresh();
                 } catch (error) {
                     logger.debug(`[Terminal ${terminalId}] No-op resize refresh failed`, error);
@@ -821,9 +836,17 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             if (isSearchVisible && focusSearchInput()) {
                 return;
             }
+            skipNextFocusCallbackRef.current = true;
             safeTerminalFocusImmediate(() => {
                 terminal.current?.focus();
             }, isAnyModalOpen);
+            if (typeof window !== 'undefined') {
+                requestAnimationFrame(() => {
+                    skipNextFocusCallbackRef.current = false;
+                });
+            } else {
+                skipNextFocusCallbackRef.current = false;
+            }
         },
         showSearch: () => {
             setIsSearchVisible(true);
@@ -1201,53 +1224,56 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         }
         mountedRef.current = true;
         let cancelled = false;
-        // track mounted lifecycle only; no timer-based logic tied to mount time
-        if (!termRef.current) {
-            logger.error(`[Terminal ${terminalId}] No ref available!`);
-            return;
-        }
+        let cleanup: (() => void) | null = null;
 
-        const currentConfig = terminalConfigRef.current;
+        const setup = () => {
+            // track mounted lifecycle only; no timer-based logic tied to mount time
+            if (!termRef.current) {
+                logger.error(`[Terminal ${terminalId}] No ref available!`);
+                return;
+            }
 
-        const initialUiMode = isTuiAgent(agentTypeRef.current) ? 'tui' : 'standard';
-        logger.debug(`[Terminal ${terminalId}] Creating terminal: agentTypeRef.current=${agentTypeRef.current}, initialUiMode=${initialUiMode}`);
-        const { record, isNew } = acquireTerminalInstance(terminalId, () => new XtermTerminal({
-            terminalId,
-            config: currentConfig,
-            uiMode: initialUiMode,
-            onLinkClick: (uri: string) => handleLinkClickRef.current?.(uri) ?? false,
-        }));
+            const currentConfig = terminalConfigRef.current;
 
-        // Always start with hydrated=false and let onRender set it to true
-        // This prevents the flash where CSS shows opacity-100 before xterm renders
-        setHydrated(false);
-        hydratedRef.current = false;
-        if (isNew) {
-            hydratedOnceRef.current = false;
-        }
-        const instance = record.xterm;
-        if (!isNew) {
-            instance.applyConfig(currentConfig);
-        }
-        instance.setUiMode(isTuiAgent(agentTypeRef.current) ? 'tui' : 'standard');
-        instance.setLinkHandler((uri: string) => handleLinkClickRef.current?.(uri) ?? false);
-        instance.setSmoothScrolling(currentConfig.smoothScrolling && isPhysicalWheelRef.current);
-        xtermWrapperRef.current = instance;
+            const initialUiMode = isTuiAgent(agentTypeRef.current) ? 'tui' : 'standard';
+            logger.debug(`[Terminal ${terminalId}] Creating terminal: agentTypeRef.current=${agentTypeRef.current}, initialUiMode=${initialUiMode}`);
+            const { record, isNew } = acquireTerminalInstance(terminalId, () => new XtermTerminal({
+                terminalId,
+                config: currentConfig,
+                uiMode: initialUiMode,
+                onLinkClick: (uri: string) => handleLinkClickRef.current?.(uri) ?? false,
+            }));
 
-        if (fileLinkHandlerRef.current) {
-            instance.setFileLinkHandler(fileLinkHandlerRef.current);
-        }
-        terminal.current = instance.raw;
-        fitAddon.current = instance.fitAddon;
-        searchAddon.current = instance.searchAddon;
-        
-        if (termRef.current) {
-            attachTerminalInstance(terminalId, termRef.current);
-        }
-        logScrollSnapshot('attached');
-        applyLetterSpacingRef.current?.(webglRendererActiveRef.current);
-        // Allow streaming immediately; proper fits will still run later
-        rendererReadyRef.current = true;
+            // Always start with hydrated=false and let onRender set it to true
+            // This prevents the flash where CSS shows opacity-100 before xterm renders
+            setHydrated(false);
+            hydratedRef.current = false;
+            if (isNew) {
+                hydratedOnceRef.current = false;
+            }
+            const instance = record.xterm;
+            if (!isNew) {
+                instance.applyConfig(currentConfig);
+            }
+            instance.setUiMode(isTuiAgent(agentTypeRef.current) ? 'tui' : 'standard');
+            instance.setLinkHandler((uri: string) => handleLinkClickRef.current?.(uri) ?? false);
+            instance.setSmoothScrolling(currentConfig.smoothScrolling && isPhysicalWheelRef.current);
+            xtermWrapperRef.current = instance;
+
+            if (fileLinkHandlerRef.current) {
+                instance.setFileLinkHandler(fileLinkHandlerRef.current);
+            }
+            terminal.current = instance.raw;
+            fitAddon.current = instance.fitAddon;
+            terminalSearchRef.current = new TerminalSearch(instance.raw);
+            
+            if (termRef.current) {
+                attachTerminalInstance(terminalId, termRef.current);
+            }
+            logScrollSnapshot('attached');
+            applyLetterSpacingRef.current?.(webglRendererActiveRef.current);
+            // Allow streaming immediately; proper fits will still run later
+            rendererReadyRef.current = true;
 
         // Ensure proper initial fit after terminal is opened
         // CRITICAL: Wait for container dimensions before fitting - essential for xterm.js 5.x cursor positioning
@@ -1483,29 +1509,51 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         // Terminal streaming is handled by the terminal registry.
         const outputDisposables: IDisposable[] = [];
 
+        const markHydrated = (reason: string) => {
+            if (cancelled || !mountedRef.current) {
+                return;
+            }
+            if (hydratedRef.current) {
+                return;
+            }
+
+            hydratedRef.current = true;
+            setHydrated(true);
+
+            if (!hydratedOnceRef.current) {
+                hydratedOnceRef.current = true;
+                try {
+                    emitUiEvent(UiEvent.TerminalReady, { terminalId });
+                } catch (error) {
+                    logger.debug(`[Terminal ${terminalId}] Failed to emit terminal-ready event`, error);
+                }
+                onReadyRef.current?.();
+            }
+
+            logger.debug(`[Terminal ${terminalId}] Terminal hydrated (${reason})`);
+            logScrollSnapshot(`hydrated:${reason}`);
+        };
+
         if (terminal.current) {
             const renderHandler = (terminal.current as unknown as { onRender?: (cb: () => void) => { dispose?: () => void } | void }).onRender;
             if (typeof renderHandler === 'function') {
                 const disposable = renderHandler.call(terminal.current, () => {
-                    if (!hydratedRef.current) {
-                        hydratedRef.current = true;
-                        setHydrated(true);
-                        if (!hydratedOnceRef.current) {
-                            hydratedOnceRef.current = true;
-                            try {
-                                emitUiEvent(UiEvent.TerminalReady, { terminalId });
-                            } catch (error) {
-                                logger.debug(`[Terminal ${terminalId}] Failed to emit terminal-ready event`, error);
-                            }
-                            onReadyRef.current?.();
-                        }
-                        logScrollSnapshot('onRender:hydrated');
-                    }
+                    markHydrated('onRender');
                 });
                 if (disposable && typeof disposable === 'object' && typeof (disposable as { dispose?: () => void }).dispose === 'function') {
                     outputDisposables.push(disposable as IDisposable);
                 }
             }
+        }
+
+        // ghostty-web exposes `onRender`, but in practice it may not fire (v0.4.0).
+        // Ensure we still show the terminal once the DOM has a chance to attach the canvas/textarea.
+        if (typeof requestAnimationFrame === 'function') {
+            requestAnimationFrame(() => {
+                markHydrated('raf-fallback');
+            });
+        } else {
+            markHydrated('sync-fallback');
         }
 
         // Handle font size changes with better debouncing
@@ -1702,60 +1750,91 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         addEventListener(window, 'terminal-split-drag-end', doFinalFit);
         addEventListener(window, 'right-panel-split-drag-end', doFinalFit);
 
-        // Cleanup - dispose UI but keep terminal process running
-        // Terminal processes will be cleaned up when the app exits
-        return () => {
-            mountedRef.current = false;
-            cancelled = true;
-            rendererReadyRef.current = false;
-            logScrollSnapshot('cleanup:before-detach');
+            // Cleanup - dispose UI but keep terminal process running
+            // Terminal processes will be cleaned up when the app exits
+            return () => {
+                mountedRef.current = false;
+                cancelled = true;
+                rendererReadyRef.current = false;
+                logScrollSnapshot('cleanup:before-detach');
 
-            outputDisposables.forEach(disposable => {
+                outputDisposables.forEach(disposable => {
+                    try {
+                        disposable.dispose();
+                    } catch (error) {
+                        logger.debug(`[Terminal ${terminalId}] output disposable cleanup error:`, error);
+                    }
+                });
+
                 try {
-                    disposable.dispose();
-                } catch (error) {
-                    logger.debug(`[Terminal ${terminalId}] output disposable cleanup error:`, error);
+                    rendererObserver?.disconnect();
+                } catch (e) {
+                    // Already disconnected during initialization, this is expected
+                    logger.debug(`[Terminal ${terminalId}] Renderer observer already disconnected:`, e);
                 }
-            });
+                try { visibilityObserver?.disconnect(); } catch { /* ignore */ }
+
+                cancelGpuRefreshWorkRef.current?.();
+
+                if (onDataDisposableRef.current) {
+                    try {
+                        onDataDisposableRef.current.dispose();
+                    } catch (error) {
+                        logger.debug(`[Terminal ${terminalId}] onData listener cleanup error:`, error);
+                    }
+                    onDataDisposableRef.current = null;
+                }
+
+                if (onScrollDisposableRef.current) {
+                    try {
+                        onScrollDisposableRef.current.dispose();
+                    } catch (error) {
+                        logger.debug(`[Terminal ${terminalId}] onScroll listener cleanup error:`, error);
+                    }
+                    onScrollDisposableRef.current = null;
+                }
+
+                detachTerminalInstance(terminalId);
+                logScrollSnapshot('cleanup:after-detach');
+                xtermWrapperRef.current = null;
+                gpuRenderer.current = null;
+                terminal.current = null;
+                hydratedRef.current = false;
+                hydratedOnceRef.current = false;
+                // Note: We intentionally don't close terminals here to allow switching between sessions
+                // All terminals are cleaned up when the app exits via the backend cleanup handler
+                // useCleanupRegistry handles other cleanup automatically
+            };
+        };
+
+        void (async () => {
+            const initStartedAt = Date.now();
+            try {
+                logger.debug(`[Terminal ${terminalId}] Initializing ghostty-web…`);
+                await XtermTerminal.ensureInitialized();
+                logger.debug(`[Terminal ${terminalId}] ghostty-web init complete (${Date.now() - initStartedAt}ms)`);
+            } catch (error) {
+                logger.error(`[Terminal ${terminalId}] Failed to initialize ghostty-web`, error);
+                emitUiEvent(UiEvent.TerminalInitError, { error: String(error), terminalId });
+                return;
+            }
+
+            if (cancelled) {
+                return;
+            }
 
             try {
-                rendererObserver?.disconnect();
-            } catch (e) {
-                // Already disconnected during initialization, this is expected
-                logger.debug(`[Terminal ${terminalId}] Renderer observer already disconnected:`, e);
+                cleanup = setup() ?? null;
+            } catch (error) {
+                logger.error(`[Terminal ${terminalId}] Failed to set up terminal`, error);
+                emitUiEvent(UiEvent.TerminalInitError, { error: String(error), terminalId });
             }
-            try { visibilityObserver?.disconnect(); } catch { /* ignore */ }
+        })();
 
-            cancelGpuRefreshWorkRef.current?.();
-
-            if (onDataDisposableRef.current) {
-                try {
-                    onDataDisposableRef.current.dispose();
-                } catch (error) {
-                    logger.debug(`[Terminal ${terminalId}] onData listener cleanup error:`, error);
-                }
-                onDataDisposableRef.current = null;
-            }
-
-            if (onScrollDisposableRef.current) {
-                try {
-                    onScrollDisposableRef.current.dispose();
-                } catch (error) {
-                    logger.debug(`[Terminal ${terminalId}] onScroll listener cleanup error:`, error);
-                }
-                onScrollDisposableRef.current = null;
-            }
-
-            detachTerminalInstance(terminalId);
-            logScrollSnapshot('cleanup:after-detach');
-            xtermWrapperRef.current = null;
-            gpuRenderer.current = null;
-            terminal.current = null;
-            hydratedRef.current = false;
-            hydratedOnceRef.current = false;
-            // Note: We intentionally don't close terminals here to allow switching between sessions
-            // All terminals are cleaned up when the app exits via the backend cleanup handler
-            // useCleanupRegistry handles other cleanup automatically
+        return () => {
+            cancelled = true;
+            mountedRef.current = false;
+            cleanup?.();
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refs are stable; isAgentTopTerminal is read at call-time and shouldn't trigger re-init
     }, [
@@ -1811,9 +1890,17 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 logger.info(`[Terminal ${terminalId}] Auto-starting Claude orchestrator at ${new Date().toISOString()}`);
                 await startOrchestratorTop({ terminalId, measured });
                 terminalEverStartedRef.current = true;
+                skipNextFocusCallbackRef.current = true;
                 safeTerminalFocusImmediate(() => {
                     terminal.current?.focus();
                 }, isAnyModalOpen);
+                if (typeof window !== 'undefined') {
+                    requestAnimationFrame(() => {
+                        skipNextFocusCallbackRef.current = false;
+                    });
+                } else {
+                    skipNextFocusCallbackRef.current = false;
+                }
                 setAgentLoading(false);
             } catch (e) {
                 clearTerminalStartState([terminalId]);
@@ -1981,8 +2068,13 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                  setShowScrollBottom(false);
                  return;
              }
-             const distance = buffer.baseY - buffer.viewportY;
-             const shouldShow = distance > 0;
+
+             const getViewportY = (term as unknown as { getViewportY?: () => number }).getViewportY;
+             const viewportY = typeof getViewportY === 'function'
+                 ? getViewportY.call(term)
+                 : ((term as unknown as { viewportY?: number }).viewportY ?? 0);
+             const shouldShow = viewportY > 0;
+
              setShowScrollBottom(prev => {
                  if (prev !== shouldShow) return shouldShow;
                  return prev;
@@ -2025,13 +2117,15 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             suppressNextClickRef.current = false;
             return;
         }
+        if (onTerminalClick) {
+            skipNextFocusCallbackRef.current = true;
+        }
         // Focus the terminal when clicked (modal-safe)
         safeTerminalFocusImmediate(() => {
             terminal.current?.focus()
         }, isAnyModalOpen)
         // Also notify parent about the click to update focus context
         if (onTerminalClick) {
-            skipNextFocusCallbackRef.current = true;
             onTerminalClick()
             if (typeof window !== 'undefined') {
                 requestAnimationFrame(() => {
