@@ -14,9 +14,15 @@ rm -f ./src-tauri/target/release/schaltwerk
 
 # Enable sccache if available for faster Rust builds
 if command -v sccache &> /dev/null; then
-    echo "✨ Using sccache for Rust compilation caching"
-    export RUSTC_WRAPPER=sccache
-    export SCCACHE_DIR=$HOME/.cache/sccache
+    if sccache rustc -vV >/dev/null 2>&1; then
+        echo "✨ Using sccache for Rust compilation caching"
+        export RUSTC_WRAPPER=sccache
+        export SCCACHE_DIR=$HOME/.cache/sccache
+    else
+        echo "⚠️  sccache found but unusable; continuing without it"
+        export RUSTC_WRAPPER=
+        export CARGO_BUILD_RUSTC_WRAPPER=
+    fi
 fi
 
 # Build frontend

@@ -69,8 +69,7 @@ if command -v sccache &> /dev/null; then
     sccache --start-server
     echo "[ok] sccache server started"
     echo ""
-    echo "sccache is configured in .cargo/config.toml"
-    echo "All cargo builds will automatically use sccache"
+    echo "To enable sccache for builds, set: export RUSTC_WRAPPER=sccache"
 else
     echo "[warn] sccache not found - builds will work but won't be cached"
 fi
