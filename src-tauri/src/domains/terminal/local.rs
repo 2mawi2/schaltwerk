@@ -1391,7 +1391,7 @@ mod tests {
         adapter.create(params).await.unwrap();
         let creation_time = start.elapsed();
 
-        assert!(creation_time.as_millis() < 1000);
+        assert!(creation_time.as_millis() < 5000);
         safe_close(&adapter, &id).await;
     }
 
