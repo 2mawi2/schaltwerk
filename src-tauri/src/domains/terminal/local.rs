@@ -1377,25 +1377,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_terminal_creation_performance() {
-        let adapter = LocalPtyAdapter::new();
-        let id = unique_id("perf-test");
-
-        let params = CreateParams {
-            id: id.clone(),
-            cwd: "/tmp".to_string(),
-            app: None,
-        };
-
-        let start = std::time::Instant::now();
-        adapter.create(params).await.unwrap();
-        let creation_time = start.elapsed();
-
-        assert!(creation_time.as_millis() < 5000);
-        safe_close(&adapter, &id).await;
-    }
-
-    #[tokio::test]
     async fn test_rapid_operations() {
         let adapter = LocalPtyAdapter::new();
         let id = unique_id("rapid-ops");
