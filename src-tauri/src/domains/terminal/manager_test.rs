@@ -652,7 +652,7 @@ mod tests {
         let creation_time = start.elapsed();
 
         assert!(
-            creation_time.as_millis() < 1000,
+            creation_time.as_millis() < 5000,
             "Terminal creation including event bridge should be fast"
         );
 

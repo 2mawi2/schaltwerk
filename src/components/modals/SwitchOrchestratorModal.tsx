@@ -121,20 +121,23 @@ export function SwitchOrchestratorModal({
     if (!open) return
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isModelSelectorOpen) {
+        return
+      }
+
       if (e.key === 'Escape') {
         e.preventDefault()
+        e.stopPropagation()
         onClose()
       } else if (e.key === 'Enter') {
-        if (isModelSelectorOpen) {
-          return
-        }
         e.preventDefault()
+        e.stopPropagation()
         switchRef.current()
       }
     }
 
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+    window.addEventListener('keydown', handleKeyDown, true)
+    return () => window.removeEventListener('keydown', handleKeyDown, true)
   }, [open, onClose, isModelSelectorOpen])
 
   if (!open) return null
