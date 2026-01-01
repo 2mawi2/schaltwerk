@@ -376,6 +376,8 @@ function autoStartRunningSessions(
         const uiState = mapSessionUiState(session.info)
         const rawState = session.info.session_state
         const isEligibleRunning = uiState === SessionState.Running && rawState === SessionState.Running
+        const isEligibleReviewed = uiState === SessionState.Reviewed && rawState === SessionState.Reviewed
+        const isEligible = isEligibleRunning || isEligibleReviewed
         const topId = stableSessionTerminalId(sessionId, 'top')
         const pendingEntry = pending.get(sessionId)
 
@@ -418,7 +420,9 @@ function autoStartRunningSessions(
 
                         const latestUiState = mapSessionUiState(latestSession.info)
                         const latestRawState = latestSession.info.session_state
-                        const latestEligible = latestUiState === SessionState.Running && latestRawState === SessionState.Running
+                        const latestEligibleRunning = latestUiState === SessionState.Running && latestRawState === SessionState.Running
+                        const latestEligibleReviewed = latestUiState === SessionState.Reviewed && latestRawState === SessionState.Reviewed
+                        const latestEligible = latestEligibleRunning || latestEligibleReviewed
                         if (!latestEligible) {
                             logger.debug(
                                 `[AGENT_LAUNCH_TRACE] autoStartRunningSessions - skipping ${sessionId}; latest state=${latestRawState} (${reason})`,
@@ -463,8 +467,8 @@ function autoStartRunningSessions(
             })
         }
 
-        if (pendingEntry && !isEligibleRunning) {
-            if (uiState === SessionState.Spec || uiState === SessionState.Reviewed) {
+        if (pendingEntry && !isEligible) {
+            if (uiState === SessionState.Spec) {
                 pending.delete(sessionId)
                 suppressedAutoStart.add(sessionId)
                 pendingChanged = true
@@ -472,7 +476,7 @@ function autoStartRunningSessions(
             continue
         }
 
-        if (pendingEntry && isEligibleRunning) {
+        if (pendingEntry && isEligible) {
             if (isTerminalStartingOrStarted(topId) || hasInflight(topId)) {
                 logger.info(`[AGENT_LAUNCH_TRACE] pending startup skipping ${sessionId}; background mark or inflight present`)
                 pending.delete(sessionId)
@@ -492,7 +496,7 @@ function autoStartRunningSessions(
             continue
         }
 
-        if (!isEligibleRunning) {
+        if (!isEligible) {
             suppressedAutoStart.delete(sessionId)
             continue
         }
