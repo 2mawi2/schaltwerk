@@ -5,7 +5,8 @@
     "types": ["node", "jest"],
     "module": "commonjs",
     "allowJs": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "tsBuildInfoFile": "./node_modules/.cache/tsconfig.test.tsbuildinfo"
   },
   "include": ["src/**/*", "test/**/*"]
 }

@@ -471,15 +471,8 @@ test:
         fi
     fi
 
-    step "Lint: TypeScript"
-    {{pm}} run lint && ok "ESLint passed"
-    {{pm}} run lint:ts && ok "TypeScript passed"
-
-    step "Lint: MCP Server"
-    {{pm}} run lint:mcp && ok "MCP lint passed"
-
-    step "Lint: Rust"
-    {{pm}} run lint:rust && ok "Clippy passed"
+    step "Lint"
+    {{pm}} run lint:all && ok "All lints passed"
 
     step "Dependencies"
     {{pm}} run deps:rust && ok "Cargo shear passed"
