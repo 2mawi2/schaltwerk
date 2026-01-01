@@ -161,6 +161,12 @@ jobs:
       - name: Setup sccache cache
         uses: Mozilla-Actions/sccache-action@v0.0.9
 
+      - name: Enable sccache GHA cache backend
+        if: ${{ !env.ACT }}
+        run: |
+          echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
+          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
