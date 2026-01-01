@@ -1306,4 +1306,30 @@ describe('sessions atoms', () => {
         const expectedBottomId = stableSessionTerminalId('reusable-session', 'bottom')
         expect(clearTerminalStartState).toHaveBeenCalledWith([expectedTopId, expectedBottomId])
     })
+
+    it('auto-starts reviewed sessions just like running sessions', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+        vi.mocked(invoke).mockImplementation(async (cmd) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
+                return [
+                    createSession({ session_id: 'reviewed-session', status: 'active', session_state: SessionState.Reviewed }),
+                ]
+            }
+            if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) {
+                return []
+            }
+            return undefined
+        })
+
+        store.set(projectPathAtom, '/project')
+        await store.set(initializeSessionsEventsActionAtom)
+        await store.set(refreshSessionsActionAtom)
+
+        expect(store.get(allSessionsAtom)).toHaveLength(1)
+        expect(store.get(allSessionsAtom)[0]?.info.session_state).toBe(SessionState.Reviewed)
+
+        await vi.waitFor(() => {
+            expect(startSessionTop).toHaveBeenCalledWith(expect.objectContaining({ sessionName: 'reviewed-session' }))
+        })
+    })
 })
