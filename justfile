@@ -255,9 +255,15 @@ run:
 
     # Enable all available speed optimizations
     if command -v sccache &> /dev/null; then
-        echo "Using sccache for Rust compilation caching"
-        export RUSTC_WRAPPER=sccache
-        export SCCACHE_DIR=$HOME/.cache/sccache
+        if sccache rustc -vV >/dev/null 2>&1; then
+            echo "Using sccache for Rust compilation caching"
+            export RUSTC_WRAPPER=sccache
+            export SCCACHE_DIR=$HOME/.cache/sccache
+        else
+            echo "sccache found but unusable; continuing without it"
+            export RUSTC_WRAPPER=
+            export CARGO_BUILD_RUSTC_WRAPPER=
+        fi
     fi
     
     # Export the port for Vite
@@ -450,6 +456,19 @@ test:
     elif [[ "$OSTYPE" != "darwin"* ]]; then
         echo "Unsupported platform: $OSTYPE (use Linux or macOS)"
         exit 1
+    fi
+
+    if command -v sccache &> /dev/null; then
+        step "Rust: sccache"
+        if sccache rustc -vV >/dev/null 2>&1; then
+            export RUSTC_WRAPPER=sccache
+            export SCCACHE_DIR=$HOME/.cache/sccache
+            ok "sccache enabled"
+        else
+            echo "sccache found but unusable; continuing without it"
+            export RUSTC_WRAPPER=
+            export CARGO_BUILD_RUSTC_WRAPPER=
+        fi
     fi
 
     step "Lint"
